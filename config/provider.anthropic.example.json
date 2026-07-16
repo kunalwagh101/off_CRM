@@ -1,0 +1,8 @@
+{
+  "provider_type": "anthropic",
+  "model": "set-your-model-id",
+  "api_key_env": "ANTHROPIC_API_KEY",
+  "base_url": "https://api.anthropic.com/v1",
+  "timeout_seconds": 60,
+  "extra": {}
+}

@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "id": "initial-client-a",
+      "name": "Future client discovery A",
+      "category": "*",
+      "route": "future_client_discovery",
+      "stage": "initial",
+      "variant_id": "A",
+      "subject_template": "A carbon evidence question",
+      "body_template": "Hi {first_name},\n\nI saw {public_hook}. It made me think about a practical gap for {company}: teams often need to compare carbon-market evidence, trade exposure and supplier claims without turning the first conversation into a sales process.\n\nI am building OffsetX in India to make that handoff clearer and more auditable. Your work in {category} looks close to the decisions we are trying to understand.\n\nWould it be useful if I sent a short note on the workflow we are testing?\n\n{signature}",
+      "tags": ["operator", "interest-first", "public-hook"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned", "method": "transferable principles"}
+    },
+    {
+      "id": "initial-client-b",
+      "name": "Future client discovery B",
+      "category": "*",
+      "route": "future_client_discovery",
+      "stage": "initial",
+      "variant_id": "B",
+      "subject_template": "Evidence behind carbon decisions",
+      "body_template": "Hi {first_name},\n\nYour public update caught my attention: {public_hook}. It points to a problem we keep seeing in {category}: the decision is visible, but the evidence trail and handoff between teams are often much harder to inspect.\n\nI am building OffsetX in India around that operational gap. We are testing a simple way to organise claims, supporting evidence and next actions without asking teams to replace their existing process.\n\nWould a concise example of that workflow be relevant to your work at {company}?\n\n{signature}",
+      "tags": ["operator", "relevance-first", "public-hook"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned", "method": "transferable principles"}
+    },
+    {
+      "id": "initial-expert-a",
+      "name": "Expert validation A",
+      "category": "*",
+      "route": "expert_validation",
+      "stage": "initial",
+      "variant_id": "A",
+      "subject_template": "Pressure-testing an OffsetX assumption",
+      "body_template": "Hi {first_name},\n\nI saw {public_hook}. The signal is useful because work around {category} often gets reduced to broad claims while operators need a clear view of evidence, ownership and failure points.\n\nI am building OffsetX in India to make carbon-market infrastructure easier to inspect. Your perspective at {company} could help us test where our current assumptions are weak before we lock the workflow.\n\nWould you be open to 15 minutes to compare notes on what we may be missing?\n\n{signature}",
+      "tags": ["expert", "pressure-test", "public-hook"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned", "method": "transferable principles"}
+    },
+    {
+      "id": "initial-expert-b",
+      "name": "Expert validation B",
+      "category": "*",
+      "route": "expert_validation",
+      "stage": "initial",
+      "variant_id": "B",
+      "subject_template": "A practical evidence question",
+      "body_template": "Hi {first_name},\n\nI noticed {public_hook}. It connects with an OffsetX assumption about how teams working in {category} separate useful evidence from attractive claims when responsibility moves across organisations.\n\nWe are building the first workflow in India and keeping the assumptions deliberately open. Your experience at {company} looks relevant to the parts we are least willing to guess about, especially where evidence quality and operating reality diverge.\n\nWould you be open to 15 minutes to pressure-test our current view?\n\n{signature}",
+      "tags": ["expert", "question-led", "public-hook"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned", "method": "transferable principles"}
+    },
+    {
+      "id": "followup1-a",
+      "name": "Day 4 pressure test A",
+      "category": "*",
+      "route": "*",
+      "stage": "followup1",
+      "variant_id": "A",
+      "subject_template": "Re: {original_subject}",
+      "body_template": "Hi {first_name},\n\nI wanted to add one specific point to my note about {original_subject}: OffsetX is being designed around traceable evidence and practical handoffs, not generic carbon claims. I am trying to learn where the workflow breaks for teams closest to the decision.\n\nThis is my current understanding. I may be wrong. Would you be open to 15 minutes to pressure-test it?\n\n{signature}",
+      "tags": ["day-4", "pressure-test"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned"}
+    },
+    {
+      "id": "followup1-b",
+      "name": "Day 4 pressure test B",
+      "category": "*",
+      "route": "*",
+      "stage": "followup1",
+      "variant_id": "B",
+      "subject_template": "Re: {original_subject}",
+      "body_template": "Hi {first_name},\n\nOne detail behind my earlier note may be useful. We are treating every carbon claim as an evidence and ownership problem first, then asking what a team can realistically do next. Your work at {company} is close to that boundary.\n\nThis is my current understanding. I may be wrong. Would you be open to 15 minutes to pressure-test it?\n\n{signature}",
+      "tags": ["day-4", "evidence-first"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned"}
+    },
+    {
+      "id": "followup2-a",
+      "name": "Day 10 close A",
+      "category": "*",
+      "route": "*",
+      "stage": "followup2",
+      "variant_id": "A",
+      "subject_template": "Re: {original_subject}",
+      "body_template": "Hi {first_name},\n\nClosing the loop on {original_subject}. I am still mapping which evidence and handoffs matter most before an organisation can act with confidence. If my premise is wrong, that is equally useful to know.\n\nEven a one-line take would help.\n\n{signature}",
+      "tags": ["day-10", "close-loop"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned"}
+    },
+    {
+      "id": "followup2-b",
+      "name": "Day 10 close B",
+      "category": "*",
+      "route": "*",
+      "stage": "followup2",
+      "variant_id": "B",
+      "subject_template": "Re: {original_subject}",
+      "body_template": "Hi {first_name},\n\nI will close this thread after this note. We are deciding which parts of the OffsetX evidence workflow are genuinely useful and which assumptions should be removed. A practitioner view from {company} would be valuable either way.\n\nEven a one-line take would help.\n\n{signature}",
+      "tags": ["day-10", "respectful-close"],
+      "source_ref": "OffsetX owned template library",
+      "provenance": {"rights_basis": "owned"}
+    }
+  ]
+}

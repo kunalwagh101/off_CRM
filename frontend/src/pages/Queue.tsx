@@ -3,7 +3,7 @@ import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatCard, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, stageLabel, useResource } from "../hooks";
-import type { Paginated, QueueItem } from "../types";
+import type { AutomationStatus, Paginated, QueueItem } from "../types";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 type SendResult = {
@@ -23,6 +23,7 @@ export default function Queue() {
     () => campaignId ? api.get<Paginated<QueueItem>>(`/campaigns/${campaignId}/queue`) : Promise.resolve({ items: [], total: 0 }),
     [campaignId]
   );
+  const automation = useResource(() => api.get<AutomationStatus>("/automation"), []);
   const counts = useMemo(() => {
     const items = queue.data?.items ?? [];
     return {
@@ -80,7 +81,7 @@ export default function Queue() {
         eyebrow={activeCampaign?.name}
         title="Send queue"
         description="Reply sync runs first. Daily caps, working-day timing and atomic send claims are enforced in the backend."
-        actions={<><Button tone="secondary" busy={busy === "sync"} onClick={syncReplies}>Sync local replies</Button><Button tone="secondary" busy={busy === "local"} onClick={() => run("local")}>Run local outbox</Button><Button onClick={() => setGmailOpen(true)}>Send with Gmail</Button></>}
+        actions={<><Badge tone={automation.data?.enabled ? "success" : "neutral"}>{automation.data?.enabled ? `Automation on · ${automation.data.mode}` : "Automation paused"}</Badge><Button tone="secondary" busy={busy === "sync"} onClick={syncReplies}>Sync local replies</Button><Button tone="secondary" busy={busy === "local"} onClick={() => run("local")}>Run local outbox</Button><Button onClick={() => setGmailOpen(true)}>Send with Gmail</Button></>}
       />
       <div className="stats-grid compact-stats">
         <StatCard label="Ready now" value={counts.due} detail="approved and due" accent="green" />

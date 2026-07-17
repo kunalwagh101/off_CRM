@@ -4,10 +4,24 @@ import pytest
 
 from offsetx_apollo_builder.outreach.models import ProviderConfig
 from offsetx_apollo_builder.outreach.providers import (
+    FallbackAIProvider,
     ProviderError,
     _validate_http_url,
     create_provider,
 )
+
+
+class _FixedProvider:
+    def __init__(self, value=None, error=None):
+        self.value = value
+        self.error = error
+        self.calls = 0
+
+    def generate(self, **_kwargs):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return self.value
 
 
 class _Response:
@@ -62,3 +76,27 @@ def test_missing_provider_key_fails_before_network_call():
             ),
             environ={},
         )
+
+
+def test_fallback_provider_uses_next_provider_after_outage():
+    failed = _FixedProvider(error=ProviderError("rate limited"))
+    healthy = _FixedProvider(value='{"subject":"Hello","body":"Useful body"}')
+    router = FallbackAIProvider([("primary", failed), ("fallback", healthy)])
+
+    result = router.generate(system_prompt="system", user_prompt="user")
+
+    assert '"schema_version": 1' in result
+    assert failed.calls == 1
+    assert healthy.calls == 1
+    assert router.last_run["selected_profile_id"] == "fallback"
+
+
+def test_fallback_provider_rejects_malformed_output_and_continues():
+    malformed = _FixedProvider(value="not json")
+    healthy = _FixedProvider(value='{"subject":"Valid","body":"Valid body"}')
+    router = FallbackAIProvider([("malformed", malformed), ("healthy", healthy)])
+
+    result = router.generate(system_prompt="system", user_prompt="user")
+
+    assert '"subject": "Valid"' in result
+    assert router.last_run["attempts"][0]["status"] == "failed"

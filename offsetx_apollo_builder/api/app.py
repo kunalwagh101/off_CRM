@@ -10,22 +10,29 @@ from typing import Any, Iterator
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ..locked_categories import LOCKED_CATEGORIES
+from ..outreach.automation import AutomationService
+from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.models import ProviderConfig, ROUTES, utc_now
-from ..outreach.providers import create_provider
+from ..outreach.provider_profiles import ProviderProfileStore
+from ..outreach.providers import ProviderError, create_provider
 from .config import AppSettings
 from .schemas import (
+    AutomationUpdate,
+    BackupExport,
     CampaignCreate,
     CampaignUpdate,
     ContactUpdate,
     DraftApprove,
     DraftEdit,
     DraftGenerate,
+    ProviderHealthRequest,
+    ProviderProfileUpsert,
     ReplySyncRequest,
     SendRequest,
     TemplateImport,
@@ -130,12 +137,28 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.settings = resolved
         app.state.engine = OutreachEngine(resolved.database_path)
         app.state.campaign_locks = CampaignLocks()
-        yield
-        app.state.engine.close()
+        app.state.maintenance_lock = threading.Lock()
+        app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
+        app.state.automation = AutomationService(
+            resolved.data_dir / "automation.json",
+            engine_factory=lambda: OutreachEngine(resolved.database_path),
+            mail_provider_factory=lambda mode, authorized: _mail_provider(
+                resolved,
+                mode,
+                LIVE_SEND_CONFIRMATION if authorized else "",
+            ),
+            own_email_factory=lambda: resolved.own_email,
+        )
+        await app.state.automation.start()
+        try:
+            yield
+        finally:
+            await app.state.automation.stop()
+            app.state.engine.close()
 
     app = FastAPI(
         title="OffsetX Local Outreach CRM",
-        version="0.5.0",
+        version="0.6.0",
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/api/openapi.json",
@@ -185,6 +208,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
+    @app.exception_handler(ProviderError)
+    async def provider_failure(_: Request, exc: ProviderError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
@@ -198,7 +225,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def meta() -> dict[str, Any]:
         return {
             "name": "OffsetX Local Outreach CRM",
-            "version": "0.5.0",
+            "version": "0.6.0",
             "categories": list(LOCKED_CATEGORIES),
             "routes": list(ROUTES),
             "provider_types": [
@@ -229,7 +256,105 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "own_email": settings.own_email,
             "local_outbox": str(settings.data_dir / "mail" / "outbox"),
             "expert_sources": _engine(request).store.expert_source_summary(),
+            "provider_profiles": len(request.app.state.provider_profiles.list()),
+            "automation": request.app.state.automation.status(),
         }
+
+    @app.get(f"{API_PREFIX}/provider-profiles")
+    def provider_profiles(
+        request: Request,
+        owner: str = Query("", max_length=100),
+    ) -> dict[str, Any]:
+        items = request.app.state.provider_profiles.list(owner=owner)
+        return {"items": items, "total": len(items)}
+
+    @app.post(f"{API_PREFIX}/provider-profiles", status_code=201)
+    def save_provider_profile(
+        body: ProviderProfileUpsert, request: Request
+    ) -> dict[str, Any]:
+        payload = body.model_dump(exclude={"api_key"})
+        return request.app.state.provider_profiles.upsert(payload, api_key=body.api_key)
+
+    @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/test")
+    def test_provider_profile(
+        profile_id: str,
+        body: ProviderHealthRequest,
+        request: Request,
+    ) -> dict[str, Any]:
+        result = request.app.state.provider_profiles.health(
+            profile_id, probe=body.live_probe
+        )
+        if result["status"] == "unhealthy":
+            raise HTTPException(status_code=503, detail=result["error"])
+        return result
+
+    @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/delete")
+    def delete_provider_profile(profile_id: str, request: Request) -> dict[str, bool]:
+        request.app.state.provider_profiles.delete(profile_id)
+        return {"deleted": True}
+
+    @app.get(f"{API_PREFIX}/automation")
+    def automation_status(request: Request) -> dict[str, Any]:
+        return request.app.state.automation.status()
+
+    @app.patch(f"{API_PREFIX}/automation")
+    def update_automation(body: AutomationUpdate, request: Request) -> dict[str, Any]:
+        return request.app.state.automation.update(
+            body.model_dump(exclude={"gmail_confirmation"}),
+            gmail_confirmation=body.gmail_confirmation,
+        )
+
+    @app.post(f"{API_PREFIX}/automation/run")
+    def run_automation(request: Request) -> dict[str, Any]:
+        results = request.app.state.automation.run_once()
+        return {"results": results, "total": len(results)}
+
+    @app.post(f"{API_PREFIX}/backups/export")
+    def export_backup(body: BackupExport, request: Request) -> Response:
+        content = create_encrypted_backup(
+            database_path=_settings(request).database_path,
+            data_dir=_settings(request).data_dir,
+            passphrase=body.passphrase,
+        )
+        filename = f"offsetx-backup-{uuid.uuid4().hex[:8]}.oxbackup"
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    @app.post(f"{API_PREFIX}/backups/restore")
+    async def restore_backup(
+        request: Request,
+        file: UploadFile = File(...),
+        passphrase: str = Form(..., min_length=12, max_length=500),
+    ) -> dict[str, Any]:
+        settings = _settings(request)
+        content = await file.read(settings.max_upload_bytes + 1)
+        if len(content) > settings.max_upload_bytes:
+            raise HTTPException(status_code=413, detail="Backup exceeds the upload limit")
+        if not request.app.state.maintenance_lock.acquire(blocking=False):
+            raise HTTPException(status_code=409, detail="Maintenance is already running")
+        automation = request.app.state.automation
+        await automation.stop()
+        current_engine = request.app.state.engine
+        current_engine.close()
+        try:
+            for suffix in ("-wal", "-shm"):
+                Path(str(settings.database_path) + suffix).unlink(missing_ok=True)
+            result = restore_encrypted_backup(
+                content,
+                database_path=settings.database_path,
+                data_dir=settings.data_dir,
+                passphrase=passphrase,
+            )
+            request.app.state.engine = OutreachEngine(settings.database_path)
+            return result
+        finally:
+            if getattr(request.app.state, "engine", None) is current_engine:
+                request.app.state.engine = OutreachEngine(settings.database_path)
+            await automation.start()
+            request.app.state.maintenance_lock.release()
 
     @app.get(f"{API_PREFIX}/campaigns")
     def campaigns(
@@ -345,7 +470,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         def operation() -> dict[str, Any]:
             provider = None
-            if body.provider:
+            if body.use_provider_fallback:
+                if body.provider:
+                    raise ValueError(
+                        "Choose either a direct provider or the configured fallback chain"
+                    )
+                provider = request.app.state.provider_profiles.router(
+                    owner=body.provider_owner,
+                    profile_ids=body.provider_profile_ids,
+                )
+            elif body.provider:
                 provider = create_provider(ProviderConfig(**body.provider.model_dump()))
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(

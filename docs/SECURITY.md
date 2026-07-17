@@ -6,6 +6,7 @@
 - Refuses non-loopback binding without a strong local API token.
 - Reads AI and Gmail secrets from local environment or protected token files.
 - Never stores AI API keys in SQLite.
+- Encrypts locally managed provider keys with a dedicated master key restricted to the current user.
 - Uses Gmail OAuth PKCE with a loopback callback and refresh-token storage permissions.
 - Requires exact confirmation before live Gmail sending.
 - Uses a safe local outbox by default.
@@ -20,6 +21,8 @@
 - Escapes formula-like fields in CSV and XLSX exports.
 - Sends CSP, frame, referrer, cache and MIME security headers.
 - Records campaign events and provider identifiers for audit.
+- Encrypts exported backups with a user passphrase and verifies SQLite integrity before restore.
+- Keeps scheduled Gmail sending disabled until the operator enters the exact activation phrase.
 
 ## Secrets
 
@@ -31,6 +34,9 @@ Never commit:
 - provider API keys
 - local CRM databases
 - local mail folders
+- `.provider_master.key`
+- `provider_secrets.enc`
+- encrypted backup passphrases
 
 These paths are covered by `.gitignore`, but operators must still verify release archives.
 

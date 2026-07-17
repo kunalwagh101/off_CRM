@@ -1,6 +1,5 @@
 # OffsetX Local Outreach CRM
-
-Version 0.5 combines the existing Apollo POI builder with a local-first outreach CRM, a strict email expert, a FastAPI backend and a responsive React control centre.
+Version 0.6 combines the existing Apollo POI builder with a local-first outreach CRM, a strict email expert, provider failover, safe automation, encrypted local backups, a FastAPI backend and a responsive React control centre.
 
 ## What is included
 
@@ -13,6 +12,10 @@ Version 0.5 combines the existing Apollo POI builder with a local-first outreach
 - Safe local outbox by default
 - Gmail OAuth with explicit live-send confirmation
 - Provider-neutral AI adapters for OpenAI, Anthropic, compatible APIs and the future template application
+- Priority-ordered AI failover with normalized output and provider health tests
+- Encrypted local provider profiles and API keys
+- Reply-first automation with hard daily limits and a disabled-by-default Gmail gate
+- Passphrase-encrypted local backup and restore
 - Local SQLite storage with no OffsetX server between the user and their providers
 - Expert-source retrieval with source and rights provenance
 
@@ -70,7 +73,7 @@ A sendable first touch requires:
 
 ## AI provider portability
 
-API keys are never stored in the database. Provider configuration contains only the provider type, model, base URL and the name of a local environment variable.
+API keys are never stored in the database. They can remain in environment variables or be stored in an encrypted local provider vault. The Settings page can manage a priority-ordered provider chain, test each provider and automatically fail over when a provider is unavailable or returns malformed output.
 
 Examples are in `config/`.
 
@@ -112,7 +115,7 @@ npm run build
 Release result:
 
 ```text
-38 Python tests passed
+45 Python tests passed
 2 frontend tests passed
 production frontend build passed
 ```
@@ -152,7 +155,7 @@ See `docs/EXISTING_POI_ENRICHMENT.md` for the full legacy workflow.
 
 ## Documentation
 
-- `docs/SYSTEM_ARCHITECTURE_V05.md`
+- `docs/SYSTEM_ARCHITECTURE_V06.md`
 - `docs/WEB_CRM.md`
 - `docs/TEMPLATE_INTELLIGENCE_CONTRACT.md`
 - `docs/SECURITY.md`

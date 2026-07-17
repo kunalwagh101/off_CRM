@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,105 @@ from .models import AIProvider, ProviderConfig
 
 class ProviderError(RuntimeError):
     pass
+
+
+class ProviderUnavailableError(ProviderError):
+    """Raised when every configured provider is unavailable or invalid."""
+
+
+def normalize_generation_output(value: str | dict[str, Any]) -> str:
+    """Return the provider-independent subject/body JSON contract."""
+    if isinstance(value, dict):
+        payload = value
+    else:
+        text = str(value).strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            start, end = text.find("{"), text.rfind("}")
+            if start < 0 or end <= start:
+                raise ProviderError("AI provider output must contain a JSON object")
+            try:
+                payload = json.loads(text[start : end + 1])
+            except json.JSONDecodeError as exc:
+                raise ProviderError("AI provider returned malformed JSON") from exc
+    if not isinstance(payload, dict):
+        raise ProviderError("AI provider output must be a JSON object")
+    if isinstance(payload.get("text"), str):
+        return normalize_generation_output(str(payload["text"]))
+    subject = payload.get("subject")
+    body = payload.get("body")
+    if not isinstance(subject, str) or not subject.strip():
+        raise ProviderError("AI provider output requires a non-empty subject")
+    if not isinstance(body, str) or not body.strip():
+        raise ProviderError("AI provider output requires a non-empty body")
+    return json.dumps(
+        {"schema_version": 1, "subject": subject.strip(), "body": body.strip()},
+        ensure_ascii=False,
+    )
+
+
+class FallbackAIProvider:
+    """Priority-ordered provider chain with output validation and a small circuit breaker."""
+
+    def __init__(
+        self,
+        providers: list[tuple[str, AIProvider]],
+        *,
+        failure_threshold: int = 2,
+        cooldown_seconds: int = 60,
+    ):
+        if not providers:
+            raise ProviderUnavailableError("No enabled AI provider profiles are configured")
+        self.providers = providers
+        self.failure_threshold = max(1, failure_threshold)
+        self.cooldown_seconds = max(1, cooldown_seconds)
+        self._failures: dict[str, int] = {}
+        self._open_until: dict[str, float] = {}
+        self._lock = threading.Lock()
+        self.last_run: dict[str, Any] = {}
+
+    def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+        attempts: list[dict[str, str]] = []
+        now = time.monotonic()
+        for profile_id, provider in self.providers:
+            with self._lock:
+                open_until = self._open_until.get(profile_id, 0.0)
+            if open_until > now:
+                attempts.append({"profile_id": profile_id, "status": "circuit_open"})
+                continue
+            try:
+                output = normalize_generation_output(
+                    provider.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+                )
+            except Exception as exc:
+                with self._lock:
+                    failures = self._failures.get(profile_id, 0) + 1
+                    self._failures[profile_id] = failures
+                    if failures >= self.failure_threshold:
+                        self._open_until[profile_id] = time.monotonic() + self.cooldown_seconds
+                attempts.append(
+                    {"profile_id": profile_id, "status": "failed", "error": str(exc)[:500]}
+                )
+                continue
+            with self._lock:
+                self._failures[profile_id] = 0
+                self._open_until.pop(profile_id, None)
+            attempts.append({"profile_id": profile_id, "status": "used"})
+            self.last_run = {"selected_profile_id": profile_id, "attempts": attempts}
+            return output
+        self.last_run = {"selected_profile_id": "", "attempts": attempts}
+        details = "; ".join(
+            f"{item['profile_id']}: {item.get('error', item['status'])}" for item in attempts
+        )
+        raise ProviderUnavailableError(f"All AI providers failed. {details}".strip())
 
 
 def load_provider_config(path: Path | str) -> ProviderConfig:

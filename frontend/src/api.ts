@@ -85,6 +85,25 @@ export const api = {
     link.download = match?.[1] ?? fallbackName;
     link.click();
     URL.revokeObjectURL(link.href);
+  },
+  async postDownload(path: string, body: unknown, fallbackName: string): Promise<void> {
+    const response = await fetch(`${API_ROOT}${path}`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      await parseResponse<never>(response);
+      return;
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = match?.[1] ?? fallbackName;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 };
 

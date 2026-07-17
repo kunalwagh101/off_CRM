@@ -267,6 +267,9 @@ class OutreachEngine:
                             }
                         )
             result = {"generated": generated, "blocked": blocked, "failures": failures}
+            provider_audit = getattr(provider, "last_run", None)
+            if provider_audit:
+                result["provider_audit"] = provider_audit
             self.store.add_event(campaign_id, "drafts_generated", result)
             return result
 

@@ -69,6 +69,9 @@ class DraftGenerate(StrictModel):
     campaign_contact_ids: list[str] = Field(default_factory=list, max_length=5000)
     stages: list[str] = Field(default_factory=lambda: list(MESSAGE_STAGES), min_length=1)
     provider: ProviderSpec | None = None
+    use_provider_fallback: bool = False
+    provider_profile_ids: list[str] = Field(default_factory=list, max_length=20)
+    provider_owner: str = Field(default="", max_length=100)
 
     @field_validator("stages")
     @classmethod
@@ -98,6 +101,43 @@ class SendRequest(StrictModel):
 
 class ReplySyncRequest(StrictModel):
     mode: Literal["local", "gmail"] = "local"
+
+
+class ProviderProfileUpsert(StrictModel):
+    id: str = Field(default="", max_length=80)
+    owner: str = Field(default="default", min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=120)
+    provider_type: Literal[
+        "openai",
+        "anthropic",
+        "openai_compatible",
+        "template_engine_http",
+    ]
+    model: str = Field(default="", max_length=200)
+    api_key_env: str = Field(default="", pattern=r"^[A-Z][A-Z0-9_]*$|^$")
+    api_key: str = Field(default="", max_length=10000)
+    base_url: str = Field(default="", max_length=1000)
+    timeout_seconds: int = Field(default=60, ge=5, le=300)
+    priority: int = Field(default=100, ge=1, le=1000)
+    enabled: bool = True
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderHealthRequest(StrictModel):
+    live_probe: bool = False
+
+
+class AutomationUpdate(StrictModel):
+    enabled: bool
+    mode: Literal["local", "gmail"] = "local"
+    interval_seconds: int = Field(default=300, ge=60, le=86400)
+    max_messages_per_campaign: int = Field(default=25, ge=1, le=500)
+    sync_replies_first: bool = True
+    gmail_confirmation: str = Field(default="", max_length=100)
+
+
+class BackupExport(StrictModel):
+    passphrase: str = Field(min_length=12, max_length=500)
 
 
 class TemplateImport(StrictModel):

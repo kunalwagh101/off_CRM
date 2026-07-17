@@ -21,7 +21,19 @@ Open `http://127.0.0.1:8766`.
 - Draft review: generate, audit, edit and approve
 - Send queue: local outbox, Gmail send and reply sync
 - Experiments: first-touch reply rates by variant
-- Settings: local paths, provider boundary, expert sources and exports
+- Settings: provider profiles, automatic failover, automation, encrypted backups, local paths, expert sources and exports
+
+## Safe automation
+
+Automation is disabled by default. It always syncs replies before claiming a send, respects campaign schedules and daily limits, and stops remaining follow-ups after a reply. Local-outbox automation can be enabled directly. Persistent Gmail automation also requires the exact phrase `ENABLE AUTOMATED GMAIL`.
+
+## Provider failover
+
+Add provider profiles in Settings and assign a priority. Draft generation tries healthy providers in order and records which provider completed the request. OpenAI, Anthropic, OpenAI-compatible, future template-app HTTP and local-command profiles use one normalized output contract.
+
+## Backup and restore
+
+Settings can export a passphrase-encrypted `.oxbackup` containing the CRM database, provider profiles, encrypted provider keys and automation settings. Gmail OAuth tokens and generated mail files are intentionally excluded. Restore creates a safety copy before replacing local state.
 
 ## Local development
 

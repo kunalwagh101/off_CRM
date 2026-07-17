@@ -3,7 +3,7 @@ import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, Progress, StatePanel } from "../components";
 import { useApp } from "../context";
 import { stageLabel, useResource } from "../hooks";
-import type { Draft, Paginated } from "../types";
+import type { Draft, Paginated, ProviderProfile } from "../types";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 export default function Drafts() {
@@ -24,16 +24,24 @@ export default function Drafts() {
         : Promise.resolve({ items: [], total: 0 }),
     [campaignId, stage, approval]
   );
+  const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles"), []);
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
   if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /></>;
 
-  async function generate(provider: Record<string, unknown> | null = null) {
+  async function generate(provider: Record<string, unknown> | null = null, useFallback = false) {
     setBusy("generate");
     try {
       const result = await api.post<{ generated: number; blocked: number; failures: unknown[] }>(
         `/campaigns/${campaignId}/drafts/generate`,
-        { campaign_contact_ids: [], stages: ["initial", "followup1", "followup2"], provider },
+        {
+          campaign_contact_ids: [],
+          stages: ["initial", "followup1", "followup2"],
+          provider,
+          use_provider_fallback: useFallback,
+          provider_profile_ids: [],
+          provider_owner: ""
+        },
         idempotencyKey("drafts")
       );
       notify(`${result.generated} drafts generated, ${result.blocked} blocked by audit`, result.blocked ? "info" : "success");
@@ -52,6 +60,10 @@ export default function Drafts() {
     const data = new FormData(event.currentTarget);
     if (providerType === "local") {
       void generate(null);
+      return;
+    }
+    if (providerType === "fallback") {
+      void generate(null, true);
       return;
     }
     void generate({
@@ -163,19 +175,21 @@ export default function Drafts() {
           <Field label="Generation mode">
             <select value={providerType} onChange={(event) => setProviderType(event.target.value)}>
               <option value="local">Local templates only</option>
+              <option value="fallback" disabled={!profiles.data?.total}>Automatic fallback chain ({profiles.data?.total ?? 0})</option>
               <option value="openai">OpenAI Responses</option>
               <option value="anthropic">Anthropic Messages</option>
               <option value="openai_compatible">Compatible provider</option>
               <option value="template_engine_http">Separate template application</option>
             </select>
           </Field>
-          {providerType !== "local" ? (
+          {!['local', 'fallback'].includes(providerType) ? (
             <>
               {providerType !== "template_engine_http" ? <Field label="Model ID"><input name="model" required placeholder="Provider model ID" /></Field> : <input type="hidden" name="model" value="" />}
               <Field label="API key environment variable" hint="Only the variable name is sent. The secret stays in the backend environment."><input key={providerType} name="api_key_env" defaultValue={providerType === "openai" ? "OPENAI_API_KEY" : providerType === "anthropic" ? "ANTHROPIC_API_KEY" : providerType === "template_engine_http" ? "TEMPLATE_ENGINE_API_KEY" : "AI_PROVIDER_API_KEY"} /></Field>
               <Field label="Base URL" hint={providerType === "openai" || providerType === "anthropic" ? "Optional. Leave blank for the official provider endpoint." : "Loopback HTTP or HTTPS only."}><input name="base_url" type="url" required={providerType === "openai_compatible" || providerType === "template_engine_http"} placeholder={providerType === "template_engine_http" ? "http://127.0.0.1:8090" : providerType === "openai_compatible" ? "http://127.0.0.1:8080/v1" : "Official endpoint"} /></Field>
             </>
           ) : null}
+          {providerType === "fallback" ? <div className="form-note success-note"><strong>Provider-independent mode</strong><span>The CRM tries configured providers in priority order and automatically skips outages, rate limits and malformed responses.</span></div> : null}
           <div className="form-note"><strong>Human review remains mandatory.</strong><span>Generated output is re-audited. Missing sources, invented fields and unsafe language stay blocked.</span></div>
           <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setGenerationOpen(false)}>Cancel</Button><Button type="submit" busy={busy === "generate"}>Generate drafts</Button></div>
         </form>

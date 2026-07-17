@@ -102,4 +102,34 @@ export type SettingsStatus = {
   own_email: string;
   local_outbox: string;
   expert_sources: Record<string, number>;
+  provider_profiles: number;
+  automation: AutomationStatus;
+};
+
+export type ProviderProfile = {
+  id: string;
+  owner: string;
+  name: string;
+  provider_type: "openai" | "anthropic" | "openai_compatible" | "template_engine_http" | "local_command";
+  model: string;
+  api_key_env: string;
+  base_url: string;
+  timeout_seconds: number;
+  priority: number;
+  enabled: boolean;
+  has_stored_secret: boolean;
+  credential_source: "encrypted_local" | "environment" | "none";
+};
+
+export type AutomationStatus = {
+  enabled: boolean;
+  mode: "local" | "gmail";
+  interval_seconds: number;
+  max_messages_per_campaign: number;
+  sync_replies_first: boolean;
+  gmail_live_authorized: boolean;
+  running: boolean;
+  last_run_at: string;
+  last_error: string;
+  last_results: Array<Record<string, unknown>>;
 };

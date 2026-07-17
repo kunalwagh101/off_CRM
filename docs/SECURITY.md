@@ -23,6 +23,8 @@
 - Records campaign events and provider identifiers for audit.
 - Encrypts exported backups with a user passphrase and verifies SQLite integrity before restore.
 - Keeps scheduled Gmail sending disabled until the operator enters the exact activation phrase.
+- Supports a single-user demo login with constant-time credential checks, throttled failures and a signed, secure, HTTP-only, SameSite session cookie.
+- Protects API documentation behind the configured login and adds HSTS and restrictive browser permission headers for non-loopback deployments.
 
 ## Secrets
 
@@ -42,7 +44,9 @@ These paths are covered by `.gitignore`, but operators must still verify release
 
 ## Known deployment boundary
 
-This release is a single-user local application. It is not a multi-tenant hosted service. Do not expose it directly to the public internet.
+This release remains a single-user application. The Render configuration is only for a disposable, password-protected demonstration with synthetic data and local outbox mode. It is not a multi-tenant hosted service.
+
+Do not upload Gmail tokens, personal contacts, private expert material or live provider credentials to the free demo. The current Gmail OAuth flow is designed for a local desktop callback, not hosted authorization.
 
 If remote team access is later required, add authenticated tenancy, encrypted secret storage, a durable job queue, PostgreSQL and an audited deployment boundary before exposing the API.
 

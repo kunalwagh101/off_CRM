@@ -31,6 +31,7 @@ def test_complete_api_workflow_uses_local_outbox_by_default(tmp_path):
         health = client.get("/health/ready")
         assert health.status_code == 200
         assert health.headers["x-content-type-options"] == "nosniff"
+        assert health.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
         assert "default-src 'self'" in health.headers["content-security-policy"]
 
         created = client.post(
@@ -174,7 +175,7 @@ def test_expert_source_requires_declared_rights_basis(tmp_path):
 def test_non_loopback_binding_requires_strong_token(tmp_path):
     settings = _settings(tmp_path, token="short")
     settings.host = "0.0.0.0"
-    with pytest.raises(ValueError, match="non-loopback"):
+    with pytest.raises(ValueError, match="at least 32 characters"):
         settings.validate()
 
 

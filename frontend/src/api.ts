@@ -1,5 +1,6 @@
 const API_ROOT = "/api/v1";
 const TOKEN_KEY = "offsetx-api-token";
+export const AUTH_REQUIRED_EVENT = "offsetx-auth-required";
 
 export class ApiError extends Error {
   status: number;
@@ -29,6 +30,7 @@ function headers(extra?: HeadersInit): Headers {
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
     let message = `${response.status} ${response.statusText}`;
     try {
       const payload = (await response.json()) as { detail?: string | Array<{ msg: string }> };
@@ -44,7 +46,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export const api = {
   async get<T>(path: string): Promise<T> {
-    return parseResponse<T>(await fetch(`${API_ROOT}${path}`, { headers: headers() }));
+    return parseResponse<T>(await fetch(`${API_ROOT}${path}`, { headers: headers(), credentials: "include" }));
   },
   async post<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
     const requestHeaders = headers({ "Content-Type": "application/json" });
@@ -53,6 +55,7 @@ export const api = {
       await fetch(`${API_ROOT}${path}`, {
         method: "POST",
         headers: requestHeaders,
+        credentials: "include",
         body: JSON.stringify(body)
       })
     );
@@ -62,17 +65,18 @@ export const api = {
       await fetch(`${API_ROOT}${path}`, {
         method: "PATCH",
         headers: headers({ "Content-Type": "application/json" }),
+        credentials: "include",
         body: JSON.stringify(body)
       })
     );
   },
   async upload<T>(path: string, form: FormData): Promise<T> {
     return parseResponse<T>(
-      await fetch(`${API_ROOT}${path}`, { method: "POST", headers: headers(), body: form })
+      await fetch(`${API_ROOT}${path}`, { method: "POST", headers: headers(), credentials: "include", body: form })
     );
   },
   async download(path: string, fallbackName: string): Promise<void> {
-    const response = await fetch(`${API_ROOT}${path}`, { headers: headers() });
+    const response = await fetch(`${API_ROOT}${path}`, { headers: headers(), credentials: "include" });
     if (!response.ok) {
       await parseResponse<never>(response);
       return;
@@ -90,6 +94,7 @@ export const api = {
     const response = await fetch(`${API_ROOT}${path}`, {
       method: "POST",
       headers: headers({ "Content-Type": "application/json" }),
+      credentials: "include",
       body: JSON.stringify(body)
     });
     if (!response.ok) {

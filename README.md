@@ -1,5 +1,5 @@
 # OffsetX Local Outreach CRM
-Version 0.6 combines the existing Apollo POI builder with a local-first outreach CRM, a strict email expert, provider failover, safe automation, encrypted local backups, a FastAPI backend and a responsive React control centre.
+Version 0.7 adds a protected single-user demo deployment while retaining the existing local-first outreach CRM, strict email expert, provider failover, safe automation, encrypted local backups, FastAPI backend and responsive React control centre.
 
 ## What is included
 
@@ -18,6 +18,8 @@ Version 0.6 combines the existing Apollo POI builder with a local-first outreach
 - Passphrase-encrypted local backup and restore
 - Local SQLite storage with no OffsetX server between the user and their providers
 - Expert-source retrieval with source and rights provenance
+- Temporary demo login with signed, secure, HTTP-only sessions and login throttling
+- Render Blueprint configuration and automatic `PORT` support
 
 The old Apollo workflows remain intact. Outreach does not use the legacy team-assignment engine.
 
@@ -44,6 +46,21 @@ uv run python run_offsetx_web.py
 Open `http://127.0.0.1:8766`.
 
 The API reference is at `http://127.0.0.1:8766/api/docs`.
+
+## Render demo
+
+The checked-in `render.yaml` defines a free Docker web service in Singapore. A manual Render setup needs these private environment variables:
+
+```env
+OFFSETX_DEMO_USERNAME=choose-a-demo-username
+OFFSETX_DEMO_PASSWORD=choose-at-least-12-characters
+OFFSETX_SESSION_SECRET=generate-at-least-32-random-characters
+OFFSETX_SESSION_HOURS=8
+```
+
+`OFFSETX_WEB_HOST=0.0.0.0` is already set by the Docker image. Render supplies `PORT` automatically. Do not add Gmail or AI keys for a basic UI demo.
+
+The free Render filesystem is temporary. SQLite data, outbox files and configuration can disappear after a restart or redeploy. Use the Render service only for disposable demonstration data.
 
 ## First outreach workflow
 
@@ -103,6 +120,8 @@ uv run python run_offsetx_outreach.py gmail-authorize
 
 Gmail live send requires the exact confirmation `SEND LIVE EMAILS` in the UI or CLI.
 
+The current Gmail authorization is a local desktop OAuth flow. Do not upload a personal Gmail token to the free Render demo. A hosted Gmail connection requires a separate web OAuth callback and durable encrypted credential storage.
+
 ## Tests
 
 ```powershell
@@ -115,8 +134,8 @@ npm run build
 Release result:
 
 ```text
-45 Python tests passed
-2 frontend tests passed
+49 Python tests passed
+3 frontend tests passed
 production frontend build passed
 ```
 

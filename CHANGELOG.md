@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- Added a temporary single-user CRM login with signed HTTP-only sessions and login throttling.
+- Added Render Blueprint configuration, automatic `PORT` handling, and a readiness health check.
+- Added a dedicated responsive login screen and logout control.
+- Documented disposable Render data and the hosted Gmail OAuth boundary.
+
 ## 0.6.0
 
 - Added encrypted local AI provider profiles and secret storage.

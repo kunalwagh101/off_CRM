@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: off-crm-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      - key: OFFSETX_WEB_HOST
+        value: 0.0.0.0
+      - key: OFFSETX_DEMO_USERNAME
+        sync: false
+      - key: OFFSETX_DEMO_PASSWORD
+        sync: false
+      - key: OFFSETX_SESSION_SECRET
+        generateValue: true
+      - key: OFFSETX_SESSION_HOURS
+        value: 8

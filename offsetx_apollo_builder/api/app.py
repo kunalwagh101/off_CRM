@@ -21,6 +21,7 @@ from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.models import ProviderConfig, ROUTES, utc_now
 from ..outreach.provider_profiles import ProviderProfileStore
 from ..outreach.providers import ProviderError, create_provider
+from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
 from .schemas import (
     AutomationUpdate,
@@ -31,6 +32,7 @@ from .schemas import (
     DraftApprove,
     DraftEdit,
     DraftGenerate,
+    DemoLogin,
     ProviderHealthRequest,
     ProviderProfileUpsert,
     ReplySyncRequest,
@@ -130,6 +132,41 @@ def _idempotent(
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved = settings or AppSettings.from_env()
     resolved.validate()
+    session_auth = DemoSessionAuth(
+        username=resolved.demo_username,
+        password=resolved.demo_password,
+        session_secret=resolved.session_secret,
+        session_hours=resolved.session_hours,
+    )
+    login_limiter = LoginAttemptLimiter()
+    loopback = resolved.host in {"127.0.0.1", "localhost", "::1"}
+
+    def valid_api_token(request: Request) -> bool:
+        if not resolved.api_token:
+            return False
+        authorization = request.headers.get("authorization", "")
+        supplied = request.headers.get("x-offsetx-token", "")
+        if authorization.lower().startswith("bearer "):
+            supplied = authorization[7:].strip()
+        return hmac.compare_digest(supplied, resolved.api_token)
+
+    def session_identity(request: Request):
+        return session_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
+
+    def security_headers(response: Response) -> Response:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if not loopback:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "connect-src 'self' http://127.0.0.1:8766 http://localhost:8766; "
+            "img-src 'self' data:; font-src 'self'"
+        )
+        return response
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -158,7 +195,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="OffsetX Local Outreach CRM",
-        version="0.6.0",
+        version="0.7.0",
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/api/openapi.json",
@@ -172,33 +209,29 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "http://127.0.0.1:8766",
             "http://localhost:8766",
         ],
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-OffsetX-Token"],
     )
 
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any):
-        if resolved.api_token and request.url.path.startswith("/api/") and request.url.path not in {
-            "/api/v1/meta", "/api/openapi.json", "/api/docs"
-        }:
-            authorization = request.headers.get("authorization", "")
-            supplied = request.headers.get("x-offsetx-token", "")
-            if authorization.lower().startswith("bearer "):
-                supplied = authorization[7:].strip()
-            if not hmac.compare_digest(supplied, resolved.api_token):
-                return JSONResponse(status_code=401, content={"detail": "Local API token required"})
-        response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "connect-src 'self' http://127.0.0.1:8766 http://localhost:8766; "
-            "img-src 'self' data:; font-src 'self'"
+        public_paths = {
+            f"{API_PREFIX}/meta",
+            f"{API_PREFIX}/auth/session",
+            f"{API_PREFIX}/auth/login",
+            f"{API_PREFIX}/auth/logout",
+        }
+        protected = (
+            request.url.path.startswith("/api/")
+            and request.url.path not in public_paths
+            and (bool(resolved.api_token) or session_auth.enabled)
         )
-        return response
+        if protected and not (valid_api_token(request) or session_identity(request)):
+            return security_headers(
+                JSONResponse(status_code=401, content={"detail": "CRM login required"})
+            )
+        return security_headers(await call_next(request))
 
     @app.exception_handler(KeyError)
     async def not_found(_: Request, exc: KeyError) -> JSONResponse:
@@ -225,7 +258,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def meta() -> dict[str, Any]:
         return {
             "name": "OffsetX Local Outreach CRM",
-            "version": "0.6.0",
+            "version": "0.7.0",
             "categories": list(LOCKED_CATEGORIES),
             "routes": list(ROUTES),
             "provider_types": [
@@ -234,6 +267,58 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "mail_modes": ["local", "gmail"],
             "live_send_confirmation": LIVE_SEND_CONFIRMATION,
         }
+
+    @app.get(f"{API_PREFIX}/auth/session")
+    def auth_session(request: Request) -> dict[str, Any]:
+        identity = session_identity(request)
+        token_authenticated = valid_api_token(request)
+        return {
+            "configured": session_auth.enabled,
+            "authenticated": not session_auth.enabled or bool(identity) or token_authenticated,
+            "username": identity.username if identity else "",
+            "expires_at": identity.expires_at if identity else None,
+        }
+
+    @app.post(f"{API_PREFIX}/auth/login")
+    def auth_login(body: DemoLogin, request: Request) -> Response:
+        if not session_auth.enabled:
+            raise HTTPException(status_code=404, detail="Demo login is not configured")
+        client_key = request.client.host if request.client else "unknown"
+        if not login_limiter.allowed(client_key):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many login attempts. Try again in five minutes."},
+                headers={"Retry-After": "300"},
+            )
+        if not session_auth.authenticate(body.username, body.password):
+            login_limiter.failed(client_key)
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        login_limiter.clear(client_key)
+        response = JSONResponse(
+            content={"authenticated": True, "username": resolved.demo_username}
+        )
+        response.set_cookie(
+            SESSION_COOKIE,
+            session_auth.issue(),
+            max_age=session_auth.session_seconds,
+            httponly=True,
+            secure=not loopback,
+            samesite="strict",
+            path="/",
+        )
+        return response
+
+    @app.post(f"{API_PREFIX}/auth/logout")
+    def auth_logout() -> Response:
+        response = JSONResponse(content={"authenticated": False})
+        response.delete_cookie(
+            SESSION_COOKIE,
+            httponly=True,
+            secure=not loopback,
+            samesite="strict",
+            path="/",
+        )
+        return response
 
     @app.get(f"{API_PREFIX}/dashboard")
     def dashboard(request: Request) -> dict[str, Any]:

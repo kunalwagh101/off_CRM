@@ -11,6 +11,11 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class DemoLogin(StrictModel):
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=500)
+
+
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     daily_send_limit: int = Field(default=25, ge=1, le=500)

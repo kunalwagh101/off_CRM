@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, getToken, setToken } from "./api";
+import { api, AUTH_REQUIRED_EVENT, getToken, setToken } from "./api";
 import { Button, Field, Modal } from "./components";
 import { AppContext } from "./context";
 import { useResource } from "./hooks";
@@ -10,7 +10,7 @@ import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
 import Experiments from "./pages/Experiments";
 import Settings from "./pages/Settings";
-import type { Campaign, Paginated } from "./types";
+import type { AuthSession, Campaign, Paginated } from "./types";
 
 const CAMPAIGN_KEY = "offsetx-active-campaign";
 const pages = {
@@ -39,7 +39,48 @@ function currentPage(): Page {
   return value in pages ? value : "dashboard";
 }
 
-export default function App() {
+export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const result = await api.post<{ authenticated: boolean; username: string }>("/auth/login", {
+        username: String(data.get("username") ?? ""),
+        password: String(data.get("password") ?? "")
+      });
+      onLogin({ configured: true, authenticated: result.authenticated, username: result.username, expires_at: null });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Login failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="login-shell">
+      <section className="login-card" aria-labelledby="login-title">
+        <div className="login-brand"><span className="brand-symbol">OX</span><span><strong>OffsetX</strong><small>Outreach OS</small></span></div>
+        <p className="eyebrow">Protected demo</p>
+        <h1 id="login-title">Sign in to the CRM</h1>
+        <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
+        <form className="form-stack" onSubmit={submit}>
+          <Field label="Username"><input name="username" autoComplete="username" required autoFocus /></Field>
+          <Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>
+          {error ? <p className="login-error" role="alert">{error}</p> : null}
+          <Button type="submit" busy={busy}>Sign in</Button>
+        </form>
+        <p className="login-safety">Demo mode uses the local outbox. Gmail is not required.</p>
+      </section>
+    </main>
+  );
+}
+
+function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
   const [page, setPage] = useState<Page>(currentPage());
   const [campaignId, setCampaignId] = useState(localStorage.getItem(CAMPAIGN_KEY) ?? "");
   const [tokenOpen, setTokenOpen] = useState(false);
@@ -137,7 +178,8 @@ export default function App() {
             </div>
             <div className="topbar-actions">
               {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
-              <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>
+              {auth.configured ? <span className="session-user">{auth.username}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
+              {auth.configured ? <button className="topbar-button logout-button" onClick={onLogout}>Log out</button> : null}
               <a className="topbar-button" href="/api/docs" target="_blank" rel="noreferrer" aria-label="Open API documentation">?</a>
             </div>
           </header>
@@ -156,4 +198,41 @@ export default function App() {
       </Modal>
     </AppContext.Provider>
   );
+}
+
+const EMPTY_AUTH: AuthSession = { configured: false, authenticated: false, username: "", expires_at: null };
+
+export default function App() {
+  const [auth, setAuth] = useState<AuthSession | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    api.get<AuthSession>("/auth/session")
+      .then((session) => { if (active) setAuth(session); })
+      .catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : "Backend unavailable"); });
+    const requireLogin = () => setAuth((current) => current?.configured ? { ...current, authenticated: false, username: "" } : current);
+    window.addEventListener(AUTH_REQUIRED_EVENT, requireLogin);
+    return () => { active = false; window.removeEventListener(AUTH_REQUIRED_EVENT, requireLogin); };
+  }, []);
+
+  async function logout() {
+    try {
+      await api.post("/auth/logout", {});
+    } finally {
+      setToken("");
+      setAuth({ ...EMPTY_AUTH, configured: true });
+    }
+  }
+
+  if (error) {
+    return <main className="login-shell"><section className="login-card"><h1>CRM unavailable</h1><p className="login-error">{error}</p><Button onClick={() => window.location.reload()}>Retry</Button></section></main>;
+  }
+  if (!auth) {
+    return <main className="login-shell"><div className="spinner spinner-large" aria-label="Loading CRM" /></main>;
+  }
+  if (auth.configured && !auth.authenticated) {
+    return <LoginScreen onLogin={setAuth} />;
+  }
+  return <AuthenticatedApp auth={auth} onLogout={logout} />;
 }

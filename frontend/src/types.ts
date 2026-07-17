@@ -12,6 +12,13 @@ export type Campaign = {
   updated_at: string;
 };
 
+export type AuthSession = {
+  configured: boolean;
+  authenticated: boolean;
+  username: string;
+  expires_at: number | null;
+};
+
 export type Contact = {
   id: string;
   campaign_id: string;

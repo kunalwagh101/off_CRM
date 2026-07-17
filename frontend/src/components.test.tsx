@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Badge, PageHeader, Progress, StatCard } from "./components";
+import { LoginScreen } from "./App";
 import { stageLabel } from "./hooks";
 
 describe("shared production UI", () => {
@@ -24,5 +25,13 @@ describe("shared production UI", () => {
     expect(stageLabel("followup1")).toBe("Follow-up 1");
     expect(stageLabel("followup2")).toBe("Follow-up 2");
     expect(stageLabel()).toBe("Not started");
+  });
+
+  it("renders the protected demo login without Gmail requirements", () => {
+    const html = renderToStaticMarkup(<LoginScreen onLogin={() => undefined} />);
+    expect(html).toContain("Sign in to the CRM");
+    expect(html).toContain('autoComplete="username"');
+    expect(html).toContain('autoComplete="current-password"');
+    expect(html).toContain("Gmail is not required");
   });
 });

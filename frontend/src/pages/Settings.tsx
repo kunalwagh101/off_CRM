@@ -3,7 +3,7 @@ import { api, getToken, setToken } from "../api";
 import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
-import type { AutomationStatus, Paginated, ProviderProfile, SettingsStatus } from "../types";
+import type { AutomationStatus, MemoryItem, Paginated, ProviderCall, ProviderProfile, SettingsStatus } from "../types";
 import { Loadable } from "./shared";
 
 type Template = { id: string; name: string; stage: string; route: string; variant_id: string; version_no: number; active: boolean };
@@ -17,6 +17,8 @@ export default function Settings() {
   const templates = useResource(() => api.get<Paginated<Template>>("/templates?limit=100"), []);
   const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles"), []);
   const automation = useResource(() => api.get<AutomationStatus>("/automation"), []);
+  const memory = useResource(() => api.get<Paginated<MemoryItem>>("/memory?limit=50"), []);
+  const providerCalls = useResource(() => api.get<Paginated<ProviderCall>>("/provider-calls?limit=25"), []);
 
   function saveToken(event: FormEvent) {
     event.preventDefault();
@@ -75,6 +77,9 @@ export default function Settings() {
         timeout_seconds: 60,
         priority: Number(data.get("priority") || 100),
         enabled: true,
+        data_policy: data.get("data_policy"),
+        audit_payloads: data.get("audit_payloads") === "on",
+        fallback_strategy: data.get("fallback_strategy"),
         extra: {}
       });
       notify("Provider profile saved. The key is encrypted locally.", "success");
@@ -94,6 +99,7 @@ export default function Settings() {
     try {
       const result = await api.post<{ status: string }>(`/provider-profiles/${profile.id}/test`, { live_probe: true });
       notify(`${profile.name}: ${result.status}`, "success");
+      profiles.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Provider test failed", "error");
     } finally {
@@ -184,6 +190,39 @@ export default function Settings() {
     }
   }
 
+  async function addMemory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    setBusy("memory-add");
+    try {
+      await api.post("/memory", {
+        content: data.get("content"),
+        kind: data.get("kind"),
+        scope: data.get("scope"),
+        tags: String(data.get("tags") || "").split(",").map((item) => item.trim()).filter(Boolean)
+      });
+      notify("Approved memory added", "success");
+      form.reset();
+      memory.reload();
+      status.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Memory could not be added", "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function toggleMemory(item: MemoryItem) {
+    try {
+      await api.patch(`/memory/${item.id}`, { approved: !item.approved });
+      memory.reload();
+      status.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Memory approval failed", "error");
+    }
+  }
+
   return (
     <>
       <PageHeader title="Settings" description="Credentials and data stay on this device. Stored provider keys are encrypted locally and never written to the CRM database." />
@@ -195,6 +234,7 @@ export default function Settings() {
               <div><dt>Local outbox</dt><dd><code>{status.data.local_outbox}</code></dd></div>
               <div><dt>Gmail</dt><dd><Badge tone={status.data.gmail_configured ? "success" : "warning"}>{status.data.gmail_configured ? `Connected as ${status.data.own_email}` : "Not connected"}</Badge></dd></div>
               <div><dt>Expert library</dt><dd>{Object.values(status.data.expert_sources).reduce((sum, value) => sum + value, 0)} indexed chunks</dd></div>
+              <div><dt>Memory</dt><dd>{status.data.memory.approved}/{status.data.memory.total} approved items</dd></div>
             </dl>
           ) : null}
           <div className="button-row"><Button busy={busy === "xlsx"} onClick={() => exportCrm("xlsx")}>Export CRM XLSX</Button><Button tone="secondary" busy={busy === "csv"} onClick={() => exportCrm("csv")}>Export CSV</Button></div>
@@ -212,8 +252,9 @@ export default function Settings() {
             {profiles.loading || profiles.error ? <Loadable loading={profiles.loading} error={profiles.error} /> : profiles.data?.items.length ? profiles.data.items.map((profile) => (
               <div key={profile.id}>
                 <span className="provider-icon">{profile.provider_type === "openai" ? "O" : profile.provider_type === "anthropic" ? "A" : "↔"}</span>
-                <p><strong>{profile.name}</strong><small>{profile.owner} · {profile.model || profile.provider_type} · priority {profile.priority}</small></p>
+                <p><strong>{profile.name}</strong><small>{profile.owner} · {profile.model || profile.provider_type} · priority {profile.priority} · {profile.data_policy} data</small></p>
                 <Badge tone={profile.credential_source === "none" ? "warning" : "success"}>{profile.credential_source.replaceAll("_", " ")}</Badge>
+                <Badge tone={profile.last_health_status === "healthy" ? "success" : profile.last_health_status === "unhealthy" ? "danger" : "neutral"}>{profile.last_health_status}</Badge>
                 <Button tone="ghost" busy={busy === `provider-test-${profile.id}`} onClick={() => testProvider(profile)}>Test</Button>
                 <Button tone="ghost" busy={busy === `provider-delete-${profile.id}`} onClick={() => removeProvider(profile)}>Remove</Button>
               </div>
@@ -224,6 +265,11 @@ export default function Settings() {
               <Field label="Profile name"><input name="name" required placeholder="Primary OpenAI" /></Field>
               <Field label="Workspace user"><input name="owner" defaultValue="default" required placeholder="Kunal" /></Field>
             </div>
+            <div className="form-grid">
+              <Field label="Data sent to provider" hint="Minimal removes recipient identity; standard removes direct contact data."><select name="data_policy" defaultValue="minimal"><option value="minimal">Minimal</option><option value="standard">Standard</option><option value="full">Full context</option></select></Field>
+              <Field label="Fallback strategy"><select name="fallback_strategy" defaultValue="priority"><option value="priority">Priority</option><option value="round_robin">Round robin</option><option value="parallel">Parallel first-success</option></select></Field>
+            </div>
+            <label className="check-line"><input name="audit_payloads" type="checkbox" /> Store redacted request/response bodies locally (metadata only by default)</label>
             <div className="form-grid">
               <Field label="Provider"><select value={providerType} onChange={(event) => setProviderType(event.target.value)}><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="openai_compatible">NVIDIA / compatible</option><option value="template_engine_http">Template application</option></select></Field>
               <Field label="Fallback priority" hint="1 runs before 2"><input name="priority" type="number" min="1" max="1000" defaultValue="100" /></Field>
@@ -238,6 +284,22 @@ export default function Settings() {
             </div>
             <div><Button type="submit" busy={busy === "provider-save"}>Save provider</Button></div>
           </form>
+        </Panel>
+
+        <Panel title="Learning memory" subtitle="Human edits are approved; reply observations wait for review" className="settings-wide">
+          <form className="form-stack" onSubmit={addMemory}>
+            <Field label="Reusable instruction"><textarea name="content" rows={4} required placeholder="Use this as an approved rule during generation..." /></Field>
+            <div className="form-grid"><Field label="Kind"><input name="kind" defaultValue="playbook" /></Field><Field label="Scope"><input name="scope" defaultValue="global" /></Field></div>
+            <Field label="Tags"><input name="tags" placeholder="cta, concise, followup1" /></Field>
+            <div><Button type="submit" busy={busy === "memory-add"}>Add approved memory</Button></div>
+          </form>
+          <div className="memory-list">
+            {memory.loading || memory.error ? <Loadable loading={memory.loading} error={memory.error} /> : memory.data?.items.map((item) => <div key={item.id}><p><strong>{item.kind}</strong><small>{item.scope} · {Math.round(item.confidence * 100)}% confidence</small><span>{item.content}</span></p><Button tone="ghost" onClick={() => toggleMemory(item)}>{item.approved ? "Unapprove" : "Approve"}</Button></div>)}
+          </div>
+        </Panel>
+
+        <Panel title="AI request audit" subtitle="Inspect exactly what was sent; payload bodies are off unless explicitly enabled" className="settings-wide">
+          {providerCalls.loading || providerCalls.error ? <Loadable loading={providerCalls.loading} error={providerCalls.error} /> : providerCalls.data?.items.length ? <div className="audit-call-list">{providerCalls.data.items.map((call) => <details key={call.id}><summary><Badge tone={call.status === "succeeded" ? "success" : "danger"}>{call.status}</Badge> {call.provider_type} · {call.model || "default"} · {call.data_policy} · {call.duration_ms} ms</summary><pre>{JSON.stringify({ request: call.request, response: call.response, error: call.error }, null, 2)}</pre></details>)}</div> : <p className="muted-copy">No provider calls recorded yet.</p>}
         </Panel>
 
         <Panel title="Campaign automation" subtitle="Runs reply sync first, then sends only approved and due drafts">

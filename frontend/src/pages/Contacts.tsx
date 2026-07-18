@@ -77,7 +77,9 @@ export default function Contacts() {
         title: data.get("title"),
         public_hook: data.get("public_hook"),
         hook_source: data.get("hook_source"),
-        notes: data.get("notes")
+        notes: data.get("notes"),
+        recipient_timezone: data.get("recipient_timezone"),
+        outcome_label: data.get("outcome_label")
       });
       notify("Contact updated. Regenerate drafts to use the changes.", "success");
       setEditContact(null);
@@ -163,7 +165,9 @@ export default function Contacts() {
             <div className="form-grid"><Field label="Company"><input name="company" defaultValue={editContact.company} /></Field><Field label="Title"><input name="title" defaultValue={editContact.title} /></Field></div>
             <Field label="Verified public hook"><textarea name="public_hook" rows={3} defaultValue={editContact.public_hook} /></Field>
             <Field label="Hook source URL"><input name="hook_source" type="url" defaultValue={editContact.hook_source} /></Field>
+            <div className="form-grid"><Field label="Recipient timezone"><input name="recipient_timezone" defaultValue={editContact.recipient_timezone} placeholder="Europe/London" /></Field><Field label="Human outcome label"><select name="outcome_label" defaultValue={editContact.outcome_label || ""}><option value="">Not labelled</option><option value="positive">Positive</option><option value="meeting">Meeting</option><option value="neutral">Neutral</option><option value="negative">Negative</option><option value="not_interested">Not interested</option><option value="wrong_person">Wrong person</option></select></Field></div>
             <Field label="Internal notes"><textarea name="notes" rows={3} defaultValue={editContact.notes} /></Field>
+            <div className="form-note"><strong>Learning control</strong><span>Choosing an outcome label turns these notes into approved, de-identified memory. Unlabelled replies remain observations only.</span></div>
             <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setEditContact(null)}>Cancel</Button><Button type="submit" busy={busy}>Save changes</Button></div>
           </form>
         ) : null}

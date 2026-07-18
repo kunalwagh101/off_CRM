@@ -10,6 +10,13 @@ export type Campaign = {
   replied_count?: number;
   sent_count?: number;
   updated_at: string;
+  send_window_start: string;
+  send_window_end: string;
+  send_weekdays: number[];
+  experiment_hypothesis: string;
+  experiment_metric: "reply_rate";
+  experiment_min_sample: number;
+  control_variant: string;
 };
 
 export type AuthSession = {
@@ -39,6 +46,8 @@ export type Contact = {
   poi_response?: string;
   notes?: string;
   linkedin_url?: string;
+  recipient_timezone?: string;
+  outcome_label?: string;
 };
 
 export type DraftAudit = {
@@ -66,6 +75,13 @@ export type Draft = {
   audit: DraftAudit;
   retrieval_refs: string[];
   send_error?: string;
+  scheduled_at?: string;
+  generation_meta: {
+    mode?: string;
+    provider_profile_id?: string;
+    provider_attempts?: Array<Record<string, unknown>>;
+    memory_refs?: string[];
+  };
 };
 
 export type QueueItem = {
@@ -82,6 +98,9 @@ export type QueueItem = {
   quality_score?: number;
   sendable: boolean;
   is_due: boolean;
+  effective_due_at?: string;
+  scheduled_at?: string;
+  generation_meta?: Record<string, unknown>;
 };
 
 export type Paginated<T> = {
@@ -111,6 +130,7 @@ export type SettingsStatus = {
   expert_sources: Record<string, number>;
   provider_profiles: number;
   automation: AutomationStatus;
+  memory: MemoryStats;
 };
 
 export type ProviderProfile = {
@@ -126,6 +146,12 @@ export type ProviderProfile = {
   enabled: boolean;
   has_stored_secret: boolean;
   credential_source: "encrypted_local" | "environment" | "none";
+  data_policy: "minimal" | "standard" | "full";
+  audit_payloads: boolean;
+  fallback_strategy: "priority" | "round_robin" | "parallel";
+  last_health_status: string;
+  last_checked_at: string;
+  last_error: string;
 };
 
 export type AutomationStatus = {
@@ -139,4 +165,39 @@ export type AutomationStatus = {
   last_run_at: string;
   last_error: string;
   last_results: Array<Record<string, unknown>>;
+};
+
+export type MemoryStats = {
+  backend: string;
+  workspace_id: string;
+  total: number;
+  approved: number;
+  by_kind: Record<string, number>;
+};
+
+export type MemoryItem = {
+  id: string;
+  scope: string;
+  kind: string;
+  content: string;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  confidence: number;
+  approved: boolean;
+  source_type: string;
+  created_at: string;
+};
+
+export type ProviderCall = {
+  id: string;
+  profile_id: string;
+  provider_type: string;
+  model: string;
+  data_policy: string;
+  status: string;
+  request: Record<string, unknown>;
+  response: Record<string, unknown>;
+  error: string;
+  duration_ms: number;
+  created_at: string;
 };

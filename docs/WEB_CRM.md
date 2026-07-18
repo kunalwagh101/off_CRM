@@ -19,9 +19,19 @@ Open `http://127.0.0.1:8766`.
 - Campaigns: daily limit, status, timezone and stable A/B split
 - Contacts: import, search, edit and CRM checkbox
 - Draft review: generate, audit, edit and approve
+- Draft control: preview exact output, apply reviewed corrections in bulk and set not-before times
 - Send queue: local outbox, Gmail send and reply sync
 - Experiments: first-touch reply rates by variant
 - Settings: provider profiles, automatic failover, automation, encrypted backups, local paths, expert sources and exports
+- Intelligence controls: provider data policy and request audit, memory approval, routing strategy and health state
+
+## Review and scheduling
+
+Automation never bypasses the review model. A changed draft returns to pending approval. Campaign send windows, per-draft not-before times, daily caps and reply-stop state are enforced by the backend even when the UI is closed.
+
+## Memory
+
+Human edits and labelled outcomes become de-identified local memory. Automatic reply observations remain unapproved until reviewed. Only approved memory is retrieved during generation.
 
 ## Safe automation
 

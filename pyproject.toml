@@ -1,6 +1,6 @@
 [project]
 name = "offsetx-apollo-builder"
-version = "0.7.0"
+version = "0.8.0"
 requires-python = ">=3.10"
 description = "Local-first OffsetX POI enrichment, outreach CRM, email expert, FastAPI, and React control center."
 dependencies = [

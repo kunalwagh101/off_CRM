@@ -12,7 +12,7 @@ from typing import Any, Iterable
 from cryptography.fernet import Fernet, InvalidToken
 
 from .models import ProviderConfig, to_utc_iso
-from .providers import FallbackAIProvider, ProviderError, create_provider
+from .providers import DATA_POLICIES, FallbackAIProvider, PolicyAIProvider, ProviderError, create_provider
 
 
 PROFILE_TYPES = {
@@ -96,6 +96,12 @@ class ProviderProfileStore:
 
     def _public(self, profile: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         result = dict(profile)
+        result.setdefault("data_policy", "minimal")
+        result.setdefault("audit_payloads", False)
+        result.setdefault("fallback_strategy", "priority")
+        result.setdefault("last_health_status", "never")
+        result.setdefault("last_checked_at", "")
+        result.setdefault("last_error", "")
         has_secret = bool(secrets.get(str(profile.get("id", ""))))
         env_name = str(profile.get("api_key_env", ""))
         result["has_stored_secret"] = has_secret
@@ -144,7 +150,13 @@ class ProviderProfileStore:
             "timeout_seconds": max(5, min(int(values.get("timeout_seconds", 60)), 300)),
             "priority": max(1, min(int(values.get("priority", 100)), 1000)),
             "enabled": bool(values.get("enabled", True)),
+            "data_policy": str(values.get("data_policy") or "minimal").strip(),
+            "audit_payloads": bool(values.get("audit_payloads", False)),
+            "fallback_strategy": str(values.get("fallback_strategy") or "priority").strip(),
             "extra": dict(values.get("extra") or {}),
+            "last_health_status": str(current.get("last_health_status", "never")) if current else "never",
+            "last_checked_at": str(current.get("last_checked_at", "")) if current else "",
+            "last_error": str(current.get("last_error", "")) if current else "",
             "created_at": str(current.get("created_at")) if current else now,
             "updated_at": now,
         }
@@ -152,6 +164,10 @@ class ProviderProfileStore:
             raise ValueError("Provider profile name is required")
         if not profile["owner"]:
             raise ValueError("Provider profile owner is required")
+        if profile["data_policy"] not in DATA_POLICIES:
+            raise ValueError("data_policy must be minimal, standard, or full")
+        if profile["fallback_strategy"] not in {"priority", "round_robin", "parallel"}:
+            raise ValueError("fallback_strategy must be priority, round_robin, or parallel")
         profiles = [item for item in profiles if item.get("id") != profile_id]
         profiles.append(profile)
         _atomic_json(self.profile_path, profiles)
@@ -196,6 +212,8 @@ class ProviderProfileStore:
         *,
         owner: str = "",
         profile_ids: Iterable[str] = (),
+        strategy: str = "",
+        audit_callback: Any | None = None,
     ) -> FallbackAIProvider:
         with self._lock:
             selected_ids = set(profile_ids)
@@ -216,12 +234,29 @@ class ProviderProfileStore:
         configuration_errors: list[str] = []
         for profile in profiles:
             try:
-                providers.append((str(profile["id"]), self._provider(profile, secrets)))
+                raw_provider = self._provider(profile, secrets)
+                providers.append(
+                    (
+                        str(profile["id"]),
+                        PolicyAIProvider(
+                            raw_provider,
+                            profile_id=str(profile["id"]),
+                            provider_type=str(profile["provider_type"]),
+                            model=str(profile.get("model", "")),
+                            data_policy=str(profile.get("data_policy", "minimal")),
+                            audit_payloads=bool(profile.get("audit_payloads", False)),
+                            audit_callback=audit_callback,
+                        ),
+                    )
+                )
             except Exception as exc:
                 configuration_errors.append(f"{profile.get('name', profile.get('id'))}: {exc}")
         if not providers and configuration_errors:
             raise ProviderError("No usable provider profiles. " + "; ".join(configuration_errors))
-        return FallbackAIProvider(providers)
+        selected_strategy = strategy or (
+            str(profiles[0].get("fallback_strategy", "priority")) if profiles else "priority"
+        )
+        return FallbackAIProvider(providers, strategy=selected_strategy)
 
     def health(self, profile_id: str, *, probe: bool = False) -> dict[str, Any]:
         with self._lock:
@@ -233,17 +268,40 @@ class ProviderProfileStore:
             try:
                 provider = self._provider(profile, self._secrets())
             except Exception as exc:
+                error = str(exc)[:1000]
+                profiles = self._profiles()
+                for item in profiles:
+                    if item.get("id") == profile_id:
+                        item["last_health_status"] = "unhealthy"
+                        item["last_checked_at"] = to_utc_iso()
+                        item["last_error"] = error
+                _atomic_json(self.profile_path, profiles)
                 return {
                     "status": "unhealthy",
                     "profile_id": profile_id,
-                    "error": str(exc)[:1000],
+                    "error": error,
                 }
+        status = "configured"
+        error = ""
         try:
             if probe:
                 provider.generate(
                     system_prompt="Return JSON with subject and body only.",
                     user_prompt='Return {"subject":"health check","body":"ok"}.',
                 )
+                status = "healthy"
         except Exception as exc:
-            return {"status": "unhealthy", "profile_id": profile_id, "error": str(exc)[:1000]}
-        return {"status": "healthy" if probe else "configured", "profile_id": profile_id}
+            status = "unhealthy"
+            error = str(exc)[:1000]
+        with self._lock:
+            profiles = self._profiles()
+            for item in profiles:
+                if item.get("id") == profile_id:
+                    item["last_health_status"] = status
+                    item["last_checked_at"] = to_utc_iso()
+                    item["last_error"] = error
+            _atomic_json(self.profile_path, profiles)
+        result = {"status": status, "profile_id": profile_id}
+        if error:
+            result["error"] = error
+        return result

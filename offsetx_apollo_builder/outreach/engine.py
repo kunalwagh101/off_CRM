@@ -51,6 +51,7 @@ CONTACT_ALIASES: dict[str, tuple[str, ...]] = {
     "question_2": ("question 2", "prepared question 2"),
     "question_3": ("question 3", "prepared question 3"),
     "notes": ("notes", "note"),
+    "recipient_timezone": ("recipient timezone", "contact timezone", "timezone"),
 }
 
 
@@ -94,6 +95,32 @@ def local_day_bounds(value: datetime, timezone_name: str) -> tuple[datetime, dat
     return start.astimezone(timezone.utc), (start + timedelta(days=1)).astimezone(timezone.utc)
 
 
+def campaign_send_window(campaign: dict[str, Any], value: datetime) -> dict[str, Any]:
+    """Evaluate a campaign's local send window, including overnight windows."""
+    try:
+        zone = ZoneInfo(str(campaign["timezone"]))
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"Unknown timezone: {campaign['timezone']}") from exc
+    local = value.astimezone(zone)
+    weekdays = {int(day) for day in campaign.get("send_weekdays", list(range(7)))}
+    start = time.fromisoformat(str(campaign.get("send_window_start") or "00:00"))
+    end = time.fromisoformat(str(campaign.get("send_window_end") or "00:00"))
+    current = local.timetz().replace(tzinfo=None)
+    within_time = True if start == end else (
+        start <= current < end if start < end else current >= start or current < end
+    )
+    allowed = local.weekday() in weekdays and within_time
+    return {
+        "allowed": allowed,
+        "local_time": local.replace(microsecond=0).isoformat(),
+        "timezone": str(campaign["timezone"]),
+        "start": start.strftime("%H:%M"),
+        "end": end.strftime("%H:%M"),
+        "weekdays": sorted(weekdays),
+        "reason": "open" if allowed else "outside_campaign_send_window",
+    }
+
+
 class OutreachEngine:
     """Application service for the local CRM, independent of UI and AI vendor."""
 
@@ -129,6 +156,13 @@ class OutreachEngine:
         followup2_working_days: int = 6,
         approval_mode: str = "each_message",
         variants: Iterable[str] = ("A", "B"),
+        send_window_start: str = "00:00",
+        send_window_end: str = "00:00",
+        send_weekdays: Iterable[int] = (0, 1, 2, 3, 4, 5, 6),
+        experiment_hypothesis: str = "",
+        experiment_metric: str = "reply_rate",
+        experiment_min_sample: int = 40,
+        control_variant: str = "A",
     ) -> str:
         with self._lock:
             return self.store.create_campaign(
@@ -139,6 +173,13 @@ class OutreachEngine:
                 followup2_working_days=followup2_working_days,
                 approval_mode=approval_mode,
                 variants=variants,
+                send_window_start=send_window_start,
+                send_window_end=send_window_end,
+                send_weekdays=send_weekdays,
+                experiment_hypothesis=experiment_hypothesis,
+                experiment_metric=experiment_metric,
+                experiment_min_sample=experiment_min_sample,
+                control_variant=control_variant,
             )
 
     def import_contacts(
@@ -201,6 +242,7 @@ class OutreachEngine:
                     notes=value(raw, "notes"),
                     source_ref=f"{path.name}:row:{number}",
                     source_data={str(key): clean_text(item) for key, item in raw.items()},
+                    recipient_timezone=value(raw, "recipient_timezone"),
                 )
                 try:
                     contact_id = self.store.upsert_contact(contact)
@@ -251,6 +293,7 @@ class OutreachEngine:
                             variant_id=str(contact["variant_id"]),
                             provider=provider,
                             original_subject=original_subject,
+                            campaign_id=campaign_id,
                         )
                         self.store.save_draft(str(contact["id"]), draft)
                         generated += 1
@@ -289,8 +332,19 @@ class OutreachEngine:
                 subject=subject,
                 body=body,
                 retrieval_refs=current.get("retrieval_refs") or [],
+                generation_meta=current.get("generation_meta") or {},
             )
             self.store.update_draft_content(draft_id, audited)
+            self.email_expert.memory.remember_edit(
+                contact=contact,
+                stage=str(current["stage"]),
+                variant_id=str(current["variant_id"]),
+                before_subject=str(current["subject"]),
+                before_body=str(current["body"]),
+                after_subject=audited.subject,
+                after_body=audited.body,
+                campaign_id=campaign_id,
+            )
             self.store.add_event(
                 campaign_id,
                 "draft_edited",
@@ -298,6 +352,90 @@ class OutreachEngine:
                 campaign_contact_id=str(current["campaign_contact_id"]),
             )
             return self.store.get_draft_by_id(campaign_id, draft_id)
+
+    def bulk_replace_drafts(
+        self,
+        campaign_id: str,
+        *,
+        find: str,
+        replace: str,
+        draft_ids: Iterable[str] = (),
+        stages: Iterable[str] = (),
+        fields: Iterable[str] = ("subject", "body"),
+        preview_only: bool = True,
+    ) -> dict[str, Any]:
+        if not find:
+            raise ValueError("find text is required")
+        selected_fields = list(dict.fromkeys(fields))
+        if not selected_fields or any(field not in {"subject", "body"} for field in selected_fields):
+            raise ValueError("fields must contain subject and/or body")
+        selected_ids = set(draft_ids)
+        selected_stages = set(stages)
+        rows, _ = self.store.list_drafts(campaign_id, limit=100000)
+        matches: list[dict[str, Any]] = []
+        for row in rows:
+            if selected_ids and row["id"] not in selected_ids:
+                continue
+            if selected_stages and row["stage"] not in selected_stages:
+                continue
+            if row.get("sent_at"):
+                continue
+            occurrences = sum(str(row[field]).count(find) for field in selected_fields)
+            if occurrences:
+                matches.append({"draft_id": row["id"], "occurrences": occurrences})
+        if preview_only:
+            return {
+                "preview": True,
+                "matched_drafts": len(matches),
+                "occurrences": sum(item["occurrences"] for item in matches),
+                "items": matches[:100],
+            }
+        changed = 0
+        blocked = 0
+        for match in matches:
+            current = self.store.get_draft_by_id(campaign_id, str(match["draft_id"]))
+            subject = str(current["subject"])
+            body = str(current["body"])
+            if "subject" in selected_fields:
+                subject = subject.replace(find, replace)
+            if "body" in selected_fields:
+                body = body.replace(find, replace)
+            updated = self.edit_draft(
+                campaign_id,
+                str(current["id"]),
+                subject=subject,
+                body=body,
+            )
+            changed += 1
+            blocked += int(not updated["sendable"])
+        if changed:
+            self.email_expert.memory.remember_bulk_rule(
+                campaign_id=campaign_id,
+                find=find,
+                replace=replace,
+                fields=selected_fields,
+                changed=changed,
+            )
+        result = {"preview": False, "changed": changed, "blocked": blocked}
+        self.store.add_event(campaign_id, "drafts_bulk_corrected", result)
+        return result
+
+    def schedule_drafts(
+        self,
+        campaign_id: str,
+        *,
+        draft_ids: Iterable[str],
+        scheduled_at: datetime | None,
+    ) -> dict[str, int]:
+        result = self.store.schedule_drafts(
+            campaign_id, draft_ids=draft_ids, scheduled_at=scheduled_at
+        )
+        self.store.add_event(
+            campaign_id,
+            "drafts_scheduled",
+            {**result, "scheduled_at": scheduled_at.isoformat() if scheduled_at else None},
+        )
+        return result
 
     def approve_drafts(
         self,
@@ -328,7 +466,16 @@ class OutreachEngine:
             incoming = mail_provider.list_replies(since=since, own_email=own_email)
             matched = 0
             for message in incoming:
-                matched += len(self.store.record_reply(campaign_id, message))
+                updated = self.store.record_reply(campaign_id, message)
+                matched += len(updated)
+                for campaign_contact_id in updated:
+                    contact = self.store.get_campaign_contact(campaign_id, campaign_contact_id)
+                    self.email_expert.memory.remember_reply(
+                        campaign_id=campaign_id,
+                        campaign_contact_id=campaign_contact_id,
+                        stage=str(contact.get("current_stage", "")),
+                        variant_id=str(contact.get("variant_id", "")),
+                    )
             result = {"scanned": len(incoming), "matched": matched}
             self.store.add_event(campaign_id, "replies_synced", result)
             return result
@@ -356,6 +503,21 @@ class OutreachEngine:
                     own_email=own_email,
                     now=now,
                 )
+            window = campaign_send_window(campaign, now)
+            if not window["allowed"]:
+                result = {
+                    "sent": [],
+                    "sent_count": 0,
+                    "daily_limit": int(campaign["daily_send_limit"]),
+                    "already_sent_today": 0,
+                    "remaining_today": int(campaign["daily_send_limit"]),
+                    "replies": reply_result,
+                    "skipped": [{"reason": window["reason"]}],
+                    "failed": [],
+                    "send_window": window,
+                }
+                self.store.add_event(campaign_id, "send_run_deferred", result)
+                return result
             self.store.recover_stale_sending(
                 campaign_id, before=now - timedelta(minutes=15)
             )
@@ -450,6 +612,7 @@ class OutreachEngine:
                 "replies": reply_result,
                 "skipped": skipped,
                 "failed": failed,
+                "send_window": window,
             }
             self.store.add_event(campaign_id, "send_run_completed", result)
             return result

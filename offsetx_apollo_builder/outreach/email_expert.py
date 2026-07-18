@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,13 +19,28 @@ from .models import (
     DraftContent,
     clean_text,
 )
+from .memory import MemoryService
 from .store import OutreachStore
 
-OFFSETX_SIGNATURE = """Best,
-Kunal Wagh
-Building OffsetX - carbon-market infrastructure in India
-Email: waghkunal1997@gmail.com
-LinkedIn: https://www.linkedin.com/in/kunal-wagh-982411184/"""
+def sender_signature(environ: dict[str, str] | None = None) -> str:
+    """Build the exact audited signature without publishing personal identifiers."""
+    values = environ if environ is not None else os.environ
+    lines = [
+        "Best,",
+        clean_text(values.get("OFFSETX_SENDER_NAME")) or "OffsetX team",
+        clean_text(values.get("OFFSETX_SENDER_ROLE"))
+        or "Building OffsetX - carbon-market infrastructure",
+    ]
+    email = clean_text(values.get("OFFSETX_SENDER_EMAIL"))
+    linkedin = clean_text(values.get("OFFSETX_SENDER_LINKEDIN"))
+    if email:
+        lines.append(f"Email: {email}")
+    if linkedin:
+        lines.append(f"LinkedIn: {linkedin}")
+    return "\n".join(lines)
+
+
+OFFSETX_SIGNATURE = sender_signature()
 
 FOLLOWUP_1_REQUIRED = (
     "This is my current understanding. I may be wrong. "
@@ -221,6 +237,7 @@ class LocalEmailExpert:
 
     def __init__(self, store: OutreachStore):
         self.store = store
+        self.memory = MemoryService(store)
 
     def seed_templates(self, path: Path | str) -> int:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -241,6 +258,7 @@ class LocalEmailExpert:
         variant_id: str,
         provider: AIProvider | None = None,
         original_subject: str = "",
+        campaign_id: str = "",
     ) -> DraftContent:
         route = clean_text(contact.get("route")) or route_for_category(
             clean_text(contact.get("category"))
@@ -291,15 +309,35 @@ class LocalEmailExpert:
             )
         )
         chunks = self.store.search_expert_chunks(retrieval_query, limit=4)
+        memory_items = self.memory.generation_context(
+            query=retrieval_query,
+            campaign_id=campaign_id,
+            limit=5,
+        )
         retrieval_refs = [
             f"{chunk.get('document_name', '')}#{str(chunk.get('id', ''))[:8]}"
             for chunk in chunks
         ]
+        retrieval_refs.extend(
+            f"memory:{str(item.get('id', ''))[:8]}" for item in memory_items
+        )
+
+        generation_meta: dict[str, Any] = {
+            "mode": "template_only",
+            "provider_profile_id": "",
+            "provider_attempts": [],
+            "memory_refs": [str(item.get("id", "")) for item in memory_items],
+            "expert_refs": [str(chunk.get("id", "")) for chunk in chunks],
+        }
 
         if provider is not None:
             source_material = "\n\n".join(
                 f"Reference {index + 1}: {str(chunk.get('content', ''))[:900]}"
                 for index, chunk in enumerate(chunks)
+            )
+            memory_material = "\n\n".join(
+                f"Approved memory {index + 1}: {str(item.get('content', ''))[:900]}"
+                for index, item in enumerate(memory_items)
             )
             system_prompt = (
                 "You are the OffsetX email expert. Write in a calm, technical, human voice. "
@@ -312,8 +350,9 @@ class LocalEmailExpert:
                     "schema_version": 1,
                     "stage": stage,
                     "recipient": dict(values),
-                    "selected_template": {"subject": subject, "body": body},
+                    "template_blueprint": {"subject": subject, "body": body},
                     "retrieved_guidance": source_material,
+                    "approved_memory": memory_material,
                     "hard_rules": {
                         "one_question_mark": stage != FOLLOWUP_2,
                         "exact_day4_sentence": FOLLOWUP_1_REQUIRED if stage == FOLLOWUP_1 else "",
@@ -330,6 +369,14 @@ class LocalEmailExpert:
             )
             subject = clean_text(generated.get("subject"))
             body = normalize_email_body(str(generated.get("body", "")))
+            provider_run = dict(getattr(provider, "last_run", {}) or {})
+            generation_meta.update(
+                {
+                    "mode": "ai_personalized",
+                    "provider_profile_id": provider_run.get("selected_profile_id", ""),
+                    "provider_attempts": provider_run.get("attempts", []),
+                }
+            )
 
         audit = audit_draft(
             stage=stage,
@@ -348,6 +395,7 @@ class LocalEmailExpert:
             template_id=str(template["id"]),
             audit=audit,
             retrieval_refs=retrieval_refs,
+            generation_meta=generation_meta,
         )
 
     def audit_edited_draft(
@@ -360,6 +408,7 @@ class LocalEmailExpert:
         subject: str,
         body: str,
         retrieval_refs: Iterable[str] = (),
+        generation_meta: dict[str, Any] | None = None,
     ) -> DraftContent:
         route = clean_text(contact.get("route")) or route_for_category(
             clean_text(contact.get("category"))
@@ -381,6 +430,7 @@ class LocalEmailExpert:
             template_id=template_id,
             audit=audit,
             retrieval_refs=list(retrieval_refs),
+            generation_meta={**(generation_meta or {}), "last_modified_by": "human"},
         )
 
 

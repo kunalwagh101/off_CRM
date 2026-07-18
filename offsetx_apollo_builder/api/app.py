@@ -30,14 +30,18 @@ from .schemas import (
     CampaignUpdate,
     ContactUpdate,
     DraftApprove,
+    DraftBulkReplace,
     DraftEdit,
     DraftGenerate,
+    DraftSchedule,
     DemoLogin,
     ProviderHealthRequest,
     ProviderProfileUpsert,
     ReplySyncRequest,
     SendRequest,
     TemplateImport,
+    MemoryApproval,
+    MemoryCreate,
 )
 
 
@@ -195,7 +199,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="OffsetX Local Outreach CRM",
-        version="0.7.0",
+        version="0.8.0",
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/api/openapi.json",
@@ -258,7 +262,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def meta() -> dict[str, Any]:
         return {
             "name": "OffsetX Local Outreach CRM",
-            "version": "0.7.0",
+            "version": "0.8.0",
             "categories": list(LOCKED_CATEGORIES),
             "routes": list(ROUTES),
             "provider_types": [
@@ -342,6 +346,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "local_outbox": str(settings.data_dir / "mail" / "outbox"),
             "expert_sources": _engine(request).store.expert_source_summary(),
             "provider_profiles": len(request.app.state.provider_profiles.list()),
+            "memory": _engine(request).store.memory_stats(),
             "automation": request.app.state.automation.status(),
         }
 
@@ -377,6 +382,60 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def delete_provider_profile(profile_id: str, request: Request) -> dict[str, bool]:
         request.app.state.provider_profiles.delete(profile_id)
         return {"deleted": True}
+
+    @app.get(f"{API_PREFIX}/provider-calls")
+    def provider_calls(
+        request: Request,
+        limit: int = Query(100, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+        profile_id: str = Query("", max_length=80),
+        status: str = Query("", max_length=40),
+    ) -> dict[str, Any]:
+        items, total = _engine(request).store.list_provider_calls(
+            limit=limit, offset=offset, profile_id=profile_id, status=status
+        )
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/memory/stats")
+    def memory_stats(request: Request) -> dict[str, Any]:
+        return _engine(request).store.memory_stats()
+
+    @app.get(f"{API_PREFIX}/memory")
+    def memory_items(
+        request: Request,
+        query: str = Query("", max_length=1000),
+        scope: str = Query("", max_length=200),
+        kind: str = Query("", max_length=80),
+        approved_only: bool = Query(False),
+        limit: int = Query(100, ge=1, le=500),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        items, total = _engine(request).store.search_memory_items(
+            query,
+            scope=scope,
+            kind=kind,
+            approved_only=approved_only,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.post(f"{API_PREFIX}/memory", status_code=201)
+    def create_memory(body: MemoryCreate, request: Request) -> dict[str, Any]:
+        memory_id = _engine(request).email_expert.memory.add_manual(
+            content=body.content,
+            kind=body.kind,
+            scope=body.scope,
+            tags=body.tags,
+        )
+        items, _ = _engine(request).store.search_memory_items("", limit=1000)
+        return next(item for item in items if item["id"] == memory_id)
+
+    @app.patch(f"{API_PREFIX}/memory/{{memory_id}}")
+    def approve_memory(
+        memory_id: str, body: MemoryApproval, request: Request
+    ) -> dict[str, Any]:
+        return _engine(request).store.set_memory_approval(memory_id, body.approved)
 
     @app.get(f"{API_PREFIX}/automation")
     def automation_status(request: Request) -> dict[str, Any]:
@@ -471,6 +530,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 followup2_working_days=body.followup2_working_days,
                 approval_mode=body.approval_mode,
                 variants=body.variants,
+                send_window_start=body.send_window_start,
+                send_window_end=body.send_window_end,
+                send_weekdays=body.send_weekdays,
+                experiment_hypothesis=body.experiment_hypothesis,
+                experiment_metric=body.experiment_metric,
+                experiment_min_sample=body.experiment_min_sample,
+                control_variant=body.control_variant,
             )
             return engine.store.get_campaign(campaign_id)
 
@@ -540,9 +606,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: ContactUpdate,
         request: Request,
     ) -> dict[str, Any]:
-        return _engine(request).store.update_campaign_contact(
+        updated = _engine(request).store.update_campaign_contact(
             campaign_id, campaign_contact_id, body.model_dump(exclude_none=True)
         )
+        if body.outcome_label:
+            _engine(request).email_expert.memory.remember_feedback(
+                campaign_id=campaign_id,
+                campaign_contact_id=campaign_contact_id,
+                outcome_label=body.outcome_label,
+                notes=body.notes or str(updated.get("notes", "")),
+                contact=updated,
+            )
+        return updated
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts/generate")
     def generate_drafts_endpoint(
@@ -563,6 +638,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 provider = request.app.state.provider_profiles.router(
                     owner=body.provider_owner,
                     profile_ids=body.provider_profile_ids,
+                    strategy=body.fallback_strategy,
+                    audit_callback=engine.store.record_provider_call,
                 )
             elif body.provider:
                 provider = create_provider(ProviderConfig(**body.provider.model_dump()))
@@ -614,6 +691,33 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="Select draft_ids or stages to approve")
         return _engine(request).approve_drafts(
             campaign_id, draft_ids=body.draft_ids, stages=body.stages
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts/bulk-replace")
+    def bulk_replace_drafts_endpoint(
+        campaign_id: str, body: DraftBulkReplace, request: Request
+    ) -> dict[str, Any]:
+        if not body.draft_ids and not body.stages:
+            raise HTTPException(status_code=400, detail="Select draft_ids or stages")
+        with request.app.state.campaign_locks.hold(campaign_id):
+            return _engine(request).bulk_replace_drafts(
+                campaign_id,
+                find=body.find,
+                replace=body.replace,
+                draft_ids=body.draft_ids,
+                stages=body.stages,
+                fields=body.fields,
+                preview_only=body.preview_only,
+            )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts/schedule")
+    def schedule_drafts_endpoint(
+        campaign_id: str, body: DraftSchedule, request: Request
+    ) -> dict[str, int]:
+        return _engine(request).schedule_drafts(
+            campaign_id,
+            draft_ids=body.draft_ids,
+            scheduled_at=body.scheduled_at,
         )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/queue")

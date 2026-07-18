@@ -1,5 +1,5 @@
 # OffsetX Local Outreach CRM
-Version 0.7 adds a protected single-user demo deployment while retaining the existing local-first outreach CRM, strict email expert, provider failover, safe automation, encrypted local backups, FastAPI backend and responsive React control centre.
+Version 0.8 adds an inspectable AI and learning control plane: preview/edit/apply-to-all review, precise scheduling, multi-provider routing, data minimisation, local memory/RAG and uncertainty-aware experiments.
 
 ## What is included
 
@@ -20,6 +20,11 @@ Version 0.7 adds a protected single-user demo deployment while retaining the exi
 - Expert-source retrieval with source and rights provenance
 - Temporary demo login with signed, secure, HTTP-only sessions and login throttling
 - Render Blueprint configuration and automatic `PORT` support
+- Exact pre-send preview, correction, bulk apply, re-audit and scheduling controls
+- Priority, round-robin and parallel-first-success AI routing
+- Per-provider minimal, standard or full data policies with opt-in redacted payload logs
+- Replaceable local memory/RAG backend that learns from human edits and labelled outcomes
+- Experiment hypotheses, controls, minimum samples, confidence intervals and lift
 
 The old Apollo workflows remain intact. Outreach does not use the legacy team-assignment engine.
 
@@ -64,15 +69,26 @@ The free Render filesystem is temporary. SQLite data, outbox files and configura
 
 ## First outreach workflow
 
-1. Create a campaign and choose a daily limit.
+1. Create a campaign and choose a daily limit, timezone and send window.
 2. Import `examples/outreach_contacts_sample.csv` or an Excel file.
 3. Generate the three-stage sequence using local templates or a configured AI provider.
-4. Review and approve drafts.
+4. Review the exact output, edit it, optionally apply a correction to selected drafts, schedule it, then approve it.
 5. Run the local outbox first.
 6. Connect Gmail only after reviewing the local results.
 7. Sync replies before every send run. The backend also does this automatically.
 
 Local outbox files are written under `local_data/mail/outbox`.
+
+Configure the audited sender signature privately in `.env` or Render environment variables:
+
+```env
+OFFSETX_SENDER_NAME=Your name
+OFFSETX_SENDER_ROLE=Building OffsetX - carbon-market infrastructure
+OFFSETX_SENDER_EMAIL=you@example.com
+OFFSETX_SENDER_LINKEDIN=https://www.linkedin.com/in/your-profile/
+```
+
+Personal sender details are intentionally not committed to Git.
 
 ## Required contact evidence
 
@@ -90,7 +106,9 @@ A sendable first touch requires:
 
 ## AI provider portability
 
-API keys are never stored in the database. They can remain in environment variables or be stored in an encrypted local provider vault. The Settings page can manage a priority-ordered provider chain, test each provider and automatically fail over when a provider is unavailable or returns malformed output.
+API keys are never stored in the database. They can remain in environment variables or be stored in an encrypted local provider vault. The Settings page manages multiple providers, health state, routing strategy, payload policy and call audit. Every provider is normalized to the same subject/body contract.
+
+`minimal` removes recipient identity before a provider call, `standard` removes direct contact data and URLs, and `full` sends the generation context. Request/response bodies are not logged unless the operator explicitly enables local redacted payload logging for that profile.
 
 Examples are in `config/`.
 
@@ -134,7 +152,7 @@ npm run build
 Release result:
 
 ```text
-49 Python tests passed
+56 Python tests passed
 3 frontend tests passed
 production frontend build passed
 ```
@@ -174,7 +192,8 @@ See `docs/EXISTING_POI_ENRICHMENT.md` for the full legacy workflow.
 
 ## Documentation
 
-- `docs/SYSTEM_ARCHITECTURE_V06.md`
+- `docs/INTELLIGENCE_ARCHITECTURE.md`
+- `docs/SYSTEM_ARCHITECTURE_V06.md` (historical v0.6 decision record)
 - `docs/WEB_CRM.md`
 - `docs/TEMPLATE_INTELLIGENCE_CONTRACT.md`
 - `docs/SECURITY.md`

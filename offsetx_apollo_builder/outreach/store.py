@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import uuid
@@ -81,6 +82,19 @@ class OutreachStore:
 
     def _migrate_legacy_schema(self) -> None:
         additions = {
+            "contacts": {
+                "recipient_timezone": "TEXT NOT NULL DEFAULT ''",
+                "outcome_label": "TEXT NOT NULL DEFAULT ''",
+            },
+            "campaigns": {
+                "send_window_start": "TEXT NOT NULL DEFAULT '00:00'",
+                "send_window_end": "TEXT NOT NULL DEFAULT '00:00'",
+                "send_weekdays_json": "TEXT NOT NULL DEFAULT '[0, 1, 2, 3, 4, 5, 6]'",
+                "experiment_hypothesis": "TEXT NOT NULL DEFAULT ''",
+                "experiment_metric": "TEXT NOT NULL DEFAULT 'reply_rate'",
+                "experiment_min_sample": "INTEGER NOT NULL DEFAULT 40",
+                "control_variant": "TEXT NOT NULL DEFAULT 'A'",
+            },
             "campaign_contacts": {
                 "checkbox": "INTEGER NOT NULL DEFAULT 0",
             },
@@ -88,9 +102,15 @@ class OutreachStore:
                 "sending_started_at": "TEXT",
                 "send_error": "TEXT NOT NULL DEFAULT ''",
                 "revision": "INTEGER NOT NULL DEFAULT 1",
+                "scheduled_at": "TEXT",
+                "generation_meta_json": "TEXT NOT NULL DEFAULT '{}'",
             },
             "messages": {
                 "idempotency_key": "TEXT NOT NULL DEFAULT ''",
+                "variant_id": "TEXT NOT NULL DEFAULT ''",
+                "template_id": "TEXT NOT NULL DEFAULT ''",
+                "draft_revision": "INTEGER NOT NULL DEFAULT 0",
+                "ai_provider_profile_id": "TEXT NOT NULL DEFAULT ''",
             },
             "email_templates": {
                 "provenance_json": "TEXT NOT NULL DEFAULT '{}'",
@@ -173,6 +193,8 @@ class OutreachStore:
             "notes": contact.notes,
             "source_ref": contact.source_ref,
             "source_json": json.dumps(contact.source_data, ensure_ascii=False, default=str),
+            "recipient_timezone": contact.recipient_timezone,
+            "outcome_label": contact.outcome_label,
         }
         if existing:
             contact_id = str(existing["id"])
@@ -198,9 +220,10 @@ class OutreachStore:
                     id, identity_key, full_name, first_name, last_name, email, company,
                     title, category, route, linkedin_url, public_hook, hook_source,
                     hook_date, tension, identity_line, contribution, questions_json,
-                    notes, source_ref, source_json, created_at, updated_at
+                    notes, source_ref, source_json, recipient_timezone, outcome_label,
+                    created_at, updated_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 (contact_id, contact.identity_key, *fields.values(), now, now),
@@ -220,6 +243,13 @@ class OutreachStore:
         followup2_working_days: int = 6,
         approval_mode: str = "each_message",
         variants: Iterable[str] = ("A", "B"),
+        send_window_start: str = "00:00",
+        send_window_end: str = "00:00",
+        send_weekdays: Iterable[int] = (0, 1, 2, 3, 4, 5, 6),
+        experiment_hypothesis: str = "",
+        experiment_metric: str = "reply_rate",
+        experiment_min_sample: int = 40,
+        control_variant: str = "A",
     ) -> str:
         if daily_send_limit <= 0:
             raise ValueError("daily_send_limit must be positive")
@@ -229,6 +259,15 @@ class OutreachStore:
             raise ValueError("follow-up working days must be positive")
         normalized_variants = [clean_text(item) for item in variants if clean_text(item)]
         normalized_variants = list(dict.fromkeys(normalized_variants)) or ["A"]
+        weekdays = sorted({int(day) for day in send_weekdays})
+        if not weekdays or any(day < 0 or day > 6 for day in weekdays):
+            raise ValueError("send_weekdays must contain values from 0 to 6")
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", send_window_start):
+            raise ValueError("send_window_start must use HH:MM")
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", send_window_end):
+            raise ValueError("send_window_end must use HH:MM")
+        if control_variant not in normalized_variants:
+            raise ValueError("control_variant must be one of the campaign variants")
         campaign_id = str(uuid.uuid4())
         now = to_utc_iso()
         with self.transaction() as conn:
@@ -237,8 +276,10 @@ class OutreachStore:
                 INSERT INTO campaigns (
                     id, name, daily_send_limit, timezone, followup1_working_days,
                     followup2_working_days, approval_mode, variants_json,
-                    status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                    status, send_window_start, send_window_end, send_weekdays_json,
+                    experiment_hypothesis, experiment_metric, experiment_min_sample,
+                    control_variant, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     campaign_id,
@@ -249,6 +290,13 @@ class OutreachStore:
                     followup2_working_days,
                     approval_mode,
                     json.dumps(normalized_variants),
+                    send_window_start,
+                    send_window_end,
+                    json.dumps(weekdays),
+                    clean_text(experiment_hypothesis),
+                    experiment_metric,
+                    max(10, int(experiment_min_sample)),
+                    control_variant,
                     now,
                     now,
                 ),
@@ -261,6 +309,7 @@ class OutreachStore:
         if not row:
             raise KeyError(f"Campaign not found: {campaign_id}")
         row["variants"] = json.loads(row.get("variants_json") or "[]")
+        row["send_weekdays"] = json.loads(row.get("send_weekdays_json") or "[]")
         return row
 
     def list_campaigns(
@@ -302,12 +351,19 @@ class OutreachStore:
         )
         for row in rows:
             row["variants"] = json.loads(row.get("variants_json") or "[]")
+            row["send_weekdays"] = json.loads(row.get("send_weekdays_json") or "[]")
             row["contact_count"] = int(row.get("contact_count") or 0)
             row["replied_count"] = int(row.get("replied_count") or 0)
             row["sent_count"] = int(row.get("sent_count") or 0)
         return rows, int(total_row["count"] if total_row else 0)
 
     def update_campaign(self, campaign_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+        changes = dict(changes)
+        if "send_weekdays" in changes:
+            weekdays = sorted({int(day) for day in changes.pop("send_weekdays")})
+            if not weekdays or any(day < 0 or day > 6 for day in weekdays):
+                raise ValueError("send_weekdays must contain values from 0 to 6")
+            changes["send_weekdays_json"] = json.dumps(weekdays)
         allowed = {
             "name",
             "daily_send_limit",
@@ -316,6 +372,13 @@ class OutreachStore:
             "followup2_working_days",
             "approval_mode",
             "status",
+            "send_window_start",
+            "send_window_end",
+            "send_weekdays_json",
+            "experiment_hypothesis",
+            "experiment_metric",
+            "experiment_min_sample",
+            "control_variant",
         }
         values = {key: value for key, value in changes.items() if key in allowed and value is not None}
         if not values:
@@ -329,6 +392,15 @@ class OutreachStore:
             raise ValueError("Invalid approval mode")
         if "daily_send_limit" in values and int(values["daily_send_limit"]) <= 0:
             raise ValueError("daily_send_limit must be positive")
+        for field in ("send_window_start", "send_window_end"):
+            if field in values and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(values[field])):
+                raise ValueError(f"{field} must use HH:MM")
+        if "experiment_min_sample" in values and int(values["experiment_min_sample"]) < 10:
+            raise ValueError("experiment_min_sample must be at least 10")
+        if "control_variant" in values:
+            campaign = self.get_campaign(campaign_id)
+            if values["control_variant"] not in campaign["variants"]:
+                raise ValueError("control_variant must be one of the campaign variants")
         assignments = ", ".join(f"{key} = ?" for key in values)
         with self.transaction() as conn:
             cursor = conn.execute(
@@ -374,6 +446,7 @@ class OutreachStore:
                    c.title, c.category, c.route, c.linkedin_url, c.public_hook,
                    c.hook_source, c.hook_date, c.tension, c.identity_line,
                    c.contribution, c.questions_json, c.notes AS contact_notes, c.source_ref
+                   , c.recipient_timezone, c.outcome_label
             FROM campaign_contacts cc
             JOIN contacts c ON c.id = cc.contact_id
             WHERE cc.campaign_id = ? AND cc.id = ?
@@ -426,6 +499,7 @@ class OutreachStore:
                    c.title, c.category, c.route, c.linkedin_url, c.public_hook,
                    c.hook_source, c.hook_date, c.tension, c.identity_line,
                    c.contribution, c.questions_json, c.notes AS contact_notes, c.source_ref,
+                   c.recipient_timezone, c.outcome_label,
                    (SELECT COUNT(*) FROM messages m WHERE m.campaign_contact_id = cc.id AND m.direction = 'outbound') AS sent_count
             FROM campaign_contacts cc
             JOIN contacts c ON c.id = cc.contact_id
@@ -469,6 +543,8 @@ class OutreachStore:
             "identity_line",
             "contribution",
             "notes",
+            "recipient_timezone",
+            "outcome_label",
         }
         membership_fields = {"checkbox", "poi_response", "meeting_transcript", "status"}
         contact_values = {
@@ -520,6 +596,7 @@ class OutreachStore:
                     """
                     UPDATE drafts SET variant_id = ?, template_id = ?, subject = ?, body = ?,
                         quality_score = ?, sendable = ?, audit_json = ?, retrieval_refs_json = ?,
+                        generation_meta_json = ?,
                         approval_status = 'pending', approved_at = NULL, sending_started_at = NULL,
                         send_error = '', revision = revision + 1, updated_at = ?
                     WHERE id = ?
@@ -533,6 +610,7 @@ class OutreachStore:
                         int(draft.audit.sendable),
                         draft.audit.to_json(),
                         json.dumps(draft.retrieval_refs),
+                        json.dumps(draft.generation_meta, ensure_ascii=False, default=str),
                         now,
                         draft_id,
                     ),
@@ -545,8 +623,8 @@ class OutreachStore:
                 INSERT INTO drafts (
                     id, campaign_contact_id, stage, variant_id, template_id, subject,
                     body, quality_score, sendable, audit_json, retrieval_refs_json,
-                    approval_status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                    generation_meta_json, approval_status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
                 """,
                 (
                     draft_id,
@@ -560,6 +638,7 @@ class OutreachStore:
                     int(draft.audit.sendable),
                     draft.audit.to_json(),
                     json.dumps(draft.retrieval_refs),
+                    json.dumps(draft.generation_meta, ensure_ascii=False, default=str),
                     now,
                     now,
                 ),
@@ -607,6 +686,10 @@ class OutreachStore:
             row["retrieval_refs"] = json.loads(row.get("retrieval_refs_json") or "[]")
         except json.JSONDecodeError:
             row["retrieval_refs"] = []
+        try:
+            row["generation_meta"] = json.loads(row.get("generation_meta_json") or "{}")
+        except json.JSONDecodeError:
+            row["generation_meta"] = {}
         row["sendable"] = bool(row.get("sendable"))
         return row
 
@@ -672,7 +755,8 @@ class OutreachStore:
                 """
                 UPDATE drafts SET subject = ?, body = ?, quality_score = ?, sendable = ?,
                     audit_json = ?, retrieval_refs_json = ?, approval_status = 'pending',
-                    approved_at = NULL, send_error = '', revision = revision + 1, updated_at = ?
+                    generation_meta_json = ?, approved_at = NULL, send_error = '',
+                    revision = revision + 1, updated_at = ?
                 WHERE id = ? AND sent_at IS NULL
                 """,
                 (
@@ -682,12 +766,42 @@ class OutreachStore:
                     int(draft.audit.sendable),
                     draft.audit.to_json(),
                     json.dumps(draft.retrieval_refs),
+                    json.dumps(draft.generation_meta, ensure_ascii=False, default=str),
                     to_utc_iso(),
                     draft_id,
                 ),
             )
             if cursor.rowcount != 1:
                 raise ValueError("A sent or missing draft cannot be edited")
+
+    def schedule_drafts(
+        self,
+        campaign_id: str,
+        *,
+        draft_ids: Iterable[str],
+        scheduled_at: datetime | None,
+    ) -> dict[str, int]:
+        ids = list(dict.fromkeys(draft_ids))
+        if not ids:
+            return {"scheduled": 0}
+        placeholders = ",".join("?" for _ in ids)
+        with self.transaction() as conn:
+            cursor = conn.execute(
+                f"""
+                UPDATE drafts SET scheduled_at = ?, updated_at = ?
+                WHERE id IN ({placeholders}) AND sent_at IS NULL
+                  AND campaign_contact_id IN (
+                      SELECT id FROM campaign_contacts WHERE campaign_id = ?
+                  )
+                """,
+                (
+                    to_utc_iso(scheduled_at) if scheduled_at else None,
+                    to_utc_iso(),
+                    *ids,
+                    campaign_id,
+                ),
+            )
+        return {"scheduled": cursor.rowcount}
 
     def approve_drafts(
         self,
@@ -826,8 +940,9 @@ class OutreachStore:
                 INSERT INTO messages (
                     id, campaign_contact_id, draft_id, stage, direction,
                     provider_message_id, thread_id, internet_message_id, idempotency_key,
-                    to_email, subject, body, sent_at, raw_json, created_at
-                ) VALUES (?, ?, ?, ?, 'outbound', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    to_email, subject, body, sent_at, variant_id, template_id,
+                    draft_revision, ai_provider_profile_id, raw_json, created_at
+                ) VALUES (?, ?, ?, ?, 'outbound', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     message_id,
@@ -842,6 +957,10 @@ class OutreachStore:
                     draft["subject"],
                     draft["body"],
                     sent_iso,
+                    draft.get("variant_id", ""),
+                    draft.get("template_id", ""),
+                    int(draft.get("revision") or 0),
+                    str((draft.get("generation_meta") or {}).get("provider_profile_id", "")),
                     json.dumps(result.raw, ensure_ascii=False, default=str),
                     now,
                 ),
@@ -966,7 +1085,7 @@ class OutreachStore:
             SELECT cc.id AS campaign_contact_id, cc.status, cc.current_stage,
                    cc.next_action_at, cc.variant_id, c.full_name, c.email, c.company,
                    d.id AS draft_id, d.stage AS draft_stage, d.approval_status,
-                   d.quality_score, d.sendable
+                   d.quality_score, d.sendable, d.scheduled_at, d.generation_meta_json
             FROM campaign_contacts cc
             JOIN contacts c ON c.id = cc.contact_id
             LEFT JOIN drafts d ON d.campaign_contact_id = cc.id AND d.stage =
@@ -983,8 +1102,18 @@ class OutreachStore:
         )
         for row in rows:
             due_at = parse_datetime(row.get("next_action_at"))
-            row["is_due"] = bool(not due_at or due_at <= now)
+            scheduled_at = parse_datetime(row.get("scheduled_at"))
+            effective_due = max(
+                (value for value in (due_at, scheduled_at) if value is not None),
+                default=None,
+            )
+            row["effective_due_at"] = to_utc_iso(effective_due) if effective_due else None
+            row["is_due"] = bool(not effective_due or effective_due <= now)
             row["sendable"] = bool(row.get("sendable"))
+            try:
+                row["generation_meta"] = json.loads(row.get("generation_meta_json") or "{}")
+            except json.JSONDecodeError:
+                row["generation_meta"] = {}
         return rows
 
     # Events, reporting, and idempotency
@@ -1097,6 +1226,7 @@ class OutreachStore:
         return values
 
     def ab_report(self, campaign_id: str) -> list[dict[str, Any]]:
+        campaign = self.get_campaign(campaign_id)
         rows = self._rows(
             """
             SELECT cc.variant_id,
@@ -1119,6 +1249,37 @@ class OutreachStore:
             row["replies"] = replies
             row["initial_sent"] = initial_sent
             row["reply_rate"] = round(replies / initial_sent * 100, 1) if initial_sent else 0.0
+            if initial_sent:
+                probability = replies / initial_sent
+                z = 1.96
+                denominator = 1 + z * z / initial_sent
+                centre = (probability + z * z / (2 * initial_sent)) / denominator
+                margin = z * math.sqrt(
+                    probability * (1 - probability) / initial_sent
+                    + z * z / (4 * initial_sent * initial_sent)
+                ) / denominator
+                row["ci_low"] = round(max(0.0, centre - margin) * 100, 1)
+                row["ci_high"] = round(min(1.0, centre + margin) * 100, 1)
+            else:
+                row["ci_low"] = 0.0
+                row["ci_high"] = 0.0
+        control = next(
+            (row for row in rows if row["variant_id"] == campaign.get("control_variant")),
+            rows[0] if rows else None,
+        )
+        control_rate = float(control.get("reply_rate") or 0.0) if control else 0.0
+        minimum = int(campaign.get("experiment_min_sample") or 40)
+        for row in rows:
+            rate = float(row["reply_rate"])
+            row["control_variant"] = campaign.get("control_variant", "A")
+            row["lift_percentage_points"] = round(rate - control_rate, 1)
+            row["relative_lift"] = (
+                round((rate - control_rate) / control_rate * 100, 1) if control_rate else None
+            )
+            row["minimum_sample"] = minimum
+            row["sample_status"] = "ready" if int(row["initial_sent"]) >= minimum else "collecting"
+            row["hypothesis"] = campaign.get("experiment_hypothesis", "")
+            row["primary_metric"] = campaign.get("experiment_metric", "reply_rate")
         return rows
 
     def get_idempotency(self, scope: str, request_key: str) -> dict[str, Any] | None:
@@ -1143,6 +1304,232 @@ class OutreachStore:
                 """,
                 (scope, request_key, json.dumps(response, default=str), to_utc_iso()),
             )
+
+    # Provider observability and reusable local memory
+
+    def record_provider_call(
+        self,
+        *,
+        profile_id: str,
+        provider_type: str,
+        model: str,
+        data_policy: str,
+        status: str,
+        request_payload: dict[str, Any] | None = None,
+        response_payload: dict[str, Any] | None = None,
+        error: str = "",
+        duration_ms: int = 0,
+        workspace_id: str = "local",
+    ) -> str:
+        call_id = str(uuid.uuid4())
+        with self.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO provider_calls (
+                    id, workspace_id, profile_id, provider_type, model, data_policy,
+                    status, request_json, response_json, error, duration_ms, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    call_id,
+                    workspace_id,
+                    profile_id,
+                    provider_type,
+                    model,
+                    data_policy,
+                    status,
+                    json.dumps(request_payload or {}, ensure_ascii=False, default=str),
+                    json.dumps(response_payload or {}, ensure_ascii=False, default=str),
+                    clean_text(error)[:2000],
+                    max(0, int(duration_ms)),
+                    to_utc_iso(),
+                ),
+            )
+        return call_id
+
+    def list_provider_calls(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        profile_id: str = "",
+        status: str = "",
+    ) -> tuple[list[dict[str, Any]], int]:
+        where: list[str] = []
+        params: list[Any] = []
+        if profile_id:
+            where.append("profile_id = ?")
+            params.append(profile_id)
+        if status:
+            where.append("status = ?")
+            params.append(status)
+        clause = " WHERE " + " AND ".join(where) if where else ""
+        total_row = self._row(f"SELECT COUNT(*) AS count FROM provider_calls{clause}", params)
+        rows = self._rows(
+            f"SELECT * FROM provider_calls{clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        )
+        for row in rows:
+            for source, target in (("request_json", "request"), ("response_json", "response")):
+                try:
+                    row[target] = json.loads(row.get(source) or "{}")
+                except json.JSONDecodeError:
+                    row[target] = {}
+        return rows, int(total_row["count"] if total_row else 0)
+
+    def add_memory_item(
+        self,
+        *,
+        kind: str,
+        content: str,
+        scope: str = "global",
+        tags: Iterable[str] = (),
+        metadata: dict[str, Any] | None = None,
+        confidence: float = 0.5,
+        approved: bool = False,
+        source_type: str = "observation",
+        workspace_id: str = "local",
+    ) -> str:
+        normalized = clean_text(content)
+        if not normalized:
+            raise ValueError("Memory content is required")
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        now = to_utc_iso()
+        existing = self._row(
+            """
+            SELECT id, confidence, approved FROM memory_items
+            WHERE workspace_id = ? AND scope = ? AND kind = ? AND content_sha256 = ?
+            """,
+            (workspace_id, scope, kind, digest),
+        )
+        if existing:
+            with self.transaction() as conn:
+                conn.execute(
+                    """
+                    UPDATE memory_items SET confidence = ?, approved = ?, tags_json = ?,
+                        metadata_json = ?, source_type = ?, updated_at = ? WHERE id = ?
+                    """,
+                    (
+                        max(float(existing["confidence"]), min(1.0, max(0.0, confidence))),
+                        int(bool(existing["approved"]) or approved),
+                        json.dumps(list(dict.fromkeys(tags)), ensure_ascii=False),
+                        json.dumps(metadata or {}, ensure_ascii=False, default=str),
+                        source_type,
+                        now,
+                        existing["id"],
+                    ),
+                )
+            return str(existing["id"])
+        memory_id = str(uuid.uuid4())
+        with self.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_items (
+                    id, workspace_id, scope, kind, content, content_sha256, tags_json,
+                    metadata_json, confidence, approved, source_type, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    memory_id,
+                    workspace_id,
+                    scope,
+                    kind,
+                    normalized,
+                    digest,
+                    json.dumps(list(dict.fromkeys(tags)), ensure_ascii=False),
+                    json.dumps(metadata or {}, ensure_ascii=False, default=str),
+                    min(1.0, max(0.0, confidence)),
+                    int(approved),
+                    source_type,
+                    now,
+                    now,
+                ),
+            )
+        return memory_id
+
+    @staticmethod
+    def _decode_memory(row: dict[str, Any]) -> dict[str, Any]:
+        result = dict(row)
+        for source, target, fallback in (
+            ("tags_json", "tags", []),
+            ("metadata_json", "metadata", {}),
+        ):
+            try:
+                result[target] = json.loads(result.get(source) or json.dumps(fallback))
+            except json.JSONDecodeError:
+                result[target] = fallback
+        result["approved"] = bool(result.get("approved"))
+        result["confidence"] = float(result.get("confidence") or 0.0)
+        return result
+
+    def search_memory_items(
+        self,
+        query: str = "",
+        *,
+        scope: str = "",
+        kind: str = "",
+        approved_only: bool = False,
+        workspace_id: str = "local",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        where = ["workspace_id = ?"]
+        params: list[Any] = [workspace_id]
+        if scope:
+            where.append("scope IN ('global', ?)")
+            params.append(scope)
+        if kind:
+            where.append("kind = ?")
+            params.append(kind)
+        if approved_only:
+            where.append("approved = 1")
+        rows = self._rows(
+            f"SELECT * FROM memory_items WHERE {' AND '.join(where)} ORDER BY updated_at DESC LIMIT 1000",
+            params,
+        )
+        tokens = {token for token in re.findall(r"[a-z0-9]{3,}", query.lower())}
+        ranked: list[tuple[float, dict[str, Any]]] = []
+        for row in rows:
+            decoded = self._decode_memory(row)
+            haystack = " ".join(
+                [decoded.get("content", ""), " ".join(decoded.get("tags", [])), decoded.get("kind", "")]
+            ).lower()
+            matched = sum(1 for token in tokens if token in haystack)
+            if tokens and matched == 0:
+                continue
+            score = matched / max(1, len(tokens)) + decoded["confidence"] * 0.25 + (0.2 if decoded["approved"] else 0)
+            decoded["relevance_score"] = round(score, 4)
+            ranked.append((score, decoded))
+        ranked.sort(key=lambda item: (item[0], item[1].get("updated_at", "")), reverse=True)
+        total = len(ranked)
+        return [item for _, item in ranked[offset : offset + limit]], total
+
+    def set_memory_approval(self, memory_id: str, approved: bool) -> dict[str, Any]:
+        with self.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE memory_items SET approved = ?, updated_at = ? WHERE id = ?",
+                (int(approved), to_utc_iso(), memory_id),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError("Memory item not found")
+        row = self._row("SELECT * FROM memory_items WHERE id = ?", (memory_id,))
+        return self._decode_memory(row or {})
+
+    def memory_stats(self, *, workspace_id: str = "local") -> dict[str, Any]:
+        rows = self._rows(
+            """
+            SELECT kind, COUNT(*) AS count, SUM(approved) AS approved
+            FROM memory_items WHERE workspace_id = ? GROUP BY kind ORDER BY kind
+            """,
+            (workspace_id,),
+        )
+        return {
+            "backend": "sqlite_local",
+            "workspace_id": workspace_id,
+            "total": sum(int(row["count"]) for row in rows),
+            "approved": sum(int(row.get("approved") or 0) for row in rows),
+            "by_kind": {row["kind"]: int(row["count"]) for row in rows},
+        }
 
     # Template and expert library
 

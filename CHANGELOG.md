@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- Added pre-send generation traces, exact bulk correction previews, re-audit, approval reset and per-draft not-before scheduling.
+- Added campaign send windows, weekday controls, timezone enforcement and backwards-compatible all-day API defaults.
+- Added provider data policies, optional redacted payload logging, persistent health state and priority, round-robin or parallel routing.
+- Added a replaceable memory boundary with approved human corrections, de-identified outcome learning and local SQLite retrieval.
+- Added provider-call observability and memory control APIs plus React control-centre surfaces.
+- Added explicit experiment hypotheses, controls, minimum samples, Wilson intervals and lift reporting.
+- Hardened Render writable storage and expanded release coverage to 56 Python tests and 3 frontend tests.
+
 ## 0.7.0
 
 - Added a temporary single-user CRM login with signed HTTP-only sessions and login throttling.

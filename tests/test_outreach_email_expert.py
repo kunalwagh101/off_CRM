@@ -7,6 +7,7 @@ from offsetx_apollo_builder.outreach.email_expert import (
     FOLLOWUP_1_REQUIRED,
     FOLLOWUP_2_REQUIRED,
     LocalEmailExpert,
+    OFFSETX_SIGNATURE,
     audit_draft,
     route_for_category,
 )
@@ -64,17 +65,13 @@ def test_all_locked_categories_and_variants_produce_sendable_sequences(tmp_path)
 
 
 def test_missing_hook_source_and_manipulative_language_are_blocked():
-    body = """Hi Anita,
+    body = f"""Hi Anita,
 
 Example Exports published a supplier emissions brief. This is enough context to make this body deliberately long enough for the length guard while we test the stricter sourcing and language rules in a realistic first-touch message for an operator working on climate evidence and handoffs.
 
 Would a quick call help?
 
-Best,
-Kunal Wagh
-Building OffsetX - carbon-market infrastructure in India
-Email: waghkunal1997@gmail.com
-LinkedIn: https://www.linkedin.com/in/kunal-wagh-982411184/"""
+{OFFSETX_SIGNATURE}"""
     audit = audit_draft(
         stage=INITIAL,
         route="future_client_discovery",

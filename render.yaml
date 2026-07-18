@@ -11,6 +11,10 @@ services:
     envVars:
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
+      - key: OFFSETX_DATA_DIR
+        value: /tmp/offsetx/local_data
+      - key: OFFSETX_OUTREACH_DB
+        value: /tmp/offsetx/local_data/offsetx_outreach.db
       - key: OFFSETX_DEMO_USERNAME
         sync: false
       - key: OFFSETX_DEMO_PASSWORD

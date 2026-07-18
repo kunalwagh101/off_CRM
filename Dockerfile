@@ -16,7 +16,9 @@ WORKDIR /app
 COPY . .
 COPY --from=frontend-build /build/frontend/dist ./frontend/dist
 RUN pip install --no-cache-dir .
-RUN useradd --create-home --uid 10001 offsetx && chown -R offsetx:offsetx /app
+RUN useradd --create-home --uid 10001 offsetx \
+    && mkdir -p /app/local_data/exports /app/local_data/mail \
+    && chown -R offsetx:offsetx /app
 USER offsetx
 VOLUME ["/app/local_data"]
 EXPOSE 8766

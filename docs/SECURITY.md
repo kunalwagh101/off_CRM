@@ -25,6 +25,10 @@
 - Keeps scheduled Gmail sending disabled until the operator enters the exact activation phrase.
 - Supports a single-user demo login with constant-time credential checks, throttled failures and a signed, secure, HTTP-only, SameSite session cookie.
 - Protects API documentation behind the configured login and adds HSTS and restrictive browser permission headers for non-loopback deployments.
+- Applies per-provider data-minimisation policies before network calls.
+- Stores provider payload bodies only when explicitly enabled; metadata-only audit is the default.
+- De-identifies human corrections before adding them to reusable memory.
+- Keeps reply observations unapproved until a human supplies an outcome label.
 
 ## Secrets
 

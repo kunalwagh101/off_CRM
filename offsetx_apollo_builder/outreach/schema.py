@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 SCHEMA_SQL = """
@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     notes TEXT NOT NULL DEFAULT '',
     source_ref TEXT NOT NULL DEFAULT '',
     source_json TEXT NOT NULL DEFAULT '{}',
+    recipient_timezone TEXT NOT NULL DEFAULT '',
+    outcome_label TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -43,6 +45,13 @@ CREATE TABLE IF NOT EXISTS campaigns (
     approval_mode TEXT NOT NULL DEFAULT 'each_message',
     variants_json TEXT NOT NULL DEFAULT '["A", "B"]',
     status TEXT NOT NULL DEFAULT 'active',
+    send_window_start TEXT NOT NULL DEFAULT '00:00',
+    send_window_end TEXT NOT NULL DEFAULT '00:00',
+    send_weekdays_json TEXT NOT NULL DEFAULT '[0, 1, 2, 3, 4, 5, 6]',
+    experiment_hypothesis TEXT NOT NULL DEFAULT '',
+    experiment_metric TEXT NOT NULL DEFAULT 'reply_rate',
+    experiment_min_sample INTEGER NOT NULL DEFAULT 40,
+    control_variant TEXT NOT NULL DEFAULT 'A',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -90,6 +99,8 @@ CREATE TABLE IF NOT EXISTS drafts (
     sending_started_at TEXT,
     send_error TEXT NOT NULL DEFAULT '',
     revision INTEGER NOT NULL DEFAULT 1,
+    scheduled_at TEXT,
+    generation_meta_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(campaign_contact_id, stage)
@@ -114,6 +125,10 @@ CREATE TABLE IF NOT EXISTS messages (
     sent_at TEXT,
     received_at TEXT,
     raw_json TEXT NOT NULL DEFAULT '{}',
+    variant_id TEXT NOT NULL DEFAULT '',
+    template_id TEXT NOT NULL DEFAULT '',
+    draft_revision INTEGER NOT NULL DEFAULT 0,
+    ai_provider_profile_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 
@@ -178,4 +193,42 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
     created_at TEXT NOT NULL,
     PRIMARY KEY(scope, request_key)
 );
+
+CREATE TABLE IF NOT EXISTS memory_items (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    scope TEXT NOT NULL DEFAULT 'global',
+    kind TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_sha256 TEXT NOT NULL,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    confidence REAL NOT NULL DEFAULT 0.5,
+    approved INTEGER NOT NULL DEFAULT 0,
+    source_type TEXT NOT NULL DEFAULT 'observation',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(workspace_id, scope, kind, content_sha256)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_lookup
+ON memory_items(workspace_id, scope, kind, approved, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS provider_calls (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    profile_id TEXT NOT NULL DEFAULT '',
+    provider_type TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    data_policy TEXT NOT NULL DEFAULT 'minimal',
+    status TEXT NOT NULL,
+    request_json TEXT NOT NULL DEFAULT '{}',
+    response_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT NOT NULL DEFAULT '',
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_calls_created
+ON provider_calls(created_at DESC, profile_id);
 """

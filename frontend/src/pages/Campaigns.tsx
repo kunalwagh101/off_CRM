@@ -13,6 +13,10 @@ export default function Campaigns() {
   const [name, setName] = useState("");
   const [limit, setLimit] = useState(25);
   const [timezone, setTimezone] = useState("Asia/Kolkata");
+  const [windowStart, setWindowStart] = useState("09:00");
+  const [windowEnd, setWindowEnd] = useState("17:00");
+  const [hypothesis, setHypothesis] = useState("");
+  const [minimumSample, setMinimumSample] = useState(40);
 
   async function create(event: FormEvent) {
     event.preventDefault();
@@ -20,7 +24,18 @@ export default function Campaigns() {
     try {
       const campaign = await api.post<Campaign>(
         "/campaigns",
-        { name, daily_send_limit: limit, timezone, variants: ["A", "B"] },
+        {
+          name,
+          daily_send_limit: limit,
+          timezone,
+          variants: ["A", "B"],
+          send_window_start: windowStart,
+          send_window_end: windowEnd,
+          send_weekdays: [0, 1, 2, 3, 4],
+          experiment_hypothesis: hypothesis,
+          experiment_min_sample: minimumSample,
+          control_variant: "A"
+        },
         idempotencyKey("campaign")
       );
       selectCampaign(campaign.id);
@@ -73,6 +88,7 @@ export default function Campaigns() {
               <div className="card-meta">
                 <span>{campaign.daily_send_limit} emails/day</span>
                 <span>{campaign.timezone}</span>
+                <span>{campaign.send_window_start}–{campaign.send_window_end}</span>
                 <span>Variants {campaign.variants.join(" / ")}</span>
               </div>
               <div className="card-actions">
@@ -103,6 +119,12 @@ export default function Campaigns() {
             <Field label="Daily send limit"><input type="number" value={limit} min={1} max={500} onChange={(event) => setLimit(Number(event.target.value))} required /></Field>
             <Field label="Timezone"><input value={timezone} onChange={(event) => setTimezone(event.target.value)} required /></Field>
           </div>
+          <div className="form-grid">
+            <Field label="Send window starts"><input type="time" value={windowStart} onChange={(event) => setWindowStart(event.target.value)} required /></Field>
+            <Field label="Send window ends"><input type="time" value={windowEnd} onChange={(event) => setWindowEnd(event.target.value)} required /></Field>
+          </div>
+          <Field label="Experiment hypothesis" hint="Example: a specific operational hook will increase replies."><input value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} maxLength={1000} /></Field>
+          <Field label="Minimum sends per variant"><input type="number" value={minimumSample} min={10} max={100000} onChange={(event) => setMinimumSample(Number(event.target.value))} /></Field>
           <div className="form-note"><strong>A/B testing is on.</strong><span>Contacts are assigned deterministically to A or B, so reruns stay stable.</span></div>
           <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" busy={busy}>Create campaign</Button></div>
         </form>

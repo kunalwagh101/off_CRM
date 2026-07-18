@@ -3,9 +3,11 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -21,6 +23,124 @@ class ProviderError(RuntimeError):
 
 class ProviderUnavailableError(ProviderError):
     """Raised when every configured provider is unavailable or invalid."""
+
+
+DATA_POLICIES = {"minimal", "standard", "full"}
+
+
+def _redact_text(value: str) -> str:
+    value = re.sub(
+        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        "[redacted-email]",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"https?://\S+", "[redacted-url]", value)
+
+
+def apply_data_policy(user_prompt: str, policy: str) -> str:
+    """Minimize provider payloads while retaining the canonical generation contract."""
+    if policy not in DATA_POLICIES:
+        raise ProviderError(f"Unsupported provider data policy: {policy}")
+    if policy == "full":
+        return user_prompt
+    try:
+        payload = json.loads(user_prompt)
+    except json.JSONDecodeError:
+        return _redact_text(user_prompt)
+    if not isinstance(payload, dict):
+        return _redact_text(user_prompt)
+    recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
+    if policy == "minimal":
+        private_values = [
+            str(recipient.get(key, ""))
+            for key in ("first_name", "full_name", "company", "title", "public_hook", "hook_source")
+            if recipient.get(key)
+        ]
+        payload["recipient"] = {
+            key: recipient[key]
+            for key in ("category", "route", "tension", "contribution", "question_1", "question_2", "question_3")
+            if recipient.get(key)
+        }
+        serialized = json.dumps(payload, ensure_ascii=False)
+        for value in sorted(private_values, key=len, reverse=True):
+            serialized = re.sub(re.escape(value), "[redacted-recipient]", serialized, flags=re.IGNORECASE)
+        return _redact_text(serialized)
+    for key in ("email", "linkedin_url", "hook_source", "source_ref"):
+        recipient.pop(key, None)
+    payload["recipient"] = recipient
+    return _redact_text(json.dumps(payload, ensure_ascii=False))
+
+
+class PolicyAIProvider:
+    """Provider wrapper enforcing data minimization and a redacted call audit."""
+
+    def __init__(
+        self,
+        provider: AIProvider,
+        *,
+        profile_id: str,
+        provider_type: str,
+        model: str,
+        data_policy: str = "minimal",
+        audit_payloads: bool = False,
+        audit_callback: Any | None = None,
+    ) -> None:
+        if data_policy not in DATA_POLICIES:
+            raise ProviderError(f"Unsupported provider data policy: {data_policy}")
+        self.provider = provider
+        self.profile_id = profile_id
+        self.provider_type = provider_type
+        self.model = model
+        self.data_policy = data_policy
+        self.audit_payloads = audit_payloads
+        self.audit_callback = audit_callback
+        self.last_run: dict[str, Any] = {}
+
+    def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+        minimized = apply_data_policy(user_prompt, self.data_policy)
+        started = time.monotonic()
+        status = "succeeded"
+        output = ""
+        error = ""
+        try:
+            output = self.provider.generate(system_prompt=system_prompt, user_prompt=minimized)
+            return output
+        except Exception as exc:
+            status = "failed"
+            error = str(exc)
+            raise
+        finally:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            request_payload = (
+                {"system_prompt": system_prompt[:12000], "user_prompt": minimized[:30000]}
+                if self.audit_payloads
+                else {"payload_logging": "disabled", "user_prompt_chars": len(minimized)}
+            )
+            response_payload = (
+                {"text": output[:30000]}
+                if self.audit_payloads and output
+                else {"payload_logging": "disabled", "response_chars": len(output)}
+            )
+            if self.audit_callback:
+                try:
+                    self.audit_callback(
+                        profile_id=self.profile_id,
+                        provider_type=self.provider_type,
+                        model=self.model,
+                        data_policy=self.data_policy,
+                        status=status,
+                        request_payload=request_payload,
+                        response_payload=response_payload,
+                        error=error,
+                        duration_ms=duration_ms,
+                    )
+                except Exception:
+                    pass
+            self.last_run = {
+                "selected_profile_id": self.profile_id if status == "succeeded" else "",
+                "attempts": [{"profile_id": self.profile_id, "status": status, "duration_ms": duration_ms}],
+            }
 
 
 def normalize_generation_output(value: str | dict[str, Any]) -> str:
@@ -71,21 +191,34 @@ class FallbackAIProvider:
         *,
         failure_threshold: int = 2,
         cooldown_seconds: int = 60,
+        strategy: str = "priority",
     ):
         if not providers:
             raise ProviderUnavailableError("No enabled AI provider profiles are configured")
         self.providers = providers
         self.failure_threshold = max(1, failure_threshold)
         self.cooldown_seconds = max(1, cooldown_seconds)
+        if strategy not in {"priority", "round_robin", "parallel"}:
+            raise ValueError("strategy must be priority, round_robin, or parallel")
+        self.strategy = strategy
+        self._cursor = 0
         self._failures: dict[str, int] = {}
         self._open_until: dict[str, float] = {}
         self._lock = threading.Lock()
         self.last_run: dict[str, Any] = {}
 
     def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+        if self.strategy == "parallel":
+            return self._generate_parallel(system_prompt=system_prompt, user_prompt=user_prompt)
         attempts: list[dict[str, str]] = []
         now = time.monotonic()
-        for profile_id, provider in self.providers:
+        ordered = list(self.providers)
+        if self.strategy == "round_robin":
+            with self._lock:
+                start = self._cursor % len(ordered)
+                self._cursor += 1
+            ordered = ordered[start:] + ordered[:start]
+        for profile_id, provider in ordered:
             with self._lock:
                 open_until = self._open_until.get(profile_id, 0.0)
             if open_until > now:
@@ -116,6 +249,49 @@ class FallbackAIProvider:
             f"{item['profile_id']}: {item.get('error', item['status'])}" for item in attempts
         )
         raise ProviderUnavailableError(f"All AI providers failed. {details}".strip())
+
+    def _generate_parallel(self, *, system_prompt: str, user_prompt: str) -> str:
+        now = time.monotonic()
+        eligible = []
+        attempts: list[dict[str, Any]] = []
+        for profile_id, provider in self.providers:
+            with self._lock:
+                open_until = self._open_until.get(profile_id, 0.0)
+            if open_until > now:
+                attempts.append({"profile_id": profile_id, "status": "circuit_open"})
+            else:
+                eligible.append((profile_id, provider))
+        if not eligible:
+            self.last_run = {"selected_profile_id": "", "attempts": attempts}
+            raise ProviderUnavailableError("All AI provider circuits are open")
+        executor = ThreadPoolExecutor(max_workers=len(eligible), thread_name_prefix="offsetx-ai")
+        futures = {
+            executor.submit(provider.generate, system_prompt=system_prompt, user_prompt=user_prompt): profile_id
+            for profile_id, provider in eligible
+        }
+        selected = ""
+        output = ""
+        try:
+            for future in as_completed(futures):
+                profile_id = futures[future]
+                try:
+                    candidate = normalize_generation_output(future.result())
+                except Exception as exc:
+                    attempts.append({"profile_id": profile_id, "status": "failed", "error": str(exc)[:500]})
+                    continue
+                selected = profile_id
+                output = candidate
+                attempts.append({"profile_id": profile_id, "status": "used"})
+                break
+        finally:
+            for future in futures:
+                if not future.done():
+                    future.cancel()
+            executor.shutdown(wait=False, cancel_futures=True)
+        self.last_run = {"selected_profile_id": selected, "attempts": attempts}
+        if output:
+            return output
+        raise ProviderUnavailableError("All parallel AI providers failed")
 
 
 def load_provider_config(path: Path | str) -> ProviderConfig:

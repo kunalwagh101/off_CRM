@@ -100,7 +100,7 @@ export default function Queue() {
                     <td><strong>{item.full_name}</strong><small>{item.email || "Email missing"} · {item.company}</small></td>
                     <td>{stageLabel(item.current_stage)}</td>
                     <td>{item.draft_stage ? stageLabel(item.draft_stage) : "Sequence finished"}<small>{item.quality_score ? `Quality ${item.quality_score}/100` : "No eligible draft"}</small></td>
-                    <td><Badge tone={item.is_due ? "warning" : "neutral"}>{item.is_due ? "Due now" : formatDate(item.next_action_at)}</Badge></td>
+                    <td><Badge tone={item.is_due ? "warning" : "neutral"}>{item.is_due ? "Due now" : formatDate(item.effective_due_at)}</Badge>{item.scheduled_at ? <small>Manual not-before gate</small> : null}</td>
                     <td><Badge tone={statusTone(item.approval_status ?? "missing")}>{(item.approval_status ?? "missing").replaceAll("_", " ")}</Badge></td>
                     <td><Badge tone={statusTone(item.status)}>{item.status.replaceAll("_", " ")}</Badge></td>
                   </tr>

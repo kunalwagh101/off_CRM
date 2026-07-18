@@ -99,6 +99,8 @@ class ContactInput:
     notes: str = ""
     source_ref: str = ""
     source_data: dict[str, Any] = field(default_factory=dict)
+    recipient_timezone: str = ""
+    outcome_label: str = ""
 
     @property
     def identity_key(self) -> str:
@@ -140,6 +142,8 @@ class ContactInput:
             notes=clean_text(self.notes),
             source_ref=clean_text(self.source_ref),
             source_data=dict(self.source_data),
+            recipient_timezone=clean_text(self.recipient_timezone),
+            outcome_label=clean_text(self.outcome_label),
         )
 
 
@@ -176,6 +180,7 @@ class DraftContent:
     template_id: str
     audit: DraftAudit
     retrieval_refs: list[str] = field(default_factory=list)
+    generation_meta: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

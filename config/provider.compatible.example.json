@@ -1,0 +1,8 @@
+{
+  "provider_type": "openai_compatible",
+  "model": "set-your-model-id",
+  "api_key_env": "AI_PROVIDER_API_KEY",
+  "base_url": "http://127.0.0.1:8080/v1",
+  "timeout_seconds": 60,
+  "extra": {}
+}

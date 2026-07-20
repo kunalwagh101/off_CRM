@@ -1,0 +1,49 @@
+# Secrets
+.env
+*.key
+
+# Python
+.venv/
+.testvenv/
+.verifyvenv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# User data and generated outputs
+output*/
+poi_file_queue/inbox/*
+poi_file_queue/processing/*
+poi_file_queue/processed/*
+poi_file_queue/failed/*
+old_pois/*
+frontend/node_modules/
+frontend/dist/
+
+# Local outreach state and credentials
+local_data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+gmail_token*.json
+client_secret*.json
+credentials*.json
+provider_config.json
+
+# Keep empty operational folders in Git
+!poi_file_queue/inbox/.gitkeep
+!poi_file_queue/processing/.gitkeep
+!poi_file_queue/processed/.gitkeep
+!poi_file_queue/failed/.gitkeep
+!old_pois/.gitkeep

@@ -29,6 +29,13 @@ poi_file_queue/failed/*
 old_pois/*
 frontend/node_modules/
 frontend/dist/
+graphify-out/cache/
+graphify-out/**/.graphify_analysis.json
+graphify-out/**/.graphify_labels.json
+graphify-out/**/.graphify_root
+graphify-out/**/.graphify_labels.json.sig
+graphify-out/**/.rebuild.lock
+graphify-out/20??-??-??/
 
 # Local outreach state and credentials
 local_data/

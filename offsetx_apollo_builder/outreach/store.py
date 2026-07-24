@@ -910,6 +910,21 @@ class OutreachStore:
             (campaign_contact_id,),
         )
 
+    def campaign_thread_ids(self, campaign_id: str) -> list[str]:
+        rows = self._rows(
+            """
+            SELECT DISTINCT m.thread_id
+            FROM messages m
+            JOIN campaign_contacts cc ON cc.id = m.campaign_contact_id
+            WHERE cc.campaign_id = ?
+              AND m.direction = 'outbound'
+              AND m.thread_id <> ''
+            ORDER BY m.thread_id
+            """,
+            (campaign_id,),
+        )
+        return [str(row["thread_id"]) for row in rows if row.get("thread_id")]
+
     def sent_count_between(
         self, campaign_id: str, start_utc: datetime, end_utc: datetime
     ) -> int:

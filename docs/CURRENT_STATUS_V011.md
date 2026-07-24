@@ -1,11 +1,11 @@
-# OffsetX CRM v0.11 handoff
+# OFF_CRM v0.11 handoff
 
-Prepared: **19 July 2026**  
+Prepared: **19 July 2026**
 Repository target: **kunalwagh101/off_CRM**
 
 ## Status
 
-OffsetX CRM is a working local-first POI discovery, Apollo enrichment, email outreach and sales-tracking application. It has a FastAPI backend, React control centre, SQLite source of truth, protected Render demo configuration, provider-neutral AI generation, approval-first sending, prompt-driven discovery, a research graph and a setter/closer sales operating system.
+OFF_CRM v0.11 was a working local-first POI discovery, Apollo enrichment, email outreach and sales-tracking application. It has a FastAPI backend, React control centre, SQLite source of truth, protected Render demo configuration, provider-neutral AI generation, approval-first sending, prompt-driven discovery, a research graph and a setter/closer sales operating system.
 
 It is suitable for local operation and disposable demo testing. It remains a single-user application, not a production multi-tenant SaaS.
 

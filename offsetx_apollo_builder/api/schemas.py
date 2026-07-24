@@ -160,6 +160,37 @@ class ProviderProfileUpsert(StrictModel):
     data_policy: Literal["minimal", "standard", "full"] = "minimal"
     audit_payloads: bool = False
     fallback_strategy: Literal["priority", "round_robin", "parallel"] = "priority"
+    jurisdiction: str = Field(default="Unknown", min_length=1, max_length=120)
+    retention_policy: Literal[
+        "unknown",
+        "no_training_no_retention",
+        "no_training_limited_retention",
+        "may_train",
+    ] = "unknown"
+    trust_tier: Literal["A", "B", "C", "D"] = "D"
+    host_origin: str = Field(default="", max_length=160)
+    model_origin: str = Field(default="", max_length=160)
+    model_origin_jurisdiction: str = Field(default="", max_length=120)
+    model_origin_input_isolation_verified: bool = False
+    terms_checked_at: str = Field(default="", max_length=40)
+    rpm_limit: int = Field(default=0, ge=0, le=1_000_000)
+    rpd_limit: int = Field(default=0, ge=0, le=100_000_000)
+    context_window: int = Field(default=0, ge=0, le=100_000_000)
+    input_cost_per_million: float = Field(default=0, ge=0)
+    output_cost_per_million: float = Field(default=0, ge=0)
+    daily_cost_cap: float = Field(default=0, ge=0)
+    monthly_cost_cap: float = Field(default=0, ge=0)
+    allowed_task_types: list[
+        Literal[
+            "public_general",
+            "outreach_draft",
+            "template_rewrite",
+            "masked_parse_fallback",
+            "health_check",
+        ]
+    ] = Field(default_factory=list, max_length=20)
+    fallback_profile_ids: list[str] = Field(default_factory=list, max_length=20)
+    public_tasks_enabled: bool = False
     extra: dict[str, Any] = Field(default_factory=dict)
 
 

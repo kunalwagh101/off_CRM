@@ -9,17 +9,17 @@ services:
     healthCheckPath: /health/ready
     autoDeploy: true
     envVars:
-      - key: OFFSETX_WEB_HOST
+      - key: OFF_CRM_WEB_HOST
         value: 0.0.0.0
-      - key: OFFSETX_DATA_DIR
-        value: /tmp/offsetx/local_data
-      - key: OFFSETX_OUTREACH_DB
-        value: /tmp/offsetx/local_data/offsetx_outreach.db
-      - key: OFFSETX_DEMO_USERNAME
+      - key: OFF_CRM_DATA_DIR
+        value: /tmp/off_crm/local_data
+      - key: OFF_CRM_DB
+        value: /tmp/off_crm/local_data/off_crm.db
+      - key: OFF_CRM_DEMO_USERNAME
         sync: false
-      - key: OFFSETX_DEMO_PASSWORD
+      - key: OFF_CRM_DEMO_PASSWORD
         sync: false
-      - key: OFFSETX_SESSION_SECRET
+      - key: OFF_CRM_SESSION_SECRET
         generateValue: true
-      - key: OFFSETX_SESSION_HOURS
+      - key: OFF_CRM_SESSION_HOURS
         value: 8

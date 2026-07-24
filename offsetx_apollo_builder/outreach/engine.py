@@ -463,7 +463,15 @@ class OutreachEngine:
         with self._lock:
             earliest = self.store.earliest_outgoing_at(campaign_id)
             since = (earliest - timedelta(days=1)) if earliest else (now - timedelta(days=30))
-            incoming = mail_provider.list_replies(since=since, own_email=own_email)
+            thread_reader = getattr(mail_provider, "list_replies_for_threads", None)
+            if callable(thread_reader):
+                incoming = thread_reader(
+                    thread_ids=self.store.campaign_thread_ids(campaign_id),
+                    since=since,
+                    own_email=own_email,
+                )
+            else:
+                incoming = mail_provider.list_replies(since=since, own_email=own_email)
             matched = 0
             for message in incoming:
                 updated = self.store.record_reply(campaign_id, message)

@@ -1,6 +1,6 @@
-# Web CRM operating guide
+# OFF_CRM web operating guide
 
-## Run the application
+## Run
 
 ```powershell
 uv sync --extra dev
@@ -8,91 +8,58 @@ cd frontend
 npm ci
 npm run build
 cd ..
-uv run python run_offsetx_web.py
+uv run python run_off_crm.py
 ```
 
 Open `http://127.0.0.1:8766`.
 
-## Pages
+## Navigation
 
-- Overview: campaign pulse and review backlog
-- Campaigns: daily limit, status, timezone and stable A/B split
-- Lead discovery: prompt plan, guarded safe-HTTP/Crawl4AI crawl, research graph, Apollo rejection list, evidence review, exclusion, Apollo queue and CRM import
-- Contacts: import, search, edit and CRM checkbox
-- Draft review: generate, audit, edit and approve
-- Draft control: preview exact output, apply reviewed corrections in bulk and set not-before times
-- Send queue: local outbox, Gmail send and reply sync
-- Sales tracker: lead-card Kanban, full lead log, setter/closer/money dashboard and monthly projection
-- Experiments: first-touch reply rates by variant
-- Settings: provider profiles, automatic failover, automation, encrypted backups, local paths, expert sources and exports
-- Intelligence controls: provider data policy and request audit, memory approval, routing strategy and health state
+- **AI:** prompt/model workspace, campaign file intake, local context inspector.
+- **Overview:** campaign pulse and review backlog.
+- **Campaigns:** limits, status, timezone, windows, weekdays, and stable A/B split.
+- **Lead discovery:** bounded prompt, guarded crawl, one-to-four worker control, research graph, evidence review, exclusion, Apollo queue, and rejection ledger.
+- **Contacts:** import, search, edit, and CRM status.
+- **Draft review:** generate, regenerate, inspect, edit, bulk-correct, schedule, and approve.
+- **Send queue:** local outbox, Gmail send, and CRM-thread reply sync.
+- **Sales tracker:** Kanban, lead log, setter/closer/money dashboard, and projection.
+- **Experiments:** reply-rate reporting and human-reviewed template recommendations.
+- **Connectors:** Gmail OAuth, provider trust/quota registry, egress inspector, owner exports, and sandboxed GitHub tools.
+- **Settings:** local storage, learning memory, automation, encrypted backups, expert sources, templates, and one-way Notion export.
 
-## Sales tracker
+AI is first in the global left navigation. The left navigation closes independently. In AI, Chats and Projects open from the right and have their own close/reopen control.
 
-The sales card is the only operational input. Moving or editing it recalculates the lead log, performance dashboard, leak alerts, goal completion, commissions and forecast. Setter daily activity is upserted by setter and date, so correcting an entry does not create a duplicate. See `SALES_TRACKER.md` for field definitions and formulas.
+Discovery workers share one per-domain rate gate. Increasing workers can shorten a multi-site run, but it does not increase request frequency to a single site.
 
-## Review and scheduling
+Notion sync writes selected campaign contacts or sales leads into existing Notion databases. OFF_CRM remains the source of truth and does not import Notion changes.
 
-Automation never bypasses the review model. A changed draft returns to pending approval. Campaign send windows, per-draft not-before times, daily caps and reply-stop state are enforced by the backend even when the UI is closed.
+## Draft review and sending
 
-## Memory
+Changed or regenerated drafts return to pending approval. Send windows, per-draft not-before times, daily limits, and reply-stop state are enforced by the backend even when the UI is closed.
 
-Human edits and labelled outcomes become de-identified local memory. Automatic reply observations remain unapproved until reviewed. Only approved memory is retrieved during generation.
+Use the local outbox first. Gmail sending requires a connected account and the exact live-send confirmation shown in the UI.
 
 ## Safe automation
 
-Automation is disabled by default. It always syncs replies before claiming a send, respects campaign schedules and daily limits, and stops remaining follow-ups after a reply. Local-outbox automation can be enabled directly. Persistent Gmail automation also requires the exact phrase `ENABLE AUTOMATED GMAIL`.
-
-## Provider failover
-
-Add provider profiles in Settings and assign a priority. Draft generation tries healthy providers in order and records which provider completed the request. OpenAI, Anthropic, OpenAI-compatible, future template-app HTTP and local-command profiles use one normalized output contract.
-
-## Backup and restore
-
-Settings can export a passphrase-encrypted `.oxbackup` containing the CRM database, provider profiles, encrypted provider keys and automation settings. Gmail OAuth tokens and generated mail files are intentionally excluded. Restore creates a safety copy before replacing local state.
-
-## Local development
-
-Run the backend:
-
-```powershell
-uv run python run_offsetx_web.py
-```
-
-Run Vite in another terminal:
-
-```powershell
-cd frontend
-npm run dev
-```
-
-Open `http://127.0.0.1:5173`.
+Automation is disabled by default. It syncs replies before claiming sends, honors campaign schedules and daily limits, and stops unsent follow-ups after a reply. Persistent Gmail automation has a separate activation phrase.
 
 ## Local API token
 
-Loopback use does not require a token by default. To enable one:
+Loopback use needs no token by default. To require one:
 
 ```env
-OFFSETX_LOCAL_API_TOKEN=use-at-least-32-random-characters
+OFF_CRM_LOCAL_API_TOKEN=use-at-least-32-random-characters
 ```
 
-Enter the same value through the Key button in the web UI. It is stored for the browser session only.
+Enter it through the Key control. The browser stores it for the current session only. A non-loopback host is refused without this token or complete login configuration.
 
-Non-loopback binding is refused unless this token has at least 32 characters.
+## Local reply simulation
 
-## Local outbox reply simulation
-
-Local sends create JSON files under:
-
-```text
-local_data/mail/outbox
-```
-
-For testing, place an inbound JSON file under `local_data/mail/inbox` with the outbound `thread_id`, sender email, body and received time. Use Sync local replies in the UI. Matching contacts move to replied and unsent follow-ups are cancelled.
+Local sends create JSON files under `local_data/mail/outbox`. For tests, place an inbound JSON record in `local_data/mail/inbox` using the outbound `thread_id`, sender, body, and receive time. Sync local replies. Matching contacts move to replied and remaining follow-ups are canceled.
 
 ## CRM export order
 
-The first six columns are locked:
+The first six columns remain:
 
 1. Checkbox
 2. Outreach Date
@@ -101,4 +68,6 @@ The first six columns are locked:
 5. Follow-Up
 6. Meeting Transcript
 
-Secondary evidence and sequence columns follow. Formula-like imported values are escaped before CSV or XLSX export.
+Secondary evidence and sequence columns follow. Formula-like values are escaped in CSV/XLSX exports.
+
+See `OFF_AI_OPERATOR_GUIDE.md` for provider, Gmail, campaign-intake, export, and sandbox-tool operations.

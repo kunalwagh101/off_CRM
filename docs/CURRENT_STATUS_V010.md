@@ -1,12 +1,12 @@
-# OffsetX CRM current status and handoff
+# OFF_CRM v0.10 current status and handoff
 
-Snapshot version: **0.10.0**  
-Prepared: **19 July 2026**  
+Snapshot version: **0.10.0**
+Prepared: **19 July 2026**
 Repository target: **kunalwagh101/off_CRM**
 
 ## Executive status
 
-OffsetX CRM is now a working local-first POI discovery, Apollo enrichment and email-outreach application. It has a FastAPI backend, React control centre, local SQLite data layer, protected Render demo configuration, provider-neutral AI generation, human approval, scheduling, reply-aware follow-ups, experiments, local memory, guarded public-web discovery and a research graph.
+OFF_CRM v0.10 was a working local-first POI discovery, Apollo enrichment and email-outreach application. It has a FastAPI backend, React control centre, local SQLite data layer, protected Render demo configuration, provider-neutral AI generation, human approval, scheduling, reply-aware follow-ups, experiments, local memory, guarded public-web discovery and a research graph.
 
 The application is suitable for local operation and disposable demo testing. It is not yet a production multi-tenant SaaS.
 
@@ -194,4 +194,3 @@ uv run crawl4ai-setup
 - `docs/DEPLOYMENT.md`
 - `docs/TROUBLESHOOTING.md`
 - `docs/TEMPLATE_INTELLIGENCE_CONTRACT.md`
-

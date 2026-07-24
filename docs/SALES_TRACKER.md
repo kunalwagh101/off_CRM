@@ -1,6 +1,6 @@
 # Sales tracker
 
-OffsetX v0.11 includes a local-first sales operating system for setters and closers. A lead card is the source of truth. The board, lead log, dashboard, commissions, leak signals and forecast read the same SQLite records, so no downstream result is entered twice.
+OFF_CRM v0.11 introduced a local-first sales operating system for setters and closers. A lead card is the source of truth. The board, lead log, dashboard, commissions, leak signals and forecast read the same SQLite records, so no downstream result is entered twice.
 
 ## Views
 

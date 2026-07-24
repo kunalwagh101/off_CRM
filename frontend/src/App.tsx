@@ -4,7 +4,9 @@ import { Button, Field, Modal } from "./components";
 import { AppContext } from "./context";
 import { useResource } from "./hooks";
 import Dashboard from "./pages/Dashboard";
+import AIStudio from "./pages/AIStudio";
 import Campaigns from "./pages/Campaigns";
+import Connections from "./pages/Connections";
 import Contacts from "./pages/Contacts";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
@@ -14,8 +16,11 @@ import Experiments from "./pages/Experiments";
 import Settings from "./pages/Settings";
 import type { AuthSession, Campaign, Paginated } from "./types";
 
-const CAMPAIGN_KEY = "offsetx-active-campaign";
+const CAMPAIGN_KEY = "off-crm-active-campaign";
+const LEGACY_CAMPAIGN_KEY = "offsetx-active-campaign";
+const LEFT_NAV_KEY = "off-crm-left-nav-open";
 const pages = {
+  ai: AIStudio,
   dashboard: Dashboard,
   campaigns: Campaigns,
   discovery: Discovery,
@@ -24,11 +29,13 @@ const pages = {
   queue: Queue,
   sales: SalesTracker,
   experiments: Experiments,
+  connections: Connections,
   settings: Settings
 };
 type Page = keyof typeof pages;
 
-const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
+export const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
+  { page: "ai", label: "AI", icon: "✦", group: "Intelligence" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },
@@ -37,12 +44,29 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "queue", label: "Send queue", icon: "➤" },
   { page: "sales", label: "Sales tracker", icon: "↗", group: "Sales" },
   { page: "experiments", label: "Experiments", icon: "A/B" },
-  { page: "settings", label: "Settings", icon: "⚙", group: "System" }
+  { page: "connections", label: "Connectors", icon: "↔", group: "System" },
+  { page: "settings", label: "Settings", icon: "⚙" }
 ];
 
 function currentPage(): Page {
+  if (typeof window === "undefined") return "dashboard";
   const value = window.location.hash.replace(/^#\/?/, "") as Page;
   return value in pages ? value : "dashboard";
+}
+
+function storedValue(key: string, fallback = ""): string {
+  if (typeof window === "undefined") return fallback;
+  if (key === CAMPAIGN_KEY) {
+    const current = window.localStorage.getItem(CAMPAIGN_KEY);
+    if (current !== null) return current;
+    const legacy = window.localStorage.getItem(LEGACY_CAMPAIGN_KEY);
+    if (legacy !== null) {
+      window.localStorage.setItem(CAMPAIGN_KEY, legacy);
+      window.localStorage.removeItem(LEGACY_CAMPAIGN_KEY);
+      return legacy;
+    }
+  }
+  return window.localStorage.getItem(key) ?? fallback;
 }
 
 export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
@@ -70,7 +94,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
   return (
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
-        <div className="login-brand"><span className="brand-symbol">OX</span><span><strong>OffsetX</strong><small>Outreach OS</small></span></div>
+        <div className="login-brand"><span className="brand-symbol">OFF</span><span><strong>OFF_CRM</strong><small>Revenue OS</small></span></div>
         <p className="eyebrow">Protected demo</p>
         <h1 id="login-title">Sign in to the CRM</h1>
         <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
@@ -86,9 +110,12 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
   );
 }
 
-function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
+export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
   const [page, setPage] = useState<Page>(currentPage());
-  const [campaignId, setCampaignId] = useState(localStorage.getItem(CAMPAIGN_KEY) ?? "");
+  const [leftNavOpen, setLeftNavOpen] = useState(
+    storedValue(LEFT_NAV_KEY, "true") !== "false"
+  );
+  const [campaignId, setCampaignId] = useState(storedValue(CAMPAIGN_KEY));
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenValue, setTokenValue] = useState(getToken());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
@@ -115,6 +142,10 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
     const timer = window.setTimeout(() => setToast(null), 4500);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    localStorage.setItem(LEFT_NAV_KEY, String(leftNavOpen));
+  }, [leftNavOpen]);
 
   function selectCampaign(id: string) {
     setCampaignId(id);
@@ -150,16 +181,31 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   return (
     <AppContext.Provider value={context}>
       <div className="app-shell">
-        <aside className="sidebar">
-          <a href="#dashboard" className="brand" aria-label="OffsetX home">
-            <span className="brand-symbol">OX</span>
-            <span><strong>OffsetX</strong><small>Outreach OS</small></span>
-          </a>
+        <aside className={`sidebar ${leftNavOpen ? "sidebar-open" : "sidebar-closed"}`}>
+          <div className="sidebar-brand-row">
+            <a href="#dashboard" className="brand" aria-label="OFF_CRM home">
+              <span className="brand-symbol">OFF</span>
+              <span><strong>OFF_CRM</strong><small>Revenue OS</small></span>
+            </a>
+            <button
+              className="sidebar-close"
+              onClick={() => setLeftNavOpen(false)}
+              aria-label="Close main navigation"
+            >
+              ×
+            </button>
+          </div>
           <nav aria-label="Main navigation">
             {navigation.map((item) => (
               <div key={item.page}>
                 {item.group ? <p className="nav-group">{item.group}</p> : null}
-                <a className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}>
+                <a
+                  className={page === item.page ? "nav-active" : ""}
+                  href={`#${item.page}`}
+                  onClick={() => {
+                    if (window.innerWidth <= 860) setLeftNavOpen(false);
+                  }}
+                >
                   <span className={`nav-icon nav-icon-${item.page}`}>{item.icon}</span>
                   <span>{item.label}</span>
                   {item.page === "drafts" && campaignsResource.data ? <small className="nav-count">Review</small> : null}
@@ -172,15 +218,33 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
           </div>
         </aside>
-        <div className="app-main">
+        {leftNavOpen ? (
+          <button
+            className="sidebar-backdrop"
+            aria-label="Close main navigation"
+            onClick={() => setLeftNavOpen(false)}
+          />
+        ) : null}
+        <div className={`app-main ${leftNavOpen ? "app-main-nav-open" : "app-main-nav-closed"}`}>
           <header className="topbar">
-            <div className="campaign-switcher">
-              <span>Campaign</span>
-              <select value={campaignId} onChange={(event) => selectCampaign(event.target.value)} aria-label="Active campaign">
-                {!campaigns.length ? <option value="">No campaign</option> : null}
-                {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
-              </select>
-              {activeCampaign ? <span className={`status-dot status-${activeCampaign.status}`} title={activeCampaign.status} /> : null}
+            <div className="topbar-left">
+              {!leftNavOpen ? (
+                <button
+                  className="topbar-button nav-open-button"
+                  onClick={() => setLeftNavOpen(true)}
+                  aria-label="Open main navigation"
+                >
+                  ☰
+                </button>
+              ) : null}
+              <div className="campaign-switcher">
+                <span>Campaign</span>
+                <select value={campaignId} onChange={(event) => selectCampaign(event.target.value)} aria-label="Active campaign">
+                  {!campaigns.length ? <option value="">No campaign</option> : null}
+                  {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+                </select>
+                {activeCampaign ? <span className={`status-dot status-${activeCampaign.status}`} title={activeCampaign.status} /> : null}
+              </div>
             </div>
             <div className="topbar-actions">
               {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
@@ -192,11 +256,11 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
           <nav className="mobile-nav" aria-label="Mobile navigation">
             {navigation.map((item) => <a key={item.page} className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}><span>{item.icon}</span>{item.label}</a>)}
           </nav>
-          <main className="page-content"><Screen /></main>
+          <main className={`page-content ${page === "ai" ? "ai-page-content" : ""}`}><Screen /></main>
         </div>
       </div>
       {toast ? <div className={`toast toast-${toast.tone}`} role="status"><span>{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button></div> : null}
-      <Modal open={tokenOpen} onClose={() => setTokenOpen(false)} title="Local API token" description="Only needed if OFFSETX_LOCAL_API_TOKEN is enabled in the backend.">
+      <Modal open={tokenOpen} onClose={() => setTokenOpen(false)} title="Local API token" description="Only needed if OFF_CRM_LOCAL_API_TOKEN or the legacy local token variable is enabled in the backend.">
         <form className="form-stack" onSubmit={saveSessionToken}>
           <Field label="Token"><input type="password" value={tokenValue} onChange={(event) => setTokenValue(event.target.value)} autoComplete="off" autoFocus /></Field>
           <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setTokenOpen(false)}>Cancel</Button><Button type="submit">Save for session</Button></div>

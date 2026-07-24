@@ -422,6 +422,7 @@ export type SettingsStatus = {
   local_outbox: string;
   expert_sources: Record<string, number>;
   provider_profiles: number;
+  off_ai?: Record<string, number>;
   automation: AutomationStatus;
   memory: MemoryStats;
 };
@@ -442,6 +443,33 @@ export type ProviderProfile = {
   data_policy: "minimal" | "standard" | "full";
   audit_payloads: boolean;
   fallback_strategy: "priority" | "round_robin" | "parallel";
+  jurisdiction: string;
+  retention_policy: "unknown" | "no_training_no_retention" | "no_training_limited_retention" | "may_train";
+  trust_tier: "A" | "B" | "C" | "D";
+  effective_trust_tier?: "A" | "B" | "C" | "D";
+  host_origin: string;
+  model_origin: string;
+  model_origin_jurisdiction: string;
+  model_origin_input_isolation_verified: boolean;
+  terms_checked_at: string;
+  rpm_limit: number;
+  rpd_limit: number;
+  context_window: number;
+  input_cost_per_million: number;
+  output_cost_per_million: number;
+  daily_cost_cap: number;
+  monthly_cost_cap: number;
+  allowed_task_types: string[];
+  fallback_profile_ids: string[];
+  public_tasks_enabled: boolean;
+  ai_eligible?: boolean;
+  task_eligibility?: Record<string, boolean>;
+  task_blockers?: Record<string, string[]>;
+  usage?: {
+    last_minute_requests: number;
+    today: { requests: number; input_tokens: number; output_tokens: number; estimated_cost: number };
+    month: { requests: number; input_tokens: number; output_tokens: number; estimated_cost: number };
+  };
   last_health_status: string;
   last_checked_at: string;
   last_error: string;
@@ -495,6 +523,149 @@ export type ProviderCall = {
   created_at: string;
 };
 
+export type AIProject = {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  archived: boolean;
+  conversation_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIConversation = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  title: string;
+  selected_profile_id: string;
+  task_type: "public_general";
+  data_class: "public";
+  pinned: boolean;
+  archived: boolean;
+  message_count: number;
+  last_message: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIMessage = {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  status: "sending" | "complete" | "blocked" | string;
+  provider_profile_id: string;
+  model: string;
+  trust_tier: string;
+  egress_call_id: string;
+  egress_approved: boolean;
+  retry_of_message_id: string;
+  attachments: Array<Record<string, unknown>>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIModel = ProviderProfile;
+
+export type AIBootstrap = {
+  projects: AIProject[];
+  conversations: AIConversation[];
+  conversation_total: number;
+  models: AIModel[];
+  stats: Record<string, number>;
+  defaults: {
+    public_positioning: string;
+    task_type: "public_general";
+    data_class: "public";
+  };
+  privacy: {
+    models_pull_data: false;
+    email_addresses_leave: false;
+    mailbox_access: false;
+    context_store_access: false;
+  };
+};
+
+export type AIContextState = {
+  id: string;
+  scope_type: string;
+  scope_id: string;
+  current_task: string;
+  rolling_summary: string;
+  done: string[];
+  pending: string[];
+  entity_facts: Record<string, unknown>;
+  decisions: Array<Record<string, unknown>>;
+  constraints: Array<Record<string, unknown> | string>;
+  updated_at: string;
+};
+
+export type AIEgressCall = {
+  id: string;
+  conversation_id: string;
+  message_id: string;
+  profile_id: string;
+  provider_name: string;
+  provider_type: string;
+  model: string;
+  trust_tier: string;
+  jurisdiction: string;
+  retention_policy: string;
+  task_type: string;
+  data_class: string;
+  status: string;
+  payload: Record<string, unknown>;
+  response_text: string;
+  blocked_reasons: string[];
+  error: string;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost: number;
+  duration_ms: number;
+  created_at: string;
+  completed_at: string;
+};
+
+export type AIIntake = {
+  id: string;
+  attachment_id: string;
+  conversation_id: string;
+  status: "inspecting" | "ready" | "needs_choice" | "failed" | "committed";
+  detected_mode: "" | "generate" | "parse_send";
+  selected_mode: "" | "generate" | "parse_send";
+  ambiguous: boolean;
+  mapping: Record<string, string>;
+  public_preview: {
+    columns?: string[];
+    rows?: Array<Record<string, string>>;
+    row_count?: number;
+    errors?: Array<Record<string, unknown> | string>;
+    warnings?: string[];
+    commit_result?: Record<string, unknown>;
+  };
+  template_text: string;
+  public_positioning: string;
+  campaign_id: string;
+  error: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConnectorsStatus = {
+  gmail: {
+    configured: boolean;
+    connected: boolean;
+    account: string;
+    scopes: string[];
+    token_location: string;
+    ai_access: false;
+    reply_sync_boundary: string;
+  };
+  ai_providers: AIModel[];
+};
+
 export type NotionStatus = {
   connected: boolean;
   workspace_name: string;
@@ -502,7 +673,10 @@ export type NotionStatus = {
   sales_database_id: string;
 };
 
-export type NotionDatabase = { id: string; title: string };
+export type NotionDatabase = {
+  id: string;
+  title: string;
+};
 
 export type NotionExportResult = {
   created: number;

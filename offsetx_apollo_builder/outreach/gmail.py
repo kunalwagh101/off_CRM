@@ -320,6 +320,87 @@ class GmailMailProvider:
         }
 
     def list_replies(self, *, since: datetime, own_email: str) -> list[IncomingMessage]:
+        raise GmailError(
+            "Broad mailbox scanning is disabled. Use CRM-owned thread IDs."
+        )
+
+    def list_replies_for_threads(
+        self,
+        *,
+        thread_ids: list[str],
+        since: datetime,
+        own_email: str,
+    ) -> list[IncomingMessage]:
+        """Read metadata only from Gmail threads created and stored by this CRM."""
+        replies: list[IncomingMessage] = []
+        seen: set[str] = set()
+        for thread_id in list(dict.fromkeys(thread_ids))[:500]:
+            if not thread_id:
+                continue
+            thread = self._request(
+                "GET",
+                f"threads/{thread_id}",
+                params={
+                    "format": "metadata",
+                    "metadataHeaders": [
+                        "From",
+                        "To",
+                        "Subject",
+                        "Date",
+                        "Message-ID",
+                    ],
+                },
+            )
+            for data in thread.get("messages", []):
+                if not isinstance(data, dict):
+                    continue
+                message_id = str(data.get("id", ""))
+                if not message_id or message_id in seen:
+                    continue
+                seen.add(message_id)
+                headers = self._headers(data.get("payload") or {})
+                from_email = parseaddr(headers.get("from", ""))[1].lower()
+                if not from_email or from_email == own_email.lower():
+                    continue
+                received_at = utc_now()
+                internal_date = str(data.get("internalDate", ""))
+                if internal_date.isdigit():
+                    received_at = datetime.fromtimestamp(
+                        int(internal_date) / 1000, tz=timezone.utc
+                    )
+                elif headers.get("date"):
+                    try:
+                        parsed = parsedate_to_datetime(headers["date"])
+                        received_at = (
+                            parsed
+                            if parsed.tzinfo
+                            else parsed.replace(tzinfo=timezone.utc)
+                        )
+                    except (TypeError, ValueError):
+                        pass
+                if received_at < since:
+                    continue
+                replies.append(
+                    IncomingMessage(
+                        provider_message_id=message_id,
+                        thread_id=str(data.get("threadId", thread_id)),
+                        from_email=from_email,
+                        subject=headers.get("subject", ""),
+                        body_preview="",
+                        received_at=received_at,
+                        internet_message_id=headers.get("message-id", ""),
+                        raw={
+                            "id": message_id,
+                            "threadId": str(data.get("threadId", thread_id)),
+                            "metadata_only": True,
+                        },
+                    )
+                )
+        return replies
+
+    def _legacy_list_replies_disabled(
+        self, *, since: datetime, own_email: str
+    ) -> list[IncomingMessage]:
         timestamp = int(since.astimezone(timezone.utc).timestamp())
         query = f"after:{timestamp} -from:{own_email}"
         message_refs: list[dict[str, Any]] = []
@@ -459,3 +540,17 @@ class LocalOutboxProvider:
                 )
             )
         return replies
+
+    def list_replies_for_threads(
+        self,
+        *,
+        thread_ids: list[str],
+        since: datetime,
+        own_email: str,
+    ) -> list[IncomingMessage]:
+        allowed = set(thread_ids)
+        return [
+            item
+            for item in self.list_replies(since=since, own_email=own_email)
+            if item.thread_id in allowed
+        ]

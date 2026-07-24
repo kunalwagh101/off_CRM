@@ -1,10 +1,21 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Badge, PageHeader, Progress, StatCard } from "./components";
-import { LoginScreen } from "./App";
+import { AuthenticatedApp, LoginScreen, navigation } from "./App";
 import { AppContext } from "./context";
 import { stageLabel } from "./hooks";
 import SalesTracker, { formatSalesMoney } from "./pages/SalesTracker";
+import AIStudio from "./pages/AIStudio";
+import Connections from "./pages/Connections";
+
+const appContext = {
+  campaigns: [],
+  campaignId: "",
+  activeCampaign: null,
+  selectCampaign: () => undefined,
+  refreshCampaigns: () => undefined,
+  notify: () => undefined
+};
 
 describe("shared production UI", () => {
   it("renders accessible campaign summary components", () => {
@@ -37,9 +48,23 @@ describe("shared production UI", () => {
     expect(html).toContain("Gmail is not required");
   });
 
+  it("places AI first and gives the global left navigation its own close control", () => {
+    expect(navigation[0]).toMatchObject({ page: "ai", label: "AI" });
+    const html = renderToStaticMarkup(
+      <AuthenticatedApp
+        auth={{ configured: true, authenticated: true, username: "owner", expires_at: null }}
+        onLogout={() => undefined}
+      />
+    );
+    expect(html).toContain("OFF_CRM");
+    expect(html).toContain("Close main navigation");
+    expect(html).toContain('href="#ai"');
+    expect(html).toContain("Connectors");
+  });
+
   it("renders all sales tracker operating views from one lead-card source", () => {
     const html = renderToStaticMarkup(
-      <AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: () => undefined, refreshCampaigns: () => undefined, notify: () => undefined }}>
+      <AppContext.Provider value={appContext}>
         <SalesTracker />
       </AppContext.Provider>
     );
@@ -50,19 +75,43 @@ describe("shared production UI", () => {
     expect(html).toContain("Projection");
     expect(formatSalesMoney(1250, "USD")).toContain("1,250");
   });
+
+  it("renders the AI workspace with independent history controls and privacy boundaries", () => {
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={appContext}>
+        <AIStudio />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("OFF_AI");
+    expect(html).toContain("Close chat and project history");
+    expect(html).toContain("Chats");
+    expect(html).toContain("Projects");
+    expect(html).toContain("No mailbox access");
+    expect(html).toContain("Email addresses stay local");
+    expect(html).toContain("Exact egress audit");
+  });
+
+  it("keeps Gmail and classified AI providers in Connectors instead of Settings", () => {
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={appContext}>
+        <Connections />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Connectors");
+    expect(html).toContain("Gmail");
+    expect(html).toContain("AI providers");
+    expect(html).toContain("No pull tools");
+    expect(html).toContain("Same-tier failover");
+  });
 });
 
-describe("v0.12 additions", () => {
+describe("discovery and Notion additions", () => {
   const context = {
-    campaigns: [],
-    campaignId: "c1",
-    activeCampaign: null,
-    selectCampaign: () => undefined,
-    refreshCampaigns: () => undefined,
-    notify: () => undefined
+    ...appContext,
+    campaignId: "c1"
   };
 
-  it("discovery exposes engine choice cards and a worker control the user owns", async () => {
+  it("lets the operator choose the crawler and worker count", async () => {
     const { default: Discovery } = await import("./pages/Discovery");
     const html = renderToStaticMarkup(
       <AppContext.Provider value={context}>
@@ -75,9 +124,7 @@ describe("v0.12 additions", () => {
     expect(html).toContain("never hit one site harder");
   });
 
-  it("settings offers Notion connect with encrypted-token promise", async () => {
-    // Settings reads the session token at render; the node test env has no
-    // sessionStorage, so provide a minimal stub before importing.
+  it("offers one-way Notion sync while OFF_CRM stays the source of truth", async () => {
     const memory = new Map<string, string>();
     (globalThis as Record<string, unknown>).sessionStorage = {
       getItem: (key: string) => memory.get(key) ?? null,

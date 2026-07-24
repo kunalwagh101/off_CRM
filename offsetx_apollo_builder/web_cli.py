@@ -10,7 +10,7 @@ from .api.config import AppSettings
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the OffsetX local web CRM")
+    parser = argparse.ArgumentParser(description="Run the OFF_CRM local web application")
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args(argv)

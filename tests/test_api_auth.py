@@ -84,5 +84,5 @@ def test_non_loopback_accepts_complete_demo_login_and_rejects_partial(tmp_path):
     settings = _demo_settings(tmp_path)
     settings.validate()
     settings.session_secret = ""
-    with pytest.raises(ValueError, match="requires OFFSETX_DEMO_USERNAME"):
+    with pytest.raises(ValueError, match="requires OFF_CRM_DEMO_USERNAME"):
         settings.validate()

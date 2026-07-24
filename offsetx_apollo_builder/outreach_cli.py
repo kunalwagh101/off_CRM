@@ -8,6 +8,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from .off_ai.broker import EgressBroker
+from .off_ai.store import OffAIStore
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
     GmailMailProvider,
@@ -15,18 +17,26 @@ from .outreach.gmail import (
     authorize_interactive,
 )
 from .outreach.models import MESSAGE_STAGES
-from .outreach.providers import create_provider, load_provider_config
+from .outreach.provider_profiles import ProviderProfileStore
 
 
 def _json(value: Any) -> None:
     print(json.dumps(value, indent=2, ensure_ascii=False, default=str))
 
 
+def _env(*names: str, default: str = "") -> str:
+    for name in names:
+        value = os.getenv(name)
+        if value is not None:
+            return value
+    return default
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="OffsetX local outreach CRM")
+    parser = argparse.ArgumentParser(description="OFF_CRM local outreach CRM")
     parser.add_argument(
         "--db",
-        default=os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db"),
+        default=_env("OFF_CRM_DB", "OFFSETX_OUTREACH_DB", default="local_data/off_crm.db"),
         help="Local SQLite database path",
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -49,7 +59,16 @@ def _parser() -> argparse.ArgumentParser:
     generate = sub.add_parser("generate")
     generate.add_argument("campaign_id")
     generate.add_argument("--stages", nargs="+", choices=MESSAGE_STAGES, default=list(MESSAGE_STAGES))
-    generate.add_argument("--provider-config", type=Path)
+    generate.add_argument(
+        "--provider-profile",
+        default="",
+        help="Classified provider profile ID from Connectors",
+    )
+    generate.add_argument(
+        "--provider-config",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
 
     drafts = sub.add_parser("list-drafts")
     drafts.add_argument("campaign_id")
@@ -85,10 +104,18 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "gmail-authorize":
         client = args.client_secrets or Path(
-            os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "gmail_client_secret.json")
+            _env(
+                "OFF_CRM_GMAIL_CLIENT_SECRETS",
+                "OFFSETX_GMAIL_CLIENT_SECRETS",
+                default="gmail_client_secret.json",
+            )
         )
         token = args.token or Path(
-            os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json")
+            _env(
+                "OFF_CRM_GMAIL_TOKEN",
+                "OFFSETX_GMAIL_TOKEN",
+                default="local_data/gmail_token.json",
+            )
         )
         authorize_interactive(
             client_secrets_path=client,
@@ -119,16 +146,46 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif args.command == "generate":
-            provider = (
-                create_provider(load_provider_config(args.provider_config))
-                if args.provider_config
-                else None
-            )
-            _json(
-                engine.generate_drafts(
-                    args.campaign_id, stages=args.stages, provider=provider
+            if args.provider_config:
+                raise SystemExit(
+                    "Direct provider config files are disabled. Add and classify the "
+                    "provider under Connectors, then pass --provider-profile ID."
                 )
-            )
+            provider = None
+            ai_store = None
+            if args.provider_profile:
+                data_dir = Path(args.db).resolve().parent
+                ai_store = OffAIStore(Path(args.db))
+                ai_store.initialize()
+                broker = EgressBroker(
+                    store=ai_store,
+                    profiles=ProviderProfileStore(data_dir),
+                    owner_domains=(
+                        item.strip()
+                        for item in (
+                            _env("OFF_CRM_OWNER_DOMAINS", "OFFSETX_OWNER_DOMAINS")
+                        ).split(",")
+                        if item.strip()
+                    ),
+                )
+                provider = broker.email_provider(
+                    profile_ids=[args.provider_profile],
+                    sender_positioning=(
+                        _env(
+                            "OFF_CRM_PUBLIC_POSITIONING",
+                            "OFFSETX_PUBLIC_POSITIONING",
+                        )
+                    ).strip(),
+                )
+            try:
+                _json(
+                    engine.generate_drafts(
+                        args.campaign_id, stages=args.stages, provider=provider
+                    )
+                )
+            finally:
+                if ai_store is not None:
+                    ai_store.close()
         elif args.command == "list-drafts":
             items, total = engine.store.list_drafts(
                 args.campaign_id, approval_status=args.status
@@ -143,15 +200,22 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif args.command == "send":
-            own_email = os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower()
+            own_email = _env("OFF_CRM_OWN_EMAIL", "OFFSETX_OWN_EMAIL").strip().lower()
             if args.mode == "gmail":
                 if args.confirm != "SEND LIVE EMAILS":
                     raise SystemExit("Gmail requires: --confirm \"SEND LIVE EMAILS\"")
-                client = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
-                token = os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json").strip()
+                client = _env(
+                    "OFF_CRM_GMAIL_CLIENT_SECRETS",
+                    "OFFSETX_GMAIL_CLIENT_SECRETS",
+                ).strip()
+                token = _env(
+                    "OFF_CRM_GMAIL_TOKEN",
+                    "OFFSETX_GMAIL_TOKEN",
+                    default="local_data/gmail_token.json",
+                ).strip()
                 if not client or not own_email:
                     raise SystemExit(
-                        "Set OFFSETX_GMAIL_CLIENT_SECRETS and OFFSETX_OWN_EMAIL"
+                        "Set OFF_CRM_GMAIL_CLIENT_SECRETS and OFF_CRM_OWN_EMAIL"
                     )
                 mail = GmailMailProvider(client_secrets_path=client, token_path=token)
             else:

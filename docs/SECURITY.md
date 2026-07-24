@@ -1,68 +1,59 @@
-# Security model
+# OFF_CRM security model
 
-## Implemented controls
+The complete OFF_AI threat model and acceptance tests are documented in `OFF_AI_SECURITY.md`.
 
-- Binds to `127.0.0.1` by default.
-- Refuses non-loopback binding without a strong local API token.
-- Reads AI and Gmail secrets from local environment or protected token files.
-- Never stores AI API keys in SQLite.
-- Encrypts locally managed provider keys with a dedicated master key restricted to the current user.
-- Uses Gmail OAuth PKCE with a loopback callback and refresh-token storage permissions.
-- Requires exact confirmation before live Gmail sending.
-- Uses a safe local outbox by default.
-- Syncs replies before sending and cancels unsent follow-ups after a reply.
-- Enforces daily campaign limits and working-day schedules in the backend.
-- Uses atomic draft claims and message idempotency keys.
-- Moves uncertain stale sends to manual review instead of retrying automatically.
-- Limits upload size and file types and removes temporary uploads.
-- Blocks web API access to the trusted local-command AI adapter.
-- Allows plain HTTP AI endpoints only on loopback.
-- Rejects provider URLs with embedded credentials.
-- Escapes formula-like fields in CSV and XLSX exports.
-- Sends CSP, frame, referrer, cache and MIME security headers.
-- Records campaign events and provider identifiers for audit.
-- Encrypts exported backups with a user passphrase and verifies SQLite integrity before restore.
-- Keeps scheduled Gmail sending disabled until the operator enters the exact activation phrase.
-- Supports a single-user demo login with constant-time credential checks, throttled failures and a signed, secure, HTTP-only, SameSite session cookie.
-- Protects API documentation behind the configured login and adds HSTS and restrictive browser permission headers for non-loopback deployments.
-- Applies per-provider data-minimisation policies before network calls.
-- Stores provider payload bodies only when explicitly enabled; metadata-only audit is the default.
-- De-identifies human corrections before adding them to reusable memory.
-- Keeps reply observations unapproved until a human supplies an outcome label.
-- Restricts discovery to explicit public URL and domain allow-lists with robots.txt, rate, redirect, response-size, content-type and SSRF checks.
-- Blocks automated crawling of LinkedIn, Instagram and other major social platforms; no browser cookie or social login is passed to the crawler or an AI provider.
-- Stores normalized POI evidence and a page hash instead of raw crawled HTML.
-- Runs Crawl4AI only with stealth, user simulation, navigator overrides, proxy retry, persistent profiles, cookies and scripted interaction disabled.
-- Intercepts Crawl4AI browser routes and blocks private/reserved DNS targets; document requests must remain inside the explicit run allow-list.
-- Keeps email addresses out of the research graph and accepts social-interaction evidence only from an official API adapter or explicit manual import with a rights basis.
-- Keeps Apollo rejection/audit ledgers outside `old_pois`, preventing retryable no-match rows from becoming accidental permanent exclusions.
-- Uses optimistic card revisions to reject stale sales-board writes and records every sales lead create, edit and status change in an append-only event trail.
-- Calculates sales metrics server-side from validated SQLite records; browser-supplied earnings, rates and projections are never trusted.
+## Application controls
+
+- Loopback binding by default.
+- Non-loopback binding refused without a strong API token or complete demo login.
+- Signed, secure, HTTP-only, SameSite session cookie and throttled login failures.
+- CSP, HSTS for non-loopback deployments, frame denial, no-referrer, no-store, MIME controls, and limited browser permissions.
+- Upload type/size limits, contained filenames, private content-addressed attachment storage, and formula-safe exports.
+- SQLite foreign keys, WAL, bounded transactions, idempotency keys, and audit/event records.
+- Provider keys encrypted outside SQLite with a user-restricted local key.
+- Passphrase-encrypted backups with integrity validation and pre-restore safety copy.
+- Local outbox by default and exact confirmation before live Gmail sending.
+- Backend-enforced campaign limits, send windows, scheduling, atomic claims, and stale-send review.
+- Reply synchronization before sending and deterministic cancellation after a reply.
+- CRM-owned Gmail thread retrieval only; broad production mailbox scans are disabled.
+- Guarded public crawling with robots.txt, SSRF, allowed-domain, rate, redirect, size, and content-type controls.
+- One shared per-domain rate gate across all discovery workers, so parallel work does not raise the request rate to one site.
+- No authenticated social scraping, session-cookie use, CAPTCHA bypass, or protection evasion.
+- Optimistic revision control and append-only events for the sales board.
+- One-way Notion writes only. The token is encrypted outside SQLite, responses are bounded, and OFF_CRM does not treat Notion as a source of truth.
+
+## OFF_AI controls
+
+- One provider egress broker.
+- Task-specific field allowlists.
+- Email/secret/path/mailbox/CRM/context preflight blocking.
+- Deterministic PII backstop.
+- Tier A/B/C/D default-deny policy with host/model provenance.
+- Quota and cost caps, cheapest-eligible routing, and same-tier failover only.
+- Exact egress packet inspector.
+- No provider tools, connectors, database, memory, file, or mailbox path.
+- Human approval before draft sending and template changes.
+- Networkless, read-only, version-pinned GitHub tools.
 
 ## Secrets
 
 Never commit:
 
-- `.env`
-- Google client secrets
-- Gmail tokens
-- provider API keys
-- local CRM databases
-- local mail folders
-- `.provider_master.key`
-- `provider_secrets.enc`
-- encrypted backup passphrases
+- `.env`;
+- Google client-secret JSON or Gmail tokens;
+- provider API keys;
+- Notion integration tokens;
+- `.provider_master.key` or `provider_secrets.enc`;
+- local databases, attachments, mail folders, exports, backups, or tool checkouts.
 
-These paths are covered by `.gitignore`, but operators must still verify release archives.
+Verify release archives even though these paths are ignored.
 
-## Known deployment boundary
+## Deployment boundary
 
-This release remains a single-user application. The Render configuration is only for a disposable, password-protected demonstration with synthetic data and local outbox mode. It is not a multi-tenant hosted service.
+v0.12 is single-user and local-first. Render is a disposable synthetic-data demo. It is not a multi-tenant hosted service.
 
-Do not upload Gmail tokens, personal contacts, private expert material or live provider credentials to the free demo. The current Gmail OAuth flow is designed for a local desktop callback, not hosted authorization.
+Before remote team access, implement tenant-scoped authentication/authorization, PostgreSQL isolation, managed secrets, durable workers, encrypted storage, centralized logs, migrations, backups, and a reviewed network boundary.
 
-If remote team access is later required, add authenticated tenancy, encrypted secret storage, a durable job queue, PostgreSQL and an audited deployment boundary before exposing the API.
+## Incident response
 
-## Reporting a failure
-
-Pause the affected campaign first. Preserve the local database, event log and provider message IDs. Do not delete a failed-send record until the Gmail state is confirmed.
+Pause automation and campaigns, disable the provider, preserve audit/event records, revoke affected keys/tokens, inspect the exact egress packet, fix and test the policy, then re-enable.

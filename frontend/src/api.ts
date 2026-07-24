@@ -13,12 +13,14 @@ export class ApiError extends Error {
 }
 
 export function getToken(): string {
-  return sessionStorage.getItem(TOKEN_KEY) ?? "";
+  if (typeof window === "undefined") return "";
+  return window.sessionStorage.getItem(TOKEN_KEY) ?? "";
 }
 
 export function setToken(value: string): void {
-  if (value.trim()) sessionStorage.setItem(TOKEN_KEY, value.trim());
-  else sessionStorage.removeItem(TOKEN_KEY);
+  if (typeof window === "undefined") return;
+  if (value.trim()) window.sessionStorage.setItem(TOKEN_KEY, value.trim());
+  else window.sessionStorage.removeItem(TOKEN_KEY);
 }
 
 function headers(extra?: HeadersInit): Headers {

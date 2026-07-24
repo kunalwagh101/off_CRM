@@ -1,11 +1,11 @@
 services:
-  offsetx:
+  off_crm:
     build: .
     ports:
       - "127.0.0.1:8766:8766"
     environment:
-      OFFSETX_LOCAL_API_TOKEN: "${OFFSETX_LOCAL_API_TOKEN:?Set a random token with at least 32 characters}"
-      OFFSETX_OWN_EMAIL: "${OFFSETX_OWN_EMAIL:-}"
+      OFF_CRM_LOCAL_API_TOKEN: "${OFF_CRM_LOCAL_API_TOKEN:?Set a random token with at least 32 characters}"
+      OFF_CRM_OWN_EMAIL: "${OFF_CRM_OWN_EMAIL:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
     volumes:

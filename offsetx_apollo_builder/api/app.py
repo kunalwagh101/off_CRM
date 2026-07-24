@@ -16,13 +16,18 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..discovery import DiscoveryService
+from ..off_ai.api import build_off_ai_router
+from ..off_ai.connectors import GmailConnectorManager, build_connectors_router
+from ..off_ai.policy import PolicyViolation
+from ..off_ai.service import OffAIService
+from ..off_ai.tools import ToolError
 from ..locked_categories import LOCKED_CATEGORIES
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
 from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
 from ..outreach.engine import OutreachEngine
-from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
-from ..outreach.models import ProviderConfig, ROUTES, utc_now
+from ..outreach.gmail import GmailError, GmailMailProvider, LocalOutboxProvider
+from ..outreach.models import ROUTES, utc_now
 from ..outreach.notion import (
     NotionClient,
     NotionError,
@@ -32,7 +37,7 @@ from ..outreach.notion import (
     export_sales_leads,
 )
 from ..outreach.provider_profiles import ProviderProfileStore
-from ..outreach.providers import ProviderError, create_provider
+from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
@@ -128,7 +133,10 @@ def _mail_provider(settings: AppSettings, mode: str, confirmation: str = "") -> 
     if not settings.gmail_client_secrets.exists() or not settings.gmail_token.exists():
         raise HTTPException(status_code=503, detail="Gmail is not connected on this device")
     if not settings.own_email:
-        raise HTTPException(status_code=503, detail="OFFSETX_OWN_EMAIL is required for Gmail")
+        raise HTTPException(
+            status_code=503,
+            detail="Set OFF_CRM_OWN_EMAIL (legacy OFFSETX_OWN_EMAIL is also accepted) for Gmail",
+        )
     return GmailMailProvider(
         client_secrets_path=settings.gmail_client_secrets,
         token_path=settings.gmail_token,
@@ -188,7 +196,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         if not resolved.api_token:
             return False
         authorization = request.headers.get("authorization", "")
-        supplied = request.headers.get("x-offsetx-token", "")
+        supplied = (
+            request.headers.get("x-off-crm-token", "")
+            or request.headers.get("x-offsetx-token", "")
+        )
         if authorization.lower().startswith("bearer "):
             supplied = authorization[7:].strip()
         return hmac.compare_digest(supplied, resolved.api_token)
@@ -201,7 +212,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(self), geolocation=()"
+        )
         if not loopback:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         response.headers["Content-Security-Policy"] = (
@@ -221,6 +234,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.maintenance_lock = threading.Lock()
         app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
         app.state.notion = NotionSettingsStore(resolved.data_dir)
+        app.state.off_ai = OffAIService(
+            database_path=resolved.database_path,
+            data_dir=resolved.data_dir,
+            export_dir=resolved.export_dir,
+            project_root=resolved.project_root,
+            outreach_engine=app.state.engine,
+            provider_profiles=app.state.provider_profiles,
+            owner_domains=resolved.owner_domains,
+            default_public_positioning=resolved.public_positioning,
+        )
+        app.state.gmail_connector = GmailConnectorManager(
+            client_secrets_path=resolved.gmail_client_secrets,
+            token_path=resolved.gmail_token,
+            own_email=resolved.own_email,
+        )
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
             resolved.data_dir / "automation.json",
@@ -237,10 +265,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             yield
         finally:
             await app.state.automation.stop()
+            app.state.off_ai.close()
             app.state.engine.close()
 
     app = FastAPI(
-        title="OffsetX Local Outreach CRM",
+        title="OFF_CRM",
         version=__version__,
         docs_url="/api/docs",
         redoc_url=None,
@@ -257,8 +286,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-OffsetX-Token"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-OFF-CRM-Token",
+            "X-OffsetX-Token",
+        ],
     )
+    app.include_router(build_off_ai_router(max_upload_bytes=resolved.max_upload_bytes))
+    app.include_router(build_connectors_router())
 
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any):
@@ -267,6 +304,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             f"{API_PREFIX}/auth/session",
             f"{API_PREFIX}/auth/login",
             f"{API_PREFIX}/auth/logout",
+            f"{API_PREFIX}/connectors/gmail/callback",
         }
         protected = (
             request.url.path.startswith("/api/")
@@ -287,13 +325,28 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
+    @app.exception_handler(ProviderError)
+    async def provider_failure(_: Request, exc: ProviderError) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
-    @app.exception_handler(ProviderError)
-    async def provider_failure(_: Request, exc: ProviderError) -> JSONResponse:
-        return JSONResponse(status_code=503, content={"detail": str(exc)})
+    @app.exception_handler(PolicyViolation)
+    async def policy_failure(_: Request, exc: PolicyViolation) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": str(exc), "reasons": exc.reasons},
+        )
+
+    @app.exception_handler(GmailError)
+    async def gmail_failure(_: Request, exc: GmailError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(ToolError)
+    async def tool_failure(_: Request, exc: ToolError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(SalesConflictError)
     async def stale_sales_card(_: Request, exc: SalesConflictError) -> JSONResponse:
@@ -311,7 +364,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/meta")
     def meta() -> dict[str, Any]:
         return {
-            "name": "OffsetX Local Outreach CRM",
+            "name": "OFF_CRM",
             "version": __version__,
             "categories": list(LOCKED_CATEGORIES),
             "routes": list(ROUTES),
@@ -319,6 +372,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 "openai", "anthropic", "openai_compatible", "template_engine_http"
             ],
             "mail_modes": ["local", "gmail"],
+            "ai_module": "OFF_AI Studio",
             "live_send_confirmation": LIVE_SEND_CONFIRMATION,
         }
 
@@ -553,6 +607,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "expert_sources": _engine(request).store.expert_source_summary(),
             "provider_profiles": len(request.app.state.provider_profiles.list()),
             "memory": _engine(request).store.memory_stats(),
+            "off_ai": request.app.state.off_ai.store.stats(),
             "automation": request.app.state.automation.status(),
         }
 
@@ -577,8 +632,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: ProviderHealthRequest,
         request: Request,
     ) -> dict[str, Any]:
-        result = request.app.state.provider_profiles.health(
-            profile_id, probe=body.live_probe
+        result = request.app.state.off_ai.broker.health(
+            profile_id, live_probe=body.live_probe
         )
         if result["status"] == "unhealthy":
             raise HTTPException(status_code=503, detail=result["error"])
@@ -870,7 +925,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _notion_store(request).status()
 
     @app.post(f"{API_PREFIX}/notion/settings")
-    def update_notion_settings(body: NotionSettingsUpdate, request: Request) -> dict[str, Any]:
+    def update_notion_settings(
+        body: NotionSettingsUpdate,
+        request: Request,
+    ) -> dict[str, Any]:
         return _notion_store(request).update(
             token=body.token or None,
             workspace_name=body.workspace_name or None,
@@ -1015,14 +1073,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     raise ValueError(
                         "Choose either a direct provider or the configured fallback chain"
                     )
-                provider = request.app.state.provider_profiles.router(
-                    owner=body.provider_owner,
+                provider = request.app.state.off_ai.broker.email_provider(
                     profile_ids=body.provider_profile_ids,
-                    strategy=body.fallback_strategy,
-                    audit_callback=engine.store.record_provider_call,
+                    sender_positioning=resolved.public_positioning,
                 )
             elif body.provider:
-                provider = create_provider(ProviderConfig(**body.provider.model_dump()))
+                raise ValueError(
+                    "Direct provider credentials are disabled. Save the provider in "
+                    "Connectors, assign its trust tier, then use the configured model."
+                )
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(
                     campaign_id,

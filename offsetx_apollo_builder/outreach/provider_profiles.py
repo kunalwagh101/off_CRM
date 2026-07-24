@@ -7,12 +7,12 @@ import threading
 import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Iterable
+from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from .models import ProviderConfig, to_utc_iso
-from .providers import DATA_POLICIES, FallbackAIProvider, PolicyAIProvider, ProviderError, create_provider
+from .providers import DATA_POLICIES, ProviderError
 
 
 PROFILE_TYPES = {
@@ -22,6 +22,7 @@ PROFILE_TYPES = {
     "template_engine_http",
     "local_command",
 }
+TRUST_TIERS = {"A", "B", "C", "D"}
 
 
 def _atomic_json(path: Path, payload: Any) -> None:
@@ -99,6 +100,24 @@ class ProviderProfileStore:
         result.setdefault("data_policy", "minimal")
         result.setdefault("audit_payloads", False)
         result.setdefault("fallback_strategy", "priority")
+        result.setdefault("jurisdiction", "Unknown")
+        result.setdefault("retention_policy", "unknown")
+        result.setdefault("trust_tier", "D")
+        result.setdefault("host_origin", "")
+        result.setdefault("model_origin", "")
+        result.setdefault("model_origin_jurisdiction", "")
+        result.setdefault("model_origin_input_isolation_verified", False)
+        result.setdefault("terms_checked_at", "")
+        result.setdefault("rpm_limit", 0)
+        result.setdefault("rpd_limit", 0)
+        result.setdefault("context_window", 0)
+        result.setdefault("input_cost_per_million", 0.0)
+        result.setdefault("output_cost_per_million", 0.0)
+        result.setdefault("daily_cost_cap", 0.0)
+        result.setdefault("monthly_cost_cap", 0.0)
+        result.setdefault("allowed_task_types", [])
+        result.setdefault("fallback_profile_ids", [])
+        result.setdefault("public_tasks_enabled", False)
         result.setdefault("last_health_status", "never")
         result.setdefault("last_checked_at", "")
         result.setdefault("last_error", "")
@@ -153,6 +172,118 @@ class ProviderProfileStore:
             "data_policy": str(values.get("data_policy") or "minimal").strip(),
             "audit_payloads": bool(values.get("audit_payloads", False)),
             "fallback_strategy": str(values.get("fallback_strategy") or "priority").strip(),
+            "jurisdiction": str(
+                values.get("jurisdiction")
+                or (current.get("jurisdiction") if current else "")
+                or "Unknown"
+            ).strip(),
+            "retention_policy": str(
+                values.get("retention_policy")
+                or (current.get("retention_policy") if current else "")
+                or "unknown"
+            ).strip(),
+            "trust_tier": str(
+                values.get("trust_tier")
+                or (current.get("trust_tier") if current else "")
+                or "D"
+            ).strip().upper(),
+            "host_origin": str(
+                values.get("host_origin")
+                or (current.get("host_origin") if current else "")
+            ).strip(),
+            "model_origin": str(
+                values.get("model_origin")
+                or (current.get("model_origin") if current else "")
+            ).strip(),
+            "model_origin_jurisdiction": str(
+                values.get("model_origin_jurisdiction")
+                or (current.get("model_origin_jurisdiction") if current else "")
+            ).strip(),
+            "model_origin_input_isolation_verified": bool(
+                values.get(
+                    "model_origin_input_isolation_verified",
+                    current.get("model_origin_input_isolation_verified", False)
+                    if current
+                    else False,
+                )
+            ),
+            "terms_checked_at": str(
+                values.get("terms_checked_at")
+                or (current.get("terms_checked_at") if current else "")
+            ).strip(),
+            "rpm_limit": max(0, int(values.get("rpm_limit", current.get("rpm_limit", 0) if current else 0))),
+            "rpd_limit": max(0, int(values.get("rpd_limit", current.get("rpd_limit", 0) if current else 0))),
+            "context_window": max(
+                0,
+                int(
+                    values.get(
+                        "context_window",
+                        current.get("context_window", 0) if current else 0,
+                    )
+                ),
+            ),
+            "input_cost_per_million": max(
+                0.0,
+                float(
+                    values.get(
+                        "input_cost_per_million",
+                        current.get("input_cost_per_million", 0) if current else 0,
+                    )
+                ),
+            ),
+            "output_cost_per_million": max(
+                0.0,
+                float(
+                    values.get(
+                        "output_cost_per_million",
+                        current.get("output_cost_per_million", 0) if current else 0,
+                    )
+                ),
+            ),
+            "daily_cost_cap": max(
+                0.0,
+                float(
+                    values.get(
+                        "daily_cost_cap",
+                        current.get("daily_cost_cap", 0) if current else 0,
+                    )
+                ),
+            ),
+            "monthly_cost_cap": max(
+                0.0,
+                float(
+                    values.get(
+                        "monthly_cost_cap",
+                        current.get("monthly_cost_cap", 0) if current else 0,
+                    )
+                ),
+            ),
+            "allowed_task_types": list(
+                dict.fromkeys(
+                    str(item).strip()
+                    for item in values.get(
+                        "allowed_task_types",
+                        current.get("allowed_task_types", []) if current else [],
+                    )
+                    if str(item).strip()
+                )
+            ),
+            "fallback_profile_ids": list(
+                dict.fromkeys(
+                    str(item).strip()
+                    for item in values.get(
+                        "fallback_profile_ids",
+                        current.get("fallback_profile_ids", []) if current else [],
+                    )
+                    if str(item).strip()
+                )
+            ),
+            "public_tasks_enabled": bool(
+                values.get(
+                    "public_tasks_enabled",
+                    current.get("public_tasks_enabled", False) if current else False,
+                )
+            ),
             "extra": dict(values.get("extra") or {}),
             "last_health_status": str(current.get("last_health_status", "never")) if current else "never",
             "last_checked_at": str(current.get("last_checked_at", "")) if current else "",
@@ -168,6 +299,8 @@ class ProviderProfileStore:
             raise ValueError("data_policy must be minimal, standard, or full")
         if profile["fallback_strategy"] not in {"priority", "round_robin", "parallel"}:
             raise ValueError("fallback_strategy must be priority, round_robin, or parallel")
+        if profile["trust_tier"] not in TRUST_TIERS:
+            raise ValueError("trust_tier must be A, B, C, or D")
         profiles = [item for item in profiles if item.get("id") != profile_id]
         profiles.append(profile)
         _atomic_json(self.profile_path, profiles)
@@ -191,117 +324,57 @@ class ProviderProfileStore:
                 del secrets[profile_id]
                 self._write_secrets(secrets)
 
-    def _provider(self, profile: dict[str, Any], secrets: dict[str, str]):
-        config = ProviderConfig(
-            provider_type=str(profile["provider_type"]),
-            model=str(profile.get("model", "")),
-            api_key_env=str(profile.get("api_key_env", "")),
-            base_url=str(profile.get("base_url", "")),
-            timeout_seconds=int(profile.get("timeout_seconds", 60)),
-            extra=dict(profile.get("extra") or {}),
-        )
-        stored = secrets.get(str(profile["id"]), "")
-        if stored:
-            env_name = config.api_key_env or "OFFSETX_PROVIDER_PROFILE_KEY"
-            config.api_key_env = env_name
-            return create_provider(config, environ={env_name: stored})
-        return create_provider(config)
-
-    def router(
-        self,
-        *,
-        owner: str = "",
-        profile_ids: Iterable[str] = (),
-        strategy: str = "",
-        audit_callback: Any | None = None,
-    ) -> FallbackAIProvider:
+    def get(self, profile_id: str) -> dict[str, Any]:
         with self._lock:
-            selected_ids = set(profile_ids)
             profiles = self._profiles()
-            profiles = [item for item in profiles if bool(item.get("enabled", True))]
-            if owner:
-                profiles = [item for item in profiles if str(item.get("owner", "")) == owner]
-            if selected_ids:
-                profiles = [item for item in profiles if str(item.get("id")) in selected_ids]
-            profiles.sort(
-                key=lambda item: (
-                    int(item.get("priority", 100)),
-                    str(item.get("name", "")),
-                )
+            profile = next(
+                (item for item in profiles if str(item.get("id")) == profile_id), None
             )
             secrets = self._secrets()
-        providers: list[tuple[str, Any]] = []
-        configuration_errors: list[str] = []
-        for profile in profiles:
-            try:
-                raw_provider = self._provider(profile, secrets)
-                providers.append(
-                    (
-                        str(profile["id"]),
-                        PolicyAIProvider(
-                            raw_provider,
-                            profile_id=str(profile["id"]),
-                            provider_type=str(profile["provider_type"]),
-                            model=str(profile.get("model", "")),
-                            data_policy=str(profile.get("data_policy", "minimal")),
-                            audit_payloads=bool(profile.get("audit_payloads", False)),
-                            audit_callback=audit_callback,
-                        ),
-                    )
-                )
-            except Exception as exc:
-                configuration_errors.append(f"{profile.get('name', profile.get('id'))}: {exc}")
-        if not providers and configuration_errors:
-            raise ProviderError("No usable provider profiles. " + "; ".join(configuration_errors))
-        selected_strategy = strategy or (
-            str(profiles[0].get("fallback_strategy", "priority")) if profiles else "priority"
-        )
-        return FallbackAIProvider(providers, strategy=selected_strategy)
+        if not profile:
+            raise KeyError("Provider profile not found")
+        return self._public(profile, secrets)
 
-    def health(self, profile_id: str, *, probe: bool = False) -> dict[str, Any]:
+    def runtime_material(
+        self, profile_id: str
+    ) -> tuple[dict[str, Any], ProviderConfig, dict[str, str] | None]:
+        """Return runtime material only to the single OFF_AI egress broker."""
         with self._lock:
             profile = next(
                 (item for item in self._profiles() if item.get("id") == profile_id), None
             )
             if not profile:
                 raise KeyError("Provider profile not found")
-            try:
-                provider = self._provider(profile, self._secrets())
-            except Exception as exc:
-                error = str(exc)[:1000]
-                profiles = self._profiles()
-                for item in profiles:
-                    if item.get("id") == profile_id:
-                        item["last_health_status"] = "unhealthy"
-                        item["last_checked_at"] = to_utc_iso()
-                        item["last_error"] = error
-                _atomic_json(self.profile_path, profiles)
-                return {
-                    "status": "unhealthy",
-                    "profile_id": profile_id,
-                    "error": error,
-                }
-        status = "configured"
-        error = ""
-        try:
-            if probe:
-                provider.generate(
-                    system_prompt="Return JSON with subject and body only.",
-                    user_prompt='Return {"subject":"health check","body":"ok"}.',
-                )
-                status = "healthy"
-        except Exception as exc:
-            status = "unhealthy"
-            error = str(exc)[:1000]
+            secrets = self._secrets()
+            public = self._public(profile, secrets)
+            config = ProviderConfig(
+                provider_type=str(profile["provider_type"]),
+                model=str(profile.get("model", "")),
+                api_key_env=str(profile.get("api_key_env", "")),
+                base_url=str(profile.get("base_url", "")),
+                timeout_seconds=int(profile.get("timeout_seconds", 60)),
+                extra=dict(profile.get("extra") or {}),
+            )
+            stored = secrets.get(str(profile["id"]), "")
+            environ: dict[str, str] | None = None
+            if stored:
+                env_name = config.api_key_env or "OFF_CRM_PROVIDER_PROFILE_KEY"
+                config.api_key_env = env_name
+                environ = {env_name: stored}
+        return public, config, environ
+
+    def set_health(self, profile_id: str, *, status: str, error: str = "") -> dict[str, Any]:
         with self._lock:
             profiles = self._profiles()
+            found = False
             for item in profiles:
                 if item.get("id") == profile_id:
+                    found = True
                     item["last_health_status"] = status
                     item["last_checked_at"] = to_utc_iso()
-                    item["last_error"] = error
+                    item["last_error"] = error[:1000]
+                    item["updated_at"] = to_utc_iso()
+            if not found:
+                raise KeyError("Provider profile not found")
             _atomic_json(self.profile_path, profiles)
-        result = {"status": status, "profile_id": profile_id}
-        if error:
-            result["error"] = error
-        return result
+        return self.get(profile_id)

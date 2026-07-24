@@ -1,0 +1,30 @@
+# Graphify is build-time code intelligence only. Runtime/user data must never
+# enter the graph, even if an operator places it inside the repository.
+local_data/
+output*/
+old_pois/
+poi_file_queue/
+upload/
+uploads/
+exports/
+backups/
+graphify-out/
+frontend/node_modules/
+build/
+dist/
+*.egg-info/
+.venv/
+.git/
+*.md
+*.txt
+*.html
+*.zip
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.docx
+*.env
+.env*
+frontend/dist/
+frontend/coverage/

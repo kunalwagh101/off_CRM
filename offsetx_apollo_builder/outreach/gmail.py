@@ -193,7 +193,7 @@ def authorize_interactive(
             received["code"] = params.get("code", [""])[0]
             received["state"] = params.get("state", [""])[0]
             received["error"] = params.get("error", [""])[0]
-            body = b"OffsetX Gmail connection received. You can close this window."
+            body = b"off_CRM Gmail connection received. You can close this window."
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -291,7 +291,7 @@ class GmailMailProvider:
         if idempotency_key:
             digest = hashlib.sha256(idempotency_key.encode()).hexdigest()[:32]
             message["Message-ID"] = f"<offsetx-{digest}@offsetx.local>"
-            message["X-OffsetX-Idempotency-Key"] = idempotency_key
+            message["X-off-CRM-Idempotency-Key"] = idempotency_key
         else:
             message["Message-ID"] = make_msgid(domain="offsetx.local")
         if in_reply_to:

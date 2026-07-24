@@ -1,4 +1,4 @@
-# OffsetX Local Outreach CRM
+# off_CRM
 Version 0.12 adds user-controlled parallel discovery workers (1-4, with per-site politeness preserved), one-way Notion export for campaign contacts and sales leads (encrypted local token, schema-aware property matching), a clickable pipeline overview on the dashboard, and plain-language engine/worker controls on the Discovery page.
 
 Version 0.11 adds a complete setter-and-closer sales tracker. Kanban lead cards now drive the lead log, visibility metrics, commissions, leak detection and evidence-labelled monthly forecasts without duplicate entry. The full POI-to-outreach workflow remains local-first and inspectable.
@@ -31,7 +31,7 @@ Version 0.11 adds a complete setter-and-closer sales tracker. Kanban lead cards 
 - Encrypted local provider profiles and API keys
 - Reply-first automation with hard daily limits and a disabled-by-default Gmail gate
 - Passphrase-encrypted local backup and restore
-- Local SQLite storage with no OffsetX server between the user and their providers
+- Local SQLite storage with no third-party server between the user and their providers
 - Expert-source retrieval with source and rights provenance
 - Temporary demo login with signed, secure, HTTP-only sessions and login throttling
 - Render Blueprint configuration and automatic `PORT` support
@@ -127,7 +127,7 @@ Configure the audited sender signature privately in `.env` or Render environment
 
 ```env
 OFFSETX_SENDER_NAME=Your name
-OFFSETX_SENDER_ROLE=Building OffsetX - carbon-market infrastructure
+OFFSETX_SENDER_ROLE=Building off_CRM - carbon-market infrastructure
 OFFSETX_SENDER_EMAIL=you@example.com
 OFFSETX_SENDER_LINKEDIN=https://www.linkedin.com/in/your-profile/
 ```
@@ -144,7 +144,7 @@ A sendable first touch requires:
 - verified public hook
 - public hook source
 - route-specific CTA
-- exact OffsetX signature
+- exact off_CRM signature
 - one question mark
 - no confidential or manipulative language
 

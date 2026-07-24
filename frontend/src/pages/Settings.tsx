@@ -127,7 +127,7 @@ export default function Settings() {
     }
     setBusy(format);
     try {
-      await api.download(`/campaigns/${campaignId}/export?format=${format}`, `offsetx-crm.${format}`);
+      await api.download(`/campaigns/${campaignId}/export?format=${format}`, `off_crm.${format}`);
       notify(`CRM ${format.toUpperCase()} export created`, "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Export failed", "error");
@@ -277,7 +277,7 @@ export default function Settings() {
     const data = new FormData(event.currentTarget);
     setBusy("backup-export");
     try {
-      await api.postDownload("/backups/export", { passphrase: data.get("passphrase") }, "offsetx-backup.oxbackup");
+      await api.postDownload("/backups/export", { passphrase: data.get("passphrase") }, "off_crm-backup.oxbackup");
       notify("Encrypted backup created", "success");
       event.currentTarget.reset();
     } catch (error) {

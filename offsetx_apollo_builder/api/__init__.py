@@ -1,4 +1,4 @@
-"""FastAPI control plane for the local OffsetX CRM."""
+"""FastAPI control plane for the local off_CRM."""
 
 from .app import create_app
 

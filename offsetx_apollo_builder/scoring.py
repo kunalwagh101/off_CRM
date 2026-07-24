@@ -1,4 +1,4 @@
-"""Simple explainable scoring for OffsetX POIs."""
+"""Simple explainable scoring for off_CRM POIs."""
 from __future__ import annotations
 
 from .categories import COMPETITOR_RISK_TERMS

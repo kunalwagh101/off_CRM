@@ -21,7 +21,7 @@ from .runner import RunConfig, run
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Build or enrich OffsetX POIs with dedupe, analytics, and a hard Apollo credit cap."
+        description="Build or enrich off_CRM POIs with dedupe, analytics, and a hard Apollo credit cap."
     )
     p.add_argument("--exclusions", nargs="*", type=Path, default=[], help="Optional specific old POI files to exclude.")
     p.add_argument("--exclusion-dir", type=Path, default=Path("old_pois"), help="Folder scanned recursively for exclusion files.")

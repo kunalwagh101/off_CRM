@@ -137,7 +137,7 @@ class OutreachEngine:
             import_expert_documents(
                 self.store,
                 [patterns],
-                expert_name="OffsetX product team",
+                expert_name="off_CRM product team",
                 tags="owned,transferable-patterns",
                 source_type="owned_notes",
                 rights_basis="owned",

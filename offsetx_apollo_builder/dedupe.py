@@ -1,4 +1,4 @@
-"""Deduplication and exclusion logic for OffsetX Apollo POI building."""
+"""Deduplication and exclusion logic for off_CRM Apollo POI building."""
 from __future__ import annotations
 
 import re

@@ -27,9 +27,9 @@ def sender_signature(environ: dict[str, str] | None = None) -> str:
     values = environ if environ is not None else os.environ
     lines = [
         "Best,",
-        clean_text(values.get("OFFSETX_SENDER_NAME")) or "OffsetX team",
+        clean_text(values.get("OFFSETX_SENDER_NAME")) or "off_CRM team",
         clean_text(values.get("OFFSETX_SENDER_ROLE"))
-        or "Building OffsetX - carbon-market infrastructure",
+        or "Building off_CRM - carbon-market infrastructure",
     ]
     email = clean_text(values.get("OFFSETX_SENDER_EMAIL"))
     linkedin = clean_text(values.get("OFFSETX_SENDER_LINKEDIN"))
@@ -137,7 +137,7 @@ def audit_draft(
     if len(subject.split()) > 7 and not subject.lower().startswith("re:"):
         warnings.append("Subject is longer than seven words")
     if OFFSETX_SIGNATURE not in body:
-        errors.append("Exact OffsetX signature is missing")
+        errors.append("Exact off_CRM signature is missing")
     if "—" in body or "–" in body or "—" in subject or "–" in subject:
         errors.append("Em dash or en dash is not allowed")
     unresolved = sorted(set(re.findall(r"\{[a-zA-Z0-9_]+\}", subject + "\n" + body)))
@@ -340,7 +340,7 @@ class LocalEmailExpert:
                 for index, item in enumerate(memory_items)
             )
             system_prompt = (
-                "You are the OffsetX email expert. Write in a calm, technical, human voice. "
+                "You are the off_CRM email expert. Write in a calm, technical, human voice. "
                 "Use the supplied structure and facts only. Do not imitate any named writer's "
                 "distinctive voice. Never invent a hook, claim, relationship, quote or result. "
                 "Preserve the exact signature. Return JSON with subject and body only."

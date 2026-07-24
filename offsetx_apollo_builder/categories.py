@@ -1,4 +1,4 @@
-"""OffsetX Apollo search plans mapped exactly to the nine locked CRM categories."""
+"""off_CRM Apollo search plans mapped exactly to the nine locked CRM categories."""
 from __future__ import annotations
 
 from dataclasses import dataclass

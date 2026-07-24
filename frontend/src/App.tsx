@@ -70,7 +70,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
   return (
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
-        <div className="login-brand"><span className="brand-symbol">OX</span><span><strong>OffsetX</strong><small>Outreach OS</small></span></div>
+        <div className="login-brand"><span className="brand-symbol">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
         <p className="eyebrow">Protected demo</p>
         <h1 id="login-title">Sign in to the CRM</h1>
         <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
@@ -151,9 +151,9 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
     <AppContext.Provider value={context}>
       <div className="app-shell">
         <aside className="sidebar">
-          <a href="#dashboard" className="brand" aria-label="OffsetX home">
+          <a href="#dashboard" className="brand" aria-label="off_CRM home">
             <span className="brand-symbol">OX</span>
-            <span><strong>OffsetX</strong><small>Outreach OS</small></span>
+            <span><strong>off_CRM</strong><small>Your outreach, your data</small></span>
           </a>
           <nav aria-label="Main navigation">
             {navigation.map((item) => (

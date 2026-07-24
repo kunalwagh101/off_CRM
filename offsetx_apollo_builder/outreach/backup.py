@@ -124,7 +124,7 @@ def restore_encrypted_backup(
     passphrase: str,
 ) -> dict[str, Any]:
     if not content.startswith(MAGIC) or len(content) <= len(MAGIC) + 16:
-        raise ValueError("Not a valid OffsetX encrypted backup")
+        raise ValueError("Not a valid off_CRM encrypted backup")
     salt_offset = len(MAGIC)
     salt = content[salt_offset : salt_offset + 16]
     token = content[salt_offset + 16 :]

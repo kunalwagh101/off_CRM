@@ -240,7 +240,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.engine.close()
 
     app = FastAPI(
-        title="OffsetX Local Outreach CRM",
+        title="off_CRM",
         version=__version__,
         docs_url="/api/docs",
         redoc_url=None,
@@ -257,7 +257,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-OffsetX-Token"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-off-CRM-Token"],
     )
 
     @app.middleware("http")
@@ -311,7 +311,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/meta")
     def meta() -> dict[str, Any]:
         return {
-            "name": "OffsetX Local Outreach CRM",
+            "name": "off_CRM",
             "version": __version__,
             "categories": list(LOCKED_CATEGORIES),
             "routes": list(ROUTES),

@@ -1,4 +1,4 @@
-"""Main OffsetX Apollo search/enrich loop."""
+"""Main off_CRM Apollo search/enrich loop."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict

@@ -23,7 +23,7 @@ def _json(value: Any) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="OffsetX local outreach CRM")
+    parser = argparse.ArgumentParser(description="off_CRM local outreach CRM")
     parser.add_argument(
         "--db",
         default=os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db"),

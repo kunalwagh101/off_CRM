@@ -158,7 +158,7 @@ class CrawlPolicy:
     request_delay_seconds: float = 0.75
     timeout_seconds: int = 20
     max_html_bytes: int = 2_000_000
-    user_agent: str = "OffsetXPublicResearchBot/0.9"
+    user_agent: str = "off_CRMPublicResearchBot/0.9"
     blocked_domains: tuple[str, ...] = BLOCKED_SOCIAL_DOMAINS
     parallel_workers: int = 1
 

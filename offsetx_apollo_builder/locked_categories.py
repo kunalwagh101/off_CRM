@@ -1,4 +1,4 @@
-"""Locked OffsetX stakeholder categories.
+"""Locked off_CRM stakeholder categories.
 
 Keep this file boring and explicit. These names are used in exports,
 analytics, outreach templates, and future CRM records. Do not add ad-hoc

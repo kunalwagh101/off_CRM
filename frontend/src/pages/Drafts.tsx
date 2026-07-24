@@ -209,7 +209,7 @@ export default function Drafts() {
             ))}
           </div>
         ) : (
-          <StatePanel title="No drafts found" description="Generate a three-stage sequence from the local OffsetX templates, or change your filters." action={<Button onClick={() => setGenerationOpen(true)} busy={busy === "generate"}>Generate sequence</Button>} />
+          <StatePanel title="No drafts found" description="Generate a three-stage sequence from the local off_CRM templates, or change your filters." action={<Button onClick={() => setGenerationOpen(true)} busy={busy === "generate"}>Generate sequence</Button>} />
         )}
       </Panel>
       <Modal open={Boolean(editing)} onClose={() => setEditing(null)} title="Review email" description="Saving reruns every hard safety and quality check." wide>

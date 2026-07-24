@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 SCHEMA_SQL = """
@@ -446,3 +446,40 @@ CREATE TABLE IF NOT EXISTS sales_lead_events (
 CREATE INDEX IF NOT EXISTS idx_sales_lead_events
 ON sales_lead_events(workspace_id, lead_id, created_at DESC);
 """
+
+# AI chat tables are appended as IF NOT EXISTS so existing DBs migrate safely
+_AI_CHAT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS ai_chat_projects (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_chats (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    title TEXT NOT NULL DEFAULT 'New chat',
+    project_id TEXT REFERENCES ai_chat_projects(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_chats_workspace
+ON ai_chats(workspace_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL REFERENCES ai_chats(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK(role IN ('user','assistant','system')),
+    content TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_messages_chat
+ON ai_messages(chat_id, created_at ASC);
+"""
+
+SCHEMA_SQL = SCHEMA_SQL + _AI_CHAT_SCHEMA

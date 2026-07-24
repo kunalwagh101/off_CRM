@@ -23,6 +23,7 @@ from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.models import ProviderConfig, ROUTES, utc_now
+from ..outreach.ai_chat import AIChatService
 from ..outreach.notion import (
     NotionClient,
     NotionError,
@@ -95,6 +96,9 @@ class CampaignLocks:
 
 def _engine(request: Request) -> OutreachEngine:
     return request.app.state.engine
+
+def _ai_chat(request: Request) -> AIChatService:
+    return request.app.state.ai_chat
 
 
 def _settings(request: Request) -> AppSettings:
@@ -216,6 +220,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         resolved.prepare()
         app.state.settings = resolved
         app.state.engine = OutreachEngine(resolved.database_path)
+        app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
         app.state.campaign_locks = CampaignLocks()
         app.state.maintenance_lock = threading.Lock()
@@ -910,6 +915,63 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             list_leads=_sales(request).list_leads,
             limit=body.limit,
         )
+
+
+    # ── AI Copilot chat ──────────────────────────────────────────────────────
+
+    @app.get(f"{API_PREFIX}/ai/projects")
+    def ai_list_projects(request: Request) -> dict[str, Any]:
+        return {"items": _ai_chat(request).list_projects()}
+
+    @app.post(f"{API_PREFIX}/ai/projects")
+    def ai_create_project(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _ai_chat(request).create_project(str(body.get("name", "")))
+
+    @app.delete(f"{API_PREFIX}/ai/projects/{{project_id}}")
+    def ai_delete_project(project_id: str, request: Request) -> dict[str, Any]:
+        _ai_chat(request).delete_project(project_id)
+        return {"deleted": project_id}
+
+    @app.get(f"{API_PREFIX}/ai/chats")
+    def ai_list_chats(request: Request, project_id: str = Query("", max_length=64), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+        chats = _ai_chat(request).list_chats(project_id=project_id or None, limit=limit)
+        return {"items": chats}
+
+    @app.post(f"{API_PREFIX}/ai/chats")
+    def ai_create_chat(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _ai_chat(request).create_chat(title=str(body.get("title", "New chat")), project_id=body.get("project_id"))
+
+    @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}")
+    def ai_delete_chat(chat_id: str, request: Request) -> dict[str, Any]:
+        _ai_chat(request).delete_chat(chat_id)
+        return {"deleted": chat_id}
+
+    @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/move")
+    def ai_move_chat(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        from fastapi import HTTPException
+        result = _ai_chat(request).move_chat(chat_id, body.get("project_id"))
+        if not result:
+            raise HTTPException(404, "Chat not found")
+        return result
+
+    @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/rename")
+    def ai_rename_chat(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        from fastapi import HTTPException
+        result = _ai_chat(request).rename_chat(chat_id, str(body.get("title", "")))
+        if not result:
+            raise HTTPException(404, "Chat not found")
+        return result
+
+    @app.get(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
+    def ai_list_messages(chat_id: str, request: Request) -> dict[str, Any]:
+        return {"items": _ai_chat(request).list_messages(chat_id)}
+
+    @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
+    def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        engine = _engine(request)
+        def provider_fn(*, system_prompt: str, user_prompt: str) -> str:
+            return engine._engine.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        return _ai_chat(request).send_message(chat_id=chat_id, user_content=str(body.get("content", "")), provider_fn=provider_fn)
 
     @app.get(f"{API_PREFIX}/discovery/runs/{{run_id}}/candidates")
     def discovery_candidates(

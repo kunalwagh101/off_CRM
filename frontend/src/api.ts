@@ -109,6 +109,15 @@ export const api = {
     link.download = match?.[1] ?? fallbackName;
     link.click();
     URL.revokeObjectURL(link.href);
+  },
+
+  async delete<T = unknown>(path: string): Promise<T> {
+    const response = await fetch(`${API_ROOT}${path}`, {
+      method: "DELETE",
+      headers: headers(),
+      credentials: "include"
+    });
+    return parseResponse<T>(response);
   }
 };
 

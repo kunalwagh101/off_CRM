@@ -312,3 +312,69 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ── Provider catalog ─────────────────────────────────────────────────────── */
+.catalog-section { margin-top: 20px; }
+.catalog-heading { margin: 0 0 14px; color: #16233c; font-size: .9rem; font-weight: 800; }
+.catalog-region { margin-bottom: 18px; }
+.catalog-region-label { margin: 0 0 8px; color: var(--muted); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+
+.catalog-card-wrapper { position: relative; }
+.catalog-card-wrapper:hover .catalog-tooltip { opacity: 1; pointer-events: auto; }
+.catalog-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  width: 100%; border: 1.5px solid var(--border); border-radius: 11px;
+  padding: 11px 12px; background: white; text-align: left;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+}
+.catalog-card:hover { border-color: #9fb2ce; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(38,103,255,.08); }
+.catalog-card-active { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 3px rgba(38,103,255,.12); }
+.catalog-flag { font-size: 1.35rem; line-height: 1; }
+.catalog-name { color: #16233c; font-size: .82rem; font-weight: 800; }
+.catalog-tagline { color: var(--muted); font-size: .67rem; line-height: 1.4; }
+
+.catalog-tooltip {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; z-index: 100;
+  width: 280px; transform: translateX(-50%);
+  background: #1a2740; color: white; border-radius: 10px; padding: 13px 14px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 180ms ease;
+  box-shadow: 0 8px 28px rgba(0,0,0,.25);
+}
+.catalog-tooltip::after {
+  content: ""; position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%); border: 7px solid transparent; border-top-color: #1a2740;
+}
+.catalog-tooltip strong { display: block; margin-bottom: 5px; font-size: .78rem; color: #adc4ff; }
+.catalog-tooltip p { margin: 0 0 8px; font-size: .73rem; line-height: 1.5; color: #ccd6f0; }
+.catalog-tooltip a { font-size: .73rem; color: #7eb5ff; text-decoration: underline; }
+
+.custom-provider-toggle {
+  margin-top: 16px; border: 0; border-bottom: 1.5px dashed var(--border); padding: 0 0 2px;
+  background: transparent; color: var(--blue); font-size: .8rem; cursor: pointer;
+}
+.custom-provider-form { margin-top: 16px; padding-top: 16px; border-top: 1.5px solid var(--border); }
+
+/* ── Catalog configure step ───────────────────────────────────────────────── */
+.catalog-configure { margin-top: 20px; }
+.back-link { border: 0; background: transparent; color: var(--blue); font-size: .8rem; cursor: pointer; padding: 0; margin-bottom: 14px; }
+.configure-hero { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.configure-flag { font-size: 2.2rem; line-height: 1; }
+.configure-hero strong { display: block; color: #16233c; font-size: 1rem; font-weight: 800; }
+.configure-hero small { color: var(--muted); font-size: .75rem; }
+.configure-howto { background: var(--blue-soft); border: 1.5px solid rgba(38,103,255,.15); border-radius: 11px; padding: 14px 16px; margin-bottom: 16px; }
+.configure-howto strong { display: block; color: #16233c; font-size: .8rem; margin-bottom: 5px; }
+.configure-howto p { margin: 0 0 8px; color: #3a4d6a; font-size: .78rem; line-height: 1.6; }
+.howto-link { color: var(--blue); font-size: .78rem; font-weight: 700; text-decoration: none; }
+.howto-link:hover { text-decoration: underline; }
+.configure-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.configure-meta span { color: var(--muted); font-size: .73rem; }
+.configure-meta code { background: #eef1f7; border-radius: 4px; padding: 1px 5px; font-size: .72rem; color: #2b3b58; }
+
+/* ── Provider row (connected list) ───────────────────────────────────────── */
+.provider-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.provider-row:last-child { border-bottom: none; }
+.provider-row-info { flex: 1; }
+.provider-row-info strong { display: block; color: #16233c; font-size: .84rem; font-weight: 750; }
+.provider-row-info small { color: var(--muted); font-size: .71rem; }

@@ -4,12 +4,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    # TEMPORARY: deploying the AI-module branch so it can be tested on a real
-    # server before it reaches main. Switch this back to `main` once the work
-    # is merged — tests/test_ai_registry_packaging.py enforces that a
-    # non-main branch must carry this note, so the temporary state cannot be
-    # forgotten silently.
-    branch: claude/ai-module-hardening
+    branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health/ready
     autoDeploy: true

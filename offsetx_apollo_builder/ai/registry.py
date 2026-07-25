@@ -28,7 +28,39 @@ from .tiers import (
     tier_permits_class,
 )
 
-DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "config" / "providers.yaml"
+#: Where the registry is looked for, in order.
+#:
+#: 1. ``OFFSETX_PROVIDER_REGISTRY`` — explicit override, used on servers.
+#: 2. ``<cwd>/config/providers.yaml`` — the file a human edits in a source
+#:    checkout. This is the one the docs tell you to change.
+#: 3. ``config/providers.yaml`` beside the package root — same file, found via
+#:    the source tree rather than the working directory.
+#: 4. ``providers.yaml`` shipped inside the package — the fallback for a
+#:    pip-installed deployment with no source tree (Render, Docker).
+#:
+#: ``tests/test_ai_registry_packaging.py`` fails if 2 and 4 ever drift apart.
+_PACKAGE_DIR = Path(__file__).resolve().parent
+_SOURCE_ROOT = _PACKAGE_DIR.parents[1]
+PACKAGED_REGISTRY_PATH = _PACKAGE_DIR / "providers.yaml"
+SOURCE_REGISTRY_PATH = _SOURCE_ROOT / "config" / "providers.yaml"
+
+
+def default_registry_path() -> Path:
+    """First readable candidate, so a deploy cannot silently start with none."""
+    override = os.environ.get("OFFSETX_PROVIDER_REGISTRY", "").strip()
+    if override:
+        return Path(override)
+    for candidate in (
+        Path.cwd() / "config" / "providers.yaml",
+        SOURCE_REGISTRY_PATH,
+        PACKAGED_REGISTRY_PATH,
+    ):
+        if candidate.exists():
+            return candidate
+    # Nothing found: return the packaged path so the error names something real.
+    return PACKAGED_REGISTRY_PATH
+
+
 
 #: Adapters the broker knows how to drive.  A registry entry naming anything
 #: else is a config error, caught at load time rather than at call time.
@@ -389,7 +421,7 @@ class ProviderRegistry:
     """
 
     def __init__(self, path: Path | str | None = None) -> None:
-        self.path = Path(path or os.environ.get("OFFSETX_PROVIDER_REGISTRY") or DEFAULT_REGISTRY_PATH)
+        self.path = Path(path) if path else default_registry_path()
         self._lock = threading.RLock()
         self._entries: dict[str, ProviderEntry] = {}
         self._defaults: dict[str, Any] = {}

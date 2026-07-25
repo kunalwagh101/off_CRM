@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-25
 Branch: `claude/ai-module-hardening`
-Tests: **158 Python passed**, 6 frontend passed, 1 pre-existing failure
+Tests: **165 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -206,8 +206,16 @@ Listed honestly. Nothing below is silently assumed done.
 1. **Context layer / RAG** — design proposal owed before building (§4F/§2).
 2. **Orchestrator** — confirm the §7 reversal, and which model is the head.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
-4. **Render deployment** — provider keys should come from environment variables
-   there (`OFFSETX_AI_<PROVIDER>_KEY`); the encrypted file is for local use.
+4. **Render deployment** — `render.yaml` deploys `branch: main` with
+   `autoDeploy: true`, so nothing ships until this branch is merged there.
+   Two things to set up before the first deploy:
+   - Provider keys as environment variables `OFFSETX_AI_<PROVIDER>_KEY`
+     (e.g. `OFFSETX_AI_MISTRAL_KEY`). `OFFSETX_DATA_DIR` points at `/tmp`
+     on Render, which is wiped on every restart, so the encrypted key file
+     will not survive. The env fallback is why keys still work there.
+   - **The egress log lives in the same disposable `/tmp` directory.** It is
+     the audit trail, and on Render it resets on every restart. Fine for a
+     demo; a real shared deployment needs a Render disk or Postgres.
 5. **Postgres** — needed before "millions of users"; say when.
 
 ---

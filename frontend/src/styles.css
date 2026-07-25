@@ -381,7 +381,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .provider-row-info strong { display: block; color: #16233c; font-size: .84rem; font-weight: 750; }
 .provider-row-info small { color: var(--muted); font-size: .71rem; }
 
-/* ── AI Copilot page ──────────────────────────────────────────────────────── */
+/* ── AI page ──────────────────────────────────────────────────────── */
 .ai-shell { display: flex; height: calc(100vh - 60px); overflow: hidden; position: relative; }
 
 /* Main area — always full width, panel slides over it */

@@ -33,6 +33,8 @@ const pages = {
 type Page = keyof typeof pages;
 
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
+  { page: "ai", label: "AI", icon: "✦", group: "AI" },
+  { page: "connectors", label: "Connectors", icon: "⚡" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },
@@ -41,9 +43,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "queue", label: "Send queue", icon: "➤" },
   { page: "sales", label: "Sales tracker", icon: "↗", group: "Sales" },
   { page: "experiments", label: "Experiments", icon: "A/B" },
-  { page: "connectors", label: "AI Connectors", icon: "⚡", group: "System" },
-  { page: "ai", label: "AI Copilot", icon: "🤖" },
-  { page: "settings", label: "Settings", icon: "⚙" }
+  { page: "settings", label: "Settings", icon: "⚙", group: "System" }
 ];
 
 function currentPage(): Page {

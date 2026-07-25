@@ -135,7 +135,7 @@ export default function AIPage() {
         {/* Topbar: title + toggle */}
         <div className="ai-topbar">
           <div className="ai-topbar-left">
-            <h1 className="ai-page-title">AI Copilot</h1>
+            <h1 className="ai-page-title">AI</h1>
             {activeChatId && (
               <span className="ai-active-title">
                 {(chats.data?.items ?? []).find((c) => c.id === activeChatId)?.title ?? "Chat"}
@@ -199,7 +199,7 @@ export default function AIPage() {
           <div className="ai-welcome">
             <div className="ai-welcome-inner">
               <p className="ai-welcome-icon">🤖</p>
-              <h2>off_CRM AI Copilot</h2>
+              <h2>off_CRM AI</h2>
               <p>Ask anything about your leads, campaigns, or email strategy. Uses whichever provider you have connected in AI Connectors.</p>
               <Button onClick={startChat} busy={busy === "new-chat"}>Start a new chat</Button>
               {totalChats > 0 && (

@@ -25,7 +25,15 @@ class ProviderUnavailableError(ProviderError):
     """Raised when every configured provider is unavailable or invalid."""
 
 
-DATA_POLICIES = {"minimal", "standard", "full"}
+#: Legacy draft-generation path policies.
+#:
+#: ``strict`` behaves exactly like this path's ``minimal`` — recipient identity
+#: removed entirely.  Note the difference from the AI module: there,
+#: ``minimal`` deliberately permits the person's public name so enrichment can
+#: personalise, and ``strict`` is the level that removes it.  The two paths keep
+#: their own meanings so existing profiles do not silently start sending more.
+#: New work should go through ``offsetx_apollo_builder.ai.broker.EgressBroker``.
+DATA_POLICIES = {"strict", "minimal", "standard", "full"}
 
 
 def _redact_text(value: str) -> str:
@@ -51,7 +59,7 @@ def apply_data_policy(user_prompt: str, policy: str) -> str:
     if not isinstance(payload, dict):
         return _redact_text(user_prompt)
     recipient = payload.get("recipient") if isinstance(payload.get("recipient"), dict) else {}
-    if policy == "minimal":
+    if policy in {"minimal", "strict"}:
         private_values = [
             str(recipient.get(key, ""))
             for key in ("first_name", "full_name", "company", "title", "public_hook", "hook_source")

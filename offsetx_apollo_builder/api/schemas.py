@@ -95,6 +95,9 @@ class DraftGenerate(StrictModel):
     provider_profile_ids: list[str] = Field(default_factory=list, max_length=20)
     provider_owner: str = Field(default="", max_length=100)
     fallback_strategy: Literal["priority", "round_robin", "parallel"] = "priority"
+    # A request-supplied provider still runs under a data policy. Defaulting to
+    # "minimal" means an API caller cannot opt out of the guard by omission.
+    data_policy: Literal["strict", "minimal", "standard", "full"] = "minimal"
 
     @field_validator("stages")
     @classmethod

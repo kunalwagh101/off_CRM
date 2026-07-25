@@ -24,6 +24,31 @@ PROFILE_TYPES = {
 }
 
 
+def create_guarded_provider(
+    config: ProviderConfig,
+    *,
+    data_policy: str = "minimal",
+    audit_callback: Any | None = None,
+    profile_id: str = "ad-hoc",
+) -> PolicyAIProvider:
+    """Build a provider that is always wrapped in the data-policy guard.
+
+    Callers outside this module and the AI broker must use this rather than
+    ``create_provider``: §5.5.1 requires that no code path can obtain an
+    unguarded provider, and an ad-hoc provider supplied in a request body is
+    exactly the path that used to skip the guard.
+    """
+    raw_provider = create_provider(config)
+    return PolicyAIProvider(
+        raw_provider,
+        profile_id=profile_id,
+        provider_type=config.provider_type,
+        model=config.model,
+        data_policy=data_policy,
+        audit_callback=audit_callback,
+    )
+
+
 def _atomic_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:

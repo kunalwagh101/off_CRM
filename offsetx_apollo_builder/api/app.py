@@ -32,8 +32,22 @@ from ..outreach.notion import (
     export_campaign_contacts,
     export_sales_leads,
 )
-from ..outreach.provider_profiles import ProviderProfileStore
-from ..outreach.providers import ProviderError, create_provider
+from ..ai import (
+    DataClass,
+    EgressBlocked,
+    EgressBroker,
+    EgressLog,
+    EgressRequest,
+    NoPermittedProvider,
+    PersonPublic,
+    PolicyViolation,
+    ProviderRegistry,
+    QuotaTracker,
+    RegistryError,
+)
+from ..ai.workspace import WorkspaceAISettingsStore
+from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
+from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
@@ -225,6 +239,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.campaign_locks = CampaignLocks()
         app.state.maintenance_lock = threading.Lock()
         app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
+        app.state.ai_registry = ProviderRegistry()
+        app.state.ai_workspaces = WorkspaceAISettingsStore(
+            resolved.data_dir, app.state.ai_registry
+        )
+        app.state.ai_egress_log = EgressLog(resolved.data_dir / "ai_egress.db")
+        app.state.ai_quota = QuotaTracker(resolved.data_dir)
+        app.state.ai_broker = EgressBroker(
+            registry=app.state.ai_registry,
+            credential_resolver=lambda provider_id: "",
+            quota=app.state.ai_quota,
+            logger=app.state.ai_egress_log.record,
+        )
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
@@ -243,6 +269,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         finally:
             await app.state.automation.stop()
             app.state.engine.close()
+            app.state.ai_egress_log.close()
 
     app = FastAPI(
         title="off_CRM",
@@ -966,12 +993,250 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def ai_list_messages(chat_id: str, request: Request) -> dict[str, Any]:
         return {"items": _ai_chat(request).list_messages(chat_id)}
 
+    # ── AI module: workspace, providers, egress ──────────────────────────
+
+    def _ai(request: Request) -> tuple[Any, Any, Any]:
+        """(broker, workspace store, egress log) for the current request."""
+        state = request.app.state
+        return state.ai_broker, state.ai_workspaces, state.ai_egress_log
+
+    def _ai_error(exc: Exception) -> HTTPException:
+        """Turn a policy refusal into an answer the owner can act on.
+
+        Never a raw stack trace: a refused call is a normal, explainable outcome
+        of the trust rules, not a crash.
+        """
+        if isinstance(exc, EgressBlocked):
+            return HTTPException(422, detail=exc.to_dict())
+        if isinstance(exc, PolicyViolation):
+            return HTTPException(403, detail=exc.to_dict())
+        if isinstance(exc, NoPermittedProvider):
+            return HTTPException(409, detail=exc.to_dict())
+        if isinstance(exc, RegistryError):
+            return HTTPException(400, detail={"error": "registry_error", "message": str(exc)})
+        if isinstance(exc, ValueError):
+            return HTTPException(400, detail={"error": "invalid_request", "message": str(exc)})
+        return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
+
+    def _workspace_id(request: Request) -> str:
+        return "local"
+
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
-        engine = _engine(request)
-        def provider_fn(*, system_prompt: str, user_prompt: str) -> str:
-            return engine._engine.generate(system_prompt=system_prompt, user_prompt=user_prompt)
-        return _ai_chat(request).send_message(chat_id=chat_id, user_content=str(body.get("content", "")), provider_fn=provider_fn)
+        """Send a chat turn through the egress broker.
+
+        ``data_class`` decides which providers may answer. ``public`` is for
+        code and general questions and lets restricted-tier models help;
+        ``campaign`` is the default and keeps the conversation on trusted tiers.
+        """
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        settings = workspaces.egress_settings(workspace_id)
+        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+
+        requested_class = str(body.get("data_class", "campaign")).strip().lower()
+        if requested_class not in {"public", "campaign"}:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "invalid_data_class",
+                    "message": "Chat runs as 'public' or 'campaign'. Mailbox and CRM "
+                    "records are not reachable from chat.",
+                },
+            )
+        data_class = DataClass(requested_class)
+        provider_id = str(body.get("provider_id", "")).strip()
+
+        chosen: dict[str, str] = {}
+
+        def responder(*, turns: list[dict[str, str]]) -> dict[str, str]:
+            egress = EgressRequest(
+                task_type="ai_chat",
+                data_class=data_class,
+                conversation=turns,
+                positioning_line=settings.positioning_line,
+                task_tags=("writing", "reasoning"),
+            )
+            result = broker.call(
+                egress,
+                settings,
+                system_prompt=AIChatService.DEFAULT_SYSTEM_PROMPT,
+                provider_id=provider_id,
+            )
+            chosen.update({"provider": result.provider_name, "model": result.model_id})
+            return {
+                "text": result.text,
+                "provider": result.provider_name,
+                "model": result.model_id,
+            }
+
+        try:
+            return _ai_chat(request).send_message(
+                chat_id=chat_id,
+                user_content=str(body.get("content", "")),
+                responder=responder,
+                workspace_id=workspace_id,
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+
+    @app.get(f"{API_PREFIX}/ai/providers")
+    def ai_providers(request: Request) -> dict[str, Any]:
+        """Registry plus this workspace's connection state, tiers and usage."""
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        try:
+            payload = workspaces.describe(workspace_id)
+        except RegistryError as exc:
+            raise _ai_error(exc) from exc
+        usage = {
+            row["provider_id"]: row
+            for row in broker.usage(workspaces.egress_settings(workspace_id))
+        }
+        for row in payload["providers"]:
+            row["usage"] = usage.get(row["id"])
+        return payload
+
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/connect")
+    def ai_connect_provider(
+        provider_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        _, workspaces, _ = _ai(request)
+        try:
+            return workspaces.connect_provider(
+                _workspace_id(request),
+                provider_id,
+                api_key=str(body.get("api_key", "")),
+                model_id=str(body.get("model_id", "")),
+                data_policy=str(body.get("data_policy", "")),
+                enabled=bool(body.get("enabled", True)),
+                requests_per_minute=body.get("requests_per_minute"),
+                requests_per_day=body.get("requests_per_day"),
+                max_spend_usd_per_day=body.get("max_spend_usd_per_day"),
+            )
+        except (RegistryError, ValueError) as exc:
+            raise _ai_error(exc) from exc
+
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/disconnect")
+    def ai_disconnect_provider(provider_id: str, request: Request) -> dict[str, str]:
+        _, workspaces, _ = _ai(request)
+        workspaces.disconnect_provider(_workspace_id(request), provider_id)
+        return {"status": "disconnected", "provider_id": provider_id}
+
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/override")
+    def ai_override_provider(
+        provider_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Raise or lower a provider's trust for this workspace, with a reason."""
+        _, workspaces, _ = _ai(request)
+        try:
+            return workspaces.set_override(
+                _workspace_id(request),
+                provider_id,
+                trust_tier=str(body.get("trust_tier", "")),
+                data_policy=str(body.get("data_policy", "")),
+                allow_above_ceiling=bool(body.get("allow_above_ceiling", False)),
+                reason=str(body.get("reason", "")),
+                decided_by=str(body.get("decided_by", "")),
+            )
+        except (RegistryError, ValueError) as exc:
+            raise _ai_error(exc) from exc
+
+    @app.post(f"{API_PREFIX}/ai/workspace")
+    def ai_update_workspace(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Positioning line, owner domains and addresses.
+
+        The positioning line is the only sender-side content permitted to leave.
+        The domains and addresses are what the pre-flight scanner watches for.
+        """
+        _, workspaces, _ = _ai(request)
+        values: dict[str, Any] = {}
+        if "positioning_line" in body:
+            values["positioning_line"] = str(body["positioning_line"])[:500]
+        if "owner_domains" in body:
+            values["owner_domains"] = [
+                str(item).strip().lower().lstrip("@")
+                for item in (body.get("owner_domains") or [])
+                if str(item).strip()
+            ][:20]
+        if "owner_addresses" in body:
+            values["owner_addresses"] = [
+                str(item).strip().lower()
+                for item in (body.get("owner_addresses") or [])
+                if str(item).strip()
+            ][:20]
+        workspaces.save(_workspace_id(request), values)
+        return workspaces.describe(_workspace_id(request))
+
+    @app.post(f"{API_PREFIX}/ai/workspace/mailbox-unlock")
+    def ai_mailbox_unlock(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        _, workspaces, _ = _ai(request)
+        try:
+            workspaces.unlock_mailbox(_workspace_id(request), str(body.get("phrase", "")))
+        except ValueError as exc:
+            raise HTTPException(400, detail={"error": "bad_phrase", "message": str(exc)}) from exc
+        return workspaces.describe(_workspace_id(request))
+
+    @app.post(f"{API_PREFIX}/ai/plan")
+    def ai_plan(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Dry run: which provider would take this task, and who was filtered out.
+
+        Lets the Connectors screen answer 'what happens if I run this?' without
+        spending a call.
+        """
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        settings = workspaces.egress_settings(workspace_id)
+        data_class = DataClass(str(body.get("data_class", "person_public")).strip().lower())
+        egress = EgressRequest(
+            task_type=str(body.get("task_type", "draft_email")),
+            data_class=data_class,
+            task_tags=tuple(str(tag) for tag in body.get("task_tags") or ()),
+        )
+        try:
+            permitted, rejected = broker.plan(egress, settings)
+        except (PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+        return {
+            "data_class": data_class.value,
+            "would_use": permitted[0].to_dict() if permitted else None,
+            "chain": [item.to_dict() for item in permitted],
+            "excluded": rejected,
+        }
+
+    @app.get(f"{API_PREFIX}/ai/egress-log")
+    def ai_egress_log(
+        request: Request,
+        provider_id: str = Query("", max_length=80),
+        status: str = Query("", max_length=30),
+        data_class: str = Query("", max_length=30),
+        limit: int = Query(50, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        _, _, log = _ai(request)
+        items, total = log.list(
+            workspace_id=_workspace_id(request),
+            provider_id=provider_id,
+            status=status,
+            data_class=data_class,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/ai/egress-log/stats")
+    def ai_egress_stats(request: Request) -> dict[str, Any]:
+        _, _, log = _ai(request)
+        return log.stats(workspace_id=_workspace_id(request))
+
+    @app.get(f"{API_PREFIX}/ai/egress-log/{{log_id}}")
+    def ai_egress_entry(log_id: str, request: Request) -> dict[str, Any]:
+        """The exact payload that was sent, so the guarantee is verified."""
+        _, _, log = _ai(request)
+        record = log.get(log_id)
+        if record is None:
+            raise HTTPException(404, "Egress log entry not found")
+        return record
 
     @app.get(f"{API_PREFIX}/discovery/runs/{{run_id}}/candidates")
     def discovery_candidates(
@@ -1084,7 +1349,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     audit_callback=engine.store.record_provider_call,
                 )
             elif body.provider:
-                provider = create_provider(ProviderConfig(**body.provider.model_dump()))
+                provider = create_guarded_provider(
+                    ProviderConfig(**body.provider.model_dump()),
+                    data_policy=body.data_policy,
+                    audit_callback=engine.store.record_provider_call,
+                    profile_id="request-supplied",
+                )
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(
                     campaign_id,

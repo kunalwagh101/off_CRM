@@ -511,3 +511,126 @@ export type NotionExportResult = {
   failures: Array<{ row: string; error: string }>;
   skipped_fields: string[];
 };
+
+// ── AI module ──────────────────────────────────────────────────────────────
+// Shapes served by the config-driven provider registry. Nothing here is a
+// hardcoded provider list: the backend reads config/providers.yaml, so adding a
+// provider is a config edit and this file does not change.
+
+export type AIModel = {
+  id: string;
+  context_window: number;
+  cost_per_1m_input_usd: number;
+  cost_per_1m_output_usd: number;
+  good_at: string[];
+  is_free: boolean;
+  model_origin: string;
+  model_origin_tier_cap: string;
+};
+
+export type AIUsage = {
+  provider_id: string;
+  minute_used: number;
+  minute_limit: number;
+  day_used: number;
+  day_limit: number;
+  day_spend_usd: number;
+  day_spend_cap_usd: number;
+  source: string;
+  exhausted: boolean;
+};
+
+export type AIOverride = {
+  provider_id: string;
+  trust_tier: string;
+  data_policy: string;
+  allow_above_ceiling: boolean;
+  reason: string;
+  decided_by: string;
+  decided_at: string;
+};
+
+export type AIProviderRow = {
+  id: string;
+  name: string;
+  flag: string;
+  jurisdiction: string;
+  adapter: string;
+  base_url: string;
+  default_model: string;
+  models: AIModel[];
+  retention: string;
+  trains_on_input: boolean;
+  is_aggregator: boolean;
+  local_only: boolean;
+  self_hostable: boolean;
+  self_host_note: string;
+  key_url: string;
+  key_placeholder: string;
+  how_to_get: string;
+  verified_on: string;
+  free_tier: { requests_per_minute: number; requests_per_day: number; notes: string } | null;
+  trust_tier: string;
+  trust_tier_source: string;
+  policy_ceiling: string;
+  default_policy: string;
+  permitted_data_classes: string[];
+  receives_nothing: boolean;
+  connected: boolean;
+  enabled: boolean;
+  has_key: boolean;
+  model_id: string;
+  data_policy: string;
+  effective_tier: string;
+  override: AIOverride | null;
+  requests_per_minute: number;
+  requests_per_day: number;
+  max_spend_usd_per_day: number;
+  usage?: AIUsage | null;
+};
+
+export type AIProvidersPayload = {
+  workspace_id: string;
+  positioning_line: string;
+  owner_domains: string[];
+  owner_addresses: string[];
+  mailbox_unlocked: boolean;
+  mailbox_unlock_phrase_required: string;
+  providers: AIProviderRow[];
+  policy_levels: Array<{ value: string; label: string; description: string }>;
+  tiers: Array<{ tier: string; label: string; policy_ceiling: string }>;
+};
+
+export type EgressLogRow = {
+  id: string;
+  created_at: string;
+  provider_id: string;
+  provider_name: string;
+  model_id: string;
+  jurisdiction: string;
+  tier: string;
+  policy: string;
+  data_class: string;
+  task_type: string;
+  status: string;
+  error: string;
+  duration_ms: number;
+  payload_summary: { fields?: string[]; recipient_fields?: string[]; character_count?: number };
+};
+
+export type EgressLogEntry = EgressLogRow & {
+  payload: Record<string, unknown>;
+  response_text: string;
+  findings: Array<{ kind: string; detail: string; location?: string; sample?: string }>;
+};
+
+export type EgressStats = {
+  calls: number;
+  blocked: number;
+  failed: number;
+  by_tier: Array<{ tier: string; calls: number }>;
+  by_provider: Array<{ provider_id: string; provider_name: string; jurisdiction: string; calls: number }>;
+};
+
+/** Alias so pages can read the /status shape under an AI-facing name. */
+export type StatusPayload = SettingsStatus;

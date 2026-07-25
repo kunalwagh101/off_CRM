@@ -494,3 +494,106 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .ai-confirm-modal { background: white; border-radius: 14px; padding: 28px 28px 22px; max-width: 380px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,.22); }
 .ai-confirm-title { margin: 0 0 8px; color: #16233c; font-size: 1.05rem; font-weight: 800; }
 .ai-confirm-body { margin: 0 0 20px; color: var(--muted); font-size: .85rem; line-height: 1.6; }
+
+/* ── AI module: connectors, egress inspector, chat controls ───────────────
+   Reuses the existing tokens so the module looks native to off_CRM (§4L). */
+
+.tier-groups { display: flex; flex-direction: column; gap: 1.75rem; }
+
+.tier-group-head {
+  display: flex; align-items: center; gap: 0.75rem;
+  flex-wrap: wrap; margin-bottom: 0.75rem;
+}
+.tier-group-note { margin: 0; font-size: 0.85rem; color: var(--muted, #6b7280); flex: 1 1 20rem; }
+
+.provider-cards {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+}
+
+.provider-card {
+  border: 1px solid var(--border, #e5e7eb); border-radius: 0.75rem;
+  padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;
+  background: var(--surface, #fff);
+}
+.provider-card-on { border-color: var(--accent, #2563eb); box-shadow: 0 0 0 1px var(--accent, #2563eb) inset; }
+.provider-card-head { display: flex; align-items: center; gap: 0.65rem; }
+.provider-card-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.provider-card-title strong { font-size: 1rem; }
+.provider-card-title small { color: var(--muted, #6b7280); overflow-wrap: anywhere; }
+
+/* The three facts §4B requires at a glance. */
+.provider-facts { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0; }
+.provider-facts > div { display: flex; flex-direction: column; gap: 0.2rem; }
+.provider-facts dt {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted, #6b7280);
+}
+.provider-facts dd { margin: 0; font-size: 0.9rem; font-weight: 600; }
+
+.provider-retention { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--muted, #6b7280); }
+.provider-warn { color: var(--danger, #b91c1c); font-style: normal; font-weight: 600; }
+.provider-override,
+.provider-usage,
+.provider-tip { margin: 0; font-size: 0.8rem; color: var(--muted, #6b7280); }
+.provider-tip { padding: 0.5rem 0.65rem; background: var(--subtle, #f3f4f6); border-radius: 0.5rem; }
+.provider-card-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: auto; flex-wrap: wrap; }
+.provider-connect-form { display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border, #e5e7eb); padding-top: 0.85rem; }
+.provider-howto { margin: 0; font-size: 0.85rem; line-height: 1.55; }
+
+.connector-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+.link-button {
+  background: none; border: none; padding: 0; margin-left: 0.4rem;
+  color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; font: inherit;
+}
+.link-button:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+
+/* ── Egress inspector ─────────────────────────────────────────────────── */
+.filter-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.filter-chip {
+  border: 1px solid var(--border, #e5e7eb); background: transparent;
+  border-radius: 999px; padding: 0.3rem 0.85rem; cursor: pointer; font: inherit; font-size: 0.85rem;
+}
+.filter-chip-on { background: var(--accent, #2563eb); color: #fff; border-color: var(--accent, #2563eb); }
+.filter-chip:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+
+/* Wide content scrolls inside its own container; the page never scrolls sideways. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.data-table th, .data-table td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border, #e5e7eb); vertical-align: top; }
+.data-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, #6b7280); }
+
+.payload-block {
+  background: var(--subtle, #f3f4f6); border-radius: 0.5rem; padding: 0.85rem;
+  overflow-x: auto; font-size: 0.8rem; line-height: 1.5; max-height: 28rem; overflow-y: auto;
+}
+.detail-heading { font-size: 0.9rem; margin: 1rem 0 0.5rem; }
+.egress-blocked {
+  border-left: 3px solid var(--danger, #b91c1c); padding: 0.75rem 1rem;
+  background: color-mix(in srgb, var(--danger, #b91c1c) 8%, transparent); border-radius: 0.4rem;
+}
+.egress-blocked ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; line-height: 1.6; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ── AI chat controls ─────────────────────────────────────────────────── */
+.ai-controls {
+  display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;
+  padding: 0.65rem 0 0; font-size: 0.85rem;
+}
+.ai-control { display: flex; flex-direction: column; gap: 0.25rem; }
+.ai-control span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, #6b7280); }
+.ai-control select { min-width: 12rem; max-width: 100%; }
+.ai-control-note { margin: 0; flex: 1 1 16rem; font-size: 0.78rem; color: var(--muted, #6b7280); line-height: 1.5; }
+.ai-export { display: flex; gap: 0.75rem; }
+.ai-welcome-warn { color: var(--danger, #b91c1c); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .provider-facts { gap: 0.9rem; }
+  .ai-controls { flex-direction: column; align-items: stretch; }
+  .ai-control select { min-width: 0; width: 100%; }
+}

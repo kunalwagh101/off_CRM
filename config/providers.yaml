@@ -1,0 +1,497 @@
+# off_CRM AI provider registry
+# ---------------------------------------------------------------------------
+# Adding, removing or re-tiering a provider is a change to THIS FILE.
+# It must never require a code change.  The application reads this at startup
+# and on demand; nothing about a provider is hardcoded in Python or TypeScript.
+#
+# Every entry needs:
+#   jurisdiction     ISO-3166 alpha-2, or XX for routers whose processor is unknown
+#   trains_on_input  true if the terms let the provider train on what you send
+#   retention        short human sentence, shown in the UI
+#   trust_tier       omit to derive from jurisdiction + trains_on_input
+#   verified_on      the date a human last read the provider's own policy page
+#
+# WARNING about verified_on: rate limits and data terms in public "free LLM API"
+# lists go stale fast.  The dates below mark when each entry was seeded from
+# vendor documentation.  Re-check in the provider's own console before trusting
+# a limit for billing or compliance purposes.
+#
+# Owner trust ordering (2026-07-25): Europe highest, USA default, China below
+# default, aggregators nothing.
+
+version: 1
+defaults:
+  timeout_seconds: 60
+  # A provider absent from this file is untrusted and gets nothing (§5.4 D).
+  unlisted_provider_tier: D
+
+providers:
+
+  # ── Europe — highest trust (tier A) ──────────────────────────────────────
+  - id: mistral
+    name: Mistral AI
+    jurisdiction: FR
+    flag: "🇫🇷"
+    adapter: openai_compatible
+    base_url: https://api.mistral.ai/v1
+    default_model: mistral-large-latest
+    models:
+      - id: mistral-large-latest
+        context_window: 128000
+        cost_per_1m_input_usd: 2.00
+        cost_per_1m_output_usd: 6.00
+        good_at: [writing, reasoning, multilingual]
+      - id: mistral-small-latest
+        context_window: 128000
+        cost_per_1m_input_usd: 0.20
+        cost_per_1m_output_usd: 0.60
+        good_at: [writing, classification, bulk]
+    free_tier:
+      requests_per_minute: 60
+      requests_per_day: 1000000
+      notes: Roughly 1 request/second on the free experiment plan.
+    trains_on_input: false
+    retention: EU-hosted. Does not train on API inputs. GDPR data-processing terms.
+    key_url: https://console.mistral.ai/api-keys
+    key_placeholder: "…"
+    how_to_get: >-
+      Sign up at console.mistral.ai, open API keys, create one. European company
+      under GDPR, which is why it sits in the highest trust tier here.
+    verified_on: 2026-07-25
+
+  # ── United States — default trust (tier B) ───────────────────────────────
+  - id: openai
+    name: OpenAI
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai
+    base_url: https://api.openai.com/v1
+    default_model: gpt-4o
+    models:
+      - id: gpt-4o
+        context_window: 128000
+        cost_per_1m_input_usd: 2.50
+        cost_per_1m_output_usd: 10.00
+        good_at: [writing, reasoning, orchestration, code]
+      - id: gpt-4o-mini
+        context_window: 128000
+        cost_per_1m_input_usd: 0.15
+        cost_per_1m_output_usd: 0.60
+        good_at: [writing, classification, bulk]
+    trains_on_input: false
+    retention: API inputs are not used for training by default. 30-day abuse retention.
+    key_url: https://platform.openai.com/api-keys
+    key_placeholder: sk-…
+    how_to_get: >-
+      platform.openai.com, API keys, create new secret key. This is separate
+      from a ChatGPT Plus subscription — the API bills per token from its own
+      credit balance. A small top-up covers thousands of emails.
+    verified_on: 2026-07-25
+
+  - id: anthropic
+    name: Anthropic
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: anthropic
+    base_url: https://api.anthropic.com/v1
+    default_model: claude-sonnet-4-5
+    models:
+      - id: claude-sonnet-4-5
+        context_window: 200000
+        cost_per_1m_input_usd: 3.00
+        cost_per_1m_output_usd: 15.00
+        good_at: [writing, reasoning, orchestration, code, long_context]
+      - id: claude-haiku-4-5
+        context_window: 200000
+        cost_per_1m_input_usd: 1.00
+        cost_per_1m_output_usd: 5.00
+        good_at: [writing, classification, bulk]
+    trains_on_input: false
+    retention: Does not train on API inputs. Commercial terms cover retention limits.
+    key_url: https://console.anthropic.com/settings/keys
+    key_placeholder: sk-ant-…
+    how_to_get: >-
+      console.anthropic.com, Settings, API keys, create key. Separate from a
+      Claude.ai subscription — the API has its own pay-per-token billing.
+    verified_on: 2026-07-25
+
+  - id: groq
+    name: Groq
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    default_model: llama-3.3-70b-versatile
+    models:
+      - id: llama-3.3-70b-versatile
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, bulk, classification]
+        model_origin: US
+    free_tier:
+      requests_per_minute: 30
+      requests_per_day: 14400
+      notes: No card required. Generous daily ceiling, very fast inference.
+    trains_on_input: false
+    retention: Does not train on inputs. Hosts open-weight models on its own hardware.
+    key_url: https://console.groq.com/keys
+    key_placeholder: gsk_…
+    how_to_get: >-
+      console.groq.com, API Keys, create. Fastest inference available and the
+      free daily allowance is large, so this is the default workhorse for bulk
+      drafting.
+    verified_on: 2026-07-25
+
+  - id: cerebras
+    name: Cerebras
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://api.cerebras.ai/v1
+    default_model: llama-3.3-70b
+    models:
+      - id: llama-3.3-70b
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, bulk]
+        model_origin: US
+    free_tier:
+      requests_per_minute: 30
+      requests_per_day: 14400
+      notes: No card required.
+    trains_on_input: false
+    retention: Does not train on inputs.
+    key_url: https://cloud.cerebras.ai
+    key_placeholder: csk-…
+    how_to_get: cloud.cerebras.ai, sign in, API keys. No card needed.
+    verified_on: 2026-07-25
+
+  - id: nvidia
+    name: NVIDIA NIM
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://integrate.api.nvidia.com/v1
+    default_model: meta/llama-3.1-70b-instruct
+    models:
+      - id: meta/llama-3.1-70b-instruct
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, reasoning, code]
+        model_origin: US
+      # Provenance caveat (§5.4): a US host may serve a model built elsewhere.
+      # Where pass-through to the model's developer is undocumented, the model
+      # is capped at tier C regardless of the host's tier.
+      - id: qwen/qwen2.5-coder-32b-instruct
+        context_window: 32000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [code]
+        model_origin: CN
+        model_origin_tier_cap: C
+    free_tier:
+      requests_per_minute: 40
+      notes: Phone verification required.
+    trains_on_input: false
+    retention: States it does not train on inputs. Hosts many third-party models.
+    key_url: https://build.nvidia.com
+    key_placeholder: nvapi-…
+    how_to_get: >-
+      build.nvidia.com, sign in, get API key. Runs open-weight models on NVIDIA
+      hardware, useful when you want that quality without a local GPU.
+    verified_on: 2026-07-25
+
+  - id: xai
+    name: xAI (Grok)
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://api.x.ai/v1
+    default_model: grok-3
+    models:
+      - id: grok-3
+        context_window: 131072
+        cost_per_1m_input_usd: 3.00
+        cost_per_1m_output_usd: 15.00
+        good_at: [writing, reasoning, orchestration]
+    trains_on_input: false
+    retention: API terms separate business data from consumer product training.
+    key_url: https://console.x.ai
+    key_placeholder: xai-…
+    how_to_get: console.x.ai, API, create API key. OpenAI-compatible format.
+    verified_on: 2026-07-25
+
+  - id: google
+    name: Google Gemini
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    default_model: gemini-2.0-flash
+    models:
+      - id: gemini-2.0-flash
+        context_window: 1000000
+        cost_per_1m_input_usd: 0.10
+        cost_per_1m_output_usd: 0.40
+        good_at: [writing, long_context, bulk, classification]
+    free_tier:
+      requests_per_minute: 15
+      requests_per_day: 1000
+      notes: >-
+        Free-tier content may be used to improve Google products. That is why
+        trains_on_input is true and the derived tier is C, not B.
+    # Acceptable jurisdiction, weak free-tier data terms → demoted one step.
+    # The paid tier has different terms; if you move to paid billing, re-verify
+    # and set trust_tier: B explicitly with a note.
+    trains_on_input: true
+    retention: >-
+      Free tier — submitted content may be used to improve Google products.
+      Paid tier terms differ; verify before relying on them.
+    key_url: https://aistudio.google.com/app/apikey
+    key_placeholder: AIza…
+    how_to_get: >-
+      aistudio.google.com, Get API key. Very large context window and a generous
+      free allowance, but read the retention note before sending anything about
+      a real person.
+    verified_on: 2026-07-25
+
+  - id: cohere
+    name: Cohere
+    jurisdiction: CA
+    flag: "🇨🇦"
+    adapter: openai_compatible
+    base_url: https://api.cohere.com/compatibility/v1
+    default_model: command-r-plus
+    models:
+      - id: command-r-plus
+        context_window: 128000
+        cost_per_1m_input_usd: 2.50
+        cost_per_1m_output_usd: 10.00
+        good_at: [writing, retrieval, classification]
+    free_tier:
+      requests_per_minute: 20
+      notes: Trial keys are free but rate limited and not for production volume.
+    trains_on_input: false
+    retention: Production keys are excluded from training. Trial keys are not.
+    key_url: https://dashboard.cohere.com/api-keys
+    key_placeholder: "…"
+    how_to_get: >-
+      dashboard.cohere.com, API keys. Built for retrieval-heavy work, which
+      suits emails that draw on your own evidence store.
+    verified_on: 2026-07-25
+
+  - id: github_models
+    name: GitHub Models
+    jurisdiction: US
+    flag: "🇺🇸"
+    adapter: openai_compatible
+    base_url: https://models.inference.ai.azure.com
+    default_model: gpt-4o
+    models:
+      - id: gpt-4o
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, reasoning, code]
+    free_tier:
+      requests_per_minute: 10
+      requests_per_day: 50
+      notes: Frontier models on a tight daily cap. Good for spot-checks, not bulk.
+    trains_on_input: false
+    retention: Microsoft Azure AI terms. Not used for training.
+    key_url: https://github.com/settings/tokens
+    key_placeholder: ghp_…
+    how_to_get: >-
+      A GitHub personal access token with the models scope. The daily cap is
+      small, so keep this for quality checks rather than volume.
+    verified_on: 2026-07-25
+
+  # ── China — restricted (tier C) ──────────────────────────────────────────
+  # These are enabled and useful. Under tier C they receive the person's public
+  # professional details (name, company, title) so they can personalise, plus
+  # public and code tasks. They never receive your email address, your identity
+  # beyond the positioning line, campaign internals or mailbox content unless
+  # you explicitly raise the provider with a recorded override.
+  - id: deepseek
+    name: DeepSeek
+    jurisdiction: CN
+    flag: "🇨🇳"
+    adapter: openai_compatible
+    base_url: https://api.deepseek.com/v1
+    default_model: deepseek-chat
+    models:
+      - id: deepseek-chat
+        context_window: 64000
+        cost_per_1m_input_usd: 0.27
+        cost_per_1m_output_usd: 1.10
+        good_at: [writing, code, bulk]
+      - id: deepseek-reasoner
+        context_window: 64000
+        cost_per_1m_input_usd: 0.55
+        cost_per_1m_output_usd: 2.19
+        good_at: [reasoning, architecture, code]
+    trains_on_input: true
+    retention: Trains on submitted content by default. PRC jurisdiction.
+    key_url: https://platform.deepseek.com/api_keys
+    key_placeholder: sk-…
+    how_to_get: >-
+      platform.deepseek.com, API keys. Very strong quality for the price. Under
+      PRC jurisdiction with training-on-input terms, so off_CRM keeps it at
+      restricted trust — good for code and for public research, and for
+      personalising from a person's public profile.
+    self_hostable: true
+    self_host_note: >-
+      DeepSeek weights are openly licensed. Running them on your own machine
+      means nothing leaves at all — the only way to combine this model with
+      restricted data.
+    verified_on: 2026-07-25
+
+  - id: moonshot
+    name: Moonshot AI (Kimi)
+    jurisdiction: CN
+    flag: "🇨🇳"
+    adapter: openai_compatible
+    base_url: https://api.moonshot.cn/v1
+    default_model: moonshot-v1-128k
+    models:
+      - id: moonshot-v1-128k
+        context_window: 128000
+        cost_per_1m_input_usd: 0.84
+        cost_per_1m_output_usd: 0.84
+        good_at: [architecture, reasoning, long_context, planning]
+    trains_on_input: true
+    retention: Trains on submitted content by default. PRC jurisdiction.
+    key_url: https://platform.moonshot.cn/console/api-keys
+    key_placeholder: sk-…
+    how_to_get: >-
+      platform.moonshot.cn, API keys. Long context and strong planning, which is
+      why the orchestrator may hand it architecture work — but only work whose
+      data class it is permitted to hold.
+    verified_on: 2026-07-25
+
+  - id: zhipu
+    name: Zhipu AI (GLM)
+    jurisdiction: CN
+    flag: "🇨🇳"
+    adapter: openai_compatible
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    default_model: glm-4-plus
+    models:
+      - id: glm-4-plus
+        context_window: 128000
+        cost_per_1m_input_usd: 0.70
+        cost_per_1m_output_usd: 0.70
+        good_at: [writing, reasoning, multilingual]
+      - id: glm-4-flash
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [bulk, classification]
+    trains_on_input: true
+    retention: Trains on submitted content by default. PRC jurisdiction.
+    key_url: https://open.bigmodel.cn/usercenter/apikeys
+    key_placeholder: "…"
+    how_to_get: open.bigmodel.cn, User Center, API keys. GLM-4-Flash is very cheap for volume.
+    verified_on: 2026-07-25
+
+  - id: qwen
+    name: Qwen (Alibaba Model Studio)
+    jurisdiction: CN
+    flag: "🇨🇳"
+    adapter: openai_compatible
+    base_url: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    default_model: qwen-max
+    models:
+      - id: qwen-max
+        context_window: 32000
+        cost_per_1m_input_usd: 1.60
+        cost_per_1m_output_usd: 6.40
+        good_at: [writing, multilingual, structured_output]
+    trains_on_input: true
+    retention: Trains on submitted content by default. PRC jurisdiction.
+    key_url: https://dashscope.aliyuncs.com
+    key_placeholder: sk-…
+    how_to_get: >-
+      dashscope.aliyuncs.com, Model Studio, API keys. The international endpoint
+      above avoids needing a mainland account.
+    verified_on: 2026-07-25
+
+  # ── Routers and aggregators — untrusted by default (tier D) ──────────────
+  # Listed so they appear in the UI greyed out with the reason shown, rather
+  # than silently missing. They route to opaque third parties, so the real
+  # processor for any given call is unknown.
+  - id: openrouter
+    name: OpenRouter
+    jurisdiction: XX
+    flag: "🌐"
+    adapter: openai_compatible
+    base_url: https://openrouter.ai/api/v1
+    default_model: openrouter/auto
+    models:
+      - id: openrouter/auto
+        context_window: 128000
+        good_at: [writing]
+    is_aggregator: true
+    trains_on_input: true
+    retention: >-
+      Routes to third-party providers whose terms vary per model and change
+      without notice. The processor for any given call is not knowable up front.
+    key_url: https://openrouter.ai/keys
+    key_placeholder: sk-or-…
+    how_to_get: >-
+      Available, but off_CRM will not send anything through an aggregator by
+      default. Raise the tier explicitly if you accept the exposure.
+    verified_on: 2026-07-25
+
+  - id: together
+    name: Together AI
+    jurisdiction: XX
+    flag: "🌐"
+    adapter: openai_compatible
+    base_url: https://api.together.xyz/v1
+    default_model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+    models:
+      - id: meta-llama/Llama-3.3-70B-Instruct-Turbo
+        context_window: 128000
+        cost_per_1m_input_usd: 0.88
+        cost_per_1m_output_usd: 0.88
+        good_at: [writing, bulk]
+    is_aggregator: true
+    trains_on_input: false
+    retention: Hosts many third-party open-weight models under varying terms.
+    key_url: https://api.together.xyz/settings/api-keys
+    key_placeholder: "…"
+    how_to_get: >-
+      together.ai, Settings, API keys. Convenient for comparing open models, but
+      treated as an aggregator here.
+    verified_on: 2026-07-25
+
+  # ── Self-hosted — highest trust, nothing leaves the machine ──────────────
+  - id: local
+    name: Self-hosted (Ollama / vLLM / LM Studio)
+    jurisdiction: EU
+    flag: "🏠"
+    adapter: openai_compatible
+    base_url: http://localhost:11434/v1
+    default_model: llama3.3:70b
+    models:
+      - id: llama3.3:70b
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, code, bulk, reasoning]
+    trains_on_input: false
+    local_only: true
+    retention: >-
+      Runs on your own machine. Nothing leaves it, so this is the only way to
+      combine any model — including openly licensed Chinese ones — with your
+      most sensitive data.
+    key_url: https://ollama.com/download
+    key_placeholder: "(no key needed)"
+    how_to_get: >-
+      Install Ollama or vLLM locally, pull a model, point the base URL at it.
+      No API key required for a default local Ollama install.
+    verified_on: 2026-07-25

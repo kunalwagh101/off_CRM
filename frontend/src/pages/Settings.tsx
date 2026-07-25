@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { PROVIDER_CATALOG, REGIONS, type CatalogEntry } from "../providerCatalog";
 import { api, getToken, setToken } from "../api";
 import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
@@ -14,11 +13,6 @@ export default function Settings() {
   const [busy, setBusy] = useState("");
   const [tokenValue, setTokenValue] = useState(getToken());
   const [providerType, setProviderType] = useState("openai");
-  const [catalogStep, setCatalogStep] = useState<"pick" | "configure">("pick");
-  const [selectedEntry, setSelectedEntry] = useState<CatalogEntry | null>(null);
-  const [showCustomForm, setShowCustomForm] = useState(false);
-  const [catalogKey, setCatalogKey] = useState("");
-  const [catalogName, setCatalogName] = useState("");
   const status = useResource(() => api.get<SettingsStatus>("/settings/status"), []);
   const templates = useResource(() => api.get<Paginated<Template>>("/templates?limit=100"), []);
   const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles"), []);
@@ -136,42 +130,6 @@ export default function Settings() {
     }
   }
 
-  async function saveCatalogProvider(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedEntry) return;
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    setBusy("provider-save");
-    try {
-      await api.post<ProviderProfile>("/provider-profiles", {
-        owner: "default",
-        name: catalogName || selectedEntry.defaultName,
-        provider_type: selectedEntry.providerType,
-        model: selectedEntry.defaultModel,
-        api_key: catalogKey,
-        base_url: selectedEntry.baseUrl || "",
-        timeout_seconds: 60,
-        priority: Number(data.get("priority") || 100),
-        enabled: true,
-        data_policy: "minimal",
-        audit_payloads: false,
-        fallback_strategy: "priority",
-        extra: {}
-      });
-      notify(`${selectedEntry.name} connected. Key encrypted locally.`, "success");
-      form.reset();
-      setCatalogKey("");
-      setCatalogName("");
-      setSelectedEntry(null);
-      setCatalogStep("pick");
-      profiles.reload();
-      status.reload();
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Provider could not be saved", "error");
-    } finally {
-      setBusy("");
-    }
-  }
 
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -198,7 +156,6 @@ export default function Settings() {
       notify("Provider profile saved. The key is encrypted locally.", "success");
       form.reset();
       setProviderType("openai");
-      setShowCustomForm(false);
       profiles.reload();
       status.reload();
     } catch (error) {
@@ -361,143 +318,17 @@ export default function Settings() {
           </form>
         </Panel>
 
-        <Panel title="AI providers" subtitle="Connect one or more AI providers. The system tries them in priority order and switches automatically on failure." className="settings-wide">
-
-          {/* ── Active providers ─────────────────────────────────────────── */}
-          {profiles.loading || profiles.error ? <Loadable loading={profiles.loading} error={profiles.error ?? ""} /> : profiles.data?.items.length ? (
-            <div className="provider-list">
-              {profiles.data.items.map((profile) => {
-                const catalog = PROVIDER_CATALOG.find((c) => {
-                  if (profile.provider_type === "openai" && c.id === "openai") return true;
-                  if (profile.provider_type === "anthropic" && c.id === "anthropic") return true;
-                  return c.baseUrl === profile.base_url;
-                });
-                return (
-                  <div key={profile.id} className="provider-row">
-                    <span className="provider-icon">{catalog?.flag || (profile.provider_type === "openai" ? "🤖" : profile.provider_type === "anthropic" ? "🧠" : "⚡")}</span>
-                    <div className="provider-row-info">
-                      <strong>{profile.name}</strong>
-                      <small>{profile.model || profile.provider_type} · priority {profile.priority} · {profile.data_policy} data</small>
-                    </div>
-                    <Badge tone={profile.credential_source === "none" ? "warning" : "success"}>{profile.credential_source.replaceAll("_", " ")}</Badge>
-                    <Badge tone={profile.last_health_status === "healthy" ? "success" : profile.last_health_status === "unhealthy" ? "danger" : "neutral"}>{profile.last_health_status}</Badge>
-                    <Button tone="ghost" busy={busy === `provider-test-${profile.id}`} onClick={() => testProvider(profile)}>Test</Button>
-                    <Button tone="ghost" busy={busy === `provider-delete-${profile.id}`} onClick={() => removeProvider(profile)}>Remove</Button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="muted-copy">No provider connected yet. Pick one below — the system works fine with templates only until you do.</p>
-          )}
-
-          {/* ── Catalog picker ───────────────────────────────────────────── */}
-          {catalogStep === "pick" ? (
-            <div className="catalog-section">
-              <h4 className="catalog-heading">Add a provider</h4>
-              {REGIONS.map((region) => (
-                <div key={region} className="catalog-region">
-                  <p className="catalog-region-label">{region}</p>
-                  <div className="catalog-grid">
-                    {PROVIDER_CATALOG.filter((e) => e.region === region).map((entry) => (
-                      <div key={entry.id} className="catalog-card-wrapper">
-                        <button
-                          type="button"
-                          className={selectedEntry?.id === entry.id ? "catalog-card catalog-card-active" : "catalog-card"}
-                          onClick={() => { setSelectedEntry(entry); setCatalogStep("configure"); setCatalogName(entry.defaultName); }}
-                        >
-                          <span className="catalog-flag">{entry.flag}</span>
-                          <span className="catalog-name">{entry.name}</span>
-                          <span className="catalog-tagline">{entry.tagline}</span>
-                        </button>
-                        <div className="catalog-tooltip" role="tooltip">
-                          <strong>How to get the API key</strong>
-                          <p>{entry.howToGet}</p>
-                          <a href={entry.keyUrl} target="_blank" rel="noopener noreferrer">Get API key →</a>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <button type="button" className="custom-provider-toggle" onClick={() => { setShowCustomForm((v) => !v); setSelectedEntry(null); }}>
-                {showCustomForm ? "▲ Hide advanced / custom provider" : "+ Add custom or self-hosted provider"}
-              </button>
-            </div>
-          ) : selectedEntry ? (
-            <div className="catalog-configure">
-              <button type="button" className="back-link" onClick={() => { setCatalogStep("pick"); setSelectedEntry(null); setCatalogKey(""); }}>← Back to provider list</button>
-              <div className="configure-hero">
-                <span className="configure-flag">{selectedEntry.flag}</span>
-                <div>
-                  <strong>{selectedEntry.name}</strong>
-                  <small>{selectedEntry.tagline}</small>
-                </div>
-              </div>
-              <div className="configure-howto">
-                <strong>How to get your API key</strong>
-                <p>{selectedEntry.howToGet}</p>
-                <a href={selectedEntry.keyUrl} target="_blank" rel="noopener noreferrer" className="howto-link">Open {selectedEntry.name} API key page →</a>
-              </div>
-              <form className="form-stack" onSubmit={saveCatalogProvider}>
-                <div className="form-grid">
-                  <Field label="Profile label" hint="What you will see in the fallback chain above">
-                    <input value={catalogName} onChange={(e) => setCatalogName(e.target.value)} placeholder={selectedEntry.defaultName} required />
-                  </Field>
-                  <Field label="Fallback priority" hint="1 runs before 2 — lowest number wins">
-                    <input name="priority" type="number" min="1" max="1000" defaultValue="100" />
-                  </Field>
-                </div>
-                <Field label="API key" hint="Encrypted with Fernet before it touches disk. Never stored in the CRM database.">
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    placeholder={selectedEntry.keyPlaceholder}
-                    value={catalogKey}
-                    onChange={(e) => setCatalogKey(e.target.value)}
-                  />
-                </Field>
-                <div className="configure-meta">
-                  <span>Model: <code>{selectedEntry.defaultModel}</code></span>
-                  {selectedEntry.baseUrl ? <span>Endpoint: <code>{selectedEntry.baseUrl}</code></span> : null}
-                  <span>Data policy: <code>minimal</code> (recipient identity stripped before every call)</span>
-                </div>
-                <div className="button-row">
-                  <Button type="submit" busy={busy === "provider-save"}>Connect {selectedEntry.name}</Button>
-                  <Button tone="ghost" onClick={() => { setCatalogStep("pick"); setSelectedEntry(null); setCatalogKey(""); }}>Cancel</Button>
-                </div>
-              </form>
-            </div>
-          ) : null}
-
-          {/* ── Advanced / custom provider form ──────────────────────────── */}
-          {showCustomForm && catalogStep === "pick" ? (
-            <form className="form-stack provider-form custom-provider-form" onSubmit={saveProvider}>
-              <p className="form-note"><strong>Advanced:</strong> <span>Use this for self-hosted LLMs (Ollama, vLLM, LM Studio) or any OpenAI-compatible endpoint not in the list above.</span></p>
-              <div className="form-grid">
-                <Field label="Profile name"><input name="name" required placeholder="Local Ollama" /></Field>
-                <Field label="Workspace user"><input name="owner" defaultValue="default" required placeholder="Kunal" /></Field>
-              </div>
-              <div className="form-grid">
-                <Field label="Data sent to provider" hint="Minimal removes recipient identity; standard removes direct contact data."><select name="data_policy" defaultValue="minimal"><option value="minimal">Minimal</option><option value="standard">Standard</option><option value="full">Full context</option></select></Field>
-                <Field label="Fallback strategy"><select name="fallback_strategy" defaultValue="priority"><option value="priority">Priority</option><option value="round_robin">Round robin</option><option value="parallel">Parallel first-success</option></select></Field>
-              </div>
-              <label className="check-line"><input name="audit_payloads" type="checkbox" /> Store redacted request/response bodies locally (metadata only by default)</label>
-              <div className="form-grid">
-                <Field label="Provider type"><select value={providerType} onChange={(event) => setProviderType(event.target.value)}><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option><option value="openai_compatible">Custom base URL</option><option value="template_engine_http">Template application</option></select></Field>
-                <Field label="Fallback priority" hint="1 runs before 2"><input name="priority" type="number" min="1" max="1000" defaultValue="100" /></Field>
-              </div>
-              <div className="form-grid">
-                <Field label="Model ID" hint="Exact model string your provider expects"><input name="model" required={providerType !== "template_engine_http"} placeholder="e.g. llama3:70b" /></Field>
-                <Field label="Base URL" hint="Leave blank for OpenAI and Anthropic — they use official endpoints"><input name="base_url" type="url" required={["openai_compatible", "template_engine_http"].includes(providerType)} placeholder="http://localhost:11434/v1" /></Field>
-              </div>
-              <div className="form-grid">
-                <Field label="API key" hint="Encrypted before it is stored — blank is fine for local providers"><input name="api_key" type="password" autoComplete="new-password" /></Field>
-                <Field label="Or environment variable" hint="Name of an env var already set on this machine"><input name="api_key_env" placeholder="MY_API_KEY" /></Field>
-              </div>
-              <div><Button type="submit" busy={busy === "provider-save"}>Save custom provider</Button></div>
-            </form>
-          ) : null}
+        {/* Connectors moved to their own screen (§4B). Settings keeps a pointer
+            so anyone who looks here still finds them. */}
+        <Panel title="AI providers" subtitle="Now managed in Connectors, with country, trust level and data terms shown per provider">
+          <p className="muted-copy">
+            AI providers and Gmail live in <strong>Connectors</strong>. Each provider card shows which
+            country it is in, how far it is trusted, and what its data-retention terms are.
+          </p>
+          <div className="button-row">
+            <Button onClick={() => (window.location.hash = "connectors")}>Open Connectors</Button>
+            <Button tone="ghost" onClick={() => (window.location.hash = "egress")}>See what was sent</Button>
+          </div>
         </Panel>
 
         <Panel title="Learning memory" subtitle="Human edits are approved; reply observations wait for review" className="settings-wide">

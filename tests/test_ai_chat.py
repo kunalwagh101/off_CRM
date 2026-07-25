@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from offsetx_apollo_builder.outreach.ai_chat import AIChatService
@@ -90,28 +92,33 @@ def test_rename_chat(service):
 
 def test_send_message_stores_both_turns_and_autotitles(service):
     chat = service.create_chat()  # default title "New chat"
-    captured: dict[str, str] = {}
+    captured: dict[str, object] = {}
 
-    def fake_provider(*, system_prompt: str, user_prompt: str) -> str:
-        captured["system"] = system_prompt
-        captured["user"] = user_prompt
-        return "Here is a follow-up draft."
+    def fake_responder(*, turns):
+        captured["turns"] = turns
+        return {"text": "Here is a follow-up draft.", "provider": "Mistral AI", "model": "m"}
 
     reply = service.send_message(
         chat_id=chat["id"],
         user_content="Write a follow-up for a carbon credit prospect",
-        provider_fn=fake_provider,
+        responder=fake_responder,
     )
 
     assert reply["role"] == "assistant"
     assert reply["content"] == "Here is a follow-up draft."
+    assert reply["provider"] == "Mistral AI"
 
     messages = service.list_messages(chat["id"])
     assert [m["role"] for m in messages] == ["user", "assistant"]
 
-    # the provider receives the conversation history, not just the last turn
-    assert "carbon credit prospect" in captured["user"]
-    assert "off_CRM" in captured["system"]
+    # The responder receives structured turns, not a flattened blob, so the
+    # broker can build a payload from them rather than forwarding raw text.
+    turns = captured["turns"]
+    assert isinstance(turns, list)
+    assert turns[-1] == {
+        "role": "user",
+        "content": "Write a follow-up for a carbon credit prospect",
+    }
 
     # "New chat" is replaced by a title derived from the first message
     updated = service.get_chat(chat["id"])
@@ -120,26 +127,56 @@ def test_send_message_stores_both_turns_and_autotitles(service):
 
 def test_send_message_keeps_history_across_turns(service):
     chat = service.create_chat()
-    prompts: list[str] = []
+    seen: list[list[dict[str, str]]] = []
 
-    def fake_provider(*, system_prompt: str, user_prompt: str) -> str:
-        prompts.append(user_prompt)
-        return f"reply {len(prompts)}"
+    def fake_responder(*, turns):
+        seen.append(turns)
+        return f"reply {len(seen)}"
 
-    service.send_message(chat_id=chat["id"], user_content="first question", provider_fn=fake_provider)
-    service.send_message(chat_id=chat["id"], user_content="second question", provider_fn=fake_provider)
+    service.send_message(chat_id=chat["id"], user_content="first question", responder=fake_responder)
+    service.send_message(chat_id=chat["id"], user_content="second question", responder=fake_responder)
 
     # second call must include the first exchange
-    assert "first question" in prompts[1]
-    assert "reply 1" in prompts[1]
+    contents = [turn["content"] for turn in seen[1]]
+    assert "first question" in contents
+    assert "reply 1" in contents
     assert len(service.list_messages(chat["id"])) == 4
+
+
+def test_send_message_history_is_capped(service):
+    """A long chat must not grow the payload without bound."""
+    chat = service.create_chat()
+    seen: list[list[dict[str, str]]] = []
+
+    def fake_responder(*, turns):
+        seen.append(turns)
+        return "ok"
+
+    for index in range(8):
+        service.send_message(
+            chat_id=chat["id"],
+            user_content=f"question {index}",
+            responder=fake_responder,
+            history_limit=4,
+        )
+    assert all(len(turns) <= 4 for turns in seen)
+
+
+def test_chat_service_never_imports_a_provider():
+    """The transport lives in the API layer so this module cannot regress into
+    calling a provider directly again."""
+    from offsetx_apollo_builder.outreach import ai_chat
+
+    source = pathlib.Path(ai_chat.__file__).read_text(encoding="utf-8")
+    assert "create_provider" not in source
+    assert "requests" not in source
 
 
 def test_send_message_rejects_empty_content(service):
     chat = service.create_chat()
     with pytest.raises(ValueError):
         service.send_message(
-            chat_id=chat["id"], user_content="   ", provider_fn=lambda **_: "unused"
+            chat_id=chat["id"], user_content="   ", responder=lambda **_: "unused"
         )
 
 

@@ -2,13 +2,27 @@ const API_ROOT = "/api/v1";
 const TOKEN_KEY = "offsetx-api-token";
 export const AUTH_REQUIRED_EVENT = "offsetx-auth-required";
 
+/** Structured refusal from the AI egress gate. */
+export type EgressDetail = {
+  error: string;
+  message: string;
+  findings?: Array<{ kind: string; detail: string; location?: string; sample?: string }>;
+  considered?: Array<{ provider_id: string; reason: string; detail?: string }>;
+  provider_id?: string;
+  tier?: string;
+  data_class?: string;
+};
+
 export class ApiError extends Error {
   status: number;
+  /** Present when the backend refused for a policy reason rather than crashing. */
+  detail?: EgressDetail;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, detail?: EgressDetail) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -32,14 +46,23 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     if (response.status === 401) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
     let message = `${response.status} ${response.statusText}`;
+    let detail: EgressDetail | undefined;
     try {
-      const payload = (await response.json()) as { detail?: string | Array<{ msg: string }> };
+      const payload = (await response.json()) as {
+        detail?: string | Array<{ msg: string }> | EgressDetail;
+      };
       if (typeof payload.detail === "string") message = payload.detail;
       else if (Array.isArray(payload.detail)) message = payload.detail.map((item) => item.msg).join(", ");
+      else if (payload.detail && typeof payload.detail === "object") {
+        // A policy refusal carries an explanation the user can act on. Surfacing
+        // the raw status code here instead would be a dead end.
+        detail = payload.detail as EgressDetail;
+        message = detail.message || message;
+      }
     } catch {
       // Preserve the HTTP fallback.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, detail);
   }
   return (await response.json()) as T;
 }

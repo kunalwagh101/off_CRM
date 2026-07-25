@@ -1,0 +1,215 @@
+"""API-level tests for the AI module surface.
+
+Covers the endpoints the Connectors and Egress screens depend on, and proves the
+chat path that used to leak now refuses rather than sends.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
+
+API = "/api/v1"
+
+
+def _settings(tmp_path: Path) -> AppSettings:
+    return AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+    )
+
+
+@pytest.fixture()
+def client(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as test_client:
+        yield test_client
+
+
+def test_provider_list_exposes_jurisdiction_tier_and_retention(client):
+    """§4B: each provider card must show these at a glance, never buried."""
+    response = client.get(f"{API}/ai/providers")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["providers"], "registry should not be empty"
+    for provider in payload["providers"]:
+        assert provider["jurisdiction"]
+        assert provider["trust_tier"] in {"A", "B", "C", "D"}
+        assert provider["retention"]
+        assert provider["verified_on"]
+        assert "policy_ceiling" in provider
+
+    by_id = {item["id"]: item for item in payload["providers"]}
+    assert by_id["mistral"]["trust_tier"] == "A"
+    assert by_id["openai"]["trust_tier"] == "B"
+    assert by_id["deepseek"]["trust_tier"] == "C"
+    assert by_id["openrouter"]["trust_tier"] == "D"
+    # Nothing is connected until the owner connects it.
+    assert all(item["connected"] is False for item in payload["providers"])
+
+
+def test_policy_levels_and_tiers_are_described_for_the_ui(client):
+    payload = client.get(f"{API}/ai/providers").json()
+    assert [item["value"] for item in payload["policy_levels"]] == [
+        "strict",
+        "minimal",
+        "standard",
+        "full",
+    ]
+    assert all(item["description"] for item in payload["policy_levels"])
+    assert payload["mailbox_unlocked"] is False
+
+
+def test_connecting_a_chinese_provider_clamps_the_policy_to_minimal(client):
+    response = client.post(
+        f"{API}/ai/providers/deepseek/connect",
+        json={"api_key": "sk-test", "data_policy": "full"},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["policy_was_clamped"] is True
+    assert payload["provider"]["data_policy"] == "minimal"
+    assert payload["tier"] == "C"
+
+
+def test_connecting_a_european_provider_keeps_the_requested_policy(client):
+    response = client.post(
+        f"{API}/ai/providers/mistral/connect",
+        json={"api_key": "k", "data_policy": "full"},
+    )
+    payload = response.json()
+    assert payload["policy_was_clamped"] is False
+    assert payload["provider"]["data_policy"] == "full"
+
+
+def test_connecting_an_unlisted_provider_is_refused(client):
+    response = client.post(
+        f"{API}/ai/providers/mystery-ai/connect", json={"api_key": "k"}
+    )
+    assert response.status_code == 400
+    assert "registry" in response.json()["detail"]["error"]
+
+
+def test_override_above_ceiling_requires_a_reason(client):
+    client.post(f"{API}/ai/providers/deepseek/connect", json={"api_key": "k"})
+    refused = client.post(
+        f"{API}/ai/providers/deepseek/override",
+        json={"data_policy": "full", "allow_above_ceiling": True},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"]["error"] == "invalid_request"
+    assert "reason" in refused.json()["detail"]["message"].lower()
+
+    accepted = client.post(
+        f"{API}/ai/providers/deepseek/override",
+        json={
+            "data_policy": "full",
+            "allow_above_ceiling": True,
+            "reason": "Coding tasks only, exposure accepted",
+        },
+    )
+    assert accepted.status_code == 200
+    stored = accepted.json()["overrides"]["deepseek"]
+    assert stored["reason"] == "Coding tasks only, exposure accepted"
+    assert stored["decided_at"]
+
+
+def test_plan_endpoint_explains_who_would_run_and_who_was_excluded(client):
+    client.post(f"{API}/ai/providers/mistral/connect", json={"api_key": "k"})
+    client.post(f"{API}/ai/providers/deepseek/connect", json={"api_key": "k"})
+
+    response = client.post(
+        f"{API}/ai/plan", json={"data_class": "person_public", "task_type": "draft_email"}
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["would_use"]["id"] == "mistral"
+    excluded = {item["provider_id"]: item["reason"] for item in payload["excluded"]}
+    assert excluded["deepseek"] == "lower_tier_not_used_for_failover"
+
+
+def test_plan_for_campaign_data_excludes_tier_c_entirely(client):
+    client.post(f"{API}/ai/providers/deepseek/connect", json={"api_key": "k"})
+    response = client.post(f"{API}/ai/plan", json={"data_class": "campaign"})
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["error"] == "no_permitted_provider"
+    assert "deepseek" in str(detail).lower()
+
+
+def test_chat_with_no_provider_connected_explains_the_next_step(client):
+    """§4L: no dead ends. An empty state must say what to do."""
+    chat = client.post(f"{API}/ai/chats", json={"title": "New chat"}).json()
+    response = client.post(
+        f"{API}/ai/chats/{chat['id']}/messages", json={"content": "hello"}
+    )
+    assert response.status_code == 409
+    message = response.json()["detail"]["message"]
+    assert "Connectors" in message
+
+
+def test_chat_refuses_mailbox_and_internal_data_classes(client):
+    chat = client.post(f"{API}/ai/chats", json={"title": "New chat"}).json()
+    for data_class in ("mailbox", "internal"):
+        response = client.post(
+            f"{API}/ai/chats/{chat['id']}/messages",
+            json={"content": "hello", "data_class": data_class},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "invalid_data_class"
+
+
+def test_workspace_positioning_line_and_owner_domains_round_trip(client):
+    response = client.post(
+        f"{API}/ai/workspace",
+        json={
+            "positioning_line": "OffsetX helps exporters cut customs cost.",
+            "owner_domains": ["OffsetX.example", "  "],
+            "owner_addresses": ["Owner@OffsetX.example"],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["positioning_line"] == "OffsetX helps exporters cut customs cost."
+    assert payload["owner_domains"] == ["offsetx.example"]
+    assert payload["owner_addresses"] == ["owner@offsetx.example"]
+
+
+def test_mailbox_unlock_requires_the_exact_phrase(client):
+    bad = client.post(f"{API}/ai/workspace/mailbox-unlock", json={"phrase": "yes please"})
+    assert bad.status_code == 400
+    assert "ALLOW MAILBOX CONTENT TO LEAVE" in bad.json()["detail"]["message"]
+
+    good = client.post(
+        f"{API}/ai/workspace/mailbox-unlock",
+        json={"phrase": "ALLOW MAILBOX CONTENT TO LEAVE"},
+    )
+    assert good.status_code == 200
+    assert good.json()["mailbox_unlocked"] is True
+
+
+def test_egress_log_starts_empty_and_reports_stats(client):
+    listing = client.get(f"{API}/ai/egress-log")
+    assert listing.status_code == 200
+    assert listing.json() == {"items": [], "total": 0, "limit": 50, "offset": 0}
+
+    stats = client.get(f"{API}/ai/egress-log/stats")
+    assert stats.status_code == 200
+    assert stats.json()["calls"] == 0
+
+
+def test_missing_egress_log_entry_returns_404(client):
+    assert client.get(f"{API}/ai/egress-log/does-not-exist").status_code == 404
+
+
+def test_draft_generation_defaults_to_a_guarded_data_policy(client):
+    """A request-supplied provider cannot opt out of the guard by omission."""
+    from offsetx_apollo_builder.api.schemas import DraftGenerate
+
+    assert DraftGenerate().data_policy == "minimal"

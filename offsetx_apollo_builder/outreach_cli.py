@@ -15,7 +15,8 @@ from .outreach.gmail import (
     authorize_interactive,
 )
 from .outreach.models import MESSAGE_STAGES
-from .outreach.providers import create_provider, load_provider_config
+from .outreach.provider_profiles import create_guarded_provider
+from .outreach.providers import load_provider_config
 
 
 def _json(value: Any) -> None:
@@ -50,6 +51,12 @@ def _parser() -> argparse.ArgumentParser:
     generate.add_argument("campaign_id")
     generate.add_argument("--stages", nargs="+", choices=MESSAGE_STAGES, default=list(MESSAGE_STAGES))
     generate.add_argument("--provider-config", type=Path)
+    generate.add_argument(
+        "--data-policy",
+        choices=["strict", "minimal", "standard", "full"],
+        default="minimal",
+        help="How much of each contact reaches the provider. Defaults to minimal.",
+    )
 
     drafts = sub.add_parser("list-drafts")
     drafts.add_argument("campaign_id")
@@ -120,7 +127,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "generate":
             provider = (
-                create_provider(load_provider_config(args.provider_config))
+                create_guarded_provider(
+                    load_provider_config(args.provider_config),
+                    data_policy=args.data_policy,
+                    profile_id="cli",
+                )
                 if args.provider_config
                 else None
             )

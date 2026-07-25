@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Button } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
+import type { AIProvidersPayload } from "../types";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider: string; model: string; created_at: string };
 type Chat = { id: string; title: string; project_id: string | null; created_at: string; updated_at: string };
@@ -19,10 +20,80 @@ export default function AIPage() {
   const [movingChat, setMovingChat] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
+  const [providerId, setProviderId] = useState("");
+  // "campaign" keeps the conversation on trusted providers. "public" is for code
+  // and general questions, and lets restricted-tier models help with those.
+  const [taskMode, setTaskMode] = useState<"campaign" | "public">("campaign");
+  const [listening, setListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const chats = useResource(() => api.get<{ items: Chat[] }>("/ai/chats?limit=60"), []);
   const projects = useResource(() => api.get<{ items: Project[] }>("/ai/projects"), []);
+  const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
+
+  const connected = (providers.data?.providers ?? []).filter((row) => row.connected && row.enabled);
+  const eligible = connected.filter((row) =>
+    taskMode === "public" ? row.effective_tier !== "D" : ["A", "B"].includes(row.effective_tier)
+  );
+
+  // Dictation degrades gracefully: the button only appears where the browser
+  // supports it, and never blocks typing.
+  const speechSupported =
+    typeof window !== "undefined" &&
+    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  function toggleDictation() {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) return;
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = navigator.language || "en-US";
+    recognition.onresult = (event: any) => {
+      let text = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (event.results[i].isFinal) text += event.results[i][0].transcript;
+      }
+      if (text) setInput((prev) => (prev ? `${prev} ${text.trim()}` : text.trim()));
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      notify("Dictation stopped. You can keep typing.", "warning");
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }
+
+  function exportChat(format: "md" | "html") {
+    if (!messages.length) return;
+    const title = chats.data?.items.find((c) => c.id === activeChatId)?.title ?? "off_CRM chat";
+    const body =
+      format === "md"
+        ? [`# ${title}`, "", ...messages.map((m) => `**${m.role === "user" ? "You" : `AI${m.model ? ` (${m.model})` : ""}`}**\n\n${m.content}`)].join("\n\n")
+        : `<h1>${escapeHtml(title)}</h1>` +
+          messages
+            .map(
+              (m) =>
+                `<section><h2>${m.role === "user" ? "You" : `AI${m.model ? ` (${escapeHtml(m.model)})` : ""}`}</h2><p>${escapeHtml(
+                  m.content
+                ).replace(/\n/g, "<br>")}</p></section>`
+            )
+            .join("");
+    const blob = new Blob([body], { type: format === "md" ? "text/markdown" : "text/html" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${title.replace(/[^\w -]/g, "").trim() || "chat"}.${format}`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
   useEffect(() => {
     if (!activeChatId) return;
@@ -56,7 +127,11 @@ export default function AIPage() {
     setMessages((prev) => [...prev, { id: tempId, role: "user", content, provider: "", model: "", created_at: new Date().toISOString() }]);
     setBusy("sending");
     try {
-      const reply = await api.post<Message>(`/ai/chats/${activeChatId}/messages`, { content });
+      const reply = await api.post<Message>(`/ai/chats/${activeChatId}/messages`, {
+        content,
+        data_class: taskMode,
+        provider_id: providerId
+      });
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempId),
         { id: tempId + "-u", role: "user", content, provider: "", model: "", created_at: new Date().toISOString() },
@@ -192,16 +267,77 @@ export default function AIPage() {
                 rows={2}
                 disabled={busy === "sending"}
               />
+              {speechSupported ? (
+                <Button
+                  tone="ghost"
+                  onClick={toggleDictation}
+                  aria-pressed={listening}
+                  aria-label={listening ? "Stop dictation" : "Dictate your message"}
+                >
+                  {listening ? "◼ Stop" : "🎙"}
+                </Button>
+              ) : null}
               <Button type="submit" busy={busy === "sending"} disabled={!input.trim()}>Send</Button>
             </form>
+
+            {/* Which providers may answer depends on the task. Showing this
+                next to the composer means the choice is never a surprise. */}
+            <div className="ai-controls">
+              <label className="ai-control">
+                <span>Task</span>
+                <select value={taskMode} onChange={(e) => setTaskMode(e.target.value as "campaign" | "public")}>
+                  <option value="campaign">About my leads or emails</option>
+                  <option value="public">Code or general question</option>
+                </select>
+              </label>
+
+              <label className="ai-control">
+                <span>Model</span>
+                <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+                  <option value="">
+                    {eligible.length ? "Best available" : "No provider available"}
+                  </option>
+                  {eligible.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.flag} {row.name} · {row.model_id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="ai-control-note">
+                {taskMode === "campaign"
+                  ? "Only providers trusted with your work can answer. Nothing about your mailbox or contacts is sent."
+                  : "Restricted providers can help here, because nothing personal is included."}
+              </p>
+
+              <div className="ai-export">
+                <button type="button" className="link-button" onClick={() => exportChat("md")}>
+                  Export Markdown
+                </button>
+                <button type="button" className="link-button" onClick={() => exportChat("html")}>
+                  Export HTML
+                </button>
+              </div>
+            </div>
           </>
         ) : (
           <div className="ai-welcome">
             <div className="ai-welcome-inner">
               <p className="ai-welcome-icon">🤖</p>
               <h2>off_CRM AI</h2>
-              <p>Ask anything about your leads, campaigns, or email strategy. Uses whichever provider you have connected in AI Connectors.</p>
-              <Button onClick={startChat} busy={busy === "new-chat"}>Start a new chat</Button>
+              <p>
+                Ask anything about your leads, campaigns, or email strategy. Work goes to the most trusted
+                provider that is allowed to handle it.
+              </p>
+              {connected.length === 0 ? (
+                <>
+                  <p className="ai-welcome-warn">No AI provider is connected yet.</p>
+                  <Button onClick={() => (window.location.hash = "connectors")}>Open Connectors</Button>
+                </>
+              ) : (
+                <Button onClick={startChat} busy={busy === "new-chat"}>Start a new chat</Button>
+              )}
               {totalChats > 0 && (
                 <button type="button" className="ai-open-history" onClick={() => setPanelOpen(true)}>
                   Or open history to continue a previous chat →
@@ -307,4 +443,14 @@ export default function AIPage() {
       )}
     </div>
   );
+}
+
+/** Minimal escaping for the HTML export. The file is written locally and opened
+ *  by the owner, but chat content is still untrusted text. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

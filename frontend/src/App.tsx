@@ -13,6 +13,7 @@ import SalesTracker from "./pages/SalesTracker";
 import Experiments from "./pages/Experiments";
 import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
+import Egress from "./pages/Egress";
 import Settings from "./pages/Settings";
 import type { AuthSession, Campaign, Paginated } from "./types";
 
@@ -27,6 +28,7 @@ const pages = {
   sales: SalesTracker,
   experiments: Experiments,
   connectors: Connectors,
+  egress: Egress,
   ai: AI,
   settings: Settings
 };
@@ -35,6 +37,7 @@ type Page = keyof typeof pages;
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
   { page: "connectors", label: "Connectors", icon: "⚡" },
+  { page: "egress", label: "What was sent", icon: "◉" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },
@@ -97,7 +100,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   const [campaignId, setCampaignId] = useState(localStorage.getItem(CAMPAIGN_KEY) ?? "");
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenValue, setTokenValue] = useState(getToken());
-  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" } | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" | "warning" } | null>(null);
   const campaignsResource = useResource(() => api.get<Paginated<Campaign>>("/campaigns?limit=200"), []);
   const campaigns = campaignsResource.data?.items ?? [];
   const activeCampaign = campaigns.find((campaign) => campaign.id === campaignId) ?? null;
@@ -128,7 +131,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
     else localStorage.removeItem(CAMPAIGN_KEY);
   }
 
-  function notify(message: string, tone: "success" | "error" | "info" = "info") {
+  function notify(message: string, tone: "success" | "error" | "info" | "warning" = "info") {
     setToast({ message, tone });
   }
 

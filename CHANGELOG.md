@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.0
+
+- Added a self-contained AI module (`offsetx_apollo_builder/ai/`) with a single egress broker that every outbound provider call must pass through.
+- Added a config-driven provider registry in `config/providers.yaml` covering 17 providers with jurisdiction, data-retention terms, rate limits, context window, cost and a verification date; adding a provider is now a config edit rather than a code change.
+- Added four-level trust tiers derived from both jurisdiction and retention terms, with per-model provenance caps, default-deny for unlisted providers, and failover that never crosses a tier boundary.
+- Added four data policies (strict, minimal, standard, full) with per-tier ceilings, and owner overrides that require a written reason and record who decided and when.
+- Added allowlist payload construction that starts from an empty dict, replacing the previous strip-fields-from-an-object approach.
+- Added a pre-flight scanner that blocks and raises on email addresses, owner domains, twelve credential shapes, mail headers, internal field names, environment variables and local paths.
+- Added local quota accounting with per-minute, per-day and spend caps, and a usage display for providers with no usage endpoint.
+- Added an egress log storing the exact payload of every call, with an inspector screen so the data guarantee can be verified rather than trusted.
+- Added mailbox egress lockout for every provider by default, unlockable only with an exact typed phrase and still refused for restricted tiers.
+- Added per-workspace AI settings and Fernet-encrypted per-workspace provider keys with an environment-variable fallback for server deployments.
+- Fixed an AI chat path that sent raw conversation text to a provider with no data policy applied, contradicting the module's own docstring.
+- Fixed a scanner defect where patterns ran against JSON-serialised text, silently disabling every line-anchored mail-header rule.
+- Fixed two paths that reached an AI provider without the policy guard, in the drafts API and the outreach CLI; an AST test now fails the build if a third appears.
+- Moved Gmail and AI providers out of Settings into a dedicated Connectors screen showing country, trust tier, retention terms and usage per provider.
+- Removed the hardcoded TypeScript provider catalogue in favour of the backend registry.
+- Added a model selector, task mode, Markdown/HTML export and optional dictation to the AI chat screen.
+- Expanded release coverage to 135 Python tests and 6 frontend tests, including 30 security acceptance tests for the zero-access data architecture.
+
 ## 0.11.0
 
 - Added a complete sales-tracker CRM whose Kanban lead cards are the single source of truth for the lead log, metrics, commissions, leak alerts and forecast.

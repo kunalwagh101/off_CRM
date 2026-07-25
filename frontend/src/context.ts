@@ -7,7 +7,7 @@ export type AppContextValue = {
   activeCampaign: Campaign | null;
   selectCampaign: (id: string) => void;
   refreshCampaigns: () => void;
-  notify: (message: string, tone?: "success" | "error" | "info") => void;
+  notify: (message: string, tone?: "success" | "error" | "info" | "warning") => void;
 };
 
 export const AppContext = createContext<AppContextValue | null>(null);

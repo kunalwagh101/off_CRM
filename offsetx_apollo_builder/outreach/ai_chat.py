@@ -1,9 +1,14 @@
-"""AI Copilot chat: persistent multi-turn conversations routed through the
-configured provider chain.
+"""AI chat: persistent multi-turn conversations.
 
-Security note: messages are sanitised with the same data-policy redaction as
-the email engine.  The AI never receives raw CRM data unless the prompt
-explicitly includes it via a future context-injection feature.
+This module stores conversations.  It does **not** talk to any AI provider — it
+takes a ``responder`` callable and hands it the turns.  The API layer supplies a
+responder that goes through
+:meth:`offsetx_apollo_builder.ai.broker.EgressBroker.call`, so chat traffic is
+constructed, scanned and logged like every other outbound call.
+
+History: an earlier version passed the raw conversation straight to a provider
+with no policy applied, while a docstring here claimed the opposite.  Keeping
+the transport out of this file is what stops that drifting apart again.
 """
 from __future__ import annotations
 
@@ -167,21 +172,30 @@ class AIChatService:
         return {"id": msg_id, "role": role, "content": content,
                 "provider": provider, "model": model, "created_at": now}
 
+    DEFAULT_SYSTEM_PROMPT = (
+        "You are a helpful AI assistant embedded in off_CRM, a B2B outreach CRM. "
+        "Help with sales strategy, email copy, lead research and CRM questions. "
+        "You receive a constructed payload and return text. You have no access to "
+        "the mailbox, the database or any tool, and asking for them will not "
+        "produce them. Be concise and direct."
+    )
+
     def send_message(
         self,
         *,
         chat_id: str,
         user_content: str,
-        provider_fn: Any,
+        responder: Any,
         workspace_id: str = "local",
-        system_prompt: str = (
-            "You are a helpful AI assistant embedded in off_CRM, "
-            "a local-first B2B outreach CRM. Help the user with their "
-            "sales strategy, email copy, lead research, and CRM questions. "
-            "Be concise and direct."
-        ),
+        history_limit: int = 40,
     ) -> dict[str, Any]:
-        """Store user message, call the provider, store and return the reply."""
+        """Store the user's turn, get a reply through ``responder``, store it.
+
+        ``responder`` receives ``turns`` — a list of ``{"role", "content"}``
+        dicts — and returns either a string or a dict carrying ``text``,
+        ``provider`` and ``model``.  It is the caller's job to route that through
+        the egress broker; this module never reaches a provider itself.
+        """
         user_content = clean_text(user_content)
         if not user_content:
             raise ValueError("Message content is required")
@@ -189,18 +203,22 @@ class AIChatService:
         self.add_message(chat_id, "user", user_content, workspace_id=workspace_id)
 
         history = self.list_messages(chat_id)
-        history_text = "\n\n".join(
-            f"[{m['role'].upper()}]: {m['content']}"
-            for m in history
-            if m["role"] in ("user", "assistant")
-        )
+        turns = [
+            {"role": str(item["role"]), "content": str(item["content"])}
+            for item in history
+            if item["role"] in ("user", "assistant")
+        ][-max(1, history_limit):]
 
-        result = provider_fn(system_prompt=system_prompt, user_prompt=history_text)
-        reply_content = clean_text(str(result.get("text", result) if isinstance(result, dict) else result))
-        provider_name = str(result.get("provider", "") if isinstance(result, dict) else "")
-        model_name = str(result.get("model", "") if isinstance(result, dict) else "")
+        result = responder(turns=turns)
+        if isinstance(result, dict):
+            reply_content = clean_text(str(result.get("text", "")))
+            provider_name = str(result.get("provider", ""))
+            model_name = str(result.get("model", ""))
+        else:
+            reply_content = clean_text(str(result))
+            provider_name = ""
+            model_name = ""
 
-        # Auto-title from first user message
         chat = self.get_chat(chat_id, workspace_id)
         if chat and chat["title"] == "New chat":
             auto_title = user_content[:60].rstrip() + ("…" if len(user_content) > 60 else "")

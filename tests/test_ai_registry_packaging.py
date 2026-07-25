@@ -99,9 +99,26 @@ def test_a_missing_registry_fails_with_a_readable_message(tmp_path):
     assert "not readable" in str(excinfo.value) or "not found" in str(excinfo.value)
 
 
-def test_render_blueprint_deploys_the_default_branch():
-    """render.yaml pins a branch. If that branch is not the repository default,
-    merged work would never reach the deployment."""
+def test_render_deploy_branch_is_main_or_explicitly_marked_temporary():
+    """render.yaml pins the branch Render deploys.
+
+    Deploying from anything other than `main` means merged work stops reaching
+    the server, which is easy to do by accident and hard to notice. Pointing at
+    a feature branch on purpose is fine — but it has to be written down, so the
+    state cannot be forgotten. This test is the thing that remembers.
+    """
     text = (REPO_ROOT / "render.yaml").read_text(encoding="utf-8")
-    assert "branch: main" in text
     assert "healthCheckPath: /health/ready" in text
+
+    branch_line = next(
+        line.strip() for line in text.splitlines() if line.strip().startswith("branch:")
+    )
+    branch = branch_line.split(":", 1)[1].strip()
+
+    if branch != "main":
+        assert "TEMPORARY" in text, (
+            f"render.yaml deploys {branch!r} instead of main, with no note saying "
+            "why. Either switch it back to main, or add a TEMPORARY comment "
+            "explaining the exception."
+        )
+        assert "Switch this back to `main`" in text

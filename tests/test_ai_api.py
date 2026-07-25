@@ -213,3 +213,81 @@ def test_draft_generation_defaults_to_a_guarded_data_policy(client):
     from offsetx_apollo_builder.api.schemas import DraftGenerate
 
     assert DraftGenerate().data_policy == "minimal"
+
+
+# ── run modes ───────────────────────────────────────────────────────────────
+
+
+def test_modes_endpoint_says_which_modes_are_usable_and_why_not(client):
+    """§4L: a mode the user cannot use must explain itself before they commit."""
+    payload = client.get(f"{API}/ai/modes").json()
+    by_value = {item["value"]: item for item in payload["modes"]}
+    assert set(by_value) == {"simple", "compare", "orchestrated"}
+    # Nothing connected yet, so every mode is blocked with a reason.
+    for mode in by_value.values():
+        assert mode["available"] is False
+        assert mode["blocked_reason"]
+        assert mode["label"] and mode["description"]
+    assert payload["connected_count"] == 0
+
+
+def test_compare_needs_two_models_and_orchestration_needs_a_trusted_one(client):
+    client.post(f"{API}/ai/providers/deepseek/connect", json={"api_key": "k"})
+    payload = client.get(f"{API}/ai/modes").json()
+    by_value = {item["value"]: item for item in payload["modes"]}
+
+    assert by_value["simple"]["available"] is True
+    assert by_value["compare"]["available"] is False
+    assert "two models" in by_value["compare"]["blocked_reason"]
+    # DeepSeek is tier C, so it cannot lead a plan.
+    assert by_value["orchestrated"]["available"] is False
+    assert "Highest or Default trust" in by_value["orchestrated"]["blocked_reason"]
+    assert payload["planner_provider_ids"] == []
+
+    client.post(f"{API}/ai/providers/mistral/connect", json={"api_key": "k"})
+    payload = client.get(f"{API}/ai/modes").json()
+    by_value = {item["value"]: item for item in payload["modes"]}
+    assert by_value["compare"]["available"] is True
+    assert by_value["orchestrated"]["available"] is True
+    assert payload["planner_provider_ids"] == ["mistral"]
+
+
+def test_modes_endpoint_reports_usage_per_provider(client):
+    client.post(
+        f"{API}/ai/providers/groq/connect", json={"api_key": "k", "requests_per_day": 100}
+    )
+    usage = client.get(f"{API}/ai/modes").json()["usage"]
+    assert len(usage) == 1
+    assert usage[0]["provider_id"] == "groq"
+    assert usage[0]["day_limit"] == 100
+    assert usage[0]["source"] == "counted_locally"
+
+
+def test_run_rejects_an_unknown_mode(client):
+    response = client.post(f"{API}/ai/run", json={"mode": "telepathy", "instructions": "hi"})
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "invalid_mode"
+
+
+def test_run_rejects_mailbox_and_internal_data_classes(client):
+    for data_class in ("mailbox", "internal"):
+        response = client.post(
+            f"{API}/ai/run",
+            json={"mode": "simple", "data_class": data_class, "instructions": "hi"},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "invalid_data_class"
+
+
+def test_run_requires_instructions(client):
+    response = client.post(f"{API}/ai/run", json={"mode": "compare", "instructions": "  "})
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "empty_instructions"
+
+
+def test_run_with_nothing_connected_points_at_connectors(client):
+    response = client.post(
+        f"{API}/ai/run", json={"mode": "simple", "instructions": "write something"}
+    )
+    assert response.status_code == 409
+    assert "Connectors" in response.json()["detail"]["message"]

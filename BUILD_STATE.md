@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-25
 Branch: `claude/ai-module-hardening`
-Tests: **135 Python passed**, 6 frontend passed, 1 pre-existing failure
+Tests: **158 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -33,6 +33,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── scanner.py    pre-flight scan; a hit BLOCKS and raises, never redacts
 ├── quota.py      local RPM/RPD/spend accounting, file-backed
 ├── broker.py     THE single egress gate — the only code that calls a provider
+├── modes.py      run modes: simple, compare, orchestrated
 ├── log.py        egress log; own SQLite table, stores the exact payload
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
 └── errors.py     structured refusals the API turns into readable answers
@@ -118,6 +119,20 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] Credential isolation: Fernet, `0600`, per workspace, env fallback.
 - [x] §5.12 acceptance tests — 30 cases in `tests/test_ai_egress_wall.py`.
 
+### Run modes (owner's design, 2026-07-25)
+- [x] **Simple** — one model, cheapest permitted. The everyday path.
+- [x] **Compare** — every permitted model answers at once, side by side. Each
+      runs under *its own* policy, so a tier C model can contribute without
+      seeing more than it should. Capped at 8 branches so one question cannot
+      burn every quota.
+- [x] **Orchestrated** — a head model writes a plan, each step routes normally.
+      **The head model must be tier A or B.** Planning means seeing the whole
+      job, so restricted models get steps to do, never the job to split.
+      A plan cannot widen its own reach: a step asking for `mailbox` or
+      `internal` is clamped to what the caller already offered.
+- [x] Model strip in the AI screen: every connected AI, its trust badge, and a
+      meter showing how close it is to its daily limit.
+
 ### Features
 - [x] §4B Connectors: own screen; Gmail moved out of Settings; every provider
       card shows **country, trust tier, retention terms**, usage and cost.
@@ -155,8 +170,8 @@ Listed honestly. Nothing below is silently assumed done.
 | 4H | Auto-rewrite of losing variants + bandit | Reply-rate measurement and A/B with Wilson intervals exist; the trigger loop does not. |
 | 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** |
 | 4K | Graphify | Not started. |
-| — | Orchestrator ("head AI" delegating to Kimi et al.) | Owner asked for it; owner's own §7 said not to build it. Deferred until the context layer is agreed. |
-| — | Context layer / RAG | Owner explicitly asked to be consulted before this is built. Design proposal owed. |
+| — | Context layer: learning loop + template memory | Agreed with owner. Next piece. Tracks which template earns replies, rewrites the weak ones, and offers the winning template to other models as a reference they may use or beat. |
+| — | RAG over redacted sent-mail history | Agreed with owner. Search runs locally; results pass through the same egress gate. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
 

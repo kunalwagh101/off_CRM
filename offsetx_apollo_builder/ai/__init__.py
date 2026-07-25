@@ -26,6 +26,7 @@ from .errors import (
     RegistryError,
 )
 from .log import EgressLog
+from .modes import Branch, ModeRunner, PlanStep, RunMode, RunResult
 from .payload import EgressRequest, PersonPublic, build_payload, describe_policy_for_class
 from .quota import QuotaLimits, QuotaTracker
 from .registry import ProviderEntry, ProviderOverride, ProviderRegistry, ResolvedProvider
@@ -48,6 +49,7 @@ from .tiers import (
 
 __all__ = [
     "AIModuleError",
+    "Branch",
     "DataClass",
     "DataPolicy",
     "EgressBlocked",
@@ -56,6 +58,10 @@ __all__ = [
     "EgressLog",
     "EgressRequest",
     "EgressResult",
+    "ModeRunner",
+    "PlanStep",
+    "RunMode",
+    "RunResult",
     "MAILBOX_UNLOCK_PHRASE",
     "NoPermittedProvider",
     "POLICY_ORDER",

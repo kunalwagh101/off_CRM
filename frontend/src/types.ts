@@ -634,3 +634,64 @@ export type EgressStats = {
 
 /** Alias so pages can read the /status shape under an AI-facing name. */
 export type StatusPayload = SettingsStatus;
+
+export type AIModeInfo = {
+  value: "simple" | "compare" | "orchestrated";
+  label: string;
+  description: string;
+  available: boolean;
+  blocked_reason: string;
+};
+
+export type AIModesPayload = {
+  modes: AIModeInfo[];
+  connected_count: number;
+  planner_provider_ids: string[];
+  usage: AIUsage[];
+};
+
+export type AIBranch = {
+  provider_id: string;
+  provider_name: string;
+  model_id: string;
+  jurisdiction: string;
+  tier: string;
+  policy: string;
+  flag: string;
+  text: string;
+  error: string;
+  duration_ms: number;
+  payload_fields: string[];
+  log_id: string;
+  estimated_cost_usd: number;
+  ok: boolean;
+};
+
+export type AIPlanStep = {
+  index: number;
+  title: string;
+  instructions: string;
+  data_class: string;
+  tags: string[];
+  assigned_provider_id: string;
+  assigned_provider_name: string;
+  text: string;
+  error: string;
+  duration_ms: number;
+  log_id: string;
+  ok: boolean;
+};
+
+export type AIRunResult = {
+  mode: string;
+  data_class: string;
+  branches: AIBranch[];
+  steps: AIPlanStep[];
+  planner_provider_id: string;
+  planner_provider_name: string;
+  planner_tier: string;
+  excluded: Array<{ provider_id: string; reason: string; detail?: string }>;
+  total_duration_ms: number;
+  notes: string[];
+  best_text: string;
+};

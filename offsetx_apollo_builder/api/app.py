@@ -34,6 +34,8 @@ from ..outreach.notion import (
 )
 from ..ai import (
     DataClass,
+    ModeRunner,
+    RunMode,
     EgressBlocked,
     EgressBroker,
     EgressLog,
@@ -1203,6 +1205,140 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "chain": [item.to_dict() for item in permitted],
             "excluded": rejected,
         }
+
+    @app.get(f"{API_PREFIX}/ai/modes")
+    def ai_modes(request: Request) -> dict[str, Any]:
+        """The three run modes plus which ones are usable right now.
+
+        Returning `available` and `blocked_reason` lets the picker disable a
+        mode with an explanation rather than failing after the user commits.
+        """
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        settings = workspaces.egress_settings(workspace_id)
+        connected = len(settings.enabled_provider_ids)
+
+        planners: list[str] = []
+        for provider_id in settings.enabled_provider_ids:
+            try:
+                resolved = request.app.state.ai_registry.resolve(
+                    provider_id, override=settings.overrides.get(provider_id)
+                )
+            except RegistryError:
+                continue
+            if resolved.tier.value in {"A", "B"}:
+                planners.append(provider_id)
+
+        def availability(mode: RunMode) -> tuple[bool, str]:
+            if connected == 0:
+                return False, "No AI provider is connected yet."
+            if mode is RunMode.COMPARE and connected < 2:
+                return False, "Connect at least two models to compare answers."
+            if mode is RunMode.ORCHESTRATED and not planners:
+                return False, (
+                    "Planning needs a model at Highest or Default trust, such as "
+                    "Mistral, Claude, GPT or NVIDIA."
+                )
+            return True, ""
+
+        modes = []
+        for mode in RunMode:
+            available, reason = availability(mode)
+            modes.append(
+                {
+                    "value": mode.value,
+                    "label": mode.label,
+                    "description": mode.description,
+                    "available": available,
+                    "blocked_reason": reason,
+                }
+            )
+        return {
+            "modes": modes,
+            "connected_count": connected,
+            "planner_provider_ids": planners,
+            "usage": broker.usage(settings),
+        }
+
+    @app.post(f"{API_PREFIX}/ai/run")
+    def ai_run(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Run one instruction in the chosen mode.
+
+        simple       → one model
+        compare      → every permitted model at once, all answers returned
+        orchestrated → a tier A/B model plans, each step routed normally
+        """
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        settings = workspaces.egress_settings(workspace_id)
+        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+
+        raw_mode = str(body.get("mode", "simple")).strip().lower()
+        if raw_mode not in {item.value for item in RunMode}:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "invalid_mode",
+                    "message": "Mode must be simple, compare, or orchestrated.",
+                },
+            )
+        mode = RunMode(raw_mode)
+
+        raw_class = str(body.get("data_class", "public")).strip().lower()
+        if raw_class not in {"public", "person_public", "campaign"}:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "invalid_data_class",
+                    "message": "Runs use public, person_public or campaign. Mailbox and "
+                    "CRM records are not reachable this way.",
+                },
+            )
+
+        egress = EgressRequest(
+            task_type=str(body.get("task_type", "ai_run"))[:120],
+            data_class=DataClass(raw_class),
+            # Stripped, so whitespace-only input is treated as empty rather
+            # than sailing past the check below as a truthy string.
+            instructions=str(body.get("instructions", "")).strip()[:6000],
+            positioning_line=settings.positioning_line,
+            template_text=str(body.get("template_text", ""))[:12000],
+            public_text=str(body.get("public_text", ""))[:20000],
+            task_tags=tuple(str(tag) for tag in (body.get("task_tags") or ()))[:4],
+        )
+        if not egress.instructions:
+            raise HTTPException(
+                400,
+                detail={"error": "empty_instructions", "message": "Tell the models what to do."},
+            )
+
+        runner = ModeRunner(broker)
+        system_prompt = str(body.get("system_prompt", "")) or AIChatService.DEFAULT_SYSTEM_PROMPT
+        try:
+            if mode is RunMode.COMPARE:
+                result = runner.run_compare(
+                    egress,
+                    settings,
+                    system_prompt=system_prompt,
+                    include_lower_tiers=bool(body.get("include_lower_tiers", True)),
+                )
+            elif mode is RunMode.ORCHESTRATED:
+                result = runner.run_orchestrated(
+                    egress,
+                    settings,
+                    system_prompt=system_prompt,
+                    planner_provider_id=str(body.get("planner_provider_id", "")),
+                )
+            else:
+                result = runner.run_simple(
+                    egress,
+                    settings,
+                    system_prompt=system_prompt,
+                    provider_id=str(body.get("provider_id", "")),
+                )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+        return result.to_dict()
 
     @app.get(f"{API_PREFIX}/ai/egress-log")
     def ai_egress_log(

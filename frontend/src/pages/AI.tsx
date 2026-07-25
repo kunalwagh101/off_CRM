@@ -3,7 +3,8 @@ import { api } from "../api";
 import { Button } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
-import type { AIProvidersPayload } from "../types";
+import type { AIModesPayload, AIProvidersPayload } from "../types";
+import { CompareView, ModelStrip, PlanView } from "./AIStudio";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider: string; model: string; created_at: string };
 type Chat = { id: string; title: string; project_id: string | null; created_at: string; updated_at: string };
@@ -25,12 +26,15 @@ export default function AIPage() {
   // and general questions, and lets restricted-tier models help with those.
   const [taskMode, setTaskMode] = useState<"campaign" | "public">("campaign");
   const [listening, setListening] = useState(false);
+  // Three ways to work. Chat is the everyday one and stays the default.
+  const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
   const chats = useResource(() => api.get<{ items: Chat[] }>("/ai/chats?limit=60"), []);
   const projects = useResource(() => api.get<{ items: Project[] }>("/ai/projects"), []);
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
+  const modes = useResource(() => api.get<AIModesPayload>("/ai/modes"), []);
 
   const connected = (providers.data?.providers ?? []).filter((row) => row.connected && row.enabled);
   const eligible = connected.filter((row) =>
@@ -202,6 +206,8 @@ export default function AIPage() {
   }));
   const totalChats = (chats.data?.items ?? []).length;
 
+  const providerRows = providers.data?.providers ?? [];
+
   return (
     <div className="ai-shell">
 
@@ -233,6 +239,43 @@ export default function AIPage() {
             </button>
           </div>
         </div>
+
+        {/* How you want to work. Each tab states its trade-off so the choice
+            never needs explaining twice. */}
+        <div className="ai-mode-tabs" role="tablist" aria-label="How to work">
+          {([
+            { key: "chat", label: "Chat", hint: "One model · fastest" },
+            { key: "compare", label: "Compare", hint: "All models · pick the best" },
+            { key: "plan", label: "Plan", hint: "A lead model splits the job" }
+          ] as const).map((tab) => {
+            const info = modes.data?.modes.find((item) =>
+              tab.key === "chat" ? item.value === "simple" : tab.key === "compare" ? item.value === "compare" : item.value === "orchestrated"
+            );
+            const disabled = info ? !info.available : false;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={workMode === tab.key}
+                className={workMode === tab.key ? "ai-mode-tab ai-mode-tab-on" : "ai-mode-tab"}
+                onClick={() => setWorkMode(tab.key)}
+                disabled={disabled}
+                title={disabled ? info?.blocked_reason : undefined}
+              >
+                <strong>{tab.label}</strong>
+                <small>{disabled ? info?.blocked_reason : tab.hint}</small>
+              </button>
+            );
+          })}
+        </div>
+
+        {workMode === "compare" ? (
+          <CompareView providers={providerRows} modes={modes.data ?? null} />
+        ) : workMode === "plan" ? (
+          <PlanView providers={providerRows} modes={modes.data ?? null} />
+        ) : (
+        <>
 
         {/* Chat */}
         {activeChatId ? (
@@ -279,6 +322,8 @@ export default function AIPage() {
               ) : null}
               <Button type="submit" busy={busy === "sending"} disabled={!input.trim()}>Send</Button>
             </form>
+
+            <ModelStrip providers={providerRows} modes={modes.data ?? null} compact />
 
             {/* Which providers may answer depends on the task. Showing this
                 next to the composer means the choice is never a surprise. */}
@@ -345,6 +390,8 @@ export default function AIPage() {
               )}
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 

@@ -18,7 +18,11 @@
 - Moved Gmail and AI providers out of Settings into a dedicated Connectors screen showing country, trust tier, retention terms and usage per provider.
 - Removed the hardcoded TypeScript provider catalogue in favour of the backend registry.
 - Added a model selector, task mode, Markdown/HTML export and optional dictation to the AI chat screen.
-- Expanded release coverage to 135 Python tests and 6 frontend tests, including 30 security acceptance tests for the zero-access data architecture.
+- Added three run modes the owner picks per task: one model, compare all models side by side, or let a trusted lead model plan the job into steps.
+- Added a tier restriction on the planning role: only Highest and Default trust models may lead a plan, because deciding who does what means seeing the whole job. Restricted models can still be given steps.
+- Added plan validation so a returned plan cannot widen its own reach beyond the data class the caller offered.
+- Added a model strip showing every connected AI, its trust level and how close it is to its daily limit.
+- Expanded release coverage to 158 Python tests and 6 frontend tests, including 30 security acceptance tests for the zero-access data architecture and 16 for the run modes.
 
 ## 0.11.0
 

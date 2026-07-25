@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent, type KeyboardEvent } from "react";
 import { api } from "../api";
-import { Button, PageHeader } from "../components";
+import { Button } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 
@@ -14,6 +14,7 @@ export default function AIPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState("");
+  const [panelOpen, setPanelOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [movingChat, setMovingChat] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
@@ -25,7 +26,8 @@ export default function AIPage() {
 
   useEffect(() => {
     if (!activeChatId) return;
-    api.get<{ items: Message[] }>(`/ai/chats/${activeChatId}/messages`).then((r) => setMessages(r.items));
+    api.get<{ items: Message[] }>(`/ai/chats/${activeChatId}/messages`)
+      .then((r) => setMessages(r.items));
   }, [activeChatId]);
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export default function AIPage() {
       const chat = await api.post<Chat>("/ai/chats", { title: "New chat" });
       setActiveChatId(chat.id);
       setMessages([]);
+      setPanelOpen(false);
       await chats.reload();
     } finally {
       setBusy("");
@@ -49,15 +52,19 @@ export default function AIPage() {
     if (!input.trim() || !activeChatId) return;
     const content = input.trim();
     setInput("");
-    const tempMsg: Message = { id: "temp", role: "user", content, provider: "", model: "", created_at: new Date().toISOString() };
-    setMessages((prev) => [...prev, tempMsg]);
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: tempId, role: "user", content, provider: "", model: "", created_at: new Date().toISOString() }]);
     setBusy("sending");
     try {
       const reply = await api.post<Message>(`/ai/chats/${activeChatId}/messages`, { content });
-      setMessages((prev) => [...prev.filter((m) => m.id !== "temp"), { ...tempMsg, id: reply.id + "-user" }, reply]);
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== tempId),
+        { id: tempId + "-u", role: "user", content, provider: "", model: "", created_at: new Date().toISOString() },
+        reply
+      ]);
       await chats.reload();
     } catch (error) {
-      setMessages((prev) => prev.filter((m) => m.id !== "temp"));
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setInput(content);
       notify(error instanceof Error ? error.message : "Send failed", "error");
     } finally {
@@ -106,36 +113,71 @@ export default function AIPage() {
     }
   }
 
-  const projectMap = Object.fromEntries((projects.data?.items ?? []).map((p) => [p.id, p.name]));
+  function openChat(chat: Chat) {
+    setActiveChatId(chat.id);
+    setMessages([]);
+    setPanelOpen(false);
+    setMovingChat(null);
+  }
+
   const ungrouped = (chats.data?.items ?? []).filter((c) => !c.project_id);
   const grouped = (projects.data?.items ?? []).map((p) => ({
     project: p,
     chats: (chats.data?.items ?? []).filter((c) => c.project_id === p.id),
   }));
+  const totalChats = (chats.data?.items ?? []).length;
 
   return (
     <div className="ai-shell">
-      {/* ── Main chat area ─────────────────────────────────────────────── */}
-      <div className="ai-main">
-        <PageHeader title="AI Copilot" description="Ask anything about your leads, campaigns, or email strategy." />
 
+      {/* ── Main chat area ───────────────────────────────────────────────── */}
+      <div className="ai-main">
+        {/* Topbar: title + toggle */}
+        <div className="ai-topbar">
+          <div className="ai-topbar-left">
+            <h1 className="ai-page-title">AI Copilot</h1>
+            {activeChatId && (
+              <span className="ai-active-title">
+                {(chats.data?.items ?? []).find((c) => c.id === activeChatId)?.title ?? "Chat"}
+              </span>
+            )}
+          </div>
+          <div className="ai-topbar-right">
+            <button type="button" className="ai-new-btn" onClick={startChat} disabled={busy === "new-chat"}>
+              ＋ New chat
+            </button>
+            <button
+              type="button"
+              className={panelOpen ? "ai-panel-toggle ai-panel-toggle-active" : "ai-panel-toggle"}
+              onClick={() => setPanelOpen((v) => !v)}
+              title={panelOpen ? "Close history" : "Open history & projects"}
+              aria-expanded={panelOpen}
+            >
+              <span className="ai-panel-toggle-icon">⊞</span>
+              <span>History {totalChats > 0 ? `· ${totalChats}` : ""}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Chat */}
         {activeChatId ? (
           <>
             <div className="ai-messages">
               {messages.length === 0 && (
                 <div className="ai-empty-chat">
-                  <p>Start the conversation. Try: "Help me write a follow-up for a carbon credit prospect" or "Summarise my pipeline."</p>
+                  <p>Start the conversation — try "Help me write a follow-up for a carbon credit prospect" or "Analyse my pipeline."</p>
                 </div>
               )}
               {messages.map((msg) => (
                 <div key={msg.id} className={msg.role === "user" ? "ai-bubble ai-bubble-user" : "ai-bubble ai-bubble-assistant"}>
-                  <p className="ai-bubble-role">{msg.role === "user" ? "You" : "AI"}{msg.model ? ` · ${msg.model}` : ""}</p>
+                  <p className="ai-bubble-role">{msg.role === "user" ? "You" : `AI${msg.model ? ` · ${msg.model}` : ""}`}</p>
                   <div className="ai-bubble-content">{msg.content}</div>
                 </div>
               ))}
               {busy === "sending" && (
-                <div className="ai-bubble ai-bubble-assistant ai-typing">
-                  <span /><span /><span />
+                <div className="ai-bubble ai-bubble-assistant">
+                  <p className="ai-bubble-role">AI</p>
+                  <div className="ai-bubble-content ai-typing"><span /><span /><span /></div>
                 </div>
               )}
               <div ref={bottomRef} />
@@ -146,7 +188,7 @@ export default function AIPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Ask anything… (Enter to send, Shift+Enter for new line)"
+                placeholder="Ask anything… Enter to send · Shift+Enter for new line"
                 rows={2}
                 disabled={busy === "sending"}
               />
@@ -158,32 +200,38 @@ export default function AIPage() {
             <div className="ai-welcome-inner">
               <p className="ai-welcome-icon">🤖</p>
               <h2>off_CRM AI Copilot</h2>
-              <p>Your AI assistant for sales strategy, email copy, lead research, and CRM questions. Uses whichever AI provider you have connected.</p>
+              <p>Ask anything about your leads, campaigns, or email strategy. Uses whichever provider you have connected in AI Connectors.</p>
               <Button onClick={startChat} busy={busy === "new-chat"}>Start a new chat</Button>
+              {totalChats > 0 && (
+                <button type="button" className="ai-open-history" onClick={() => setPanelOpen(true)}>
+                  Or open history to continue a previous chat →
+                </button>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Right panel: history + projects ────────────────────────────── */}
-      <aside className="ai-panel">
-        <div className="ai-panel-header">
-          <strong>Chats</strong>
-          <button type="button" className="ai-panel-new" onClick={startChat} title="New chat">＋</button>
+      {/* ── Right panel: history + projects (slides in/out) ──────────────── */}
+      {panelOpen && (
+        <div className="ai-panel-overlay" onClick={() => setPanelOpen(false)} aria-hidden="true" />
+      )}
+      <aside className={panelOpen ? "ai-panel ai-panel-open" : "ai-panel"} aria-label="Chat history and projects">
+        <div className="ai-panel-head">
+          <strong>History &amp; Projects</strong>
+          <button type="button" className="ai-panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel">✕</button>
         </div>
 
         <div className="ai-panel-scroll">
-          {/* Ungrouped chats */}
+          {/* Ungrouped / recent */}
           {ungrouped.length > 0 && (
             <div className="ai-panel-section">
               <p className="ai-panel-label">Recent</p>
               {ungrouped.map((chat) => (
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
-                  <button type="button" className="ai-chat-title" onClick={() => { setActiveChatId(chat.id); setMessages([]); }}>
-                    {chat.title}
-                  </button>
+                  <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move to project" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>⤻</button>
+                    <button type="button" className="ai-icon-btn" title="Move to project" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
                     <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete chat" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
@@ -192,8 +240,7 @@ export default function AIPage() {
                       {(projects.data?.items ?? []).map((p) => (
                         <button key={p.id} type="button" className="ai-move-option" onClick={() => moveChat(chat.id, p.id)}>{p.name}</button>
                       ))}
-                      {chat.project_id && <button type="button" className="ai-move-option ai-move-remove" onClick={() => moveChat(chat.id, null)}>Remove from project</button>}
-                      {!(projects.data?.items?.length) && <p className="ai-move-empty">No projects yet. Create one below.</p>}
+                      {!(projects.data?.items?.length) && <p className="ai-move-empty">No projects yet — create one below.</p>}
                     </div>
                   )}
                 </div>
@@ -202,17 +249,15 @@ export default function AIPage() {
           )}
 
           {/* Projects */}
-          {grouped.map(({ project, chats: projectChats }) => (
+          {grouped.map(({ project, chats: pChats }) => (
             <div key={project.id} className="ai-panel-section">
               <p className="ai-panel-label">📁 {project.name}</p>
-              {projectChats.length ? projectChats.map((chat) => (
+              {pChats.length ? pChats.map((chat) => (
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
-                  <button type="button" className="ai-chat-title" onClick={() => { setActiveChatId(chat.id); setMessages([]); }}>
-                    {chat.title}
-                  </button>
+                  <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move to project" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>⤻</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete chat" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn" title="Move" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">
@@ -229,7 +274,7 @@ export default function AIPage() {
           ))}
 
           {!ungrouped.length && !grouped.length && (
-            <p className="ai-panel-empty">No chats yet. Start one with the button above.</p>
+            <p className="ai-panel-empty" style={{ padding: "20px 14px" }}>No chats yet. Start one with the button above.</p>
           )}
 
           {/* New project */}
@@ -247,8 +292,8 @@ export default function AIPage() {
         </div>
       </aside>
 
-      {/* ── Delete confirmation modal ───────────────────────────────────── */}
-      {deleteConfirm ? (
+      {/* ── Delete confirmation ─────────────────────────────────────────── */}
+      {deleteConfirm && (
         <div className="ai-overlay" onClick={() => setDeleteConfirm(null)}>
           <div className="ai-confirm-modal" onClick={(e) => e.stopPropagation()}>
             <p className="ai-confirm-title">Delete this chat?</p>
@@ -259,7 +304,7 @@ export default function AIPage() {
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

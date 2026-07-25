@@ -34,7 +34,7 @@ class AIChatService:
             raise ValueError("Project name is required")
         now = to_utc_iso()
         row_id = str(uuid.uuid4())
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "INSERT INTO ai_chat_projects(id, workspace_id, name, created_at) VALUES(?,?,?,?)",
                 (row_id, workspace_id, name, now),
@@ -42,7 +42,7 @@ class AIChatService:
         return {"id": row_id, "name": name, "created_at": now}
 
     def delete_project(self, project_id: str, workspace_id: str = "local") -> None:
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "DELETE FROM ai_chat_projects WHERE id = ? AND workspace_id = ?",
                 (project_id, workspace_id),
@@ -81,7 +81,7 @@ class AIChatService:
         now = to_utc_iso()
         chat_id = str(uuid.uuid4())
         title = clean_text(title)[:200] or "New chat"
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "INSERT INTO ai_chats(id, workspace_id, title, project_id, created_at, updated_at)"
                 " VALUES(?,?,?,?,?,?)",
@@ -99,7 +99,7 @@ class AIChatService:
         return dict(row) if row else None
 
     def delete_chat(self, chat_id: str, workspace_id: str = "local") -> None:
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "DELETE FROM ai_chats WHERE id = ? AND workspace_id = ?",
                 (chat_id, workspace_id),
@@ -112,7 +112,7 @@ class AIChatService:
         workspace_id: str = "local",
     ) -> dict[str, Any] | None:
         now = to_utc_iso()
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "UPDATE ai_chats SET project_id = ?, updated_at = ? "
                 "WHERE id = ? AND workspace_id = ?",
@@ -125,7 +125,7 @@ class AIChatService:
     ) -> dict[str, Any] | None:
         title = clean_text(title)[:200] or "New chat"
         now = to_utc_iso()
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "UPDATE ai_chats SET title = ?, updated_at = ? "
                 "WHERE id = ? AND workspace_id = ?",
@@ -154,7 +154,7 @@ class AIChatService:
     ) -> dict[str, Any]:
         now = to_utc_iso()
         msg_id = str(uuid.uuid4())
-        with self.store._transaction():
+        with self.store.transaction(immediate=True):
             self.store.connection.execute(
                 "INSERT INTO ai_messages(id, chat_id, role, content, provider, model, created_at)"
                 " VALUES(?,?,?,?,?,?,?)",

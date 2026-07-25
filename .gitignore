@@ -47,3 +47,4 @@ provider_config.json
 !poi_file_queue/processed/.gitkeep
 !poi_file_queue/failed/.gitkeep
 !old_pois/.gitkeep
+build/

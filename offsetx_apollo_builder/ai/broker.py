@@ -69,6 +69,9 @@ class WorkspaceEgressSettings:
     positioning_line: str = ""
     mailbox_unlock_phrase: str = ""
     default_policy_by_provider: dict[str, DataPolicy] = field(default_factory=dict)
+    #: provider id -> the model ids enabled on that key. One key reaches many
+    #: models, and each model carries its own tier. Empty means "default only".
+    enabled_models: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def mailbox_unlocked(self) -> bool:
@@ -201,32 +204,20 @@ class EgressBroker:
                 "add one before running AI work."
             )
 
-        permitted, rejected = self.registry.candidates_for(
+        # When a specific provider is pinned, keep only its enabled models.
+        models = dict(settings.enabled_models)
+        if provider_id:
+            models = {provider_id: models.get(provider_id, ())}
+
+        adjusted, rejected = self.registry.candidates_for(
             request.data_class,
             enabled_ids=enabled,
             overrides=settings.overrides,
             mailbox_unlocked=settings.mailbox_unlocked,
             task_tags=request.task_tags,
+            enabled_models=models,
+            policy_by_provider=settings.default_policy_by_provider,
         )
-
-        # Apply the workspace's chosen policy per provider, clamped by tier.
-        adjusted: list[ResolvedProvider] = []
-        for candidate in permitted:
-            requested = settings.default_policy_by_provider.get(candidate.id)
-            if requested is None:
-                adjusted.append(candidate)
-                continue
-            try:
-                adjusted.append(
-                    self.registry.resolve(
-                        candidate.id,
-                        model_id=candidate.model_id,
-                        requested_policy=requested,
-                        override=settings.overrides.get(candidate.id),
-                    )
-                )
-            except RegistryError:
-                adjusted.append(candidate)
 
         # Quota filter: skip providers with nothing left rather than calling
         # them and eating a 429.
@@ -302,12 +293,16 @@ class EgressBroker:
         now = time.monotonic()
 
         for candidate in candidates:
+            # Keyed on provider *and* model: one broken model on a key must not
+            # cool down a healthy sibling sharing that same key.
+            circuit_key = f"{candidate.id}:{candidate.model_id}"
             with self._lock:
-                open_until = self._open_until.get(candidate.id, 0.0)
+                open_until = self._open_until.get(circuit_key, 0.0)
             if open_until > now:
                 attempts.append(
                     {
                         "provider_id": candidate.id,
+                        "model_id": candidate.model_id,
                         "status": "circuit_open",
                         "detail": "Recent failures; cooling down.",
                     }
@@ -385,19 +380,26 @@ class EgressBroker:
 
             if status == "failed":
                 with self._lock:
-                    failures = self._failures.get(candidate.id, 0) + 1
-                    self._failures[candidate.id] = failures
+                    failures = self._failures.get(circuit_key, 0) + 1
+                    self._failures[circuit_key] = failures
                     if failures >= self.failure_threshold:
-                        self._open_until[candidate.id] = time.monotonic() + self.cooldown_seconds
+                        self._open_until[circuit_key] = time.monotonic() + self.cooldown_seconds
                 attempts.append(
-                    {"provider_id": candidate.id, "status": "failed", "detail": error}
+                    {
+                        "provider_id": candidate.id,
+                        "model_id": candidate.model_id,
+                        "status": "failed",
+                        "detail": error,
+                    }
                 )
                 continue
 
             with self._lock:
-                self._failures[candidate.id] = 0
-                self._open_until.pop(candidate.id, None)
-            attempts.append({"provider_id": candidate.id, "status": "used"})
+                self._failures[circuit_key] = 0
+                self._open_until.pop(circuit_key, None)
+            attempts.append(
+                {"provider_id": candidate.id, "model_id": candidate.model_id, "status": "used"}
+            )
 
             return EgressResult(
                 text=text,

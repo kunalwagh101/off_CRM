@@ -179,6 +179,7 @@ class WorkspaceAISettingsStore:
         *,
         api_key: str = "",
         model_id: str = "",
+        model_ids: list[str] | None = None,
         data_policy: str = "",
         enabled: bool = True,
         requests_per_minute: int | None = None,
@@ -197,11 +198,34 @@ class WorkspaceAISettingsStore:
         if clamped:
             policy = ceiling
 
+        # A key unlocks many models. `model_id` is kept for older stored records
+        # and single-model callers; `model_ids` is the list the UI sends.
+        chosen: list[str] = [str(item).strip() for item in (model_ids or []) if str(item).strip()]
+        if not chosen:
+            chosen = [model_id.strip() or entry.default_model]
+
+        # Refuse a model the trust rules cannot place. Unknown is not safe, and
+        # failing here is far better than failing at call time (§5.5.7).
+        unusable: list[str] = []
+        for candidate in chosen:
+            if entry.model(candidate) is not None:
+                continue
+            if not self.registry.classify_model(candidate)["known"]:
+                unusable.append(candidate)
+        if unusable:
+            raise ValueError(
+                "These models do not match any rule in config/providers.yaml, so "
+                "off_CRM cannot tell who built them and will not use them: "
+                + ", ".join(unusable)
+                + ". Add a model_origin_rules entry for them first."
+            )
+
         free = entry.free_tier
         record = {
             "provider_id": provider_id,
             "enabled": bool(enabled),
-            "model_id": model_id or entry.default_model,
+            "model_id": chosen[0],
+            "model_ids": chosen,
             "data_policy": policy.value,
             "requests_per_minute": (
                 requests_per_minute
@@ -317,6 +341,19 @@ class WorkspaceAISettingsStore:
             for provider_id, record in providers.items()
             if record.get("data_policy")
         }
+        # Previously the chosen model was stored and displayed but never reached
+        # the broker, so every call silently used the provider's default. Older
+        # records hold a single `model_id`; both shapes are read here.
+        enabled_models = {
+            provider_id: tuple(
+                str(item)
+                for item in (
+                    record.get("model_ids")
+                    or ([record["model_id"]] if record.get("model_id") else [])
+                )
+            )
+            for provider_id, record in providers.items()
+        }
         return WorkspaceEgressSettings(
             workspace_id=workspace_id,
             enabled_provider_ids=enabled,
@@ -327,6 +364,7 @@ class WorkspaceAISettingsStore:
             positioning_line=str(document.get("positioning_line", "")),
             mailbox_unlock_phrase=str(document.get("mailbox_unlock_phrase", "")),
             default_policy_by_provider=policies,
+            enabled_models=enabled_models,
         )
 
     def describe(self, workspace_id: str = DEFAULT_WORKSPACE) -> dict[str, Any]:
@@ -346,6 +384,20 @@ class WorkspaceAISettingsStore:
                     "enabled": bool(record.get("enabled", False)) if record else False,
                     "has_key": bool(self.key_for(workspace_id, entry.id)),
                     "model_id": (record or {}).get("model_id", entry.default_model),
+                    "model_ids": list(
+                        (record or {}).get("model_ids")
+                        or ([record["model_id"]] if record and record.get("model_id") else [])
+                    ),
+                    "supports_model_discovery": entry.supports_model_discovery,
+                    # Every model this key could run, each with its own tier, so
+                    # the card can show that one key spans several trust levels.
+                    "available_models": [
+                        {
+                            **model.to_dict(),
+                            "tier": entry.tier_for_model(model.id).value,
+                        }
+                        for model in entry.models
+                    ],
                     "data_policy": (record or {}).get(
                         "data_policy", default_policy_for_tier(tier).value
                     ),

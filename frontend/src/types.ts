@@ -587,6 +587,35 @@ export type AIProviderRow = {
   requests_per_day: number;
   max_spend_usd_per_day: number;
   usage?: AIUsage | null;
+  /** One key reaches many models. These are the ones turned on. */
+  model_ids: string[];
+  supports_model_discovery: boolean;
+  /** Every model in config for this provider, each with its own tier. */
+  available_models: Array<AIModel & { tier: string }>;
+};
+
+export type DiscoveredModel = {
+  id: string;
+  origin: string;
+  tier: string;
+  tier_cap: string;
+  known: boolean;
+  in_config: boolean;
+  matched_prefix: string;
+  usable: boolean;
+  policy_ceiling: string;
+};
+
+export type DiscoveryResult = {
+  provider_id: string;
+  provider_name: string;
+  models: DiscoveredModel[];
+  source: string;
+  note: string;
+  error: string;
+  total: number;
+  usable: number;
+  unknown: number;
 };
 
 export type AIProvidersPayload = {

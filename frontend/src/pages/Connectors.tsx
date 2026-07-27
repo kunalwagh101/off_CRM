@@ -4,6 +4,7 @@ import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
+import ModelPicker from "./ModelPicker";
 import { Loadable } from "./shared";
 
 /** Tier → how the badge reads. Colour alone never carries the meaning. */
@@ -26,6 +27,7 @@ export default function Connectors() {
   const { notify } = useApp();
   const [busy, setBusy] = useState("");
   const [openProvider, setOpenProvider] = useState<string>("");
+  const [modelsFor, setModelsFor] = useState<string>("");
   const [showBlocked, setShowBlocked] = useState(false);
 
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
@@ -51,7 +53,7 @@ export default function Connectors() {
         `/ai/providers/${row.id}/connect`,
         {
           api_key: String(data.get("api_key") ?? ""),
-          model_id: String(data.get("model_id") ?? ""),
+          model_ids: [String(data.get("model_id") ?? (row.model_id || row.default_model))],
           data_policy: String(data.get("data_policy") ?? ""),
           requests_per_day: Number(data.get("requests_per_day") ?? 0),
           max_spend_usd_per_day: Number(data.get("max_spend_usd_per_day") ?? 0)
@@ -273,7 +275,10 @@ export default function Connectors() {
                         row={row}
                         open={openProvider === row.id}
                         busy={busy}
+                        showModels={modelsFor === row.id}
                         onToggle={() => setOpenProvider(openProvider === row.id ? "" : row.id)}
+                        onModels={() => setModelsFor(modelsFor === row.id ? "" : row.id)}
+                        onModelsSaved={() => { setModelsFor(""); providers.reload(); }}
                         onConnect={(event) => connect(row, event)}
                         onDisconnect={() => disconnect(row)}
                         onRaise={() => raiseTrust(row)}
@@ -308,7 +313,10 @@ function ProviderCard({
   row,
   open,
   busy,
+  showModels,
   onToggle,
+  onModels,
+  onModelsSaved,
   onConnect,
   onDisconnect,
   onRaise,
@@ -317,7 +325,10 @@ function ProviderCard({
   row: AIProviderRow;
   open: boolean;
   busy: string;
+  showModels: boolean;
   onToggle: () => void;
+  onModels: () => void;
+  onModelsSaved: () => void;
   onConnect: (event: FormEvent<HTMLFormElement>) => void;
   onDisconnect: () => void;
   onRaise: () => void;
@@ -393,6 +404,9 @@ function ProviderCard({
           </>
         ) : row.connected ? (
           <>
+            <Button tone="ghost" onClick={onModels}>
+              {showModels ? "Hide models" : `Models (${row.model_ids?.length || 1})`}
+            </Button>
             <Button tone="ghost" onClick={onToggle}>
               {open ? "Close" : "Change settings"}
             </Button>
@@ -404,6 +418,10 @@ function ProviderCard({
           <Button onClick={onToggle}>{open ? "Close" : "Connect"}</Button>
         )}
       </footer>
+
+      {showModels && row.connected ? (
+        <ModelPicker provider={row} onSaved={onModelsSaved} />
+      ) : null}
 
       {open && !blocked ? (
         <form className="provider-connect-form" onSubmit={onConnect}>
@@ -422,7 +440,7 @@ function ProviderCard({
           </Field>
 
           <div className="form-grid">
-            <Field label="Model">
+            <Field label="Starting model" hint="Add more after connecting — one key can run several.">
               <select name="model_id" defaultValue={row.model_id}>
                 {row.models.map((model) => (
                   <option key={model.id} value={model.id}>

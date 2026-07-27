@@ -4,8 +4,8 @@ Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-25
-Branch: `claude/ai-module-hardening`
-Tests: **165 Python passed**, 6 frontend passed, 1 pre-existing failure
+Branch: `claude/per-model-connectors`
+Tests: **191 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -34,6 +34,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── quota.py      local RPM/RPD/spend accounting, file-backed
 ├── broker.py     THE single egress gate — the only code that calls a provider
 ├── modes.py      run modes: simple, compare, orchestrated
+├── discovery.py  asks a provider what models its key reaches
 ├── log.py        egress log; own SQLite table, stores the exact payload
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
 └── errors.py     structured refusals the API turns into readable answers
@@ -132,6 +133,27 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       `internal` is clamped to what the caller already offered.
 - [x] Model strip in the AI screen: every connected AI, its trust badge, and a
       meter showing how close it is to its daily limit.
+
+### Per-model connectors (2026-07-26)
+- [x] A connector is a **key**, and a key reaches many models. One NVIDIA key
+      offers Llama, DeepSeek, Qwen, Phi, Gemma, Granite, Mistral, Nemotron.
+- [x] **Tier belongs to the model, not the key.** NVIDIA+Llama is B,
+      NVIDIA+DeepSeek is C — in the same run, on the same key.
+- [x] `model_origin_rules` in config classify a model by name prefix. The
+      provider supplies names; config decides trust. Unmatched name -> tier D.
+- [x] "Find models" calls the provider's `/models` endpoint. Sends no owner
+      data; still written to the egress log so the record stays complete.
+      Degrades to the config list on any failure, with the reason shown.
+- [x] Connecting a model off_CRM cannot place is refused with the fix in the
+      message, rather than failing later at call time.
+
+### Fixed in this round
+- [x] **The chosen model was ignored.** `candidates_for` resolved each provider
+      with no model id, so every call fell back to `default_model` — and the
+      provenance cap was therefore unreachable from the UI: picking a Chinese
+      model on NVIDIA was treated as tier B. Three call sites had the same gap
+      (broker, compare, orchestrated planner); all now route per model, each
+      with a regression test.
 
 ### Features
 - [x] §4B Connectors: own screen; Gmail moved out of Settings; every provider

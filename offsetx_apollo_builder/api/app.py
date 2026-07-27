@@ -47,6 +47,7 @@ from ..ai import (
     QuotaTracker,
     RegistryError,
 )
+from ..ai.discovery import discover_models
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
 from ..outreach.providers import ProviderError
@@ -1048,6 +1049,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         data_class = DataClass(requested_class)
         provider_id = str(body.get("provider_id", "")).strip()
+        model_id = str(body.get("model_id", "")).strip()
+        if model_id and provider_id:
+            # Pin one model rather than the whole key's model list.
+            settings.enabled_models = {**settings.enabled_models, provider_id: (model_id,)}
 
         chosen: dict[str, str] = {}
 
@@ -1110,6 +1115,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 provider_id,
                 api_key=str(body.get("api_key", "")),
                 model_id=str(body.get("model_id", "")),
+                model_ids=[str(item) for item in (body.get("model_ids") or [])],
                 data_policy=str(body.get("data_policy", "")),
                 enabled=bool(body.get("enabled", True)),
                 requests_per_minute=body.get("requests_per_minute"),
@@ -1124,6 +1130,28 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         _, workspaces, _ = _ai(request)
         workspaces.disconnect_provider(_workspace_id(request), provider_id)
         return {"status": "disconnected", "provider_id": provider_id}
+
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/discover-models")
+    def ai_discover_models(provider_id: str, request: Request) -> dict[str, Any]:
+        """Ask the provider which models this key reaches.
+
+        Sends no owner data — it is a catalogue request carrying only the key.
+        Each returned model is classified against config/providers.yaml, so trust
+        is decided here and never by what the provider says about itself.
+        """
+        _, workspaces, log = _ai(request)
+        workspace_id = _workspace_id(request)
+        try:
+            result = discover_models(
+                request.app.state.ai_registry,
+                provider_id,
+                workspaces.key_for(workspace_id, provider_id),
+                logger=log.record,
+                workspace_id=workspace_id,
+            )
+        except RegistryError as exc:
+            raise _ai_error(exc) from exc
+        return result.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/override")
     def ai_override_provider(
@@ -1330,11 +1358,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     planner_provider_id=str(body.get("planner_provider_id", "")),
                 )
             else:
+                pinned_provider = str(body.get("provider_id", "")).strip()
+                pinned_model = str(body.get("model_id", "")).strip()
+                if pinned_provider and pinned_model:
+                    settings.enabled_models = {
+                        **settings.enabled_models,
+                        pinned_provider: (pinned_model,),
+                    }
                 result = runner.run_simple(
                     egress,
                     settings,
                     system_prompt=system_prompt,
-                    provider_id=str(body.get("provider_id", "")),
+                    provider_id=pinned_provider,
                 )
         except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
             raise _ai_error(exc) from exc

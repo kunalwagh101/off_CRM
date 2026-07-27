@@ -68,6 +68,26 @@ SUPPORTED_ADAPTERS = {"openai", "anthropic", "openai_compatible", "template_engi
 
 
 @dataclass(frozen=True, slots=True)
+class OriginRule:
+    """Classifies a model id by prefix.
+
+    A host serves models built by other companies. The host's jurisdiction says
+    nothing about who made the model, so provenance is decided here — from
+    config — rather than from whatever the provider reports (§5.4).
+    """
+
+    prefix: str
+    origin: str
+    tier_cap: str = ""
+
+    def matches(self, model_id: str) -> bool:
+        return str(model_id).strip().lower().startswith(self.prefix.lower())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"prefix": self.prefix, "origin": self.origin, "tier_cap": self.tier_cap}
+
+
+@dataclass(frozen=True, slots=True)
 class ModelEntry:
     """One model offered by a provider."""
 
@@ -133,6 +153,9 @@ class ProviderEntry:
     local_only: bool = False
     self_hostable: bool = False
     self_host_note: str = ""
+    #: True when the provider exposes GET /models, so "Find models" can
+    #: list everything this key reaches rather than only what config names.
+    supports_model_discovery: bool = False
     flag: str = ""
     key_url: str = ""
     key_placeholder: str = ""
@@ -185,6 +208,7 @@ class ProviderEntry:
             "local_only": self.local_only,
             "self_hostable": self.self_hostable,
             "self_host_note": self.self_host_note,
+            "supports_model_discovery": self.supports_model_discovery,
             "key_url": self.key_url,
             "key_placeholder": self.key_placeholder,
             "how_to_get": self.how_to_get,
@@ -313,6 +337,7 @@ def _parse_entry(raw: dict[str, Any]) -> ProviderEntry:
         local_only=bool(raw.get("local_only", False)),
         self_hostable=bool(raw.get("self_hostable", False)),
         self_host_note=str(raw.get("self_host_note", "")).strip(),
+        supports_model_discovery=bool(raw.get("supports_model_discovery", False)),
         flag=str(raw.get("flag", "")).strip(),
         key_url=str(raw.get("key_url", "")).strip(),
         key_placeholder=str(raw.get("key_placeholder", "")).strip(),
@@ -425,6 +450,7 @@ class ProviderRegistry:
         self._lock = threading.RLock()
         self._entries: dict[str, ProviderEntry] = {}
         self._defaults: dict[str, Any] = {}
+        self._origin_rules: tuple[OriginRule, ...] = ()
         self._mtime: float = -1.0
 
     def _refresh(self) -> None:
@@ -448,6 +474,23 @@ class ProviderRegistry:
             entries[entry.id] = entry
         self._entries = entries
         self._defaults = dict(document.get("defaults") or {})
+        rules: list[OriginRule] = []
+        for raw_rule in document.get("model_origin_rules") or []:
+            if not isinstance(raw_rule, dict):
+                continue
+            prefix = str(raw_rule.get("prefix", "")).strip()
+            origin = str(raw_rule.get("origin", "")).strip().upper()
+            if not prefix or not origin:
+                continue
+            rules.append(
+                OriginRule(
+                    prefix=prefix,
+                    origin=origin,
+                    tier_cap=str(raw_rule.get("tier_cap", "")).strip().upper(),
+                )
+            )
+        # Longest prefix first: 'meta-llama/' must beat 'meta/'.
+        self._origin_rules = tuple(sorted(rules, key=lambda r: -len(r.prefix)))
         self._mtime = mtime
 
     def all(self) -> list[ProviderEntry]:
@@ -459,6 +502,40 @@ class ProviderRegistry:
         with self._lock:
             self._refresh()
             return self._entries.get(str(provider_id))
+
+    def classify_model(self, model_id: str) -> dict[str, Any]:
+        """Work out who built a model, from config rules only.
+
+        Used for models discovered live from a provider's catalogue, which are
+        not listed in this file. A model matching no rule is ``known: False`` —
+        it is untrusted and receives nothing until a rule is added for it.
+        Unknown is never treated as safe (§5.4, §5.5.7).
+        """
+        with self._lock:
+            self._refresh()
+            rules = self._origin_rules
+        cleaned = str(model_id or "").strip()
+        for rule in rules:
+            if rule.matches(cleaned):
+                return {
+                    "model_id": cleaned,
+                    "origin": rule.origin,
+                    "tier_cap": rule.tier_cap,
+                    "known": True,
+                    "matched_prefix": rule.prefix,
+                }
+        return {
+            "model_id": cleaned,
+            "origin": "",
+            "tier_cap": TrustTier.D.value,
+            "known": False,
+            "matched_prefix": "",
+        }
+
+    def origin_rules(self) -> list[dict[str, Any]]:
+        with self._lock:
+            self._refresh()
+            return [rule.to_dict() for rule in self._origin_rules]
 
     def require(self, provider_id: str) -> ProviderEntry:
         entry = self.get(provider_id)
@@ -481,12 +558,21 @@ class ProviderRegistry:
         """Combine config, model provenance and owner override into one decision."""
         entry = self.require(provider_id)
         chosen_model = model_id or entry.default_model
-        if entry.model(chosen_model) is None:
-            raise RegistryError(
-                f"Model {chosen_model!r} is not listed for provider {provider_id!r}"
-            )
 
-        tier = entry.tier_for_model(chosen_model)
+        if entry.model(chosen_model) is not None:
+            # Listed in config: its declared origin and cap win.
+            tier = entry.tier_for_model(chosen_model)
+        else:
+            # Discovered from the provider's live catalogue. Config rules decide
+            # what it is, never the provider — and an unmatched name is untrusted.
+            classification = self.classify_model(chosen_model)
+            tier = entry.derived_tier
+            cap = coerce_tier(classification["tier_cap"], default=TrustTier.D)
+            if classification["tier_cap"] and cap.rank < tier.rank:
+                tier = cap
+            if not classification["known"]:
+                tier = TrustTier.D
+
         if override and override.trust_tier is not None:
             tier = override.trust_tier
 
@@ -522,42 +608,78 @@ class ProviderRegistry:
         mailbox_unlocked: bool = False,
         task_tags: Iterable[str] = (),
         prefer_free: bool = True,
+        enabled_models: dict[str, tuple[str, ...]] | None = None,
+        policy_by_provider: dict[str, Any] | None = None,
     ) -> tuple[list[ResolvedProvider], list[dict[str, Any]]]:
-        """Return providers permitted to hold ``data_class``, cheapest first.
+        """Return every permitted **provider + model** pair, cheapest first.
+
+        A key unlocks many models, and a model carries its own trust tier: one
+        NVIDIA key reaches Llama at tier B and DeepSeek at tier C. So the unit of
+        routing is a provider *and* a model, not a provider alone.
 
         The tier filter runs *first* and cost never overrides it (§4E rule c).
         The second return value explains every rejection, so the UI can tell the
-        owner why a provider they enabled did not run.
+        owner why a model they enabled did not run.
         """
         overrides = overrides or {}
+        enabled_models = enabled_models or {}
+        policy_by_provider = policy_by_provider or {}
         wanted_tags = {str(tag).strip().lower() for tag in task_tags if str(tag).strip()}
         permitted: list[ResolvedProvider] = []
         rejected: list[dict[str, Any]] = []
 
         for provider_id in enabled_ids:
-            try:
-                resolved = self.resolve(provider_id, override=overrides.get(provider_id))
-            except RegistryError as exc:
-                rejected.append(
-                    {"provider_id": provider_id, "reason": "not_in_registry", "detail": str(exc)}
-                )
-                continue
-            if not resolved.permits(data_class, mailbox_unlocked=mailbox_unlocked):
+            entry = self.get(provider_id)
+            if entry is None:
                 rejected.append(
                     {
                         "provider_id": provider_id,
-                        "reason": "tier_forbids_data_class",
+                        "reason": "not_in_registry",
                         "detail": (
-                            f"{resolved.name} is tier {resolved.tier.value} "
-                            f"({resolved.tier.label}) and may not receive "
-                            f"{data_class.value} data."
+                            f"Provider {provider_id!r} is not in the registry. Unlisted "
+                            "providers are untrusted and receive nothing."
                         ),
-                        "tier": resolved.tier.value,
-                        "data_class": data_class.value,
                     }
                 )
                 continue
-            permitted.append(resolved)
+
+            # No explicit choice means the provider's default model only.
+            model_ids = tuple(enabled_models.get(provider_id) or ()) or (entry.default_model,)
+            for model_id in model_ids:
+                try:
+                    resolved = self.resolve(
+                        provider_id,
+                        model_id=model_id,
+                        requested_policy=policy_by_provider.get(provider_id),
+                        override=overrides.get(provider_id),
+                    )
+                except RegistryError as exc:
+                    rejected.append(
+                        {
+                            "provider_id": provider_id,
+                            "model_id": model_id,
+                            "reason": "model_not_in_registry",
+                            "detail": str(exc),
+                        }
+                    )
+                    continue
+                if not resolved.permits(data_class, mailbox_unlocked=mailbox_unlocked):
+                    rejected.append(
+                        {
+                            "provider_id": provider_id,
+                            "model_id": model_id,
+                            "reason": "tier_forbids_data_class",
+                            "detail": (
+                                f"{resolved.name} running {model_id} is tier "
+                                f"{resolved.tier.value} ({resolved.tier.label}) and may not "
+                                f"receive {data_class.value} data."
+                            ),
+                            "tier": resolved.tier.value,
+                            "data_class": data_class.value,
+                        }
+                    )
+                    continue
+                permitted.append(resolved)
 
         def sort_key(item: ResolvedProvider) -> tuple[int, int, float, str]:
             model = item.model

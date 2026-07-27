@@ -25,6 +25,91 @@ defaults:
   # A provider absent from this file is untrusted and gets nothing (§5.4 D).
   unlisted_provider_tier: D
 
+# ── Model origin rules ─────────────────────────────────────────────────────
+# A host like NVIDIA NIM serves 100+ models built by other companies. The host's
+# jurisdiction says nothing about who *made* the model, and where pass-through to
+# the model's developer is undocumented the model cannot inherit the host's
+# trust (§5.4 provenance caveat).
+#
+# These rules classify a model by the prefix of its id. They apply to models
+# discovered live from a provider's /models endpoint as well as to models listed
+# below. THE PROVIDER TELLS US NAMES; THIS FILE DECIDES WHAT THEY ARE TRUSTED
+# WITH.
+#
+# A model matching no rule is `unknown` — tier D, receives nothing — until you
+# add a rule for it. Unknown is never treated as safe.
+model_origin_rules:
+  # Chinese-developed open-weight models. Capped at C wherever they are hosted.
+  - prefix: "deepseek-ai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "deepseek/"
+    origin: CN
+    tier_cap: C
+  - prefix: "qwen/"
+    origin: CN
+    tier_cap: C
+  - prefix: "alibaba/"
+    origin: CN
+    tier_cap: C
+  - prefix: "moonshotai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "moonshot/"
+    origin: CN
+    tier_cap: C
+  - prefix: "zhipuai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "thudm/"
+    origin: CN
+    tier_cap: C
+  - prefix: "01-ai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "baichuan"
+    origin: CN
+    tier_cap: C
+  - prefix: "yi-"
+    origin: CN
+    tier_cap: C
+
+  # European developers — no cap needed, they do not lower a host's tier.
+  - prefix: "mistralai/"
+    origin: EU
+  - prefix: "mistral-"
+    origin: EU
+
+  # US developers.
+  - prefix: "meta/"
+    origin: US
+  - prefix: "meta-llama/"
+    origin: US
+  - prefix: "llama-"
+    origin: US
+  - prefix: "microsoft/"
+    origin: US
+  - prefix: "nvidia/"
+    origin: US
+  - prefix: "google/"
+    origin: US
+  - prefix: "gemma-"
+    origin: US
+  - prefix: "ibm/"
+    origin: US
+  - prefix: "ibm-granite/"
+    origin: US
+  - prefix: "openai/"
+    origin: US
+  - prefix: "gpt-"
+    origin: US
+  - prefix: "claude-"
+    origin: US
+  - prefix: "nemotron"
+    origin: US
+  - prefix: "phi-"
+    origin: US
+
 providers:
 
   # ── Europe — highest trust (tier A) ──────────────────────────────────────
@@ -35,6 +120,7 @@ providers:
     adapter: openai_compatible
     base_url: https://api.mistral.ai/v1
     default_model: mistral-large-latest
+    supports_model_discovery: true
     models:
       - id: mistral-large-latest
         context_window: 128000
@@ -67,6 +153,7 @@ providers:
     adapter: openai
     base_url: https://api.openai.com/v1
     default_model: gpt-4o
+    supports_model_discovery: true
     models:
       - id: gpt-4o
         context_window: 128000
@@ -122,6 +209,7 @@ providers:
     adapter: openai_compatible
     base_url: https://api.groq.com/openai/v1
     default_model: llama-3.3-70b-versatile
+    supports_model_discovery: true
     models:
       - id: llama-3.3-70b-versatile
         context_window: 128000
@@ -129,6 +217,18 @@ providers:
         cost_per_1m_output_usd: 0.0
         good_at: [writing, bulk, classification]
         model_origin: US
+      - id: llama-3.1-8b-instant
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [bulk, classification]
+        model_origin: US
+      - id: mistral-saba-24b
+        context_window: 32000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, multilingual]
+        model_origin: EU
     free_tier:
       requests_per_minute: 30
       requests_per_day: 14400
@@ -150,6 +250,7 @@ providers:
     adapter: openai_compatible
     base_url: https://api.cerebras.ai/v1
     default_model: llama-3.3-70b
+    supports_model_discovery: true
     models:
       - id: llama-3.3-70b
         context_window: 128000
@@ -175,21 +276,81 @@ providers:
     adapter: openai_compatible
     base_url: https://integrate.api.nvidia.com/v1
     default_model: meta/llama-3.1-70b-instruct
+    # One NVIDIA key reaches 100+ models. This is a useful starting set; press
+    # "Find models" in Connectors to pull the live catalogue. Origin and tier cap
+    # come from model_origin_rules above, so a Chinese-built model hosted here
+    # stays tier C no matter that NVIDIA itself is tier B.
+    supports_model_discovery: true
     models:
+      # ── Built in the US — inherit NVIDIA's tier B ──────────────────────────
       - id: meta/llama-3.1-70b-instruct
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
         good_at: [writing, reasoning, code]
         model_origin: US
-      # Provenance caveat (§5.4): a US host may serve a model built elsewhere.
-      # Where pass-through to the model's developer is undocumented, the model
-      # is capped at tier C regardless of the host's tier.
+      - id: meta/llama-3.3-70b-instruct
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, reasoning, bulk]
+        model_origin: US
+      - id: nvidia/llama-3.1-nemotron-70b-instruct
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, reasoning, planning]
+        model_origin: US
+      - id: microsoft/phi-3-medium-128k-instruct
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [classification, bulk, code]
+        model_origin: US
+      - id: google/gemma-2-27b-it
+        context_window: 8192
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, classification]
+        model_origin: US
+      - id: ibm/granite-3.0-8b-instruct
+        context_window: 4096
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [classification, bulk]
+        model_origin: US
+
+      # ── Built in the EU ───────────────────────────────────────────────────
+      - id: mistralai/mistral-large-2-instruct
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [writing, reasoning, multilingual]
+        model_origin: EU
+
+      # ── Built in China — capped at tier C even though the host is tier B ──
+      # Provenance caveat (§5.4): NVIDIA does not document whether inputs pass
+      # through to the model's original developer, so these cannot hold more
+      # than a tier C provider would.
+      - id: deepseek-ai/deepseek-r1
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [reasoning, architecture, code, planning]
+        model_origin: CN
+        model_origin_tier_cap: C
       - id: qwen/qwen2.5-coder-32b-instruct
         context_window: 32000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
         good_at: [code]
+        model_origin: CN
+        model_origin_tier_cap: C
+      - id: qwen/qwen2.5-7b-instruct
+        context_window: 32000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [bulk, multilingual]
         model_origin: CN
         model_origin_tier_cap: C
     free_tier:
@@ -322,6 +483,7 @@ providers:
     adapter: openai_compatible
     base_url: https://api.deepseek.com/v1
     default_model: deepseek-chat
+    supports_model_discovery: true
     models:
       - id: deepseek-chat
         context_window: 64000
@@ -453,6 +615,7 @@ providers:
     adapter: openai_compatible
     base_url: https://api.together.xyz/v1
     default_model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+    supports_model_discovery: true
     models:
       - id: meta-llama/Llama-3.3-70B-Instruct-Turbo
         context_window: 128000

@@ -291,3 +291,70 @@ def test_run_with_nothing_connected_points_at_connectors(client):
     )
     assert response.status_code == 409
     assert "Connectors" in response.json()["detail"]["message"]
+
+
+# ── per-model connectors ────────────────────────────────────────────────────
+
+
+def test_connect_accepts_a_model_list_and_reports_it_back(client):
+    response = client.post(
+        f"{API}/ai/providers/nvidia/connect",
+        json={
+            "api_key": "nvapi-test",
+            "model_ids": ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["provider"]["model_ids"] == [
+        "meta/llama-3.3-70b-instruct",
+        "deepseek-ai/deepseek-r1",
+    ]
+
+    row = next(
+        item for item in client.get(f"{API}/ai/providers").json()["providers"]
+        if item["id"] == "nvidia"
+    )
+    assert row["model_ids"] == ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"]
+    assert row["supports_model_discovery"] is True
+    # Every model the key could run, each carrying its own tier.
+    tiers = {m["id"]: m["tier"] for m in row["available_models"]}
+    assert tiers["meta/llama-3.3-70b-instruct"] == "B"
+    assert tiers["deepseek-ai/deepseek-r1"] == "C"
+
+
+def test_plan_separates_two_models_on_the_same_key_by_tier(client):
+    """The heart of it: one NVIDIA key, two models, two different trust levels."""
+    client.post(
+        f"{API}/ai/providers/nvidia/connect",
+        json={
+            "api_key": "k",
+            "model_ids": ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"],
+        },
+    )
+    payload = client.post(f"{API}/ai/plan", json={"data_class": "campaign"}).json()
+    assert payload["would_use"]["model_id"] == "meta/llama-3.3-70b-instruct"
+    excluded = {item.get("model_id"): item["reason"] for item in payload["excluded"]}
+    assert excluded["deepseek-ai/deepseek-r1"] == "tier_forbids_data_class"
+
+
+def test_connecting_an_unclassifiable_model_is_refused_with_a_reason(client):
+    response = client.post(
+        f"{API}/ai/providers/nvidia/connect",
+        json={"api_key": "k", "model_ids": ["mystery-lab/secret-9b"]},
+    )
+    assert response.status_code == 400
+    assert "model_origin_rules" in response.json()["detail"]["message"]
+
+
+def test_discover_models_without_a_key_falls_back_to_config(client):
+    response = client.post(f"{API}/ai/providers/nvidia/discover-models", json={})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "config"
+    assert payload["total"] == 10
+    assert "No API key stored" in payload["note"]
+
+
+def test_discover_models_on_an_unlisted_provider_is_refused(client):
+    response = client.post(f"{API}/ai/providers/nope/discover-models", json={})
+    assert response.status_code == 400

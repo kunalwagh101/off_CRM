@@ -21,7 +21,8 @@ export default function AIPage() {
   const [movingChat, setMovingChat] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [showNewProject, setShowNewProject] = useState(false);
-  const [providerId, setProviderId] = useState("");
+  // "provider:model" so one NVIDIA key can offer several distinct choices.
+  const [modelChoice, setModelChoice] = useState("");
   // "campaign" keeps the conversation on trusted providers. "public" is for code
   // and general questions, and lets restricted-tier models help with those.
   const [taskMode, setTaskMode] = useState<"campaign" | "public">("campaign");
@@ -40,6 +41,22 @@ export default function AIPage() {
   const eligible = connected.filter((row) =>
     taskMode === "public" ? row.effective_tier !== "D" : ["A", "B"].includes(row.effective_tier)
   );
+
+  // One entry per provider+model, because a key can span trust levels: NVIDIA
+  // running Llama is Default trust, the same key running DeepSeek is Restricted.
+  const choices = eligible.flatMap((row) => {
+    const ids = row.model_ids?.length ? row.model_ids : [row.model_id];
+    return ids.map((id) => {
+      const known = row.available_models?.find((m) => m.id === id);
+      return {
+        key: `${row.id}:${id}`,
+        providerId: row.id,
+        modelId: id,
+        label: `${row.flag} ${row.name} · ${id}`,
+        tier: known?.tier ?? row.effective_tier
+      };
+    });
+  });
 
   // Dictation degrades gracefully: the button only appears where the browser
   // supports it, and never blocks typing.
@@ -134,7 +151,8 @@ export default function AIPage() {
       const reply = await api.post<Message>(`/ai/chats/${activeChatId}/messages`, {
         content,
         data_class: taskMode,
-        provider_id: providerId
+        provider_id: modelChoice.split(":")[0] ?? "",
+        model_id: modelChoice.split(":").slice(1).join(":")
       });
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempId),
@@ -338,13 +356,13 @@ export default function AIPage() {
 
               <label className="ai-control">
                 <span>Model</span>
-                <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+                <select value={modelChoice} onChange={(e) => setModelChoice(e.target.value)}>
                   <option value="">
-                    {eligible.length ? "Best available" : "No provider available"}
+                    {choices.length ? "Best available" : "No model available"}
                   </option>
-                  {eligible.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.flag} {row.name} · {row.model_id}
+                  {choices.map((choice) => (
+                    <option key={choice.key} value={choice.key}>
+                      {choice.label} · {choice.tier}
                     </option>
                   ))}
                 </select>

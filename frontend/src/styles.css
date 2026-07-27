@@ -693,3 +693,47 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
   .studio-controls { flex-direction: column; align-items: stretch; }
   .ai-mode-tab small { display: none; }
 }
+
+/* ── Model picker: one key, many models, each with its own trust level ──── */
+
+.model-picker {
+  border-top: 1px solid var(--border, #e5e7eb);
+  padding-top: 0.85rem; margin-top: 0.5rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.model-picker-head { display: flex; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap; }
+.model-picker-head > div { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.model-picker-head small { color: var(--muted, #6b7280); font-size: 0.75rem; }
+.model-picker-note {
+  margin: 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted, #6b7280);
+  background: var(--subtle, #f3f4f6); padding: 0.5rem 0.65rem; border-radius: 0.4rem;
+}
+.model-filter {
+  width: 100%; padding: 0.45rem 0.6rem; font: inherit;
+  border: 1px solid var(--border, #e5e7eb); border-radius: 0.4rem;
+}
+
+.model-groups { display: flex; flex-direction: column; gap: 0.85rem; max-height: 26rem; overflow-y: auto; }
+.model-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.model-group-label {
+  margin: 0; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted, #6b7280);
+}
+
+.model-option {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.4rem 0.55rem; border-radius: 0.4rem; cursor: pointer;
+  border: 1px solid transparent;
+}
+.model-option:hover { background: var(--subtle, #f3f4f6); }
+.model-option-on { border-color: var(--accent, #2563eb); background: var(--subtle, #f3f4f6); }
+.model-option-blocked { opacity: 0.55; cursor: not-allowed; }
+.model-option-blocked:hover { background: transparent; }
+.model-option-id { font-size: 0.82rem; font-family: ui-monospace, monospace; overflow-wrap: anywhere; flex: 1; min-width: 8rem; }
+.model-option-why { flex-basis: 100%; font-size: 0.72rem; color: var(--muted, #6b7280); padding-left: 1.6rem; }
+.model-option input:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .model-option-id { min-width: 0; }
+  .model-groups { max-height: none; }
+}

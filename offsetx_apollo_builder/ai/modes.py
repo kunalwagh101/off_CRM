@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Iterable
 
@@ -289,7 +289,12 @@ class ModeRunner:
         ) as executor:
             futures = {
                 executor.submit(
-                    self._call_one, request, settings, system_prompt, candidate.id
+                    self._call_one,
+                    request,
+                    settings,
+                    system_prompt,
+                    candidate.id,
+                    candidate.model_id,
                 ): candidate
                 for candidate in candidates
             }
@@ -350,9 +355,13 @@ class ModeRunner:
             instructions=self._plan_brief(request, workers),
             task_tags=("planning", "reasoning", "architecture"),
         )
+        planner_settings = replace(
+            settings,
+            enabled_models={**settings.enabled_models, planner.id: (planner.model_id,)},
+        )
         plan_result = self.broker.call(
             plan_request,
-            settings,
+            planner_settings,
             system_prompt=PLANNER_SYSTEM_PROMPT,
             provider_id=planner.id,
         )
@@ -429,14 +438,23 @@ class ModeRunner:
         """
         eligible: list[ResolvedProvider] = []
         for provider_id in settings.enabled_provider_ids:
-            try:
-                resolved = self.broker.registry.resolve(
-                    provider_id, override=settings.overrides.get(provider_id)
-                )
-            except Exception:  # noqa: BLE001 - unlisted providers simply skip
+            entry = self.broker.registry.get(provider_id)
+            if entry is None:
                 continue
-            if resolved.tier in PLANNER_TIERS:
-                eligible.append(resolved)
+            # A key can hold both a tier B and a tier C model. Only the ones that
+            # are themselves trusted enough may lead.
+            model_ids = settings.enabled_models.get(provider_id) or (entry.default_model,)
+            for model_id in model_ids:
+                try:
+                    resolved = self.broker.registry.resolve(
+                        provider_id,
+                        model_id=model_id,
+                        override=settings.overrides.get(provider_id),
+                    )
+                except Exception:  # noqa: BLE001 - unlisted models simply skip
+                    continue
+                if resolved.tier in PLANNER_TIERS:
+                    eligible.append(resolved)
 
         if requested_id:
             chosen = next((item for item in eligible if item.id == requested_id), None)
@@ -499,6 +517,8 @@ class ModeRunner:
             overrides=settings.overrides,
             mailbox_unlocked=settings.mailbox_unlocked,
             task_tags=request.task_tags,
+            enabled_models=settings.enabled_models,
+            policy_by_provider=settings.default_policy_by_provider,
         )
         if not include_lower_tiers and permitted:
             best = max(item.tier.rank for item in permitted)
@@ -511,9 +531,22 @@ class ModeRunner:
         settings: WorkspaceEgressSettings,
         system_prompt: str,
         provider_id: str,
+        model_id: str = "",
     ) -> Branch:
+        """Run one branch, pinned to exactly the model this branch is for.
+
+        Without pinning, every branch on the same key would resolve back to that
+        provider's default model — so comparing two NVIDIA models would silently
+        run the same one twice.
+        """
+        branch_settings = settings
+        if model_id:
+            branch_settings = replace(
+                settings,
+                enabled_models={**settings.enabled_models, provider_id: (model_id,)},
+            )
         result = self.broker.call(
-            request, settings, system_prompt=system_prompt, provider_id=provider_id
+            request, branch_settings, system_prompt=system_prompt, provider_id=provider_id
         )
         return self._branch_from(result)
 

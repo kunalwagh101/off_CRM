@@ -71,6 +71,9 @@ export default function ModelPicker({
     }));
   }, [discovered, provider.available_models]);
 
+  // Only models off_CRM can place a trust level on may be turned on.
+  const usable = useMemo(() => models.filter((model) => model.usable), [models]);
+
   const visible = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     const matching = needle ? models.filter((m) => m.id.toLowerCase().includes(needle)) : models;
@@ -139,7 +142,7 @@ export default function ModelPicker({
         <div>
           <strong>Models on this key</strong>
           <small>
-            {selected.length} of {models.length} enabled
+            {selected.length} of {usable.length} usable enabled
             {discovered ? ` · live list from ${provider.name}` : " · from config"}
           </small>
         </div>
@@ -149,6 +152,43 @@ export default function ModelPicker({
           </Button>
         ) : null}
       </header>
+
+      {/* One key can run every model on it. Turning them all on is a normal
+          thing to want, so it should not need N clicks. */}
+      <div className="model-bulk">
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setSelected(usable.map((model) => model.id))}
+          disabled={selected.length === usable.length}
+        >
+          Select all {usable.length}
+        </button>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setSelected([])}
+          disabled={selected.length === 0}
+        >
+          Clear
+        </button>
+        {visible.length > 0 && filter.trim() ? (
+          <button
+            type="button"
+            className="link-button"
+            onClick={() =>
+              setSelected((prev) => [
+                ...new Set([
+                  ...prev,
+                  ...visible.flatMap(([, group]) => group.filter((m) => m.usable).map((m) => m.id))
+                ])
+              ])
+            }
+          >
+            Select the {visible.reduce((n, [, g]) => n + g.filter((m) => m.usable).length, 0)} shown
+          </button>
+        ) : null}
+      </div>
 
       {tiersInSelection.size > 1 ? (
         <p className="model-picker-note">

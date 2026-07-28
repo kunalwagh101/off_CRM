@@ -737,3 +737,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
   .model-option-id { min-width: 0; }
   .model-groups { max-height: none; }
 }
+
+.model-bulk { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; }
+.model-bulk .link-button { margin-left: 0; }
+.model-bulk .link-button:disabled { opacity: 0.4; cursor: default; text-decoration: none; }

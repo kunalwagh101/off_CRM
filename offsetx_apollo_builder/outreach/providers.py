@@ -479,11 +479,39 @@ class OpenAICompatibleProvider(_HttpProvider):
             payload=payload,
         )
         try:
-            return str(data["choices"][0]["message"]["content"])
+            message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderError(
-                "OpenAI-compatible response did not contain message content"
+                "OpenAI-compatible response did not contain a message"
             ) from exc
+
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str) and content.strip():
+            return content
+
+        # Reasoning models (NVIDIA Nemotron, DeepSeek R1 and similar) put their
+        # working in `reasoning_content` and can leave `content` empty when the
+        # answer is cut short. Returning the reasoning is better than raising —
+        # and if that is empty too, say *why* rather than "no content".
+        reasoning = message.get("reasoning_content") if isinstance(message, dict) else None
+        if isinstance(reasoning, str) and reasoning.strip():
+            return reasoning
+
+        finish_reason = ""
+        try:
+            finish_reason = str(data["choices"][0].get("finish_reason", ""))
+        except (KeyError, IndexError, TypeError):
+            pass
+        if finish_reason == "length":
+            raise ProviderError(
+                "The model ran out of room before it produced an answer. Raise "
+                "max_tokens for this model in config/providers.yaml under "
+                "request_options."
+            )
+        raise ProviderError(
+            "OpenAI-compatible response did not contain message content"
+            + (f" (finish_reason: {finish_reason})" if finish_reason else "")
+        )
 
 
 class TemplateEngineHttpProvider(_HttpProvider):

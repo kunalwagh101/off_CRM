@@ -351,7 +351,10 @@ def test_discover_models_without_a_key_falls_back_to_config(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["source"] == "config"
-    assert payload["total"] == 10
+    # Count is deliberately not pinned — adding a model to config is a routine
+    # edit and should not break a test about the fallback path.
+    assert payload["total"] >= 5
+    assert all(model["known"] for model in payload["models"])
     assert "No API key stored" in payload["note"]
 
 

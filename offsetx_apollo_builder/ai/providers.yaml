@@ -301,6 +301,23 @@ providers:
         cost_per_1m_output_usd: 0.0
         good_at: [writing, reasoning, planning]
         model_origin: US
+      # A reasoning model: it "thinks" before answering, and that thinking eats
+      # tokens. Without an explicit max_tokens the provider's own default can cut
+      # the answer off before it starts. request_options is sent with every call
+      # to this model — the same fields you would pass to the OpenAI SDK.
+      - id: nvidia/nemotron-3-ultra-550b-a55b
+        context_window: 128000
+        cost_per_1m_input_usd: 0.0
+        cost_per_1m_output_usd: 0.0
+        good_at: [reasoning, architecture, planning, code]
+        model_origin: US
+        request_options:
+          max_tokens: 16384
+          temperature: 1
+          top_p: 0.95
+          chat_template_kwargs:
+            enable_thinking: true
+          reasoning_budget: 16384
       - id: microsoft/phi-3-medium-128k-instruct
         context_window: 128000
         cost_per_1m_input_usd: 0.0
@@ -339,6 +356,8 @@ providers:
         good_at: [reasoning, architecture, code, planning]
         model_origin: CN
         model_origin_tier_cap: C
+        request_options:
+          max_tokens: 8192
       - id: qwen/qwen2.5-coder-32b-instruct
         context_window: 32000
         cost_per_1m_input_usd: 0.0

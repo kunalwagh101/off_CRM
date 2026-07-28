@@ -414,3 +414,138 @@ def test_a_restricted_model_on_a_trusted_key_still_cannot_lead_a_plan(harness):
             settings,
             system_prompt="w",
         )
+
+
+# ── per-model request options ──────────────────────────────────────────────
+
+
+def test_model_request_options_reach_the_http_payload(registry, tmp_path):
+    """A reasoning model needs max_tokens and its thinking settings. Storing
+    them in config is only useful if they actually go over the wire.
+    """
+    from offsetx_apollo_builder.outreach.providers import OpenAICompatibleProvider
+
+    sent: dict = {}
+
+    class _Session:
+        def post(self, url, headers=None, json=None, timeout=None):
+            sent["url"] = url
+            sent["payload"] = json
+
+            class _R:
+                ok = True
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {"choices": [{"message": {"content": "hello"}}]}
+
+            return _R()
+
+    broker = EgressBroker(
+        registry=registry, credential_resolver=lambda p: "nvapi-test", quota=QuotaTracker(tmp_path)
+    )
+    candidate = registry.resolve("nvidia", model_id="nvidia/nemotron-3-ultra-550b-a55b")
+    provider = broker._instantiate(candidate)
+    assert isinstance(provider, OpenAICompatibleProvider)
+    provider.session = _Session()
+    provider.generate(system_prompt="s", user_prompt="u")
+
+    payload = sent["payload"]
+    assert payload["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert payload["max_tokens"] == 16384
+    assert payload["temperature"] == 1
+    assert payload["top_p"] == 0.95
+    assert payload["chat_template_kwargs"] == {"enable_thinking": True}
+    assert payload["reasoning_budget"] == 16384
+    assert sent["url"].endswith("/chat/completions")
+
+
+def test_a_model_without_options_sends_a_plain_payload(registry, tmp_path):
+    """Options are opt-in per model; nothing is invented for models that do not
+    declare any."""
+    from offsetx_apollo_builder.outreach.providers import OpenAICompatibleProvider
+
+    sent: dict = {}
+
+    class _Session:
+        def post(self, url, headers=None, json=None, timeout=None):
+            sent["payload"] = json
+
+            class _R:
+                ok = True
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {"choices": [{"message": {"content": "hi"}}]}
+
+            return _R()
+
+    broker = EgressBroker(
+        registry=registry, credential_resolver=lambda p: "k", quota=QuotaTracker(tmp_path)
+    )
+    provider = broker._instantiate(
+        registry.resolve("nvidia", model_id="meta/llama-3.3-70b-instruct")
+    )
+    assert isinstance(provider, OpenAICompatibleProvider)
+    provider.session = _Session()
+    provider.generate(system_prompt="s", user_prompt="u")
+    assert set(sent["payload"].keys()) == {"model", "messages"}
+
+
+def test_a_reasoning_model_that_only_returned_its_thinking_still_answers():
+    """Reasoning models put their working in `reasoning_content`. Returning that
+    beats raising 'no content' at the user."""
+    from offsetx_apollo_builder.outreach.models import ProviderConfig
+    from offsetx_apollo_builder.outreach.providers import OpenAICompatibleProvider
+
+    class _Session:
+        def post(self, url, headers=None, json=None, timeout=None):
+            class _R:
+                ok = True
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {
+                        "choices": [
+                            {"message": {"content": "", "reasoning_content": "I thought about it."}}
+                        ]
+                    }
+
+            return _R()
+
+    provider = OpenAICompatibleProvider(
+        ProviderConfig(provider_type="openai_compatible", model="m", base_url="https://x.test/v1"),
+        api_key="k",
+        session=_Session(),
+    )
+    assert provider.generate(system_prompt="s", user_prompt="u") == "I thought about it."
+
+
+def test_running_out_of_tokens_says_how_to_fix_it():
+    """A truncated reasoning model used to surface as 'did not contain message
+    content', which tells the owner nothing actionable."""
+    from offsetx_apollo_builder.outreach.models import ProviderConfig
+    from offsetx_apollo_builder.outreach.providers import OpenAICompatibleProvider, ProviderError
+
+    class _Session:
+        def post(self, url, headers=None, json=None, timeout=None):
+            class _R:
+                ok = True
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}
+
+            return _R()
+
+    provider = OpenAICompatibleProvider(
+        ProviderConfig(provider_type="openai_compatible", model="m", base_url="https://x.test/v1"),
+        api_key="k",
+        session=_Session(),
+    )
+    with pytest.raises(ProviderError, match="max_tokens"):
+        provider.generate(system_prompt="s", user_prompt="u")

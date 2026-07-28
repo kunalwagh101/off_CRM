@@ -430,13 +430,20 @@ class EgressBroker:
         entry = candidate.entry
         api_key = self.credential_resolver(candidate.id)
         env_name = f"OFFSETX_AI_{candidate.id.upper()}_KEY"
+
+        # Per-model request options from config: max_tokens, temperature, and
+        # provider-specific keys. A large reasoning model with no max_tokens can
+        # be truncated by the provider's own default, so this is not cosmetic.
+        model_entry = candidate.model
+        request_options = dict(model_entry.request_options) if model_entry else {}
+
         config = ProviderConfig(
             provider_type=entry.adapter,
             model=candidate.model_id,
             api_key_env=env_name if api_key else "",
             base_url=entry.base_url,
             timeout_seconds=self.timeout_seconds,
-            extra={},
+            extra={"request": request_options} if request_options else {},
         )
         if api_key:
             return create_provider(config, environ={env_name: api_key})

@@ -4,8 +4,8 @@ Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-25
-Branch: `claude/per-model-connectors`
-Tests: **191 Python passed**, 6 frontend passed, 1 pre-existing failure
+Branch: `claude/model-request-options`
+Tests: **195 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -146,6 +146,15 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       Degrades to the config list on any failure, with the reason shown.
 - [x] Connecting a model off_CRM cannot place is refused with the fix in the
       message, rather than failing later at call time.
+- [x] **Per-model `request_options` in config** — `max_tokens`, `temperature`,
+      and provider-specific keys such as NVIDIA's `reasoning_budget`. A large
+      reasoning model with no `max_tokens` gets truncated by the provider's
+      own default, so this is correctness, not tuning. Options are opt-in per
+      model; models that declare none send a plain payload.
+- [x] Reasoning models handled: `reasoning_content` is returned when
+      `content` is empty, and `finish_reason: length` produces an error that
+      names `max_tokens` as the fix instead of "no message content".
+- [x] Nemotron Ultra 550B and DeepSeek R1 seeded with working options.
 
 ### Fixed in this round
 - [x] **The chosen model was ignored.** `candidates_for` resolved each provider

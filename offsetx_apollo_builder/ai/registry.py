@@ -87,7 +87,7 @@ class OriginRule:
         return {"prefix": self.prefix, "origin": self.origin, "tier_cap": self.tier_cap}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class ModelEntry:
     """One model offered by a provider."""
 
@@ -98,6 +98,11 @@ class ModelEntry:
     good_at: tuple[str, ...] = ()
     model_origin: str = ""
     model_origin_tier_cap: str = ""
+    #: Extra body sent with every call to this model — max_tokens, temperature,
+    #: and any provider-specific keys such as NVIDIA's reasoning_budget. Some
+    #: models need these to answer properly: a reasoning model with no
+    #: max_tokens can be cut off mid-thought by the provider's own default.
+    request_options: dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_free(self) -> bool:
@@ -119,6 +124,7 @@ class ModelEntry:
             "is_free": self.is_free,
             "model_origin": self.model_origin,
             "model_origin_tier_cap": self.model_origin_tier_cap,
+            "request_options": dict(self.request_options),
         }
 
 
@@ -299,6 +305,7 @@ def _parse_entry(raw: dict[str, Any]) -> ProviderEntry:
                 good_at=tuple(str(tag) for tag in item.get("good_at") or ()),
                 model_origin=str(item.get("model_origin", "")).strip().upper(),
                 model_origin_tier_cap=str(item.get("model_origin_tier_cap", "")).strip().upper(),
+                request_options=dict(item.get("request_options") or {}),
             )
         )
     if not models:

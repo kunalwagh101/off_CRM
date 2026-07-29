@@ -549,3 +549,168 @@ def test_running_out_of_tokens_says_how_to_fix_it():
     )
     with pytest.raises(ProviderError, match="max_tokens"):
         provider.generate(system_prompt="s", user_prompt="u")
+
+
+# ── image models ───────────────────────────────────────────────────────────
+
+
+def test_image_models_are_kept_apart_from_chat_models(registry):
+    """A picture model cannot answer a chat task and vice versa — different
+    endpoints, different return type."""
+    entry = registry.require("nvidia")
+    images = [m.id for m in entry.models if m.is_image]
+    assert "black-forest-labs/flux.1-dev" in images
+    assert not entry.model("meta/llama-3.3-70b-instruct").is_image
+
+    chat, _ = registry.candidates_for(
+        DataClass.PUBLIC,
+        enabled_ids=("nvidia",),
+        enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct", "black-forest-labs/flux.1-dev")},
+        kind="chat",
+    )
+    assert [c.model_id for c in chat] == ["meta/llama-3.3-70b-instruct"]
+
+    drawing, _ = registry.candidates_for(
+        DataClass.PUBLIC,
+        enabled_ids=("nvidia",),
+        enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct", "black-forest-labs/flux.1-dev")},
+        kind="image",
+    )
+    assert [c.model_id for c in drawing] == ["black-forest-labs/flux.1-dev"]
+
+
+def test_image_model_makers_are_classified_by_origin(registry):
+    """FLUX is German, Stable Diffusion is British — origin rules cover them the
+    same way they cover text models."""
+    assert registry.classify_model("black-forest-labs/flux.1-dev")["origin"] == "EU"
+    assert registry.classify_model("stabilityai/stable-diffusion-xl")["origin"] == "GB"
+
+
+def test_drawing_a_picture_goes_through_the_same_gate(registry, tmp_path):
+    """The prompt is text. Everything protective applies unchanged."""
+    log = EgressLog(tmp_path / "egress.sqlite3")
+    broker = EgressBroker(
+        registry=registry,
+        credential_resolver=lambda p: "k",
+        quota=QuotaTracker(tmp_path),
+        logger=log.record,
+    )
+
+    sent: dict = {}
+
+    class _Stub:
+        def generate_images(self, *, prompt: str) -> list[str]:
+            sent["prompt"] = prompt
+            return ["data:image/png;base64,AAAA"]
+
+    broker._instantiate = lambda c, adapter_override="": _Stub()  # type: ignore[method-assign]
+
+    result = broker.call_image(
+        EgressRequest(
+            task_type="image_generation",
+            data_class=DataClass.PUBLIC,
+            instructions="a cargo ship at a European port",
+        ),
+        _settings(
+            enabled_provider_ids=("nvidia",),
+            enabled_models={"nvidia": ("black-forest-labs/flux.1-dev",)},
+        ),
+    )
+    assert result.images == ["data:image/png;base64,AAAA"]
+    assert result.model_id == "black-forest-labs/flux.1-dev"
+    assert sent["prompt"] == "a cargo ship at a European port"
+
+    # Logged like any other call — but the picture itself is not stored, because
+    # the log exists to show what left, and what left was the prompt.
+    items, total = log.list()
+    assert total == 1
+    entry = log.get(items[0]["id"])
+    assert entry is not None
+    assert entry["task_type"] == "image_generation"
+    assert "cargo ship" in json.dumps(entry["payload"])
+    assert entry["response_text"] == "[1 image(s) returned]"
+    assert "base64" not in entry["response_text"]
+
+
+def test_an_image_prompt_carrying_an_owner_domain_is_blocked(registry, tmp_path):
+    broker = EgressBroker(
+        registry=registry,
+        credential_resolver=lambda p: "k",
+        quota=QuotaTracker(tmp_path),
+        logger=EgressLog(tmp_path / "e.sqlite3").record,
+    )
+    broker._instantiate = lambda c, adapter_override="": pytest.fail("provider was called")  # type: ignore[method-assign]
+
+    from offsetx_apollo_builder.ai import EgressBlocked
+
+    with pytest.raises(EgressBlocked):
+        broker.call_image(
+            EgressRequest(
+                task_type="image_generation",
+                data_class=DataClass.PUBLIC,
+                instructions="a logo for offsetx.example",
+            ),
+            _settings(
+                enabled_provider_ids=("nvidia",),
+                enabled_models={"nvidia": ("black-forest-labs/flux.1-dev",)},
+                owner_domains=("offsetx.example",),
+            ),
+        )
+
+
+def test_no_image_model_switched_on_says_where_to_go(registry, tmp_path):
+    broker = EgressBroker(
+        registry=registry, credential_resolver=lambda p: "k", quota=QuotaTracker(tmp_path)
+    )
+    with pytest.raises(NoPermittedProvider) as excinfo:
+        broker.call_image(
+            EgressRequest(
+                task_type="image_generation", data_class=DataClass.PUBLIC, instructions="a ship"
+            ),
+            _settings(
+                enabled_provider_ids=("nvidia",),
+                enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct",)},
+            ),
+        )
+    assert "Connectors" in str(excinfo.value)
+
+
+def test_the_image_adapter_asks_for_base64_not_a_link():
+    """A provider URL can expire or be fetched from elsewhere. Base64 keeps the
+    picture in off_CRM's hands."""
+    from offsetx_apollo_builder.outreach.models import ProviderConfig
+    from offsetx_apollo_builder.outreach.providers import OpenAIImageProvider
+
+    sent: dict = {}
+
+    class _Session:
+        def post(self, url, headers=None, json=None, timeout=None):
+            sent["url"] = url
+            sent["payload"] = json
+
+            class _R:
+                ok = True
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {"data": [{"b64_json": "QUJD"}]}
+
+            return _R()
+
+    provider = OpenAIImageProvider(
+        ProviderConfig(
+            provider_type="openai_image",
+            model="black-forest-labs/flux.1-dev",
+            base_url="https://integrate.api.nvidia.com/v1",
+            extra={"request": {"size": "1024x1024", "n": 1}},
+        ),
+        api_key="k",
+        session=_Session(),
+    )
+    images = provider.generate_images(prompt="a ship")
+
+    assert images == ["data:image/png;base64,QUJD"]
+    assert sent["url"].endswith("/images/generations")
+    assert sent["payload"]["response_format"] == "b64_json"
+    assert sent["payload"]["size"] == "1024x1024"

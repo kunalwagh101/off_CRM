@@ -4,8 +4,8 @@ Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-25
-Branch: `claude/model-request-options`
-Tests: **195 Python passed**, 6 frontend passed, 1 pre-existing failure
+Branch: `claude/image-generation`
+Tests: **201 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -155,6 +155,14 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       `content` is empty, and `finish_reason: length` produces an error that
       names `max_tokens` as the fix instead of "no message content".
 - [x] Nemotron Ultra 550B and DeepSeek R1 seeded with working options.
+- [x] **Image generation.** Models carry `kind: chat | image`; image models
+      go to `/images/generations` and return pictures. Same key, same tier
+      rules, same scanner, same log — a prompt is text, so a prompt naming a
+      real person is still person data. FLUX (German) and Stable Diffusion
+      (British) seeded on the NVIDIA key with origin rules for their makers.
+      Pictures come back as base64 so they never sit behind a provider URL;
+      the image itself is not written to the egress log, only the prompt and
+      a count, since the log exists to show what *left*.
 
 ### Fixed in this round
 - [x] **The chosen model was ignored.** `candidates_for` resolved each provider

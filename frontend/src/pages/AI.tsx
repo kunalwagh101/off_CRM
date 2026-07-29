@@ -5,6 +5,7 @@ import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIModesPayload, AIProvidersPayload } from "../types";
 import { CompareView, ModelStrip, PlanView } from "./AIStudio";
+import ImageStudio from "./ImageStudio";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; provider: string; model: string; created_at: string };
 type Chat = { id: string; title: string; project_id: string | null; created_at: string; updated_at: string };
@@ -28,7 +29,7 @@ export default function AIPage() {
   const [taskMode, setTaskMode] = useState<"campaign" | "public">("campaign");
   const [listening, setListening] = useState(false);
   // Three ways to work. Chat is the everyday one and stays the default.
-  const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan">("chat");
+  const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan" | "image">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
@@ -264,11 +265,21 @@ export default function AIPage() {
           {([
             { key: "chat", label: "Chat", hint: "One model · fastest" },
             { key: "compare", label: "Compare", hint: "All models · pick the best" },
-            { key: "plan", label: "Plan", hint: "A lead model splits the job" }
+            { key: "plan", label: "Plan", hint: "A lead model splits the job" },
+            { key: "image", label: "Image", hint: "Draw a picture" }
           ] as const).map((tab) => {
-            const info = modes.data?.modes.find((item) =>
-              tab.key === "chat" ? item.value === "simple" : tab.key === "compare" ? item.value === "compare" : item.value === "orchestrated"
-            );
+            // The image tab has its own availability rule — it needs an image
+            // model switched on, which the run-mode list knows nothing about.
+            const info =
+              tab.key === "image"
+                ? undefined
+                : modes.data?.modes.find((item) =>
+                    tab.key === "chat"
+                      ? item.value === "simple"
+                      : tab.key === "compare"
+                      ? item.value === "compare"
+                      : item.value === "orchestrated"
+                  );
             const disabled = info ? !info.available : false;
             return (
               <button
@@ -292,6 +303,8 @@ export default function AIPage() {
           <CompareView providers={providerRows} modes={modes.data ?? null} />
         ) : workMode === "plan" ? (
           <PlanView providers={providerRows} modes={modes.data ?? null} />
+        ) : workMode === "image" ? (
+          <ImageStudio providers={providerRows} />
         ) : (
         <>
 

@@ -138,6 +138,36 @@ class EgressResult:
         }
 
 
+@dataclass(slots=True)
+class ImageResult:
+    """What came back from an image model."""
+
+    images: list[str]
+    prompt: str
+    provider_id: str
+    provider_name: str
+    model_id: str
+    tier: str
+    policy: str
+    duration_ms: int
+    log_id: str = ""
+    rejected: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "images": self.images,
+            "prompt": self.prompt,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "model_id": self.model_id,
+            "tier": self.tier,
+            "policy": self.policy,
+            "duration_ms": self.duration_ms,
+            "log_id": self.log_id,
+            "rejected": self.rejected,
+        }
+
+
 #: ``(provider_id) -> api_key``.  Returning "" means "no credential stored".
 CredentialResolver = Callable[[str], str]
 
@@ -179,6 +209,7 @@ class EgressBroker:
         settings: WorkspaceEgressSettings,
         *,
         provider_id: str = "",
+        kind: str = "chat",
     ) -> tuple[list[ResolvedProvider], list[dict[str, Any]]]:
         """Resolve the ordered candidate list without calling anything.
 
@@ -217,6 +248,7 @@ class EgressBroker:
             task_tags=request.task_tags,
             enabled_models=models,
             policy_by_provider=settings.default_policy_by_provider,
+            kind=kind,
         )
 
         # Quota filter: skip providers with nothing left rather than calling
@@ -241,7 +273,8 @@ class EgressBroker:
 
         if not with_budget:
             raise NoPermittedProvider(
-                self._explain_empty(request.data_class, rejected), considered=rejected
+                self._explain_empty(request.data_class, rejected, kind=kind),
+                considered=rejected,
             )
 
         # Never fail over across a tier boundary: keep only the highest tier
@@ -265,7 +298,15 @@ class EgressBroker:
         return same_tier, rejected
 
     @staticmethod
-    def _explain_empty(data_class: DataClass, rejected: list[dict[str, Any]]) -> str:
+    def _explain_empty(
+        data_class: DataClass, rejected: list[dict[str, Any]], *, kind: str = "chat"
+    ) -> str:
+        if kind == "image" and not rejected:
+            return (
+                "No image model is switched on. Open Connectors, press Models on a "
+                "provider that offers them, and tick one — NVIDIA has FLUX and "
+                "Stable Diffusion on the same key you already use for text."
+            )
         if not rejected:
             return (
                 f"No connected provider may handle {data_class.label.lower()}. "
@@ -424,9 +465,112 @@ class EgressBroker:
             considered=rejected + attempts,
         )
 
+    def call_image(
+        self,
+        request: EgressRequest,
+        settings: WorkspaceEgressSettings,
+        *,
+        provider_id: str = "",
+    ) -> "ImageResult":
+        """Draw a picture from a prompt.
+
+        A separate method from :meth:`call` on purpose: it returns images, not
+        text, and the two must never be interchangeable. Everything protective is
+        shared — the same tier filter, the same allowlist payload construction,
+        the same blocking scanner, the same log — because an image prompt is
+        still text, and a prompt naming a real person is still person data.
+        """
+        candidates, rejected = self.plan(request, settings, provider_id=provider_id, kind="image")
+        attempts: list[dict[str, Any]] = []
+
+        for candidate in candidates:
+            payload = build_payload(request, candidate.policy)
+            report = scan_payload(
+                payload,
+                policy=candidate.policy,
+                owner_domains=settings.owner_domains,
+                owner_addresses=settings.owner_addresses,
+                allow_addresses=candidate.policy is DataPolicy.FULL,
+            )
+            if not report.clean:
+                self._log(
+                    settings=settings,
+                    candidate=candidate,
+                    request=request,
+                    payload=payload,
+                    status="blocked",
+                    error=report.summary(),
+                    findings=[item.to_dict() for item in report.findings],
+                    duration_ms=0,
+                    response_text="",
+                )
+                raise EgressBlocked(
+                    f"Blocked before sending to {candidate.name}. {report.findings[0].detail} "
+                    "Nothing was sent.",
+                    findings=[item.to_dict() for item in report.findings],
+                )
+
+            prompt = str(payload.get("instructions") or request.instructions or "").strip()
+            started = time.monotonic()
+            status = "succeeded"
+            error = ""
+            images: list[str] = []
+            try:
+                provider = self._instantiate(candidate, adapter_override="openai_image")
+                images = provider.generate_images(prompt=prompt)
+            except Exception as exc:  # noqa: BLE001 - recorded, then failover
+                status = "failed"
+                error = str(exc)[:500]
+            duration_ms = int((time.monotonic() - started) * 1000)
+
+            if self.quota is not None:
+                self.quota.record(candidate.id, rate_limited="429" in error)
+
+            # The picture itself is not written to the log: a base64 image is
+            # megabytes, and the log exists to show what *left*, which is the
+            # prompt. The count and size are recorded instead.
+            log_id = self._log(
+                settings=settings,
+                candidate=candidate,
+                request=request,
+                payload=payload,
+                status=status,
+                error=error,
+                findings=[],
+                duration_ms=duration_ms,
+                response_text=f"[{len(images)} image(s) returned]" if images else "",
+            )
+
+            if status == "failed":
+                attempts.append(
+                    {"provider_id": candidate.id, "model_id": candidate.model_id,
+                     "status": "failed", "detail": error}
+                )
+                continue
+
+            return ImageResult(
+                images=images,
+                prompt=prompt,
+                provider_id=candidate.id,
+                provider_name=candidate.name,
+                model_id=candidate.model_id,
+                tier=candidate.tier.value,
+                policy=candidate.policy.value,
+                duration_ms=duration_ms,
+                log_id=log_id,
+                rejected=rejected,
+            )
+
+        detail = "; ".join(
+            f"{item['provider_id']}: {item.get('detail', item['status'])}" for item in attempts
+        )
+        raise NoPermittedProvider(
+            f"Every image model failed. {detail}", considered=rejected + attempts
+        )
+
     # ── internals ───────────────────────────────────────────────────────────
 
-    def _instantiate(self, candidate: ResolvedProvider) -> Any:
+    def _instantiate(self, candidate: ResolvedProvider, *, adapter_override: str = "") -> Any:
         entry = candidate.entry
         api_key = self.credential_resolver(candidate.id)
         env_name = f"OFFSETX_AI_{candidate.id.upper()}_KEY"
@@ -438,7 +582,7 @@ class EgressBroker:
         request_options = dict(model_entry.request_options) if model_entry else {}
 
         config = ProviderConfig(
-            provider_type=entry.adapter,
+            provider_type=adapter_override or entry.adapter,
             model=candidate.model_id,
             api_key_env=env_name if api_key else "",
             base_url=entry.base_url,

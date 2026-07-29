@@ -16,6 +16,7 @@ from .broker import (
     EgressBroker,
     EgressDecision,
     EgressResult,
+    ImageResult,
     WorkspaceEgressSettings,
 )
 from .errors import (
@@ -58,6 +59,7 @@ __all__ = [
     "EgressLog",
     "EgressRequest",
     "EgressResult",
+    "ImageResult",
     "ModeRunner",
     "PlanStep",
     "RunMode",

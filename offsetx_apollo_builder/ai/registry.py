@@ -103,6 +103,13 @@ class ModelEntry:
     #: models need these to answer properly: a reasoning model with no
     #: max_tokens can be cut off mid-thought by the provider's own default.
     request_options: dict[str, Any] = field(default_factory=dict)
+    #: "chat" writes text, "image" draws pictures. They use different endpoints
+    #: and return different things, so the broker keeps the two paths apart.
+    kind: str = "chat"
+
+    @property
+    def is_image(self) -> bool:
+        return self.kind == "image"
 
     @property
     def is_free(self) -> bool:
@@ -125,6 +132,8 @@ class ModelEntry:
             "model_origin": self.model_origin,
             "model_origin_tier_cap": self.model_origin_tier_cap,
             "request_options": dict(self.request_options),
+            "kind": self.kind,
+            "is_image": self.is_image,
         }
 
 
@@ -306,6 +315,7 @@ def _parse_entry(raw: dict[str, Any]) -> ProviderEntry:
                 model_origin=str(item.get("model_origin", "")).strip().upper(),
                 model_origin_tier_cap=str(item.get("model_origin_tier_cap", "")).strip().upper(),
                 request_options=dict(item.get("request_options") or {}),
+                kind=str(item.get("kind", "chat")).strip().lower() or "chat",
             )
         )
     if not models:
@@ -617,6 +627,7 @@ class ProviderRegistry:
         prefer_free: bool = True,
         enabled_models: dict[str, tuple[str, ...]] | None = None,
         policy_by_provider: dict[str, Any] | None = None,
+        kind: str = "chat",
     ) -> tuple[list[ResolvedProvider], list[dict[str, Any]]]:
         """Return every permitted **provider + model** pair, cheapest first.
 
@@ -669,6 +680,11 @@ class ProviderRegistry:
                             "detail": str(exc),
                         }
                     )
+                    continue
+                # An image model cannot answer a chat task and vice versa.
+                model_entry = entry.model(model_id)
+                model_kind = model_entry.kind if model_entry else "chat"
+                if model_kind != kind:
                     continue
                 if not resolved.permits(data_class, mailbox_unlocked=mailbox_unlocked):
                     rejected.append(

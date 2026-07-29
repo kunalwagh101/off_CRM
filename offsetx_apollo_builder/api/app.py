@@ -1375,6 +1375,49 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise _ai_error(exc) from exc
         return result.to_dict()
 
+    @app.post(f"{API_PREFIX}/ai/image")
+    def ai_image(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Draw a picture from a prompt.
+
+        Same gate as everything else: the prompt is text, so if it names a real
+        person it is person data and the trust rules apply unchanged.
+        """
+        broker, workspaces, _ = _ai(request)
+        workspace_id = _workspace_id(request)
+        settings = workspaces.egress_settings(workspace_id)
+        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+
+        prompt = str(body.get("prompt", "")).strip()[:4000]
+        if not prompt:
+            raise HTTPException(
+                400,
+                detail={"error": "empty_prompt", "message": "Describe the picture you want."},
+            )
+
+        raw_class = str(body.get("data_class", "public")).strip().lower()
+        if raw_class not in {"public", "person_public"}:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "invalid_data_class",
+                    "message": "Image prompts run as 'public' or 'person_public'.",
+                },
+            )
+
+        egress = EgressRequest(
+            task_type="image_generation",
+            data_class=DataClass(raw_class),
+            instructions=prompt,
+            task_tags=("image",),
+        )
+        try:
+            result = broker.call_image(
+                egress, settings, provider_id=str(body.get("provider_id", "")).strip()
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+        return result.to_dict()
+
     @app.get(f"{API_PREFIX}/ai/egress-log")
     def ai_egress_log(
         request: Request,

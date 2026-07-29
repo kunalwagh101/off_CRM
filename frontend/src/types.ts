@@ -526,6 +526,9 @@ export type AIModel = {
   is_free: boolean;
   model_origin: string;
   model_origin_tier_cap: string;
+  /** "chat" writes text, "image" draws pictures. Different endpoints. */
+  kind: string;
+  is_image: boolean;
 };
 
 export type AIUsage = {

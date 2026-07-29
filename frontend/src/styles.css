@@ -741,3 +741,27 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .model-bulk { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; font-size: 0.8rem; }
 .model-bulk .link-button { margin-left: 0; }
 .model-bulk .link-button:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
+
+/* ── Image studio ───────────────────────────────────────────────────────── */
+.ai-control-check { flex-direction: row; align-items: center; gap: 0.45rem; }
+.ai-control-check span { text-transform: none; letter-spacing: 0; font-size: 0.82rem; color: inherit; }
+
+.image-run { display: flex; flex-direction: column; gap: 0.5rem; }
+.image-prompt { margin: 0; font-size: 0.82rem; color: var(--muted, #6b7280); font-style: italic; }
+
+.image-grid {
+  display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+}
+.image-card {
+  margin: 0; border: 1px solid var(--border, #e5e7eb); border-radius: 0.75rem;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.image-card img { width: 100%; height: auto; display: block; background: var(--subtle, #f3f4f6); }
+.image-card figcaption { padding: 0.4rem 0.5rem; display: flex; justify-content: flex-end; }
+.image-card-loading { padding: 1rem; gap: 0.75rem; }
+.image-skeleton {
+  width: 100%; aspect-ratio: 1 / 1; border-radius: 0.5rem;
+  background: var(--border, #e5e7eb); animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .image-skeleton { animation: none; } }

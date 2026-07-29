@@ -514,6 +514,67 @@ class OpenAICompatibleProvider(_HttpProvider):
         )
 
 
+class OpenAIImageProvider(_HttpProvider):
+    """Text-to-image over the OpenAI-compatible /images/generations endpoint.
+
+    NVIDIA, OpenAI and several others expose the same shape, so one adapter
+    covers them: prompt in, base64 image out.
+
+    Deliberately *not* an ``AIProvider``: it returns pictures, not text, and the
+    two must not be interchangeable. A caller that expects a sentence should
+    never silently receive an image.
+    """
+
+    def generate_images(self, *, prompt: str) -> list[str]:
+        """Return images as ``data:`` URIs, ready for an <img src>."""
+        if not self.config.base_url:
+            raise ProviderError("Image generation requires base_url")
+        base_url = _validate_http_url(self.config.base_url, allow_local=False)
+
+        payload: dict[str, Any] = {
+            "model": self.config.model,
+            "prompt": prompt,
+            # Ask for base64 so the picture never lives behind a provider URL
+            # that could expire, be logged, or be fetched from elsewhere.
+            "response_format": "b64_json",
+        }
+        payload.update(self.config.extra.get("request", {}))
+
+        data = self._post(
+            f"{base_url}/images/generations",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            payload=payload,
+        )
+
+        items = data.get("data")
+        if not isinstance(items, list) or not items:
+            raise ProviderError("Image provider returned no images")
+
+        images: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            encoded = item.get("b64_json")
+            if isinstance(encoded, str) and encoded.strip():
+                images.append(f"data:image/png;base64,{encoded.strip()}")
+                continue
+            # Some hosts ignore response_format and hand back a URL instead.
+            # Keep it rather than failing, but it is second choice: the link is
+            # the provider's, and it may expire.
+            url = item.get("url")
+            if isinstance(url, str) and url.strip():
+                images.append(url.strip())
+
+        if not images:
+            raise ProviderError(
+                "Image provider returned a response with no usable image data"
+            )
+        return images
+
+
 class TemplateEngineHttpProvider(_HttpProvider):
     """Normalized adapter for the future separate template-intelligence application."""
 
@@ -604,4 +665,6 @@ def create_provider(
         return AnthropicMessagesProvider(config, api_key=api_key, session=session)
     if provider_type == "openai_compatible":
         return OpenAICompatibleProvider(config, api_key=api_key, session=session)
+    if provider_type == "openai_image":
+        return OpenAIImageProvider(config, api_key=api_key, session=session)
     raise ProviderError(f"Unsupported AI provider type: {config.provider_type}")

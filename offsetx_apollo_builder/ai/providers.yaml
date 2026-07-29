@@ -77,6 +77,15 @@ model_origin_rules:
   # European developers — no cap needed, they do not lower a host's tier.
   - prefix: "mistralai/"
     origin: EU
+  # Black Forest Labs (FLUX) is a German company; Stability AI is British.
+  - prefix: "black-forest-labs/"
+    origin: EU
+  - prefix: "flux"
+    origin: EU
+  - prefix: "stabilityai/"
+    origin: GB
+  - prefix: "stable-diffusion"
+    origin: GB
   - prefix: "mistral-"
     origin: EU
 
@@ -372,6 +381,33 @@ providers:
         good_at: [bulk, multilingual]
         model_origin: CN
         model_origin_tier_cap: C
+
+      # ── Image models on the same key ──────────────────────────────────────
+      # `kind: image` sends to /images/generations instead of /chat/completions
+      # and returns a picture rather than text. The trust rules are unchanged:
+      # the prompt is still text, and a prompt naming a real person is still
+      # person data.
+      - id: black-forest-labs/flux.1-dev
+        kind: image
+        good_at: [image, illustration, photoreal]
+        model_origin: EU
+        request_options:
+          size: "1024x1024"
+          n: 1
+      - id: black-forest-labs/flux.1-schnell
+        kind: image
+        good_at: [image, fast]
+        model_origin: EU
+        request_options:
+          size: "1024x1024"
+          n: 1
+      - id: stabilityai/stable-diffusion-xl
+        kind: image
+        good_at: [image, illustration]
+        model_origin: GB
+        request_options:
+          size: "1024x1024"
+          n: 1
     free_tier:
       requests_per_minute: 40
       notes: Phone verification required.

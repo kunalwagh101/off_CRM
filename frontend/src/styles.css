@@ -765,3 +765,10 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
   background: var(--border, #e5e7eb); animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) { .image-skeleton { animation: none; } }
+
+.model-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+.model-group-head .link-button { margin-left: 0; font-size: 0.75rem; white-space: nowrap; }
+.model-group-count {
+  margin-left: 0.4rem; font-weight: 400; letter-spacing: 0;
+  color: var(--muted, #6b7280); text-transform: none;
+}

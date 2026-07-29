@@ -211,9 +211,38 @@ export default function ModelPicker({
       ) : null}
 
       <div className="model-groups">
-        {visible.map(([family, group]) => (
+        {visible.map(([family, group]) => {
+          const groupUsable = group.filter((model) => model.usable);
+          const allOn =
+            groupUsable.length > 0 && groupUsable.every((model) => selected.includes(model.id));
+          return (
           <div key={family} className="model-group">
-            <p className="model-group-label">{family}</p>
+            {/* One key hosts several makers, and wanting "every Microsoft model"
+                or "every DeepSeek model" is normal. The header toggles the whole
+                maker at once — still only the usable ones. */}
+            <div className="model-group-head">
+              <p className="model-group-label">
+                {family}
+                <span className="model-group-count">
+                  {groupUsable.filter((m) => selected.includes(m.id)).length}/{groupUsable.length}
+                </span>
+              </p>
+              {groupUsable.length > 1 ? (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() =>
+                    setSelected((prev) =>
+                      allOn
+                        ? prev.filter((id) => !groupUsable.some((m) => m.id === id))
+                        : [...new Set([...prev, ...groupUsable.map((m) => m.id)])]
+                    )
+                  }
+                >
+                  {allOn ? `Remove all ${family}` : `Add all ${groupUsable.length}`}
+                </button>
+              ) : null}
+            </div>
             {group.map((model) => {
               const on = selected.includes(model.id);
               return (
@@ -251,7 +280,8 @@ export default function ModelPicker({
               );
             })}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {visible.length === 0 ? (

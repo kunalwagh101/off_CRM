@@ -361,3 +361,60 @@ def test_discover_models_without_a_key_falls_back_to_config(client):
 def test_discover_models_on_an_unlisted_provider_is_refused(client):
     response = client.post(f"{API}/ai/providers/nope/discover-models", json={})
     assert response.status_code == 400
+
+
+# ── recall over sent mail ───────────────────────────────────────────────────
+
+
+def test_recall_starts_empty_and_reports_how_it_works(client):
+    """The screen states the safety properties, so the API has to carry them."""
+    payload = client.get(f"{API}/ai/recall").json()
+    assert payload["stats"]["indexed"] == 0
+    assert payload["stats"]["searchable_locally"] is True
+    assert payload["stats"]["embeddings_used"] is False
+    assert payload["stats"]["stored_redacted"] is True
+
+
+def test_recall_search_reports_that_it_sent_nothing(client):
+    """Search is local. The flag exists so the UI can say so without guessing."""
+    response = client.post(f"{API}/ai/recall/search", json={"query": "customs"})
+    assert response.status_code == 200
+    assert response.json()["sent_anywhere"] is False
+
+
+def test_recall_preview_shows_the_real_outbound_payload(client):
+    """Not a description of the payload — the payload, through the real builder
+    and the real scanner."""
+    response = client.post(f"{API}/ai/recall/preview", json={"query": "customs"})
+    assert response.status_code == 200
+    preview = response.json()
+    assert preview["data_class"] == "campaign", "never 'public' — that would skip the tier rule"
+    assert preview["scan"]["clean"] is True
+    assert "recipient" not in preview["payload"]
+
+
+def test_recall_preview_under_a_restricted_policy_carries_no_snippets(client):
+    """The second barrier, visible through the API: a minimal policy drops the
+    past emails entirely rather than trimming them."""
+    preview = client.post(
+        f"{API}/ai/recall/preview", json={"query": "customs", "data_policy": "minimal"}
+    ).json()
+    assert "prior_drafts" not in preview["payload"]
+
+
+def test_recall_forget_needs_something_named(client):
+    response = client.post(f"{API}/ai/recall/forget", json={})
+    assert response.status_code == 400
+    assert response.json()["detail"]["error"] == "nothing_named"
+
+
+def test_recall_forget_everything_is_allowed(client):
+    response = client.post(f"{API}/ai/recall/forget", json={"everything": True})
+    assert response.status_code == 200
+    assert response.json()["removed"] == 0
+
+
+def test_recall_rebuild_runs_without_a_campaign(client):
+    response = client.post(f"{API}/ai/recall/rebuild", json={})
+    assert response.status_code == 200
+    assert response.json()["indexed"] == 0

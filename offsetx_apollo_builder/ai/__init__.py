@@ -31,6 +31,14 @@ from .log import EgressLog
 from .modes import Branch, ModeRunner, PlanStep, RunMode, RunResult
 from .payload import EgressRequest, PersonPublic, build_payload, describe_policy_for_class
 from .quota import QuotaLimits, QuotaTracker
+from .recall import (
+    Identity,
+    Recalled,
+    Redactor,
+    SentMailIndex,
+    build_redactor,
+    strip_quoted_thread,
+)
 from .registry import ProviderEntry, ProviderOverride, ProviderRegistry, ResolvedProvider
 from .scanner import ScanFinding, ScanReport, scan_payload
 from .tiers import (
@@ -76,6 +84,9 @@ __all__ = [
     "ProviderRegistry",
     "QuotaLimits",
     "QuotaTracker",
+    "Recalled",
+    "Redactor",
+    "SentMailIndex",
     "RegistryError",
     "ResolvedProvider",
     "ScanFinding",
@@ -84,7 +95,9 @@ __all__ = [
     "TemplateScore",
     "TrustTier",
     "WorkspaceEgressSettings",
+    "Identity",
     "build_payload",
+    "build_redactor",
     "coerce_data_class",
     "coerce_policy",
     "coerce_tier",
@@ -94,5 +107,6 @@ __all__ = [
     "policy_ceiling_for_tier",
     "scan_payload",
     "tier_for_jurisdiction",
+    "strip_quoted_thread",
     "tier_permits_class",
 ]

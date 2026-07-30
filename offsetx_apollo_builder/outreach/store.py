@@ -910,6 +910,26 @@ class OutreachStore:
             (campaign_contact_id,),
         )
 
+    def sent_messages(self, campaign_id: str, *, limit: int = 100000) -> list[dict[str, Any]]:
+        """Outbound messages for a campaign, plus the contact's structural fields.
+
+        The ``direction = 'outbound'`` filter is part of the query, not a caller's
+        responsibility: received mail is mailbox content, and the recall index
+        must have no way to ask for it even by passing the wrong argument.
+        """
+        return self._rows(
+            """
+            SELECT m.*, c.category AS contact_category, c.route AS contact_route
+            FROM messages m
+            JOIN campaign_contacts cc ON cc.id = m.campaign_contact_id
+            JOIN contacts c ON c.id = cc.contact_id
+            WHERE cc.campaign_id = ? AND m.direction = 'outbound'
+            ORDER BY m.sent_at DESC
+            LIMIT ?
+            """,
+            (campaign_id, int(limit)),
+        )
+
     def sent_count_between(
         self, campaign_id: str, start_utc: datetime, end_utc: datetime
     ) -> int:

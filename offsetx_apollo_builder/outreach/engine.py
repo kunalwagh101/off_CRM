@@ -6,7 +6,7 @@ import re
 import threading
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
@@ -121,13 +121,43 @@ def campaign_send_window(campaign: dict[str, Any], value: datetime) -> dict[str,
     }
 
 
+class TemplateCounter(Protocol):
+    """The two facts the context layer needs from the sending pipeline.
+
+    Deliberately this narrow: outreach must not import the AI package, and a
+    counter must not be able to ask for anything back.  ``ContextLayer`` satisfies
+    this structurally, so wiring one in is an assignment in ``api/app.py``.
+
+    Note the absence of any reply *content* parameter.  That a reply arrived is a
+    fact worth counting; what it says is mailbox content and never leaves.
+    """
+
+    def record_send(
+        self, *, workspace_id: str = ..., template_id: str, variant_id: str = ...
+    ) -> None: ...
+
+    def record_reply(
+        self, *, workspace_id: str = ..., template_id: str, variant_id: str = ...
+    ) -> None: ...
+
+
 class OutreachEngine:
     """Application service for the local CRM, independent of UI and AI vendor."""
 
-    def __init__(self, database_path: Path | str, *, template_file: Path | str | None = None):
+    def __init__(
+        self,
+        database_path: Path | str,
+        *,
+        template_file: Path | str | None = None,
+        template_counter: TemplateCounter | None = None,
+        workspace_id: str = "local",
+    ):
         self.store = OutreachStore(database_path)
         self.store.initialize()
         self.email_expert = LocalEmailExpert(self.store)
+        # Optional: counting reply rates is useful but never required to send.
+        self.template_counter = template_counter
+        self.workspace_id = workspace_id
         self._lock = threading.RLock()
         seed_path = Path(template_file) if template_file else DEFAULT_TEMPLATE_FILE
         if seed_path.exists():
@@ -145,6 +175,51 @@ class OutreachEngine:
 
     def close(self) -> None:
         self.store.close()
+
+    # ── reply-rate counting ────────────────────────────────────────────────
+    #
+    # Two facts, counted as they happen: this template went out, this template
+    # earned a reply.  Nothing else is passed on — no recipient, no address, not
+    # a word of the reply itself.  A counter is optional and a failure here must
+    # never lose a send that already left, so both helpers swallow their errors.
+
+    @staticmethod
+    def _template_key(row: dict[str, Any]) -> tuple[str, str]:
+        """Identify a template the way the drafts and messages tables do.
+
+        ``template_id`` is the wording; ``variant_id`` is which arm of the A/B
+        test it is.  Old rows predate ``template_id``, so fall back to the stage.
+        """
+        return (
+            clean_text(row.get("template_id")) or clean_text(row.get("stage")),
+            clean_text(row.get("variant_id")),
+        )
+
+    def _count_send(self, draft: dict[str, Any]) -> None:
+        if self.template_counter is None:
+            return
+        template_id, variant_id = self._template_key(draft)
+        if not template_id:
+            return
+        try:
+            self.template_counter.record_send(
+                workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
+            )
+        except Exception:  # pragma: no cover - counting must never break sending
+            pass
+
+    def _count_reply(self, message: dict[str, Any]) -> None:
+        if self.template_counter is None:
+            return
+        template_id, variant_id = self._template_key(message)
+        if not template_id:
+            return
+        try:
+            self.template_counter.record_reply(
+                workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
+            )
+        except Exception:  # pragma: no cover - counting must never break a sync
+            pass
 
     def create_campaign(
         self,
@@ -476,6 +551,9 @@ class OutreachEngine:
                         stage=str(contact.get("current_stage", "")),
                         variant_id=str(contact.get("variant_id", "")),
                     )
+                    # Credit the template that was actually sent, not the contact's
+                    # current stage — by now the contact has usually moved on.
+                    self._count_reply(self.store.last_outgoing(campaign_contact_id) or {})
             result = {"scanned": len(incoming), "matched": matched}
             self.store.add_event(campaign_id, "replies_synced", result)
             return result
@@ -600,6 +678,7 @@ class OutreachEngine:
                         idempotency_key=idempotency_key,
                     )
                     sent.append({"draft_id": draft_id, "to": email, "stage": stage})
+                    self._count_send(draft)
                 except Exception as exc:
                     self.store.mark_send_failed(draft_id, str(exc))
                     failed.append({"draft_id": draft_id, "error": str(exc)})

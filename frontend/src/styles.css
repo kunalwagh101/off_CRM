@@ -772,3 +772,17 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
   margin-left: 0.4rem; font-weight: 400; letter-spacing: 0;
   color: var(--muted, #6b7280); text-transform: none;
 }
+
+/* ── Memory screen ──────────────────────────────────────────────────────── */
+.rewrite-box {
+  width: 100%; font: inherit; padding: 0.7rem; border-radius: 0.5rem;
+  border: 1px solid var(--border, #e5e7eb); resize: vertical; line-height: 1.6;
+}
+.task-list { display: flex; flex-direction: column; gap: 0.85rem; }
+.task-card {
+  border: 1px solid var(--border, #e5e7eb); border-radius: 0.6rem; padding: 0.75rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.task-card header { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: baseline; }
+.task-next { margin: 0; font-size: 0.85rem; }
+.task-decisions { margin: 0.25rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--muted, #6b7280); line-height: 1.6; }

@@ -19,6 +19,7 @@ from .broker import (
     ImageResult,
     WorkspaceEgressSettings,
 )
+from .context import ContextLayer, TaskState, TemplateScore
 from .errors import (
     AIModuleError,
     EgressBlocked,
@@ -50,6 +51,7 @@ from .tiers import (
 
 __all__ = [
     "AIModuleError",
+    "ContextLayer",
     "Branch",
     "DataClass",
     "DataPolicy",
@@ -78,6 +80,8 @@ __all__ = [
     "ResolvedProvider",
     "ScanFinding",
     "ScanReport",
+    "TaskState",
+    "TemplateScore",
     "TrustTier",
     "WorkspaceEgressSettings",
     "build_payload",

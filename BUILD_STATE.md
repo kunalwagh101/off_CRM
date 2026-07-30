@@ -3,9 +3,9 @@
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
-Last updated: 2026-07-25
-Branch: `claude/image-generation`
-Tests: **201 Python passed**, 6 frontend passed, 1 pre-existing failure
+Last updated: 2026-07-30
+Branch: `claude/context-layer`
+Tests: **221 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -183,6 +183,36 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] §4L: structured refusals surface as readable sentences with a next step,
       never a raw status code. Every empty state has an action.
 
+### Context layer (§4F/§4H) — built
+
+- [x] `ai/context.py` — job state (steps, decisions, facts) plus a **rolling
+      summary assembled by Python**, not written by a model. Same inputs, same
+      summary; no per-update AI cost and no drift.
+- [x] Decisions survive a model swap mid-job, which is the point of the layer:
+      the head model can change without the choices being quietly undone.
+- [x] Reply-rate counting per template and variant. A template is not judged
+      until 20 sends, so one lucky reply out of two is never a "50% success".
+- [x] Weak templates (judged, at or under 5%) can be rewritten. The request that
+      leaves carries **the template wording and two numbers** — no recipient, no
+      name, no address — so it runs as public work under any permitted model.
+- [x] Nothing goes live automatically. A rewrite is shown for approval and saved
+      as a new variant to run against the old one.
+- [x] The winning template is offered to other models as a reference to follow
+      or beat (owner's request).
+- [x] **Wired into the real send path.** `OutreachEngine` counts a send when the
+      message actually leaves and a reply against the template that was sent —
+      not the contact's current stage, which has usually moved on. The unattended
+      automation sender counts too. A counter failure can never lose a send.
+- [x] Two safety rules with their own tests: **no model can query this store**
+      (no tool, no function, no retrieval interface, no provider import), and
+      **only code writes to it** — so the numbers stay facts.
+- [x] `record_reply` takes no reply text. Detecting that a reply arrived is a
+      fact; reading what it says would be mailbox content leaving. There is
+      nowhere to put it.
+- [x] Memory screen in the UI: reply rates, weak flags, the rewrite awaiting
+      approval, and jobs in progress.
+- [x] This is **not fine-tuning**. No data is shipped away to retrain anything.
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -204,12 +234,10 @@ Listed honestly. Nothing below is silently assumed done.
 | § | Item | Note |
 |---|---|---|
 | 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
-| 4F | Runtime task/plan state + rolling summary | `outreach/memory.py` is an evidence store, not the orchestration state store. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
-| 4H | Auto-rewrite of losing variants + bandit | Reply-rate measurement and A/B with Wilson intervals exist; the trigger loop does not. |
+| 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
 | 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** |
 | 4K | Graphify | Not started. |
-| — | Context layer: learning loop + template memory | Agreed with owner. Next piece. Tracks which template earns replies, rewrites the weak ones, and offers the winning template to other models as a reference they may use or beat. |
 | — | RAG over redacted sent-mail history | Agreed with owner. Search runs locally; results pass through the same egress gate. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
@@ -242,7 +270,8 @@ Listed honestly. Nothing below is silently assumed done.
 
 ## 6. Open questions for the owner
 
-1. **Context layer / RAG** — design proposal owed before building (§4F/§2).
+1. **RAG over sent mail** — still owed. The context layer is built (§3); search
+   over redacted sent-mail history is the remaining half.
 2. **Orchestrator** — confirm the §7 reversal, and which model is the head.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with

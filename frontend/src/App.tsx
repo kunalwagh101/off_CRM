@@ -14,6 +14,7 @@ import Experiments from "./pages/Experiments";
 import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
+import Memory from "./pages/Memory";
 import Settings from "./pages/Settings";
 import type { AuthSession, Campaign, Paginated } from "./types";
 
@@ -29,6 +30,7 @@ const pages = {
   experiments: Experiments,
   connectors: Connectors,
   egress: Egress,
+  memory: Memory,
   ai: AI,
   settings: Settings
 };
@@ -38,6 +40,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
   { page: "connectors", label: "Connectors", icon: "⚡" },
   { page: "egress", label: "What was sent", icon: "◉" },
+  { page: "memory", label: "Memory", icon: "◈" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },

@@ -47,6 +47,7 @@ from ..ai import (
     QuotaTracker,
     RegistryError,
 )
+from ..ai.context import ContextLayer
 from ..ai.discovery import discover_models
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
@@ -236,7 +237,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         resolved.prepare()
         app.state.settings = resolved
-        app.state.engine = OutreachEngine(resolved.database_path)
+        # Built before the engine: the engine counts sends and replies through it.
+        app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
+        app.state.engine = OutreachEngine(
+            resolved.database_path, template_counter=app.state.ai_context
+        )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
         app.state.campaign_locks = CampaignLocks()
@@ -258,7 +263,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
             resolved.data_dir / "automation.json",
-            engine_factory=lambda: OutreachEngine(resolved.database_path),
+            # The unattended sender counts too, or overnight runs would go unrecorded.
+            engine_factory=lambda: OutreachEngine(
+                resolved.database_path, template_counter=app.state.ai_context
+            ),
             mail_provider_factory=lambda mode, authorized: _mail_provider(
                 resolved,
                 mode,
@@ -273,6 +281,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             await app.state.automation.stop()
             app.state.engine.close()
             app.state.ai_egress_log.close()
+            app.state.ai_context.close()
 
     app = FastAPI(
         title="off_CRM",
@@ -733,11 +742,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 data_dir=settings.data_dir,
                 passphrase=passphrase,
             )
-            request.app.state.engine = OutreachEngine(settings.database_path)
+            request.app.state.engine = OutreachEngine(
+                settings.database_path, template_counter=request.app.state.ai_context
+            )
             return result
         finally:
             if getattr(request.app.state, "engine", None) is current_engine:
-                request.app.state.engine = OutreachEngine(settings.database_path)
+                request.app.state.engine = OutreachEngine(
+                    settings.database_path, template_counter=request.app.state.ai_context
+                )
             await automation.start()
             request.app.state.maintenance_lock.release()
 
@@ -1417,6 +1430,144 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
             raise _ai_error(exc) from exc
         return result.to_dict()
+
+    # ── context layer: where a job is, and which templates earn replies ──
+
+    def _context(request: Request) -> ContextLayer:
+        return request.app.state.ai_context
+
+    @app.get(f"{API_PREFIX}/ai/context")
+    def ai_context_overview(request: Request) -> dict[str, Any]:
+        """Everything the Memory screen needs in one call."""
+        layer = _context(request)
+        workspace_id = _workspace_id(request)
+        return {
+            "stats": layer.stats(workspace_id),
+            "templates": [score.to_dict() for score in layer.scoreboard(workspace_id)],
+            "tasks": [task.to_dict() for task in layer.open_tasks(workspace_id)],
+            "reference": layer.reference_for_models(workspace_id),
+        }
+
+    @app.post(f"{API_PREFIX}/ai/context/templates")
+    def ai_register_template(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        template_id = str(body.get("template_id", "")).strip()
+        if not template_id:
+            raise HTTPException(
+                400, detail={"error": "missing_template", "message": "A template id is required."}
+            )
+        score = _context(request).register_template(
+            workspace_id=_workspace_id(request),
+            template_id=template_id,
+            variant_id=str(body.get("variant_id", "")).strip(),
+            label=str(body.get("label", "")),
+            template_text=str(body.get("template_text", "")),
+            parent_id=str(body.get("parent_id", "")).strip(),
+        )
+        return score.to_dict()
+
+    @app.post(f"{API_PREFIX}/ai/context/templates/{{template_id}}/rewrite")
+    def ai_rewrite_template(
+        template_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Ask a model to improve a weak template.
+
+        What leaves: the template text, two numbers, and optionally the winning
+        template. No recipient, no name, no address — so this runs as public work
+        and any permitted model can do it.
+        """
+        broker, workspaces, _ = _ai(request)
+        layer = _context(request)
+        workspace_id = _workspace_id(request)
+        variant_id = str(body.get("variant_id", "")).strip()
+
+        score = layer.score_for(workspace_id, template_id, variant_id)
+        if score is None:
+            raise HTTPException(404, "That template has no record yet.")
+        if not score.template_text:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "no_template_text",
+                    "message": "Save the template text first, so there is something to improve.",
+                },
+            )
+
+        settings = workspaces.egress_settings(workspace_id)
+        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+        egress = layer.rewrite_request(
+            score,
+            winner=layer.winner(workspace_id) if body.get("use_winner", True) else None,
+        )
+        try:
+            result = broker.call(egress, settings, system_prompt=AIChatService.DEFAULT_SYSTEM_PROMPT)
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+
+        # Nothing goes live automatically. The owner approves the new wording.
+        return {
+            "current": score.to_dict(),
+            "suggested_text": result.text,
+            "written_by": result.provider_name,
+            "model_id": result.model_id,
+            "log_id": result.log_id,
+            "needs_approval": True,
+        }
+
+    @app.post(f"{API_PREFIX}/ai/context/templates/{{template_id}}/approve")
+    def ai_approve_rewrite(
+        template_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Save an approved rewrite as a new variant to test against the old one."""
+        layer = _context(request)
+        workspace_id = _workspace_id(request)
+        text = str(body.get("template_text", "")).strip()
+        if not text:
+            raise HTTPException(
+                400, detail={"error": "empty_text", "message": "There is no wording to save."}
+            )
+        score = layer.register_template(
+            workspace_id=workspace_id,
+            template_id=template_id,
+            variant_id=str(body.get("variant_id", "b")).strip() or "b",
+            label=str(body.get("label", "Rewritten")),
+            template_text=text,
+            parent_id=str(body.get("parent_variant_id", "")).strip(),
+        )
+        return score.to_dict()
+
+    @app.post(f"{API_PREFIX}/ai/context/tasks")
+    def ai_start_task(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        task = _context(request).start_task(
+            workspace_id=_workspace_id(request),
+            kind=str(body.get("kind", "campaign")),
+            title=str(body.get("title", "")),
+            steps=[str(step) for step in (body.get("steps") or [])],
+        )
+        return task.to_dict()
+
+    @app.post(f"{API_PREFIX}/ai/context/tasks/{{task_id}}/step")
+    def ai_finish_step(task_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        task = _context(request).finish_step(
+            task_id,
+            int(body.get("step_index", 0)),
+            note=str(body.get("note", "")),
+            status=str(body.get("status", "done")),
+        )
+        if task is None:
+            raise HTTPException(404, "No such job.")
+        return task.to_dict()
+
+    @app.post(f"{API_PREFIX}/ai/context/tasks/{{task_id}}/decision")
+    def ai_record_decision(task_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        text = str(body.get("decision", "")).strip()
+        if not text:
+            raise HTTPException(
+                400, detail={"error": "empty_decision", "message": "Write the decision down first."}
+            )
+        task = _context(request).record_decision(task_id, text)
+        if task is None:
+            raise HTTPException(404, "No such job.")
+        return task.to_dict()
 
     @app.get(f"{API_PREFIX}/ai/egress-log")
     def ai_egress_log(

@@ -786,3 +786,25 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .task-card header { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: baseline; }
 .task-next { margin: 0; font-size: 0.85rem; }
 .task-decisions { margin: 0.25rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--muted, #6b7280); line-height: 1.6; }
+
+/* Memory and Past emails ------------------------------------------------- */
+.stat-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px; margin-bottom: 4px;
+}
+.plain-list { margin: 0; padding-left: 1.1rem; line-height: 1.7; font-size: 0.9rem; }
+.plain-list li + li { margin-top: 0.4rem; }
+.recall-search { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.recall-search .model-filter { flex: 1 1 260px; }
+.recall-body {
+  margin: 0; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap;
+  color: var(--muted, #4b5563);
+}
+.checkbox-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.85rem; margin: 0.7rem 0 0.2rem;
+}
+.preview-facts {
+  display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: center;
+  margin: 0.9rem 0 0.4rem; font-size: 0.85rem;
+}

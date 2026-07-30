@@ -34,6 +34,10 @@ from ..outreach.notion import (
 )
 from ..ai import (
     DataClass,
+    DataPolicy,
+    build_payload,
+    coerce_policy,
+    scan_payload,
     ModeRunner,
     RunMode,
     EgressBlocked,
@@ -48,6 +52,7 @@ from ..ai import (
     RegistryError,
 )
 from ..ai.context import ContextLayer
+from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
@@ -237,10 +242,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         resolved.prepare()
         app.state.settings = resolved
-        # Built before the engine: the engine counts sends and replies through it.
+        # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
+        app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
         app.state.engine = OutreachEngine(
-            resolved.database_path, template_counter=app.state.ai_context
+            resolved.database_path,
+            template_counter=app.state.ai_context,
+            mail_archive=app.state.ai_recall,
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
@@ -263,9 +271,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
             resolved.data_dir / "automation.json",
-            # The unattended sender counts too, or overnight runs would go unrecorded.
+            # The unattended sender records too, or overnight runs go unlogged.
             engine_factory=lambda: OutreachEngine(
-                resolved.database_path, template_counter=app.state.ai_context
+                resolved.database_path,
+                template_counter=app.state.ai_context,
+                mail_archive=app.state.ai_recall,
             ),
             mail_provider_factory=lambda mode, authorized: _mail_provider(
                 resolved,
@@ -282,6 +292,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.engine.close()
             app.state.ai_egress_log.close()
             app.state.ai_context.close()
+            app.state.ai_recall.close()
 
     app = FastAPI(
         title="off_CRM",
@@ -743,13 +754,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 passphrase=passphrase,
             )
             request.app.state.engine = OutreachEngine(
-                settings.database_path, template_counter=request.app.state.ai_context
+                settings.database_path,
+                template_counter=request.app.state.ai_context,
+                mail_archive=request.app.state.ai_recall,
             )
             return result
         finally:
             if getattr(request.app.state, "engine", None) is current_engine:
                 request.app.state.engine = OutreachEngine(
-                    settings.database_path, template_counter=request.app.state.ai_context
+                    settings.database_path,
+                    template_counter=request.app.state.ai_context,
+                    mail_archive=request.app.state.ai_recall,
                 )
             await automation.start()
             request.app.state.maintenance_lock.release()
@@ -1568,6 +1583,97 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         if task is None:
             raise HTTPException(404, "No such job.")
         return task.to_dict()
+
+    # ── recall over sent mail ──────────────────────────────────────────────
+
+    def _recall(request: Request) -> SentMailIndex:
+        return request.app.state.ai_recall
+
+    @app.get(f"{API_PREFIX}/ai/recall")
+    def ai_recall_overview(request: Request) -> dict[str, Any]:
+        index = _recall(request)
+        workspace_id = _workspace_id(request)
+        return {
+            "stats": index.stats(workspace_id),
+            "recent": [item.to_dict() for item in index.recent(workspace_id=workspace_id, limit=8)],
+        }
+
+    @app.post(f"{API_PREFIX}/ai/recall/search")
+    def ai_recall_search(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Search past sent mail.
+
+        Runs entirely on this machine — no provider is contacted and no key is
+        used.  The rows returned are the redacted ones; there is no un-redacted
+        copy for this endpoint to return.
+        """
+        query = str(body.get("query", "")).strip()
+        results = _recall(request).search(
+            query,
+            workspace_id=_workspace_id(request),
+            limit=min(20, max(1, int(body.get("limit", 5) or 5))),
+            replied_only=bool(body.get("replied_only", False)),
+        )
+        return {
+            "query": query,
+            "results": [item.to_dict() for item in results],
+            "sent_anywhere": False,
+        }
+
+    @app.post(f"{API_PREFIX}/ai/recall/rebuild")
+    def ai_recall_rebuild(request: Request) -> dict[str, Any]:
+        """Index everything already sent. Local work; nothing leaves."""
+        index = _recall(request)
+        result = index.rebuild(request.app.state.engine.store, workspace_id=_workspace_id(request))
+        return {**result, "stats": index.stats(_workspace_id(request))}
+
+    @app.post(f"{API_PREFIX}/ai/recall/preview")
+    def ai_recall_preview(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Show exactly what a model would receive, before anything is sent.
+
+        Built through the real payload builder and run through the real scanner,
+        so this is the outbound bytes rather than a description of them.
+        """
+        index = _recall(request)
+        snippets = index.search(
+            str(body.get("query", "")).strip(),
+            workspace_id=_workspace_id(request),
+            limit=MAX_SNIPPETS_IN_PAYLOAD,
+            replied_only=bool(body.get("replied_only", False)),
+        )
+        egress = index.recall_request(
+            snippets, instructions=str(body.get("instructions", "")).strip()
+        )
+        policy = coerce_policy(body.get("data_policy"), default=DataPolicy.STANDARD)
+        payload = build_payload(egress, policy)
+        report = scan_payload(payload, policy=policy)
+        return {
+            "data_class": egress.data_class.value,
+            "data_policy": policy.value,
+            "used": [item.to_dict() for item in snippets],
+            "payload": payload,
+            "scan": report.to_dict(),
+        }
+
+    @app.post(f"{API_PREFIX}/ai/recall/forget")
+    def ai_recall_forget(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Remove indexed mail. Redaction is not an answer to a deletion request."""
+        index = _recall(request)
+        contact_id = str(body.get("campaign_contact_id", "")).strip()
+        message_id = str(body.get("message_id", "")).strip()
+        if contact_id:
+            return {"removed": index.forget_contact(contact_id)}
+        if message_id:
+            index.forget_message(message_id)
+            return {"removed": 1}
+        if body.get("everything"):
+            return {"removed": index.clear(workspace_id=_workspace_id(request))}
+        raise HTTPException(
+            400,
+            detail={
+                "error": "nothing_named",
+                "message": "Name a person, a message, or ask to clear everything.",
+            },
+        )
 
     @app.get(f"{API_PREFIX}/ai/egress-log")
     def ai_egress_log(

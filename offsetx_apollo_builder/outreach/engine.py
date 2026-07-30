@@ -141,6 +141,30 @@ class TemplateCounter(Protocol):
     ) -> None: ...
 
 
+class MailArchive(Protocol):
+    """Keeps a redacted, searchable copy of what was sent.
+
+    The engine hands over the message and the contact list and lets the archive
+    do its own redaction.  That is why this signature takes ``contacts`` rather
+    than a prepared redactor: outreach must not import the AI package, or the AI
+    module stops being liftable into its own repository.
+
+    There is no method here for received mail.  That is the point.
+    """
+
+    def archive_send(
+        self,
+        message: dict[str, Any],
+        *,
+        contacts: Any,
+        workspace_id: str = ...,
+        campaign_id: str = ...,
+        owner_addresses: Any = ...,
+    ) -> Any: ...
+
+    def mark_replied(self, message_id: str) -> None: ...
+
+
 class OutreachEngine:
     """Application service for the local CRM, independent of UI and AI vendor."""
 
@@ -150,6 +174,7 @@ class OutreachEngine:
         *,
         template_file: Path | str | None = None,
         template_counter: TemplateCounter | None = None,
+        mail_archive: MailArchive | None = None,
         workspace_id: str = "local",
     ):
         self.store = OutreachStore(database_path)
@@ -157,6 +182,7 @@ class OutreachEngine:
         self.email_expert = LocalEmailExpert(self.store)
         # Optional: counting reply rates is useful but never required to send.
         self.template_counter = template_counter
+        self.mail_archive = mail_archive
         self.workspace_id = workspace_id
         self._lock = threading.RLock()
         seed_path = Path(template_file) if template_file else DEFAULT_TEMPLATE_FILE
@@ -206,6 +232,44 @@ class OutreachEngine:
                 workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
             )
         except Exception:  # pragma: no cover - counting must never break sending
+            pass
+
+    def _archive_send(
+        self, campaign_id: str, campaign_contact_id: str, own_email: str, contacts: list[dict[str, Any]]
+    ) -> None:
+        """Add the message that just went out to the recall index.
+
+        Reads the row back rather than reusing the draft, so what is indexed is
+        what was actually sent.  Like the counters, a failure here is swallowed:
+        the email has already left, and losing a search entry is not worth
+        reporting a successful send as failed.
+        """
+        if self.mail_archive is None:
+            return
+        try:
+            message = self.store.last_outgoing(campaign_contact_id)
+            if not message:
+                return
+            self.mail_archive.archive_send(
+                dict(message),
+                contacts=contacts,
+                workspace_id=self.workspace_id,
+                campaign_id=campaign_id,
+                owner_addresses=(own_email,) if own_email else (),
+            )
+        except Exception:  # pragma: no cover - archiving must never break sending
+            pass
+
+    def _archive_reply(self, message: dict[str, Any]) -> None:
+        """Note that a sent email earned a reply. The reply itself is not stored."""
+        if self.mail_archive is None:
+            return
+        message_id = clean_text(message.get("id"))
+        if not message_id:
+            return
+        try:
+            self.mail_archive.mark_replied(message_id)
+        except Exception:  # pragma: no cover
             pass
 
     def _count_reply(self, message: dict[str, Any]) -> None:
@@ -553,7 +617,11 @@ class OutreachEngine:
                     )
                     # Credit the template that was actually sent, not the contact's
                     # current stage — by now the contact has usually moved on.
-                    self._count_reply(self.store.last_outgoing(campaign_contact_id) or {})
+                    outgoing = self.store.last_outgoing(campaign_contact_id) or {}
+                    self._count_reply(outgoing)
+                    # Marks the sent email as one that worked. The reply itself
+                    # is mailbox content and is not stored anywhere.
+                    self._archive_reply(outgoing)
             result = {"scanned": len(incoming), "matched": matched}
             self.store.add_event(campaign_id, "replies_synced", result)
             return result
@@ -607,6 +675,7 @@ class OutreachEngine:
             sent: list[dict[str, str]] = []
             skipped: list[dict[str, str]] = []
             failed: list[dict[str, str]] = []
+            archive_contacts: list[dict[str, Any]] | None = None
             for queued in self.store.send_queue(campaign_id, now=now):
                 if len(sent) >= allowance:
                     break
@@ -679,6 +748,18 @@ class OutreachEngine:
                     )
                     sent.append({"draft_id": draft_id, "to": email, "stage": stage})
                     self._count_send(draft)
+                    if self.mail_archive is not None:
+                        if archive_contacts is None:
+                            # Loaded once per run, and only when something will
+                            # actually use it. The redaction vocabulary covers
+                            # every contact, not just this recipient.
+                            archive_contacts = self.store.campaign_contacts(campaign_id)
+                        self._archive_send(
+                            campaign_id,
+                            str(queued["campaign_contact_id"]),
+                            own_email,
+                            archive_contacts,
+                        )
                 except Exception as exc:
                     self.store.mark_send_failed(draft_id, str(exc))
                     failed.append({"draft_id": draft_id, "error": str(exc)})

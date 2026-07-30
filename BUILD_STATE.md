@@ -4,8 +4,8 @@ Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-30
-Branch: `claude/context-layer`
-Tests: **221 Python passed**, 6 frontend passed, 1 pre-existing failure
+Branch: `claude/recall-sent-mail`
+Tests: **258 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -213,6 +213,52 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       approval, and jobs in progress.
 - [x] This is **not fine-tuning**. No data is shipped away to retrain anything.
 
+### Recall over sent mail (RAG) — built
+
+Retrieval where the access rules, not the search, were the work. A normal RAG
+stack leaks in four places; each is closed by construction here.
+
+- [x] `ai/recall.py` — local full-text search (SQLite FTS5) over the owner's own
+      sent mail. **No embeddings, no API key, no network call.** Indexing the
+      whole archive posts nothing to anyone and works offline.
+- [x] **Redacted before it is stored, not on the way out.** Most stacks keep the
+      raw text and clean it at query time, which makes the index the most
+      dangerous file in the product. Here names, companies, addresses, phone
+      numbers and links are removed before the write. A test reads the raw bytes
+      of the database file and asserts no identity survives in it.
+- [x] Redaction is **targeted, not guessed**: off_CRM knows exactly who its
+      contacts are, so it deletes their names precisely. The vocabulary covers
+      *every* contact, not just the recipient — an email to one person routinely
+      names another. A pattern pass then catches what no contact list could know.
+- [x] Over-redaction is the deliberate choice where the two disagree. A common
+      first name is removed even though it costs a legitimate word sometimes.
+      Dates are kept: a date identifies nobody and losing them makes the
+      snippets useless.
+- [x] **Sent mail only, enforced twice.** `index_message` refuses an inbound row,
+      and `store.sent_messages` filters to outbound in the SQL with no parameter
+      that could switch it.
+- [x] **Quoted threads are cut off first.** A follow-up usually quotes the reply
+      underneath it — that block is *their* mail inside *your* mail, and it never
+      reaches the index.
+- [x] **No model can search it.** No tool, no function, no retrieval interface,
+      no provider import, no network import. off_CRM chooses the search, reads
+      the result and pushes a payload. Asserted structurally.
+- [x] Snippets leave as `DataClass.CAMPAIGN` — the honest label for the owner's
+      own business writing. Calling it `public` would have smuggled it past the
+      rule keeping campaign material from restricted providers. **Two
+      independent barriers, neither special-cased for this feature:** tier C and
+      D refuse the class outright, and the snippets travel as `prior_drafts`,
+      which a `minimal` policy does not carry at all.
+- [x] The payload is still scanned on the way out, so a regression in redaction
+      blocks the call rather than leaking.
+- [x] Wired into the live send path and the unattended sender. A reply sets a
+      "this one worked" flag and is otherwise not stored, which makes
+      "show me emails like this that actually earned replies" possible.
+- [x] Deletion: forget one message, forget one person, or clear everything.
+      Redaction is not an answer to a deletion request.
+- [x] Past emails screen: search, and a preview that renders the **real**
+      outbound payload rather than a description of it.
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -238,7 +284,6 @@ Listed honestly. Nothing below is silently assumed done.
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
 | 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** |
 | 4K | Graphify | Not started. |
-| — | RAG over redacted sent-mail history | Agreed with owner. Search runs locally; results pass through the same egress gate. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
 
@@ -270,8 +315,8 @@ Listed honestly. Nothing below is silently assumed done.
 
 ## 6. Open questions for the owner
 
-1. **RAG over sent mail** — still owed. The context layer is built (§3); search
-   over redacted sent-mail history is the remaining half.
+1. **Recall coverage** — the index covers sent mail. Whether attachments and
+   older archives outside off_CRM should be pulled in is an owner decision.
 2. **Orchestrator** — confirm the §7 reversal, and which model is the head.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with

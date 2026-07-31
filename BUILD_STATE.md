@@ -3,9 +3,9 @@
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
-Last updated: 2026-07-30
-Branch: `claude/recall-sent-mail`
-Tests: **258 Python passed**, 6 frontend passed, 1 pre-existing failure
+Last updated: 2026-07-31
+Branch: `claude/orchestration-design`
+Tests: **263 Python passed**, 6 frontend passed, 1 pre-existing failure
 (`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
 is not in `requirements.txt`; unrelated to this work and failing before it too).
 
@@ -259,6 +259,34 @@ stack leaks in four places; each is closed by construction here.
 - [x] Past emails screen: search, and a preview that renders the **real**
       outbound payload rather than a description of it.
 
+### Orchestration audit (2026-07-31)
+
+Full design review in `docs/architecture/`. Two defects found and fixed; both
+reproduced against the real code before changing anything.
+
+- [x] **Simple mode never picked the cheap model.** `candidates_for` returns
+      permitted pairs cheapest-first, then `broker.plan` discarded everything
+      below the top tier — so with Mistral (A, cost 20.0) and DeepSeek (C, 3.57)
+      connected, a `public` coding task ran on Mistral at **5.6x the cost**,
+      while the free model that was fully permitted sat idle. The same-tier rule
+      exists to stop *failover* demoting restricted data; it was also gating
+      *initial selection*, which is a different thing — `candidates_for` has
+      already checked `permits(data_class)` on every candidate, so picking a
+      cheaper one is not a demotion. Narrowed to: `public` uses the full
+      cost-sorted list across tiers, everything else keeps the old behaviour.
+      Each candidate still builds its own payload under its own policy.
+      Switchable per workspace via `cross_tier_public_routing` (default on).
+- [x] **`best_text` did not mean best.** It returned `branches[0]` after a sort
+      on `(tier, ok, duration_ms)` — the fastest reply from the highest tier, not
+      the best answer. Nothing scores quality; no scorer exists. The docstrings
+      were honest (compare mode says the *owner* picks) but the name promised a
+      judgement, and it ships through `to_dict()` into `frontend/src/types.ts`.
+      Renamed `first_permitted_text`; `best_text` kept as a deprecated alias so
+      the API contract is unchanged. A real `best_text` can land with the evals.
+- [x] The Simple mode UI description claimed "cheapest" unconditionally. Now
+      states the actual rule: cheapest for public work, most-trusted for person
+      and campaign data.
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -282,7 +310,10 @@ Listed honestly. Nothing below is silently assumed done.
 | 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
-| 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** |
+| 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** Design now written: `docs/architecture/SANDBOX_DESIGN.md`. |
+| — | Eval harness / scoreboard | Not started. Nothing measures whether compare or orchestrated beats simple, so "orchestration is better" is currently unverified. Highest-value next item — see `docs/architecture/ORCHESTRATION_DESIGN.md` §7. |
+| — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
+| — | Abstraction layer | Not started. Tokenisation hides *who*; the shape of a request still leaks ICP and sequence design. See ORCHESTRATION_DESIGN.md §4. |
 | 4K | Graphify | Not started. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
@@ -318,6 +349,12 @@ Listed honestly. Nothing below is silently assumed done.
 1. **Recall coverage** — the index covers sent mail. Whether attachments and
    older archives outside off_CRM should be pulled in is an owner decision.
 2. **Orchestrator** — confirm the §7 reversal, and which model is the head.
+2b. **Tier C and person identity.** §5.2 records the decision that tier C
+   receives a prospect's real name, company and title. The owner has since
+   raised client/POI identity as the business secret to protect. These conflict.
+   Options and a recommendation (pseudonymise for tier C) are in
+   `docs/architecture/ORCHESTRATION_DESIGN.md` §4. Nothing changed pending a
+   decision.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with
    `autoDeploy: true`, so nothing ships until this branch is merged there.

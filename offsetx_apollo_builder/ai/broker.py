@@ -72,6 +72,11 @@ class WorkspaceEgressSettings:
     #: provider id -> the model ids enabled on that key. One key reaches many
     #: models, and each model carries its own tier. Empty means "default only".
     enabled_models: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    #: Let ``public`` tasks use the cheapest permitted model across tiers rather
+    #: than pinning to the highest tier connected. Public payloads carry no
+    #: identity, so this saves money without widening exposure. Set ``False`` to
+    #: keep every task on the most trusted model available.
+    cross_tier_public_routing: bool = True
 
     @property
     def mailbox_unlocked(self) -> bool:
@@ -277,8 +282,22 @@ class EgressBroker:
                 considered=rejected,
             )
 
-        # Never fail over across a tier boundary: keep only the highest tier
-        # present, so an error cannot silently demote restricted data.
+        # Public work is the one class where the cost-sorted list may be used
+        # whole. `candidates_for` has already filtered every candidate through
+        # `permits(data_class)`, so each one is allowed to hold this material —
+        # and `public` carries no identity by definition, so choosing a lower
+        # tier is not a demotion, it is the correct cheapest choice. Every
+        # candidate still builds its own payload under its own policy
+        # (see `call`), exactly as compare mode already does across tiers.
+        if (
+            request.data_class is DataClass.PUBLIC
+            and settings.cross_tier_public_routing
+            and len({candidate.tier.rank for candidate in with_budget}) > 1
+        ):
+            return with_budget, rejected
+
+        # Every other class: keep only the highest tier present, so a failure
+        # can never silently hand restricted material to a less trusted model.
         best_rank = max(candidate.tier.rank for candidate in with_budget)
         same_tier = [c for c in with_budget if c.tier.rank == best_rank]
         running_tier = same_tier[0].tier.value
@@ -290,8 +309,9 @@ class EgressBroker:
                         "reason": "lower_tier_not_used_for_failover",
                         "detail": (
                             f"{candidate.name} is tier {candidate.tier.value}; this task is "
-                            f"running at tier {running_tier}. off_CRM never fails over to a "
-                            "lower trust tier."
+                            f"running at tier {running_tier} because it carries "
+                            f"{request.data_class.value} data. off_CRM never drops restricted "
+                            "material to a lower trust tier, even to save cost."
                         ),
                     }
                 )

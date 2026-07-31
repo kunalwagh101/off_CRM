@@ -138,6 +138,90 @@ def test_failover_never_crosses_a_trust_tier(broker):
     assert reasons.get("groq") == "lower_tier_not_used_for_failover"
 
 
+def test_public_work_may_use_a_cheaper_lower_tier_model(broker):
+    """Cost routing for public work.
+
+    ``public`` carries no identity by definition, and ``candidates_for`` has
+    already checked that every candidate is permitted to hold the class.  So the
+    cheapest permitted model should win even when a more trusted one is
+    connected — otherwise a free model sits idle while a paid one answers a
+    coding question.
+    """
+    request = EgressRequest(
+        task_type="write_code",
+        data_class=DataClass.PUBLIC,
+        public_text="Write a Python function that reverses a list.",
+    )
+    permitted, _ = broker.plan(
+        request, _settings(enabled_provider_ids=("mistral", "deepseek"))
+    )
+    ids = [item.id for item in permitted]
+    assert "deepseek" in ids, "the cheap permitted model was dropped from public work"
+    assert ids[0] == "deepseek", "cheapest-first ordering did not survive planning"
+    costs = [item.cost for item in permitted]
+    assert costs == sorted(costs)
+
+
+def test_public_cost_routing_can_be_switched_off_per_workspace(broker):
+    """The owner can keep every task on the most trusted model available."""
+    request = EgressRequest(
+        task_type="write_code",
+        data_class=DataClass.PUBLIC,
+        public_text="Write a Python function that reverses a list.",
+    )
+    permitted, rejected = broker.plan(
+        request,
+        _settings(
+            enabled_provider_ids=("mistral", "deepseek"),
+            cross_tier_public_routing=False,
+        ),
+    )
+    assert [item.tier for item in permitted] == [TrustTier.A]
+    reasons = {item["provider_id"]: item["reason"] for item in rejected}
+    assert reasons.get("deepseek") == "lower_tier_not_used_for_failover"
+
+
+def test_cost_routing_never_applies_to_person_or_campaign_data(broker):
+    """The cheap path is public-only.  Anything carrying identity or business
+    material stays pinned to the highest connected tier."""
+    for data_class in (DataClass.PERSON_PUBLIC, DataClass.CAMPAIGN):
+        request = EgressRequest(
+            task_type="draft_email", data_class=data_class, person=PERSON
+        )
+        permitted, _ = broker.plan(
+            request, _settings(enabled_provider_ids=("mistral", "deepseek", "groq"))
+        )
+        assert [item.tier for item in permitted] == [TrustTier.A], (
+            f"{data_class.value} must not drop below the highest connected tier"
+        )
+
+
+def test_public_cost_routing_still_builds_each_payload_under_its_own_policy(broker):
+    """Crossing tiers for public work must not widen what any model receives.
+
+    Each candidate builds its own payload from its own resolved policy, so the
+    tier C model in the list gets the tier C payload, never the tier A one.
+    """
+    request = EgressRequest(
+        task_type="write_code",
+        data_class=DataClass.PUBLIC,
+        person=PERSON,
+        template_text="Dear friend, our margin is 40 percent.",
+        campaign_notes="Targeting Series B fintechs.",
+        public_text="Write a Python function that reverses a list.",
+    )
+    permitted, _ = broker.plan(
+        request, _settings(enabled_provider_ids=("mistral", "deepseek"))
+    )
+    by_id = {item.id: item for item in permitted}
+    assert by_id["deepseek"].policy is DataPolicy.MINIMAL
+
+    cheap = build_payload(request, by_id["deepseek"].policy)
+    assert "template" not in cheap, "tier C must not receive the template"
+    assert "campaign_notes" not in cheap, "tier C must not receive campaign notes"
+    assert scan_payload(cheap, policy=by_id["deepseek"].policy).clean
+
+
 def test_tier_c_policy_is_clamped_to_minimal_even_when_standard_requested(broker, registry):
     """The owner may ask for `standard` on a Chinese provider; the tier ceiling
     silently clamps it to `minimal` and the clamp is visible in the result."""

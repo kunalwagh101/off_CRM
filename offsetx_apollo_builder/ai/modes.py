@@ -60,8 +60,10 @@ class RunMode(str, Enum):
     def description(self) -> str:
         return {
             RunMode.SIMPLE: (
-                "Picks the cheapest model that is allowed and good at this. "
-                "Fastest and cheapest. Use this for everyday work."
+                "One model. For public work it picks the cheapest one allowed "
+                "and good at this. When the task carries person or campaign "
+                "data it stays on the most trusted model you have connected, "
+                "even if that costs more. Use this for everyday work."
             ),
             RunMode.COMPARE: (
                 "Asks every allowed model the same question at the same time, "
@@ -164,13 +166,42 @@ class RunResult:
     notes: list[str] = field(default_factory=list)
 
     @property
-    def best_text(self) -> str:
-        """The single answer a caller should use when it wants just one."""
+    def first_permitted_text(self) -> str:
+        """One answer for a caller that wants a single string, by *position*.
+
+        **No quality comparison happens here, and none is possible yet** —
+        nothing in this module scores an answer.  What you get is:
+
+        * orchestrated — the last step that produced text, because a plan's
+          final step is normally the one that assembles the result;
+        * compare — the first branch in display order, which
+          :meth:`run_compare` sorts by ``(tier, ok, duration_ms)``.  That means
+          *the fastest successful answer from the highest trust tier*, which is
+          a routing outcome, not a judgement of the writing.
+
+        Compare mode is designed for the owner to read every branch and choose
+        (see this module's docstring).  This property exists for programmatic
+        callers that must have one string, and it is named for what it actually
+        does so nobody mistakes position for merit.
+
+        When the eval harness lands, a genuine ``best_text`` that scores
+        branches can be added alongside this.
+        """
         if self.steps:
             done = [step for step in self.steps if step.text]
             return done[-1].text if done else ""
         ok = [branch for branch in self.branches if branch.ok]
         return ok[0].text if ok else ""
+
+    @property
+    def best_text(self) -> str:
+        """Deprecated alias for :attr:`first_permitted_text`.
+
+        Kept so the existing API response shape and ``frontend/src/types.ts``
+        do not break.  Prefer the new name: this one promises a judgement the
+        code does not make.
+        """
+        return self.first_permitted_text
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -184,7 +215,9 @@ class RunResult:
             "excluded": self.excluded,
             "total_duration_ms": self.total_duration_ms,
             "notes": self.notes,
-            "best_text": self.best_text,
+            "first_permitted_text": self.first_permitted_text,
+            # Deprecated; retained for the existing frontend contract.
+            "best_text": self.first_permitted_text,
         }
 
 

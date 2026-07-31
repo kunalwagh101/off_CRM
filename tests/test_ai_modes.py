@@ -411,3 +411,42 @@ def test_all_modes_write_to_the_egress_log(harness):
     for row, _ in [(row, None) for row in log.list(limit=50)[0]]:
         assert row["provider_id"]
         assert row["tier"]
+
+
+# ── naming: position is not merit ───────────────────────────────────────────
+
+
+def test_single_answer_property_is_named_for_what_it_actually_does(harness):
+    """`first_permitted_text` returns a branch by *position*, not by quality.
+
+    Compare mode sorts branches by (tier, ok, duration_ms), so the single-string
+    answer is the fastest successful reply from the highest trust tier. Nothing
+    scores the writing — no scorer exists yet. The property is named for that so
+    an automated caller cannot mistake routing order for a judgement.
+    """
+    broker, _, replies, _ = harness
+    runner = ModeRunner(broker)
+    replies["mistral"] = "answer from the tier A model"
+    replies["deepseek"] = "answer from the tier C model"
+
+    result = runner.run_compare(
+        EgressRequest(
+            task_type="write_code",
+            data_class=DataClass.PUBLIC,
+            public_text="Reverse a list in Python.",
+        ),
+        _settings(enabled_provider_ids=("mistral", "deepseek")),
+        system_prompt="write",
+    )
+
+    # Highest tier sorts first, so that is what the single-string accessor gives.
+    assert result.branches[0].tier == TrustTier.A.value
+    assert result.first_permitted_text == "answer from the tier A model"
+
+    # The deprecated alias must keep returning the same value so the existing
+    # frontend contract does not change behaviour under the rename.
+    assert result.best_text == result.first_permitted_text
+
+    payload = result.to_dict()
+    assert payload["first_permitted_text"] == result.first_permitted_text
+    assert payload["best_text"] == result.first_permitted_text

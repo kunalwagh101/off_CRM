@@ -5,9 +5,26 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **263 Python passed**, 6 frontend passed, 1 pre-existing failure
-(`test_discovery.py::test_scrapling_parser…` — optional `Scrapling` dependency
-is not in `requirements.txt`; unrelated to this work and failing before it too).
+Tests: **264 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
+
+The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
+a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
+`requirements.txt`, so any environment installed from the latter lacked it. The
+session-start hook installs via `uv sync --extra dev` and the test passes.
+
+---
+
+## 0. Session setup
+
+`.claude/hooks/session-start.sh` runs on every session. It prints the repository
+name, branch, HEAD and commit count **first**, then installs Python and frontend
+dependencies so tests and linters work immediately.
+
+The identity banner exists because of a real incident: a session started against
+the empty sibling repo `email_agent`, found no commits, and reported "your repo
+is empty" instead of noticing it was in the wrong place. A repo that announces
+itself makes that failure impossible rather than unlikely. `CLAUDE.md` carries
+the same warning for the same reason.
 
 ---
 

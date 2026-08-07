@@ -29,6 +29,26 @@ from .errors import (
 )
 from .log import EgressLog
 from .modes import Branch, ModeRunner, PlanStep, RunMode, RunResult
+from .evals import (
+    CHECKS,
+    CheckResult,
+    EvalCase,
+    EvalReport,
+    EvalRunner,
+    EvalSuite,
+    load_suites,
+    run_checks,
+    suite_summary,
+)
+from .scoreboard import (
+    DEFAULT_ALPHA,
+    DEFAULT_MAX_COST_MULTIPLE,
+    Scoreboard,
+    Verdict,
+    best_of,
+    compare,
+    sign_test_p_value,
+)
 from .payload import (
     COMPANY_TOKEN,
     PERSON_TOKEN,
@@ -104,6 +124,22 @@ __all__ = [
     "TrustTier",
     "WorkspaceEgressSettings",
     "Identity",
+    "EvalRunner",
+    "EvalSuite",
+    "EvalCase",
+    "EvalReport",
+    "CheckResult",
+    "load_suites",
+    "run_checks",
+    "suite_summary",
+    "CHECKS",
+    "Scoreboard",
+    "Verdict",
+    "compare",
+    "best_of",
+    "sign_test_p_value",
+    "DEFAULT_ALPHA",
+    "DEFAULT_MAX_COST_MULTIPLE",
     "build_payload",
     "scrub_identity",
     "PERSON_TOKEN",

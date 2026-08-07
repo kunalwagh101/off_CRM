@@ -28,6 +28,7 @@ crawler = ["crawl4ai>=0.9.2,<0.10"]
 offsetx-apollo = "offsetx_apollo_builder.cli:main"
 offsetx-outreach = "offsetx_apollo_builder.outreach_cli:main"
 offsetx-web = "offsetx_apollo_builder.web_cli:main"
+offsetx-evals = "offsetx_apollo_builder.ai.eval_cli:main"
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -40,7 +41,7 @@ include = ["offsetx_apollo_builder*"]
 [tool.setuptools.package-data]
 # The provider registry must travel with the package: a pip-installed
 # deployment has no source tree to fall back on.
-"offsetx_apollo_builder.ai" = ["providers.yaml"]
+"offsetx_apollo_builder.ai" = ["providers.yaml", "evals.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

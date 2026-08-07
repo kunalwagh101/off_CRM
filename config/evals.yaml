@@ -1,0 +1,210 @@
+# Eval suites.
+#
+# Adding a case is a data edit, never a code change — the same rule
+# providers.yaml follows.
+#
+# Every check here is deterministic: a pure function of the output text, scored
+# the same way every time. No model judges anything. See ai/evals.py for the
+# available `kind` values.
+#
+# These cases are the starting set, not the finished one. The most valuable
+# thing you can do with this file is add cases from work you actually did and
+# were unhappy with — a suite made of your real failures measures your real
+# quality. Thirty cases is enough to detect a meaningful difference; ten is not.
+version: 1
+
+suites:
+  # ── outreach copy ────────────────────────────────────────────────────────
+  - id: email_first_contact
+    title: First-contact outreach emails
+    task_type: draft_email
+    data_class: person_public
+    system_prompt: >-
+      You write short, specific first-contact business emails. Return only the
+      email itself: a Subject line, then the body. No preamble, no explanation,
+      no commentary about what you wrote.
+
+    # Applied to every case in this suite, so the universal rules are written
+    # once. Case-level checks are appended to these.
+    default_checks:
+      - kind: no_preamble
+        name: no_assistant_preamble
+      - kind: no_placeholder
+        name: no_unfilled_placeholder
+      - kind: no_email_address
+        name: invented_no_address
+      - kind: word_count
+        name: length_is_sane
+        min: 40
+        max: 220
+      - kind: requires_pattern
+        name: has_subject_line
+        pattern: '^\s*subject\s*:'
+      - kind: forbids_any
+        name: no_ai_tells
+        phrases:
+          - "I hope this email finds you well"
+          - "I hope this finds you well"
+          - "delve into"
+          - "in today's fast-paced"
+          - "game-changer"
+          - "revolutionize"
+          - "As an AI"
+          - "I cannot"
+          - "Let's dive in"
+          - "leverage synergies"
+
+    cases:
+      - id: importer_customs_rules
+        instructions: >-
+          Write a first-contact email opening on the recipient's public remark
+          about new customs rules. One clear ask: a fifteen-minute call.
+        positioning_line: We help exporters cut customs cost.
+        person:
+          full_name: Ana Silva
+          first_name: Ana
+          title: Head of Trade
+          company: Meridian Foods
+          category: importer
+          route: customs
+          public_hook: spoke about the new EU customs rules at a trade summit
+          tension: new tariff codes take effect next quarter
+        checks:
+          - kind: requires_pattern
+            name: asks_for_something
+            pattern: '\?'
+          - kind: mentions_all
+            name: uses_the_hook
+            terms: ["customs"]
+
+      - id: logistics_no_hook
+        instructions: >-
+          Write a first-contact email. There is no public hook for this person,
+          so open on the category problem instead of inventing a detail.
+        positioning_line: We help exporters cut customs cost.
+        person:
+          first_name: Tomas
+          full_name: Tomas Berg
+          title: Operations Director
+          company: Nordkap Logistics
+          category: freight forwarder
+          route: customs
+        checks:
+          - kind: forbids_any
+            name: did_not_invent_a_source
+            phrases: ["I read your", "I saw your post", "your recent article", "I came across your"]
+          - kind: word_count
+            name: short_without_a_hook
+            min: 40
+            max: 160
+
+      - id: follow_up_after_silence
+        instructions: >-
+          Write a third follow-up. Two earlier emails got no reply. Be brief,
+          give an easy way to say no, and do not guilt-trip.
+        positioning_line: We help exporters cut customs cost.
+        person:
+          full_name: Priya Nair
+          first_name: Priya
+          title: Supply Chain Lead
+          company: Kestrel Retail
+          category: retailer
+          route: customs
+        checks:
+          - kind: word_count
+            name: follow_ups_are_short
+            min: 25
+            max: 110
+          - kind: forbids_any
+            name: no_guilt
+            phrases:
+              - "just following up"
+              - "circling back"
+              - "bumping this"
+              - "did you see my"
+              - "I haven't heard back"
+
+  # ── structured output ────────────────────────────────────────────────────
+  - id: structured_extraction
+    title: Structured extraction
+    task_type: parse_structured
+    data_class: public
+    system_prompt: >-
+      You extract structured data. Return only a single JSON object. No prose,
+      no code fence, no explanation.
+    default_checks:
+      - kind: valid_json
+        name: is_json
+      - kind: no_preamble
+        name: no_assistant_preamble
+
+    cases:
+      - id: company_from_blurb
+        public_text: >-
+          Meridian Foods is a Rotterdam-based importer of ambient groceries,
+          founded in 2009, employing roughly 240 people across three sites.
+        instructions: >-
+          Extract company_name, city, founded_year and headcount into a JSON
+          object with exactly those four keys.
+        checks:
+          - kind: json_has_keys
+            name: has_the_four_keys
+            keys: [company_name, city, founded_year, headcount]
+
+      - id: empty_fields_stay_null
+        public_text: >-
+          Nordkap Logistics operates out of Gothenburg. No founding date or
+          headcount is stated anywhere in this text.
+        instructions: >-
+          Extract company_name, city, founded_year and headcount into a JSON
+          object with exactly those four keys. Use null where the text does not
+          say — never guess a number.
+        checks:
+          - kind: json_has_keys
+            name: has_the_four_keys
+            keys: [company_name, city, founded_year, headcount]
+          - kind: requires_pattern
+            name: used_null_not_a_guess
+            pattern: 'null'
+
+  # ── code, for the sandbox work ───────────────────────────────────────────
+  - id: code_small_functions
+    title: Small code tasks
+    task_type: write_code
+    data_class: public
+    system_prompt: >-
+      You write small, correct Python. Return only code. No explanation.
+    default_checks:
+      - kind: valid_python
+        name: parses_as_python
+      - kind: no_preamble
+        name: no_assistant_preamble
+
+    cases:
+      - id: reverse_without_builtin
+        public_text: ""
+        instructions: >-
+          Write a Python function reverse_list(items) that returns a new list in
+          reverse order, without using reversed() or slicing with a negative
+          step.
+        checks:
+          - kind: requires_pattern
+            name: defines_the_function
+            pattern: 'def\s+reverse_list\s*\('
+          - kind: forbids_pattern
+            name: avoided_the_shortcut
+            pattern: 'reversed\s*\(|\[\s*::\s*-1\s*\]'
+
+      - id: nested_tree_flatten
+        public_text: ""
+        instructions: >-
+          Write a Python function flatten(node) that takes a dict with keys
+          "id" and "children" (a list of the same shape) and returns a flat list
+          of every id, depth first.
+        checks:
+          - kind: requires_pattern
+            name: defines_the_function
+            pattern: 'def\s+flatten\s*\('
+          - kind: requires_pattern
+            name: handles_children
+            pattern: 'children'

@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **272 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
+Tests: **317 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -233,6 +233,46 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       approval, and jobs in progress.
 - [x] This is **not fine-tuning**. No data is shipped away to retrain anything.
 
+### Eval harness — built (2026-07-31)
+
+Answers what the run modes could not: does orchestration beat one good model?
+
+- [x] `ai/evals.py` — twelve **deterministic** check kinds, pure functions of the
+      output text. No model judges anything, for the same reason no model
+      enforces policy: a grader that varies is not a measurement.
+- [x] An unknown check kind **fails** rather than passing, so a typo in a check
+      name cannot silently inflate every score that uses it.
+- [x] `config/evals.yaml` — suites are config, like `providers.yaml`. Adding a
+      case is a data edit.
+- [x] `ai/scoreboard.py` — run history, leaderboard, and the champion per suite.
+- [x] **Champion/challenger gate.** A mode is promoted only if it beats the best
+      single model on the mean, **and** wins case-by-case beyond chance, **and**
+      stays inside a cost ceiling. Every other path keeps the champion.
+- [x] Significance by **exact binomial sign test**, not `>`. Both subjects run
+      the same cases, so the comparison is paired. Comparing raw means on a
+      thirty-case suite flips the winner on noise about half the time when the
+      two are actually equal, and every flip costs money because the challenger
+      runs several models per task.
+- [x] `route_for()` returns `simple` when nothing has been measured. An
+      unmeasured system routes to one model, never to an unchecked ensemble.
+- [x] `offsetx-evals` CLI: `list`, `run --modes`, `champion`, plus `--dry-run`
+      that prints the call count without spending tokens.
+- [x] Same rules as the rest of the module: evals go through the broker with
+      ordinary tier rules (verified against a tier D aggregator), and **no model
+      can read or write the scoreboard** — asserted by an AST walk.
+
+**First result, and the reason this was worth building.** On the shipped suite,
+compare mode scored *identically* to the champion — not close, equal — because
+`first_permitted_text` returns the highest-tier branch, which is the champion's
+own answer. Compare mode paid for two calls and returned what one model would
+have said alone. That is fine for its designed use (the owner reads every branch
+and picks) but means calling it programmatically buys nothing. Nobody could have
+known without measuring.
+
+**Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
+or more is the floor for trusting a close verdict, and the CLI warns on every
+`list`. The cases worth adding are ones from real work that disappointed you.
+
 ### Recall over sent mail (RAG) — built
 
 Retrieval where the access rules, not the search, were the work. A normal RAG
@@ -331,7 +371,6 @@ Listed honestly. Nothing below is silently assumed done.
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
 | 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** Design now written: `docs/architecture/SANDBOX_DESIGN.md`. |
-| — | Eval harness / scoreboard | Not started. Nothing measures whether compare or orchestrated beats simple, so "orchestration is better" is currently unverified. Highest-value next item — see `docs/architecture/ORCHESTRATION_DESIGN.md` §7. |
 | — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
 | — | Abstraction layer | Not started. Tokenisation hides *who*; the shape of a request still leaks ICP and sequence design. See ORCHESTRATION_DESIGN.md §4. |
 | 4K | Graphify | Not started. |

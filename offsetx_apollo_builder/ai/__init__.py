@@ -29,7 +29,15 @@ from .errors import (
 )
 from .log import EgressLog
 from .modes import Branch, ModeRunner, PlanStep, RunMode, RunResult
-from .payload import EgressRequest, PersonPublic, build_payload, describe_policy_for_class
+from .payload import (
+    COMPANY_TOKEN,
+    PERSON_TOKEN,
+    EgressRequest,
+    PersonPublic,
+    build_payload,
+    describe_policy_for_class,
+    scrub_identity,
+)
 from .quota import QuotaLimits, QuotaTracker
 from .recall import (
     Identity,
@@ -97,6 +105,9 @@ __all__ = [
     "WorkspaceEgressSettings",
     "Identity",
     "build_payload",
+    "scrub_identity",
+    "PERSON_TOKEN",
+    "COMPANY_TOKEN",
     "build_redactor",
     "coerce_data_class",
     "coerce_policy",

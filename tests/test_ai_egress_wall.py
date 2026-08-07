@@ -214,7 +214,7 @@ def test_public_cost_routing_still_builds_each_payload_under_its_own_policy(brok
         request, _settings(enabled_provider_ids=("mistral", "deepseek"))
     )
     by_id = {item.id: item for item in permitted}
-    assert by_id["deepseek"].policy is DataPolicy.MINIMAL
+    assert by_id["deepseek"].policy is DataPolicy.PSEUDONYMOUS
 
     cheap = build_payload(request, by_id["deepseek"].policy)
     assert "template" not in cheap, "tier C must not receive the template"
@@ -222,12 +222,14 @@ def test_public_cost_routing_still_builds_each_payload_under_its_own_policy(brok
     assert scan_payload(cheap, policy=by_id["deepseek"].policy).clean
 
 
-def test_tier_c_policy_is_clamped_to_minimal_even_when_standard_requested(broker, registry):
+def test_tier_c_policy_is_clamped_to_pseudonymous_even_when_standard_requested(
+    broker, registry
+):
     """The owner may ask for `standard` on a Chinese provider; the tier ceiling
-    silently clamps it to `minimal` and the clamp is visible in the result."""
+    silently clamps it to `pseudonymous` and the clamp is visible in the result."""
     resolved = registry.resolve("deepseek", requested_policy=DataPolicy.STANDARD)
-    assert resolved.policy is DataPolicy.MINIMAL
-    assert resolved.policy_ceiling is DataPolicy.MINIMAL
+    assert resolved.policy is DataPolicy.PSEUDONYMOUS
+    assert resolved.policy_ceiling is DataPolicy.PSEUDONYMOUS
 
 
 def test_owner_can_raise_a_provider_above_its_ceiling_with_a_recorded_override(registry):
@@ -246,7 +248,10 @@ def test_owner_can_raise_a_provider_above_its_ceiling_with_a_recorded_override(r
     assert resolved.override is not None
     assert resolved.override.reason
     # Without the override the same request clamps back down.
-    assert registry.resolve("deepseek", requested_policy=DataPolicy.FULL).policy is DataPolicy.MINIMAL
+    assert (
+        registry.resolve("deepseek", requested_policy=DataPolicy.FULL).policy
+        is DataPolicy.PSEUDONYMOUS
+    )
 
 
 # ── (b) email addresses are blocked, not redacted ───────────────────────────
@@ -634,3 +639,136 @@ def test_google_free_tier_is_demoted_for_training_on_input(registry):
     resolved = registry.resolve("google")
     assert resolved.tier is TrustTier.C
     assert resolved.entry.trains_on_input is True
+
+
+# ── pseudonymous: tier C gets useful material, never an identity ────────────
+
+
+PSEUDO_PERSON = PersonPublic(
+    full_name="Ana Silva",
+    first_name="Ana",
+    title="Head of Trade",
+    company="Acme GmbH",
+    category="importer",
+    route="customs",
+    public_hook="Ana Silva spoke for Acme GmbH at the EU trade summit",
+    tension="Acme GmbH faces new customs rules",
+    contribution="Ana has published on tariff reform",
+    questions=["How is Acme GmbH handling the new tariff codes?"],
+)
+
+
+def _pseudonymous_payload(**overrides):
+    request = EgressRequest(
+        task_type="draft_email",
+        data_class=DataClass.PERSON_PUBLIC,
+        person=PSEUDO_PERSON,
+        instructions="Write a warm first email to Ana Silva at Acme GmbH.",
+        positioning_line="We help exporters cut customs cost.",
+        **overrides,
+    )
+    return build_payload(request, DataPolicy.PSEUDONYMOUS)
+
+
+def test_pseudonymous_removes_identity_from_the_whole_payload():
+    """Not just the recipient block — every field, including owner-typed text.
+
+    This is the assertion that matters: search the serialised bytes. A future
+    field added to the builder cannot quietly reintroduce the name without
+    failing here.
+    """
+    blob = json.dumps(_pseudonymous_payload(), ensure_ascii=False)
+    for secret in ("Ana Silva", "Ana", "Silva", "Acme GmbH", "Acme"):
+        assert secret not in blob, f"{secret!r} survived into a pseudonymous payload"
+
+
+def test_pseudonymous_keeps_enough_to_write_a_specific_email():
+    """Anonymity is worthless if it makes the model useless. The title, the
+    category and the de-identified hook all survive."""
+    recipient = _pseudonymous_payload()["recipient"]
+    assert recipient["person_ref"] == "PERSON_1"
+    assert recipient["company_ref"] == "COMPANY_1"
+    assert recipient["title"] == "Head of Trade"
+    assert recipient["category"] == "importer"
+    assert "EU trade summit" in recipient["public_hook"]
+    assert "PERSON_1" in recipient["public_hook"]
+
+
+def test_pseudonymous_scrubs_free_text_the_owner_typed():
+    """The structured fields are the easy part. Free text is where identity
+    actually leaks."""
+    payload = _pseudonymous_payload(
+        public_text="Background on Acme GmbH and its founder Ana Silva.",
+        conversation=[{"role": "user", "content": "Remind me who Ana Silva is."}],
+    )
+    assert payload["instructions"] == "Write a warm first email to PERSON_1 at COMPANY_1."
+    assert payload["recipient"]["tension"] == "COMPANY_1 faces new customs rules"
+    assert "PERSON_1" in payload["public_context"]
+    assert "PERSON_1" in payload["conversation"][0]["content"]
+
+
+def test_pseudonymous_never_carries_the_real_name_fields():
+    recipient = _pseudonymous_payload()["recipient"]
+    for field in ("full_name", "first_name", "company", "hook_source", "linkedin_url"):
+        assert field not in recipient
+
+
+def test_minimal_and_above_still_get_the_real_identity():
+    """Tiers A and B are unaffected. `minimal` keeps its documented meaning."""
+    request = EgressRequest(
+        task_type="draft_email",
+        data_class=DataClass.PERSON_PUBLIC,
+        person=PSEUDO_PERSON,
+        instructions="Write a warm first email to Ana Silva at Acme GmbH.",
+    )
+    for policy in (DataPolicy.MINIMAL, DataPolicy.STANDARD):
+        payload = build_payload(request, policy)
+        assert payload["recipient"]["full_name"] == "Ana Silva"
+        assert payload["recipient"]["company"] == "Acme GmbH"
+        assert "Ana Silva" in payload["instructions"]
+
+
+def test_a_very_short_name_is_left_alone_rather_than_eating_words():
+    """Over-redaction has a floor. Scrubbing "Ed" would turn "edge" into
+    "PERSON_1ge" and destroy the sentence for no privacy gain."""
+    person = PersonPublic(full_name="Ed Ng", first_name="Ed", company="Xy", title="CTO")
+    request = EgressRequest(
+        task_type="draft_email",
+        data_class=DataClass.PERSON_PUBLIC,
+        person=person,
+        instructions="Discuss the edge cases in their xylophone import flow.",
+    )
+    payload = build_payload(request, DataPolicy.PSEUDONYMOUS)
+    assert payload["instructions"] == "Discuss the edge cases in their xylophone import flow."
+
+
+def test_scrubbing_is_case_insensitive_and_catches_the_surname_alone():
+    person = PersonPublic(full_name="Ana Silva", first_name="Ana", company="Acme GmbH")
+    request = EgressRequest(
+        task_type="draft_email",
+        data_class=DataClass.PERSON_PUBLIC,
+        person=person,
+        instructions="ANA SILVA runs it; silva signs off; acme gmbh is the buyer.",
+    )
+    blob = json.dumps(build_payload(request, DataPolicy.PSEUDONYMOUS))
+    for secret in ("ANA", "SILVA", "silva", "acme", "gmbh"):
+        assert secret not in blob
+
+
+def test_tier_c_provider_end_to_end_never_sees_the_person(broker, tmp_path):
+    """The whole path, not just the builder: resolve DeepSeek, build under its
+    own resolved policy, and confirm the scanner passes a payload with no
+    identity in it."""
+    resolved = broker.registry.resolve("deepseek")
+    assert resolved.tier is TrustTier.C
+    assert resolved.policy is DataPolicy.PSEUDONYMOUS
+
+    request = EgressRequest(
+        task_type="draft_email",
+        data_class=DataClass.PERSON_PUBLIC,
+        person=PSEUDO_PERSON,
+        instructions="Write to Ana Silva at Acme GmbH.",
+    )
+    payload = build_payload(request, resolved.policy)
+    assert scan_payload(payload, policy=resolved.policy).clean
+    assert "Ana Silva" not in json.dumps(payload)

@@ -58,6 +58,7 @@ def test_policy_levels_and_tiers_are_described_for_the_ui(client):
     payload = client.get(f"{API}/ai/providers").json()
     assert [item["value"] for item in payload["policy_levels"]] == [
         "strict",
+        "pseudonymous",
         "minimal",
         "standard",
         "full",
@@ -66,7 +67,7 @@ def test_policy_levels_and_tiers_are_described_for_the_ui(client):
     assert payload["mailbox_unlocked"] is False
 
 
-def test_connecting_a_chinese_provider_clamps_the_policy_to_minimal(client):
+def test_connecting_a_chinese_provider_clamps_the_policy_to_pseudonymous(client):
     response = client.post(
         f"{API}/ai/providers/deepseek/connect",
         json={"api_key": "sk-test", "data_policy": "full"},
@@ -74,7 +75,7 @@ def test_connecting_a_chinese_provider_clamps_the_policy_to_minimal(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["policy_was_clamped"] is True
-    assert payload["provider"]["data_policy"] == "minimal"
+    assert payload["provider"]["data_policy"] == "pseudonymous"
     assert payload["tier"] == "C"
 
 

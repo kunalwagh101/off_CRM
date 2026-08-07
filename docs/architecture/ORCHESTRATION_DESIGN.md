@@ -171,12 +171,30 @@ should stay.
 | **Pseudonymise C** | `PERSON_1`, `COMPANY_1`, real title/category | Nobody identified; copy quality drops slightly |
 | **Drop C to strict** | Category and question structure only | Maximum safety; tier C becomes useful only for public/code work |
 
-**Recommendation: option 2.** A stable token per entity keeps the model able to
-reason coherently ("write to PERSON_1 at COMPANY_1"), and off_CRM re-attaches
-the real values locally — the same trick already used for addresses. It costs
-very little quality and closes the gap between the stated intent and the code.
+**Decision: option 2, shipped 2026-07-31.**
 
-This is a decision only the owner can make, so nothing has been changed.
+Implemented as a new `pseudonymous` policy sitting between `strict` and
+`minimal`, with tier C's ceiling lowered to it. `minimal` is untouched for
+tiers A and B, so nothing they receive changed.
+
+What a tier C provider now gets:
+
+```json
+{"instructions": "Write a warm first email to PERSON_1 at COMPANY_1.",
+ "recipient": {"person_ref": "PERSON_1", "company_ref": "COMPANY_1",
+               "title": "Head of Trade", "category": "importer",
+               "public_hook": "PERSON_1 spoke for COMPANY_1 at the EU trade summit"},
+ "sender_positioning": "We help exporters cut customs cost."}
+```
+
+The title and hook survive, so the model can still write something specific.
+The identity does not. Scrubbing covers owner-typed free text as well, since
+"write to Ana Silva" leaks exactly what the structured fields just removed —
+and it is targeted rather than guessed, because off_CRM knows who the request
+is about.
+
+`tests/test_ai_egress_wall.py` asserts the property against the serialised
+payload bytes, so a field added later cannot quietly reintroduce the name.
 
 ### The part nobody usually catches: shape leaks
 

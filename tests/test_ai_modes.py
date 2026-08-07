@@ -152,13 +152,22 @@ def test_compare_gives_each_model_only_what_its_own_tier_allows(harness):
         system_prompt="write",
     )
 
-    # Mistral is tier A at `standard`: it sees the template.
+    # Mistral is tier A at `standard`: it sees the template and the real person.
     assert "template" in sink["mistral"]
-    # DeepSeek is tier C, clamped to `minimal`: no template, but it still gets
-    # the person's public identity so it can personalise.
+    assert sink["mistral"]["recipient"]["full_name"] == "Ana Silva"
+
+    # DeepSeek is tier C, clamped to `pseudonymous`: no template, and the person
+    # arrives as a token. It still gets the title and hook, so it can write
+    # something specific without being told who it is about.
+    cheap = sink["deepseek"]["recipient"]
     assert "template" not in sink["deepseek"]
-    assert sink["deepseek"]["recipient"]["full_name"] == "Ana Silva"
-    assert sink["deepseek"]["recipient"]["company"] == "Acme GmbH"
+    assert cheap["person_ref"] == "PERSON_1"
+    assert cheap["company_ref"] == "COMPANY_1"
+    assert cheap["title"] == "Head of Trade"
+    assert "full_name" not in cheap
+    assert "company" not in cheap
+    assert "Ana Silva" not in json.dumps(sink["deepseek"])
+    assert "Acme GmbH" not in json.dumps(sink["deepseek"])
 
 
 def test_compare_still_excludes_a_provider_that_may_not_hold_the_data(harness):

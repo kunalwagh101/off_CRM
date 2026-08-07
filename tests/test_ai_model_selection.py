@@ -189,8 +189,11 @@ def test_two_models_on_one_key_get_different_payloads(harness):
         )
     by_model = {call["model_id"]: call["payload"] for call in calls}
     assert "template" in by_model["meta/llama-3.3-70b-instruct"]
+    assert by_model["meta/llama-3.3-70b-instruct"]["recipient"]["full_name"] == "Ana Silva"
+    # The tier C sibling on the same key gets neither the template nor the name.
     assert "template" not in by_model["deepseek-ai/deepseek-r1"]
-    assert by_model["deepseek-ai/deepseek-r1"]["recipient"]["full_name"] == "Ana Silva"
+    assert by_model["deepseek-ai/deepseek-r1"]["recipient"]["person_ref"] == "PERSON_1"
+    assert "Ana Silva" not in json.dumps(by_model["deepseek-ai/deepseek-r1"])
 
 
 def test_an_unknown_model_name_is_untrusted(registry):

@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **264 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
+Tests: **272 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -83,7 +83,7 @@ caller → EgressRequest (task_type, data_class, person, template…)
 |---|---|---|---|
 | A | Europe, self-hosted | full | public, person, campaign, CRM internal |
 | B | USA, Canada, allied | standard | public, person, campaign |
-| C | China, and anything demoted for weak data terms | minimal | public, person's public profile |
+| C | China, and anything demoted for weak data terms | pseudonymous | public, person's public profile **as tokens** |
 | D | Routers/aggregators, anything unlisted | strict | nothing |
 
 Tier is derived from **two axes** — jurisdiction *and* retention terms. Passing
@@ -95,14 +95,17 @@ its terms allow training on submitted content.
 | Policy | Sends |
 |---|---|
 | `strict` | Category and question structure. Nobody identifiable. |
+| `pseudonymous` | Job title, category and the public hook, with the person and company as `PERSON_1` / `COMPANY_1`. Free text is scrubbed of the name too. Nobody identifiable. **Tier C ceiling.** |
 | `minimal` | The person's public name, company, title, hook + your positioning line. Addresses tokenised. |
 | `standard` | Above + your template text and campaign notes. Addresses tokenised. |
 | `full` | No field restrictions. Real addresses can leave. Explicit opt-in. |
 
 **Note on `minimal`:** it deliberately permits the person's public name so
-enrichment can personalise — the owner's instruction. The older
-`outreach/providers.py` path keeps its own stricter meaning for `minimal`; the
-two are documented separately so existing profiles never silently widen.
+enrichment can personalise — the owner's instruction. It is now reachable only
+by tiers A and B: tier C's ceiling was lowered to `pseudonymous` (owner's
+decision 2026-07-31, reversing §5.2 below). The older `outreach/providers.py`
+path keeps its own stricter meaning for `minimal`; the two are documented
+separately so existing profiles never silently widen.
 
 `full` stays available on any tier via a recorded override with a mandatory
 reason. Credentials, mailbox headers and internal field names are blocked at
@@ -344,10 +347,17 @@ Listed honestly. Nothing below is silently assumed done.
    is available on any tier, but above a tier's ceiling it needs an override
    with a written reason, stored with who decided and when. Never silent, never
    a default, never reached by failover.
-2. **Chinese providers stay enabled and useful.** At tier C they receive a
-   person's public name, company and title — which is what personalisation
-   actually needs — plus public and coding work. They never receive the owner's
-   address, template, notes or mailbox unless explicitly raised.
+2. **Chinese providers stay enabled and useful — but pseudonymously.**
+   *Superseded 2026-07-31.* The original decision gave tier C the person's real
+   public name, company and title. The owner then identified client and POI
+   identity as the business secret, which contradicts it. Resolved by adding a
+   `pseudonymous` policy between `strict` and `minimal` and lowering tier C's
+   ceiling to it: a restricted provider still receives the job title, category
+   and public hook — enough to write something specific — but the person and
+   company arrive as `PERSON_1` and `COMPANY_1`, and owner-typed free text is
+   scrubbed of the name as well. off_CRM re-attaches the real values locally,
+   the same way it already does for addresses. `minimal` is unchanged for tiers
+   A and B. Tier C is still useful for public and coding work at full detail.
 3. **Google demoted to C.** Acceptable jurisdiction, but free-tier terms permit
    training on input. If billing moves to paid, re-verify and pin `trust_tier: B`
    with a note.
@@ -366,12 +376,12 @@ Listed honestly. Nothing below is silently assumed done.
 1. **Recall coverage** — the index covers sent mail. Whether attachments and
    older archives outside off_CRM should be pulled in is an owner decision.
 2. **Orchestrator** — confirm the §7 reversal, and which model is the head.
-2b. **Tier C and person identity.** §5.2 records the decision that tier C
-   receives a prospect's real name, company and title. The owner has since
-   raised client/POI identity as the business secret to protect. These conflict.
-   Options and a recommendation (pseudonymise for tier C) are in
-   `docs/architecture/ORCHESTRATION_DESIGN.md` §4. Nothing changed pending a
-   decision.
+2b. **Tier C and person identity — resolved 2026-07-31.** Pseudonymised; see
+   §5.2. Open sub-question: whether `PERSON_1` / `COMPANY_1` should become
+   stable *across* jobs for the same contact, so a model could in principle
+   recognise a returning prospect. Today they are constant per payload, which
+   means no mapping table exists and there is nothing to leak. Making them
+   durable would need a stored mapping and is a real trade — flagged, not built.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with
    `autoDeploy: true`, so nothing ships until this branch is merged there.

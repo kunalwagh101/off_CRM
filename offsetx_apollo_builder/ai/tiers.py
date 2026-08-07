@@ -69,6 +69,7 @@ class DataPolicy(str, Enum):
     """How much the payload builder may include, from least to most."""
 
     STRICT = "strict"
+    PSEUDONYMOUS = "pseudonymous"
     MINIMAL = "minimal"
     STANDARD = "standard"
     FULL = "full"
@@ -77,15 +78,20 @@ class DataPolicy(str, Enum):
     def rank(self) -> int:
         return {
             DataPolicy.STRICT: 0,
-            DataPolicy.MINIMAL: 1,
-            DataPolicy.STANDARD: 2,
-            DataPolicy.FULL: 3,
+            DataPolicy.PSEUDONYMOUS: 1,
+            DataPolicy.MINIMAL: 2,
+            DataPolicy.STANDARD: 3,
+            DataPolicy.FULL: 4,
         }[self]
 
     @property
     def label(self) -> str:
         return {
             DataPolicy.STRICT: "Strict — no names at all, category and role only",
+            DataPolicy.PSEUDONYMOUS: (
+                "Pseudonymous — the job title and hook, with the person and company "
+                "replaced by tokens"
+            ),
             DataPolicy.MINIMAL: "Minimal — the person's public name, company and title",
             DataPolicy.STANDARD: "Standard — minimal plus your template and positioning",
             DataPolicy.FULL: "Full — no field restrictions (explicit opt-in)",
@@ -97,6 +103,12 @@ class DataPolicy(str, Enum):
             DataPolicy.STRICT: (
                 "Sends the category, route and question structure only. No person "
                 "is identifiable in the payload."
+            ),
+            DataPolicy.PSEUDONYMOUS: (
+                "Sends the person's job title and public hook so the model can still "
+                "write something specific, but the name and company are replaced by "
+                "PERSON_1 and COMPANY_1 and off_CRM puts the real values back "
+                "locally. Nobody is identifiable in the payload."
             ),
             DataPolicy.MINIMAL: (
                 "Sends the person's public professional identity — name, company, "
@@ -118,6 +130,7 @@ class DataPolicy(str, Enum):
 #: Ordered lowest → highest, for building UI dropdowns.
 POLICY_ORDER: tuple[DataPolicy, ...] = (
     DataPolicy.STRICT,
+    DataPolicy.PSEUDONYMOUS,
     DataPolicy.MINIMAL,
     DataPolicy.STANDARD,
     DataPolicy.FULL,
@@ -168,10 +181,18 @@ JURISDICTION_TIERS: dict[str, TrustTier] = {
 }
 
 #: Tier → the most permissive policy allowed without an explicit owner override.
+#:
+#: Tier C sits at ``pseudonymous``, not ``minimal`` (owner's decision, reversing
+#: the 2026-07-25 instruction recorded in BUILD_STATE §5.2).  A restricted
+#: provider still gets the job title and the public hook, which is enough to
+#: write something specific, but the person and the company arrive as tokens.
+#: Client and POI identity is the business secret; personalisation quality is
+#: not worth handing it to a provider in a jurisdiction the owner does not
+#: trust.  ``minimal`` keeps its documented meaning for tiers A and B.
 TIER_POLICY_CEILING: dict[TrustTier, DataPolicy] = {
     TrustTier.A: DataPolicy.FULL,
     TrustTier.B: DataPolicy.STANDARD,
-    TrustTier.C: DataPolicy.MINIMAL,
+    TrustTier.C: DataPolicy.PSEUDONYMOUS,
     TrustTier.D: DataPolicy.STRICT,
 }
 
@@ -179,7 +200,7 @@ TIER_POLICY_CEILING: dict[TrustTier, DataPolicy] = {
 TIER_DEFAULT_POLICY: dict[TrustTier, DataPolicy] = {
     TrustTier.A: DataPolicy.STANDARD,
     TrustTier.B: DataPolicy.STANDARD,
-    TrustTier.C: DataPolicy.MINIMAL,
+    TrustTier.C: DataPolicy.PSEUDONYMOUS,
     TrustTier.D: DataPolicy.STRICT,
 }
 

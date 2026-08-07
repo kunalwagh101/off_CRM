@@ -21,7 +21,18 @@ from .tiers import DataClass, DataPolicy
 RECIPIENT_TOKEN = "RECIPIENT_1"
 SENDER_TOKEN = "SENDER"
 
+#: Identity tokens for ``pseudonymous``.  A request carries exactly one person,
+#: so these are constant rather than allocated — there is no mapping table to
+#: keep, and nothing to leak.  off_CRM knows who the request was about and puts
+#: the real values back after generation, the same way it does for addresses.
+PERSON_TOKEN = "PERSON_1"
+COMPANY_TOKEN = "COMPANY_1"
+
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
+#: Below this length a name is too generic to remove without destroying the
+#: sentence around it — "Ed" would eat "edge", "Li" would eat "link".
+_MIN_SCRUBBABLE = 3
 
 
 @dataclass(slots=True)
@@ -112,15 +123,72 @@ def tokenise_addresses(text: str) -> str:
     return _EMAIL_RE.sub(f"<{RECIPIENT_TOKEN}>", str(text or ""))
 
 
+def _identity_terms(person: PersonPublic) -> list[tuple[str, str]]:
+    """``(term, replacement)`` pairs for scrubbing this person out of free text.
+
+    Longest first, so "Ana Silva" is consumed before the "Ana" rule can turn it
+    into "PERSON_1 Silva".  This is *targeted* removal, not guesswork: off_CRM
+    knows exactly who the request is about, which is the same reason the recall
+    index can redact precisely instead of pattern-matching for names.
+    """
+    surname = ""
+    parts = str(person.full_name or "").split()
+    if len(parts) > 1:
+        surname = parts[-1]
+
+    pairs = [
+        (person.full_name, PERSON_TOKEN),
+        (person.company, COMPANY_TOKEN),
+        (surname, PERSON_TOKEN),
+        (person.first_name, PERSON_TOKEN),
+    ]
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for term, token in pairs:
+        cleaned = str(term or "").strip()
+        key = cleaned.lower()
+        if len(cleaned) < _MIN_SCRUBBABLE or key in seen:
+            continue
+        seen.add(key)
+        out.append((cleaned, token))
+    out.sort(key=lambda item: len(item[0]), reverse=True)
+    return out
+
+
+def scrub_identity(text: str, person: PersonPublic | None) -> str:
+    """Replace this person's name and company with tokens, in free text.
+
+    Free-text fields are where identity leaks after the structured fields have
+    been handled — a public hook reads "Ana Silva spoke at the EU trade summit"
+    just as often as it reads "spoke at the EU trade summit".
+    """
+    result = str(text or "")
+    if person is None or not result:
+        return result
+    for term, token in _identity_terms(person):
+        result = re.sub(rf"\b{re.escape(term)}\b", token, result, flags=re.IGNORECASE)
+    return result
+
+
 def _person_fields(person: PersonPublic, policy: DataPolicy) -> dict[str, Any]:
     """Person fields permitted at each policy level.
 
-    ``strict``  — nothing that identifies the individual.
-    ``minimal`` — their public professional identity, which is what enrichment
-                  and personalisation actually need (owner's instruction).
+    ``strict``       — nothing that identifies the individual.
+    ``pseudonymous`` — job title and public hook, with the person and the
+                       company replaced by tokens.  Enough to write something
+                       specific; not enough to know who it is about.
+    ``minimal``      — their real public professional identity, which is what
+                       enrichment needs (owner's instruction, tiers A and B).
     ``standard``/``full`` — adds the public hook's source and profile URL.
     """
     built: dict[str, Any] = {}
+    # Below `minimal` the person is not supposed to be identifiable, so the
+    # free-text fields are scrubbed too. They describe the slot, but nothing
+    # stops an operator from typing a name into one.
+    anonymise = policy.rank < DataPolicy.MINIMAL.rank
+
+    def _maybe_scrub(value: str) -> str:
+        return scrub_identity(value, person) if anonymise else value
 
     # Present at every level: structural fields that describe the *slot*, not
     # the person. These identify nobody on their own.
@@ -130,14 +198,34 @@ def _person_fields(person: PersonPublic, policy: DataPolicy) -> dict[str, Any]:
         ("tension", person.tension),
         ("contribution", person.contribution),
     ):
-        cleaned = _clean(value, 500)
+        cleaned = _clean(_maybe_scrub(value), 500)
         if cleaned:
             built[key] = cleaned
-    questions = [_clean(item, 300) for item in person.questions if _clean(item, 300)]
+    questions = [
+        _clean(_maybe_scrub(item), 300)
+        for item in person.questions
+        if _clean(item, 300)
+    ]
     if questions:
         built["questions"] = questions[:3]
 
     if policy.rank <= DataPolicy.STRICT.rank:
+        return built
+
+    if anonymise:
+        # pseudonymous: tokens instead of identity. The title is kept because a
+        # role names nobody — "Head of Trade" is true of thousands of people —
+        # and without it the model cannot pitch at the right level.
+        built["person_ref"] = PERSON_TOKEN
+        if _clean(person.company, 600):
+            built["company_ref"] = COMPANY_TOKEN
+        for key, value in (
+            ("title", person.title),
+            ("public_hook", _maybe_scrub(person.public_hook)),
+        ):
+            cleaned = _clean(value, 600)
+            if cleaned:
+                built[key] = cleaned
         return built
 
     # minimal and above: the public professional identity.
@@ -178,9 +266,19 @@ def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
         "sender_token": SENDER_TOKEN,
     }
 
+    # Below `minimal` the person must not be identifiable *anywhere* in the
+    # payload, not just inside the `recipient` block. Owner-typed free text is
+    # the obvious leak: "write to Ana Silva at Acme" carries the identity that
+    # the structured fields just removed.
+    def _text(value: object, limit: int) -> str:
+        cleaned = _clean(value, limit)
+        if cleaned and policy.rank < DataPolicy.MINIMAL.rank:
+            cleaned = scrub_identity(cleaned, request.person)
+        return tokenise_addresses(cleaned)
+
     instructions = _clean(request.instructions, 6000)
     if instructions:
-        built["instructions"] = tokenise_addresses(instructions)
+        built["instructions"] = _text(instructions, 6000)
 
     if request.person is not None:
         person_fields = _person_fields(request.person, policy)
@@ -188,9 +286,11 @@ def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
             built["recipient"] = person_fields
 
     # The owner's public one-liner is the only sender-side content permitted to
-    # leave below `full` (§5.2 item 2).
+    # leave below `full` (§5.2 item 2). It names the owner's offer, not the
+    # recipient, so a pseudonymous payload still carries it — without it the
+    # model has nothing to pitch.
     positioning = _clean(request.positioning_line, 500)
-    if positioning and policy.rank >= DataPolicy.MINIMAL.rank:
+    if positioning and policy.rank >= DataPolicy.PSEUDONYMOUS.rank:
         built["sender_positioning"] = tokenise_addresses(positioning)
 
     if policy.rank >= DataPolicy.STANDARD.rank:
@@ -213,14 +313,14 @@ def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
     # a tier C or public-only provider useful at all.
     public_text = _clean(request.public_text, 20000)
     if public_text:
-        built["public_context"] = tokenise_addresses(public_text)
+        built["public_context"] = _text(public_text, 20000)
 
     if request.conversation:
         limit = 20 if policy.rank >= DataPolicy.STANDARD.rank else 6
         built["conversation"] = [
             {
                 "role": _clean(turn.get("role"), 20),
-                "content": tokenise_addresses(_clean(turn.get("content"), 8000)),
+                "content": _text(turn.get("content"), 8000),
             }
             for turn in request.conversation[-limit:]
         ]
@@ -252,6 +352,12 @@ def describe_policy_for_class(policy: DataPolicy, data_class: DataClass) -> str:
         return "Public, non-personal content only. No person is named."
     if policy is DataPolicy.STRICT:
         return "Category and question structure only. Nobody is identifiable."
+    if policy is DataPolicy.PSEUDONYMOUS:
+        return (
+            "The job title and public hook, plus your one-line positioning. The "
+            "person and company go as PERSON_1 and COMPANY_1, and off_CRM puts "
+            "the real names back locally. Nobody is identifiable."
+        )
     if policy is DataPolicy.MINIMAL:
         return (
             "The person's public name, company, title and public hook, plus your "

@@ -1,8 +1,9 @@
 # Orchestration design — answers, grounded in the code
 
-Written after reading the AI module (5,571 lines, 14 files) and running the
-suite: **258 passed, 1 pre-existing failure** (`test_scrapling_parser…`, an
-optional dependency, failing before this work and unrelated).
+Written after reading the AI module (5,571 lines, 14 files). Suite at the time
+of the audit: 258 passed with one failure; now **272 passed, 0 failed** — the
+failure was a dependency missing from `requirements.txt`, not a code defect, and
+the session-start hook resolves it.
 
 Every claim below cites a file and line. Where the code disagrees with what was
 asked for, that is said plainly rather than smoothed over.
@@ -41,27 +42,30 @@ field. Construction fails **closed**.
 This is the "which detail, which document" answer. Read from
 `payload.py:115-232`.
 
-| Field | strict | minimal | standard | full |
-|---|:--:|:--:|:--:|:--:|
-| `category`, `route`, `tension`, `contribution` | ✔ | ✔ | ✔ | ✔ |
-| `questions` (up to 3) | ✔ | ✔ | ✔ | ✔ |
-| `full_name` | ✖ | ✔ | ✔ | ✔ |
-| `first_name` | ✖ | ✔ | ✔ | ✔ |
-| `title` | ✖ | ✔ | ✔ | ✔ |
-| `company` | ✖ | ✔ | ✔ | ✔ |
-| `public_hook` | ✖ | ✔ | ✔ | ✔ |
-| `sender_positioning` | ✖ | ✔ | ✔ | ✔ |
-| `hook_source` | ✖ | ✖ | ✔ | ✔ |
-| `linkedin_url` | ✖ | ✖ | ✔ | ✔ |
-| `template` | ✖ | ✖ | ✔ | ✔ |
-| `campaign_notes` | ✖ | ✖ | ✔ | ✔ |
-| `prior_drafts` (max 3) | ✖ | ✖ | ✔ | ✔ |
-| `conversation` | 6 turns | 6 turns | 20 turns | 20 turns |
-| `public_context` | ✔ | ✔ | ✔ | ✔ |
-| **real email address** | ✖ | ✖ | ✖ | ✔ (opt-in) |
-| **credentials** | ✖ | ✖ | ✖ | **✖ always** |
-| **mailbox headers** | ✖ | ✖ | ✖ | **✖ always** |
-| **internal field names** | ✖ | ✖ | ✖ | **✖ always** |
+`pseudo` below is `pseudonymous`, tier C's ceiling. Fields marked **scrub** are
+sent with the person's name and company replaced by tokens.
+
+| Field | strict | pseudo | minimal | standard | full |
+|---|:--:|:--:|:--:|:--:|:--:|
+| `category`, `route`, `tension`, `contribution` | scrub | scrub | ✔ | ✔ | ✔ |
+| `questions` (up to 3) | scrub | scrub | ✔ | ✔ | ✔ |
+| `person_ref` / `company_ref` (tokens) | ✖ | ✔ | ✖ | ✖ | ✖ |
+| `title` | ✖ | ✔ | ✔ | ✔ | ✔ |
+| `public_hook` | ✖ | scrub | ✔ | ✔ | ✔ |
+| `full_name` | ✖ | ✖ | ✔ | ✔ | ✔ |
+| `first_name` | ✖ | ✖ | ✔ | ✔ | ✔ |
+| `company` | ✖ | ✖ | ✔ | ✔ | ✔ |
+| `sender_positioning` | ✖ | ✔ | ✔ | ✔ | ✔ |
+| `hook_source` | ✖ | ✖ | ✖ | ✔ | ✔ |
+| `linkedin_url` | ✖ | ✖ | ✖ | ✔ | ✔ |
+| `template` | ✖ | ✖ | ✖ | ✔ | ✔ |
+| `campaign_notes` | ✖ | ✖ | ✖ | ✔ | ✔ |
+| `prior_drafts` (max 3) | ✖ | ✖ | ✖ | ✔ | ✔ |
+| `instructions`, `public_context`, `conversation` | scrub | scrub | ✔ | ✔ | ✔ |
+| **real email address** | ✖ | ✖ | ✖ | ✖ | ✔ (opt-in) |
+| **credentials** | ✖ | ✖ | ✖ | ✖ | **✖ always** |
+| **mailbox headers** | ✖ | ✖ | ✖ | ✖ | **✖ always** |
+| **internal field names** | ✖ | ✖ | ✖ | ✖ | **✖ always** |
 
 The last three rows are the important ones. `scanner.py:160` blocks them at
 *every* policy level **including `full`**. There is no setting that lets a
@@ -75,7 +79,7 @@ credential or a mail header leave.
 |---|---|---|
 | A | Europe, self-hosted | public, person_public, campaign, internal |
 | B | US, CA, GB, AU, NZ, JP, KR, IL, IN | public, person_public, campaign |
-| C | China, HK, RU, and anything demoted | public, person_public |
+| C | China, HK, RU, and anything demoted | public, person_public (**tokenised**) |
 | D | Routers/aggregators, anything unlisted | **nothing** |
 
 `MAILBOX` is deliberately absent from every row (`tiers.py:187-189`). It needs

@@ -251,6 +251,10 @@ def test_nesting_is_detected_but_can_be_overridden_deliberately(monkeypatch):
     monkeypatch.setattr(
         "offsetx_apollo_builder.ai.sandbox.shutil.which", lambda name: "/usr/bin/docker"
     )
+    # The override clears the nesting objection; a live daemon is still required.
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox._daemon_responds", lambda **kw: True
+    )
     assert sandbox_available()[0] is True
 
 
@@ -374,3 +378,94 @@ def test_a_networkless_container_cannot_reach_an_external_host(tmp_path):
     assert completed.returncode != 0, "the container reached the network"
     assert "NETWORK_SHOULD_NOT_BE_REACHABLE" not in completed.stdout
     assert "NETWORK_SHOULD_NOT_BE_REACHABLE" not in completed.stderr
+
+
+# ── the binary is not the daemon ───────────────────────────────────────────
+
+
+def test_an_installed_binary_with_a_dead_daemon_is_not_available(monkeypatch):
+    """A file on PATH is not a running engine. Answering "available" on the
+    strength of `which docker` sends the owner into a failure several steps
+    later, with a worse message than this one."""
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.os.path.exists", lambda path: False
+    )
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.shutil.which", lambda name: "/usr/bin/docker"
+    )
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox._daemon_responds", lambda **kw: False
+    )
+    ok, reason = sandbox_available()
+    assert ok is False
+    assert "daemon is not responding" in reason
+
+
+def test_the_daemon_probe_can_be_skipped_for_an_advisory_answer(monkeypatch):
+    """A UI badge does not need to pay for a subprocess on every render."""
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.os.path.exists", lambda path: False
+    )
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.shutil.which", lambda name: "/usr/bin/docker"
+    )
+
+    def explode(**kwargs):
+        raise AssertionError("the probe must not run when check_daemon is False")
+
+    monkeypatch.setattr("offsetx_apollo_builder.ai.sandbox._daemon_responds", explode)
+    assert sandbox_available(check_daemon=False) == (True, "")
+
+
+def test_a_live_daemon_reports_available(monkeypatch):
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.os.path.exists", lambda path: False
+    )
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox.shutil.which", lambda name: "/usr/bin/docker"
+    )
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.sandbox._daemon_responds", lambda **kw: True
+    )
+    assert sandbox_available() == (True, "")
+
+
+@pytest.mark.parametrize(
+    "returncode,stdout,expected",
+    [
+        (0, "27.0.1\n", True),
+        (0, "", False),      # exits zero with no server half — the docker info trap
+        (1, "", False),
+        (1, "27.0.1", False),
+    ],
+)
+def test_the_probe_needs_both_a_zero_exit_and_a_server_version(
+    monkeypatch, returncode, stdout, expected
+):
+    """`docker info` exits zero even when the server half fails, which is why
+    the probe asks for the server version specifically."""
+    from offsetx_apollo_builder.ai import sandbox as sandbox_module
+
+    class Completed:
+        pass
+
+    completed = Completed()
+    completed.returncode = returncode
+    completed.stdout = stdout
+    monkeypatch.setattr(
+        sandbox_module.subprocess, "run", lambda *a, **k: completed
+    )
+    assert sandbox_module._daemon_responds() is expected
+
+
+def test_a_probe_that_cannot_even_start_reports_unavailable(monkeypatch):
+    from offsetx_apollo_builder.ai import sandbox as sandbox_module
+
+    def explode(*args, **kwargs):
+        raise OSError("no such binary")
+
+    monkeypatch.setattr(sandbox_module.subprocess, "run", explode)
+    assert sandbox_module._daemon_responds() is False

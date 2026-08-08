@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **370 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **409 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -54,6 +54,8 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── modes.py      run modes: simple, verified, compare, orchestrated
 ├── verify.py     write -> check -> repair -> review
 ├── sandbox.py    container isolation for AI-written code (§4J)
+├── tools.py      the registry of owner-pinned tools that may run in it
+└── tool_cli.py   `offsetx-tools` — register, inspect, run
 ├── discovery.py  asks a provider what models its key reaches
 ├── log.py        egress log; own SQLite table, stores the exact payload
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
@@ -276,6 +278,52 @@ known without measuring.
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
 
+### Tool registry — built (2026-07-31)
+
+The list of who may enter the locked room. One sentence carries the design:
+**a model names a tool that already exists; it cannot describe a new one.**
+
+- [x] `ai/tools.py` — register, list, enable/disable, remove, run, run history.
+- [x] **`run()` takes a `tool_id`, never an image or a command.** A test asserts
+      this at the *signature* level: if the parameter list ever grows `image=`
+      or `command=`, the build fails, because the registry would have stopped
+      being a registry.
+- [x] Three mandatory pins, none defaultable: a `github.com/owner/repo` URL, a
+      **full 40-character commit SHA** (branches and tags refused — they move),
+      and a version-pinned image (`:latest` refused).
+- [x] **The catalogue withholds the recipe.** A model sees id, name, description
+      and whether arguments are accepted. No image, no command, no repository —
+      so a leaked catalogue is not a leaked attack surface. A disabled tool is
+      *absent* rather than marked, so a model cannot tell it exists.
+- [x] Extra arguments are **opt-in per tool**, capped at 8, values only —
+      anything starting with `-` is refused so a caller cannot change how the
+      tool behaves.
+- [x] **Source is fetched on the host, not in the container.** The container has
+      no network, so it cannot clone; off_CRM materialises the pinned commit
+      first and then proves `rev-parse HEAD` equals what was registered. That
+      puts the integrity check somewhere a compromised tool cannot reach. Source
+      lands in `inbox/`, which mounts read-only, so a tool cannot rewrite its own
+      source mid-run.
+- [x] Every run is logged with **the commit and image it actually used**, not
+      just the tool name. A timeout is recorded as a run, not raised away.
+- [x] `offsetx-tools` CLI: `register`, `list`, `show`, `catalogue` (prints
+      exactly what a model would see), `run`, `enable`/`disable`, `remove`,
+      `runs`.
+
+**Defect found and fixed while building this.** `sandbox_available()` checked
+for the docker *binary* with `shutil.which`, which is not the same as a running
+*daemon* — the dev machine has the binary and no engine, and the first CLI run
+sailed past the check and failed several steps later inside a git fetch with a
+much worse message. It now probes with `docker version --format
+{{.Server.Version}}`; `docker info` is unusable here because **it exits zero
+even when the server half fails**. Both a zero exit and a non-empty server
+version are required, with a parametrised test over all four combinations.
+`check_daemon=False` skips the subprocess where the answer is only advisory.
+
+**Not built on purpose:** no model-facing path. Nothing yet hands the catalogue
+to a model or lets an orchestrated plan call a tool. Storage and isolation
+should be solid before anything automated can reach them.
+
 ### Sandbox isolation — built (2026-07-31), salvaged not written
 
 `agent/off-crm-v0-12-ai-studio` — an abandoned parallel design from 24 July —
@@ -449,7 +497,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
-| 4J | Bring-your-own tools, sandboxed | **Isolation layer built** (`ai/sandbox.py`), salvaged from the abandoned `agent/off-crm-v0-12-ai-studio` branch. §5.12(c) is now covered. The *registry* of owner-registered tools (pin a repo + commit + image, list them, run one) is still to build on top. |
+| 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
 | — | Abstraction layer | Not started. Tokenisation hides *who*; the shape of a request still leaks ICP and sequence design. See ORCHESTRATION_DESIGN.md §4. |
 | 4K | Graphify | Not started. |

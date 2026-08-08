@@ -52,6 +52,16 @@ from .sandbox import (
     validate_image,
     workspace_usage,
 )
+from .tools import (
+    MAX_EXTRA_ARGS,
+    RegisteredTool,
+    ToolError,
+    ToolRegistry,
+    ToolRun,
+    validate_commit_sha,
+    validate_repository_url,
+    validate_tool_name,
+)
 from .verify import Attempt, VerifiedResult, VerifyLoop
 from .scoreboard import (
     DEFAULT_ALPHA,
@@ -154,6 +164,14 @@ __all__ = [
     "validate_image",
     "validate_command",
     "workspace_usage",
+    "ToolRegistry",
+    "RegisteredTool",
+    "ToolRun",
+    "ToolError",
+    "validate_repository_url",
+    "validate_commit_sha",
+    "validate_tool_name",
+    "MAX_EXTRA_ARGS",
     "CHECKS",
     "checks_for",
     "VerifyLoop",

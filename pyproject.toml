@@ -29,6 +29,7 @@ offsetx-apollo = "offsetx_apollo_builder.cli:main"
 offsetx-outreach = "offsetx_apollo_builder.outreach_cli:main"
 offsetx-web = "offsetx_apollo_builder.web_cli:main"
 offsetx-evals = "offsetx_apollo_builder.ai.eval_cli:main"
+offsetx-tools = "offsetx_apollo_builder.ai.tool_cli:main"
 
 [build-system]
 requires = ["setuptools>=77"]

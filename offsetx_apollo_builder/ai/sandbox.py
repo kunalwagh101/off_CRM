@@ -44,6 +44,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -148,11 +149,15 @@ def workspace_usage(path: Path) -> int:
     return total
 
 
-def sandbox_available() -> tuple[bool, str]:
+def sandbox_available(*, check_daemon: bool = True) -> tuple[bool, str]:
     """Whether a container can be started here, and if not, why.
 
     Returns a sentence rather than a boolean alone, because §4L says a blocked
     capability explains itself before the owner commits to it.
+
+    ``check_daemon`` runs a real probe against the engine, which costs a
+    subprocess. Pass ``False`` where the answer only needs to be advisory — a
+    UI badge, say — and leave it on before actually running something.
     """
     if os.environ.get("RENDER"):
         return False, (
@@ -174,7 +179,35 @@ def sandbox_available() -> tuple[bool, str]:
             "isolation comes from the operating system, and there is no weaker "
             "fallback worth offering."
         )
+    if check_daemon and not _daemon_responds():
+        # The binary being present is not the same as the engine running, and
+        # answering "available" on the strength of a file on PATH sends the
+        # owner into a failure several steps later with a worse message.
+        return False, (
+            "The docker command is installed but the daemon is not responding. "
+            "Start Docker Desktop, or the docker service, and try again."
+        )
     return True, ""
+
+
+def _daemon_responds(timeout_seconds: int = 10) -> bool:
+    """Whether the engine is actually up.
+
+    ``docker version --format {{.Server.Version}}`` is the cheapest question
+    that requires a live daemon to answer; ``docker info`` exits zero even when
+    the server half fails, which makes it useless as a check.
+    """
+    try:
+        completed = subprocess.run(
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0 and bool(completed.stdout.strip())
 
 
 def assert_sandbox_available() -> None:

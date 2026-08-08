@@ -223,7 +223,7 @@ def test_modes_endpoint_says_which_modes_are_usable_and_why_not(client):
     """§4L: a mode the user cannot use must explain itself before they commit."""
     payload = client.get(f"{API}/ai/modes").json()
     by_value = {item["value"]: item for item in payload["modes"]}
-    assert set(by_value) == {"simple", "compare", "orchestrated"}
+    assert set(by_value) == {"simple", "verified", "compare", "orchestrated"}
     # Nothing connected yet, so every mode is blocked with a reason.
     for mode in by_value.values():
         assert mode["available"] is False
@@ -238,6 +238,9 @@ def test_compare_needs_two_models_and_orchestration_needs_a_trusted_one(client):
     by_value = {item["value"]: item for item in payload["modes"]}
 
     assert by_value["simple"]["available"] is True
+    # Verified needs only one model: it repairs against rules, not against a
+    # second opinion, so a lone provider can still write-check-fix.
+    assert by_value["verified"]["available"] is True
     assert by_value["compare"]["available"] is False
     assert "two models" in by_value["compare"]["blocked_reason"]
     # DeepSeek is tier C, so it cannot lead a plan.

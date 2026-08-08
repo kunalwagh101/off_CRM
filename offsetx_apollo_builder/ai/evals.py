@@ -306,6 +306,10 @@ class EvalSuite:
     title: str
     system_prompt: str
     cases: tuple[EvalCase, ...]
+    #: The suite-level rules, kept separately from the merged per-case list so
+    #: the verify loop can enforce the same standard the suite measures without
+    #: inheriting one case's specifics.
+    default_checks: tuple[dict[str, Any], ...] = ()
 
     def __len__(self) -> int:
         return len(self.cases)
@@ -377,10 +381,31 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
             title=str(entry.get("title", suite_id)),
             system_prompt=str(entry.get("system_prompt", "")),
             cases=tuple(cases),
+            default_checks=tuple(defaults),
         )
     if not suites:
         raise RegistryError(f"{source} defines no suites.")
     return suites
+
+
+def checks_for(suite_id: str, path: Path | str) -> tuple[dict[str, Any], ...]:
+    """The rules a suite applies to every case.
+
+    This is the seam that keeps measurement and enforcement in agreement: the
+    eval harness scores against these, and the verify loop enforces the same
+    ones in production. Editing ``config/evals.yaml`` moves both together, so
+    they cannot drift into disagreeing about what a good draft looks like.
+
+    An unknown suite returns no checks rather than raising, because a caller
+    asking to verify an unconfigured task type should get an unverified run with
+    a note, not a failure.
+    """
+    try:
+        suites = load_suites(path)
+    except RegistryError:
+        return ()
+    suite = suites.get(suite_id)
+    return suite.default_checks if suite else ()
 
 
 # ── results ─────────────────────────────────────────────────────────────────
@@ -512,7 +537,14 @@ class EvalRunner:
         for case in suite.cases:
             case_started = time.monotonic()
             try:
-                if mode == "compare":
+                if mode == "verified":
+                    run = runner.run_verified(
+                        case.to_request(),
+                        settings,
+                        system_prompt=suite.system_prompt,
+                        checks=case.checks,
+                    )
+                elif mode == "compare":
                     run = runner.run_compare(
                         case.to_request(), settings, system_prompt=suite.system_prompt
                     )

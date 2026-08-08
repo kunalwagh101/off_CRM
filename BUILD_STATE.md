@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **317 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
+Tests: **336 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -50,7 +50,8 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── scanner.py    pre-flight scan; a hit BLOCKS and raises, never redacts
 ├── quota.py      local RPM/RPD/spend accounting, file-backed
 ├── broker.py     THE single egress gate — the only code that calls a provider
-├── modes.py      run modes: simple, compare, orchestrated
+├── modes.py      run modes: simple, verified, compare, orchestrated
+├── verify.py     write -> check -> repair -> review
 ├── discovery.py  asks a provider what models its key reaches
 ├── log.py        egress log; own SQLite table, stores the exact payload
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
@@ -272,6 +273,42 @@ known without measuring.
 **Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
+
+### Verify loop — built (2026-07-31)
+
+Where the quality per credit actually comes from. Not models voting: a cheap
+model writes, **code** judges, the specific failures go back, and a more trusted
+model reads the result. Checking is easier than producing, and output tokens
+cost several times what input tokens do, so the checking half is the cheap half.
+
+- [x] `ai/verify.py` — `VerifyLoop`: generate, check, repair, optional review.
+- [x] **Enforces the same checks the eval harness scores with.** `checks_for()`
+      reads the suite's `default_checks` from `config/evals.yaml`, so what
+      production enforces and what the harness measures cannot drift apart —
+      one edit moves both.
+- [x] **The best attempt wins, not the last.** A model told to fix a length
+      problem will cheerfully break the subject line; returning the final
+      attempt would ship that. Ties go to the earlier round, since a later round
+      that only matched it cost money for nothing.
+- [x] **Deterministic checks are the gate; a model review only advises.** A
+      glowing review cannot turn a failing draft into a passing one — tested.
+- [x] Round cap: default 3, hard cap 5 regardless of what a caller asks for.
+      Rounds 1-2 capture most of the available gain, and a loop that can run
+      twenty times is a way to spend twenty times the money on a task that is
+      not converging.
+- [x] A policy refusal **stops** the loop rather than retrying it. Retrying
+      produces the identical refusal.
+- [x] No checks supplied means nothing was verified, and it says so rather than
+      reporting a pass.
+- [x] The repair prompt carries the previous draft in `instructions`, not
+      `prior_drafts` — so a tier C model can fix its own work without the
+      payload widening to carry campaign material. Tested: a repair round to a
+      restricted provider stays pseudonymous and never gains the template.
+- [x] The reviewer prefers a **second opinion within the same tier**, never
+      dropping a tier to find one. Self-review is labelled as such.
+- [x] Shipped as a fourth run mode, `verified`, so the eval harness can score
+      it against the champion. The API dispatches it explicitly rather than
+      letting it fall through to `simple`.
 
 ### Recall over sent mail (RAG) — built
 

@@ -31,6 +31,7 @@ from .log import EgressLog
 from .modes import Branch, ModeRunner, PlanStep, RunMode, RunResult
 from .evals import (
     CHECKS,
+    checks_for,
     CheckResult,
     EvalCase,
     EvalReport,
@@ -40,6 +41,7 @@ from .evals import (
     run_checks,
     suite_summary,
 )
+from .verify import Attempt, VerifiedResult, VerifyLoop
 from .scoreboard import (
     DEFAULT_ALPHA,
     DEFAULT_MAX_COST_MULTIPLE,
@@ -133,6 +135,10 @@ __all__ = [
     "run_checks",
     "suite_summary",
     "CHECKS",
+    "checks_for",
+    "VerifyLoop",
+    "VerifiedResult",
+    "Attempt",
     "Scoreboard",
     "Verdict",
     "compare",

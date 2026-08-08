@@ -6,6 +6,8 @@ broker, so the trust rules are identical whichever one runs — a mode decides
 see*.
 
     simple        One model. The cheapest capable one that is permitted.
+    verified      A cheap model writes, deterministic checks judge, failures go
+                  back for repair, and a more trusted model reads the result.
     compare       Every permitted model, at once. The owner reads all the
                   answers and keeps the best.
     orchestrated  A head model writes a plan, then each step is dispatched
@@ -47,6 +49,7 @@ class RunMode(str, Enum):
     SIMPLE = "simple"
     COMPARE = "compare"
     ORCHESTRATED = "orchestrated"
+    VERIFIED = "verified"
 
     @property
     def label(self) -> str:
@@ -54,6 +57,7 @@ class RunMode(str, Enum):
             RunMode.SIMPLE: "One model",
             RunMode.COMPARE: "Compare all models",
             RunMode.ORCHESTRATED: "Let a lead model plan it",
+            RunMode.VERIFIED: "Write, check, fix",
         }[self]
 
     @property
@@ -74,6 +78,12 @@ class RunMode(str, Enum):
                 "A lead model breaks the job into steps and sends each step to "
                 "whichever model suits it. Best for big jobs. Costs one extra "
                 "call for the planning."
+            ),
+            RunMode.VERIFIED: (
+                "A cheap model writes, off_CRM checks the result against fixed "
+                "rules, and anything that fails goes back to be fixed. A more "
+                "trusted model then reads it. Usually the best quality per "
+                "credit, because checking costs far less than writing."
             ),
         }[self]
 
@@ -275,6 +285,62 @@ class ModeRunner:
             branches=[self._branch_from(result)],
             excluded=result.rejected,
             total_duration_ms=int((time.monotonic() - started) * 1000),
+        )
+
+    def run_verified(
+        self,
+        request: EgressRequest,
+        settings: WorkspaceEgressSettings,
+        *,
+        system_prompt: str,
+        checks: Any = (),
+        max_rounds: int = 3,
+        provider_id: str = "",
+        review: bool = True,
+    ) -> RunResult:
+        """Write, check, repair, review.
+
+        Reported as a single branch, because that is what it is: one answer, the
+        best of however many attempts it took. The rounds live in ``notes`` so
+        the owner can see what the extra calls bought.
+        """
+        from .verify import VerifyLoop
+
+        started = time.monotonic()
+        outcome = VerifyLoop(self.broker).run(
+            request,
+            settings,
+            system_prompt=system_prompt,
+            checks=checks,
+            max_rounds=max_rounds,
+            provider_id=provider_id,
+            review=review,
+        )
+        best = outcome.best
+        branch = Branch(
+            provider_id=best.provider_id if best else "",
+            provider_name=best.provider_id if best else "",
+            model_id=best.model_id if best else "",
+            jurisdiction="",
+            tier=best.tier if best else "",
+            policy="",
+            text=outcome.text,
+            error="" if outcome.text else (best.error if best else "no attempt ran"),
+            duration_ms=outcome.duration_ms,
+        )
+        notes = list(outcome.notes)
+        notes.append(
+            f"{outcome.rounds} generation round(s), {outcome.calls} call(s) total; "
+            f"{'all checks passed' if outcome.passed else str(len(outcome.remaining_failures)) + ' check(s) still failing'}."
+        )
+        if outcome.reviewer:
+            notes.append(f"Reviewed by {outcome.reviewer}.")
+        return RunResult(
+            mode=RunMode.VERIFIED.value,
+            data_class=request.data_class.value,
+            branches=[branch],
+            total_duration_ms=int((time.monotonic() - started) * 1000),
+            notes=notes,
         )
 
     # ── mode: compare ───────────────────────────────────────────────────────

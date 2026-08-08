@@ -33,6 +33,7 @@ from ..outreach.notion import (
     export_sales_leads,
 )
 from ..ai import (
+    checks_for,
     DataClass,
     DataPolicy,
     build_payload,
@@ -1264,7 +1265,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.get(f"{API_PREFIX}/ai/modes")
     def ai_modes(request: Request) -> dict[str, Any]:
-        """The three run modes plus which ones are usable right now.
+        """The run modes plus which ones are usable right now.
 
         Returning `available` and `blocked_reason` lets the picker disable a
         mode with an explanation rather than failing after the user commits.
@@ -1321,6 +1322,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """Run one instruction in the chosen mode.
 
         simple       → one model
+        verified     → a cheap model writes, deterministic checks judge, and
+                       failures go back for repair before a trusted model reads it
         compare      → every permitted model at once, all answers returned
         orchestrated → a tier A/B model plans, each step routed normally
         """
@@ -1335,7 +1338,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 400,
                 detail={
                     "error": "invalid_mode",
-                    "message": "Mode must be simple, compare, or orchestrated.",
+                    "message": (
+                        "Mode must be one of: "
+                        + ", ".join(item.value for item in RunMode)
+                        + "."
+                    ),
                 },
             )
         mode = RunMode(raw_mode)
@@ -1377,6 +1384,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     settings,
                     system_prompt=system_prompt,
                     include_lower_tiers=bool(body.get("include_lower_tiers", True)),
+                )
+            elif mode is RunMode.VERIFIED:
+                # The rules come from the eval suite, so what production
+                # enforces is exactly what the harness measures.
+                suite_id = str(body.get("checks_suite", "")).strip()
+                checks = checks_for(suite_id, _evals_path()) if suite_id else ()
+                result = runner.run_verified(
+                    egress,
+                    settings,
+                    system_prompt=system_prompt,
+                    checks=checks,
+                    max_rounds=int(body.get("max_rounds", 3)),
+                    provider_id=str(body.get("provider_id", "")).strip(),
+                    review=bool(body.get("review", True)),
                 )
             elif mode is RunMode.ORCHESTRATED:
                 result = runner.run_orchestrated(

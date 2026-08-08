@@ -41,6 +41,17 @@ from .evals import (
     run_checks,
     suite_summary,
 )
+from .sandbox import (
+    SandboxPolicy,
+    SandboxUnavailable,
+    SandboxWorkspace,
+    assert_public,
+    assert_sandbox_available,
+    sandbox_available,
+    validate_command,
+    validate_image,
+    workspace_usage,
+)
 from .verify import Attempt, VerifiedResult, VerifyLoop
 from .scoreboard import (
     DEFAULT_ALPHA,
@@ -134,6 +145,15 @@ __all__ = [
     "load_suites",
     "run_checks",
     "suite_summary",
+    "SandboxPolicy",
+    "SandboxWorkspace",
+    "SandboxUnavailable",
+    "sandbox_available",
+    "assert_sandbox_available",
+    "assert_public",
+    "validate_image",
+    "validate_command",
+    "workspace_usage",
     "CHECKS",
     "checks_for",
     "VerifyLoop",

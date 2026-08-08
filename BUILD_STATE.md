@@ -5,7 +5,8 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **336 Python passed, 0 failed**, 6 frontend passed, frontend build clean.
+Tests: **370 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -52,6 +53,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── broker.py     THE single egress gate — the only code that calls a provider
 ├── modes.py      run modes: simple, verified, compare, orchestrated
 ├── verify.py     write -> check -> repair -> review
+├── sandbox.py    container isolation for AI-written code (§4J)
 ├── discovery.py  asks a provider what models its key reaches
 ├── log.py        egress log; own SQLite table, stores the exact payload
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
@@ -274,6 +276,46 @@ known without measuring.
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
 
+### Sandbox isolation — built (2026-07-31), salvaged not written
+
+`agent/off-crm-v0-12-ai-studio` — an abandoned parallel design from 24 July —
+had already solved container isolation before the `ai/` module existed. Rather
+than merge that branch (14 conflicts, and it carries a whole second AI module
+with no `ai/` at all), the isolation layer was lifted into `ai/sandbox.py`.
+
+- [x] `docker_command()` — `--network=none`, `--read-only`, `--cap-drop=ALL`,
+      `--security-opt=no-new-privileges`, `--user=65534:65534`, pids/memory/cpu
+      caps, and `noexec,nosuid` scratch space.
+- [x] **`--pull=never`**, the sharpest idea in the original: the image must
+      already be present. Without it, a crafted image name *is* a network fetch
+      — a way to reach the internet from the one feature that must not.
+- [x] **Improved on the original:** `--memory-swap` equal to `--memory`. Without
+      it the memory cap is advisory, since a container can exceed it by
+      swapping. The salvaged version omitted this.
+- [x] Images must be **version-pinned**; `:latest` is refused, because the image
+      you reviewed is then not necessarily the image that runs. Image names are
+      validated against a strict character set so a name cannot smuggle extra
+      arguments into the docker invocation.
+- [x] Workspace is `inbox/` (read-only), `work/` (writable) and `store/` —
+      which is **not mounted at all**. Not read-only: absent. The context layer,
+      recall index, egress log and encrypted keys do not exist in the
+      container's view of the filesystem.
+- [x] Sandbox jobs are `DataClass.PUBLIC` only, enforced. Anything carrying a
+      person belongs on the egress path where the tier rules apply.
+- [x] Refuses rather than degrading: Render and other nesting hosts are detected
+      up front, and a missing Docker is a refusal, not a fallback. Python cannot
+      sandbox Python, so there is no weaker option worth offering.
+- [x] Disk budget counted by off_CRM (10 GB default), because Docker cannot
+      size-cap a bind mount. Documented as a safety limit rather than a lock.
+- [x] **§5.12(c) now covered.** Composition is asserted on every invocation, and
+      a live test starts a real container and tries to open a socket — skipped
+      unless `OFF_CRM_SANDBOX_TEST_IMAGE` names a pre-pulled image, since
+      `--pull=never` forbids fetching one and a network-isolation test that
+      quietly downloads from the internet would be self-defeating.
+
+**Still unverified:** the flags themselves need a real Docker daemon. Everything
+around them is tested; run the live test on your machine to close that.
+
 ### Verify loop — built (2026-07-31)
 
 Where the quality per credit actually comes from. Not models voting: a cheap
@@ -407,7 +449,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
-| 4J | Bring-your-own tools, sandboxed | Not started. **§5.12(c) container network isolation is therefore untested.** Design now written: `docs/architecture/SANDBOX_DESIGN.md`. |
+| 4J | Bring-your-own tools, sandboxed | **Isolation layer built** (`ai/sandbox.py`), salvaged from the abandoned `agent/off-crm-v0-12-ai-studio` branch. §5.12(c) is now covered. The *registry* of owner-registered tools (pin a repo + commit + image, list them, run one) is still to build on top. |
 | — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
 | — | Abstraction layer | Not started. Tokenisation hides *who*; the shape of a request still leaks ICP and sequence design. See ORCHESTRATION_DESIGN.md §4. |
 | 4K | Graphify | Not started. |

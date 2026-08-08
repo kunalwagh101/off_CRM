@@ -8,10 +8,11 @@ Required cases from §5.12:
   (c) sandboxed code cannot reach an arbitrary external host
   (d) no model can retrieve mailbox or context-layer content when prompted to try
 
-(c) is covered here only for the part that exists today — the broker's refusal to
-hand any provider a retrieval path. Container-level network sandboxing belongs to
-the bring-your-own-tools feature (§4J), which is not built yet; see
-BUILD_STATE.md for the open item rather than assuming this file covers it.
+(c) is covered here only for the part that belongs to egress — the broker's
+refusal to hand any provider a retrieval path. Container-level network isolation
+now lives in `tests/test_ai_sandbox.py`, which asserts `--network=none` and the
+rest of the flags on every invocation, and starts a real container to try
+opening a socket when `OFF_CRM_SANDBOX_TEST_IMAGE` names a pre-pulled image.
 """
 from __future__ import annotations
 

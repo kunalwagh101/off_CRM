@@ -52,6 +52,13 @@ from .sandbox import (
     validate_image,
     workspace_usage,
 )
+from .abstraction import (
+    Abstractor,
+    AbstractionResult,
+    abstract_text,
+    abstractor_for,
+    load_rules as load_abstraction_rules,
+)
 from .tools import (
     MAX_EXTRA_ARGS,
     RegisteredTool,
@@ -172,6 +179,11 @@ __all__ = [
     "validate_commit_sha",
     "validate_tool_name",
     "MAX_EXTRA_ARGS",
+    "Abstractor",
+    "AbstractionResult",
+    "abstract_text",
+    "abstractor_for",
+    "load_abstraction_rules",
     "CHECKS",
     "checks_for",
     "VerifyLoop",

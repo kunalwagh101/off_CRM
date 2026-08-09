@@ -299,7 +299,10 @@ def test_an_address_that_survives_construction_is_blocked(broker, monkeypatch):
     monkeypatch.setattr(
         broker_module,
         "build_payload",
-        lambda request, policy: {"schema_version": 1, "leaky": "ana.silva@acme.example"},
+        lambda request, policy, **kwargs: {
+            "schema_version": 1,
+            "leaky": "ana.silva@acme.example",
+        },
     )
     monkeypatch.setattr(
         broker, "_instantiate", lambda candidate: pytest.fail("provider was called")

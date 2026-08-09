@@ -1,0 +1,154 @@
+# Abstraction rules: widening the shape of a request before it leaves.
+#
+# Tokenisation hides *who*. These hide *how the business works* — the ICP, the
+# sequence design, the margins, the close rate. None of that is personal data,
+# so no PII scrubber touches it, and all of it is a business secret.
+#
+# Every rule here only ever makes text MORE general. There is deliberately no
+# rule that can make text more revealing, which is why running this twice is
+# harmless and why an unmatched input comes back unchanged.
+#
+# Adding a rule is a data edit. Kinds available (see ai/abstraction.py):
+#   bucket_number    match a number and replace it with a band label
+#   replace_pattern  regex -> fixed replacement
+#   replace_terms    literal terms -> fixed replacement
+#
+# Order matters: rules run top to bottom, so put the more specific patterns
+# first or a general one will consume the text they were meant to match.
+version: 1
+
+rules:
+  # ── money and margins: the most direct commercial leak ──────────────────
+  - id: percentages
+    kind: replace_pattern
+    note: >-
+      Margin, close rate and conversion figures. "Our margin is 40%" tells a
+      provider what the business earns; "a share" tells it nothing useful to
+      anyone else and nothing the copy needed.
+    # No trailing \b: '%' is not a word character, so a boundary after it can
+    # never match and the figure would leak. Covered by a regression test.
+    pattern: '\b\d{1,3}(?:\.\d+)?\s?(?:%|per ?cent\b)'
+    replace: "a share"
+
+  - id: close_ratios
+    kind: replace_pattern
+    note: 'Ratios like "1 in 8" or "3 out of 10" reveal the conversion rate.'
+    pattern: '\b\d{1,4}\s+(?:in|out of)\s+\d{1,5}\b'
+    replace: "a portion"
+
+  - id: money_amounts
+    kind: bucket_number
+    note: Deal sizes and contract values become size bands.
+    pattern: '(?:\b(?:an?|the)\s+)?(?:[$£€])\s?(?P<value>\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?(?:k|m|bn)?'
+    buckets:
+      - {max: 1000, label: "a small amount"}
+      - {max: 50000, label: "a mid-size amount"}
+      - {max: null, label: "a large amount"}
+
+  # ── company shape: the ICP ──────────────────────────────────────────────
+  - id: headcount_ranges
+    kind: replace_pattern
+    note: '"100-250 staff" is a stated ICP band, not an observation.'
+    pattern: '\b\d{1,3}(?:,\d{3})*\s?[-–]\s?\d{1,3}(?:,\d{3})*\s?(?:person|people|employees?|staff|seats?)\b'
+    replace: "a company size band"
+
+  - id: headcount
+    kind: bucket_number
+    note: >-
+      "180-person" becomes "mid-size". Company size is one of the two or three
+      fields that define an ICP.
+    pattern: '(?:\b(?:an?|the)\s+)?(?P<value>\d{1,3}(?:,\d{3})*)[\s-]?(?:person|people|employees?|staff|headcount|seats?)\b'
+    buckets:
+      - {max: 10, label: "a very small company"}
+      - {max: 50, label: "a small company"}
+      - {max: 250, label: "a mid-size company"}
+      - {max: 1000, label: "a large company"}
+      - {max: null, label: "an enterprise"}
+
+  - id: funding_stage
+    kind: replace_terms
+    note: Funding stage is a targeting criterion, and rarely improves the copy.
+    terms:
+      - pre-seed
+      - seed stage
+      - series a
+      - series b
+      - series c
+      - series d
+      - series e
+      - bootstrapped
+      - vc-backed
+      - pe-backed
+    replace: "a funded company"
+
+  - id: arr_mrr
+    kind: replace_pattern
+    note: Revenue figures, however phrased.
+    pattern: '\b(?:arr|mrr|revenue)\s+of\s+[^.,;]{1,40}'
+    replace: "a revenue figure"
+
+  # ── sequence design: how the outreach machine is built ──────────────────
+  - id: sequence_position_words
+    kind: replace_pattern
+    note: >-
+      "Third follow-up" reveals how many touches a sequence runs. The model
+      needs to know it is late in a sequence, not which number it is on.
+
+      "First" is deliberately absent from this pattern. Every sequence has a
+      first message, so the word leaks nothing — it is the high ordinals that
+      disclose how many steps exist. Including it also made the rule lie:
+      "a warm first email" became "a later message in the sequence", which
+      inverts the meaning and would have produced worse copy for no privacy
+      gain. Regression-tested.
+    pattern: '\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:follow[- ]?up|touch|email|attempt|message)\b'
+    replace: "a later message in the sequence"
+
+  - id: sequence_position_numeric
+    kind: replace_pattern
+    note: 'Numeric forms of the same thing: "email 4", "touch #3", "step 2".'
+    # `email 1` is as harmless as the word "first" and left alone for the same
+    # reason: it is 2 and above that disclose the sequence length.
+    pattern: '\b(?:email|touch|step|message|attempt)\s*#?\s*(?!1\b)\d{1,2}\b'
+    # Shorter than the word-form replacement on purpose: this pattern usually
+    # sits in a phrase that already says "sequence", and repeating it read as
+    # "a message in the sequence of the sequence".
+    replace: "a later message"
+
+  - id: cadence
+    kind: replace_pattern
+    note: '"every 4 days" is the sending cadence, which is sequence design.'
+    pattern: '\bevery\s+\d{1,3}\s+(?:day|days|week|weeks|hour|hours)\b'
+    replace: "on a regular cadence"
+
+  - id: send_volume
+    kind: bucket_number
+    note: Daily and weekly volumes describe the operation, not the recipient.
+    pattern: '\b(?P<value>\d{1,3}(?:,\d{3})*)\s+(?:emails?|sends?|messages?)\s+(?:a|per)\s+(?:day|week|month)\b'
+    buckets:
+      - {max: 50, label: "a low volume"}
+      - {max: 500, label: "a moderate volume"}
+      - {max: null, label: "a high volume"}
+
+  # ── engagement: what the CRM has observed ───────────────────────────────
+  - id: engagement_counts
+    kind: replace_pattern
+    note: >-
+      "Opened twice" is CRM telemetry. That a prospect engaged is useful to the
+      copy; how many times is not, and it exposes what off_CRM tracks.
+    pattern: '\b(?:opened|clicked|viewed|visited)\s+(?:it\s+)?(?:once|twice|thrice|\d{1,3}\s*(?:times?|x))\b'
+    replace: "engaged before"
+
+  - id: engagement_counts_leading
+    kind: replace_pattern
+    note: 'The other word order: "3 opens", "two clicks".'
+    pattern: '\b(?:\d{1,4}|one|two|three|four|five)\s+(?:opens?|clicks?|views?|replies)\b'
+    replace: "some engagement"
+
+  # ── ICP declarations ────────────────────────────────────────────────────
+  - id: icp_marker
+    kind: replace_pattern
+    note: >-
+      An explicit "ICP:" or "target:" line is the strategy stated outright.
+      Replaced wholesale rather than trimmed.
+    pattern: '\b(?:icp|target market|target segment|ideal customer(?: profile)?)\s*[:=]\s*[^.\n]{1,200}'
+    replace: "a defined target segment"

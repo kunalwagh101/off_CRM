@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **409 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **442 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -54,6 +54,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── modes.py      run modes: simple, verified, compare, orchestrated
 ├── verify.py     write -> check -> repair -> review
 ├── sandbox.py    container isolation for AI-written code (§4J)
+├── abstraction.py widens the *shape* of a request: bands, stages, margins
 ├── tools.py      the registry of owner-pinned tools that may run in it
 └── tool_cli.py   `offsetx-tools` — register, inspect, run
 ├── discovery.py  asks a provider what models its key reaches
@@ -278,6 +279,47 @@ known without measuring.
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
 
+### Abstraction layer — built (2026-07-31)
+
+Tokenisation hides *who*. This hides *how the business works*, which no PII rule
+touches. Verified against the real builder first: a tier B provider was
+receiving company size, funding stage, the stated ICP band, the **gross margin**,
+the **close rate**, the sequence length and engagement counts — verbatim, with
+every identifier already removed.
+
+- [x] `ai/abstraction.py` + `config/abstraction.yaml` — 14 deterministic rules,
+      three kinds (`bucket_number`, `replace_pattern`, `replace_terms`). Rules,
+      not a model: a protection that varies is not a protection.
+- [x] **Every rule only ever widens.** None can make text more revealing, which
+      is why applying it twice is safe — asserted by an idempotence test.
+- [x] Applied below `full` only; at `full` the owner has explicitly trusted one
+      provider with everything. Off per workspace via `abstract_business_shape`,
+      defaulting **on**, so a caller that forgets gets protection not a leak.
+- [x] Loud config validation: unknown kind, missing `(?P<value>)` group, absent
+      open-ended bucket and malformed pattern all raise at load. A rule that
+      silently does nothing is worse than no rule, because it looks like
+      protection.
+- [x] A broken rules file does not stop a send — failing to widen must not
+      become failing to send.
+
+**Three defects found and fixed, each with a regression test.**
+
+1. **The margin was leaking.** The percentage rule ended in `\b`, and `%` is not
+   a word character, so that boundary can never match. The single most
+   commercially sensitive number in a payload passed straight through the rule
+   written to catch it.
+2. **A rule was lying.** The sequence-position rule turned "a warm *first*
+   email" into "a warm *a later message in the sequence*", inverting the
+   meaning. Caught by an existing test failing. `first` is now left alone
+   entirely: every sequence has a first message, so the word leaks nothing —
+   it is the high ordinals that disclose how many steps exist.
+3. **Rule order was wrong.** `headcount` preceded `headcount_ranges` and
+   consumed the right-hand number of "100-250 staff", so the range rule never
+   fired. The more specific pattern must run first.
+
+Cost to quality is near zero: ordinary copy instructions pass through untouched,
+and where the rules do fire they leave the useful signal intact.
+
 ### Tool registry — built (2026-07-31)
 
 The list of who may enter the locked room. One sentence carries the design:
@@ -499,7 +541,6 @@ Listed honestly. Nothing below is silently assumed done.
 | 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
-| — | Abstraction layer | Not started. Tokenisation hides *who*; the shape of a request still leaks ICP and sequence design. See ORCHESTRATION_DESIGN.md §4. |
 | 4K | Graphify | Not started. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |

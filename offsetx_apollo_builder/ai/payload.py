@@ -16,6 +16,24 @@ from typing import Any
 
 from .tiers import DataClass, DataPolicy
 
+
+def _widen(text: str) -> str:
+    """Apply the abstraction rules.
+
+    Imported lazily so a missing or malformed rules file cannot stop the module
+    importing — and, more importantly, so a failure to widen never silently
+    becomes a failure to send. If the rules cannot load, the text goes out
+    unwidened and the scanner still runs; that is a visible gap rather than an
+    outage, and `abstraction.load_rules` raises loudly when the owner edits the
+    file badly.
+    """
+    from .abstraction import abstract_text
+
+    try:
+        return abstract_text(text)
+    except Exception:  # noqa: BLE001 - see docstring
+        return text
+
 #: Recipients are referred to by an opaque token.  off_CRM re-attaches the real
 #: address locally after generation; a model never needs one to write an email.
 RECIPIENT_TOKEN = "RECIPIENT_1"
@@ -84,6 +102,12 @@ class PersonPublic:
             contribution=str(contact.get("contribution", "")).strip(),
             questions=questions,
         )
+
+
+#: Whether free text is widened before it leaves. Set per call by the broker
+#: from the workspace setting; the default here is the safe one, so a caller
+#: that forgets to pass it gets protection rather than a leak.
+ABSTRACT_BY_DEFAULT = True
 
 
 @dataclass(slots=True)
@@ -252,13 +276,26 @@ def _person_fields(person: PersonPublic, policy: DataPolicy) -> dict[str, Any]:
     return built
 
 
-def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
+def build_payload(
+    request: EgressRequest,
+    policy: DataPolicy,
+    *,
+    abstract_shape: bool = ABSTRACT_BY_DEFAULT,
+) -> dict[str, Any]:
     """Construct the outbound payload from an empty dict.
 
     Every ``built[...] = ...`` below is a deliberate decision to let one field
     leave.  There is no path that copies an object wholesale except ``full``,
     which the owner opts into per provider and which the scanner still inspects.
+
+    ``abstract_shape`` widens the *shape* of the request as well — company size
+    bands, funding stage, margins, sequence position, engagement counts. That is
+    a different protection from tokenisation: it guards the business strategy
+    rather than the person's identity, and no PII rule touches it. Off only at
+    ``full``, where the owner has explicitly trusted one provider with
+    everything.
     """
+    widen = abstract_shape and policy is not DataPolicy.FULL
     built: dict[str, Any] = {
         "schema_version": 1,
         "task": _clean(request.task_type, 120),
@@ -274,6 +311,8 @@ def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
         cleaned = _clean(value, limit)
         if cleaned and policy.rank < DataPolicy.MINIMAL.rank:
             cleaned = scrub_identity(cleaned, request.person)
+        if cleaned and widen:
+            cleaned = _widen(cleaned)
         return tokenise_addresses(cleaned)
 
     instructions = _clean(request.instructions, 6000)
@@ -299,7 +338,11 @@ def build_payload(request: EgressRequest, policy: DataPolicy) -> dict[str, Any]:
             built["template"] = tokenise_addresses(template)
         notes = _clean(request.campaign_notes, 4000)
         if notes:
-            built["campaign_notes"] = tokenise_addresses(notes)
+            # Campaign notes are the densest source of shape leaks — an ICP line
+            # and a margin often sit in the same sentence.
+            built["campaign_notes"] = tokenise_addresses(
+                _widen(notes) if widen else notes
+            )
         if request.prior_drafts:
             built["prior_drafts"] = [
                 {

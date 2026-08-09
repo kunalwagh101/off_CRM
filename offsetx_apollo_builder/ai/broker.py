@@ -77,6 +77,11 @@ class WorkspaceEgressSettings:
     #: identity, so this saves money without widening exposure. Set ``False`` to
     #: keep every task on the most trusted model available.
     cross_tier_public_routing: bool = True
+    #: Widen the *shape* of free text before it leaves — size bands, funding
+    #: stage, margins, sequence position. Guards business strategy rather than
+    #: identity, which no PII rule covers. Never applies at ``full``, where the
+    #: owner has explicitly trusted one provider with everything.
+    abstract_business_shape: bool = True
 
     @property
     def mailbox_unlocked(self) -> bool:
@@ -371,7 +376,11 @@ class EgressBroker:
                 continue
 
             # 3. Construct — from empty, against this provider's resolved policy.
-            payload = build_payload(request, candidate.policy)
+            payload = build_payload(
+                request,
+                candidate.policy,
+                abstract_shape=settings.abstract_business_shape,
+            )
 
             # 4. Scan — block and alert, never silently redact.
             report = scan_payload(
@@ -504,7 +513,11 @@ class EgressBroker:
         attempts: list[dict[str, Any]] = []
 
         for candidate in candidates:
-            payload = build_payload(request, candidate.policy)
+            payload = build_payload(
+                request,
+                candidate.policy,
+                abstract_shape=settings.abstract_business_shape,
+            )
             report = scan_payload(
                 payload,
                 policy=candidate.policy,

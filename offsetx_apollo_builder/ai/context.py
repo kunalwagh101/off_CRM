@@ -472,6 +472,32 @@ class ContextLayer:
         scores.sort(key=lambda item: (-item.reply_rate, -item.sends))
         return scores
 
+    def traffic_split(
+        self,
+        workspace_id: str = "local",
+        *,
+        template_id: str = "",
+        seed: int | None = None,
+    ) -> dict[str, Any]:
+        """How the next batch should be divided between live variants (§4H).
+
+        This layer counts; the allocation maths lives in ``ai/bandit.py`` and
+        knows nothing about SQLite. It reads only variants that are already
+        live — a rewrite awaiting approval is not in ``ai_template_stats`` as an
+        active row, so this can shift traffic between things the owner has
+        approved and can never promote something they have not.
+
+        Deciding *how much* is what this does. Deciding *whether* stays with the
+        owner, per §3 of the brief.
+        """
+        from .bandit import allocate, arms_from_scores
+
+        scores = self.scoreboard(workspace_id)
+        if template_id:
+            scores = [item for item in scores if item.template_id == template_id]
+        allocation = allocate(arms_from_scores(scores), seed=seed)
+        return allocation.to_dict()
+
     def weak_templates(self, workspace_id: str = "local") -> list[TemplateScore]:
         """Templates with enough sends to judge, and a poor reply rate."""
         return [score for score in self.scoreboard(workspace_id) if score.weak]

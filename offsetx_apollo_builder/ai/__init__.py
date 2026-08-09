@@ -52,6 +52,14 @@ from .sandbox import (
     validate_image,
     workspace_usage,
 )
+from .bandit import (
+    Allocation,
+    Arm,
+    ArmAllocation,
+    allocate,
+    arms_from_scores,
+    sends_needed,
+)
 from .abstraction import (
     Abstractor,
     AbstractionResult,
@@ -184,6 +192,12 @@ __all__ = [
     "abstract_text",
     "abstractor_for",
     "load_abstraction_rules",
+    "allocate",
+    "Allocation",
+    "Arm",
+    "ArmAllocation",
+    "arms_from_scores",
+    "sends_needed",
     "CHECKS",
     "checks_for",
     "VerifyLoop",

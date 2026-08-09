@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **442 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **476 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -55,6 +55,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── verify.py     write -> check -> repair -> review
 ├── sandbox.py    container isolation for AI-written code (§4J)
 ├── abstraction.py widens the *shape* of a request: bands, stages, margins
+├── bandit.py     Thompson allocation between approved template variants
 ├── tools.py      the registry of owner-pinned tools that may run in it
 └── tool_cli.py   `offsetx-tools` — register, inspect, run
 ├── discovery.py  asks a provider what models its key reaches
@@ -278,6 +279,44 @@ known without measuring.
 **Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
+
+### Traffic shifting — built (2026-07-31)
+
+`context.py` counts sends and replies; this decides the split. Thompson sampling
+over Beta posteriors, in `ai/bandit.py`, reached through
+`context.traffic_split()`.
+
+**Why not a threshold.** The arithmetic of low reply rates rules it out:
+separating 2% from 4% needs ~1,140 sends per variant, 2% from 3% needs ~3,800,
+and twenty sends with no replies has a 54% chance of occurring even at a healthy
+3% true rate. A threshold rule fed that data does not become cautious — it
+becomes confidently wrong.
+
+- [x] Thompson allocation: the share a variant wins **is** its probability of
+      being best. Near-even when posteriors overlap, shifting as they separate —
+      correct at both ends with no cut-off to choose. That graceful degradation
+      is the whole reason for the choice: a threshold has to be right, this does
+      not.
+- [x] `sends_needed()` tells the owner how far off an answer is. On two nearly
+      identical rates it reports tens of thousands of sends, which is the useful
+      answer: stop trying.
+- [x] 5% floor per active variant. Without a holdout a winner that later
+      degrades looks fine forever, and a variant unlucky in its first twenty
+      sends could never recover.
+- [x] Rates reported as posterior means, not raw fractions — one reply from two
+      sends is not a 50% reply rate.
+- [x] Seeded runs are reproducible, so a split can be re-derived later.
+- [x] Retired variants excluded entirely. Structural test: `bandit.py` imports
+      no database and no provider, so the maths can be tested exactly.
+- [x] **Decides how much, never whether.** It allocates only between variants
+      the owner already approved; an unapproved rewrite is not an active row for
+      it to see, so it cannot promote one. §3 is unchanged.
+
+**Defect caught while building.** The verdict read "traffic stays near even"
+while allocating 80/20 — the sentence contradicted the numbers. Thompson does
+shift below the confidence bar; the text was simply false. It now describes the
+real split, with a parametrised regression test asserting the even-split wording
+only appears when the leader is under 65%.
 
 ### Abstraction layer — built (2026-07-31)
 
@@ -538,7 +577,7 @@ Listed honestly. Nothing below is silently assumed done.
 |---|---|---|
 | 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
-| 4H | Bandit / automatic traffic shifting | The rewrite loop is built (see §3); choosing the split automatically is not. A rewrite is offered, never applied — the owner approves the wording. |
+| 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
 | 4K | Graphify | Not started. |

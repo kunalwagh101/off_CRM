@@ -199,8 +199,13 @@ class EgressBroker:
         timeout_seconds: int = 60,
         failure_threshold: int = 2,
         cooldown_seconds: int = 60,
+        cache: Any = None,
     ) -> None:
         self.registry = registry
+        #: Optional :class:`~offsetx_apollo_builder.ai.cache.ResponseCache`.
+        #: Consulted after the payload is built and scanned, never before —
+        #: a cache lookup must not become a way to skip the policy checks.
+        self.cache = cache
         self.credential_resolver = credential_resolver
         self.quota = quota
         self.logger = logger
@@ -412,6 +417,47 @@ class EgressBroker:
                     findings=[item.to_dict() for item in report.findings],
                 )
 
+            # 4b. Cache. Deliberately after construction and scanning: the
+            # payload is the cache key, so it has to be built first, and a hit
+            # must never be a way around the checks that precede it.
+            if self.cache is not None:
+                cached = self.cache.get(
+                    payload=payload,
+                    data_class=request.data_class,
+                    policy=candidate.policy,
+                    task_type=request.task_type,
+                    provider_id=candidate.id,
+                    workspace_id=settings.workspace_id,
+                )
+                if cached is not None:
+                    # Logged as its own status. Nothing left the machine, and an
+                    # audit trail that showed this as a send would be a lie.
+                    log_id = self._log(
+                        settings=settings,
+                        candidate=candidate,
+                        request=request,
+                        payload=payload,
+                        status=f"cache_{cached.kind}",
+                        error="",
+                        findings=[],
+                        duration_ms=0,
+                        response_text=cached.response,
+                    )
+                    return EgressResult(
+                        text=cached.response,
+                        provider_id=candidate.id,
+                        provider_name=candidate.name,
+                        model_id=candidate.model_id,
+                        tier=candidate.tier.value,
+                        policy=candidate.policy.value,
+                        data_class=request.data_class.value,
+                        duration_ms=0,
+                        payload_fields=sorted(payload.keys()),
+                        attempts=attempts,
+                        rejected=rejected,
+                        log_id=log_id,
+                    )
+
             # 5. Call.
             started = time.monotonic()
             status = "succeeded"
@@ -434,6 +480,18 @@ class EgressBroker:
                     candidate.id,
                     spend_usd=0.0,
                     rate_limited="429" in error,
+                )
+
+            if self.cache is not None and status == "succeeded":
+                self.cache.put(
+                    payload=payload,
+                    response=text,
+                    data_class=request.data_class,
+                    policy=candidate.policy,
+                    task_type=request.task_type,
+                    provider_id=candidate.id,
+                    model_id=candidate.model_id,
+                    workspace_id=settings.workspace_id,
                 )
 
             log_id = self._log(

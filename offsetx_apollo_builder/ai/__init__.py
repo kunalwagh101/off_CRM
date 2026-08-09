@@ -52,6 +52,13 @@ from .sandbox import (
     validate_image,
     workspace_usage,
 )
+from .cache import (
+    CachedResponse,
+    ResponseCache,
+    cache_key,
+    canonical_payload,
+    partition_key,
+)
 from .bandit import (
     Allocation,
     Arm,
@@ -198,6 +205,11 @@ __all__ = [
     "ArmAllocation",
     "arms_from_scores",
     "sends_needed",
+    "ResponseCache",
+    "CachedResponse",
+    "cache_key",
+    "partition_key",
+    "canonical_payload",
     "CHECKS",
     "checks_for",
     "VerifyLoop",

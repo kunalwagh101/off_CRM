@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **476 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **510 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -56,6 +56,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── sandbox.py    container isolation for AI-written code (§4J)
 ├── abstraction.py widens the *shape* of a request: bands, stages, margins
 ├── bandit.py     Thompson allocation between approved template variants
+├── cache.py      exact + lexical near-match response cache, keyed on the payload
 ├── tools.py      the registry of owner-pinned tools that may run in it
 └── tool_cli.py   `offsetx-tools` — register, inspect, run
 ├── discovery.py  asks a provider what models its key reaches
@@ -279,6 +280,42 @@ known without measuring.
 **Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
+
+### Response cache — built (2026-07-31)
+
+**Named honestly.** The literature's "semantic cache" and its 60-90% hit rates
+come from chat systems where users repeat questions. Personalised outreach gives
+every payload a different token and hook, so those numbers do not transfer. It is
+also not embedding-based — that would mean a network call from a module whose
+point is avoiding calls, or a heavy dependency. It does exact match plus lexical
+near-match, which fully covers where caching actually pays here: re-running eval
+suites, retries, verify-loop repair rounds, and repeated public or code work.
+The cache reports its own hit rate, because whether it earns its place is a
+question for the owner's numbers rather than a published average.
+
+- [x] **Keyed on the constructed payload**, not the question. Payloads are built
+      per policy — verified, not assumed — so a response produced from a richer
+      payload can never be served for a thinner one. That matters beyond the
+      obvious: a response can travel back out as `prior_drafts`, so a cache that
+      blurred policy boundaries would be a slow path for tier A material to
+      reach a tier C provider.
+- [x] Partitioned by workspace, data class, policy, task type and provider.
+      Near-matching is confined to one partition, so fuzzy comparison cannot
+      cross a boundary however similar two texts look.
+- [x] **Consulted after construction and scanning, never before.** A lookup must
+      not become a way around the checks that precede it — if the scanner
+      blocks, nothing is served and nothing is stored.
+- [x] **A hit is logged as `cache_exact`/`cache_near`, not `succeeded`.** Nothing
+      left the machine, and the egress log is the one thing that must never lie.
+- [x] Near match at 0.92 Jaccard over **word triples**. Single-word overlap would
+      call two different questions similar; triples require the phrasing to line
+      up. The threshold errs towards missing, because serving a stale answer to
+      a different request is worse than missing a hit. Switchable off.
+- [x] Never stores empty responses or failed calls — that would turn one
+      transient outage into a week of them — and never stores `MAILBOX`.
+- [x] 7-day TTL, 5,000-row cap with oldest-first eviction, manual purge and
+      clear. A cache, not an archive; the egress log holds the record.
+- [x] Exact and near hits counted separately, since they carry different risk.
 
 ### Traffic shifting — built (2026-07-31)
 
@@ -579,7 +616,6 @@ Listed honestly. Nothing below is silently assumed done.
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
-| — | Semantic cache | Not started. Published hit rates 60-90%; largest cost win for the least work. |
 | 4K | Graphify | Not started. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |

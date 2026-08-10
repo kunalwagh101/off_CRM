@@ -3,9 +3,13 @@
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
-Last updated: 2026-07-31
-Branch: `claude/orchestration-design`
-Tests: **538 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
+new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
+email is one campaign kind of several. Nothing built from here may assume email.
+
+Last updated: 2026-08-10
+Branch: `main`
+Tests: **572 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -66,6 +70,11 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 
 config/providers.yaml               ← the registry. Adding a provider is a
                                        config edit, never a code change (§4E)
+
+offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
+├── intake.py     two-mode campaign intake; a contact list never meets a model
+├── notebook.py   research-notebook export; the destination is a trust tier
+└── notebook_cli.py  `offsetx-notebook` — targets, plan, export
 ```
 
 The module depends on the CRM only through `outreach/models.py` (dataclasses)
@@ -637,6 +646,49 @@ reproduced against the real code before changing anything.
       states the actual rule: cheapest for public work, most-trusted for person
       and campaign data.
 
+### Notebook export (§4G, 2026-08-10)
+- [x] `notebook.py` + `offsetx-notebook` (`targets`, `plan`, `export`).
+      Docs: `docs/architecture/NOTEBOOK_EXPORT.md`.
+- [x] **NotebookLM has no public write API**, so this produces a bundle you
+      upload by hand rather than an integration that would break the week
+      Google moves a button. The same bundle suits a Claude Project, a ChatGPT
+      Project, or a notebook you host.
+- [x] **The destination is a trust tier.** An export you drag into NotebookLM
+      is a push, and the rules do not care that the transport is a person.
+      `notebooklm` is C (Google free tier, terms permit training on input),
+      `hosted_notebook` B, `self_hosted` A. Raising a tier needs a written
+      reason; lowering one does not.
+- [x] Built from a declared allowlist of sections, each naming its data class.
+      The tier decides which survive; a withheld section's data is never even
+      fetched.
+- [x] Scanned with `ai/scanner.py` before the first byte reaches disk. A hit
+      blocks the whole export and leaves no folder behind — a partial bundle is
+      worse than none, because it is uploadable.
+- [x] Every withholding is written down with its reason and its fix, in the
+      README and `MANIFEST.json`. Nothing is silently absent.
+- [x] **Mailbox content is unreachable structurally**, not by a runtime check:
+      no section carries the class, and a test pins the exact set of store
+      methods this module may call. `sent_messages`, `last_outgoing` and
+      `record_reply` are not in it.
+- [x] Addresses never appear at any tier, including `full`.
+- [x] Below `minimal`, people and companies are tokenised **per bundle**
+      (`PERSON_1..PERSON_n`) — one shared token for 200 people is a list with
+      the answers removed. Free text is scrubbed too, so a public hook reading
+      "Ana Silva spoke at the EU trade summit" survives as "PERSON_1 spoke at
+      the EU trade summit". The campaign's own name is withheld below `minimal`
+      as well: it is usually the ICP written out.
+- [x] The map back to real people is written **outside** the uploaded folder,
+      at `0600` — not a warning inside it, because "select all and upload" is
+      what people actually do.
+- [x] **Does not assume email.** Sections declare campaign kinds; outcomes and
+      templates are email-only and refuse by *kind*, not by tier, so the owner
+      is not sent looking for a permission problem that does not exist.
+      `campaign_kind()` reads a `kind` column that does not exist yet and falls
+      back to `email`; a test asserts the column is still absent, so the day it
+      lands the test points at the reader that needs checking.
+- [x] No model touches a bundle. An AST test fails the build if this module
+      ever gains a route to a transport.
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -658,7 +710,7 @@ Listed honestly. Nothing below is silently assumed done.
 | § | Item | Note |
 |---|---|---|
 | 4D | Two-mode campaign intake | **Built** (`intake.py`). Generate/Parse split, plus PDF reading. Deliberately outside `ai/` — a contact list must never reach a model. Remaining: no UI screen, and generate mode is the brief object only; wiring it to discovery is separate. |
-| 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
+| 4G | NotebookLM export | **Built** (`notebook.py`, `offsetx-notebook`). Remaining: no API endpoint and no UI screen — and the web shape has a real problem to solve first, since a zip download would put the identity key back inside the folder the owner uploads. Two separate downloads is probably the answer and needs deciding, not defaulting. No scheduled re-export. |
 | 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | 4K | Graphify | Not started. |
@@ -709,6 +761,12 @@ Listed honestly. Nothing below is silently assumed done.
    recognise a returning prospect. Today they are constant per payload, which
    means no mapping table exists and there is nothing to leak. Making them
    durable would need a stored mapping and is a real trade — flagged, not built.
+   *Partly answered 2026-08-10:* the notebook export needs distinct tokens
+   within one bundle or the export says nothing, so it numbers `PERSON_1..n`
+   **per bundle** and writes the mapping to a file outside the uploaded folder.
+   That is a stored mapping, but a local one with a single obvious owner. If
+   cross-job stability is ever wanted, that file is the shape it should take —
+   not a column on `contacts`.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with
    `autoDeploy: true`, so nothing ships until this branch is merged there.

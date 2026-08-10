@@ -1,4 +1,14 @@
-# off_CRM
+# off_CRM — notes for any coding agent
+
+This file is vendor-neutral on purpose. `AGENTS.md` is the convention several
+tools now read; nothing in this repository is tied to one AI vendor, and the
+product's whole premise is that no single provider is trusted by default.
+
+Nothing here is secret. No application code reads this file, it never enters a
+payload, and it can never reach a model provider — it is developer tooling, in
+the same category as `.editorconfig`.
+
+---
 
 **You are in `kunalwagh101/off_CRM`.** If you expected a different repository —
 say so and stop. Do not report on this one as if it were another.
@@ -62,7 +72,9 @@ These are enforced by tests, not by convention. Breaking one fails CI.
 
 ## Commands
 
-Dependencies are installed by `.claude/hooks/session-start.sh` on session start.
+Dependencies are installed by the session-start hook in `.claude/hooks/`
+(the directory name is the hook runner's, not a statement about which agent is
+welcome — any tool can read this file).
 
 ```bash
 uv sync --extra dev          # python deps (includes scrapling; requirements.txt omits it)

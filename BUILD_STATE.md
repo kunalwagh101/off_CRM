@@ -5,7 +5,7 @@ recover context between sessions rather than re-reading the codebase.
 
 Last updated: 2026-07-31
 Branch: `claude/orchestration-design`
-Tests: **510 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **538 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -24,7 +24,7 @@ dependencies so tests and linters work immediately.
 The identity banner exists because of a real incident: a session started against
 the empty sibling repo `email_agent`, found no commits, and reported "your repo
 is empty" instead of noticing it was in the wrong place. A repo that announces
-itself makes that failure impossible rather than unlikely. `CLAUDE.md` carries
+itself makes that failure impossible rather than unlikely. `AGENTS.md` carries
 the same warning for the same reason.
 
 ---
@@ -280,6 +280,51 @@ known without measuring.
 **Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
+
+### Two-mode intake — built (2026-07-31)
+
+Two ways a campaign gets its people, kept apart because conflating them is how
+mistakes happen. **Generate**: describe who you want, discovery finds them.
+**Parse**: you already have the list — CSV, spreadsheet or PDF.
+
+**Deliberately outside the `ai/` package.** A contact list is the densest
+concentration of exactly what the system protects — real names, addresses,
+companies. If a model parsed it, that one feature would leak more than every
+other path combined. Parsing is deterministic and local; a test walks the module
+and fails the build if it ever gains a route to a provider or an import from
+`ai/`. Same rule as the campaign runner: the parts touching real contacts have
+no AI, the parts with AI have no real contacts.
+
+- [x] CSV and XLSX through the existing loader. A column is a column, so nothing
+      is flagged and the result is immediately usable.
+- [x] **PDF reading via `pypdf`, locally.** Addresses are found exactly — an
+      email has a shape a pattern matches. Names are inferred from layout: the
+      same line first, then the line above, which are the two arrangements a
+      printed table actually uses.
+- [x] **Every PDF row is flagged `needs_review` and can never be sent
+      unreviewed.** Not a placeholder for better parsing later — guessing which
+      name belongs to which address and being wrong means emailing a real person
+      by the wrong name. `ready_to_send` is False whenever anything is flagged.
+- [x] When no name is convincing, the row says "no name found near this address"
+      rather than guessing. A wrong name is worse than a missing one.
+- [x] Column headers are not mistaken for people; duplicate addresses read once;
+      page numbers recorded so a row can be found again.
+- [x] **No OCR.** A scan has no text layer, and pretending otherwise produces
+      confident nonsense — the warning says to export the original as CSV.
+- [x] Refusals are readable: missing file, unsupported type, a file that is not
+      really a PDF.
+- [x] Generate mode is a validated brief. No contact in a generated list is
+      invented by a model; the data source produces them.
+
+**Defect found while building.** The row builder read `full_name` and `company`,
+but `normalize_input_rows` emits the CRM's own field names, `name` and
+`organization_name`. Every parsed row came back with no name — which looked like
+a parsing failure and was really a mapping one. Caught by exercising it against
+a real CSV rather than trusting the field names. Regression-tested.
+
+**Not built:** no UI screen, and wiring generate mode to discovery is separate
+work. Tests build a real PDF by hand rather than mocking extraction, so the
+genuine `pypdf` path is exercised without adding a test dependency.
 
 ### Response cache — built (2026-07-31)
 
@@ -612,7 +657,7 @@ Listed honestly. Nothing below is silently assumed done.
 
 | § | Item | Note |
 |---|---|---|
-| 4D | Two-mode campaign intake | Deterministic CSV/XLSX parsing already exists in `input_loader.py`; the Generate/Parse-and-send split and PDF intake are not built. |
+| 4D | Two-mode campaign intake | **Built** (`intake.py`). Generate/Parse split, plus PDF reading. Deliberately outside `ai/` — a contact list must never reach a model. Remaining: no UI screen, and generate mode is the brief object only; wiring it to discovery is separate. |
 | 4G | NotebookLM export | Notion export exists (`outreach/notion.py`). |
 | 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |

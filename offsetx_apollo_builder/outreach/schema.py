@@ -1,4 +1,14 @@
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+
+
+#: Indexes over columns that arrived through a migration. They cannot live in
+#: :data:`SCHEMA_SQL`, which runs before the migration: on an existing database
+#: ``CREATE TABLE IF NOT EXISTS`` is a no-op, so an index over a brand-new column
+#: would be asked for before ``ALTER TABLE`` had added it. Applied after the
+#: migration instead, where it works for both fresh and upgraded databases.
+POST_MIGRATION_SQL = """
+CREATE INDEX IF NOT EXISTS idx_campaigns_kind ON campaigns(kind, status);
+"""
 
 
 SCHEMA_SQL = """
@@ -38,6 +48,11 @@ CREATE INDEX IF NOT EXISTS idx_contacts_category ON contacts(category);
 CREATE TABLE IF NOT EXISTS campaigns (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    -- What sort of campaign this is. Every column below is email-shaped; other
+    -- kinds leave them at their defaults, and the email runner refuses to touch
+    -- a row whose kind is not its own. The registry of kinds, including which
+    -- ones can actually run, lives in offsetx_apollo_builder/campaigns.py.
+    kind TEXT NOT NULL DEFAULT 'email',
     daily_send_limit INTEGER NOT NULL CHECK(daily_send_limit > 0),
     timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     followup1_working_days INTEGER NOT NULL DEFAULT 4,

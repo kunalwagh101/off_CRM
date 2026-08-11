@@ -19,6 +19,12 @@ class DemoLogin(StrictModel):
 
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
+    # Free text rather than a Literal on purpose: the registry in
+    # offsetx_apollo_builder/campaigns.py decides which kinds exist and which
+    # can run, and a declared-but-unimplemented kind has to come back with the
+    # sentence explaining what is missing. A Literal here would answer "not a
+    # valid enumeration member" instead, which tells the caller nothing.
+    kind: str = Field(default="email", min_length=1, max_length=40)
     daily_send_limit: int = Field(default=25, ge=1, le=500)
     timezone: str = Field(default="Asia/Kolkata", min_length=1, max_length=80)
     followup1_working_days: int = Field(default=4, ge=1, le=30)

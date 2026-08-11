@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
 
+from ..campaigns import assert_kind
 from ..input_loader import read_input_table
 from ..locked_categories import DEFAULT_CATEGORY, normalize_category
 from .email_expert import LocalEmailExpert, import_expert_documents, route_for_category
@@ -285,11 +286,28 @@ class OutreachEngine:
         except Exception:  # pragma: no cover - counting must never break a sync
             pass
 
+    #: The one kind this engine runs. A constant so the check below reads as
+    #: "this runner owns email" rather than as a bare string comparison.
+    CAMPAIGN_KIND = "email"
+
+    def _require_own_kind(self, campaign_id: str, action: str) -> dict[str, Any]:
+        """Load a campaign and refuse it if it belongs to another kind.
+
+        This is what makes adding the ``kind`` column safe rather than merely
+        tidy. Every query in this file was written when email was the only thing
+        a campaign could be, so without this check the first image campaign
+        created would be picked up by ``run_due`` and handed to a mail server.
+        """
+        campaign = self.store.get_campaign(campaign_id)
+        assert_kind(campaign, self.CAMPAIGN_KIND, action=action)
+        return campaign
+
     def create_campaign(
         self,
         *,
         name: str,
         daily_send_limit: int = 25,
+        kind: str = "email",
         timezone_name: str = "Asia/Kolkata",
         followup1_working_days: int = 4,
         followup2_working_days: int = 6,
@@ -307,6 +325,7 @@ class OutreachEngine:
             return self.store.create_campaign(
                 name=name,
                 daily_send_limit=daily_send_limit,
+                kind=kind,
                 timezone_name=timezone_name,
                 followup1_working_days=followup1_working_days,
                 followup2_working_days=followup2_working_days,
@@ -328,6 +347,7 @@ class OutreachEngine:
         *,
         default_category: str = DEFAULT_CATEGORY,
     ) -> dict[str, Any]:
+        self._require_own_kind(campaign_id, "importing contacts")
         path = Path(path)
         table = read_input_table(path)
         lookup = _column_lookup(table.columns)
@@ -405,6 +425,7 @@ class OutreachEngine:
         stages: Iterable[str] = MESSAGE_STAGES,
         provider: AIProvider | None = None,
     ) -> dict[str, Any]:
+        self._require_own_kind(campaign_id, "generating drafts")
         requested_ids = set(campaign_contact_ids)
         requested_stages = list(dict.fromkeys(stages))
         unknown = [stage for stage in requested_stages if stage not in MESSAGE_STAGES]
@@ -459,6 +480,7 @@ class OutreachEngine:
         self, campaign_id: str, draft_id: str, *, subject: str, body: str
     ) -> dict[str, Any]:
         with self._lock:
+            self._require_own_kind(campaign_id, "editing a draft")
             current = self.store.get_draft_by_id(campaign_id, draft_id)
             contact = self.store.get_campaign_contact(
                 campaign_id, str(current["campaign_contact_id"])
@@ -503,6 +525,7 @@ class OutreachEngine:
         fields: Iterable[str] = ("subject", "body"),
         preview_only: bool = True,
     ) -> dict[str, Any]:
+        self._require_own_kind(campaign_id, "editing drafts in bulk")
         if not find:
             raise ValueError("find text is required")
         selected_fields = list(dict.fromkeys(fields))
@@ -566,6 +589,7 @@ class OutreachEngine:
         draft_ids: Iterable[str],
         scheduled_at: datetime | None,
     ) -> dict[str, int]:
+        self._require_own_kind(campaign_id, "scheduling drafts")
         result = self.store.schedule_drafts(
             campaign_id, draft_ids=draft_ids, scheduled_at=scheduled_at
         )
@@ -584,6 +608,7 @@ class OutreachEngine:
         stages: Iterable[str] = (),
     ) -> dict[str, int]:
         with self._lock:
+            self._require_own_kind(campaign_id, "approving drafts")
             result = self.store.approve_drafts(
                 campaign_id, draft_ids=draft_ids, stages=stages
             )
@@ -600,6 +625,7 @@ class OutreachEngine:
     ) -> dict[str, int]:
         now = now or utc_now()
         with self._lock:
+            self._require_own_kind(campaign_id, "syncing replies")
             earliest = self.store.earliest_outgoing_at(campaign_id)
             since = (earliest - timedelta(days=1)) if earliest else (now - timedelta(days=30))
             incoming = mail_provider.list_replies(since=since, own_email=own_email)
@@ -638,7 +664,7 @@ class OutreachEngine:
     ) -> dict[str, Any]:
         now = now or utc_now()
         with self._lock:
-            campaign = self.store.get_campaign(campaign_id)
+            campaign = self._require_own_kind(campaign_id, "sending")
             if campaign["status"] != "active":
                 raise ValueError("Campaign must be active before sending")
             reply_result = {"scanned": 0, "matched": 0}
@@ -807,6 +833,7 @@ class OutreachEngine:
         destination = Path(destination)
         rows = []
         with self._lock:
+            self._require_own_kind(campaign_id, "exporting the CRM")
             for item in self.store.campaign_contacts(campaign_id):
                 last = self.store.last_outgoing(str(item["id"])) or {}
                 row = {

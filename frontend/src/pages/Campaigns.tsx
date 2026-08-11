@@ -2,8 +2,8 @@ import { useState, type FormEvent } from "react";
 import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
-import { formatDate } from "../hooks";
-import type { Campaign } from "../types";
+import { formatDate, useResource } from "../hooks";
+import type { Campaign, CampaignKind } from "../types";
 import { statusTone } from "./shared";
 
 export default function Campaigns() {
@@ -11,7 +11,20 @@ export default function Campaigns() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
+  const [kind, setKind] = useState("email");
   const [limit, setLimit] = useState(25);
+  // Kinds that cannot run yet are shown rather than hidden. A picker that omits
+  // them looks like the feature was never planned; one that shows them with the
+  // reason says where the product is going.
+  const kinds = useResource<{ items: CampaignKind[] }>(
+    () => api.get<{ items: CampaignKind[] }>("/campaign-kinds"),
+    []
+  );
+  const selectedKind = kinds.data?.items.find((item) => item.id === kind);
+  // Email's settings live in real columns; other kinds leave them at defaults,
+  // so showing send windows for a picture campaign would be a lie in a form.
+  const emailShaped = selectedKind?.uses_email_columns ?? true;
+  const runnable = selectedKind?.implemented ?? true;
   const [timezone, setTimezone] = useState("Asia/Kolkata");
   const [windowStart, setWindowStart] = useState("09:00");
   const [windowEnd, setWindowEnd] = useState("17:00");
@@ -26,6 +39,7 @@ export default function Campaigns() {
         "/campaigns",
         {
           name,
+          kind,
           daily_send_limit: limit,
           timezone,
           variants: ["A", "B"],
@@ -42,6 +56,7 @@ export default function Campaigns() {
       refreshCampaigns();
       setOpen(false);
       setName("");
+      setKind("email");
       notify("Campaign created", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Campaign creation failed", "error");
@@ -76,7 +91,10 @@ export default function Campaigns() {
             <Panel key={campaign.id} className={campaign.id === campaignId ? "selected-card" : ""}>
               <div className="campaign-card-top">
                 <span className="campaign-mark large">{campaign.name.slice(0, 2).toUpperCase()}</span>
-                <Badge tone={statusTone(campaign.status)}>{campaign.status}</Badge>
+                <span className="campaign-card-tags">
+                  <Badge tone="neutral">{campaign.kind}</Badge>
+                  <Badge tone={statusTone(campaign.status)}>{campaign.status}</Badge>
+                </span>
               </div>
               <h2>{campaign.name}</h2>
               <p className="muted">Updated {formatDate(campaign.updated_at)}</p>
@@ -115,18 +133,37 @@ export default function Campaigns() {
       <Modal open={open} onClose={() => setOpen(false)} title="Create campaign" description="Start small. The daily cap can be changed later.">
         <form onSubmit={create} className="form-stack">
           <Field label="Campaign name"><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} autoFocus /></Field>
-          <div className="form-grid">
-            <Field label="Daily send limit"><input type="number" value={limit} min={1} max={500} onChange={(event) => setLimit(Number(event.target.value))} required /></Field>
-            <Field label="Timezone"><input value={timezone} onChange={(event) => setTimezone(event.target.value)} required /></Field>
-          </div>
-          <div className="form-grid">
-            <Field label="Send window starts"><input type="time" value={windowStart} onChange={(event) => setWindowStart(event.target.value)} required /></Field>
-            <Field label="Send window ends"><input type="time" value={windowEnd} onChange={(event) => setWindowEnd(event.target.value)} required /></Field>
-          </div>
-          <Field label="Experiment hypothesis" hint="Example: a specific operational hook will increase replies."><input value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} maxLength={1000} /></Field>
-          <Field label="Minimum sends per variant"><input type="number" value={minimumSample} min={10} max={100000} onChange={(event) => setMinimumSample(Number(event.target.value))} /></Field>
-          <div className="form-note"><strong>A/B testing is on.</strong><span>Contacts are assigned deterministically to A or B, so reruns stay stable.</span></div>
-          <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" busy={busy}>Create campaign</Button></div>
+          <Field label="Kind" hint={selectedKind?.summary ?? "What this campaign sends."}>
+            <select value={kind} onChange={(event) => setKind(event.target.value)}>
+              {(kinds.data?.items ?? [{ id: "email", label: "Email outreach", implemented: true } as CampaignKind]).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}{item.implemented ? "" : " — not built yet"}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {selectedKind && !selectedKind.implemented ? (
+            <div className="form-note">
+              <strong>{selectedKind.label} campaigns are not built yet.</strong>
+              <span>Still missing: {selectedKind.missing}</span>
+            </div>
+          ) : null}
+          {emailShaped ? (
+            <>
+              <div className="form-grid">
+                <Field label="Daily send limit"><input type="number" value={limit} min={1} max={500} onChange={(event) => setLimit(Number(event.target.value))} required /></Field>
+                <Field label="Timezone"><input value={timezone} onChange={(event) => setTimezone(event.target.value)} required /></Field>
+              </div>
+              <div className="form-grid">
+                <Field label="Send window starts"><input type="time" value={windowStart} onChange={(event) => setWindowStart(event.target.value)} required /></Field>
+                <Field label="Send window ends"><input type="time" value={windowEnd} onChange={(event) => setWindowEnd(event.target.value)} required /></Field>
+              </div>
+              <Field label="Experiment hypothesis" hint="Example: a specific operational hook will increase replies."><input value={hypothesis} onChange={(event) => setHypothesis(event.target.value)} maxLength={1000} /></Field>
+              <Field label="Minimum sends per variant"><input type="number" value={minimumSample} min={10} max={100000} onChange={(event) => setMinimumSample(Number(event.target.value))} /></Field>
+              <div className="form-note"><strong>A/B testing is on.</strong><span>Contacts are assigned deterministically to A or B, so reruns stay stable.</span></div>
+            </>
+          ) : null}
+          <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" busy={busy} disabled={!runnable}>Create campaign</Button></div>
         </form>
       </Modal>
     </>

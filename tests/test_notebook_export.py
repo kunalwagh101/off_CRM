@@ -480,14 +480,18 @@ def test_the_readme_lists_what_was_held_back(store, tmp_path):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_campaign_kind_defaults_to_email_until_the_column_exists(store):
+def test_campaign_kind_reads_the_column(store):
+    """The tripwire from before the column existed, now flipped.
+
+    It used to assert `kind` was absent, so that the day the column landed this
+    test failed and pointed at the reader. It did, and the reader needed no
+    change — every path already went through `campaign_kind`.
+    """
     campaign = store.get_campaign(store.campaign_id)
-    assert "kind" not in campaign, (
-        "when the kind column lands, this assertion is the reminder to check "
-        "that campaign_kind now reads it rather than defaulting"
-    )
+    assert campaign["kind"] == "email"
     assert campaign_kind(campaign) == "email"
     assert campaign_kind({"kind": "image"}) == "image"
+    assert campaign_kind({}) == "email", "a row predating the column is email"
 
 
 def test_an_image_campaign_gets_the_universal_sections_and_a_reason_for_the_rest(

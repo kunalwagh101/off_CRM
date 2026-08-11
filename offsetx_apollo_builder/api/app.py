@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..campaigns import list_kinds as list_campaign_kinds
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
@@ -777,11 +778,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         offset: int = Query(0, ge=0),
         status: str = Query("", max_length=20),
         search: str = Query("", max_length=120),
+        kind: str = Query("", max_length=40),
     ) -> dict[str, Any]:
         items, total = _engine(request).store.list_campaigns(
-            limit=limit, offset=offset, status=status, search=search
+            limit=limit, offset=offset, status=status, search=search, kind=kind
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/campaign-kinds")
+    def campaign_kinds() -> dict[str, Any]:
+        """What kinds of campaign exist, and which of them can actually run.
+
+        Serves the unimplemented ones too, with what is missing from each. A
+        picker that silently omits them looks like the feature was never
+        planned; one that shows them greyed out with a reason says where the
+        product is going.
+        """
+        return {"items": list_campaign_kinds()}
 
     @app.post(f"{API_PREFIX}/campaigns", status_code=201)
     def create_campaign_endpoint(
@@ -794,6 +807,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         def operation() -> dict[str, Any]:
             campaign_id = engine.create_campaign(
                 name=body.name,
+                kind=body.kind,
                 daily_send_limit=body.daily_send_limit,
                 timezone_name=body.timezone,
                 followup1_working_days=body.followup1_working_days,

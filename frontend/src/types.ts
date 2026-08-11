@@ -1,6 +1,19 @@
+export type CampaignKind = {
+  id: string;
+  label: string;
+  unit: string;
+  runner: string;
+  implemented: boolean;
+  summary: string;
+  /** What is still missing. Only set when implemented is false. */
+  missing: string;
+  uses_email_columns: boolean;
+};
+
 export type Campaign = {
   id: string;
   name: string;
+  kind: string;
   status: "active" | "paused" | "archived";
   daily_send_limit: number;
   timezone: string;

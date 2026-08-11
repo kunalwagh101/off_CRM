@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **605 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **628 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -73,6 +73,7 @@ config/providers.yaml               ← the registry. Adding a provider is a
 
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
+├── campaigns.py  the registry of campaign kinds; email is one of them
 ├── notebook.py   research-notebook export; the destination is a trust tier
 ├── notebook_cli.py  `offsetx-notebook` — targets, plan, export
 ├── codegraph.py  Graphify wrapper; keeps the semantic path switched off
@@ -691,6 +692,52 @@ reproduced against the real code before changing anything.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
 
+### Campaign kinds (2026-08-10)
+- [x] `campaigns` gained `kind TEXT NOT NULL DEFAULT 'email'`, schema v8.
+      Registry in `offsetx_apollo_builder/campaigns.py` — **package root, not
+      inside `outreach/`**, because the registry is above the email runner
+      rather than part of it. Docs: `docs/architecture/CAMPAIGN_KINDS.md`.
+- [x] **The migration was the easy half.** Every pre-existing row was an email
+      campaign because nothing else existed, so the column default backfills
+      them and there is no data migration to get wrong. The hard half is the
+      code written when email was the only possibility.
+- [x] **The gate.** `OutreachEngine._require_own_kind` refuses a campaign of
+      another kind at all nine entry points that act on one: `import_contacts`,
+      `generate_drafts`, `edit_draft`, `bulk_replace_drafts`, `schedule_drafts`,
+      `approve_drafts`, `sync_replies`, `run_due`, `export_crm`. Without it the
+      first image campaign would be handed to the mail sender.
+- [x] Two tests keep that list honest: one asserts each listed method contains
+      the check, and one walks every public method taking a `campaign_id` and
+      fails if any is missing from the list. Without the second, the first
+      quietly stops being exhaustive the day someone adds a method.
+- [x] `run_due` is checked **before** it syncs replies, with a test whose mail
+      provider raises if touched — a refusal after the mailbox has been read has
+      already done the thing it was meant to prevent.
+- [x] Three kinds declared, one implemented. `image` and `distribution` refuse
+      at creation with **what is missing**, rather than being omitted. The
+      failure mode of a bare `kind` column is a database of campaigns nothing
+      will ever run; a refusal at creation is the alternative to discovering
+      that a week later.
+- [x] **Absent means email, wrong means stop.** A missing value is a row written
+      before the column; a present unrecognised value raises. Falling back to
+      email there would hand an unknown campaign to the mail sender.
+- [x] `kind` is fixed at creation — `update_campaign` refuses a change rather
+      than dropping it through the allowlist, because the campaign's contacts,
+      drafts and messages were all made under the original kind.
+- [x] The index over the new column is applied **after** the migration
+      (`POST_MIGRATION_SQL`): on an existing database `CREATE TABLE IF NOT
+      EXISTS` is a no-op, so an index over a brand-new column in `SCHEMA_SQL`
+      would be asked for before `ALTER TABLE` added it and every upgrade would
+      fail on startup.
+- [x] Surfaced end to end: `GET /api/v1/campaign-kinds`, `kind` on create and as
+      a list filter, `offsetx-outreach campaign-kinds`, and a picker in the
+      Campaigns screen that shows unbuilt kinds greyed with their reason and
+      hides the email-shaped fields when one is selected.
+- [x] **Settings blob deliberately not built.** Email's settings are real
+      validated columns and no other kind can be created, so `settings_json`
+      today would be an unvalidated blob with no writer. The column is additive
+      and costs the same later; the validator is what has to come first.
+
 ### Code graph (§4K, 2026-08-10)
 - [x] `codegraph.py` + `offsetx-codegraph` (`policy`, `build`, `status`,
       `verify`, `ignore`). Docs: `docs/architecture/CODE_GRAPH.md`.
@@ -751,6 +798,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
+| — | Campaign `kind` column | **Built** (`campaigns.py`, schema v8). Remaining: no `settings_json` blob — deliberately deferred until there is a kind whose settings are known, since a validator has to exist before the blob does. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
 

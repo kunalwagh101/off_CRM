@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 
+from .campaigns import CampaignKindError
+from .campaigns import list_kinds as list_campaign_kinds
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
     GmailMailProvider,
@@ -34,11 +37,15 @@ def _parser() -> argparse.ArgumentParser:
 
     create = sub.add_parser("create-campaign")
     create.add_argument("name")
+    create.add_argument("--kind", default="email", help="campaign kind (see campaign-kinds)")
     create.add_argument("--daily-limit", type=int, default=25)
     create.add_argument("--timezone", default="Asia/Kolkata")
 
     listing = sub.add_parser("list-campaigns")
     listing.add_argument("--status", default="")
+    listing.add_argument("--kind", default="")
+
+    sub.add_parser("campaign-kinds", help="what kinds exist and which can run")
 
     import_contacts = sub.add_parser("import-contacts")
     import_contacts.add_argument("campaign_id")
@@ -110,12 +117,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "create-campaign":
             campaign_id = engine.create_campaign(
                 name=args.name,
+                kind=args.kind,
                 daily_send_limit=args.daily_limit,
                 timezone_name=args.timezone,
             )
             _json(engine.store.get_campaign(campaign_id))
+        elif args.command == "campaign-kinds":
+            _json({"items": list_campaign_kinds()})
         elif args.command == "list-campaigns":
-            items, total = engine.store.list_campaigns(status=args.status)
+            items, total = engine.store.list_campaigns(status=args.status, kind=args.kind)
             _json({"items": items, "total": total})
         elif args.command == "import-contacts":
             _json(
@@ -183,6 +193,11 @@ def main(argv: list[str] | None = None) -> int:
                 if args.campaign_id
                 else engine.store.dashboard_summary()
             )
+    except CampaignKindError as exc:
+        # These carry a written explanation — which kind, and what is missing.
+        # A traceback would bury it under a stack the reader cannot act on.
+        print(str(exc), file=sys.stderr)
+        return 2
     finally:
         engine.close()
     return 0

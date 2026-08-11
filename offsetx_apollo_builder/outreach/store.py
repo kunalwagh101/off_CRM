@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
+from ..campaigns import DEFAULT_KIND, assert_runnable, coerce_kind, kind_spec
 from .models import (
     ContactInput,
     DraftContent,
@@ -21,7 +22,7 @@ from .models import (
     parse_datetime,
     to_utc_iso,
 )
-from .schema import SCHEMA_SQL, SCHEMA_VERSION
+from .schema import POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
 
 
 class OutreachStore:
@@ -60,6 +61,7 @@ class OutreachStore:
     def initialize(self) -> None:
         self.connection.executescript(SCHEMA_SQL)
         self._migrate_legacy_schema()
+        self.connection.executescript(POST_MIGRATION_SQL)
         try:
             self.connection.execute(
                 """
@@ -87,6 +89,10 @@ class OutreachStore:
                 "outcome_label": "TEXT NOT NULL DEFAULT ''",
             },
             "campaigns": {
+                # Every row written before this column existed is an email
+                # campaign, because nothing else existed. The column default
+                # backfills them correctly with no data migration to get wrong.
+                "kind": "TEXT NOT NULL DEFAULT 'email'",
                 "send_window_start": "TEXT NOT NULL DEFAULT '00:00'",
                 "send_window_end": "TEXT NOT NULL DEFAULT '00:00'",
                 "send_weekdays_json": "TEXT NOT NULL DEFAULT '[0, 1, 2, 3, 4, 5, 6]'",
@@ -243,6 +249,7 @@ class OutreachStore:
         *,
         name: str,
         daily_send_limit: int,
+        kind: str = DEFAULT_KIND,
         timezone_name: str = "Asia/Kolkata",
         followup1_working_days: int = 4,
         followup2_working_days: int = 6,
@@ -256,6 +263,10 @@ class OutreachStore:
         experiment_min_sample: int = 40,
         control_variant: str = "A",
     ) -> str:
+        # Before anything else: a kind nothing can run must not reach the table.
+        # A row that looks alive in a list, has contacts attached and never
+        # sends is a worse outcome than a refusal at creation.
+        spec = assert_runnable(kind)
         if daily_send_limit <= 0:
             raise ValueError("daily_send_limit must be positive")
         if approval_mode not in {"each_message", "whole_sequence"}:
@@ -279,16 +290,17 @@ class OutreachStore:
             conn.execute(
                 """
                 INSERT INTO campaigns (
-                    id, name, daily_send_limit, timezone, followup1_working_days,
+                    id, name, kind, daily_send_limit, timezone, followup1_working_days,
                     followup2_working_days, approval_mode, variants_json,
                     status, send_window_start, send_window_end, send_weekdays_json,
                     experiment_hypothesis, experiment_metric, experiment_min_sample,
                     control_variant, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     campaign_id,
                     clean_text(name),
+                    spec.id,
                     daily_send_limit,
                     timezone_name,
                     followup1_working_days,
@@ -306,15 +318,27 @@ class OutreachStore:
                     now,
                 ),
             )
-        self.add_event(campaign_id, "campaign_created", {"name": name})
+        self.add_event(campaign_id, "campaign_created", {"name": name, "kind": spec.id})
         return campaign_id
 
     def get_campaign(self, campaign_id: str) -> dict[str, Any]:
         row = self._row("SELECT * FROM campaigns WHERE id = ?", (campaign_id,))
         if not row:
             raise KeyError(f"Campaign not found: {campaign_id}")
+        return self._decode_campaign(row)
+
+    @staticmethod
+    def _decode_campaign(row: dict[str, Any]) -> dict[str, Any]:
+        """Normalise a campaign row, including the kind.
+
+        ``coerce_kind`` fills in ``email`` for rows that predate the column and
+        raises for a value that is present and unrecognised. Quietly calling an
+        unknown kind ``email`` would hand it to the mail sender, which is the one
+        outcome adding this column has to avoid.
+        """
         row["variants"] = json.loads(row.get("variants_json") or "[]")
         row["send_weekdays"] = json.loads(row.get("send_weekdays_json") or "[]")
+        row["kind"] = coerce_kind(row.get("kind"))
         return row
 
     def list_campaigns(
@@ -324,9 +348,13 @@ class OutreachStore:
         offset: int = 0,
         status: str = "",
         search: str = "",
+        kind: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
         where: list[str] = []
         params: list[Any] = []
+        if kind:
+            where.append("c.kind = ?")
+            params.append(kind_spec(kind).id)
         if status:
             where.append("c.status = ?")
             params.append(status)
@@ -355,8 +383,7 @@ class OutreachStore:
             (*params, limit, offset),
         )
         for row in rows:
-            row["variants"] = json.loads(row.get("variants_json") or "[]")
-            row["send_weekdays"] = json.loads(row.get("send_weekdays_json") or "[]")
+            self._decode_campaign(row)
             row["contact_count"] = int(row.get("contact_count") or 0)
             row["replied_count"] = int(row.get("replied_count") or 0)
             row["sent_count"] = int(row.get("sent_count") or 0)
@@ -364,6 +391,15 @@ class OutreachStore:
 
     def update_campaign(self, campaign_id: str, changes: dict[str, Any]) -> dict[str, Any]:
         changes = dict(changes)
+        if "kind" in changes:
+            # Refused rather than dropped by the allowlist below. A campaign's
+            # kind decides which runner owns it, and its contacts, drafts and
+            # messages were all made under that assumption; converting one in
+            # place would leave email drafts attached to an image campaign.
+            raise ValueError(
+                "A campaign's kind cannot be changed after it is created. "
+                "Create a new campaign of the kind you want."
+            )
         if "send_weekdays" in changes:
             weekdays = sorted({int(day) for day in changes.pop("send_weekdays")})
             if not weekdays or any(day < 0 or day > 6 for day in weekdays):

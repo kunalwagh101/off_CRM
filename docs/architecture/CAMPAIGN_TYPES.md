@@ -1,7 +1,10 @@
 # Campaign types — the shape everything must fit
 
 Recorded from the owner, 2026-07-31. **Read this before designing anything new.**
-It changes what "campaign" means, and today's schema does not fit it.
+It changes what "campaign" means.
+
+The schema now fits it: `kind` landed on 2026-08-10 — see
+`docs/architecture/CAMPAIGN_KINDS.md`. The *runner* still does not.
 
 ---
 
@@ -63,20 +66,10 @@ Assume the list keeps growing. **Anything built now must not assume email.**
 
 ---
 
-## The concrete blocker, today
+## The concrete blocker — resolved 2026-08-10
 
-`outreach/schema.py`, the `campaigns` table:
-
-```sql
-daily_send_limit INTEGER NOT NULL CHECK(daily_send_limit > 0),
-followup1_working_days INTEGER NOT NULL DEFAULT 4,
-send_window_start TEXT NOT NULL DEFAULT '00:00',
-send_weekdays_json TEXT NOT NULL DEFAULT '[0,1,2,3,4,5,6]',
-experiment_metric TEXT NOT NULL DEFAULT 'reply_rate',
-```
-
-Every column is email. **There is no `kind`.** A campaign cannot currently *be*
-anything else.
+`campaigns` had no `kind`. Every column was email-shaped, so a campaign could
+not *be* anything else.
 
 Two bad ways forward and one good one:
 
@@ -86,8 +79,17 @@ Two bad ways forward and one good one:
 | A parallel table per type | The scheduling, approval and analytics logic duplicated per type |
 | **A `kind` column plus a per-kind settings blob** | One lifecycle, one approval path, one analytics path; the type-specific parts stay in their own module |
 
-The third is the one to take, and it is a small migration **now** versus a large
-one later.
+The third was taken. **`kind` now exists**, defaulting to `email`, with the
+registry in `offsetx_apollo_builder/campaigns.py`. Details:
+`docs/architecture/CAMPAIGN_KINDS.md`.
+
+The settings blob was **deliberately not** added yet. Email's settings live in
+real columns that are validated and indexed, and no other kind can be created,
+so a `settings_json` today would be an unvalidated blob with no writer — a
+dumping ground waiting to be filled by whoever needs a field in a hurry. Adding
+a column to SQLite is additive and costs the same later; the *validator* is the
+part that has to exist first, and it cannot be written until there is a kind
+whose settings are known.
 
 ---
 
@@ -104,7 +106,7 @@ Encouragingly, most of the hard parts do not care what a campaign sends:
 | The context layer | ✅ counts and a rolling summary, whatever is being counted |
 | Response cache | ✅ keyed on the payload, so it already works for image prompts |
 | Sandbox + tool registry | ✅ unchanged |
-| **The campaign runner** | ❌ email-only, and the schema with it |
+| **The campaign runner** | ❌ still email-only. The *schema* no longer is: `kind` landed 2026-08-10. |
 
 So the AI layer is largely type-agnostic already. **The CRM half is not.**
 

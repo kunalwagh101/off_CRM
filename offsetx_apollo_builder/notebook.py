@@ -72,6 +72,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from .campaigns import DEFAULT_KIND as DEFAULT_CAMPAIGN_KIND
+from .campaigns import coerce_kind
 from .ai.payload import (
     COMPANY_TOKEN,
     PERSON_TOKEN,
@@ -88,11 +90,6 @@ from .ai.tiers import (
     policy_ceiling_for_tier,
     tier_permits_class,
 )
-
-#: Campaign kind assumed when the row does not declare one. Every campaign in
-#: the database today is an email campaign; the column that will say so does not
-#: exist yet.
-DEFAULT_CAMPAIGN_KIND = "email"
 
 #: The folder inside the output directory that gets uploaded. Everything the
 #: destination must never see lives beside it, not in it.
@@ -313,12 +310,11 @@ def resolve_target(
 def campaign_kind(campaign: Mapping[str, Any]) -> str:
     """What sort of campaign this is.
 
-    Reads a ``kind`` column that does not exist yet and falls back to email.
-    Written this way so the multi-kind migration is a schema change and not a
-    hunt through every reader.
+    Delegates to the registry so there is one definition of what a kind is. It
+    was written before the ``kind`` column existed and needed no change when the
+    column landed, which was the point of routing every reader through here.
     """
-    value = str(campaign.get("kind") or "").strip().lower()
-    return value or DEFAULT_CAMPAIGN_KIND
+    return coerce_kind(campaign.get("kind"), default=DEFAULT_CAMPAIGN_KIND)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

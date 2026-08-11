@@ -191,3 +191,54 @@ def test_production_frontend_is_served_by_fastapi(tmp_path):
         assert response.status_code == 200
         assert "OffsetX Outreach" in response.text
         assert "text/html" in response.headers["content-type"]
+
+
+def test_campaign_kinds_endpoint_serves_the_unimplemented_ones_too(tmp_path):
+    """A picker that hides them looks like the feature was never planned.
+
+    One that shows them with a reason says where the product is going, so the
+    endpoint serves every declared kind and marks which can run.
+    """
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        items = client.get("/api/v1/campaign-kinds").json()["items"]
+        by_id = {item["id"]: item for item in items}
+
+        assert by_id["email"]["implemented"] is True
+        assert by_id["image"]["implemented"] is False
+        assert by_id["image"]["missing"], "an unimplemented kind must say what is missing"
+        assert items[0]["id"] == "email", "runnable kinds first"
+
+
+def test_creating_an_unimplemented_kind_returns_the_reason_not_a_type_error(tmp_path):
+    """422 with the sentence, rather than 'not a valid enumeration member'.
+
+    This is why `kind` is a plain string on the request model: the registry
+    owns the answer, and the answer is a sentence about what is missing.
+    """
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        refused = client.post(
+            "/api/v1/campaigns", json={"name": "Reels", "kind": "image"}
+        )
+        assert refused.status_code == 422
+        detail = refused.json()["detail"]
+        assert "not implemented" in detail
+        assert "runner" in detail
+
+        unknown = client.post(
+            "/api/v1/campaigns", json={"name": "Nope", "kind": "podcast"}
+        )
+        assert unknown.status_code == 422
+        assert "Unknown campaign kind" in unknown.json()["detail"]
+
+        assert client.get("/api/v1/campaigns").json()["total"] == 0
+
+
+def test_campaigns_carry_their_kind_and_can_be_filtered_by_it(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        created = client.post("/api/v1/campaigns", json={"name": "Pilot"})
+        assert created.status_code == 201
+        assert created.json()["kind"] == "email"
+
+        assert client.get("/api/v1/campaigns?kind=email").json()["total"] == 1
+        assert client.get("/api/v1/campaigns?kind=image").json()["total"] == 0
+        assert client.get("/api/v1/campaigns?kind=podcast").status_code == 422

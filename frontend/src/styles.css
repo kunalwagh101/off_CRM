@@ -138,6 +138,7 @@ code { font-size: 0.82rem; overflow-wrap: anywhere; color: #33425d; }
 
 .card-grid { display: grid; grid-template-columns: repeat(3,minmax(260px,1fr)); gap: 17px; }
 .campaign-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.campaign-card-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .card-grid .panel > h2 { margin: 16px 0 2px; font-size: 1.03rem; }
 .mini-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 18px 0; padding: 14px 0; border-top: 1px solid #edf0f5; border-bottom: 1px solid #edf0f5; }
 .mini-stats span { color: #7b879a; font-size: .62rem; text-align: center; }

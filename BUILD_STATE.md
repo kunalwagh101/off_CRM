@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **572 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **605 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -74,7 +74,9 @@ config/providers.yaml               ← the registry. Adding a provider is a
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
 ├── notebook.py   research-notebook export; the destination is a trust tier
-└── notebook_cli.py  `offsetx-notebook` — targets, plan, export
+├── notebook_cli.py  `offsetx-notebook` — targets, plan, export
+├── codegraph.py  Graphify wrapper; keeps the semantic path switched off
+└── codegraph_cli.py `offsetx-codegraph` — policy, build, status, verify
 ```
 
 The module depends on the CRM only through `outreach/models.py` (dataclasses)
@@ -689,6 +691,41 @@ reproduced against the real code before changing anything.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
 
+### Code graph (§4K, 2026-08-10)
+- [x] `codegraph.py` + `offsetx-codegraph` (`policy`, `build`, `status`,
+      `verify`, `ignore`). Docs: `docs/architecture/CODE_GRAPH.md`.
+- [x] Wraps Graphify (`graphifyy==0.9.39`, pinned, run via `uvx` so it never
+      enters the project venv). 7 seconds for this repo: 3,047 nodes, 7,935
+      edges.
+- [x] **The reason it is a module and not a shell command:** `graphify extract`
+      is, in its own help, "AST + **semantic LLM**" — it finds an API key and
+      posts chunks of source to gemini/openai/deepseek/claude/kimi/ollama.
+      `--code-only` makes it "local AST, no API key". Two flags separate a build
+      step from an egress event. The previous attempt put them in
+      `scripts/build_code_graph.ps1`: PowerShell only, and editable.
+- [x] `--code-only` is not a parameter of `extract_command()`. A keyword
+      argument would put the unsafe call one keystroke away.
+- [x] Seven refusals, each with its reason: the semantic path, `label`,
+      `add <url>`, `--global` (merges into a shared file in `$HOME`), the
+      `install` subcommands (they write to AGENTS.md and install git hooks),
+      `--no-gitignore`, `--postgres`.
+- [x] **Verified, not asserted.** After every build the graph is read back and
+      **deleted** if any indexed file lives under a runtime-data path. Kept-with-
+      a-warning is not an option: someone queries it anyway because the file is
+      there.
+- [x] `.graphifyignore` is generated from `RUNTIME_DATA_PATHS` in code,
+      overwriting hand edits, and a test cross-references that list against
+      `api/config.py` so the two cannot drift.
+- [x] **Live probe run, three ways** (recorded in the doc): a planted
+      `local_data/leak_probe.py` is excluded by `.gitignore` alone (0 nodes) and
+      by `.graphifyignore` alone (0 nodes); with **both** bypassed it leaks 2
+      nodes and the verifier rejects the graph by name. Each layer holds
+      independently and the backstop fires when both are cut.
+- [x] Staleness: `graph.json` records `built_at_commit`; `status` compares it to
+      HEAD. A graph recording no commit is treated as stale.
+- [x] `graphify-out/` gitignored — build artefact plus a 4.6 MB cache, rebuilt
+      in seconds.
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -713,7 +750,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4G | NotebookLM export | **Built** (`notebook.py`, `offsetx-notebook`). Remaining: no API endpoint and no UI screen — and the web shape has a real problem to solve first, since a zip download would put the identity key back inside the folder the owner uploads. Two separate downloads is probably the answer and needs deciding, not defaulting. No scheduled re-export. |
 | 4H | Bandit / automatic traffic shifting | **Built** (`ai/bandit.py`, `context.traffic_split`). Decides *how much* traffic each approved variant gets; still never decides *whether* a rewrite goes live — that stays with the owner per §3. |
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
-| 4K | Graphify | Not started. |
+| 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
 | — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
 

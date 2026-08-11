@@ -48,3 +48,8 @@ provider_config.json
 !poi_file_queue/failed/.gitkeep
 !old_pois/.gitkeep
 build/
+
+# Code graph build artefact and cache (offsetx-codegraph)
+graphify-out/
+.graphify_analysis.json
+.graphify_labels.json

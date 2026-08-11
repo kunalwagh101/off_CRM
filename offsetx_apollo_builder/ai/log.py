@@ -13,12 +13,12 @@ not grow without limit.
 from __future__ import annotations
 
 import json
-import sqlite3
 import threading
 import uuid
 from pathlib import Path
 from typing import Any
 
+from ..db import Database, open_database
 from ..outreach.models import to_utc_iso
 
 SCHEMA = """
@@ -55,30 +55,43 @@ MAX_PAYLOAD_CHARS = 60000
 
 
 class EgressLog:
-    """SQLite-backed egress log.
+    """The egress log, on SQLite or Postgres.
 
     Owns its own table and its own connection so the AI module can be lifted out
-    of off_CRM without dragging the CRM schema with it.
+    of off_CRM without dragging the CRM schema with it. That independence is
+    also why this is the first store to gain a Postgres option: it has no
+    foreign keys into the CRM, so it can move on its own.
+
+    **Why this one first.** On a deployment whose disk does not survive a
+    restart, the egress log is the thing that must not be on that disk. It is
+    the record of exactly what data left to which provider, and the security
+    argument of the whole system is that the guarantee is *verified* rather than
+    trusted. A verification trail that resets on every restart verifies nothing.
+
+    Pass a path for SQLite, or a ``postgresql://`` URL for Postgres. Leaving
+    both unset falls back to ``OFFSETX_DATABASE_URL``.
     """
 
-    def __init__(self, database_path: Path | str) -> None:
-        self.path = Path(database_path)
+    def __init__(self, database_path: Path | str | None = None) -> None:
+        self.target = database_path
+        # Kept for callers that still read ``.path``; meaningless on Postgres
+        # and deliberately not faked into something that looks like a file.
+        self.path = Path(database_path) if database_path is not None else None
         self._lock = threading.RLock()
-        self._connection: sqlite3.Connection | None = None
+        self._connection: Database | None = None
 
     @property
-    def connection(self) -> sqlite3.Connection:
+    def backend(self) -> str:
+        """``"sqlite"`` or ``"postgres"``. Worth showing in the inspector."""
+        return self.connection.name
+
+    @property
+    def connection(self) -> Database:
         with self._lock:
             if self._connection is None:
-                self.path.parent.mkdir(parents=True, exist_ok=True)
-                connection = sqlite3.connect(
-                    self.path, check_same_thread=False, isolation_level=None
-                )
-                connection.row_factory = sqlite3.Row
-                connection.execute("PRAGMA journal_mode=WAL")
-                connection.execute("PRAGMA busy_timeout=5000")
-                connection.executescript(SCHEMA)
-                self._connection = connection
+                database = open_database(self.target)
+                database.executescript(SCHEMA)
+                self._connection = database
             return self._connection
 
     def close(self) -> None:
@@ -222,9 +235,15 @@ class EgressLog:
                 " GROUP BY tier ORDER BY calls DESC",
                 params,
             ).fetchall()
+            # Every selected column is in the GROUP BY. SQLite tolerates bare
+            # columns here and silently picks an arbitrary row for them;
+            # Postgres refuses the query outright. Grouping on all three is
+            # both portable and the answer that was actually meant.
             by_provider = self.connection.execute(
                 f"SELECT provider_id, provider_name, jurisdiction, COUNT(*) AS calls"
-                f" FROM ai_egress_log{clause} GROUP BY provider_id ORDER BY calls DESC LIMIT 20",
+                f" FROM ai_egress_log{clause}"
+                " GROUP BY provider_id, provider_name, jurisdiction"
+                " ORDER BY calls DESC LIMIT 20",
                 params,
             ).fetchall()
         return {

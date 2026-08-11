@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **628 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **663 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -64,7 +64,7 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── tools.py      the registry of owner-pinned tools that may run in it
 └── tool_cli.py   `offsetx-tools` — register, inspect, run
 ├── discovery.py  asks a provider what models its key reaches
-├── log.py        egress log; own SQLite table, stores the exact payload
+├── log.py        egress log; own table, exact payload, SQLite or Postgres
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
 └── errors.py     structured refusals the API turns into readable answers
 
@@ -77,7 +77,9 @@ offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── notebook.py   research-notebook export; the destination is a trust tier
 ├── notebook_cli.py  `offsetx-notebook` — targets, plan, export
 ├── codegraph.py  Graphify wrapper; keeps the semantic path switched off
-└── codegraph_cli.py `offsetx-codegraph` — policy, build, status, verify
+├── codegraph_cli.py `offsetx-codegraph` — policy, build, status, verify
+├── db/           backend seam: SQLite or Postgres behind one interface
+└── db_cli.py     `offsetx-db` — check the backend, copy the egress log
 ```
 
 The module depends on the CRM only through `outreach/models.py` (dataclasses)
@@ -692,6 +694,53 @@ reproduced against the real code before changing anything.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
 
+### Postgres backend, egress log first (2026-08-10)
+- [x] `offsetx_apollo_builder/db/` — ~250 lines. `open_database()` returns
+      something that behaves like the `sqlite3.Connection` the stores already
+      use: same `execute` / `executescript` / `transaction`, same `row["col"]`
+      and `dict(row)`. Docs: `docs/architecture/POSTGRES.md`.
+- [x] **No ORM.** SQLAlchemy would have replaced auditable SQL with expression
+      trees in a codebase whose security argument depends on reading the
+      queries, for a much larger diff and the same result.
+- [x] `?` → `%s` translation in `db/translate.py`, as a **character walker, not
+      a regex**: both `?` and `%` occur inside string literals, and a blind
+      replace corrupts data invisibly until someone reads the row back. Handles
+      `'it''s'` (a doubled quote is an escape, not the end of the string) and
+      doubles literal `%`, which psycopg treats as a placeholder marker.
+      `outreach/store.py` alone has 449 `?`, so rewriting them was never the
+      option.
+- [x] Postgres runs in **autocommit** to match SQLite's `isolation_level=None`.
+      The stores expect a statement to be durable when it returns; psycopg's
+      default open transaction block would have changed that contract silently.
+- [x] **The egress log is the store that moved, because it is the one broken in
+      the deployed environment today.** §6.4: on Render `OFFSETX_DATA_DIR` is
+      `/tmp`, wiped every restart. Everything else there is an inconvenience to
+      lose; the audit trail is a hole in the argument — a verification trail
+      that resets verifies nothing. It also has no foreign keys into the CRM.
+- [x] **A bug the second engine found.** `EgressLog.stats()` selected
+      `provider_name` and `jurisdiction` while grouping only by `provider_id`.
+      SQLite runs that and picks an arbitrary row; Postgres refuses it. Now
+      grouped on all three, which is also the answer that was meant.
+- [x] `offsetx-db check` and `offsetx-db copy-log`. The copy never deletes the
+      source, is idempotent by primary key, counts both sides and reports, uses
+      an explicit column list (a test fails if it drifts from the schema), and
+      masks passwords in everything it prints.
+- [x] Only an explicit `postgresql://` / `postgres://` / `psql://` scheme means
+      Postgres; everything else is a path, so a mistyped DSN fails loudly rather
+      than silently creating an empty SQLite file that looks like it worked.
+- [x] Resolution order is explicit → `OFFSETX_DATABASE_URL` → default path. The
+      middle rung lets a deployment set one variable; the top rung keeps a
+      test's scratch file safe from the environment reaching in.
+- [x] Missing psycopg raises a sentence containing the install command, not
+      `No module named 'psycopg'`.
+- [x] Log tests are **parametrised over both backends**, 35 of them. The
+      Postgres half skips with a reason unless `OFF_CRM_TEST_POSTGRES_URL` is
+      set — same rule as the live Docker test.
+- [x] Verified end to end against a real Postgres 16: the app boots with the log
+      on the server, `GET /ai/egress-log/stats` reports `"backend": "postgres"`,
+      no `ai_egress.db` appears in the data directory, and the CRM keeps working
+      on SQLite in the same process.
+
 ### Campaign kinds (2026-08-10)
 - [x] `campaigns` gained `kind TEXT NOT NULL DEFAULT 'email'`, schema v8.
       Registry in `offsetx_apollo_builder/campaigns.py` — **package root, not
@@ -799,7 +848,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
 | — | Campaign `kind` column | **Built** (`campaigns.py`, schema v8). Remaining: no `settings_json` blob — deliberately deferred until there is a kind whose settings are known, since a validator has to exist before the blob does. |
-| — | Postgres | Still SQLite. Fine for local and small teams; a shared multi-user server needs Postgres. Storage is behind a boundary, so it is a swap not a rewrite. |
+| — | Postgres | **Partly done.** The seam is built and tested (`db/`), and the **egress log** runs on either backend. The other five stores — CRM, context, recall, scoreboard, cache, sales — are still SQLite-only. Also missing: a Postgres migration path (`PRAGMA table_info` / `user_version` have no equivalent yet), FTS (`fts5` → `tsvector` is a reimplementation), and connection pooling. |
 | 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
 
 ---

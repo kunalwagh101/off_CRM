@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..campaigns import list_kinds as list_campaign_kinds
+from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
@@ -261,7 +262,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_workspaces = WorkspaceAISettingsStore(
             resolved.data_dir, app.state.ai_registry
         )
-        app.state.ai_egress_log = EgressLog(resolved.data_dir / "ai_egress.db")
+        # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
+        # can move the log off a disposable disk without every call site
+        # learning about it. On a deployment whose filesystem does not survive
+        # a restart, the audit trail is the one thing that must not live there.
+        app.state.ai_egress_log = EgressLog(
+            resolve_database_target(default=resolved.data_dir / "ai_egress.db")
+        )
         app.state.ai_quota = QuotaTracker(resolved.data_dir)
         app.state.ai_broker = EgressBroker(
             registry=app.state.ai_registry,
@@ -1733,7 +1740,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/ai/egress-log/stats")
     def ai_egress_stats(request: Request) -> dict[str, Any]:
         _, _, log = _ai(request)
-        return log.stats(workspace_id=_workspace_id(request))
+        stats = log.stats(workspace_id=_workspace_id(request))
+        # Where the audit trail lives is part of reading it. A log on a disk
+        # that resets is worth less than the same log on a database that does
+        # not, and the screen should not hide which one you are looking at.
+        stats["backend"] = log.backend
+        return stats
 
     @app.get(f"{API_PREFIX}/ai/egress-log/{{log_id}}")
     def ai_egress_entry(log_id: str, request: Request) -> dict[str, Any]:

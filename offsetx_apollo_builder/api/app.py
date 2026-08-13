@@ -20,6 +20,7 @@ from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..distribution.engine import DistributionEngine
 from ..distribution.platforms import list_platforms as list_distribution_platforms
+from ..distribution.pipeline import TrendPipeline
 from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
@@ -964,6 +965,83 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return watcher.report(window_hours=window_hours)
         finally:
             watcher.close()
+
+    def _pipeline(request: Request, *, angle: str = "") -> TrendPipeline:
+        """The trend-to-post pipeline, with a writer backed by the broker.
+
+        The data class is chosen by what is actually being sent. Topic terms and
+        competitor video titles are public, so a public request goes to whichever
+        model is cheapest and permitted. An owner angle is the owner's own
+        positioning and is not public, so supplying one makes it campaign class
+        and the tier rules narrow accordingly — without this module deciding
+        anything, because the broker already knows what each tier may receive.
+        """
+        state = request.app.state
+        workspace_id = _workspace_id(request)
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+            workspace_id
+        )
+        data_class = DataClass.CAMPAIGN if angle.strip() else DataClass.PUBLIC
+
+        def writer(kind: str, prompt: str) -> str:
+            result = state.ai_broker.call(
+                EgressRequest(
+                    task_type=f"trend_{kind}",
+                    data_class=data_class,
+                    instructions=prompt,
+                ),
+                settings,
+                system_prompt=(
+                    "You write short, plain copy for a marketing team. No "
+                    "preamble, no explanation — return only what was asked for."
+                ),
+            )
+            return result.text
+
+        return TrendPipeline(
+            trends=_trends(request),
+            images=_imagery(request),
+            distribution=_distribution(request),
+            writer=writer,
+            campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
+            workspace_id=workspace_id,
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/pipeline/plan")
+    def pipeline_plan(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Topic to candidates, stopping at the review queue.
+
+        It stops there on purpose: the next step is a person looking at the
+        pictures, and no version of this should skip it.
+        """
+        angle = str(body.get("angle", ""))
+        pipeline = _pipeline(request, angle=angle)
+        return pipeline.plan(
+            distribution_campaign_id=campaign_id,
+            image_campaign_id=str(body.get("image_campaign_id", "")),
+            window_hours=int(body.get("window_hours") or 72),
+            min_channels=int(body.get("min_channels") or 3),
+            max_topics=int(body.get("max_topics") or 3),
+            candidates=int(body.get("candidates") or 3),
+            angle=angle,
+        ).to_dict()
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/pipeline/draft")
+    def pipeline_draft(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Kept pictures to draft posts, stopping before approval.
+
+        A draft still needs the approval the distribution runner has always
+        required before anything can be scheduled.
+        """
+        angle = str(body.get("angle", ""))
+        pipeline = _pipeline(request, angle=angle)
+        return pipeline.draft(
+            distribution_campaign_id=campaign_id,
+            image_campaign_id=str(body.get("image_campaign_id", "")),
+            account_ids=[str(item) for item in (body.get("account_ids") or [])],
+            angle=angle,
+        ).to_dict()
 
     @app.get(f"{API_PREFIX}/trends/topics")
     def trends_topics(

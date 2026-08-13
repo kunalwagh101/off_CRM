@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **788 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **809 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -77,6 +77,7 @@ offsetx_apollo_builder/distribution/ ← the content distribution runner
 ├── youtube.py    Data API v3 read client; the only transport in the package
 ├── trends.py     competitor watch list + what is actually rising
 ├── topics.py     what several channels are covering at once
+├── pipeline.py   trend -> brief -> swipe -> caption -> draft post
 ├── publishers.py the adapter interface + the local outbox
 ├── store.py      accounts, posts, goals, engagement snapshots
 └── engine.py     plan -> approve -> schedule -> publish -> measure
@@ -708,6 +709,49 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Trend to post (2026-08-10)
+- [x] `distribution/pipeline.py` — the piece that joins the three campaign
+      kinds. Everything it needed already existed; this is the wiring, and it is
+      what "run this campaign" finally means end to end. Docs:
+      `docs/architecture/TREND_TO_POST.md`.
+- [x] **Where the automation stops is the whole design.** Two halves, and the
+      boundary between them is a judgement that already existed. `plan` goes
+      topic -> brief -> candidates and **stops at the review queue**; `draft`
+      takes the pictures the owner kept, writes captions and creates **draft**
+      posts, which still need the approval the distribution runner has always
+      required. The machine fetches, composes, generates and does the scheduling
+      arithmetic; a person decides *is this picture good* and *does this go
+      out*. Removing either would let the system publish something nobody saw,
+      under the owner's name.
+- [x] Both campaign ids are kind-checked in one call — the first must be
+      distribution, the second image. A swapped id would otherwise write image
+      briefs against an email campaign.
+- [x] **The same topic is not planned twice.** Recorded by a key built from
+      sorted terms rather than the label, because the label is the first three
+      and a topic can gain a term between sweeps without becoming a different
+      subject. A week's cooldown, or the review queue fills with the same
+      picture every sweep.
+- [x] Composition is **deterministic by default**, with an optional writer. The
+      brief describes the subject and not the composition — over-specifying
+      produces the same picture from every generator, defeating both running
+      several and the swipe that compares them.
+- [x] **The data class is chosen by what is sent**: topic terms and competitor
+      titles are `public`; adding the owner's angle makes it `campaign`. The
+      module decides nothing about trust — it labels honestly and the broker
+      applies the rules it already has.
+- [x] A failing or empty writer **falls back to the deterministic version**
+      rather than costing the sweep. Tested both ways.
+- [x] 21 new tests, all passing first run. Verified over HTTP, including the
+      kind gate refusing a swapped campaign id.
+
+#### Still not built
+- Nothing calls it on a timer; that belongs in `AutomationService`.
+- No UI for the plan/draft calls (the swipe half has one).
+- One picture to three accounts carries the same caption to all three.
+- The angle is a string the owner supplies — nothing derives it from their
+  positioning or from what performed before, though `generator_performance` and
+  the context layer both hold material that could.
 
 ### Topic clustering across channels (2026-08-10)
 - [x] `distribution/topics.py`, surfaced at `GET /trends/topics` and inside the

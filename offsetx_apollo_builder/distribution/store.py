@@ -77,6 +77,20 @@ CREATE TABLE IF NOT EXISTS dist_metrics (
     source TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_dist_metrics_post ON dist_metrics(post_id, measured_at);
+
+CREATE TABLE IF NOT EXISTS dist_topic_actions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    topic_key TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    campaign_id TEXT NOT NULL DEFAULT '',
+    brief_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_dist_topic_actions
+    ON dist_topic_actions(workspace_id, topic_key, created_at);
+CREATE INDEX IF NOT EXISTS ix_dist_topic_brief
+    ON dist_topic_actions(brief_id);
 """
 
 POST_STATUSES = ("draft", "approved", "scheduled", "published", "failed")
@@ -299,6 +313,47 @@ class DistributionStore:
             ),
         )
         return metric_id
+
+    # ── topics already acted on ─────────────────────────────────────────────
+
+    def record_topic_action(
+        self,
+        *,
+        topic_key: str,
+        label: str,
+        campaign_id: str,
+        brief_id: str,
+        workspace_id: str = "local",
+    ) -> str:
+        """Remember that this topic already produced a brief.
+
+        A story that runs for three days is one topic, not three. Without this
+        record every sweep makes a fresh brief for it and the review queue fills
+        with the same picture.
+        """
+        action_id = str(uuid.uuid4())
+        self.connection.execute(
+            "INSERT INTO dist_topic_actions(id, workspace_id, topic_key, label,"
+            " campaign_id, brief_id, created_at) VALUES(?,?,?,?,?,?,?)",
+            (action_id, workspace_id, topic_key, label, campaign_id, brief_id, _now()),
+        )
+        return action_id
+
+    def last_topic_action(
+        self, topic_key: str, *, workspace_id: str = "local"
+    ) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM dist_topic_actions WHERE workspace_id = ? AND topic_key = ?"
+            " ORDER BY created_at DESC LIMIT 1",
+            (workspace_id, topic_key),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def topic_action_for_brief(self, brief_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM dist_topic_actions WHERE brief_id = ? LIMIT 1", (brief_id,)
+        ).fetchone()
+        return dict(row) if row else None
 
     def latest_metrics(self, campaign_id: str) -> list[dict[str, Any]]:
         """The most recent snapshot per post.

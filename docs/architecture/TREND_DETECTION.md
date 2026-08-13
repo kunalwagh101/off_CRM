@@ -171,9 +171,8 @@ the output.
 
 ## What is not built
 
-- **Turning a trend into a post.** `/trends` and `/trends/topics` report;
-  nothing composes a caption from what they found. That is the next piece, and
-  it is where the image campaign and this one meet.
+- **Turning a trend into a post** is built — see `TREND_TO_POST.md`. What is
+  still absent there is a timer to run it.
 - **Scheduled sweeps.** `/trends/sweep` is called; nothing calls it on a timer.
   `AutomationService` is where that belongs.
 - **Semantic clustering.** See the limitation above — a deliberate omission,

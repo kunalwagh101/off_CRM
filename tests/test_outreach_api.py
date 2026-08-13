@@ -204,8 +204,11 @@ def test_campaign_kinds_endpoint_serves_the_unimplemented_ones_too(tmp_path):
         by_id = {item["id"]: item for item in items}
 
         assert by_id["email"]["implemented"] is True
-        assert by_id["image"]["implemented"] is False
-        assert by_id["image"]["missing"], "an unimplemented kind must say what is missing"
+        assert by_id["image"]["implemented"] is True, "the image runner is built"
+        assert by_id["distribution"]["implemented"] is False
+        assert by_id["distribution"][
+            "missing"
+        ], "an unimplemented kind must say what is missing"
         assert items[0]["id"] == "email", "runnable kinds first"
 
 
@@ -217,7 +220,7 @@ def test_creating_an_unimplemented_kind_returns_the_reason_not_a_type_error(tmp_
     """
     with TestClient(create_app(_settings(tmp_path))) as client:
         refused = client.post(
-            "/api/v1/campaigns", json={"name": "Reels", "kind": "image"}
+            "/api/v1/campaigns", json={"name": "Trends", "kind": "distribution"}
         )
         assert refused.status_code == 422
         detail = refused.json()["detail"]

@@ -17,6 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
+from ..imagery.engine import ImageCampaignEngine
+from ..imagery.store import ImageStore
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
@@ -288,6 +290,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             logger=app.state.ai_egress_log.record,
             cache=app.state.ai_cache,
         )
+        app.state.image_store = ImageStore(
+            resolved.data_dir / "imagery.db",
+            assets_dir=resolved.data_dir / "image_assets",
+        )
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
@@ -312,6 +318,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             await app.state.automation.stop()
             app.state.engine.close()
             app.state.ai_egress_log.close()
+            app.state.image_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
 
@@ -814,6 +821,99 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             limit=limit, offset=offset, status=status, search=search, kind=kind
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    def _imagery(request: Request) -> ImageCampaignEngine:
+        """The image runner, wired to the same broker as everything else.
+
+        Built per request rather than held on app.state, because it needs the
+        workspace's credential resolver — and a long-lived engine holding one
+        workspace's key would be the wrong shape the day there are two.
+        """
+        state = request.app.state
+        workspace_id = _workspace_id(request)
+        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+            workspace_id
+        )
+        return ImageCampaignEngine(
+            store=state.image_store,
+            broker=state.ai_broker,
+            settings_resolver=state.ai_workspaces.egress_settings,
+            campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
+            workspace_id=workspace_id,
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-briefs", status_code=201)
+    def add_image_brief(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        engine = _imagery(request)
+        brief_id = engine.add_brief(
+            campaign_id,
+            brief=str(body.get("brief", "")),
+            width=int(body.get("width") or 0),
+            height=int(body.get("height") or 0),
+            wanted=int(body.get("wanted") or 1),
+        )
+        return engine.store.get_brief(brief_id)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-briefs")
+    def list_image_briefs(campaign_id: str, request: Request) -> dict[str, Any]:
+        engine = _imagery(request)
+        engine._require_own_kind(campaign_id, "listing briefs")
+        return {"items": engine.store.list_briefs(campaign_id)}
+
+    @app.post(f"{API_PREFIX}/image-briefs/{{brief_id}}/generate")
+    def generate_images(brief_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        engine = _imagery(request)
+        return engine.generate(
+            brief_id,
+            count=int(body.get("count") or 3),
+            provider_id=str(body.get("provider_id", "")).strip(),
+        ).to_dict()
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-queue")
+    def image_review_queue(campaign_id: str, request: Request) -> dict[str, Any]:
+        """What is waiting for a swipe."""
+        engine = _imagery(request)
+        return {"items": engine.review_queue(campaign_id)}
+
+    @app.get(f"{API_PREFIX}/image-assets/{{asset_id}}/file")
+    def image_asset_file(asset_id: str, request: Request):
+        """The picture itself.
+
+        Served from disk rather than inlined into JSON: a review queue of fifty
+        base64 blobs is a response nobody wants, and the browser caches a file.
+        """
+        asset = request.app.state.image_store.get_asset(asset_id)
+        path = Path(str(asset.get("path") or ""))
+        if not path.exists():
+            raise HTTPException(404, detail={"error": "gone", "message": "This picture was discarded."})
+        return FileResponse(path, media_type=str(asset.get("media_type") or "image/png"))
+
+    @app.post(f"{API_PREFIX}/image-assets/{{asset_id}}/decide")
+    def decide_image(asset_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Swipe right, swipe left, or refresh.
+
+        One endpoint for all three because they are one decision with three
+        outcomes, and because every one of them scores the generator.
+        """
+        engine = _imagery(request)
+        decision = str(body.get("decision", "")).strip().lower()
+        if decision == "approve":
+            return {"asset": engine.approve(asset_id)}
+        if decision == "reject":
+            return {"asset": engine.reject(asset_id)}
+        if decision == "regenerate":
+            return {"round": engine.regenerate(asset_id).to_dict()}
+        raise HTTPException(
+            400,
+            detail={
+                "error": "unknown_decision",
+                "message": "decision must be approve, reject or regenerate.",
+            },
+        )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-summary")
+    def image_summary(campaign_id: str, request: Request) -> dict[str, Any]:
+        return _imagery(request).summary(campaign_id)
 
     @app.get(f"{API_PREFIX}/campaign-kinds")
     def campaign_kinds() -> dict[str, Any]:

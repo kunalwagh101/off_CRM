@@ -14,9 +14,9 @@ of output and an owner, not a free-text string someone types into a column.
 
 **On declaring kinds that do not work yet.**
 
-``image`` and ``distribution`` are in the registry and marked
-``implemented=False``. Nothing runs them, and :func:`assert_runnable` refuses to
-create one.
+``distribution`` is in the registry and marked ``implemented=False``. Nothing
+runs it, and :func:`assert_runnable` refuses to create one. (``image`` was in
+the same position until its runner was built.)
 
 That refusal is the point. The failure mode of adding a ``kind`` column early is
 a database full of campaigns no runner will ever pick up — rows that look alive
@@ -45,10 +45,10 @@ be written until there is a kind whose settings are known.
 
 **The safety property this module exists to make testable.**
 
-The email runner must never touch a campaign that is not an email campaign. That
-is the real risk of adding this column: the day an image campaign is created,
-``run_due`` would happily try to send it as mail. :func:`assert_kind` is the
-check, and ``OutreachEngine`` applies it at every entry point.
+Each runner must only touch campaigns of its own kind. That is the real risk of
+this column: without the check, ``run_due`` would happily try to send an image
+campaign as mail. :func:`assert_kind` is the check, and both
+``OutreachEngine`` and ``ImageCampaignEngine`` apply it at every entry point.
 """
 
 from __future__ import annotations
@@ -135,18 +135,22 @@ KINDS: dict[str, CampaignKindSpec] = {
     "image": CampaignKindSpec(
         id="image",
         label="Image and video",
-        unit="a picture or a video",
-        runner="",
-        implemented=False,
+        unit="a picture",
+        runner="offsetx_apollo_builder.imagery.engine.ImageCampaignEngine",
+        implemented=True,
         summary=(
             "Many generators, mostly free, orchestrated to beat what any single "
             "one produces. Deterministic gates first, then the owner's swipe as "
             "the quality label, then real engagement."
         ),
         missing=(
-            "a runner, a generator pool, the swipe approval surface, and the "
-            "quality gates. The AI layer's tiers, verify loop, eval harness and "
-            "traffic shifting already transfer; the campaign runner does not."
+            # Kept although implemented, because it is the honest answer to "can
+            # I do everything I described?". Video is not here: the gates read
+            # image headers, and a video needs duration, frame rate and audio
+            # checks that are a different piece of work. Publishing is the
+            # distribution campaign's job.
+            "video (the gates read image headers), and publishing — an approved "
+            "picture is an asset, and posting it is the distribution campaign."
         ),
     ),
     "distribution": CampaignKindSpec(

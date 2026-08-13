@@ -1,3 +1,36 @@
+export type ImageAsset = {
+  id: string;
+  brief_id: string;
+  campaign_id: string;
+  provider_id: string;
+  model_id: string;
+  width: number;
+  height: number;
+  bytes: number;
+  media_type: string;
+  status: "pending" | "approved" | "rejected" | "gate_failed";
+};
+
+export type ImageGeneratorStat = {
+  provider_id: string;
+  model_id: string;
+  shown: number;
+  approved: number;
+  rejected: number;
+  gate_failed: number;
+  decided: number;
+  approval_rate: number;
+};
+
+export type ImageSummary = {
+  campaign_id: string;
+  briefs: number;
+  briefs_open: number;
+  assets: { pending: number; approved: number; rejected: number; gate_failed: number };
+  generators: ImageGeneratorStat[];
+  min_decisions_to_judge: number;
+};
+
 export type CampaignKind = {
   id: string;
   label: string;

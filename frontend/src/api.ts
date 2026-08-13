@@ -68,6 +68,10 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export const api = {
+  /** Absolute path for a resource the browser loads itself, such as an <img src>. */
+  url(path: string): string {
+    return `${API_ROOT}${path}`;
+  },
   async get<T>(path: string): Promise<T> {
     return parseResponse<T>(await fetch(`${API_ROOT}${path}`, { headers: headers(), credentials: "include" }));
   },

@@ -11,6 +11,7 @@ import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
 import SalesTracker from "./pages/SalesTracker";
 import Experiments from "./pages/Experiments";
+import ImageReview from "./pages/ImageReview";
 import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
@@ -29,6 +30,7 @@ const pages = {
   queue: Queue,
   sales: SalesTracker,
   experiments: Experiments,
+  imagereview: ImageReview,
   connectors: Connectors,
   egress: Egress,
   memory: Memory,
@@ -52,6 +54,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "queue", label: "Send queue", icon: "➤" },
   { page: "sales", label: "Sales tracker", icon: "↗", group: "Sales" },
   { page: "experiments", label: "Experiments", icon: "A/B" },
+  { page: "imagereview", label: "Image review", icon: "▣", group: "Images" },
   { page: "settings", label: "Settings", icon: "⚙", group: "System" }
 ];
 

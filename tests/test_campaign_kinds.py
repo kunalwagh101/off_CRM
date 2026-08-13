@@ -60,11 +60,17 @@ def store(tmp_path: Path) -> OutreachStore:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_email_is_the_only_implemented_kind_today():
-    assert implemented_kinds() == ("email",)
-    assert kind_spec("email").implemented
-    assert kind_spec("email").runner
-    assert assert_runnable("email").id == "email"
+def test_the_implemented_kinds_are_the_ones_with_runners():
+    """Email and image. Distribution is still declared-only.
+
+    This assertion moved once already: image was unimplemented until its runner
+    was built, and the test failing is what said so.
+    """
+    assert implemented_kinds() == ("email", "image")
+    for kind in implemented_kinds():
+        assert kind_spec(kind).implemented
+        assert kind_spec(kind).runner, f"{kind} claims to be implemented with no runner"
+        assert assert_runnable(kind).id == kind
     with pytest.raises(CampaignKindNotImplemented):
         assert_runnable("distribution")
 
@@ -123,7 +129,7 @@ def test_creating_an_unimplemented_kind_is_refused_with_the_reason(store):
     someone to wonder why.
     """
     with pytest.raises(CampaignKindNotImplemented) as exc:
-        store.create_campaign(name="Reels", daily_send_limit=10, kind="image")
+        store.create_campaign(name="Trends", daily_send_limit=10, kind="distribution")
 
     message = str(exc.value)
     assert "not implemented" in message
@@ -146,7 +152,7 @@ def test_the_refusal_runs_before_any_other_validation(store):
     kind was never going to work.
     """
     with pytest.raises(CampaignKindNotImplemented):
-        store.create_campaign(name="Reels", daily_send_limit=-5, kind="image")
+        store.create_campaign(name="Trends", daily_send_limit=-5, kind="distribution")
 
 
 def test_a_campaigns_kind_cannot_be_changed_afterwards(store):

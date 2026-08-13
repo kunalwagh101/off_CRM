@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **711 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **733 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -71,6 +71,11 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 
 config/providers.yaml               ← the registry. Adding a provider is a
                                        config edit, never a code change (§4E)
+
+offsetx_apollo_builder/imagery/     ← the image campaign runner
+├── gates.py      deterministic quality gates; header parsing, no image library
+├── store.py      briefs, candidate assets, generator scores
+└── engine.py     generate -> gate -> review queue -> swipe -> score
 
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
@@ -694,6 +699,63 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Image campaign runner (2026-08-10)
+- [x] `imagery/` — the second campaign kind, and the first that produces
+      something other than a message. `image` is now `implemented=True` with a
+      runner. Docs: `docs/architecture/IMAGE_CAMPAIGNS.md`.
+- [x] **The swipe is the label**, which is the answer to the owner's benchmark
+      question. Not a model rating its own output — the owner's own decisions,
+      collected free as a side effect of use. Every decision scores the
+      generator that made the picture, and `ai/bandit.py` allocates the next
+      batch on those scores using the same Thompson sampler that shifts traffic
+      between email templates. The allocator does not know its arms are image
+      models.
+- [x] Three consequences, each tested: **a decision is made once** (or a score
+      moves by clicking twice); **refresh counts as a rejection** (dropping the
+      no would bias scores towards whatever got refreshed most); **rejection
+      deletes the bytes and keeps the verdict** (the record of rejecting is what
+      the benchmark is made of).
+- [x] **It waits before steering.** Under 12 decisions per generator the
+      allocator stays out of the way — a lopsided result from four swipes is
+      noise, and acting on it would starve a generator that never had a fair run.
+- [x] **Gates are layer one and are not about taste**: decodes, not_blank,
+      readable_header, aspect_ratio (5% tolerance so a generator rounding to
+      1152x648 still satisfies 16:9), not_duplicate. A gate failure is a
+      separate status from a rejection — mixing "this came back broken" with
+      "I do not like it" would poison the only real signal this kind has.
+- [x] Failed candidates are **stored, not dropped**: "this generator returns the
+      wrong ratio four times in five" is worth knowing, and a discarded
+      candidate cannot say it.
+- [x] **No image library.** Reading a width and a height is a header parse —
+      PNG IHDR, JPEG start-of-frame walk, GIF, three WebP variants — so Pillow
+      was not added to decode two integers. Fails closed on an unknown format,
+      because a zero would silently pass a dimension check.
+- [x] **Everything protective is inherited.** Generation goes through
+      `EgressBroker.call_image`: same tier filter, same allowlist payload, same
+      blocking scanner, same egress log. A structural test asserts `imagery/`
+      imports no transport.
+- [x] The kind gate now runs from **both sides** — `OutreachEngine` refuses an
+      image campaign and `ImageCampaignEngine` refuses an email one.
+- [x] Own database (`imagery.db`), three tables, and **pictures are files** at
+      `0600` with the row holding a path and a hash. Same decision the egress log
+      made when it chose to record the prompt and never the picture.
+- [x] Seven API endpoints, and an **Image review** screen: one candidate at a
+      time, three buttons, arrow-key shortcuts. One at a time rather than a grid
+      because a grid invites picking a favourite and ignoring the rest, and
+      "ignored" is not a label.
+- [x] 22 new tests. Verified over HTTP end to end: an image campaign can now be
+      created, the email runner refuses it by name, and generation with no image
+      model connected fails with "Open Connectors and add one".
+
+#### Still missing on this kind (recorded on the spec, not hidden)
+- Video — the gates read image headers; duration, frame rate and audio are a
+  different piece of work, and claiming video without them would claim a
+  benchmark that does not exist.
+- Publishing — an approved picture is an asset; posting it is the distribution
+  campaign, which has its own credentials and per-platform rules.
+- Layer three of the benchmark (views, watch time) needs distribution to exist.
+- Brief authoring in the UI, and prompt improvement between rounds.
 
 ### Error classification (2026-08-10)
 - [x] `ai/failures.py` + wiring in `ai/broker.py`. Docs:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import threading
 import uuid
 from contextlib import asynccontextmanager, contextmanager
@@ -20,6 +21,8 @@ from ..campaigns import list_kinds as list_campaign_kinds
 from ..distribution.engine import DistributionEngine
 from ..distribution.platforms import list_platforms as list_distribution_platforms
 from ..distribution.publishers import LocalOutboxPublisher
+from ..distribution.trends import TrendWatcher
+from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
@@ -302,6 +305,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolved.data_dir / "distribution.db",
             outbox_dir=resolved.data_dir / "post_outbox",
         )
+        app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
@@ -933,6 +937,73 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             asset_reader=state.image_store.get_asset,
             workspace_id=_workspace_id(request),
         )
+
+    def _trends(request: Request) -> TrendWatcher:
+        """The competitor watcher, with a client only if a key is configured.
+
+        Without a key the watcher still reads what it has already collected —
+        the stored picture is useful on its own, and refusing to show it because
+        a key is missing would hide data the owner already paid quota for.
+        """
+        state = request.app.state
+        key = os.getenv("OFFSETX_YOUTUBE_API_KEY", "").strip()
+        client = None
+        if key:
+            client = YouTubeClient(key, logger=state.ai_egress_log.record)
+        return TrendWatcher(
+            database_path=state.trends_path,
+            client=client,
+            workspace_id=_workspace_id(request),
+        )
+
+    @app.get(f"{API_PREFIX}/trends")
+    def trends_report(request: Request, window_hours: int = Query(72, ge=1, le=720)) -> dict[str, Any]:
+        """What is rising across the watched channels."""
+        watcher = _trends(request)
+        try:
+            return watcher.report(window_hours=window_hours)
+        finally:
+            watcher.close()
+
+    @app.get(f"{API_PREFIX}/trends/channels")
+    def trends_channels(request: Request) -> dict[str, Any]:
+        watcher = _trends(request)
+        try:
+            return {"items": watcher.watched()}
+        finally:
+            watcher.close()
+
+    @app.post(f"{API_PREFIX}/trends/channels", status_code=201)
+    def watch_channel(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        watcher = _trends(request)
+        try:
+            return watcher.watch(str(body.get("handle", "")))
+        except YouTubeError as exc:
+            raise HTTPException(
+                422, detail={"error": "youtube", "message": str(exc)}
+            ) from exc
+        finally:
+            watcher.close()
+
+    @app.post(f"{API_PREFIX}/trends/sweep")
+    def sweep_trends(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Read recent uploads for every watched channel.
+
+        Uploads playlists, never search — see distribution/youtube.py for the
+        quota arithmetic that makes that the only workable choice.
+        """
+        watcher = _trends(request)
+        try:
+            return watcher.sweep(
+                per_channel=int(body.get("per_channel") or 10),
+                limit=int(body.get("limit") or 0),
+            ).to_dict()
+        except YouTubeError as exc:
+            raise HTTPException(
+                422, detail={"error": "youtube", "message": str(exc)}
+            ) from exc
+        finally:
+            watcher.close()
 
     @app.get(f"{API_PREFIX}/distribution/platforms")
     def distribution_platforms() -> dict[str, Any]:

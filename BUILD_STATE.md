@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **754 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **774 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -74,6 +74,8 @@ config/providers.yaml               ← the registry. Adding a provider is a
 
 offsetx_apollo_builder/distribution/ ← the content distribution runner
 ├── platforms.py  what each platform permits, and what off_CRM refuses
+├── youtube.py    Data API v3 read client; the only transport in the package
+├── trends.py     competitor watch list + what is actually rising
 ├── publishers.py the adapter interface + the local outbox
 ├── store.py      accounts, posts, goals, engagement snapshots
 └── engine.py     plan -> approve -> schedule -> publish -> measure
@@ -705,6 +707,56 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Trend detection on YouTube (2026-08-10)
+- [x] `distribution/youtube.py` + `distribution/trends.py`. Docs:
+      `docs/architecture/TREND_DETECTION.md`.
+- [x] **YouTube because it is the only one of the four whose terms allow reading
+      public data at scale** — no research application, no scraping. Instagram's
+      Business Discovery is thin, TikTok's Research API needs approval, Facebook
+      offers competitors almost nothing.
+- [x] **The quota decides the design.** 10,000 units/day, and
+      `search.list` costs **100** while a channel's uploads playlist costs **1
+      for 50 videos**. A 1,000-channel sweep via playlists is ~1,100 units —
+      daily. The same coverage via search is impossible: the whole budget buys
+      100 searches. So `search` **exists only to refuse**, with the arithmetic
+      in the message, and statistics are fetched batched 50 at a time.
+- [x] Quota counted locally from documented per-call costs (Google exposes no
+      live balance). A sweep that would exceed it **stops cleanly with a note**
+      rather than raising halfway and leaving the day's picture half-updated.
+- [x] **Raw view count is the wrong signal** — it returns the biggest channels'
+      oldest videos every week, both already known. Two measures instead:
+      velocity (views/hour, correcting for age) and **outlier multiple** (times
+      the channel's *own* median). The multiple is the one that finds a subject
+      rather than a channel, and there is a test where a small channel's
+      20,000-view video outranks a big one's 520,000-view video because the
+      first is 20x its baseline and the second is 1.04x.
+- [x] A channel needs **5 observations** before its multiples are ranked; below
+      that the video is listed and flagged rather than hidden, because hiding it
+      would make the list depend on how long each channel had been watched. A
+      20x multiple from two videos looks like insight and is arithmetic on noise.
+- [x] Read-only, so **not** through the broker — same reasoning as
+      `ai/discovery.py`: no owner data, only a channel id and a region code.
+      Still written to the egress log so the record stays complete, and a test
+      asserts the API key never appears in what is logged.
+- [x] One module in `distribution/` has a transport and it is this one. The
+      publishing path has none, and browser automation is refused across the
+      whole package with no exception. The old blanket test was replaced by two
+      precise ones rather than deleted.
+- [x] 20 new tests, all passing first run. `/trends` works without a key from
+      already-collected data; watching without one says so plainly.
+
+#### Found while wiring it
+- [x] `api/app.py` used `os.getenv` without importing `os`. It imported fine —
+      the failure would have been a runtime `NameError` the first time anyone
+      opened the trends screen.
+
+#### Still not built
+- Turning a trend into a post: `/trends` reports, nothing composes a caption
+  from it. That is where this and the image campaign meet.
+- Scheduled sweeps (nothing calls `/trends/sweep` on a timer).
+- Topic clustering across channels — "six competitors posted about the same
+  thing today" is a stronger signal than any one of them, and is not computed.
 
 ### Content distribution runner (2026-08-10)
 - [x] `distribution/` — the third campaign kind, and the one that composes the

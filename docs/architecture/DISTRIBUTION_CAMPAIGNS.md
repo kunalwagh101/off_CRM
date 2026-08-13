@@ -58,9 +58,10 @@ TikTok's Research API needs a separate approval. Competitors' own websites and
 feeds are ordinary web pages, and the discovery module's politeness controls
 already cover them.
 
-Each platform records which of those applies. **The trend side is not built** —
-this is the groundwork for building it on what the platforms actually offer
-rather than on a scraper that works for a month.
+Each platform records which of those applies. **YouTube trend detection is
+built** on exactly that basis — see `TREND_DETECTION.md`. The others remain
+groundwork, because what they permit is narrow enough that a general scraper
+would be the wrong thing to write.
 
 ---
 
@@ -133,9 +134,9 @@ like a plan, and you would act as though it were one.
 - **Adapters for the real platforms.** Each is declared with the route that
   would serve it. Each needs OAuth per account and, for Meta and TikTok, app
   review — setup work, not code this module is missing.
-- **Competitor watching and trend detection.** The groundwork is the reading
-  column above; the collector is not written, and it has to be built on what
-  each platform's terms actually permit.
+- **Competitor watching on platforms other than YouTube.** YouTube trend
+  detection is built — see `TREND_DETECTION.md`. The others are limited by what
+  their terms permit, and none of it is a general scraper.
 - **Automatic caption generation.** A post carries a caption you wrote and
   optionally an asset from an image campaign. Composing it from a trend is the
   next piece.

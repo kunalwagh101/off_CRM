@@ -316,11 +316,13 @@ def test_the_distribution_runner_refuses_another_kind(tmp_path):
         store.close()
 
 
-def test_the_module_reaches_no_platform_directly():
-    """Structural: publishing goes through an adapter, and there is one.
+def test_no_module_here_can_drive_a_browser():
+    """The refusal that protects the accounts.
 
-    A module that could call a platform from anywhere would make the registry in
-    platforms.py advisory, which is exactly what it must not be.
+    Browser automation is how "post to all your accounts" is usually done and
+    how accounts get banned. It is refused everywhere, with no exception —
+    unlike an HTTP client, which the read-only YouTube client legitimately
+    needs and which `test_trends.py` scopes to that one module.
     """
     import ast
 
@@ -334,6 +336,26 @@ def test_the_module_reaches_no_platform_directly():
             elif isinstance(node, ast.ImportFrom):
                 imported.add(node.module or "")
 
-    assert not (imported & {"requests", "httpx", "selenium", "playwright", "urllib.request"}), (
+    assert not (imported & {"selenium", "playwright", "pyppeteer", "undetected_chromedriver"}), (
         imported
     )
+
+
+def test_the_publishing_path_carries_no_transport():
+    """Publishing goes through an adapter, and there is one.
+
+    A module on this path that could call a platform directly would make the
+    registry in platforms.py advisory, which is exactly what it must not be.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parents[1] / "offsetx_apollo_builder" / "distribution"
+    for name in ("engine.py", "publishers.py", "platforms.py", "store.py"):
+        tree = ast.parse((root / name).read_text(encoding="utf-8"))
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                imported.add(node.module or "")
+        assert not (imported & {"requests", "httpx", "urllib.request"}), (name, imported)

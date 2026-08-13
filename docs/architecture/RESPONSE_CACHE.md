@@ -100,6 +100,49 @@ Switchable off entirely with `near_match=False` if you want exact-only.
 
 ---
 
+## What may be cached at all — an allowlist
+
+> **Cache work whose output is a fact. Never cache work whose output is a
+> message.**
+
+`CACHEABLE_TASK_TYPES` is an allowlist, so a task type nobody has considered is
+**not** cached. Same default-deny as the provider registry and the payload
+builder.
+
+| Cached | Why |
+|---|---|
+| `classify_reply`, `summarise`, `extract`, `enrich` | The output is a fact about the input. Same input, same answer, correct to reuse |
+| `orchestrator_plan` | The same job should get the same plan |
+| `ai_chat` | A question and its answer — the classic cache case, and where the published hit rates come from |
+
+| Never cached | Why |
+|---|---|
+| **`draft_email`** | See below. This one is not a preference |
+| `template_rewrite` | Asking again *is* a request for something different. Returning the previous rewrite defeats the feature |
+| `image_generation` | The owner's refresh button regenerates against the same brief. A hit hands back the identical picture and the button looks broken |
+| anything unlisted | Default-deny |
+
+### Why drafting is excluded, measured
+
+At `pseudonymous` policy the payload carries no name — everyone is `PERSON_1`.
+So two different prospects with the same title, category and an equivalent
+public hook build a payload that is not merely similar but **byte-identical**.
+
+Measured on real payloads built by `build_payload`:
+
+| Two logistics directors, both… | Similarity |
+|---|---|
+| "opened a Rotterdam depot" / "opened a Hamburg depot" | 0.842 — miss |
+| same title, different hook | 0.628 — miss |
+| **"opened a new depot" / "opened a new depot"** | **1.000 — exact hit** |
+
+A hit there means both prospects receive the **same email body**. That is the
+opposite of what this system exists to do, and it is precisely the pattern spam
+filters cluster on. The near-match threshold does not help, because this is not
+a near match.
+
+---
+
 ## What is never stored
 
 | | Why |
@@ -107,6 +150,21 @@ Switchable off entirely with `near_match=False` if you want exact-only.
 | Empty responses | Caching "the provider returned nothing" turns one transient failure into a week of them |
 | Failed calls | Same reason — tested |
 | `DataClass.MAILBOX` | Unreachable today, but if that ever changes the cache must not be the thing that quietly starts persisting received mail |
+
+Both axes are checked independently: a never-cache data class wins even for an
+allowlisted task type.
+
+---
+
+## Where it is wired
+
+| Path | Cache | Why |
+|---|---|---|
+| The web app's broker | **yes** | `data_dir / "ai_cache.db"` |
+| `offsetx-evals` | **no**, explicitly `cache=None` | An eval exists to measure a model. A cached answer makes it measure the cache, and the numbers feed a promotion decision. A test asserts the source still says so, because the risk is someone "fixing" it later as an oversight |
+
+`GET /ai/cache/stats` returns the hit rate together with the allowlist and the
+named refusals. `POST /ai/cache/clear` empties it for a workspace.
 
 ---
 

@@ -30,13 +30,21 @@ from offsetx_apollo_builder.ai.cache import (
     partition_key,
     similarity,
 )
+from offsetx_apollo_builder.ai.cache import (
+    CACHEABLE_TASK_TYPES,
+    NEVER_CACHE_TASK_TYPES,
+    is_cacheable,
+)
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "offsetx_apollo_builder"
 
+# A classification: the output is a fact about the input, so reusing it is the
+# point. The helpers below use a cacheable task type because `draft_email` is
+# now refused by name — see the dedicated tests at the bottom of this file.
 PAYLOAD = {
     "schema_version": 1,
-    "task": "draft_email",
-    "instructions": "Write a warm first email about customs software.",
+    "task": "classify_reply",
+    "instructions": "Classify this reply as interested, not now, or no.",
 }
 
 
@@ -51,7 +59,7 @@ def _put(cache: ResponseCache, **overrides) -> bool:
         "response": "Subject: Hi\n\nA draft.",
         "data_class": DataClass.PUBLIC,
         "policy": DataPolicy.STANDARD,
-        "task_type": "draft_email",
+        "task_type": "classify_reply",
         "provider_id": "mistral",
     }
     kwargs.update(overrides)
@@ -63,7 +71,7 @@ def _get(cache: ResponseCache, **overrides):
         "payload": PAYLOAD,
         "data_class": DataClass.PUBLIC,
         "policy": DataPolicy.STANDARD,
-        "task_type": "draft_email",
+        "task_type": "classify_reply",
         "provider_id": "mistral",
     }
     kwargs.update(overrides)
@@ -109,7 +117,7 @@ def test_near_matching_cannot_cross_a_policy_boundary_either(cache):
         payload=almost,
         data_class=DataClass.PUBLIC,
         policy=DataPolicy.PSEUDONYMOUS,
-        task_type="draft_email",
+        task_type="classify_reply",
         provider_id="mistral",
     ) is None
 
@@ -159,7 +167,12 @@ def test_storing_the_same_key_twice_replaces_rather_than_duplicates(cache):
 
 def test_whitespace_and_case_differences_still_hit(cache):
     _put(cache)
-    noisy = dict(PAYLOAD, instructions="write a WARM first email about customs software.")
+    # Same instruction, different case and spacing — derived from PAYLOAD so it
+    # cannot drift out of sync with it again.
+    noisy = dict(
+        PAYLOAD,
+        instructions="  classify this REPLY as interested,  not now, or no.  ",
+    )
     hit = _get(cache, payload=noisy)
     assert hit is not None
     assert hit.kind == "near"
@@ -242,14 +255,21 @@ def test_the_oldest_entries_are_evicted_past_the_cap(tmp_path):
             response=f"answer {index}",
             data_class=DataClass.PUBLIC,
             policy=DataPolicy.STANDARD,
+            task_type="classify_reply",
         )
     assert small.stats()["entries"] == 5
     # The newest survived; the oldest did not.
     assert small.get(
-        payload={"n": 11}, data_class=DataClass.PUBLIC, policy=DataPolicy.STANDARD
+        payload={"n": 11},
+        data_class=DataClass.PUBLIC,
+        policy=DataPolicy.STANDARD,
+        task_type="classify_reply",
     ) is not None
     assert small.get(
-        payload={"n": 0}, data_class=DataClass.PUBLIC, policy=DataPolicy.STANDARD
+        payload={"n": 0},
+        data_class=DataClass.PUBLIC,
+        policy=DataPolicy.STANDARD,
+        task_type="classify_reply",
     ) is None
 
 
@@ -316,7 +336,7 @@ def test_the_partition_covers_every_boundary_that_matters():
         workspace_id="local",
         data_class=DataClass.PUBLIC,
         policy=DataPolicy.STANDARD,
-        task_type="draft_email",
+        task_type="classify_reply",
         provider_id="mistral",
     )
     reference = partition_key(**base)
@@ -324,7 +344,7 @@ def test_the_partition_covers_every_boundary_that_matters():
         ("workspace_id", "other"),
         ("data_class", DataClass.CAMPAIGN),
         ("policy", DataPolicy.FULL),
-        ("task_type", "summarise"),
+        ("task_type", "ai_chat"),
         ("provider_id", "deepseek"),
     ]:
         assert partition_key(**{**base, field: value}) != reference, field
@@ -402,7 +422,7 @@ def _public_request():
     from offsetx_apollo_builder.ai import EgressRequest
 
     return EgressRequest(
-        task_type="write_code",
+        task_type="summarise",
         data_class=DataClass.PUBLIC,
         public_text="Write a Python function that reverses a list.",
     )
@@ -488,3 +508,126 @@ def test_a_broker_without_a_cache_still_works(tmp_path):
     broker.call(_public_request(), _settings(), system_prompt="w")
     broker.call(_public_request(), _settings(), system_prompt="w")
     assert len(calls) == 2, "no cache means no sharing"
+
+
+# ── what may be cached at all ───────────────────────────────────────────────
+#
+# The rule: cache work whose output is a *fact*, never work whose output is a
+# *message*. It is an allowlist, so a task type nobody has thought about is not
+# cached — the same default-deny used by the provider registry and the payload
+# builder.
+
+
+def test_a_draft_is_never_cached_because_two_people_would_get_the_same_email(cache):
+    """The measurement that decided this design.
+
+    At `pseudonymous` policy a payload carries no name — everyone is `PERSON_1`
+    — so two different prospects with the same title, category and an
+    equivalent public hook build a **byte-identical** payload. Not a near match:
+    identical. Reusing the answer means both receive the same email body, which
+    is the opposite of what this system is for and exactly the pattern spam
+    filters cluster on.
+    """
+    from offsetx_apollo_builder.ai.payload import (
+        EgressRequest,
+        PersonPublic,
+        build_payload,
+    )
+
+    def payload_for(name: str, company: str) -> dict:
+        person = PersonPublic.from_contact(
+            {
+                "full_name": name,
+                "company": company,
+                "title": "Operations Director",
+                "category": "logistics",
+                "route": "direct",
+                "public_hook": "opened a new depot",
+            }
+        )
+        return build_payload(
+            EgressRequest(
+                task_type="draft_email",
+                data_class=DataClass.PERSON_PUBLIC,
+                person=person,
+            ),
+            DataPolicy.PSEUDONYMOUS,
+        )
+
+    bruno = payload_for("Bruno Costa", "Northport Freight")
+    marta = payload_for("Marta Silva", "Eastport Cargo")
+    assert bruno == marta, (
+        "two different people produce the same pseudonymous payload — this is "
+        "the condition that makes caching drafts unsafe"
+    )
+
+    stored = cache.put(
+        payload=bruno,
+        response="Subject: Depot\n\nSaw the news.",
+        data_class=DataClass.PERSON_PUBLIC,
+        policy=DataPolicy.PSEUDONYMOUS,
+        task_type="draft_email",
+        provider_id="mistral",
+    )
+    assert stored is False, "a draft must not be stored"
+    assert (
+        cache.get(
+            payload=marta,
+            data_class=DataClass.PERSON_PUBLIC,
+            policy=DataPolicy.PSEUDONYMOUS,
+            task_type="draft_email",
+            provider_id="mistral",
+        )
+        is None
+    ), "and must never be served for a different person"
+
+
+@pytest.mark.parametrize("task_type", sorted(CACHEABLE_TASK_TYPES))
+def test_every_allowlisted_task_type_round_trips(cache, task_type):
+    assert _put(cache, task_type=task_type) is True
+    assert _get(cache, task_type=task_type) is not None
+
+
+@pytest.mark.parametrize("task_type", sorted(NEVER_CACHE_TASK_TYPES))
+def test_every_named_refusal_is_actually_refused(cache, task_type):
+    assert _put(cache, task_type=task_type) is False
+    assert _get(cache, task_type=task_type) is None
+
+
+def test_every_named_refusal_says_why():
+    """A refusal without a reason gets "fixed" by the next person to read it."""
+    for task_type, reason in NEVER_CACHE_TASK_TYPES.items():
+        assert task_type not in CACHEABLE_TASK_TYPES
+        assert len(reason) > 40, task_type
+
+
+def test_an_unlisted_task_type_is_not_cached(cache):
+    """Default-deny. A task type nobody considered does not get cached by luck."""
+    assert _put(cache, task_type="something_new") is False
+    assert _get(cache, task_type="something_new") is None
+    assert _put(cache, task_type="") is False
+
+
+def test_mailbox_is_refused_even_for_an_allowlisted_task_type(cache):
+    """Both axes are checked, and the data class wins."""
+    assert (
+        _put(cache, task_type="summarise", data_class=DataClass.MAILBOX) is False
+    )
+    assert is_cacheable("summarise", DataClass.MAILBOX) is False
+    assert is_cacheable("summarise", DataClass.PUBLIC) is True
+
+
+def test_evals_never_run_with_a_cache():
+    """An eval exists to measure a model, not the cache.
+
+    A cached answer would make the numbers describe the cache while feeding a
+    promotion decision. Asserted on the source because the risk is someone
+    "fixing" the missing cache later, thinking it was an oversight.
+    """
+    import inspect
+
+    from offsetx_apollo_builder.ai import eval_cli
+
+    source = inspect.getsource(eval_cli._build)
+    assert "cache=None" in source
+    assert "measure" in source.lower()

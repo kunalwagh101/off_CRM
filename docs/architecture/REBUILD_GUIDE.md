@@ -268,10 +268,13 @@ module owns its own and can be lifted out without dragging the CRM schema along.
 | `ai_evals.db` | Eval runs and champions | `offsetx-evals` only |
 | `ai_tools.db` | Tool registry and runs | `offsetx-tools` only |
 
-The response cache has no database in this list because **nothing constructs
-one**. `ResponseCache` is implemented and tested, the broker accepts one as an
-optional argument, and no caller passes it. Build it in a rebuild if you want
-the feature; do not spend time looking for the wiring, because there is none.
+| `ai_cache.db` | Response cache | web app |
+
+The cache reuses answers **only** for task types on an allowlist — work whose
+output is a fact, never work whose output is a message. Drafting is excluded by
+name: at `pseudonymous` policy two prospects with the same title and an
+equivalent hook build a byte-identical payload, so a hit would send them the
+same email. Evals run with no cache at all, deliberately.
 
 Dependency direction, which a rebuild must preserve:
 

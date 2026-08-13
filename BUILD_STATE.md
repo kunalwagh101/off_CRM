@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **663 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **677 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -693,6 +693,47 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Response cache wired (2026-08-10)
+- [x] The gap the rebuild-guide audit found is closed: `ResponseCache` is now
+      constructed in `api/app.py` and passed to `EgressBroker`. Before this it
+      was implemented, tested and exported with **no caller**, so no request had
+      ever reached it.
+- [x] **Switching it on surfaced a real defect first.** At `pseudonymous`
+      policy a payload carries no name — everyone is `PERSON_1` — so two
+      different prospects with the same title, category and an equivalent public
+      hook build a **byte-identical** payload. Measured: two logistics directors
+      who both "opened a new depot" score **1.000**, an exact hit. Wiring the
+      cache as it stood would have sent both of them the same email body, which
+      is the opposite of the product and exactly what spam filters cluster on.
+      The 0.92 near-match threshold is no defence, because this is not a near
+      match.
+- [x] Fixed with an allowlist rather than a patch: **cache work whose output is
+      a fact, never work whose output is a message.** `CACHEABLE_TASK_TYPES`
+      holds `classify_reply`, `summarise`, `extract`, `enrich`,
+      `orchestrator_plan`, `ai_chat`. An unlisted task type is not cached —
+      default-deny, as everywhere else.
+- [x] `NEVER_CACHE_TASK_TYPES` names `draft_email`, `template_rewrite` and
+      `image_generation` **with the reason for each**, so the refusals are
+      documented rather than merely absent. A test asserts every one carries a
+      reason; refusals without reasons get "fixed" by the next reader.
+- [x] Both axes checked independently: a never-cache data class wins even for an
+      allowlisted task type.
+- [x] **Evals never use the cache**, now explicitly `cache=None` with the reason
+      in the source. An eval exists to measure a model; a cached answer makes it
+      measure the cache, and those numbers feed a promotion decision. A test
+      asserts the source still says so — the risk is someone "fixing" the
+      missing cache later as an oversight.
+- [x] `GET /ai/cache/stats` reports the hit rate **with** the allowlist and the
+      named refusals; `POST /ai/cache/clear` empties a workspace. The published
+      60–90% figures come from chat systems and do not apply to personalised
+      outreach, so the only honest answer is a measured one.
+- [x] Verified live: the app boots, `ai_cache.db` is created, and the stats
+      endpoint serves the allowlist.
+- [x] 14 new tests (48 in `test_ai_cache.py`). The existing suite had been
+      written against "cache everything" and used `draft_email` throughout; it
+      now uses a cacheable task type, and drafting has its own test that asserts
+      the two-prospect payload collision and that nothing is stored or served.
 
 ### Rebuild guide, §10 (2026-08-10)
 - [x] `docs/architecture/REBUILD_GUIDE.md`. Written **after** the system,

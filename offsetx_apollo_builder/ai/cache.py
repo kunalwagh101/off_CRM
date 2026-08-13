@@ -76,6 +76,68 @@ DEFAULT_SIMILARITY = 0.92
 #: starts persisting received mail.
 NEVER_CACHE: frozenset[DataClass] = frozenset({DataClass.MAILBOX})
 
+#: Task types whose answer may be reused. **An allowlist, so an unlisted task
+#: type is never cached** — the same default-deny rule the provider registry and
+#: the payload builder use.
+#:
+#: The line is: **cache work whose output is a fact, never work whose output is
+#: a message.**
+#:
+#: This is not a preference. At ``pseudonymous`` policy a payload carries no
+#: name — everyone is ``PERSON_1`` — so two different prospects with the same
+#: title, category and an equivalent public hook produce a **byte-identical**
+#: payload. Measured on real payloads: two logistics directors who both "opened
+#: a new depot" score 1.000, an exact hit. Reusing that answer means both
+#: prospects receive the *same email body*, which is the opposite of what this
+#: system exists to do and precisely the pattern spam filters cluster on.
+#:
+#: A classification of a reply is a fact: same input, same answer, correct to
+#: reuse. A drafted email is not.
+CACHEABLE_TASK_TYPES: frozenset[str] = frozenset(
+    {
+        # Facts about an input. Reusing the answer is the point.
+        "classify_reply",
+        "summarise",
+        "extract",
+        "enrich",
+        # A plan for a job. The same job should get the same plan.
+        "orchestrator_plan",
+        # A question and its answer. The classic cache case, and where the
+        # published hit rates come from.
+        "ai_chat",
+    }
+)
+
+#: Named so the refusals are documented rather than merely absent. Nothing reads
+#: this; it exists so the next person does not add one of these to the allowlist
+#: without meeting the argument first.
+NEVER_CACHE_TASK_TYPES: dict[str, str] = {
+    "draft_email": (
+        "The output is a message. Two prospects with the same title and an "
+        "equivalent hook build the same payload, so a hit would send them the "
+        "same email."
+    ),
+    "template_rewrite": (
+        "Asking again is a request for something different. Returning the "
+        "previous rewrite defeats the feature."
+    ),
+    "image_generation": (
+        "The owner's refresh button regenerates against the same brief. A hit "
+        "would hand back the identical picture and the button would look broken."
+    ),
+}
+
+
+def is_cacheable(task_type: str, data_class: DataClass) -> bool:
+    """Whether an answer to this kind of work may be stored and reused.
+
+    Default-deny on both axes: an unlisted task type is not cached, and a
+    never-cache data class is not cached whatever the task type says.
+    """
+    if data_class in NEVER_CACHE:
+        return False
+    return str(task_type or "").strip().lower() in CACHEABLE_TASK_TYPES
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ai_response_cache (
     id TEXT PRIMARY KEY,
@@ -257,7 +319,7 @@ class ResponseCache:
         workspace_id: str = "local",
     ) -> CachedResponse | None:
         """An earlier answer to exactly this payload, or a near-identical one."""
-        if data_class in NEVER_CACHE:
+        if not is_cacheable(task_type, data_class):
             return None
         partition = partition_key(
             workspace_id=workspace_id,
@@ -344,7 +406,9 @@ class ResponseCache:
         An empty response is not stored: caching "the provider returned nothing"
         would turn one transient failure into a week of them.
         """
-        if data_class in NEVER_CACHE or not str(response or "").strip():
+        if not is_cacheable(task_type, data_class):
+            return False
+        if not str(response or "").strip():
             return False
         partition = partition_key(
             workspace_id=workspace_id,

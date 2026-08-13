@@ -54,6 +54,8 @@ from .sandbox import (
 )
 from .cache import (
     CachedResponse,
+    CACHEABLE_TASK_TYPES,
+    NEVER_CACHE_TASK_TYPES,
     ResponseCache,
     cache_key,
     canonical_payload,
@@ -205,6 +207,8 @@ __all__ = [
     "ArmAllocation",
     "arms_from_scores",
     "sends_needed",
+    "CACHEABLE_TASK_TYPES",
+    "NEVER_CACHE_TASK_TYPES",
     "ResponseCache",
     "CachedResponse",
     "cache_key",

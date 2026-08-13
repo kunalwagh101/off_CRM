@@ -35,6 +35,9 @@ from ..outreach.notion import (
     export_sales_leads,
 )
 from ..ai import (
+    CACHEABLE_TASK_TYPES,
+    NEVER_CACHE_TASK_TYPES,
+    ResponseCache,
     checks_for,
     DataClass,
     DataPolicy,
@@ -270,11 +273,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolve_database_target(default=resolved.data_dir / "ai_egress.db")
         )
         app.state.ai_quota = QuotaTracker(resolved.data_dir)
+        # The cache only reuses answers for task types on its allowlist — work
+        # whose output is a fact, never work whose output is a message. Drafting
+        # is excluded by name: at pseudonymous policy two prospects with the same
+        # title and an equivalent hook build a byte-identical payload, so a hit
+        # would send them the same email.
+        app.state.ai_cache = ResponseCache(resolved.data_dir / "ai_cache.db")
         app.state.ai_broker = EgressBroker(
             registry=app.state.ai_registry,
             credential_resolver=lambda provider_id: "",
             quota=app.state.ai_quota,
             logger=app.state.ai_egress_log.record,
+            cache=app.state.ai_cache,
         )
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
@@ -1736,6 +1746,27 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             offset=offset,
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/ai/cache/stats")
+    def ai_cache_stats(request: Request) -> dict[str, Any]:
+        """Measured, not assumed.
+
+        The published 60-90% cache hit rates come from chat systems and do not
+        apply to personalised outreach. This endpoint is how the owner finds out
+        what it is actually worth here.
+        """
+        cache = request.app.state.ai_cache
+        stats = cache.stats(workspace_id=_workspace_id(request))
+        stats["cacheable_task_types"] = sorted(CACHEABLE_TASK_TYPES)
+        stats["never_cached"] = NEVER_CACHE_TASK_TYPES
+        return stats
+
+    @app.post(f"{API_PREFIX}/ai/cache/clear")
+    def ai_cache_clear(request: Request) -> dict[str, Any]:
+        cleared = request.app.state.ai_cache.clear(
+            workspace_id=_workspace_id(request)
+        )
+        return {"cleared": cleared}
 
     @app.get(f"{API_PREFIX}/ai/egress-log/stats")
     def ai_egress_stats(request: Request) -> dict[str, Any]:

@@ -41,11 +41,17 @@ MODE_COST_MULTIPLE = {"simple": 1.0, "compare": 3.0, "orchestrated": 2.5}
 def _build(data_dir: Path):
     registry = ProviderRegistry()
     workspaces = WorkspaceAISettingsStore(data_dir, registry)
+    # No cache, deliberately. An eval exists to measure a model; a cached
+    # answer would make it measure the cache instead, and the numbers feed a
+    # promotion decision. The same reasoning as the verify loop using the eval
+    # harness's checks rather than inventing weaker ones: measurement and the
+    # thing being measured must not share a shortcut.
     broker = EgressBroker(
         registry=registry,
         credential_resolver=lambda provider_id: "",
         quota=QuotaTracker(data_dir),
         logger=EgressLog(data_dir / "ai_egress.db").record,
+        cache=None,
     )
     board = Scoreboard(data_dir / "ai_evals.db")
     return registry, workspaces, broker, board

@@ -84,3 +84,43 @@ class NoPermittedProvider(AIModuleError):
             "message": str(self),
             "considered": self.considered,
         }
+
+
+class ProviderFailure(AIModuleError):
+    """A provider failure the broker refused to work around.
+
+    Raised instead of failing over when the classification says another model
+    cannot help: a rejected API key, an exhausted balance, a model name that
+    does not exist, a payload larger than the context window.
+
+    Failing over on these is what made them invisible. A broken key would send
+    the work to whichever model still answered — quietly costing more, running
+    on a model the owner did not choose, and leaving the key broken for as long
+    as it took someone to look at a bill.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure: Any = None,
+        provider_id: str = "",
+        model_id: str = "",
+        log_id: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.failure = failure
+        self.provider_id = provider_id
+        self.model_id = model_id
+        self.log_id = log_id
+
+    def to_dict(self) -> dict[str, Any]:
+        detail = self.failure.to_dict() if self.failure is not None else {}
+        return {
+            "error": "provider_failure",
+            "message": str(self),
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "log_id": self.log_id,
+            **{key: detail[key] for key in ("kind", "action", "owner_action") if key in detail},
+        }

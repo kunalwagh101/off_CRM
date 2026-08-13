@@ -94,6 +94,29 @@ class Database:
     def executescript(self, sql: str) -> None:
         raise NotImplementedError
 
+    def columns(self, table: str) -> set[str]:
+        """The column names of a table, or an empty set if it does not exist.
+
+        The one piece of schema introspection that differs between the backends
+        — SQLite has ``PRAGMA table_info``, Postgres has ``information_schema``
+        — so it lives here rather than in every store that needs a migration.
+        """
+        raise NotImplementedError
+
+    def add_column_if_missing(self, table: str, column: str, definition: str) -> bool:
+        """Additive migration, and the only kind either backend gets for free.
+
+        Returns whether it added anything. Checking first rather than catching a
+        duplicate-column error: the two backends word that error differently, and
+        matching on message text is how a real failure gets swallowed.
+        """
+        if not self.columns(table):
+            return False
+        if column in self.columns(table):
+            return False
+        self.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        return True
+
     @contextmanager
     def transaction(self) -> Iterator["Database"]:
         raise NotImplementedError
@@ -137,6 +160,11 @@ class SQLiteDatabase(Database):
     def executescript(self, sql: str) -> None:
         with self._lock:
             self.raw.executescript(sql)
+
+    def columns(self, table: str) -> set[str]:
+        with self._lock:
+            rows = self.raw.execute(f"PRAGMA table_info({table})").fetchall()
+        return {str(row["name"]) for row in rows}
 
     @contextmanager
     def transaction(self) -> Iterator["SQLiteDatabase"]:
@@ -205,6 +233,14 @@ class PostgresDatabase(Database):
             # No parameters here, so `%` is not special and the SQL goes as
             # written. psycopg runs multiple statements in one call.
             self.raw.execute(sql)
+
+    def columns(self, table: str) -> set[str]:
+        rows = self.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_schema = current_schema() AND table_name = ?",
+            [table],
+        ).fetchall()
+        return {str(row["column_name"]) for row in rows}
 
     @contextmanager
     def transaction(self) -> Iterator["PostgresDatabase"]:

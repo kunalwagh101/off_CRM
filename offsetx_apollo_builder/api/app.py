@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
@@ -36,6 +37,7 @@ from ..outreach.notion import (
 )
 from ..ai import (
     CACHEABLE_TASK_TYPES,
+    ProviderFailure,
     NEVER_CACHE_TASK_TYPES,
     ResponseCache,
     checks_for,
@@ -364,6 +366,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(ProviderFailure)
+    async def provider_failure_classified(_: Request, exc: ProviderFailure) -> JSONResponse:
+        """A failure the broker refused to work around.
+
+        502 rather than 503: the upstream gave a definite answer and off_CRM
+        chose not to route around it. The body carries the kind and what the
+        owner has to do, because "try again later" is the wrong advice for a
+        rejected key.
+        """
+        return JSONResponse(status_code=502, content=exc.to_dict())
 
     @app.exception_handler(ProviderError)
     async def provider_failure(_: Request, exc: ProviderError) -> JSONResponse:
@@ -1746,6 +1759,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             offset=offset,
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/ai/failure-kinds")
+    def ai_failure_kinds() -> dict[str, Any]:
+        """Every failure kind, what off_CRM does about it, and the owner action.
+
+        Served so the inspector can label a `failure_kind` from the egress log
+        without hard-coding the taxonomy in the frontend.
+        """
+        return {"items": describe_failure_kinds()}
 
     @app.get(f"{API_PREFIX}/ai/cache/stats")
     def ai_cache_stats(request: Request) -> dict[str, Any]:

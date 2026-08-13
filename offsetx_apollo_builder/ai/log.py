@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS ai_egress_log (
     duration_ms INTEGER NOT NULL DEFAULT 0,
     payload TEXT NOT NULL DEFAULT '{}',
     payload_summary TEXT NOT NULL DEFAULT '{}',
-    response_text TEXT NOT NULL DEFAULT ''
+    response_text TEXT NOT NULL DEFAULT '',
+    failure_kind TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_ai_egress_created ON ai_egress_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_ai_egress_workspace ON ai_egress_log(workspace_id, created_at DESC);
@@ -91,6 +92,12 @@ class EgressLog:
             if self._connection is None:
                 database = open_database(self.target)
                 database.executescript(SCHEMA)
+                # The log's first migration. Additive, and applied on both
+                # backends through the same call, so an existing log gains the
+                # column instead of needing to be thrown away.
+                database.add_column_if_missing(
+                    "ai_egress_log", "failure_kind", "TEXT NOT NULL DEFAULT ''"
+                )
                 self._connection = database
             return self._connection
 
@@ -119,6 +126,7 @@ class EgressLog:
         payload: dict[str, Any] | None = None,
         payload_summary: dict[str, Any] | None = None,
         response_text: str = "",
+        failure_kind: str = "",
     ) -> str:
         row_id = str(uuid.uuid4())
         payload_json = json.dumps(payload or {}, ensure_ascii=False, default=str)
@@ -129,8 +137,8 @@ class EgressLog:
                 "INSERT INTO ai_egress_log("
                 " id, workspace_id, created_at, provider_id, provider_name, model_id,"
                 " jurisdiction, tier, policy, data_class, task_type, status, error,"
-                " findings, duration_ms, payload, payload_summary, response_text"
-                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " findings, duration_ms, payload, payload_summary, response_text, failure_kind"
+                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     row_id,
                     workspace_id,
@@ -150,6 +158,7 @@ class EgressLog:
                     payload_json,
                     json.dumps(payload_summary or {}, ensure_ascii=False, default=str),
                     str(response_text)[:MAX_RESPONSE_CHARS],
+                    str(failure_kind or "")[:40],
                 ),
             )
             self._trim()
@@ -194,7 +203,7 @@ class EgressLog:
             rows = self.connection.execute(
                 "SELECT id, workspace_id, created_at, provider_id, provider_name, model_id,"
                 " jurisdiction, tier, policy, data_class, task_type, status, error,"
-                " duration_ms, payload_summary"
+                " duration_ms, payload_summary, failure_kind"
                 f" FROM ai_egress_log{where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
                 [*params, max(1, min(limit, 200)), max(0, offset)],
             ).fetchall()
@@ -246,7 +255,17 @@ class EgressLog:
                 " ORDER BY calls DESC LIMIT 20",
                 params,
             ).fetchall()
+            # What is failing, and how. The reason classification is worth
+            # having at all: "NVIDIA has been returning auth errors for a week"
+            # is visible here and invisible in a list of 500-character strings.
+            by_failure = self.connection.execute(
+                f"SELECT failure_kind, COUNT(*) AS calls FROM ai_egress_log{clause}"
+                + (" AND" if clause else " WHERE")
+                + " failure_kind <> '' GROUP BY failure_kind ORDER BY calls DESC",
+                params,
+            ).fetchall()
         return {
+            "by_failure": [dict(row) for row in by_failure],
             "calls": int(totals["calls"] or 0) if totals else 0,
             "blocked": int(totals["blocked"] or 0) if totals else 0,
             "failed": int(totals["failed"] or 0) if totals else 0,
@@ -295,6 +314,7 @@ EGRESS_COLUMNS = (
     "payload",
     "payload_summary",
     "response_text",
+    "failure_kind",
 )
 
 

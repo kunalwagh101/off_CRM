@@ -24,6 +24,7 @@ from .errors import (
     AIModuleError,
     EgressBlocked,
     NoPermittedProvider,
+    ProviderFailure,
     PolicyViolation,
     RegistryError,
 )
@@ -151,6 +152,7 @@ __all__ = [
     "RunResult",
     "MAILBOX_UNLOCK_PHRASE",
     "NoPermittedProvider",
+    "ProviderFailure",
     "POLICY_ORDER",
     "PersonPublic",
     "PolicyViolation",

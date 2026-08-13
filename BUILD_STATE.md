@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **677 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **711 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -66,7 +66,8 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 ├── discovery.py  asks a provider what models its key reaches
 ├── log.py        egress log; own table, exact payload, SQLite or Postgres
 ├── workspace.py  per-workspace settings + Fernet-encrypted provider keys
-└── errors.py     structured refusals the API turns into readable answers
+├── errors.py     structured refusals the API turns into readable answers
+└── failures.py   what kind of failure this was, and what to do about it
 
 config/providers.yaml               ← the registry. Adding a provider is a
                                        config edit, never a code change (§4E)
@@ -693,6 +694,67 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Error classification (2026-08-10)
+- [x] `ai/failures.py` + wiring in `ai/broker.py`. Docs:
+      `docs/architecture/FAILURES.md`. The item deferred pending reading; the
+      reading was of the codebase, and it changed the design twice.
+- [x] **What it did before:** every provider failure treated identically —
+      record, fail over, cool the model off after two. Right for a provider
+      having a bad day, wrong for most of the rest.
+- [x] **Three failures that cost money.** A rejected key failed over silently to
+      a model that worked, so nobody found out while every call ran on a model
+      the owner had not chosen. A payload *we* built wrong was tried against
+      every provider in the tier and opened the circuit breaker on each. A 429
+      fell through to a second provider's quota instead of waiting.
+- [x] Four actions, and the classes exist only to choose between them:
+      `RETRY_SAME`, `FAILOVER`, `STOP_REQUEST`, `STOP_CONFIG`. Both stops refuse
+      to fail over, which is the point of them.
+- [x] **Only provider-health failures open the circuit breaker.** A 400 says
+      nothing about their service; letting it trip the breaker is how one
+      malformed payload takes a whole tier offline.
+- [x] **`unknown` fails over once and never retries** — default-deny applied to
+      spending, and it lands in the log so the gap shows up there not in a bill.
+- [x] **Reading the code changed the plan.** `outreach/providers.py` already
+      retries three times for connection errors, 429 and 5xx, so no second retry
+      loop was added: nine attempts at one model is a stuck request, not
+      resilience. `RETRY_SAME` covers only what the transport does not, bounded
+      by 2 retries and a **120s wall clock over the whole chain** — attempts,
+      retries and failover share one deadline, and exceeding it is reported as
+      `deadline_exceeded` rather than hidden.
+- [x] `Retry-After` honoured when sent, capped at 300s.
+- [x] `ProviderFailure` -> **502** carrying the kind, action and owner action.
+      502 not 503: the upstream answered definitely and off_CRM chose not to
+      route around it, so "try again later" would be the wrong advice.
+- [x] `failure_kind` recorded in the egress log and grouped by
+      `GET /ai/egress-log/stats`. This is the payoff: "NVIDIA has been returning
+      auth errors for a week" is answerable with a kind column and not with a
+      pile of 500-character strings.
+- [x] **The log's first migration**, additive on both backends via the new
+      `Database.add_column_if_missing` — which also closes one of the gaps the
+      Postgres doc listed. Verified against a log built without the column:
+      rows survive, the column appears.
+- [x] `GET /ai/failure-kinds` serves the taxonomy so the inspector need not
+      hard-code it.
+- [x] 34 new tests.
+
+#### Bugs found while building it
+- [x] **`refus` matched "Connection refused".** The first content-filter pattern
+      filed a dead network as a content filter, so off_CRM would have failed
+      over politely instead of reporting nothing could be reached. Patterns on
+      an error path are exercised by text nobody chose. A test pins the pair.
+- [x] **A stray backspace character was written into that regex** by a patch
+      script whose replacement string was not raw, so the word-boundary escape
+      became a literal control character and the alternative could never match.
+      Found by tracing which pattern fired, not by reading the file — the
+      character is invisible. The package and test tree were scanned; it was the
+      only occurrence.
+- [x] `quota.record(rate_limited=...)` was a substring search for `"429"` over
+      the message, which also fired on a body that merely contained those
+      digits. Now driven by the classification.
+- [x] A test of mine asserted failover between `mistral` (tier A) and `nvidia`
+      (tier B) and got one candidate. That was the **failover-never-crosses-a-
+      tier rule working**; the test was wrong and now uses two US providers.
 
 ### Response cache wired (2026-08-10)
 - [x] The gap the rebuild-guide audit found is closed: `ResponseCache` is now

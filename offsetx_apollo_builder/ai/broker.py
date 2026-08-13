@@ -34,7 +34,14 @@ from ..outreach.providers import (
     normalize_generation_output,
 )
 from ..outreach.models import ProviderConfig
-from .errors import EgressBlocked, NoPermittedProvider, PolicyViolation, RegistryError
+from .errors import (
+    EgressBlocked,
+    NoPermittedProvider,
+    PolicyViolation,
+    ProviderFailure,
+    RegistryError,
+)
+from .failures import Failure, FailureAction, FailureKind, classify
 from .payload import EgressRequest, build_payload, payload_summary
 from .quota import QuotaLimits, QuotaTracker
 from .registry import ProviderOverride, ProviderRegistry, ResolvedProvider
@@ -200,6 +207,8 @@ class EgressBroker:
         failure_threshold: int = 2,
         cooldown_seconds: int = 60,
         cache: Any = None,
+        max_retries: int = 2,
+        deadline_seconds: float = 120.0,
     ) -> None:
         self.registry = registry
         #: Optional :class:`~offsetx_apollo_builder.ai.cache.ResponseCache`.
@@ -212,6 +221,13 @@ class EgressBroker:
         self.timeout_seconds = timeout_seconds
         self.failure_threshold = max(1, failure_threshold)
         self.cooldown_seconds = max(1, cooldown_seconds)
+        #: Same-provider retries across the whole chain, not per candidate. Only
+        #: ``RETRY_SAME`` failures spend from it, and the transport layer has
+        #: already retried connection errors and 5xx three times before anything
+        #: reaches here.
+        self.max_retries = max(0, int(max_retries))
+        #: Wall clock for the entire call, retries and failover included.
+        self.deadline_seconds = max(1.0, float(deadline_seconds))
         self._lock = threading.Lock()
         self._failures: dict[str, int] = {}
         self._open_until: dict[str, float] = {}
@@ -348,6 +364,24 @@ class EgressBroker:
             "off_CRM stops rather than sending this to a provider that is not permitted."
         )
 
+    @staticmethod
+    def _time_left(deadline: float) -> float:
+        return max(0.0, deadline - time.monotonic())
+
+    @staticmethod
+    def _terminal_message(candidate: Any, failure: "Failure") -> str:
+        """Why the call stopped instead of trying the next model.
+
+        The owner action leads, because this whole class of failure exists
+        precisely because the previous behaviour — quietly using a different
+        model — was the thing that hid it.
+        """
+        head = failure.owner_action or failure.detail
+        return (
+            f"{head} (provider {candidate.id}, model {candidate.model_id}, "
+            f"{failure.kind.value})"
+        )
+
     # ── the gate ────────────────────────────────────────────────────────────
 
     def call(
@@ -363,7 +397,31 @@ class EgressBroker:
         attempts: list[dict[str, Any]] = []
         now = time.monotonic()
 
-        for candidate in candidates:
+        # A worklist rather than a plain loop, so a rate-limited candidate can be
+        # put back at the front and asked again after the wait the server named.
+        queue = list(candidates)
+        retries_left = self.max_retries
+        # One wall clock over the whole chain. Without it a slow failure across
+        # several providers, each with its own transport-level retries, becomes
+        # an unbounded wait for whoever is holding the request.
+        deadline = time.monotonic() + self.deadline_seconds
+
+        while queue:
+            candidate = queue.pop(0)
+            failure: Failure | None = None
+            if self._time_left(deadline) <= 0:
+                attempts.append(
+                    {
+                        "provider_id": candidate.id,
+                        "model_id": candidate.model_id,
+                        "status": "deadline_exceeded",
+                        "detail": (
+                            f"gave up after {self.deadline_seconds:g}s across "
+                            f"{len(attempts)} attempt(s)"
+                        ),
+                    }
+                )
+                break
             # Keyed on provider *and* model: one broken model on a key must not
             # cool down a healthy sibling sharing that same key.
             circuit_key = f"{candidate.id}:{candidate.model_id}"
@@ -470,16 +528,22 @@ class EgressBroker:
                     user_prompt=json.dumps(payload, ensure_ascii=False),
                 )
                 text = normalize_generation_output(raw) if expect_json else str(raw)
-            except Exception as exc:  # noqa: BLE001 - recorded, then failover
+            except Exception as exc:  # noqa: BLE001 - classified, then handled
                 status = "failed"
                 error = str(exc)[:500]
+                failure = classify(exc)
             duration_ms = int((time.monotonic() - started) * 1000)
 
             if self.quota is not None:
                 self.quota.record(
                     candidate.id,
                     spend_usd=0.0,
-                    rate_limited="429" in error,
+                    # Was a substring search for "429" over the message, which
+                    # also fired on a body that merely contained those digits.
+                    rate_limited=(
+                        failure is not None
+                        and failure.kind is FailureKind.RATE_LIMITED
+                    ),
                 )
 
             if self.cache is not None and status == "succeeded":
@@ -504,22 +568,54 @@ class EgressBroker:
                 findings=[],
                 duration_ms=duration_ms,
                 response_text=text,
+                failure_kind=failure.kind.value if failure else "",
             )
 
-            if status == "failed":
-                with self._lock:
-                    failures = self._failures.get(circuit_key, 0) + 1
-                    self._failures[circuit_key] = failures
-                    if failures >= self.failure_threshold:
-                        self._open_until[circuit_key] = time.monotonic() + self.cooldown_seconds
+            if status == "failed" and failure is not None:
+                # Only a failure that says something about the *provider* counts
+                # towards its circuit breaker. A payload we built wrong says
+                # nothing about their service, and letting it trip the breaker
+                # means one malformed request can take every model in the tier
+                # out of service.
+                if failure.counts_against_provider:
+                    with self._lock:
+                        seen = self._failures.get(circuit_key, 0) + 1
+                        self._failures[circuit_key] = seen
+                        if seen >= self.failure_threshold:
+                            self._open_until[circuit_key] = (
+                                time.monotonic() + self.cooldown_seconds
+                            )
                 attempts.append(
                     {
                         "provider_id": candidate.id,
                         "model_id": candidate.model_id,
                         "status": "failed",
+                        "failure_kind": failure.kind.value,
+                        "action": failure.action.value,
                         "detail": error,
                     }
                 )
+
+                # Stopping is the whole point of classifying. Failing over is
+                # what turned a broken key into a silent, more expensive run on
+                # a model the owner did not choose.
+                if failure.is_terminal:
+                    raise ProviderFailure(
+                        self._terminal_message(candidate, failure),
+                        failure=failure,
+                        provider_id=candidate.id,
+                        model_id=candidate.model_id,
+                        log_id=log_id,
+                    )
+
+                if (
+                    failure.action is FailureAction.RETRY_SAME
+                    and retries_left > 0
+                    and self._time_left(deadline) > (failure.retry_after or 0.0)
+                ):
+                    retries_left -= 1
+                    time.sleep(min(failure.retry_after or 1.0, self._time_left(deadline)))
+                    queue.insert(0, candidate)
                 continue
 
             with self._lock:
@@ -701,6 +797,7 @@ class EgressBroker:
         findings: list[dict[str, Any]],
         duration_ms: int,
         response_text: str,
+        failure_kind: str = "",
     ) -> str:
         if self.logger is None:
             return ""
@@ -722,6 +819,7 @@ class EgressBroker:
                 payload=payload,
                 payload_summary=payload_summary(payload),
                 response_text=response_text,
+                failure_kind=failure_kind,
             )
         except Exception:  # noqa: BLE001 - logging must never break a call
             return ""

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from offsetx_apollo_builder.ai.log import SCHEMA, EgressLog
+from offsetx_apollo_builder.ai.log import EGRESS_COLUMNS, SCHEMA, EgressLog
 from offsetx_apollo_builder.db import (
     DATABASE_URL_ENV,
     DatabaseError,
@@ -35,7 +35,7 @@ from offsetx_apollo_builder.db import (
     resolve_target,
     translate_params,
 )
-from offsetx_apollo_builder.db.copy import copy_egress_log
+from offsetx_apollo_builder.ai.log import copy_egress_log
 
 POSTGRES_URL = os.getenv("OFF_CRM_TEST_POSTGRES_URL", "").strip()
 BACKENDS = ["sqlite"] + (["postgres"] if POSTGRES_URL else [])
@@ -383,8 +383,6 @@ def test_the_copied_columns_match_the_schema():
     and a new column would shift every value one place to the left. So the list
     is explicit — and this test is what keeps it honest.
     """
-    from offsetx_apollo_builder.db.copy import EGRESS_COLUMNS
-
     declared = [
         line.strip().split()[0]
         for line in SCHEMA.splitlines()

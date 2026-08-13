@@ -694,6 +694,52 @@ reproduced against the real code before changing anything.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
 
+### Rebuild guide, §10 (2026-08-10)
+- [x] `docs/architecture/REBUILD_GUIDE.md`. Written **after** the system,
+      describing what exists rather than specifying what should. Says so at the
+      top: where the code and the guide disagree, the guide has the bug.
+- [x] The abandoned `agent/off-crm-v0-12-ai-studio` branch had a 1,015-line
+      rebuild guide. It was **not** reused: it describes `off_ai/`, a parallel
+      module that was never merged. A rebuild guide for a system that is not
+      there is the worst version of this document.
+- [x] The content that lives nowhere else: **stage order with the reason each
+      stage must come before the next**. Three orderings carry the security
+      properties — scanner before any provider adapter (or the direct call site
+      you made to test it survives as a second door); construction before
+      everything (filtering is a one-way door); eval harness before the verify
+      loop (or the loop invents weaker checks and measurement quietly disagrees
+      with enforcement).
+- [x] **15 traps**, each a real mistake, most of them made and fixed here. They
+      share a shape: every one looks like a simplification and silently removes
+      a guarantee.
+- [x] The architecture rules that are enforced by AST tests rather than by
+      discipline, listed with what enforces each. Includes the doubled-test
+      pattern from campaign kinds: a list that must stay exhaustive needs a
+      second test that checks the list itself.
+
+#### Facts corrected while writing it
+Every number in the guide was measured rather than recalled, and four claims
+written from memory were wrong:
+- [x] `ai/` is 24 modules / 10,303 lines; the package root has 24 more, not 15.
+- [x] The single-gate test does not assert "three call sites". It parses every
+      file in the package and fails if any module outside a **three-file
+      allowlist** imports a provider constructor. Different rule, stronger.
+- [x] Six named SQLite databases, not seven — and only four are opened by the
+      web app; `ai_evals.db` and `ai_tools.db` belong to their CLIs.
+- [x] **The response cache is not wired into anything.** `ResponseCache` is
+      implemented, tested (34 cases) and exported, and `EgressBroker` accepts
+      one as an optional argument — but no caller constructs one, so no request
+      has ever hit it. Recorded in the guide so a rebuilder does not hunt for
+      wiring that does not exist. Left unwired rather than switched on in the
+      same change as a documentation task.
+
+#### Fixed while writing it
+- [x] `db/copy.py` imported `ai/log.py` for its schema — the generic backend
+      layer knowing about one specific store, and the reverse of the dependency
+      rule the guide states. Writing the rule down is what exposed it. `db/`
+      now has a table-agnostic `copy_table(table, columns, schema, key)`, and
+      the egress-log wrapper lives in `ai/log.py` where its schema is defined.
+
 ### Postgres backend, egress log first (2026-08-10)
 - [x] `offsetx_apollo_builder/db/` — ~250 lines. `open_database()` returns
       something that behaves like the `sqlite3.Connection` the stores already
@@ -849,7 +895,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
 | — | Campaign `kind` column | **Built** (`campaigns.py`, schema v8). Remaining: no `settings_json` blob — deliberately deferred until there is a kind whose settings are known, since a validator has to exist before the blob does. |
 | — | Postgres | **Partly done.** The seam is built and tested (`db/`), and the **egress log** runs on either backend. The other five stores — CRM, context, recall, scoreboard, cache, sales — are still SQLite-only. Also missing: a Postgres migration path (`PRAGMA table_info` / `user_version` have no equivalent yet), FTS (`fts5` → `tsvector` is a reimplementation), and connection pooling. |
-| 10 | Rebuild guide | Produced last, per the brief. Not yet written. |
+| 10 | Rebuild guide | **Written** — `docs/architecture/REBUILD_GUIDE.md`. Stage order with the reason each stage must precede the next, the 15 traps, the invariants that are enforced by AST tests, and what is deliberately absent. |
 
 ---
 

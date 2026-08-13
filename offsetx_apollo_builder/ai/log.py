@@ -270,3 +270,49 @@ def _safe_json(value: Any, fallback: Any) -> Any:
         return json.loads(str(value))
     except (TypeError, ValueError):
         return fallback
+
+
+#: The copy's column list, written out rather than taken from ``SELECT *``.
+#: Column order across two engines is not something to leave to chance, and a
+#: schema change that adds a column should fail loudly instead of shifting every
+#: value one place to the left. A test asserts this matches :data:`SCHEMA`.
+EGRESS_COLUMNS = (
+    "id",
+    "workspace_id",
+    "created_at",
+    "provider_id",
+    "provider_name",
+    "model_id",
+    "jurisdiction",
+    "tier",
+    "policy",
+    "data_class",
+    "task_type",
+    "status",
+    "error",
+    "findings",
+    "duration_ms",
+    "payload",
+    "payload_summary",
+    "response_text",
+)
+
+
+def copy_egress_log(source: Path | str, destination: str, *, batch_size: int = 500):
+    """Copy an existing SQLite egress log into Postgres.
+
+    Lives here rather than in ``db/`` because the table, its columns and its
+    schema belong to this store; ``db/copy.py`` is the generic half and knows
+    about none of them.
+    """
+    from ..db.copy import copy_table
+
+    return copy_table(
+        source,
+        destination,
+        table="ai_egress_log",
+        columns=EGRESS_COLUMNS,
+        schema=SCHEMA,
+        order_by="created_at ASC",
+        batch_size=batch_size,
+    )

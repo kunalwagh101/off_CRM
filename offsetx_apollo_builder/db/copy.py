@@ -1,9 +1,13 @@
-"""Copying the egress log from SQLite to Postgres.
+"""Copying one table from SQLite to Postgres.
 
-Deliberately not a generic "migrate everything" tool. Only the egress log is on
-the backend seam today, so this copies the egress log; a tool that claimed to
-move the whole database while moving one table would be worse than one that
-says what it does.
+Deliberately not a "migrate everything" tool. Only the egress log is on the
+backend seam today; a tool that claimed to move the whole database while moving
+one table would be worse than one that says what it does.
+
+**This module knows nothing about any particular table.** The caller supplies
+the table name, its columns and its schema — because ``db/`` is the generic
+layer and a store's shape belongs to the store. The egress log's wrapper lives
+in ``ai/log.py``, where the schema it copies is defined.
 
 The copy is **append-only and verified**. It reads rows out of SQLite, writes
 them into Postgres, then counts both sides and reports. It never deletes the
@@ -15,35 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
-from ..ai.log import SCHEMA
 from .connection import Database, DatabaseError, describe_target, open_database
-
-#: Written explicitly rather than taken from ``SELECT *``. Column order across
-#: two engines is not something to leave to chance, and a schema change that
-#: adds a column should fail this loudly instead of shifting every value one
-#: place to the left.
-EGRESS_COLUMNS = (
-    "id",
-    "workspace_id",
-    "created_at",
-    "provider_id",
-    "provider_name",
-    "model_id",
-    "jurisdiction",
-    "tier",
-    "policy",
-    "data_class",
-    "task_type",
-    "status",
-    "error",
-    "findings",
-    "duration_ms",
-    "payload",
-    "payload_summary",
-    "response_text",
-)
 
 
 @dataclass(frozen=True)
@@ -82,23 +60,33 @@ class CopyResult:
         }
 
 
-def _count(database: Database) -> int:
-    row = database.execute("SELECT COUNT(*) AS total FROM ai_egress_log").fetchone()
+def _count(database: Database, table: str) -> int:
+    row = database.execute(f"SELECT COUNT(*) AS total FROM {table}").fetchone()
     return int(row["total"]) if row else 0
 
 
-def copy_egress_log(
+def copy_table(
     source: Path | str,
     destination: str,
     *,
+    table: str,
+    columns: Sequence[str],
+    schema: str,
+    key: str = "id",
+    order_by: str = "",
     batch_size: int = 500,
 ) -> CopyResult:
-    """Copy every egress-log row from ``source`` into ``destination``.
+    """Copy every row of one table from a SQLite file into Postgres.
 
-    Rows already present at the destination are skipped by primary key, so
-    running it twice is safe and a partial run can be finished by running it
-    again. That matters more than speed here: the alternative is an operator
-    who is not sure whether to re-run and guesses.
+    ``columns`` is explicit rather than ``SELECT *``: column order across two
+    engines is not something to leave to chance, and a schema change that adds a
+    column should fail loudly here instead of shifting every value one place to
+    the left.
+
+    Rows already present at the destination are skipped by ``key``, so running
+    it twice is safe and a partial run can be finished by running it again. That
+    matters more than speed: the alternative is an operator who is not sure
+    whether to re-run and guesses.
     """
     if not Path(str(source)).exists():
         raise DatabaseError(f"No SQLite database at {source}. Nothing to copy.")
@@ -111,42 +99,41 @@ def copy_egress_log(
                 "The destination must be a postgresql:// URL. Copying SQLite to "
                 "SQLite is a file copy, which the operating system already does."
             )
-        writer.executescript(SCHEMA)
+        writer.executescript(schema)
 
         existing = {
-            str(row["id"])
-            for row in writer.execute("SELECT id FROM ai_egress_log").fetchall()
+            str(row[key])
+            for row in writer.execute(f"SELECT {key} FROM {table}").fetchall()
         }
 
-        columns = ", ".join(EGRESS_COLUMNS)
-        placeholders = ", ".join("?" for _ in EGRESS_COLUMNS)
+        column_list = ", ".join(columns)
+        placeholders = ", ".join("?" for _ in columns)
+        ordering = f" ORDER BY {order_by}" if order_by else ""
         rows_read = 0
         rows_written = 0
         skipped = 0
         batch: list[tuple[Any, ...]] = []
 
-        cursor = reader.execute(
-            f"SELECT {columns} FROM ai_egress_log ORDER BY created_at ASC"
-        )
+        cursor = reader.execute(f"SELECT {column_list} FROM {table}{ordering}")
         for row in cursor.fetchall():
             rows_read += 1
-            if str(row["id"]) in existing:
+            if str(row[key]) in existing:
                 skipped += 1
                 continue
-            batch.append(tuple(row[name] for name in EGRESS_COLUMNS))
+            batch.append(tuple(row[name] for name in columns))
             if len(batch) >= batch_size:
-                rows_written += _write(writer, columns, placeholders, batch)
+                rows_written += _write(writer, table, column_list, placeholders, batch)
                 batch = []
         if batch:
-            rows_written += _write(writer, columns, placeholders, batch)
+            rows_written += _write(writer, table, column_list, placeholders, batch)
 
         return CopyResult(
             source=describe_target(str(source)),
             destination=describe_target(destination),
             rows_read=rows_read,
             rows_written=rows_written,
-            source_total=_count(reader),
-            destination_total=_count(writer),
+            source_total=_count(reader, table),
+            destination_total=_count(writer, table),
             skipped_existing=skipped,
         )
     finally:
@@ -155,7 +142,11 @@ def copy_egress_log(
 
 
 def _write(
-    writer: Database, columns: str, placeholders: str, batch: list[tuple[Any, ...]]
+    writer: Database,
+    table: str,
+    columns: str,
+    placeholders: str,
+    batch: list[tuple[Any, ...]],
 ) -> int:
     """Write one batch inside a transaction.
 
@@ -167,7 +158,7 @@ def _write(
     with writer.transaction():
         for values in batch:
             writer.execute(
-                f"INSERT INTO ai_egress_log ({columns}) VALUES ({placeholders})",
+                f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
                 values,
             )
     return len(batch)

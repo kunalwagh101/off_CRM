@@ -17,7 +17,7 @@ import argparse
 import sys
 
 from .db import DATABASE_URL_ENV, DatabaseError, describe_target, open_database, resolve_target
-from .db.copy import copy_egress_log
+from .ai.log import copy_egress_log
 
 
 def _cmd_check(args: argparse.Namespace) -> int:

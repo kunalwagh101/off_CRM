@@ -17,6 +17,10 @@ from fastapi.staticfiles import StaticFiles
 from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
+from ..distribution.engine import DistributionEngine
+from ..distribution.platforms import list_platforms as list_distribution_platforms
+from ..distribution.publishers import LocalOutboxPublisher
+from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..db import resolve_target as resolve_database_target
@@ -294,6 +298,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolved.data_dir / "imagery.db",
             assets_dir=resolved.data_dir / "image_assets",
         )
+        app.state.distribution_store = DistributionStore(
+            resolved.data_dir / "distribution.db",
+            outbox_dir=resolved.data_dir / "post_outbox",
+        )
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
@@ -319,6 +327,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.engine.close()
             app.state.ai_egress_log.close()
             app.state.image_store.close()
+            app.state.distribution_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
 
@@ -914,6 +923,93 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-summary")
     def image_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _imagery(request).summary(campaign_id)
+
+    def _distribution(request: Request) -> DistributionEngine:
+        state = request.app.state
+        return DistributionEngine(
+            store=state.distribution_store,
+            publisher=LocalOutboxPublisher(state.distribution_store.outbox_dir),
+            campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
+            asset_reader=state.image_store.get_asset,
+            workspace_id=_workspace_id(request),
+        )
+
+    @app.get(f"{API_PREFIX}/distribution/platforms")
+    def distribution_platforms() -> dict[str, Any]:
+        """What each platform permits, and what off_CRM refuses.
+
+        Served rather than hard-coded in the UI, because the answer is the
+        product: most of these cannot be posted to yet, and the screen should
+        say which and why instead of offering a button that fails.
+        """
+        return {"items": list_distribution_platforms()}
+
+    @app.get(f"{API_PREFIX}/distribution/accounts")
+    def distribution_accounts(request: Request) -> dict[str, Any]:
+        return {"items": _distribution(request).accounts()}
+
+    @app.post(f"{API_PREFIX}/distribution/accounts", status_code=201)
+    def connect_distribution_account(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _distribution(request).connect_account(
+            platform=str(body.get("platform", "")),
+            handle=str(body.get("handle", "")),
+            label=str(body.get("label", "")),
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/goals", status_code=201)
+    def set_distribution_goal(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _distribution(request).set_goal(
+            campaign_id,
+            metric=str(body.get("metric", "views")),
+            target=int(body.get("target") or 0),
+            deadline=str(body.get("deadline", "")),
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/posts", status_code=201)
+    def plan_distribution_post(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _distribution(request).plan_post(
+            campaign_id,
+            account_id=str(body.get("account_id", "")),
+            caption=str(body.get("caption", "")),
+            asset_id=str(body.get("asset_id", "")),
+        )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/posts")
+    def list_distribution_posts(campaign_id: str, request: Request, status: str = Query("", max_length=20)) -> dict[str, Any]:
+        engine = _distribution(request)
+        engine._require_own_kind(campaign_id, "listing posts")
+        return {"items": engine.store.list_posts(campaign_id, status=status)}
+
+    @app.post(f"{API_PREFIX}/posts/{{post_id}}/approve")
+    def approve_distribution_post(post_id: str, request: Request) -> dict[str, Any]:
+        return _distribution(request).approve(post_id)
+
+    @app.post(f"{API_PREFIX}/posts/{{post_id}}/schedule")
+    def schedule_distribution_post(post_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _distribution(request).schedule(post_id, at=str(body.get("at", "")))
+
+    @app.post(f"{API_PREFIX}/distribution/publish-due")
+    def publish_due_posts(request: Request) -> dict[str, Any]:
+        return _distribution(request).publish_due().to_dict()
+
+    @app.post(f"{API_PREFIX}/posts/{{post_id}}/metrics")
+    def record_post_metrics(post_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _distribution(request).record_metrics(
+            post_id,
+            views=int(body.get("views") or 0),
+            likes=int(body.get("likes") or 0),
+            comments=int(body.get("comments") or 0),
+            shares=int(body.get("shares") or 0),
+            source=str(body.get("source", "")),
+        )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/progress")
+    def distribution_progress(campaign_id: str, request: Request) -> dict[str, Any]:
+        engine = _distribution(request)
+        return {
+            **engine.progress(campaign_id),
+            "generators": engine.generator_performance(campaign_id),
+        }
 
     @app.get(f"{API_PREFIX}/campaign-kinds")
     def campaign_kinds() -> dict[str, Any]:

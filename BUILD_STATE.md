@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **733 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **754 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -71,6 +71,12 @@ offsetx_apollo_builder/ai/          ← self-contained, extractable (§4M)
 
 config/providers.yaml               ← the registry. Adding a provider is a
                                        config edit, never a code change (§4E)
+
+offsetx_apollo_builder/distribution/ ← the content distribution runner
+├── platforms.py  what each platform permits, and what off_CRM refuses
+├── publishers.py the adapter interface + the local outbox
+├── store.py      accounts, posts, goals, engagement snapshots
+└── engine.py     plan -> approve -> schedule -> publish -> measure
 
 offsetx_apollo_builder/imagery/     ← the image campaign runner
 ├── gates.py      deterministic quality gates; header parsing, no image library
@@ -699,6 +705,52 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Content distribution runner (2026-08-10)
+- [x] `distribution/` — the third campaign kind, and the one that composes the
+      others. All three kinds now have runners. Docs:
+      `docs/architecture/DISTRIBUTION_CAMPAIGNS.md`.
+- [x] **The hard part here is not code.** Each platform allows far less
+      automated posting than it appears to, and the tools that seem to offer
+      more are what get accounts banned. off_CRM publishes through **official
+      APIs only**, and `platforms.py` declares every platform with its API, its
+      preconditions, its quotas and what off_CRM refuses. Connecting an account
+      it cannot post to is refused **at connection**, not at send time.
+- [x] **One working adapter today: the local outbox** — not a stub, the same
+      device `LocalOutboxProvider` is for email. The whole pipeline runs and is
+      reviewable without touching a real account.
+- [x] Quota facts recorded rather than assumed. YouTube's is **per API project,
+      not per channel** (~6 uploads/day across every channel you own);
+      Instagram's 25/day genuinely is per account. A planner assuming both were
+      per-account would over-promise on YouTube by however many channels exist.
+      Instagram's ceiling is checked **when a post is scheduled**, because a
+      schedule that cannot be delivered looks like a plan.
+- [x] Instagram's personal-account impossibility is refused by name; TikTok's
+      unaudited private-only posting is refused rather than counted as reach.
+- [x] **Goal-shaped**: "a million views", with progress against it.
+- [x] **This closes the benchmark.** Gates and swipe were layers one and two
+      from the image runner; engagement is layer three, and
+      `generator_performance` joins it back — views grouped by the generator
+      that drew the picture, so the owner's taste and the audience's can be
+      compared and can disagree.
+- [x] 20 new tests, and the whole loop verified over HTTP: campaign, account,
+      goal, post, approve, schedule, publish, measure, progress (250,000 of
+      1,000,000 views, 25%).
+
+#### A real bug the tests caught
+- [x] **Engagement snapshots were being summed.** `latest_metrics` picked rows
+      by `MAX(measured_at)`, but timestamps were second-precision, so two
+      readings a moment apart *both* matched the maximum and were added —
+      reporting 100 views where there were 60, and a goal met when it was not.
+      Now ordered by time then id, with microsecond precision on measurements.
+      The test that caught it was written before the bug was known to exist.
+
+#### Not built, recorded on the spec
+- Adapters for the real platforms — each declared with the route that would
+  serve it; each needs OAuth per account and, for Meta and TikTok, app review.
+- Competitor watching and trend detection: the `read` column is the groundwork,
+  the collector is not written, and it must be built on what terms permit.
+- Automatic caption generation, scheduled publishing on a timer, and a UI.
 
 ### Image campaign runner (2026-08-10)
 - [x] `imagery/` — the second campaign kind, and the first that produces

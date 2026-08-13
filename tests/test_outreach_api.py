@@ -193,40 +193,34 @@ def test_production_frontend_is_served_by_fastapi(tmp_path):
         assert "text/html" in response.headers["content-type"]
 
 
-def test_campaign_kinds_endpoint_serves_the_unimplemented_ones_too(tmp_path):
-    """A picker that hides them looks like the feature was never planned.
+def test_campaign_kinds_endpoint_reports_what_each_kind_can_do(tmp_path):
+    """Every declared kind, with whether it runs and what it still lacks.
 
-    One that shows them with a reason says where the product is going, so the
-    endpoint serves every declared kind and marks which can run.
+    All three run now. The endpoint still carries `missing`, because
+    "implemented" means something runs it — not that every part of the owner's
+    description exists.
     """
     with TestClient(create_app(_settings(tmp_path))) as client:
         items = client.get("/api/v1/campaign-kinds").json()["items"]
         by_id = {item["id"]: item for item in items}
 
         assert by_id["email"]["implemented"] is True
-        assert by_id["image"]["implemented"] is True, "the image runner is built"
-        assert by_id["distribution"]["implemented"] is False
-        assert by_id["distribution"][
-            "missing"
-        ], "an unimplemented kind must say what is missing"
-        assert items[0]["id"] == "email", "runnable kinds first"
+        assert by_id["image"]["implemented"] is True
+        assert by_id["distribution"]["implemented"] is True
+        # Implemented and still honest about what it lacks: no real platform
+        # adapters, and no competitor watching.
+        assert "adapters" in by_id["distribution"]["missing"]
+        runnable = [item["implemented"] for item in items]
+        assert runnable == sorted(runnable, reverse=True), "runnable kinds first"
 
 
-def test_creating_an_unimplemented_kind_returns_the_reason_not_a_type_error(tmp_path):
+def test_an_unknown_kind_returns_the_reason_not_a_type_error(tmp_path):
     """422 with the sentence, rather than 'not a valid enumeration member'.
 
     This is why `kind` is a plain string on the request model: the registry
-    owns the answer, and the answer is a sentence about what is missing.
+    owns the answer, and the answer is a sentence naming what does exist.
     """
     with TestClient(create_app(_settings(tmp_path))) as client:
-        refused = client.post(
-            "/api/v1/campaigns", json={"name": "Trends", "kind": "distribution"}
-        )
-        assert refused.status_code == 422
-        detail = refused.json()["detail"]
-        assert "not implemented" in detail
-        assert "runner" in detail
-
         unknown = client.post(
             "/api/v1/campaigns", json={"name": "Nope", "kind": "podcast"}
         )

@@ -48,6 +48,28 @@ from offsetx_apollo_builder.outreach.store import OutreachStore
 
 
 @pytest.fixture()
+def unbuilt_kind(monkeypatch):
+    """A declared-but-unimplemented kind, for as long as one test needs it.
+
+    Registered temporarily because the registry no longer contains one — which
+    is a good problem, and not a reason to stop testing the refusal.
+    """
+    from offsetx_apollo_builder import campaigns
+
+    spec = campaigns.CampaignKindSpec(
+        id="podcast",
+        label="Podcast",
+        unit="an episode",
+        runner="",
+        implemented=False,
+        summary="Declared for this test only.",
+        missing="a runner, audio generation, and a feed to publish to.",
+    )
+    monkeypatch.setitem(campaigns.KINDS, "podcast", spec)
+    return "podcast"
+
+
+@pytest.fixture()
 def store(tmp_path: Path) -> OutreachStore:
     db = OutreachStore(tmp_path / "outreach.db")
     db.initialize()
@@ -60,19 +82,32 @@ def store(tmp_path: Path) -> OutreachStore:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_the_implemented_kinds_are_the_ones_with_runners():
-    """Email and image. Distribution is still declared-only.
+def test_every_implemented_kind_names_a_runner():
+    """All three now. This assertion has moved twice as runners were built.
 
-    This assertion moved once already: image was unimplemented until its runner
-    was built, and the test failing is what said so.
+    `implemented` is the field that stops the registry becoming a list of
+    promises, so the invariant worth pinning is not *which* kinds are done but
+    that a kind claiming to be done has something that runs it.
     """
-    assert implemented_kinds() == ("email", "image")
+    assert implemented_kinds() == ("distribution", "email", "image")
     for kind in implemented_kinds():
-        assert kind_spec(kind).implemented
-        assert kind_spec(kind).runner, f"{kind} claims to be implemented with no runner"
+        spec = kind_spec(kind)
+        assert spec.implemented
+        assert spec.runner, f"{kind} claims to be implemented with no runner"
         assert assert_runnable(kind).id == kind
-    with pytest.raises(CampaignKindNotImplemented):
-        assert_runnable("distribution")
+
+
+def test_an_implemented_kind_may_still_declare_what_it_lacks():
+    """Image and distribution both do, and that is the point.
+
+    "Implemented" means something runs it, not that every part of the owner's
+    description exists. Video and the real platform adapters are absent, and
+    saying so on the spec is better than a footnote nobody reads.
+    """
+    for kind in ("image", "distribution"):
+        spec = kind_spec(kind)
+        assert spec.implemented and spec.runner
+        assert spec.missing, f"{kind} should still say what it lacks"
 
 
 def test_declared_kinds_say_what_is_missing():
@@ -109,11 +144,21 @@ def test_a_missing_kind_reads_as_email_and_a_wrong_one_does_not():
         coerce_kind("whatever")
 
 
-def test_kinds_are_listed_runnable_first():
-    ids = [item["id"] for item in list_kinds()]
-    assert ids[0] == "email"
-    runnable = [item["implemented"] for item in list_kinds()]
+def test_kinds_are_listed_runnable_first(unbuilt_kind):
+    """The ordering invariant, not a particular first item.
+
+    An earlier version asserted "email is first", which was only true while
+    email was the only implemented kind. The rule is runnable first, then
+    alphabetical — so this registers an unimplemented kind whose name sorts
+    ahead of every real one and checks it still lands last.
+    """
+    items = list_kinds()
+    runnable = [item["implemented"] for item in items]
     assert runnable == sorted(runnable, reverse=True)
+    assert items[-1]["id"] == unbuilt_kind, "an unbuilt kind sorts last whatever it is called"
+    assert [item["id"] for item in items if item["implemented"]] == sorted(
+        item["id"] for item in items if item["implemented"]
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -121,19 +166,20 @@ def test_kinds_are_listed_runnable_first():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_creating_an_unimplemented_kind_is_refused_with_the_reason(store):
-    """The failure this prevents is a row that looks alive and never sends.
+def test_creating_an_unimplemented_kind_is_refused_with_the_reason(store, unbuilt_kind):
+    """The failure this prevents is a row that looks alive and never runs.
 
-    Silence would be worse than a refusal: the campaign appears in the list,
-    takes contacts, and simply never does anything, for as long as it takes
-    someone to wonder why.
+    Every declared kind now has a runner, so this exercises the *mechanism*
+    against a temporary registry entry rather than against whichever kind
+    happened to be unfinished. The mechanism is what has to survive for the
+    next kind someone adds.
     """
     with pytest.raises(CampaignKindNotImplemented) as exc:
-        store.create_campaign(name="Trends", daily_send_limit=10, kind="distribution")
+        store.create_campaign(name="Podcast", daily_send_limit=10, kind=unbuilt_kind)
 
     message = str(exc.value)
     assert "not implemented" in message
-    assert "runner" in message, "it should say what is missing"
+    assert "a runner" in message, "it should say what is missing"
     assert "will ever run" in message
 
     items, total = store.list_campaigns()
@@ -145,14 +191,14 @@ def test_creating_an_unknown_kind_is_refused(store):
         store.create_campaign(name="Whatever", daily_send_limit=10, kind="podcast")
 
 
-def test_the_refusal_runs_before_any_other_validation(store):
+def test_the_refusal_runs_before_any_other_validation(store, unbuilt_kind):
     """An unimplemented kind is reported even when the rest is also wrong.
 
     Otherwise the caller fixes a send limit, retries, and only then learns the
     kind was never going to work.
     """
     with pytest.raises(CampaignKindNotImplemented):
-        store.create_campaign(name="Trends", daily_send_limit=-5, kind="distribution")
+        store.create_campaign(name="Podcast", daily_send_limit=-5, kind=unbuilt_kind)
 
 
 def test_a_campaigns_kind_cannot_be_changed_afterwards(store):

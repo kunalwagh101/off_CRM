@@ -157,18 +157,24 @@ KINDS: dict[str, CampaignKindSpec] = {
         id="distribution",
         label="Content distribution",
         unit="a post",
-        runner="",
-        implemented=False,
+        runner="offsetx_apollo_builder.distribution.engine.DistributionEngine",
+        implemented=True,
         summary=(
             "Watch competitors, find what is trending, produce content against "
             "it, publish across many accounts and learn from the analytics. "
             "Goal-shaped: 'reach a million views', not 'publish these posts'."
         ),
         missing=(
-            "a runner, per-platform publishing that respects each platform's "
-            "automation rules, multi-account credentials, and an analytics "
-            "read-back path. It also composes the image kind, so that comes "
-            "first."
+            # The runner, goals, scheduling and the analytics read-back exist.
+            # What is genuinely absent is stated rather than implied, because the
+            # gap here is external: each platform allows far less automated
+            # posting than it appears to, and off_CRM publishes through official
+            # APIs only. See distribution/platforms.py.
+            "adapters for the real platforms — every one is declared with its "
+            "official API, its preconditions and its quotas, and only the local "
+            "outbox can publish today. Also missing: competitor watching and "
+            "trend detection, which are limited by what each platform's terms "
+            "actually permit."
         ),
     ),
 }

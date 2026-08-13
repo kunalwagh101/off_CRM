@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-10
 Branch: `main`
-Tests: **774 Python passed, 0 failed**, 1 skipped (live Docker egress test;
+Tests: **788 Python passed, 0 failed**, 1 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
@@ -76,6 +76,7 @@ offsetx_apollo_builder/distribution/ ← the content distribution runner
 ├── platforms.py  what each platform permits, and what off_CRM refuses
 ├── youtube.py    Data API v3 read client; the only transport in the package
 ├── trends.py     competitor watch list + what is actually rising
+├── topics.py     what several channels are covering at once
 ├── publishers.py the adapter interface + the local outbox
 ├── store.py      accounts, posts, goals, engagement snapshots
 └── engine.py     plan -> approve -> schedule -> publish -> measure
@@ -707,6 +708,34 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Topic clustering across channels (2026-08-10)
+- [x] `distribution/topics.py`, surfaced at `GET /trends/topics` and inside the
+      trends report. One channel running hot is a good week; several on one
+      subject is an event, and the stronger signal.
+- [x] **Distinct channels, not videos.** A channel posting five times about its
+      own product has a content calendar, not a trend, so a term one channel
+      uses scores one however often it repeats.
+- [x] **A topic is a term common now and not before** — the same shape as the
+      outlier multiple, one level down: share of channels inside the window
+      against share outside, needing 2x lift. A term with no history at all is
+      the strongest case, not a division by zero.
+- [x] **Adaptive stopwords fall out of that for free.** Watch twenty logistics
+      channels and "logistics" has a high baseline by definition, so the same
+      arithmetic that finds a spike removes it. No per-industry list to
+      maintain, and a hand-written one would still miss the words that matter to
+      one owner and not another.
+- [x] **Merging is on shared videos, not shared terms.** Term chaining is how
+      clustering turns everything into one blob — A shares a word with B, B with
+      C, and three unrelated stories become one topic. Tested with two
+      simultaneous unrelated stories that must stay apart.
+- [x] **Lexical, not semantic, and there is a test that says so.** "Rotterdam
+      port strike" and "Dutch dockworkers walk out" share no word and will not
+      group. Deliberate: semantic grouping means an embedding or a model call
+      per sweep — a cost, a provider dependency, and a feature that dies with a
+      key. The limitation is pinned by a named test so it is found here rather
+      than by someone trusting the output.
+- [x] 14 new tests, all passing first run.
 
 ### Trend detection on YouTube (2026-08-10)
 - [x] `distribution/youtube.py` + `distribution/trends.py`. Docs:

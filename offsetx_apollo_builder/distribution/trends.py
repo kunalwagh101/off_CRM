@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any
 
 from ..db import Database, open_database
+from .topics import MIN_CHANNELS_FOR_TOPIC, Topic, find_topics
 from .youtube import YouTubeClient, YouTubeError
 
 SCHEMA = """
@@ -357,6 +358,33 @@ class TrendWatcher:
         unranked.sort(key=lambda item: -item["views_per_hour"])
         return (ranked + unranked)[: max(1, int(limit))]
 
+    def topics(
+        self,
+        *,
+        window_hours: int = DEFAULT_WINDOW_HOURS,
+        min_channels: int = MIN_CHANNELS_FOR_TOPIC,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """What several channels are all covering at once.
+
+        Every observed video is passed in, not only the recent ones: the older
+        ones are the baseline a term is judged against. Handing over only the
+        window would leave nothing to compare with, and every common word would
+        look like an event.
+        """
+        rows = self.connection.execute(
+            "SELECT video_id, channel_id, title, published_at, views FROM yt_videos"
+            " WHERE workspace_id = ?",
+            (self.workspace_id,),
+        ).fetchall()
+        found = find_topics(
+            [dict(row) for row in rows],
+            window_hours=window_hours,
+            min_channels=min_channels,
+            limit=limit,
+        )
+        return [topic.to_dict() for topic in found]
+
     def report(self, *, window_hours: int = DEFAULT_WINDOW_HOURS) -> dict[str, Any]:
         channels = self.watched()
         client = self.client
@@ -371,6 +399,8 @@ class TrendWatcher:
             "window_hours": window_hours,
             "min_videos_for_baseline": MIN_VIDEOS_FOR_BASELINE,
             "trending": self.trending(window_hours=window_hours),
+            "topics": self.topics(window_hours=window_hours),
+            "min_channels_for_topic": MIN_CHANNELS_FOR_TOPIC,
             "quota": client.quota.to_dict() if client else {},
             "estimated_sweep_cost": client.sweep_cost(len(channels)) if client else 0,
         }

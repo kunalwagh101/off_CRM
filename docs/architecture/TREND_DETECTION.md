@@ -9,6 +9,7 @@ GET  /trends                    what is rising, with the quota spent
 GET  /trends/channels           the watch list
 POST /trends/channels           {"handle": "@competitor"}
 POST /trends/sweep              {"per_channel": 10}
+GET  /trends/topics             what several channels are covering at once
 ```
 
 Needs `OFFSETX_YOUTUBE_API_KEY` — a Google Cloud key with YouTube Data API v3
@@ -123,16 +124,60 @@ with no exception.
 
 ---
 
+## Topics: what several channels are covering at once
+
+`GET /trends/topics?window_hours=72&min_channels=3`
+
+One channel running hot is a good week. **Several channels on one subject is an
+event**, and it is the stronger signal.
+
+**The measure is distinct channels, not videos.** A channel posting five times
+about its own product has a content calendar, not a trend — so a term only one
+channel uses scores one however often it repeats.
+
+**A topic is a term that is common now and was not before.** The same shape as
+the outlier multiple, one level down: a term's share of channels *inside* the
+window against its share *outside* it, and a lift of 2× or more to qualify.
+
+That gives **adaptive stopwords for free.** Watch twenty logistics channels and
+"logistics" is in half the titles and always was — high baseline, filtered by
+the same arithmetic that finds the spike. Nobody has to write a per-industry
+stopword list, and a hand-written one would still miss the words that matter to
+one owner and not another. A word *nobody* used before is the strongest case,
+not a division by zero.
+
+**Merging is on shared videos, not shared terms.** Term chaining is how
+clustering quietly turns everything into one blob: A shares a word with B, B
+with C, and three unrelated stories become one topic. Two term-clusters covering
+mostly the same videos really are one subject named twice, and those merge.
+
+### The limitation, which matters more than the feature
+
+**This is lexical, not semantic.** "Rotterdam port strike" and "Dutch
+dockworkers walk out" are the same story and share no significant word, so they
+will not group. Titles are five to twelve words, which leaves little to match
+on. The honest description is *shared vocabulary detection*.
+
+It is built this way deliberately: semantic grouping means an embedding or a
+model call per sweep — a cost, a provider dependency, and a feature that stops
+working when a key expires. Shared vocabulary catches the common case (a place,
+a company, an event, a product) deterministically, offline and free.
+
+There is a test named for this, asserting the paraphrase case returns nothing,
+so the limitation is found in the repository rather than by someone trusting
+the output.
+
+---
+
 ## What is not built
 
-- **Turning a trend into a post.** `/trends` reports; nothing composes a caption
-  from what it found. That is the next piece, and it is where the image campaign
-  and this one meet.
+- **Turning a trend into a post.** `/trends` and `/trends/topics` report;
+  nothing composes a caption from what they found. That is the next piece, and
+  it is where the image campaign and this one meet.
 - **Scheduled sweeps.** `/trends/sweep` is called; nothing calls it on a timer.
   `AutomationService` is where that belongs.
-- **Topic clustering across channels.** Each video is scored on its own. "Six
-  competitors all posted about the same thing today" is a stronger signal than
-  any one of them and is not computed.
+- **Semantic clustering.** See the limitation above — a deliberate omission,
+  not an oversight.
 - **Any other platform.** Instagram, TikTok and Facebook are declared in
   `platforms.py` with what their terms actually permit. None of it is a general
   scraper, and none of it is built.

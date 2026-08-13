@@ -965,6 +965,27 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         finally:
             watcher.close()
 
+    @app.get(f"{API_PREFIX}/trends/topics")
+    def trends_topics(
+        request: Request,
+        window_hours: int = Query(72, ge=1, le=720),
+        min_channels: int = Query(3, ge=2, le=50),
+    ) -> dict[str, Any]:
+        """What several watched channels are covering at once.
+
+        A stronger signal than any single outlier: one channel running hot is a
+        good week, several on one subject is an event.
+        """
+        watcher = _trends(request)
+        try:
+            return {
+                "items": watcher.topics(
+                    window_hours=window_hours, min_channels=min_channels
+                )
+            }
+        finally:
+            watcher.close()
+
     @app.get(f"{API_PREFIX}/trends/channels")
     def trends_channels(request: Request) -> dict[str, Any]:
         watcher = _trends(request)

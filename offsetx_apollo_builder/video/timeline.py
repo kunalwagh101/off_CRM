@@ -1,0 +1,803 @@
+"""The timeline document, and every edit that can be made to it.
+
+This is the core of the video editor and it is deliberately the least exciting
+file in it: no I/O, no dependencies, no rendering, no clock. A project is data,
+an edit is a function from a project to a project, and a frame is a function of
+a project and a time. Everything that can be wrong about an edit is wrong here,
+where it can be tested, rather than in a canvas nobody can assert against.
+
+---
+
+**Time is an integer, and the unit is 1/90000 of a second.**
+
+Seconds as floats are the standard way an editor rots: split a clip, trim it,
+split again, and the boundaries drift until a cut lands half a frame early and
+nobody can say which operation did it. Frames are exact but tie the document to
+one frame rate, so changing a project from 30fps to 24fps would move every edit.
+
+90kHz is the MPEG timebase and it is chosen for one arithmetic reason — every
+frame boundary at every rate anyone uses is a whole number of ticks:
+
+| Rate | Ticks per frame |
+|---|---|
+| 23.976 (24000/1001) | 3753.75 → not exact, snapped |
+| 24 | 3750 |
+| 25 | 3600 |
+| 29.97 (30000/1001) | 3003 |
+| 30 | 3000 |
+| 50 | 1800 |
+| 59.94 (60000/1001) | 1501.5 → not exact, snapped |
+| 60 | 1500 |
+
+The two that are not exact are the 1001-denominator rates at odd multiples, and
+they are handled by snapping rather than by pretending. Everything else is exact
+forever, which means a split at frame 100 is *the same tick* however many times
+the project is saved, reloaded and re-split.
+
+---
+
+**Clips on a track never overlap.**
+
+Not "should not" — cannot. Every operation that moves or resizes a clip checks
+the whole track and refuses. An overlap has no defined answer: two clips both
+claiming tick 500 means the renderer picks one, and which one it picks is an
+implementation detail that will differ between the preview and the export. That
+is the class of bug where the exported video does not match what was on screen,
+which is the worst thing a video editor can do.
+
+Overlap is allowed *between* tracks. That is what tracks are for.
+
+---
+
+**Keyframes are relative to the clip, not the timeline.**
+
+A fade that starts 200ms into a clip has to still start 200ms into that clip
+after the clip is dragged somewhere else. Absolute keyframe times are the
+version of this that looks correct until the first time anyone moves anything.
+
+---
+
+**One resolver feeds the preview, the export and the tests.**
+
+:func:`frame_at` answers "what is on screen at this tick" and nothing else
+answers it. The browser draws what it returns, the exporter encodes what it
+returns, and ``tests/test_video_timeline.py`` asserts on what it returns. A
+second implementation of that question — one for preview, one for export — is
+how a preview stops matching its own export, so the TypeScript side is held to
+this one by a conformance fixture rather than by hope. See
+``docs/architecture/VIDEO_EDITOR.md``.
+"""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass, field, replace
+from typing import Any, Iterable, Mapping, Sequence
+
+#: Ticks in one second. The MPEG timebase, for the reason in the module
+#: docstring: it is the smallest rate that divides evenly by every common frame
+#: rate, so no ordinary edit ever lands between two representable instants.
+TICKS_PER_SECOND = 90_000
+
+#: The document format. Written into every serialised project so a future
+#: change can migrate rather than guess.
+DOCUMENT_VERSION = 1
+
+#: Frame rates a project may declare. Default-deny, like every other registry
+#: here: an unlisted rate is refused rather than accepted and rounded, because
+#: rounding it silently would move every cut in the project.
+FRAME_RATES: dict[str, float] = {
+    "23.976": 24000 / 1001,
+    "24": 24.0,
+    "25": 25.0,
+    "29.97": 30000 / 1001,
+    "30": 30.0,
+    "50": 50.0,
+    "59.94": 60000 / 1001,
+    "60": 60.0,
+}
+
+#: What a track may hold. A track is one kind all the way through — mixing
+#: audio into a video track makes "which clip is on top" and "which clip is
+#: audible" the same question, and they are not.
+TRACK_KINDS = ("video", "audio")
+
+#: What a clip may be. ``solid`` is a flat colour, which is how backgrounds,
+#: title cards and letterboxing are made without needing an asset.
+CLIP_KINDS = ("video", "image", "audio", "text", "solid")
+
+#: Which clip kinds a track kind accepts.
+TRACK_ACCEPTS: dict[str, tuple[str, ...]] = {
+    "video": ("video", "image", "text", "solid"),
+    "audio": ("audio",),
+}
+
+#: Clip kinds that have no inherent length, so a duration is whatever the editor
+#: says it is. A picture is five seconds long because you dragged it that far.
+UNBOUNDED_KINDS = ("image", "text", "solid")
+
+#: Every animatable property, its default, and the range it is clamped to.
+#: Unlisted names are refused: a typo in a property name that silently created a
+#: new property would animate nothing and report success.
+PROPERTY_SPEC: dict[str, tuple[float, float, float]] = {
+    # name: (default, minimum, maximum)
+    "x": (0.0, -20000.0, 20000.0),
+    "y": (0.0, -20000.0, 20000.0),
+    "scale": (1.0, 0.01, 50.0),
+    "rotation": (0.0, -3600.0, 3600.0),
+    "opacity": (1.0, 0.0, 1.0),
+    "anchor_x": (0.5, 0.0, 1.0),
+    "anchor_y": (0.5, 0.0, 1.0),
+    "crop_left": (0.0, 0.0, 0.99),
+    "crop_top": (0.0, 0.0, 0.99),
+    "crop_right": (0.0, 0.0, 0.99),
+    "crop_bottom": (0.0, 0.0, 0.99),
+    "volume": (1.0, 0.0, 4.0),
+    "brightness": (0.0, -1.0, 1.0),
+    "contrast": (0.0, -1.0, 1.0),
+    "saturation": (0.0, -1.0, 1.0),
+    "blur": (0.0, 0.0, 100.0),
+}
+
+#: How a value travels from one keyframe to the next. ``hold`` is a step, which
+#: is the one people reach for when they want a thing to appear rather than
+#: arrive.
+EASINGS = ("linear", "hold", "ease_in", "ease_out", "ease_in_out")
+
+#: Speed bounds. CapCut allows 0.1x to 100x and there is no reason to differ.
+MIN_SPEED = 0.1
+MAX_SPEED = 100.0
+
+#: A clip shorter than this is a mistake — usually a drag that registered as a
+#: resize. One frame at 60fps is 1500 ticks.
+MIN_CLIP_TICKS = 1500
+
+
+class TimelineError(ValueError):
+    """Base for every refusal here.
+
+    A ``ValueError`` so the API turns it into a 422 carrying the message, the
+    same contract the campaign kinds use.
+    """
+
+
+class UnknownTrack(TimelineError):
+    """No track by that id."""
+
+
+class UnknownClip(TimelineError):
+    """No clip by that id."""
+
+
+class TrackLocked(TimelineError):
+    """The track is locked. Locking exists to stop exactly this edit."""
+
+
+class ClipOverlap(TimelineError):
+    """Two clips on one track would claim the same tick."""
+
+
+def seconds_to_ticks(seconds: float) -> int:
+    """Round to the nearest tick. Never truncates — truncation always shortens."""
+    return int(round(float(seconds) * TICKS_PER_SECOND))
+
+
+def ticks_to_seconds(ticks: int) -> float:
+    return int(ticks) / TICKS_PER_SECOND
+
+
+def frame_rate(fps: str) -> float:
+    key = str(fps).strip()
+    if key not in FRAME_RATES:
+        known = ", ".join(FRAME_RATES)
+        raise TimelineError(f"Unsupported frame rate {fps!r}. Known rates: {known}.")
+    return FRAME_RATES[key]
+
+
+def ticks_per_frame(fps: str) -> float:
+    return TICKS_PER_SECOND / frame_rate(fps)
+
+
+def snap_to_frame(ticks: int, fps: str) -> int:
+    """Move a tick to the nearest frame boundary for this project.
+
+    Used at the edges of interaction — a mouse lands between frames and a cut
+    that is not on a frame boundary is a cut the encoder has to invent. The
+    document itself stores whatever it is given, so a project whose frame rate
+    changes does not silently rewrite its own edits.
+    """
+    per = ticks_per_frame(fps)
+    return int(round(round(int(ticks) / per) * per))
+
+
+def _clamp(name: str, value: float) -> float:
+    default, low, high = PROPERTY_SPEC[name]
+    number = float(value)
+    if number != number:  # NaN, which compares false against everything
+        return default
+    return max(low, min(high, number))
+
+
+def _check_property(name: str) -> str:
+    key = str(name or "").strip()
+    if key not in PROPERTY_SPEC:
+        known = ", ".join(sorted(PROPERTY_SPEC))
+        raise TimelineError(f"Unknown property {name!r}. Animatable properties: {known}.")
+    return key
+
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+@dataclass(frozen=True)
+class Keyframe:
+    """One value of one property, at one time inside its clip."""
+
+    at: int
+    value: float
+    easing: str = "linear"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"at": int(self.at), "value": float(self.value), "easing": self.easing}
+
+    @staticmethod
+    def from_dict(raw: Mapping[str, Any]) -> "Keyframe":
+        easing = str(raw.get("easing") or "linear")
+        if easing not in EASINGS:
+            raise TimelineError(f"Unknown easing {easing!r}. Known: {', '.join(EASINGS)}.")
+        return Keyframe(at=int(raw.get("at") or 0), value=float(raw.get("value") or 0.0), easing=easing)
+
+
+@dataclass
+class Clip:
+    """One thing on one track, for one stretch of time.
+
+    ``start`` and ``duration`` are where it sits on the timeline. ``in_point``
+    and ``source_duration`` are where it reads from inside its own material.
+    Keeping those two pairs separate is what makes trimming non-destructive:
+    dragging the left edge changes where you *start reading*, and the material
+    itself is never touched.
+    """
+
+    id: str
+    kind: str
+    start: int
+    duration: int
+    in_point: int = 0
+    source_duration: int = 0
+    asset_id: str = ""
+    text: str = ""
+    speed: float = 1.0
+    fade_in: int = 0
+    fade_out: int = 0
+    label: str = ""
+    properties: dict[str, float] = field(default_factory=dict)
+    keyframes: dict[str, list[Keyframe]] = field(default_factory=dict)
+    style: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def end(self) -> int:
+        return self.start + self.duration
+
+    def property_at(self, offset: int) -> dict[str, float]:
+        """Every property, resolved at ``offset`` ticks into this clip."""
+        values = {name: spec[0] for name, spec in PROPERTY_SPEC.items()}
+        values.update({name: _clamp(name, value) for name, value in self.properties.items()})
+        for name, frames in self.keyframes.items():
+            if frames:
+                values[name] = _clamp(name, interpolate(frames, offset))
+        return values
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "start": int(self.start),
+            "duration": int(self.duration),
+            "in_point": int(self.in_point),
+            "source_duration": int(self.source_duration),
+            "asset_id": self.asset_id,
+            "text": self.text,
+            "speed": float(self.speed),
+            "fade_in": int(self.fade_in),
+            "fade_out": int(self.fade_out),
+            "label": self.label,
+            "properties": {name: float(value) for name, value in sorted(self.properties.items())},
+            "keyframes": {
+                name: [frame.to_dict() for frame in frames]
+                for name, frames in sorted(self.keyframes.items())
+            },
+            "style": dict(self.style),
+        }
+
+    @staticmethod
+    def from_dict(raw: Mapping[str, Any]) -> "Clip":
+        keyframes: dict[str, list[Keyframe]] = {}
+        for name, frames in (raw.get("keyframes") or {}).items():
+            key = _check_property(name)
+            keyframes[key] = sorted(
+                (Keyframe.from_dict(item) for item in frames), key=lambda item: item.at
+            )
+        properties = {
+            _check_property(name): _clamp(_check_property(name), value)
+            for name, value in (raw.get("properties") or {}).items()
+        }
+        return Clip(
+            id=str(raw.get("id") or _new_id("clip")),
+            kind=str(raw.get("kind") or "video"),
+            start=int(raw.get("start") or 0),
+            duration=int(raw.get("duration") or 0),
+            in_point=int(raw.get("in_point") or 0),
+            source_duration=int(raw.get("source_duration") or 0),
+            asset_id=str(raw.get("asset_id") or ""),
+            text=str(raw.get("text") or ""),
+            speed=float(raw.get("speed") or 1.0),
+            fade_in=int(raw.get("fade_in") or 0),
+            fade_out=int(raw.get("fade_out") or 0),
+            label=str(raw.get("label") or ""),
+            properties=properties,
+            keyframes=keyframes,
+            style=dict(raw.get("style") or {}),
+        )
+
+
+@dataclass
+class Track:
+    """A lane. Order is z-order for video: later tracks draw on top."""
+
+    id: str
+    kind: str = "video"
+    name: str = ""
+    locked: bool = False
+    muted: bool = False
+    hidden: bool = False
+    clips: list[Clip] = field(default_factory=list)
+
+    @property
+    def duration(self) -> int:
+        return max((clip.end for clip in self.clips), default=0)
+
+    def clip(self, clip_id: str) -> Clip:
+        for item in self.clips:
+            if item.id == clip_id:
+                return item
+        raise UnknownClip(f"No clip {clip_id!r} on track {self.id!r}.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "name": self.name,
+            "locked": self.locked,
+            "muted": self.muted,
+            "hidden": self.hidden,
+            "clips": [clip.to_dict() for clip in self.clips],
+        }
+
+    @staticmethod
+    def from_dict(raw: Mapping[str, Any]) -> "Track":
+        kind = str(raw.get("kind") or "video")
+        if kind not in TRACK_KINDS:
+            raise TimelineError(f"Unknown track kind {kind!r}. Known: {', '.join(TRACK_KINDS)}.")
+        clips = sorted(
+            (Clip.from_dict(item) for item in raw.get("clips") or []),
+            key=lambda item: item.start,
+        )
+        return Track(
+            id=str(raw.get("id") or _new_id("track")),
+            kind=kind,
+            name=str(raw.get("name") or ""),
+            locked=bool(raw.get("locked")),
+            muted=bool(raw.get("muted")),
+            hidden=bool(raw.get("hidden")),
+            clips=clips,
+        )
+
+
+@dataclass
+class Marker:
+    """A named point on the timeline. Notes, beats, where the hook lands."""
+
+    id: str
+    at: int
+    label: str = ""
+    colour: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "at": int(self.at), "label": self.label, "colour": self.colour}
+
+
+@dataclass
+class Project:
+    """The whole document.
+
+    Everything about the video that is not a pixel: the canvas, the tracks, the
+    clips, the markers. Serialises to JSON and back with no loss, because that
+    round trip is what undo, autosave and the browser all rely on.
+    """
+
+    id: str = ""
+    name: str = "Untitled"
+    width: int = 1080
+    height: int = 1920
+    fps: str = "30"
+    background: str = "#000000"
+    tracks: list[Track] = field(default_factory=list)
+    markers: list[Marker] = field(default_factory=list)
+
+    @property
+    def duration(self) -> int:
+        return max((track.duration for track in self.tracks), default=0)
+
+    @property
+    def aspect(self) -> float:
+        return self.width / self.height if self.height else 0.0
+
+    def frame_count(self) -> int:
+        per = ticks_per_frame(self.fps)
+        return int(self.duration // per) if per else 0
+
+    def track(self, track_id: str) -> Track:
+        for item in self.tracks:
+            if item.id == track_id:
+                return item
+        raise UnknownTrack(f"No track {track_id!r} in this project.")
+
+    def find_clip(self, clip_id: str) -> tuple[Track, Clip]:
+        for track in self.tracks:
+            for clip in track.clips:
+                if clip.id == clip_id:
+                    return track, clip
+        raise UnknownClip(f"No clip {clip_id!r} in this project.")
+
+    def asset_ids(self) -> list[str]:
+        """Every asset this project needs, once each, in timeline order."""
+        seen: list[str] = []
+        for clip in sorted(
+            (clip for track in self.tracks for clip in track.clips),
+            key=lambda item: item.start,
+        ):
+            if clip.asset_id and clip.asset_id not in seen:
+                seen.append(clip.asset_id)
+        return seen
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "version": DOCUMENT_VERSION,
+            "id": self.id,
+            "name": self.name,
+            "width": int(self.width),
+            "height": int(self.height),
+            "fps": self.fps,
+            "background": self.background,
+            "duration": self.duration,
+            "tracks": [track.to_dict() for track in self.tracks],
+            "markers": [marker.to_dict() for marker in self.markers],
+        }
+
+    @staticmethod
+    def from_dict(raw: Mapping[str, Any]) -> "Project":
+        version = int(raw.get("version") or DOCUMENT_VERSION)
+        if version > DOCUMENT_VERSION:
+            raise TimelineError(
+                f"This project was written by a newer version of off_CRM "
+                f"(document v{version}, this build reads v{DOCUMENT_VERSION}). "
+                "Opening it would silently drop whatever the newer version added."
+            )
+        fps = str(raw.get("fps") or "30")
+        frame_rate(fps)  # refuse an unknown rate at load, not at export
+        project = Project(
+            id=str(raw.get("id") or ""),
+            name=str(raw.get("name") or "Untitled"),
+            width=max(1, int(raw.get("width") or 1080)),
+            height=max(1, int(raw.get("height") or 1920)),
+            fps=fps,
+            background=str(raw.get("background") or "#000000"),
+            tracks=[Track.from_dict(item) for item in raw.get("tracks") or []],
+            markers=[
+                Marker(
+                    id=str(item.get("id") or _new_id("marker")),
+                    at=int(item.get("at") or 0),
+                    label=str(item.get("label") or ""),
+                    colour=str(item.get("colour") or ""),
+                )
+                for item in raw.get("markers") or []
+            ],
+        )
+        for track in project.tracks:
+            _assert_no_overlap(track)
+        return project
+
+
+# ── canvas presets ──────────────────────────────────────────────────────────
+
+#: The shapes people actually post. Named rather than free-form because the
+#: aspect gate in ``gates.py`` checks the export against the project, and a
+#: project whose size was typed by hand is the case where that check fires for
+#: no reason.
+PRESETS: dict[str, tuple[int, int]] = {
+    "vertical": (1080, 1920),   # Reels, Shorts, TikTok
+    "square": (1080, 1080),     # feed
+    "portrait": (1080, 1350),   # 4:5, the tallest a feed post may be
+    "landscape": (1920, 1080),  # YouTube
+    "wide": (2560, 1080),       # 21:9
+    "classic": (1440, 1080),    # 4:3
+}
+
+
+def new_project(
+    *,
+    name: str = "Untitled",
+    preset: str = "vertical",
+    fps: str = "30",
+    width: int = 0,
+    height: int = 0,
+) -> Project:
+    """A project with one video track and one audio track, which is the minimum
+    that can hold an edit."""
+    if width and height:
+        size = (max(1, int(width)), max(1, int(height)))
+    else:
+        key = str(preset or "vertical").strip().lower()
+        if key not in PRESETS:
+            known = ", ".join(sorted(PRESETS))
+            raise TimelineError(f"Unknown canvas preset {preset!r}. Known: {known}.")
+        size = PRESETS[key]
+    frame_rate(fps)
+    return Project(
+        id=_new_id("vp"),
+        name=str(name or "Untitled").strip()[:200] or "Untitled",
+        width=size[0],
+        height=size[1],
+        fps=fps,
+        tracks=[
+            Track(id=_new_id("track"), kind="video", name="Video 1"),
+            Track(id=_new_id("track"), kind="audio", name="Audio 1"),
+        ],
+    )
+
+
+# ── keyframe resolution ─────────────────────────────────────────────────────
+
+
+def _ease(easing: str, ratio: float) -> float:
+    if easing == "hold":
+        return 0.0
+    if easing == "ease_in":
+        return ratio * ratio
+    if easing == "ease_out":
+        return 1.0 - (1.0 - ratio) * (1.0 - ratio)
+    if easing == "ease_in_out":
+        if ratio < 0.5:
+            return 2.0 * ratio * ratio
+        return 1.0 - 2.0 * (1.0 - ratio) * (1.0 - ratio)
+    return ratio
+
+
+def interpolate(frames: Sequence[Keyframe], offset: int) -> float:
+    """The value of an animated property at ``offset`` ticks into its clip.
+
+    Before the first keyframe the first value holds, and after the last the last
+    one does. Extrapolating instead would send a property somewhere nobody asked
+    for, at the two moments — the head and the tail of a clip — that are most
+    likely to be on screen during a trim.
+
+    The easing on a keyframe governs the segment *leaving* it, which is the
+    convention every editor uses: you set a keyframe and then say how it moves
+    on from there.
+    """
+    if not frames:
+        return 0.0
+    ordered = sorted(frames, key=lambda item: item.at)
+    if offset <= ordered[0].at:
+        return float(ordered[0].value)
+    if offset >= ordered[-1].at:
+        return float(ordered[-1].value)
+    for left, right in zip(ordered, ordered[1:]):
+        if left.at <= offset <= right.at:
+            span = right.at - left.at
+            if span <= 0:
+                return float(right.value)
+            ratio = _ease(left.easing, (offset - left.at) / span)
+            return float(left.value) + (float(right.value) - float(left.value)) * ratio
+    return float(ordered[-1].value)
+
+
+# ── the resolver: what is on screen at one tick ─────────────────────────────
+
+
+@dataclass
+class DrawItem:
+    """One clip, resolved at one instant, ready to be drawn or encoded.
+
+    Nothing here needs the project or the track: a renderer that is handed a
+    list of these has everything it needs and no way to reach back for more,
+    which is what keeps the browser and the exporter from diverging.
+    """
+
+    clip_id: str
+    track_id: str
+    kind: str
+    z: int
+    asset_id: str
+    text: str
+    #: Ticks into the source material. -1 when the clip has no material.
+    source_time: int
+    #: Ticks since the clip started, which is what keyframes are measured in.
+    clip_time: int
+    speed: float
+    #: ``opacity`` with the fades already applied, so a renderer cannot forget.
+    opacity: float
+    #: ``volume`` with the fades already applied, and zero on a muted track.
+    gain: float
+    properties: dict[str, float]
+    style: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "clip_id": self.clip_id,
+            "track_id": self.track_id,
+            "kind": self.kind,
+            "z": self.z,
+            "asset_id": self.asset_id,
+            "text": self.text,
+            "source_time": int(self.source_time),
+            "clip_time": int(self.clip_time),
+            "speed": round(float(self.speed), 6),
+            "opacity": round(float(self.opacity), 6),
+            "gain": round(float(self.gain), 6),
+            "properties": {name: round(float(value), 6) for name, value in sorted(self.properties.items())},
+            "style": dict(self.style),
+        }
+
+
+@dataclass
+class Frame:
+    """Everything visible and audible at one tick, bottom layer first."""
+
+    tick: int
+    items: list[DrawItem] = field(default_factory=list)
+
+    @property
+    def visible(self) -> list[DrawItem]:
+        return [item for item in self.items if item.kind != "audio"]
+
+    @property
+    def audible(self) -> list[DrawItem]:
+        return [item for item in self.items if item.gain > 0.0]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"tick": int(self.tick), "items": [item.to_dict() for item in self.items]}
+
+
+def _fade_factor(clip: Clip, offset: int) -> float:
+    """How far into a fade this instant is, as a multiplier from 0 to 1.
+
+    One fade governs both the picture and the sound of a clip. Separate video
+    and audio fades are a real thing CapCut has, and they are not here yet —
+    but a clip whose picture fades out while its audio stays at full is worse
+    than either, so the single fade is applied to both until there are two.
+    """
+    factor = 1.0
+    if clip.fade_in > 0 and offset < clip.fade_in:
+        factor *= max(0.0, offset / clip.fade_in)
+    tail = clip.duration - clip.fade_out
+    if clip.fade_out > 0 and offset > tail:
+        remaining = clip.duration - offset
+        factor *= max(0.0, remaining / clip.fade_out)
+    return max(0.0, min(1.0, factor))
+
+
+def frame_at(project: Project, tick: int) -> Frame:
+    """What the viewer sees and hears at ``tick``.
+
+    A clip is live when ``start <= tick < end``. The half-open interval is not a
+    detail: a clip ending exactly where the next begins is the ordinary result of
+    a split, and treating both as live at the shared tick would make every cut in
+    every project a one-frame overlap.
+    """
+    moment = max(0, int(tick))
+    items: list[DrawItem] = []
+    for index, track in enumerate(project.tracks):
+        for clip in track.clips:
+            if not (clip.start <= moment < clip.end):
+                continue
+            offset = moment - clip.start
+            resolved = clip.property_at(offset)
+            fade = _fade_factor(clip, offset)
+            has_source = clip.kind in ("video", "audio")
+            source_time = clip.in_point + int(round(offset * clip.speed)) if has_source else -1
+            gain = resolved["volume"] * fade if track.kind == "audio" or clip.kind == "video" else 0.0
+            if track.muted:
+                gain = 0.0
+            # Hiding a track takes away the picture, not the sound. The eye and
+            # the speaker are two controls because a voiceover cut against
+            # footage has to survive the footage being hidden to look at what is
+            # underneath it.
+            visible = 0.0 if track.hidden and track.kind == "video" else 1.0
+            items.append(
+                DrawItem(
+                    clip_id=clip.id,
+                    track_id=track.id,
+                    kind=clip.kind,
+                    z=index,
+                    asset_id=clip.asset_id,
+                    text=clip.text,
+                    source_time=source_time,
+                    clip_time=offset,
+                    speed=clip.speed,
+                    opacity=resolved["opacity"] * (fade if track.kind == "video" else 1.0) * visible,
+                    gain=gain,
+                    properties=resolved,
+                    style=dict(clip.style),
+                )
+            )
+    items.sort(key=lambda item: (item.z, item.clip_id))
+    return Frame(tick=moment, items=items)
+
+
+# ── invariants ──────────────────────────────────────────────────────────────
+
+
+def _assert_no_overlap(track: Track, *, ignore: str = "") -> None:
+    ordered = sorted(
+        (clip for clip in track.clips if clip.id != ignore), key=lambda item: item.start
+    )
+    for left, right in zip(ordered, ordered[1:]):
+        if left.end > right.start:
+            raise ClipOverlap(
+                f"Clips {left.id!r} and {right.id!r} would both occupy track "
+                f"{track.id!r} at tick {right.start}. Move one, or put it on "
+                "another track — a track cannot show two things at once."
+            )
+
+
+def _assert_editable(track: Track) -> None:
+    if track.locked:
+        raise TrackLocked(
+            f"Track {track.name or track.id!r} is locked. Unlock it to edit it."
+        )
+
+
+def _validate_clip(clip: Clip, track: Track) -> None:
+    if clip.kind not in CLIP_KINDS:
+        raise TimelineError(f"Unknown clip kind {clip.kind!r}. Known: {', '.join(CLIP_KINDS)}.")
+    if clip.kind not in TRACK_ACCEPTS[track.kind]:
+        raise TimelineError(
+            f"A {clip.kind} clip cannot go on a {track.kind} track. "
+            f"{track.kind.title()} tracks hold: {', '.join(TRACK_ACCEPTS[track.kind])}."
+        )
+    if clip.start < 0:
+        raise TimelineError("A clip cannot start before the beginning of the timeline.")
+    if clip.duration < MIN_CLIP_TICKS:
+        raise TimelineError(
+            f"A clip must be at least {MIN_CLIP_TICKS} ticks "
+            f"({ticks_to_seconds(MIN_CLIP_TICKS):.3f}s, one frame at 60fps). "
+            f"This one is {clip.duration}."
+        )
+    if not (MIN_SPEED <= clip.speed <= MAX_SPEED):
+        raise TimelineError(f"Speed must be between {MIN_SPEED} and {MAX_SPEED}; got {clip.speed}.")
+    if clip.in_point < 0:
+        raise TimelineError("A clip cannot start reading before the start of its source.")
+    if clip.source_duration > 0:
+        consumed = int(round(clip.duration * clip.speed))
+        if clip.in_point + consumed > clip.source_duration:
+            over = clip.in_point + consumed - clip.source_duration
+            raise TimelineError(
+                f"This clip would read {over} ticks past the end of its source "
+                f"({clip.source_duration} ticks long). Shorten it, slow it down, "
+                "or move its in-point back."
+            )
+    elif clip.kind not in UNBOUNDED_KINDS:
+        raise TimelineError(
+            f"A {clip.kind} clip needs a source_duration — how long the material "
+            "actually is. Without it nothing can stop an edit reading past its end."
+        )
+    if clip.fade_in < 0 or clip.fade_out < 0:
+        raise TimelineError("A fade cannot be negative.")
+    if clip.fade_in + clip.fade_out > clip.duration:
+        raise TimelineError(
+            f"The fades ({clip.fade_in} + {clip.fade_out}) are longer than the clip "
+            f"({clip.duration}), so it would never reach full strength."
+        )

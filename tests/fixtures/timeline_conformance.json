@@ -1,0 +1,1685 @@
+{
+  "document": {
+    "background": "#000000",
+    "duration": 360000,
+    "fps": "30",
+    "height": 1920,
+    "id": "vp_conformance",
+    "markers": [
+      {
+        "at": 90000,
+        "colour": "#ffcc00",
+        "id": "marker_b6578dd2ba28",
+        "label": "cut"
+      }
+    ],
+    "name": "Conformance",
+    "tracks": [
+      {
+        "clips": [
+          {
+            "asset_id": "asset_still",
+            "duration": 90000,
+            "fade_in": 0,
+            "fade_out": 0,
+            "id": "clip_still",
+            "in_point": 0,
+            "keyframes": {
+              "opacity": [
+                {
+                  "at": 0,
+                  "easing": "ease_in",
+                  "value": 0.0
+                },
+                {
+                  "at": 45000,
+                  "easing": "hold",
+                  "value": 1.0
+                },
+                {
+                  "at": 90000,
+                  "easing": "linear",
+                  "value": 1.0
+                }
+              ],
+              "scale": [
+                {
+                  "at": 0,
+                  "easing": "ease_out",
+                  "value": 1.0
+                },
+                {
+                  "at": 90000,
+                  "easing": "linear",
+                  "value": 1.25
+                }
+              ]
+            },
+            "kind": "image",
+            "label": "still",
+            "properties": {},
+            "source_duration": 0,
+            "speed": 1.0,
+            "start": 0,
+            "style": {},
+            "text": ""
+          },
+          {
+            "asset_id": "asset_clip",
+            "duration": 270000,
+            "fade_in": 0,
+            "fade_out": 0,
+            "id": "clip_slow",
+            "in_point": 45000,
+            "keyframes": {},
+            "kind": "video",
+            "label": "slowed",
+            "properties": {
+              "saturation": 0.3
+            },
+            "source_duration": 900000,
+            "speed": 0.5,
+            "start": 90000,
+            "style": {},
+            "text": ""
+          }
+        ],
+        "hidden": false,
+        "id": "track_base",
+        "kind": "video",
+        "locked": false,
+        "muted": false,
+        "name": "Base"
+      },
+      {
+        "clips": [
+          {
+            "asset_id": "asset_music",
+            "duration": 360000,
+            "fade_in": 45000,
+            "fade_out": 45000,
+            "id": "clip_music",
+            "in_point": 0,
+            "keyframes": {
+              "volume": [
+                {
+                  "at": 90000,
+                  "easing": "ease_out",
+                  "value": 0.4
+                },
+                {
+                  "at": 270000,
+                  "easing": "linear",
+                  "value": 1.0
+                }
+              ]
+            },
+            "kind": "audio",
+            "label": "",
+            "properties": {},
+            "source_duration": 600000,
+            "speed": 1.0,
+            "start": 0,
+            "style": {},
+            "text": ""
+          }
+        ],
+        "hidden": false,
+        "id": "track_audio",
+        "kind": "audio",
+        "locked": false,
+        "muted": false,
+        "name": "Audio"
+      },
+      {
+        "clips": [
+          {
+            "asset_id": "",
+            "duration": 135000,
+            "fade_in": 0,
+            "fade_out": 0,
+            "id": "clip_text",
+            "in_point": 0,
+            "keyframes": {
+              "rotation": [
+                {
+                  "at": 0,
+                  "easing": "ease_in",
+                  "value": 0.0
+                },
+                {
+                  "at": 135000,
+                  "easing": "linear",
+                  "value": 15.0
+                }
+              ],
+              "x": [
+                {
+                  "at": 0,
+                  "easing": "ease_in_out",
+                  "value": -200.0
+                },
+                {
+                  "at": 135000,
+                  "easing": "linear",
+                  "value": 200.0
+                }
+              ]
+            },
+            "kind": "text",
+            "label": "",
+            "properties": {},
+            "source_duration": 0,
+            "speed": 1.0,
+            "start": 180000,
+            "style": {
+              "colour": "#ffffff",
+              "font": "Inter",
+              "size": 72,
+              "stroke": 4
+            },
+            "text": "Conformance"
+          }
+        ],
+        "hidden": false,
+        "id": "track_overlay",
+        "kind": "video",
+        "locked": false,
+        "muted": false,
+        "name": "Overlay"
+      },
+      {
+        "clips": [
+          {
+            "asset_id": "",
+            "duration": 360000,
+            "fade_in": 0,
+            "fade_out": 0,
+            "id": "clip_hidden",
+            "in_point": 0,
+            "keyframes": {},
+            "kind": "solid",
+            "label": "",
+            "properties": {},
+            "source_duration": 0,
+            "speed": 1.0,
+            "start": 0,
+            "style": {
+              "colour": "#ff0055"
+            },
+            "text": ""
+          }
+        ],
+        "hidden": true,
+        "id": "track_hidden",
+        "kind": "video",
+        "locked": false,
+        "muted": false,
+        "name": "Hidden"
+      }
+    ],
+    "version": 1,
+    "width": 1080
+  },
+  "frames": [
+    {
+      "items": [
+        {
+          "asset_id": "asset_still",
+          "clip_id": "clip_still",
+          "clip_time": 0,
+          "gain": 0.0,
+          "kind": "image",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 0.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 0,
+          "gain": 0.0,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 0,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 0,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 0
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_still",
+          "clip_id": "clip_still",
+          "clip_time": 1,
+          "gain": 0.0,
+          "kind": "image",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 0.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.000006,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 1,
+          "gain": 9e-06,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 1,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 1
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_still",
+          "clip_id": "clip_still",
+          "clip_time": 22500,
+          "gain": 0.0,
+          "kind": "image",
+          "opacity": 0.25,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 0.25,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.109375,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 22500,
+          "gain": 0.2,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 22500,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 22500,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 22500
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_still",
+          "clip_id": "clip_still",
+          "clip_time": 45000,
+          "gain": 0.0,
+          "kind": "image",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.1875,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 45000,
+          "gain": 0.4,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 45000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 45000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 45000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_still",
+          "clip_id": "clip_still",
+          "clip_time": 89999,
+          "gain": 0.0,
+          "kind": "image",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.25,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 89999,
+          "gain": 0.4,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 89999,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 89999,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 89999
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 0,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 45000,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 90000,
+          "gain": 0.4,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.4,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 90000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 90000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 90000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 1,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 45000,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 90001,
+          "gain": 0.400007,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.400007,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 90001,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 90001,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 90001
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 45000,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 67500,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 135000,
+          "gain": 0.6625,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.6625,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 135000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 135000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 135000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 90000,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 90000,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 180000,
+          "gain": 0.85,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.85,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 180000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_text",
+          "clip_time": 0,
+          "gain": 0.0,
+          "kind": "text",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": -200.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ffffff",
+            "font": "Inter",
+            "size": 72,
+            "stroke": 4
+          },
+          "text": "Conformance",
+          "track_id": "track_overlay",
+          "z": 2
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 180000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 180000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 135000,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 112500,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 225000,
+          "gain": 0.9625,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 0.9625,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 225000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_text",
+          "clip_time": 45000,
+          "gain": 0.0,
+          "kind": "text",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 1.666667,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": -111.111111,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ffffff",
+            "font": "Inter",
+            "size": 72,
+            "stroke": 4
+          },
+          "text": "Conformance",
+          "track_id": "track_overlay",
+          "z": 2
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 225000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 225000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 180000,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 135000,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 270000,
+          "gain": 1.0,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 270000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_text",
+          "clip_time": 90000,
+          "gain": 0.0,
+          "kind": "text",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 6.666667,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 111.111111,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ffffff",
+            "font": "Inter",
+            "size": 72,
+            "stroke": 4
+          },
+          "text": "Conformance",
+          "track_id": "track_overlay",
+          "z": 2
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 270000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 270000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 225000,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 157500,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 315000,
+          "gain": 1.0,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 315000,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 315000,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 315000
+    },
+    {
+      "items": [
+        {
+          "asset_id": "asset_clip",
+          "clip_id": "clip_slow",
+          "clip_time": 269999,
+          "gain": 1.0,
+          "kind": "video",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.3,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 180000,
+          "speed": 0.5,
+          "style": {},
+          "text": "",
+          "track_id": "track_base",
+          "z": 0
+        },
+        {
+          "asset_id": "asset_music",
+          "clip_id": "clip_music",
+          "clip_time": 359999,
+          "gain": 2.2e-05,
+          "kind": "audio",
+          "opacity": 1.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": 359999,
+          "speed": 1.0,
+          "style": {},
+          "text": "",
+          "track_id": "track_audio",
+          "z": 1
+        },
+        {
+          "asset_id": "",
+          "clip_id": "clip_hidden",
+          "clip_time": 359999,
+          "gain": 0.0,
+          "kind": "solid",
+          "opacity": 0.0,
+          "properties": {
+            "anchor_x": 0.5,
+            "anchor_y": 0.5,
+            "blur": 0.0,
+            "brightness": 0.0,
+            "contrast": 0.0,
+            "crop_bottom": 0.0,
+            "crop_left": 0.0,
+            "crop_right": 0.0,
+            "crop_top": 0.0,
+            "opacity": 1.0,
+            "rotation": 0.0,
+            "saturation": 0.0,
+            "scale": 1.0,
+            "volume": 1.0,
+            "x": 0.0,
+            "y": 0.0
+          },
+          "source_time": -1,
+          "speed": 1.0,
+          "style": {
+            "colour": "#ff0055"
+          },
+          "text": "",
+          "track_id": "track_hidden",
+          "z": 3
+        }
+      ],
+      "tick": 359999
+    },
+    {
+      "items": [],
+      "tick": 360000
+    },
+    {
+      "items": [],
+      "tick": 450000
+    }
+  ],
+  "ticks_per_second": 90000
+}

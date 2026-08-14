@@ -7,10 +7,17 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-10
+Last updated: 2026-08-14
 Branch: `main`
-Tests: **809 Python passed, 0 failed**, 1 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 6 frontend passed, frontend build clean.
+Tests: **898 Python passed, 0 failed**, 3 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 16 frontend passed, frontend build clean.
+
+The video editor is built: `offsetx_apollo_builder/video/` plus
+`frontend/src/video/` and the **Video editor** screen. Read
+`docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
+two implementations of one rule and a conformance fixture holding them together.
+`docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
+from, and says plainly which rows are still absent.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -86,6 +93,13 @@ offsetx_apollo_builder/imagery/     ← the image campaign runner
 ├── gates.py      deterministic quality gates; header parsing, no image library
 ├── store.py      briefs, candidate assets, generator scores
 └── engine.py     generate -> gate -> review queue -> swipe -> score
+
+offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
+├── timeline.py   the document, its invariants, and the frame resolver
+├── edits.py      every edit as a pure function; a default-deny registry
+├── gates.py      MP4 + WebM header parsing; gates on the exported file
+├── store.py      projects, full version history (undo), renders
+└── engine.py     create -> edit -> undo -> manifest -> render -> gate
 
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
@@ -709,6 +723,70 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Video editor — timeline core and browser render (2026-08-14)
+- [x] `offsetx_apollo_builder/video/` + `frontend/src/video/` + the **Video
+      editor** screen. Docs: `docs/architecture/VIDEO_EDITOR.md`; the feature
+      inventory it was cut from is `docs/architecture/CAPCUT_FEATURE_MAP.md`.
+- [x] **The server owns the document; the browser draws it.** Every edit is a
+      named operation, validated server-side, returned as a new document. One
+      round trip per edit, and one place that decides whether an edit is legal —
+      the same place that checks the exported file.
+- [x] **Time is an integer at 90kHz**, the MPEG timebase, because it is the
+      smallest rate whose frames are whole numbers at 24/25/29.97/30/50/60. A
+      split at frame 100 is the same integer however many times the project is
+      saved and re-split. An unlisted frame rate is refused, not rounded.
+- [x] **Clips on a track cannot overlap.** Made unrepresentable rather than
+      handled: an overlap means the renderer picks one, and which one it picks
+      can differ between the preview and the export — the worst bug class an
+      editor has.
+- [x] **Every edit copies before it changes anything**, through
+      `to_dict`/`from_dict`. A refused edit cannot half-apply and does not
+      consume a step of undo.
+- [x] **A split is transparent.** Both halves carry a synthesised keyframe at
+      the cut, so the resolved animation is identical either side of it. A test
+      resolves every tick across a split and asserts the two lists are equal.
+      Trimming the head moves keyframes with the material for the same reason.
+- [x] **Two resolvers, one fixture.** The browser must resolve keyframes itself
+      — a preview cannot make a request per frame — so `timeline.py` and
+      `resolve.ts` implement one rule twice.
+      `tests/fixtures/timeline_conformance.json` holds a deliberately awkward
+      document and the frame Python resolves at fifteen *chosen* ticks (the tick
+      before a cut, the cut, the tick after, one past the end). Both suites
+      assert against it. It forced `roundHalfToEven` in TypeScript, because
+      Python breaks rounding ties to even and JavaScript breaks them upward.
+- [x] **WebCodecs, and deliberately no MediaRecorder fallback.** MediaRecorder
+      records in real time, drops frames silently, and writes no Duration —
+      which would make the export gate unable to do its job. A fallback whose
+      output cannot be verified is a quieter failure, so an old browser is told
+      what it needs instead.
+- [x] **A WebM muxer written by hand** (`frontend/src/video/webm.ts`), the same
+      call `imagery/gates.py` made about Pillow. It buys an exact Duration
+      written from the timeline that produced it.
+- [x] **MP4 and WebM headers parsed by hand** (`video/gates.py`). Handles the
+      display matrix (a phone records sideways) and version-1 64-bit boxes — a
+      test caught a twelve-byte offset error in the latter during the build.
+- [x] Gates: decodes, not_empty, readable_header, has_video_track, aspect_ratio,
+      duration_matches, not_duplicate — checked against the project the file
+      claims to be a render of. A failing render is **stored anyway** with its
+      report: a gate result nobody can check the file against is an assertion,
+      not evidence.
+- [x] **Undo is a pointer move over stored history**, so there is no "unsplit"
+      reconstructing what a split destroyed, and it survives a reload. Editing
+      after an undo drops the abandoned branch. Capped at 300 versions.
+- [x] Verified outside this project, not only by unit tests: the committed
+      `muxed_sample.webm` is written by the TypeScript muxer and parsed by the
+      Python gates in CI; ffmpeg reads it as `matroska,webm 1080x1920 3.00s vp9`;
+      a real headless Chromium export passes the gates; and frame 0 of that
+      export decodes to a blue rectangle of exactly 432x768 at (324, 576) —
+      precisely scale 0.4 of a 1080x1920 canvas, measured rather than eyeballed.
+- [x] Owned by the **image** campaign, whose registry entry always named video
+      as what it was missing. `missing` is narrowed rather than cleared.
+- Not built, and said plainly in the docs: **no AI feature is wired** (captions,
+  cutout, reframe, text-to-video — every M row in the feature map); nothing
+  generates video or audio material yet; no transitions (a dissolve is an
+  overlap, which the invariant forbids — it needs a real transition object);
+  the export holds the whole file in memory.
 
 ### Trend to post (2026-08-10)
 - [x] `distribution/pipeline.py` — the piece that joins the three campaign

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "fixtures": "node scripts/build-webm-fixture.mjs"
   },
   "dependencies": {
     "react": "19.2.7",

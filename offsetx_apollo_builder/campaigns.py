@@ -145,12 +145,15 @@ KINDS: dict[str, CampaignKindSpec] = {
         ),
         missing=(
             # Kept although implemented, because it is the honest answer to "can
-            # I do everything I described?". Video is not here: the gates read
-            # image headers, and a video needs duration, frame rate and audio
-            # checks that are a different piece of work. Publishing is the
-            # distribution campaign's job.
-            "video (the gates read image headers), and publishing — an approved "
-            "picture is an asset, and posting it is the distribution campaign."
+            # I do everything I described?". The timeline editor and the video
+            # gates now exist (see docs/architecture/VIDEO_EDITOR.md), so what
+            # remains is narrower than it was: nothing *generates* video, and
+            # none of the AI editing features are wired. Publishing was always
+            # the distribution campaign's job.
+            "generated video — the editor cuts stills into a video and the gates "
+            "read MP4 and WebM, but no generator produces footage or audio yet. "
+            "Also missing: every AI editing feature (captions, cutout, reframe), "
+            "and publishing, which is the distribution campaign."
         ),
     ),
     "distribution": CampaignKindSpec(

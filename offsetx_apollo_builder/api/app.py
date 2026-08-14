@@ -27,6 +27,10 @@ from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
+from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
+from ..video.engine import VideoEditorEngine
+from ..video.store import VideoStore
+from ..video.timeline import FRAME_RATES, PRESETS as CANVAS_PRESETS, TICKS_PER_SECOND
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
@@ -306,6 +310,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolved.data_dir / "distribution.db",
             outbox_dir=resolved.data_dir / "post_outbox",
         )
+        app.state.video_store = VideoStore(
+            resolved.data_dir / "video.db",
+            renders_dir=resolved.data_dir / "video_renders",
+        )
         app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
@@ -333,6 +341,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.ai_egress_log.close()
             app.state.image_store.close()
             app.state.distribution_store.close()
+            app.state.video_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
 
@@ -889,6 +898,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         engine = _imagery(request)
         return {"items": engine.review_queue(campaign_id)}
 
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-assets")
+    def list_image_assets(
+        campaign_id: str,
+        request: Request,
+        status: str = Query("approved", max_length=20),
+        limit: int = Query(100, ge=1, le=500),
+    ) -> dict[str, Any]:
+        """Pictures by status — the kept ones, by default.
+
+        The review queue answers "what still needs a verdict". This answers
+        "what survived one", which is what the video editor puts on a timeline.
+        """
+        engine = _imagery(request)
+        engine._require_own_kind(campaign_id, "listing pictures")
+        return {"items": engine.store.list_assets(campaign_id, status=status, limit=limit)}
+
     @app.get(f"{API_PREFIX}/image-assets/{{asset_id}}/file")
     def image_asset_file(asset_id: str, request: Request):
         """The picture itself.
@@ -928,6 +953,163 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-summary")
     def image_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _imagery(request).summary(campaign_id)
+
+    # ── the video editor ────────────────────────────────────────────────────
+
+    def _video(request: Request) -> VideoEditorEngine:
+        """The timeline runner.
+
+        No broker: nothing here calls a model. Editing is arithmetic on a
+        document, and the AI features that will sit on top of it — captions,
+        cutout, reframe — each go through the broker on their own terms when
+        they exist. Wiring one in now would be a dependency with no caller.
+        """
+        state = request.app.state
+        return VideoEditorEngine(
+            store=state.video_store,
+            campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
+            asset_reader=state.image_store.get_asset,
+            workspace_id=_workspace_id(request),
+        )
+
+    @app.get(f"{API_PREFIX}/video/presets")
+    def video_presets() -> dict[str, Any]:
+        """The canvas shapes and frame rates a project may declare."""
+        return {
+            "ticks_per_second": TICKS_PER_SECOND,
+            "presets": [
+                {"id": name, "width": size[0], "height": size[1]}
+                for name, size in sorted(CANVAS_PRESETS.items())
+            ],
+            "frame_rates": sorted(FRAME_RATES),
+            "operations": sorted(VIDEO_OPERATIONS),
+        }
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects", status_code=201)
+    def create_video_project(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _video(request).create_project(
+            campaign_id,
+            name=str(body.get("name") or "Untitled"),
+            preset=str(body.get("preset") or "vertical"),
+            fps=str(body.get("fps") or "30"),
+            width=int(body.get("width") or 0),
+            height=int(body.get("height") or 0),
+        ).to_dict()
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects")
+    def list_video_projects(campaign_id: str, request: Request) -> dict[str, Any]:
+        return {"items": _video(request).list_projects(campaign_id)}
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-summary")
+    def video_summary(campaign_id: str, request: Request) -> dict[str, Any]:
+        return _video(request).summary(campaign_id)
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}")
+    def get_video_project(project_id: str, request: Request) -> dict[str, Any]:
+        return _video(request).open_project(project_id).to_dict()
+
+    @app.delete(f"{API_PREFIX}/video-projects/{{project_id}}")
+    def delete_video_project(project_id: str, request: Request) -> dict[str, str]:
+        _video(request).delete_project(project_id)
+        return {"status": "deleted"}
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/edit")
+    def edit_video_project(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """One edit, or several stored as one step of undo.
+
+        A drag produces a stream of moves and undo should return to where the
+        drag began, not to the middle of it — so the batch form exists and is
+        the one the timeline UI uses.
+        """
+        engine = _video(request)
+        operations = body.get("operations")
+        if isinstance(operations, list) and operations:
+            return engine.batch(project_id, operations).to_dict()
+        return engine.edit(
+            project_id,
+            str(body.get("op") or body.get("operation") or ""),
+            body.get("params") or {},
+        ).to_dict()
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/undo")
+    def undo_video_project(project_id: str, request: Request) -> dict[str, Any]:
+        try:
+            return _video(request).undo(project_id).to_dict()
+        except LookupError as exc:
+            raise HTTPException(409, detail={"error": "nothing_to_undo", "message": str(exc)})
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/redo")
+    def redo_video_project(project_id: str, request: Request) -> dict[str, Any]:
+        try:
+            return _video(request).redo(project_id).to_dict()
+        except LookupError as exc:
+            raise HTTPException(409, detail={"error": "nothing_to_redo", "message": str(exc)})
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/history")
+    def video_project_history(
+        project_id: str, request: Request, limit: int = Query(50, ge=1, le=300)
+    ) -> dict[str, Any]:
+        return {"items": _video(request).history(project_id, limit=limit)}
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/manifest")
+    def video_project_manifest(project_id: str, request: Request) -> dict[str, Any]:
+        """What the browser needs to draw this project, and what is wrong with it."""
+        return _video(request).manifest(project_id)
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/frame")
+    def video_project_frame(
+        project_id: str, request: Request, tick: int = Query(0, ge=0)
+    ) -> dict[str, Any]:
+        """The server's answer for one instant.
+
+        The browser resolves frames itself for playback; this exists so the two
+        can be compared, by a person or by a test, without reading either
+        implementation.
+        """
+        return _video(request).frame(project_id, tick)
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/place-asset")
+    def place_video_asset(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Put a generated picture on the timeline."""
+        return _video(request).place_asset(
+            project_id,
+            asset_id=str(body.get("asset_id") or ""),
+            track_id=str(body.get("track_id") or ""),
+            start=int(body.get("start", -1)),
+            duration=int(body.get("duration") or 0),
+        ).to_dict()
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/renders", status_code=201)
+    async def upload_video_render(
+        project_id: str,
+        request: Request,
+        file: UploadFile = File(...),
+        renderer: str = Form(""),
+    ) -> dict[str, Any]:
+        """The exported file, on its way back from the browser.
+
+        Multipart rather than base64: an export is tens of megabytes and base64
+        costs a third more for nothing. The gates run here, against the project
+        the file claims to be a render of, because a check the browser runs on
+        its own output is a check that cannot fail.
+        """
+        payload = await file.read()
+        return _video(request).store_render(project_id, payload, renderer=renderer)
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/renders")
+    def list_video_renders(project_id: str, request: Request) -> dict[str, Any]:
+        return {"items": _video(request).renders(project_id)}
+
+    @app.get(f"{API_PREFIX}/video-renders/{{render_id}}/file")
+    def video_render_file(render_id: str, request: Request):
+        """The exported video itself, served from disk."""
+        render = request.app.state.video_store.get_render(render_id)
+        path = Path(str(render.get("path") or ""))
+        if not path.exists():
+            raise HTTPException(
+                404, detail={"error": "gone", "message": "This render is no longer on disk."}
+            )
+        return FileResponse(path, media_type=str(render.get("media_type") or "video/webm"))
 
     def _distribution(request: Request) -> DistributionEngine:
         state = request.app.state

@@ -813,3 +813,67 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .image-review { max-width: 720px; }
 .image-review-canvas { display: block; width: 100%; height: auto; margin: 16px 0; border-radius: 8px; background: #f4f6f9; }
 .image-review .card-actions { justify-content: space-between; }
+
+/* Video editor ------------------------------------------------------------
+   A timeline is a spatial instrument: the width of a clip is its length, and
+   its left edge is when it starts. Everything below exists to keep those two
+   facts literal, so a glance at the timeline is a reading of the edit. */
+.veditor { display: flex; flex-direction: column; gap: 18px; }
+.veditor-note { margin: 0; border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 8px; padding: 10px 13px; color: var(--muted); background: var(--blue-soft); font-size: .8rem; }
+.veditor-warning { border-left-color: var(--orange); background: var(--orange-soft); color: #8c5312; }
+.veditor-stage { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.veditor-preview { border: 1px solid var(--border); border-radius: 13px; padding: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.veditor-preview canvas { display: block; width: 100%; max-height: 52vh; margin: 0 auto; border-radius: 9px; background: #05070d; object-fit: contain; }
+.veditor-transport { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.veditor-timecode { color: var(--muted); font-family: ui-monospace, SFMono-Regular, monospace; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.veditor-inspector { display: flex; flex-direction: column; gap: 14px; }
+.veditor-zoom { display: flex; gap: 6px; }
+.veditor-tracks-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.vtimeline { position: relative; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border); border-radius: 10px; background: #f7f9fc; }
+.vtimeline-inner { position: relative; padding: 10px 0; }
+.vplayhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); pointer-events: none; z-index: 4; }
+.vmarker { position: absolute; top: 0; width: 2px; height: 10px; z-index: 3; }
+.vtrack { position: relative; display: flex; align-items: stretch; border-top: 1px solid #e7ecf4; }
+.vtrack:first-of-type { border-top: 0; }
+.vtrack-head { position: sticky; left: 0; z-index: 5; flex: 0 0 120px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 10px; border-right: 1px solid var(--border); background: white; }
+.vtrack-head strong { font-size: .72rem; }
+.vtrack-head div { display: flex; gap: 4px; }
+.vtrack-head button { width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--muted); font-size: .66rem; line-height: 1; }
+.vtrack-head button:hover { border-color: var(--blue); color: var(--blue); }
+.vtrack-lane { position: relative; flex: 1 1 auto; }
+
+.vclip { position: absolute; top: 6px; bottom: 6px; display: flex; align-items: center; overflow: hidden; border: 1px solid rgba(11,19,36,.14); border-radius: 7px; background: var(--blue-soft); cursor: grab; user-select: none; touch-action: none; }
+.vclip:active { cursor: grabbing; }
+.vclip-selected { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(38,103,255,.28); }
+.vclip-image { background: var(--blue-soft); }
+.vclip-video { background: var(--violet-soft); }
+.vclip-text { background: var(--orange-soft); }
+.vclip-solid { background: #e8ecf3; }
+.vclip-audio { background: var(--green-soft); }
+.vclip-label { overflow: hidden; padding: 0 10px; color: #34445e; font-size: .7rem; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+.vclip-handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(11,19,36,.07); }
+.vclip-head { left: 0; }
+.vclip-tail { right: 0; }
+.vclip-handle:hover { background: var(--blue); }
+
+.vproject-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.vproject-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; border: 1px solid var(--border); border-radius: 11px; padding: 15px; background: white; text-align: left; }
+.vproject-list button:hover { border-color: var(--blue); }
+.vproject-list span { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+
+.vasset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.vasset-grid button { display: block; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; padding: 0; background: #f4f6f9; }
+.vasset-grid button:hover { border-color: var(--blue); }
+.vasset-grid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+.vinspector-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.vinspector-row { margin-bottom: 10px; }
+.vinspector-empty { margin: 12px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.55; }
+.vinspector-field { display: grid; gap: 4px; margin: 10px 0; }
+.vinspector-field > span { color: var(--muted); font-size: .7rem; font-weight: 650; }
+.vinspector-field textarea { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: .8rem; resize: vertical; }
+.vinspector-field input[type="range"] { width: 100%; accent-color: var(--blue); }
+
+@media (max-width: 1100px) {
+  .veditor-stage { grid-template-columns: minmax(0, 1fr); }
+}

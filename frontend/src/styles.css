@@ -890,3 +890,18 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .vmedia-list button:hover { border-color: var(--blue); }
 .vmedia-list strong { font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vmedia-list span { color: var(--muted); font-size: .7rem; font-variant-numeric: tabular-nums; }
+
+/* Video section on the command centre --------------------------------------- */
+.video-section { margin-bottom: 20px; }
+.video-figures { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 16px; }
+.video-figures span { display: flex; flex-direction: column; gap: 2px; }
+.video-figures strong { font-size: 1.6rem; font-weight: 800; letter-spacing: -.03em; color: #1c2c47; }
+.video-figures small { color: var(--muted); font-size: .72rem; }
+.video-figure-warn strong { color: var(--orange); }
+.video-project-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+.video-project-rows button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: white; text-align: left; }
+.video-project-rows button:hover { border-color: var(--blue); }
+.video-project-main { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.video-project-main strong { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-project-main small { color: var(--muted); font-size: .7rem; }
+.video-project-length { color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; }

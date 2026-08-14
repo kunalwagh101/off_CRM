@@ -9,17 +9,20 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **943 Python passed, 0 failed**, 3 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 16 frontend passed, frontend build clean.
+Tests: **948 Python passed, 0 failed**, 3 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 20 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and says plainly which rows are still absent. Auto-captions is the first
-of those rows wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section
-on audio before adding any other feature that sends bytes rather than text.
+from, and it now carries a **status column and a scoreboard**: 29 of its 158
+rows built, 17 partly, 31% of the reachable rows touched.
+`tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
+summary cannot drift from what it summarises. Auto-captions is the first AI row
+wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
+before adding any other feature that sends bytes rather than text.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from

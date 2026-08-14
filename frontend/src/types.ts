@@ -459,6 +459,26 @@ export type DashboardStats = {
   reply_rate: number;
 };
 
+export type VideoSummary = {
+  campaign_id: string;
+  projects: number;
+  total_duration_seconds: number;
+  renders: number;
+  renders_passed: number;
+  renders_failed: number;
+};
+
+export type VideoProjectRow = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  fps: string;
+  duration_ticks: number;
+  version: number;
+  updated_at: string;
+};
+
 export type SettingsStatus = {
   storage: string;
   database_path: string;

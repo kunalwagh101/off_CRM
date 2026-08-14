@@ -4,6 +4,7 @@ import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
 import type { DashboardStats } from "../types";
 import { Loadable, statusTone } from "./shared";
+import VideoSection from "./VideoSection";
 
 export default function Dashboard() {
   const { campaigns, selectCampaign } = useApp();
@@ -34,7 +35,8 @@ export default function Dashboard() {
             { key: "campaigns", label: "Draft", detail: "AI writes, you own the words", hash: "campaigns" },
             { key: "drafts", label: "Approve", detail: `${stats.data.pending_review} waiting for you`, hash: "drafts", attention: stats.data.pending_review > 0 },
             { key: "queue", label: "Send", detail: `${stats.data.due_now} due now`, hash: "queue" },
-            { key: "sales", label: "Track replies", detail: `${stats.data.replies} replies · follow-ups stop on reply`, hash: "sales" }
+            { key: "sales", label: "Track replies", detail: `${stats.data.replies} replies · follow-ups stop on reply`, hash: "sales" },
+            { key: "video", label: "Cut video", detail: "Timeline, captions, export", hash: "videoeditor" }
           ].map((step, index) => (
             <li key={step.key}>
               <button
@@ -50,6 +52,7 @@ export default function Dashboard() {
           ))}
         </ol>
       </Panel>
+      <VideoSection />
       <div className="dashboard-grid">
         <Panel title="Campaign pulse" subtitle="Most recently updated workspaces">
           {campaigns.length ? (

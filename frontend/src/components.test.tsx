@@ -5,6 +5,8 @@ import { LoginScreen } from "./App";
 import { AppContext } from "./context";
 import { stageLabel } from "./hooks";
 import SalesTracker, { formatSalesMoney } from "./pages/SalesTracker";
+import VideoSection from "./pages/VideoSection";
+import { formatTimecode, ticksPerFrame } from "./video/document";
 
 describe("shared production UI", () => {
   it("renders accessible campaign summary components", () => {
@@ -92,5 +94,51 @@ describe("v0.12 additions", () => {
     );
     expect(html).toContain("Notion sync");
     expect(html).toContain("source of truth");
+  });
+});
+
+describe("the video section on the command centre", () => {
+  const context = (kind: string) => ({
+    campaigns: [],
+    campaignId: "c1",
+    activeCampaign: { id: "c1", name: "Launch", kind } as never,
+    selectCampaign: () => {},
+    refreshCampaigns: () => {},
+    notify: () => {}
+  });
+
+  it("points an email campaign at where video actually lives", () => {
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context("email") as never}>
+        <VideoSection />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Video lives in image campaigns");
+    expect(html).toContain("Switch campaign");
+    // No figures for a campaign that cannot hold a timeline.
+    expect(html).not.toContain("timelines");
+  });
+
+  it("offers the editor and says captions are a draft", () => {
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context("image") as never}>
+        <VideoSection />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Open editor");
+    expect(html).toContain("timelines");
+    expect(html).toContain("A transcript is a guess");
+  });
+});
+
+describe("timeline units on the dashboard", () => {
+  it("reads a length the way a person would", () => {
+    expect(formatTimecode(0)).toBe("0:00.00");
+    expect(formatTimecode(90_000 * 75)).toBe("1:15.00");
+  });
+
+  it("keeps every offered frame rate exact", () => {
+    expect(ticksPerFrame("30")).toBe(3000);
+    expect(ticksPerFrame("60")).toBe(1500);
   });
 });

@@ -311,8 +311,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolved.data_dir / "distribution.db",
             outbox_dir=resolved.data_dir / "post_outbox",
         )
+        # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
+        # can move timelines onto Postgres. On a host whose filesystem does not
+        # survive a restart — Render's free plan writes to /tmp — an edit
+        # history in SQLite is an hour of work that disappears when the instance
+        # sleeps. The rendered files still need a real disk; the *document* does
+        # not, and it is the part that took the work.
         app.state.video_store = VideoStore(
-            resolved.data_dir / "video.db",
+            resolve_database_target(default=resolved.data_dir / "video.db"),
             renders_dir=resolved.data_dir / "video_renders",
         )
         app.state.trends_path = resolved.data_dir / "trends.db"

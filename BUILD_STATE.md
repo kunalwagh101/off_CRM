@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **948 Python passed, 0 failed**, 3 skipped (live Docker egress test;
+Tests: **957 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 20 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -729,6 +729,27 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Video projects on Postgres (2026-08-14)
+- [x] `VideoStore` is opened through `resolve_target`, the same seam the egress
+      log uses: explicit target, then `OFFSETX_DATABASE_URL`, then the local
+      file. One variable moves timelines off a disposable disk.
+- [x] The reason is not tidiness. `render.yaml` writes to `/tmp` on the free
+      plan, and an instance that sleeps comes back empty — an hour of editing
+      disappearing at that point is the work, not a storage detail.
+- [x] **What it does not fix, stated rather than implied:** renders, uploaded
+      recordings and generated pictures are bytes on a disk. The document is the
+      part that took the work and the part that moves; files still need a real
+      disk or object storage.
+- [x] `tests/test_video_postgres.py` — 17 tests over **both backends**: schema
+      creation, a whole edit session surviving a cold reopen with its undo
+      history, undo/redo after a reopen, media and transcripts, the
+      `ON CONFLICT ... DO UPDATE` upsert, the hash uniqueness that stops paying
+      twice for one recording, and history trimming. Run against a real
+      Postgres 16, not asserted.
+- [x] A structural test parses `api/app.py` and fails if `VideoStore` is ever
+      handed a bare path again — that mistake shows up only as work quietly lost
+      on the next restart.
 
 ### Auto-captions (2026-08-14)
 - [x] `video/captions.py`, `broker.call_transcript`, `OpenAITranscriptionProvider`,

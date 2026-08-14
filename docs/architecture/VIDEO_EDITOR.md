@@ -218,6 +218,23 @@ Its own database, like the image and distribution runners.
 | `video_history` | every version there has ever been |
 | `video_renders` | the exported file: path, hash, gates, which version it came from |
 
+**Timelines can live in Postgres.** The store goes through the same seam the
+egress log uses — an explicit target wins, then `OFFSETX_DATABASE_URL`, then the
+local file — so a deployment sets one variable and nothing else changes. That
+matters on a host whose filesystem does not survive a restart: Render's free
+plan writes to `/tmp`, and an instance that sleeps comes back empty. An hour of
+editing is not a storage detail.
+
+What this deliberately does **not** fix: renders, uploaded recordings and
+generated pictures are bytes on a disk. A database does not hold them, and
+pretending otherwise would be worse than the gap. The document — the timeline,
+its history, its transcripts — is the part that took the work, and it is the
+part that moves. Files still need a real disk or object storage.
+
+`tests/test_video_postgres.py` runs the whole edit session, undo, media and
+transcripts against **both backends**, and asserts structurally that the API
+never hands the store a bare path.
+
 **Undo is a pointer move, not an inverse operation.** There is no "unsplit" that
 has to reconstruct what a split destroyed, because the document from before the
 split is still there. It survives a reload, so closing the tab does not throw

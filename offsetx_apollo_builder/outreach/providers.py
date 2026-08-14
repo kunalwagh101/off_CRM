@@ -575,6 +575,96 @@ class OpenAIImageProvider(_HttpProvider):
         return images
 
 
+class OpenAITranscriptionProvider(_HttpProvider):
+    """Speech to text over the OpenAI-compatible ``/audio/transcriptions`` endpoint.
+
+    OpenAI and Groq expose the same shape, so one adapter covers both: audio in
+    as multipart, words with timings out.
+
+    Deliberately **not** an ``AIProvider``, for the same reason
+    :class:`OpenAIImageProvider` is not: it consumes bytes rather than a prompt,
+    and a caller expecting a sentence must never silently receive a transcript.
+
+    Word-level timings are requested rather than segment-level. A segment is a
+    sentence, and a caption timed to a sentence sits on screen for its whole
+    length — which is exactly how you get a wall of text that appears all at
+    once. The caption builder needs to know when each *word* was said.
+    """
+
+    def transcribe(
+        self,
+        *,
+        audio: bytes,
+        filename: str = "audio.webm",
+        media_type: str = "audio/webm",
+        language: str = "",
+        prompt: str = "",
+    ) -> dict[str, Any]:
+        if not self.config.base_url:
+            raise ProviderError("Transcription requires base_url")
+        base_url = _validate_http_url(self.config.base_url, allow_local=False)
+        if not audio:
+            raise ProviderError("Transcription was given no audio")
+
+        fields: list[tuple[str, str]] = [
+            ("model", self.config.model),
+            # verbose_json is the only response format that carries timings at
+            # all. Without it the answer is a wall of text with no way to place
+            # any of it on a timeline.
+            ("response_format", "verbose_json"),
+            ("timestamp_granularities[]", "word"),
+            ("timestamp_granularities[]", "segment"),
+        ]
+        if language:
+            fields.append(("language", language))
+        if prompt:
+            fields.append(("prompt", prompt))
+        for key, value in self.config.extra.get("request", {}).items():
+            fields.append((str(key), str(value)))
+
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = self.session.post(
+                    f"{base_url}/audio/transcriptions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    files={"file": (filename, audio, media_type)},
+                    data=fields,
+                    # Audio takes longer than a sentence does. The chat timeout
+                    # is tuned for a paragraph and would abandon a two-minute
+                    # recording that was going to succeed.
+                    timeout=max(self.config.timeout_seconds, 120),
+                )
+            except requests.RequestException as exc:
+                last_error = exc
+                if attempt < 2:
+                    time.sleep(2**attempt)
+                continue
+            if response.status_code == 429 or response.status_code >= 500:
+                last_error = ProviderError(
+                    f"Transcription provider returned {response.status_code}: "
+                    f"{response.text[:500]}"
+                )
+                if attempt < 2:
+                    time.sleep(2**attempt)
+                continue
+            if not response.ok:
+                raise ProviderError(
+                    f"Transcription provider returned {response.status_code}: "
+                    f"{response.text[:1000]}"
+                )
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise ProviderError(
+                    "Transcription provider returned a non-JSON response"
+                ) from exc
+            if not isinstance(data, dict):
+                raise ProviderError("Transcription provider returned an invalid response")
+            return data
+        raise ProviderError(f"Transcription request failed after retries: {last_error}")
+
+
 class TemplateEngineHttpProvider(_HttpProvider):
     """Normalized adapter for the future separate template-intelligence application."""
 
@@ -667,4 +757,6 @@ def create_provider(
         return OpenAICompatibleProvider(config, api_key=api_key, session=session)
     if provider_type == "openai_image":
         return OpenAIImageProvider(config, api_key=api_key, session=session)
+    if provider_type == "openai_transcribe":
+        return OpenAITranscriptionProvider(config, api_key=api_key, session=session)
     raise ProviderError(f"Unsupported AI provider type: {config.provider_type}")

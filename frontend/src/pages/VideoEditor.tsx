@@ -31,6 +31,21 @@ const TRACK_HEIGHT = 56;
 const HEAD_WIDTH = 120;
 
 type ImageAsset = { id: string; width: number; height: number; media_type: string; model_id: string };
+type MediaItem = {
+  id: string;
+  name: string;
+  kind: "audio" | "video";
+  media_type: string;
+  duration_ticks: number;
+  has_audio: boolean;
+};
+type CaptionResult = {
+  captions: number;
+  too_fast: number;
+  warnings: string[];
+  reused_transcript: boolean;
+  model_id: string;
+};
 
 export default function VideoEditor() {
   const { campaignId, notify } = useApp();
@@ -38,6 +53,7 @@ export default function VideoEditor() {
   const [state, setState] = useState<ProjectState | null>(null);
   const [manifest, setManifest] = useState<RenderManifest | null>(null);
   const [assets, setAssets] = useState<ImageAsset[]>([]);
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [table, setTable] = useState<AssetTable>(new Map());
   const [selected, setSelected] = useState("");
   const [playhead, setPlayhead] = useState(0);
@@ -61,12 +77,14 @@ export default function VideoEditor() {
     setLoading(true);
     setError("");
     try {
-      const [list, kept] = await Promise.all([
+      const [list, kept, imported] = await Promise.all([
         api.get<{ items: typeof projects }>(`/campaigns/${campaignId}/video-projects`),
-        api.get<{ items: ImageAsset[] }>(`/campaigns/${campaignId}/image-assets?status=approved`)
+        api.get<{ items: ImageAsset[] }>(`/campaigns/${campaignId}/image-assets?status=approved`),
+        api.get<{ items: MediaItem[] }>(`/campaigns/${campaignId}/video-media`)
       ]);
       setProjects(list.items);
       setAssets(kept.items);
+      setMedia(imported.items);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not load projects");
     } finally {
@@ -99,13 +117,15 @@ export default function VideoEditor() {
   const assetKey = useMemo(
     () =>
       (manifest?.assets ?? [])
-        .filter((item) => item.available)
+        .filter((item) => item.available && item.source === "image")
         .map((item) => item.id)
         .join(","),
     [manifest]
   );
 
-  /** Decode every asset the document needs, once, and keep them for drawing. */
+  /** Decode every picture the document needs, once, and keep it for drawing.
+   *  Only the generated stills: imported footage is audible but not yet drawn,
+   *  and asking an image decoder for a video would simply fail. */
   useEffect(() => {
     let live = true;
     const ids = assetKey ? assetKey.split(",") : [];
@@ -264,6 +284,79 @@ export default function VideoEditor() {
       window.addEventListener("pointerup", onUp);
     },
     [pxPerTick, edit]
+  );
+
+  const refreshProject = useCallback(async () => {
+    if (!state) return;
+    setState(await api.get<ProjectState>(`/video-projects/${state.id}`));
+    setManifest(await api.get<RenderManifest>(`/video-projects/${state.id}/manifest`));
+  }, [state]);
+
+  /** Bring in a voiceover or a clip, and drop it straight onto the timeline.
+   *  Two steps rather than one because the file belongs to the campaign and the
+   *  clip belongs to this project — the same recording can be used in several. */
+  const importMedia = useCallback(
+    async (file: File) => {
+      if (!campaignId || !state) return;
+      setBusy(true);
+      try {
+        const form = new FormData();
+        form.append("file", file, file.name);
+        const item = await api.upload<MediaItem>(`/campaigns/${campaignId}/video-media`, form);
+        setMedia((current) => (current.some((row) => row.id === item.id) ? current : [item, ...current]));
+        await api.post(`/video-projects/${state.id}/place-media`, { media_id: item.id });
+        await refreshProject();
+        notify(`Added ${item.name}`, "success");
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "That file was refused", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [campaignId, state, refreshProject, notify]
+  );
+
+  const placeMedia = useCallback(
+    async (mediaId: string) => {
+      if (!state) return;
+      setBusy(true);
+      try {
+        await api.post(`/video-projects/${state.id}/place-media`, {
+          media_id: mediaId,
+          start: Math.round(playhead)
+        });
+        await refreshProject();
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "Could not place that", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [state, playhead, refreshProject, notify]
+  );
+
+  /** Transcribe the selected clip and lay the words out as text clips.
+   *  The result is editable like anything else, which is the point: a
+   *  transcript is a guess, and it goes out under your name. */
+  const runCaptions = useCallback(
+    async (clipId: string) => {
+      if (!state) return;
+      setBusy(true);
+      try {
+        const result = await api.post<CaptionResult>(`/video-projects/${state.id}/captions`, {
+          clip_id: clipId
+        });
+        await refreshProject();
+        const reused = result.reused_transcript ? " (transcript reused)" : "";
+        notify(`${result.captions} captions from ${result.model_id}${reused}`, "success");
+        if (result.warnings.length) notify(result.warnings[0], "warning");
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "Captions failed", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [state, refreshProject, notify]
   );
 
   // ── export ────────────────────────────────────────────────────────────────
@@ -440,8 +533,12 @@ export default function VideoEditor() {
             clip={selectedClip}
             project={project}
             assets={assets}
+            media={media}
             busy={busy}
             onEdit={edit}
+            onImport={importMedia}
+            onPlaceMedia={placeMedia}
+            onCaption={runCaptions}
             onPlace={async (assetId) => {
               const next = await api.post<ProjectState>(`/video-projects/${state.id}/place-asset`, {
                 asset_id: assetId,
@@ -565,16 +662,24 @@ function Inspector({
   clip,
   project,
   assets,
+  media,
   busy,
   onEdit,
-  onPlace
+  onPlace,
+  onImport,
+  onPlaceMedia,
+  onCaption
 }: {
   clip: Clip | null;
   project: ProjectDoc;
   assets: ImageAsset[];
+  media: MediaItem[];
   busy: boolean;
   onEdit: (op: string, params: Record<string, unknown>) => Promise<unknown>;
   onPlace: (assetId: string) => Promise<void>;
+  onImport: (file: File) => Promise<void>;
+  onPlaceMedia: (mediaId: string) => Promise<void>;
+  onCaption: (clipId: string) => Promise<void>;
 }) {
   const videoTrack = project.tracks.find((track) => track.kind === "video" && !track.locked);
   const end = project.tracks.flatMap((track) => track.clips).reduce((last, item) => Math.max(last, item.start + item.duration), 0);
@@ -629,15 +734,63 @@ function Inspector({
             No kept pictures yet. Generate some in Image review and swipe right on the ones you want.
           </p>
         ) : null}
+
+        <div className="vinspector-divider" />
+        <p className="vinspector-heading">Sound</p>
+        <p className="vinspector-empty">
+          Nothing here generates speech, so captions need a recording. Add a voiceover
+          or a clip and its words can be laid out on the timeline.
+        </p>
+        <label className={`vupload ${busy ? "vupload-busy" : ""}`}>
+          <input
+            type="file"
+            accept="audio/*,video/*"
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void onImport(file);
+            }}
+          />
+          <span>Add audio or video</span>
+        </label>
+        {media.length ? (
+          <ul className="vmedia-list">
+            {media.map((item) => (
+              <li key={item.id}>
+                <button disabled={busy} onClick={() => void onPlaceMedia(item.id)}>
+                  <strong>{item.name || item.kind}</strong>
+                  <span>
+                    {item.kind} · {formatTimecode(item.duration_ticks)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </Panel>
     );
   }
+
+  const hasSound = clip.kind === "video" || clip.kind === "audio";
 
   return (
     <Panel title="Clip" subtitle={`${clip.kind} · ${formatTimecode(clip.duration)}`}>
       <div className="vinspector-row">
         <Badge tone="neutral">{clip.label || clip.kind}</Badge>
       </div>
+      {hasSound ? (
+        <>
+          <Button disabled={busy} onClick={() => void onCaption(clip.id)}>
+            Auto captions
+          </Button>
+          <p className="vinspector-empty">
+            Transcribes this clip and lays the words out as text clips you can edit.
+            Read them before anything goes out — a transcript is a guess.
+          </p>
+          <div className="vinspector-divider" />
+        </>
+      ) : null}
       {clip.kind === "text" ? (
         <label className="vinspector-field">
           <span>Text</span>

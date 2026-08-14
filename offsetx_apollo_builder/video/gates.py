@@ -85,7 +85,10 @@ class VideoDecodeError(ValueError):
 class MediaProbe:
     """What a file turned out to be, read from its header alone."""
 
-    kind: str = ""              # "video" or "image"
+    #: "video", "audio" or "image". A container with sound and no picture is
+    #: audio whatever its extension claims, because putting it on a video track
+    #: would draw nothing.
+    kind: str = ""
     media_type: str = ""
     width: int = 0
     height: int = 0
@@ -93,6 +96,8 @@ class MediaProbe:
     has_video: bool = False
     has_audio: bool = False
     rotated: bool = False
+    sample_rate: int = 0
+    channels: int = 0
 
     @property
     def duration_seconds(self) -> float:
@@ -109,6 +114,8 @@ class MediaProbe:
             "has_video": self.has_video,
             "has_audio": self.has_audio,
             "rotated": self.rotated,
+            "sample_rate": self.sample_rate,
+            "channels": self.channels,
         }
 
 
@@ -188,14 +195,48 @@ def probe(data: bytes) -> MediaProbe:
         return _probe_mp4(data)
     if data[:4] == struct.pack(">I", _EBML_HEADER):
         return _probe_webm(data)
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return _probe_wav(data)
     try:
         width, height, media_type = image_size(data)
     except (ImageDecodeError, IndexError, struct.error) as exc:
         raise VideoDecodeError(
-            "Unrecognised file. MP4/MOV and WebM are understood for video, and "
-            f"PNG, JPEG, GIF and WebP for stills. ({exc})"
+            "Unrecognised file. MP4/MOV, WebM and WAV are understood for video "
+            "and audio, and PNG, JPEG, GIF and WebP for stills. MP3 is not: its "
+            "length cannot be read from a header, only by counting every frame "
+            f"in the file. ({exc})"
         ) from exc
     return MediaProbe(kind="image", media_type=media_type, width=width, height=height)
+
+
+def _probe_wav(data: bytes) -> MediaProbe:
+    """RIFF/WAVE, which is what an uncompressed voiceover arrives as.
+
+    Duration comes from the data chunk's size over the byte rate — exact, and
+    the reason WAV is worth supporting when MP3 is not: an MP3's length can only
+    be had by walking every frame in the file.
+    """
+    result = MediaProbe(kind="audio", media_type="audio/wav", has_audio=True)
+    index = 12
+    byte_rate = 0
+    while index + 8 <= len(data):
+        tag = data[index : index + 4]
+        (size,) = struct.unpack("<I", data[index + 4 : index + 8])
+        body = index + 8
+        if tag == b"fmt " and body + 16 <= len(data):
+            channels, sample_rate, rate = struct.unpack("<HII", data[body + 2 : body + 12])
+            byte_rate = rate
+            result.sample_rate = int(sample_rate)
+            result.channels = int(channels)
+        elif tag == b"data":
+            usable = min(size, max(0, len(data) - body))
+            if byte_rate:
+                result.duration_ticks = int(round(usable * TICKS_PER_SECOND / byte_rate))
+            break
+        index = body + size + (size % 2)  # chunks are word-aligned
+    if not result.sample_rate:
+        raise VideoDecodeError("This WAV has no format chunk, so it describes nothing.")
+    return result
 
 
 # ── MP4: a tree of length-prefixed boxes ────────────────────────────────────
@@ -304,6 +345,11 @@ def _probe_mp4(data: bytes) -> MediaProbe:
 
     if not result.has_video and not result.has_audio:
         raise VideoDecodeError("This MP4 declares no tracks at all.")
+    if not result.has_video:
+        # An .m4a is an MP4 with only a sound track. Calling it video would put
+        # it on a video track, where it would draw nothing.
+        result.kind = "audio"
+        result.media_type = "audio/mp4"
     return result
 
 
@@ -414,6 +460,10 @@ def _probe_webm(data: bytes) -> MediaProbe:
         result.duration_ticks = int(round(raw_duration * scale * TICKS_PER_SECOND / 1_000_000_000))
     if not result.has_video and not result.has_audio:
         raise VideoDecodeError("This WebM declares no tracks at all.")
+    if not result.has_video:
+        # What the browser's own recorder produces for a voiceover.
+        result.kind = "audio"
+        result.media_type = "audio/webm"
     return result
 
 

@@ -27,6 +27,7 @@ from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
+from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
 from ..video.engine import VideoEditorEngine
 from ..video.store import VideoStore
@@ -957,19 +958,43 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     # ── the video editor ────────────────────────────────────────────────────
 
     def _video(request: Request) -> VideoEditorEngine:
-        """The timeline runner.
+        """The timeline runner, with the one model call captions need.
 
-        No broker: nothing here calls a model. Editing is arithmetic on a
-        document, and the AI features that will sit on top of it — captions,
-        cutout, reframe — each go through the broker on their own terms when
-        they exist. Wiring one in now would be a dependency with no caller.
+        Editing itself calls nothing — it is arithmetic on a document. The
+        transcriber is a closure over the broker rather than an import, so the
+        editor owns no transport and no provider knowledge, the same rule the
+        image runner follows.
+
+        **The data class is `campaign`, and that is a decision.** A voiceover
+        recorded for a marketing video is the owner's own material, not public,
+        so the tier rules narrow for it. It is deliberately not `internal` or
+        `mailbox`: the broker refuses those as audio outright, because the
+        pre-flight scan that protects every other path cannot read a waveform.
         """
         state = request.app.state
+        workspace_id = _workspace_id(request)
+        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+            workspace_id
+        )
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+
+        def transcriber(**kwargs: Any) -> Any:
+            return state.ai_broker.call_transcript(
+                EgressRequest(
+                    task_type="video_transcription",
+                    data_class=DataClass.CAMPAIGN,
+                    instructions="",
+                ),
+                settings,
+                **kwargs,
+            )
+
         return VideoEditorEngine(
             store=state.video_store,
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
             asset_reader=state.image_store.get_asset,
-            workspace_id=_workspace_id(request),
+            transcriber=transcriber,
+            workspace_id=workspace_id,
         )
 
     @app.get(f"{API_PREFIX}/video/presets")
@@ -1099,6 +1124,92 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/renders")
     def list_video_renders(project_id: str, request: Request) -> dict[str, Any]:
         return {"items": _video(request).renders(project_id)}
+
+    # ── imported material and captions ──────────────────────────────────────
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-media", status_code=201)
+    async def import_video_media(
+        campaign_id: str,
+        request: Request,
+        file: UploadFile = File(...),
+        name: str = Form(""),
+    ) -> dict[str, Any]:
+        """A voiceover or a clip, on its way in.
+
+        Nothing in off_CRM generates speech, so captions need audio from
+        somewhere and this is it. The header is read before anything is stored:
+        a file that does not declare its own length is refused, because a clip
+        whose source duration is a guess cannot be stopped from reading past its
+        own end.
+        """
+        payload = await file.read()
+        return _video(request).import_media(
+            campaign_id, payload, name=name or (file.filename or "")
+        )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-media")
+    def list_video_media(campaign_id: str, request: Request) -> dict[str, Any]:
+        return {"items": _video(request).media(campaign_id)}
+
+    @app.get(f"{API_PREFIX}/video-media/{{media_id}}/file")
+    def video_media_file(media_id: str, request: Request):
+        media = request.app.state.video_store.get_media(media_id)
+        path = Path(str(media.get("path") or ""))
+        if not path.exists():
+            raise HTTPException(
+                404, detail={"error": "gone", "message": "That media is no longer on disk."}
+            )
+        return FileResponse(path, media_type=str(media.get("media_type") or "video/webm"))
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/place-media")
+    def place_video_media(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        return _video(request).place_media(
+            project_id,
+            media_id=str(body.get("media_id") or ""),
+            track_id=str(body.get("track_id") or ""),
+            start=int(body.get("start", -1)),
+            duration=int(body.get("duration") or 0),
+        ).to_dict()
+
+    @app.post(f"{API_PREFIX}/video-media/{{media_id}}/transcribe")
+    def transcribe_video_media(
+        media_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Words and timings for one file, reusing what is already stored."""
+        try:
+            return _video(request).transcribe(
+                media_id,
+                language=str(body.get("language") or ""),
+                refresh=bool(body.get("refresh")),
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/captions")
+    def add_video_captions(
+        project_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Caption one clip.
+
+        The captions come back as ordinary text clips on a captions track, so
+        every edit in the editor already works on them. A transcript is a guess
+        about what was said and it goes out under the owner's name — the person
+        reads it before anything is published, which is the same judgement the
+        swipe and the post approval already are.
+        """
+        try:
+            return _video(request).add_captions(
+                project_id,
+                clip_id=str(body.get("clip_id") or ""),
+                language=str(body.get("language") or ""),
+                style=body.get("style") or None,
+                max_chars=int(body.get("max_chars") or CAPTION_MAX_CHARS),
+                refresh=bool(body.get("refresh")),
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            # A refusal by the trust rules is a normal, explainable outcome, and
+            # the owner should read it as one rather than as a crashed editor.
+            raise _ai_error(exc) from exc
 
     @app.get(f"{API_PREFIX}/video-renders/{{render_id}}/file")
     def video_render_file(render_id: str, request: Request):

@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **898 Python passed, 0 failed**, 3 skipped (live Docker egress test;
+Tests: **943 Python passed, 0 failed**, 3 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 16 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -17,7 +17,9 @@ The video editor is built: `offsetx_apollo_builder/video/` plus
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and says plainly which rows are still absent.
+from, and says plainly which rows are still absent. Auto-captions is the first
+of those rows wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section
+on audio before adding any other feature that sends bytes rather than text.
 
 The long-standing `test_discovery.py::test_scrapling_parser…` failure was never
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
@@ -97,9 +99,10 @@ offsetx_apollo_builder/imagery/     ← the image campaign runner
 offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── timeline.py   the document, its invariants, and the frame resolver
 ├── edits.py      every edit as a pure function; a default-deny registry
-├── gates.py      MP4 + WebM header parsing; gates on the exported file
-├── store.py      projects, full version history (undo), renders
-└── engine.py     create -> edit -> undo -> manifest -> render -> gate
+├── gates.py      MP4 + WebM + WAV header parsing; gates on the exported file
+├── captions.py   transcript -> readable cues -> text clips, deterministic
+├── store.py      projects, version history (undo), media, transcripts, renders
+└── engine.py     create -> edit -> undo -> caption -> render -> gate
 
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
@@ -723,6 +726,63 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Auto-captions (2026-08-14)
+- [x] `video/captions.py`, `broker.call_transcript`, `OpenAITranscriptionProvider`,
+      media import, and an **Auto captions** button. Docs:
+      `docs/architecture/AUTO_CAPTIONS.md`.
+- [x] **Half of it is a media import path, and that is not padding.** Nothing in
+      off_CRM generates speech, so the caption button had nothing to listen to.
+      `POST /campaigns/{id}/video-media` takes a voiceover or a clip, reads its
+      header before storing anything, and refuses a file that does not declare
+      its own length — a clip whose `source_duration` is a guess cannot be
+      stopped from reading past its end. WAV is in for that reason and **MP3 is
+      refused**: a WAV's length is in its header, an MP3's needs every frame
+      walked. Uploading the same file twice returns the existing row.
+- [x] **The scanner cannot read a waveform, and that changes the rules.** Every
+      other egress path is protected by a pre-flight scan; a recording of
+      somebody reading a customer list scans clean because there is nothing to
+      read. So `TRANSCRIBE_FORBIDDEN_CLASSES` refuses `mailbox` and `internal`
+      **by class, before a provider is looked up** — their protection *is* that
+      scan. The tier filter still applies in full, the text part of the request
+      is still built from the allowlist and still scanned, and the egress log
+      records the size and word count but **never the audio or the transcript**.
+- [x] **Word timings, not sentence timings.** A caption timed to a sentence
+      appears in full before it is spoken. Three response shapes are read (flat
+      words, words nested in segments, segments alone) and a segment-only answer
+      is kept rather than refused.
+- [x] **Where to break is deterministic, not a second model call.** Sentence end,
+      then pause (>0.6s), then line length (42 chars), then maximum hold (5s). A
+      comma only breaks once the line is over half full — breaking at every comma
+      gives a stutter of two-word captions. A test asserts no word is lost
+      between transcript and captions.
+- [x] **The timeline's invariant is the specification.** Clips cannot overlap by
+      one tick and speech does not respect that, so `lay_out` snaps to frames,
+      holds each cue back from the next, stretches short cues only into the gap
+      actually in front of them, and **merges a cue that cannot get one frame
+      into its neighbour** rather than dropping a word.
+- [x] Media time is mapped through the clip's start, `in_point` **and** speed, so
+      captioning a trimmed clip captions what is left and a slowed clip stretches
+      its captions with the speech. Both have tests.
+- [x] **Captions are ordinary text clips** on a Captions track, so every existing
+      edit works on them and a person reads them before publication — the same
+      judgement the swipe and the post approval are. The whole set is one step of
+      undo; running it twice replaces rather than stacks; new pictures never land
+      on the caption track.
+- [x] The transcript is stored per file and reused. Deliberately **not** the
+      response cache, which refuses anything whose output is a message: a
+      transcript is a fact about a file that cannot change unless the file does.
+- [x] `whisper-large-v3` and `-turbo` on Groq (same key as its chat models) and
+      `whisper-1` on OpenAI, in both copies of `providers.yaml`. The `kind`
+      filter in `candidates_for` needed no change — it was already generic.
+- [x] Verified against an independent implementation: WAV files written by
+      Python's stdlib `wave` module parse to the exact sample rate, channel count
+      and duration.
+- Not built: karaoke highlighting (the word timings are stored, the renderer
+  cannot colour part of a line), translation, speaker labels, browser recording.
+  **Imported footage is audible but not drawable** — its sound captions fine, the
+  picture is not painted, and the manifest says so and marks the project
+  unrenderable rather than exporting a hole.
 
 ### Video editor — timeline core and browser render (2026-08-14)
 - [x] `offsetx_apollo_builder/video/` + `frontend/src/video/` + the **Video

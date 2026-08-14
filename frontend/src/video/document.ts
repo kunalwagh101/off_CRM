@@ -142,9 +142,13 @@ export interface RenderManifest {
   assets: Array<{
     id: string;
     available: boolean;
+    /** Which store it came from: a generated picture, or imported material. */
+    source?: "image" | "media";
     media_type?: string;
     width?: number;
     height?: number;
+    duration_ticks?: number;
+    has_audio?: boolean;
     status?: string;
   }>;
   warnings: string[];

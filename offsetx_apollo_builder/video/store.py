@@ -84,6 +84,43 @@ CREATE TABLE IF NOT EXISTS video_renders (
 );
 CREATE INDEX IF NOT EXISTS ix_video_renders_project
     ON video_renders(project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS video_media (
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL DEFAULT '',
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    name TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL DEFAULT '',
+    sha256 TEXT NOT NULL DEFAULT '',
+    media_type TEXT NOT NULL DEFAULT '',
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    duration_ticks INTEGER NOT NULL DEFAULT 0,
+    has_audio INTEGER NOT NULL DEFAULT 0,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    probe_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_video_media_campaign
+    ON video_media(campaign_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_video_media_hash
+    ON video_media(workspace_id, campaign_id, sha256);
+
+CREATE TABLE IF NOT EXISTS video_transcripts (
+    id TEXT PRIMARY KEY,
+    media_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    language TEXT NOT NULL DEFAULT '',
+    provider_id TEXT NOT NULL DEFAULT '',
+    model_id TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    words_json TEXT NOT NULL DEFAULT '[]',
+    log_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_video_transcript
+    ON video_transcripts(media_id, language);
 """
 
 #: How many versions of a document are kept. Deep enough that undo never runs
@@ -389,6 +426,166 @@ class VideoStore:
             "SELECT sha256 FROM video_renders WHERE project_id = ?", (project_id,)
         ).fetchall()
         return {str(row["sha256"]) for row in rows if row["sha256"]}
+
+
+    # ── imported media ──────────────────────────────────────────────────────
+
+    def store_media(
+        self,
+        *,
+        campaign_id: str,
+        name: str,
+        payload: bytes,
+        probe: Any,
+        workspace_id: str = "local",
+    ) -> str:
+        """Keep an uploaded recording or clip, and describe it from its header.
+
+        Same shape as a picture: bytes on disk at 0600, a row holding the path
+        and the hash. The hash is unique per campaign, so uploading the same
+        file twice returns the row that already exists rather than paying to
+        transcribe it again.
+        """
+        digest = hashlib.sha256(payload).hexdigest()
+        existing = self.connection.execute(
+            "SELECT id FROM video_media WHERE workspace_id = ? AND campaign_id = ?"
+            " AND sha256 = ?",
+            (workspace_id, campaign_id, digest),
+        ).fetchone()
+        if existing:
+            return str(existing["id"])
+
+        media_id = str(uuid.uuid4())
+        media_type = str(getattr(probe, "media_type", "") or "")
+        suffix = {
+            "video/mp4": ".mp4",
+            "video/webm": ".webm",
+            "audio/mp4": ".m4a",
+            "audio/webm": ".weba",
+            "audio/wav": ".wav",
+        }.get(media_type, ".bin")
+
+        folder = self.renders_dir / "media" / (campaign_id or "loose")
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{media_id}{suffix}"
+        path.write_bytes(payload)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+
+        self.connection.execute(
+            "INSERT INTO video_media(id, campaign_id, workspace_id, name, kind, path,"
+            " sha256, media_type, width, height, duration_ticks, has_audio, bytes,"
+            " probe_json, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                media_id,
+                campaign_id,
+                workspace_id,
+                str(name or "")[:200],
+                str(getattr(probe, "kind", "") or ""),
+                str(path),
+                digest,
+                media_type,
+                int(getattr(probe, "width", 0) or 0),
+                int(getattr(probe, "height", 0) or 0),
+                int(getattr(probe, "duration_ticks", 0) or 0),
+                1 if getattr(probe, "has_audio", False) else 0,
+                len(payload),
+                json.dumps(probe.to_dict() if probe else {}),
+                _now(),
+            ),
+        )
+        return media_id
+
+    def get_media(self, media_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM video_media WHERE id = ?", (media_id,)
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Media not found: {media_id}")
+        item = dict(row)
+        item["probe"] = _safe_json(item.pop("probe_json", "{}"))
+        item["has_audio"] = bool(item.get("has_audio"))
+        return item
+
+    def list_media(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM video_media WHERE campaign_id = ?"
+            " ORDER BY created_at DESC LIMIT ?",
+            (campaign_id, max(1, int(limit))),
+        ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["probe"] = _safe_json(item.pop("probe_json", "{}"))
+            item["has_audio"] = bool(item.get("has_audio"))
+            items.append(item)
+        return items
+
+    # ── transcripts ─────────────────────────────────────────────────────────
+
+    def store_transcript(
+        self,
+        *,
+        media_id: str,
+        language: str,
+        provider_id: str,
+        model_id: str,
+        text: str,
+        words: list[dict[str, Any]],
+        log_id: str = "",
+        workspace_id: str = "local",
+    ) -> str:
+        """Keep a transcript so the same audio is never paid for twice.
+
+        Not the response cache: that one is keyed on a payload and deliberately
+        refuses anything whose output is a message. This is a fact about a
+        specific file that cannot change unless the file does, which is exactly
+        the case where storing an answer is safe.
+        """
+        transcript_id = str(uuid.uuid4())
+        self.connection.execute(
+            "INSERT INTO video_transcripts(id, media_id, workspace_id, language,"
+            " provider_id, model_id, text, words_json, log_id, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(media_id, language) DO UPDATE SET"
+            " provider_id = excluded.provider_id, model_id = excluded.model_id,"
+            " text = excluded.text, words_json = excluded.words_json,"
+            " log_id = excluded.log_id, created_at = excluded.created_at",
+            (
+                transcript_id,
+                media_id,
+                workspace_id,
+                str(language or ""),
+                provider_id,
+                model_id,
+                str(text or "")[:200_000],
+                json.dumps(words),
+                log_id,
+                _now(),
+            ),
+        )
+        return transcript_id
+
+    def get_transcript(self, media_id: str, *, language: str = "") -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM video_transcripts WHERE media_id = ? AND language = ?",
+            (media_id, str(language or "")),
+        ).fetchone()
+        if not row:
+            # A transcript taken without a language hint answers for any
+            # request that did not ask for a specific one.
+            row = self.connection.execute(
+                "SELECT * FROM video_transcripts WHERE media_id = ?"
+                " ORDER BY created_at DESC LIMIT 1",
+                (media_id,),
+            ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["words"] = _safe_json(item.pop("words_json", "[]")) or []
+        return item
 
 
 def _safe_json(value: Any) -> Any:

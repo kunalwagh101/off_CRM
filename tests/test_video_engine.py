@@ -298,9 +298,12 @@ def test_the_manifest_lists_what_the_browser_has_to_fetch(engine, assets):
         {
             "id": "asset-1",
             "available": True,
+            "source": "image",
             "media_type": "image/png",
             "width": 1024,
             "height": 1024,
+            "duration_ticks": 0,
+            "has_audio": False,
             "status": "approved",
         }
     ]

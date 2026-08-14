@@ -355,3 +355,49 @@ def test_a_lie_about_the_media_type_is_reported():
     report = run_gates(uri)
     failure = next(item for item in report.failures if item.name == "type_matches")
     assert "video/webm" in failure.detail
+
+
+def test_wav_files_written_by_the_standard_library_are_read_exactly():
+    """An independent implementation of the format, checked both ways.
+
+    ``wave`` is stdlib and knows nothing about this parser. Sample rate,
+    channel count and duration all have to come back exactly, because a
+    duration that is nearly right puts every caption slightly out of place.
+    """
+    import io
+    import wave as wave_module
+
+    for rate, channels, seconds in ((44100, 2, 1.5), (16000, 1, 3.0), (48000, 2, 0.25)):
+        buffer = io.BytesIO()
+        with wave_module.open(buffer, "wb") as handle:
+            handle.setnchannels(channels)
+            handle.setsampwidth(2)
+            handle.setframerate(rate)
+            handle.writeframes(b"\x00" * (rate * channels * 2 * 4))
+            handle.writeframes(b"\x11" * int(rate * channels * 2 * (seconds - 4 / rate * rate)))
+        buffer.seek(0)
+        with wave_module.open(io.BytesIO(buffer.getvalue()), "rb") as check:
+            expected = check.getnframes() / check.getframerate()
+        found = probe(buffer.getvalue())
+        assert found.kind == "audio"
+        assert found.sample_rate == rate
+        assert found.channels == channels
+        assert found.duration_seconds == pytest.approx(expected, abs=0.001)
+
+
+def test_a_wav_with_no_format_chunk_describes_nothing_and_is_refused():
+    body = b"data" + struct.pack("<I", 8) + b"\x00" * 8
+    broken = b"RIFF" + struct.pack("<I", 4 + len(body)) + b"WAVE" + body
+    with pytest.raises(VideoDecodeError, match="no format chunk"):
+        probe(broken)
+
+
+def test_a_container_with_sound_and_no_picture_is_audio_whatever_it_claims():
+    """An .m4a is an MP4. Calling it video would put it on a video track, where
+    it would draw nothing."""
+    audio_only = mp4(audio=True)
+    stripped = audio_only.replace(b"vide", b"soun", 1)
+    found = probe(stripped)
+    assert found.kind == "audio"
+    assert found.media_type == "audio/mp4"
+    assert found.has_audio and not found.has_video

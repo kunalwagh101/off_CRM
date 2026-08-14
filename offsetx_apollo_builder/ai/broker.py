@@ -24,7 +24,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Mapping
 
 # The provider SDK/HTTP adapters are imported here and nowhere else outside this
 # package. This import is the structural enforcement of §5.5.1.
@@ -183,6 +183,103 @@ class ImageResult:
             "log_id": self.log_id,
             "rejected": self.rejected,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptWord:
+    """One word, and when it was said. Times are seconds from the start."""
+
+    word: str
+    start: float
+    end: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"word": self.word, "start": round(self.start, 3), "end": round(self.end, 3)}
+
+
+@dataclass(slots=True)
+class TranscriptResult:
+    """What came back from a speech model."""
+
+    text: str
+    words: list[TranscriptWord]
+    language: str
+    provider_id: str
+    provider_name: str
+    model_id: str
+    tier: str
+    policy: str
+    duration_ms: int
+    audio_bytes: int = 0
+    log_id: str = ""
+    rejected: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "words": [word.to_dict() for word in self.words],
+            "language": self.language,
+            "provider_id": self.provider_id,
+            "provider_name": self.provider_name,
+            "model_id": self.model_id,
+            "tier": self.tier,
+            "policy": self.policy,
+            "duration_ms": self.duration_ms,
+            "audio_bytes": self.audio_bytes,
+            "log_id": self.log_id,
+            "rejected": self.rejected,
+        }
+
+
+#: Data classes that never leave as audio.
+#:
+#: Every other egress path is protected by a pre-flight scan. Audio is opaque to
+#: it — a recording of somebody reading a customer list scans clean, because
+#: there is nothing to read. These two classes are the ones whose protection
+#: *is* that scan, so they are refused by class rather than trusted to a check
+#: that cannot run. Campaign and public material still goes, under the ordinary
+#: tier rules.
+TRANSCRIBE_FORBIDDEN_CLASSES = (DataClass.MAILBOX, DataClass.INTERNAL)
+
+
+def read_transcript_words(answer: Mapping[str, Any]) -> list[TranscriptWord]:
+    """Pull word timings out of a provider's answer, whatever shape it used.
+
+    Hosts differ: some return a flat ``words`` list, some only nest words inside
+    ``segments``, and some return segments alone. All three are read, in that
+    order of preference, and a segment-only answer is kept rather than refused —
+    sentence timings make worse captions than word timings and much better ones
+    than no captions at all.
+    """
+    words: list[TranscriptWord] = []
+
+    def take(items: Any) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            text = str(item.get("word") or item.get("text") or "").strip()
+            if not text:
+                continue
+            try:
+                start = float(item.get("start"))
+                end = float(item.get("end"))
+            except (TypeError, ValueError):
+                continue
+            if end < start:
+                continue
+            words.append(TranscriptWord(word=text, start=start, end=end))
+
+    take(answer.get("words"))
+    if not words:
+        for segment in answer.get("segments") or []:
+            if isinstance(segment, Mapping):
+                take(segment.get("words"))
+    if not words:
+        take(answer.get("segments"))
+    words.sort(key=lambda item: (item.start, item.end))
+    return words
 
 
 #: ``(provider_id) -> api_key``.  Returning "" means "no credential stored".
@@ -753,6 +850,187 @@ class EgressBroker:
         )
         raise NoPermittedProvider(
             f"Every image model failed. {detail}", considered=rejected + attempts
+        )
+
+    def call_transcript(
+        self,
+        request: EgressRequest,
+        settings: WorkspaceEgressSettings,
+        *,
+        audio: bytes,
+        media_type: str = "audio/webm",
+        filename: str = "audio.webm",
+        language: str = "",
+        provider_id: str = "",
+    ) -> "TranscriptResult":
+        """Turn a recording into words with timings.
+
+        A third method beside :meth:`call` and :meth:`call_image`, separate for a
+        reason that goes past return types.
+
+        **The scanner cannot read a waveform.** Every other path through this
+        broker is protected by a pre-flight scan that blocks a payload carrying
+        owner data. Audio defeats that completely: the bytes are a recording, the
+        scanner sees an opaque blob, and it will report clean on a file in which
+        somebody reads a customer list out loud.
+
+        So the protection that remains has to be structural, and it is:
+
+        - :data:`TRANSCRIBE_FORBIDDEN_CLASSES` refuses the classes whose safety
+          depends on scanning. Mailbox and internal material never leaves as
+          audio, because the check that would have caught it cannot run.
+        - The tier filter still applies in full, so a recording only reaches a
+          provider already trusted with that class of material as text.
+        - The **text** part of the request — a language hint, a vocabulary
+          prompt — is still built from the allowlist and still scanned, because
+          that part is scannable and there is no reason to lower it.
+
+        The audio never enters the egress log; its size and the word count do.
+        The log exists to record what left, and a log holding the recordings
+        would be a second copy of the most sensitive thing in the project.
+        """
+        if request.data_class in TRANSCRIBE_FORBIDDEN_CLASSES:
+            raise EgressBlocked(
+                f"{request.data_class.value} material is never sent as audio. A "
+                "recording cannot be scanned before it leaves — the scanner reads "
+                "text, and a waveform hides whatever was said in it. Nothing was "
+                "sent.",
+                findings=[
+                    {
+                        "kind": "unscannable_audio",
+                        "detail": (
+                            f"Transcription refuses {request.data_class.value} by "
+                            "class, because the pre-flight scan that protects every "
+                            "other path cannot run on audio."
+                        ),
+                    }
+                ],
+            )
+        if not audio:
+            raise ValueError("There is no audio to transcribe.")
+
+        candidates, rejected = self.plan(
+            request, settings, provider_id=provider_id, kind="transcribe"
+        )
+        attempts: list[dict[str, Any]] = []
+
+        for candidate in candidates:
+            payload = build_payload(
+                request,
+                candidate.policy,
+                abstract_shape=settings.abstract_business_shape,
+            )
+            report = scan_payload(
+                payload,
+                policy=candidate.policy,
+                owner_domains=settings.owner_domains,
+                owner_addresses=settings.owner_addresses,
+                allow_addresses=candidate.policy is DataPolicy.FULL,
+            )
+            if not report.clean:
+                self._log(
+                    settings=settings,
+                    candidate=candidate,
+                    request=request,
+                    payload=payload,
+                    status="blocked",
+                    error=report.summary(),
+                    findings=[item.to_dict() for item in report.findings],
+                    duration_ms=0,
+                    response_text="",
+                )
+                raise EgressBlocked(
+                    f"Blocked before sending to {candidate.name}. "
+                    f"{report.findings[0].detail} Nothing was sent.",
+                    findings=[item.to_dict() for item in report.findings],
+                )
+
+            hint = str(payload.get("instructions") or "").strip()
+            started = time.monotonic()
+            status = "succeeded"
+            error = ""
+            answer: dict[str, Any] = {}
+            try:
+                provider = self._instantiate(candidate, adapter_override="openai_transcribe")
+                answer = provider.transcribe(
+                    audio=audio,
+                    filename=filename,
+                    media_type=media_type,
+                    language=language,
+                    prompt=hint,
+                )
+            except Exception as exc:  # noqa: BLE001 - recorded, then failover
+                status = "failed"
+                error = str(exc)[:500]
+            duration_ms = int((time.monotonic() - started) * 1000)
+
+            if self.quota is not None:
+                self.quota.record(candidate.id, rate_limited="429" in error)
+
+            words = read_transcript_words(answer)
+            text = str(answer.get("text") or "").strip()
+            log_id = self._log(
+                settings=settings,
+                candidate=candidate,
+                request=request,
+                payload=payload,
+                status=status,
+                error=error,
+                findings=[],
+                duration_ms=duration_ms,
+                response_text=(
+                    f"[{len(audio)} audio bytes sent, {len(words)} words returned]"
+                ),
+            )
+
+            if status == "failed":
+                attempts.append(
+                    {
+                        "provider_id": candidate.id,
+                        "model_id": candidate.model_id,
+                        "status": "failed",
+                        "detail": error,
+                    }
+                )
+                continue
+
+            if not words and not text:
+                attempts.append(
+                    {
+                        "provider_id": candidate.id,
+                        "model_id": candidate.model_id,
+                        "status": "failed",
+                        "detail": "returned nothing usable",
+                    }
+                )
+                continue
+
+            return TranscriptResult(
+                text=text,
+                words=words,
+                language=str(answer.get("language") or language or ""),
+                provider_id=candidate.id,
+                provider_name=candidate.name,
+                model_id=candidate.model_id,
+                tier=candidate.tier.value,
+                policy=candidate.policy.value,
+                duration_ms=duration_ms,
+                audio_bytes=len(audio),
+                log_id=log_id,
+                rejected=rejected,
+            )
+
+        detail = "; ".join(
+            f"{item['provider_id']}: {item.get('detail', item['status'])}" for item in attempts
+        )
+        raise NoPermittedProvider(
+            f"No transcription model produced a result. {detail}"
+            if attempts
+            else (
+                "No permitted transcription model. Enable one in Connectors — "
+                "Groq hosts Whisper on the same key as its chat models."
+            ),
+            considered=rejected + attempts,
         )
 
     # ── internals ───────────────────────────────────────────────────────────

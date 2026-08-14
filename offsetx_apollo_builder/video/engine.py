@@ -35,8 +35,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ..campaigns import assert_kind
+from . import captions as captioning
 from . import edits
-from .gates import VideoGateReport, run_gates
+from .gates import VideoDecodeError, VideoGateReport, probe, run_gates
 from .store import VideoStore
 from .timeline import (
     TICKS_PER_SECOND,
@@ -91,11 +92,17 @@ class VideoEditorEngine:
         store: VideoStore,
         campaign_reader: Callable[[str], Mapping[str, Any]],
         asset_reader: Callable[[str], Mapping[str, Any]] | None = None,
+        transcriber: Callable[..., Any] | None = None,
         workspace_id: str = "local",
     ) -> None:
         self.store = store
         self.campaign_reader = campaign_reader
         self.asset_reader = asset_reader
+        #: Called with ``(audio=, media_type=, filename=, language=)`` and
+        #: returning the broker's ``TranscriptResult``. Injected rather than
+        #: imported so this module owns no transport and no provider knowledge —
+        #: the same rule the image runner follows.
+        self.transcriber = transcriber
         self.workspace_id = workspace_id
 
     # ── the kind gate ───────────────────────────────────────────────────────
@@ -254,7 +261,7 @@ class VideoEditorEngine:
             )
 
         state = self.open_project(project_id)
-        track = state.project.track(track_id) if track_id else _first_video_track(state.project)
+        track = state.project.track(track_id) if track_id else _first_track(state.project)
         at = track.duration if int(start) < 0 else max(0, int(start))
         span = int(duration) if int(duration) > 0 else DEFAULT_STILL_TICKS
         return self.edit(
@@ -275,7 +282,289 @@ class VideoEditorEngine:
             },
         )
 
+    # ── material that was not generated here ────────────────────────────────
+
+    def import_media(
+        self,
+        campaign_id: str,
+        payload: bytes,
+        *,
+        name: str = "",
+    ) -> dict[str, Any]:
+        """Take in a recording or a clip, and describe it from its header.
+
+        This is what makes captions possible at all: nothing in off_CRM
+        generates speech, so the audio has to come from somewhere, and a
+        voiceover recorded in the browser is the honest answer.
+
+        The header is read before anything is stored. A file whose length cannot
+        be determined is refused rather than kept, because a clip whose
+        ``source_duration`` is a guess is a clip the timeline cannot stop from
+        reading past its own end.
+        """
+        self._require_own_kind(campaign_id, "importing media")
+        try:
+            found = probe(payload)
+        except VideoDecodeError as exc:
+            raise TimelineError(str(exc)) from exc
+        if found.kind == "image":
+            raise TimelineError(
+                "That is a picture. Pictures come from the image campaign and its "
+                "swipe, which is where their quality is judged — placing one "
+                "through here would skip that."
+            )
+        if found.duration_ticks <= 0:
+            raise TimelineError(
+                "This file does not declare how long it is, so nothing can stop "
+                "a clip reading past its end. Re-export it with a duration."
+            )
+        media_id = self.store.store_media(
+            campaign_id=campaign_id,
+            name=name or f"{found.kind} {found.duration_seconds:.1f}s",
+            payload=payload,
+            probe=found,
+            workspace_id=self.workspace_id,
+        )
+        return self.store.get_media(media_id)
+
+    def place_media(
+        self,
+        project_id: str,
+        *,
+        media_id: str,
+        track_id: str = "",
+        start: int = -1,
+        duration: int = 0,
+    ) -> ProjectState:
+        """Put imported material on the timeline, on a track that suits it."""
+        media = self.store.get_media(media_id)
+        state = self.open_project(project_id)
+        kind = "audio" if str(media.get("kind")) == "audio" else "video"
+        if track_id:
+            track = state.project.track(track_id)
+        else:
+            track = _first_track(state.project, "audio" if kind == "audio" else "video")
+        at = track.duration if int(start) < 0 else max(0, int(start))
+        span = int(duration) if int(duration) > 0 else int(media["duration_ticks"])
+        return self.edit(
+            project_id,
+            "add_clip",
+            {
+                "track_id": track.id,
+                "kind": kind,
+                "start": at,
+                "duration": span,
+                "source_duration": int(media["duration_ticks"]),
+                "asset_id": media_id,
+                "label": str(media.get("name") or "")[:120],
+                "style": {
+                    "source_width": int(media.get("width") or 0),
+                    "source_height": int(media.get("height") or 0),
+                    "fit": "cover",
+                },
+            },
+        )
+
+    def media(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        self._require_own_kind(campaign_id, "listing media")
+        return self.store.list_media(campaign_id, limit=limit)
+
+    # ── captions ────────────────────────────────────────────────────────────
+
+    def transcribe(
+        self,
+        media_id: str,
+        *,
+        language: str = "",
+        refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Words and their timings for one piece of media.
+
+        A stored transcript is reused unless ``refresh`` is asked for. That is
+        not the response cache — that one is keyed on a payload and refuses
+        anything whose output is a message. This is a fact about a specific file
+        that cannot change unless the file does, and paying twice for it would
+        be paying twice for the same answer.
+        """
+        media = self.store.get_media(media_id)
+        if not media.get("has_audio"):
+            raise TimelineError(
+                f"{media.get('name') or media_id} has no sound track, so there is "
+                "nothing to transcribe."
+            )
+        if not refresh:
+            stored = self.store.get_transcript(media_id, language=language)
+            if stored:
+                return {**stored, "reused": True}
+
+        if self.transcriber is None:
+            raise TimelineError(
+                "This engine was built without a way to transcribe. Connect a "
+                "provider that hosts a speech model — Groq hosts Whisper on the "
+                "same key as its chat models."
+            )
+        path = Path(str(media.get("path") or ""))
+        if not path.exists():
+            raise TimelineError("That media is no longer on disk.")
+
+        result = self.transcriber(
+            audio=path.read_bytes(),
+            media_type=str(media.get("media_type") or "audio/webm"),
+            filename=path.name,
+            language=language,
+        )
+        words = [word.to_dict() for word in getattr(result, "words", [])]
+        self.store.store_transcript(
+            media_id=media_id,
+            language=language,
+            provider_id=getattr(result, "provider_id", ""),
+            model_id=getattr(result, "model_id", ""),
+            text=getattr(result, "text", ""),
+            words=words,
+            log_id=getattr(result, "log_id", ""),
+            workspace_id=self.workspace_id,
+        )
+        stored = self.store.get_transcript(media_id, language=language) or {}
+        return {**stored, "reused": False}
+
+    def add_captions(
+        self,
+        project_id: str,
+        *,
+        clip_id: str,
+        language: str = "",
+        style: Mapping[str, Any] | None = None,
+        max_chars: int = captioning.MAX_CHARS,
+        refresh: bool = False,
+    ) -> dict[str, Any]:
+        """Caption one clip, as ordinary text clips on a captions track.
+
+        The result is not a special object. It is the same text clips anyone can
+        add by hand, so every edit already in the editor works on them — retime
+        one, restyle it, fix a misheard word, delete a line. A transcript is a
+        guess about what was said, and it goes out under the owner's name, so a
+        person reads it before anything is published.
+
+        Running it twice **replaces** rather than stacks: the existing captions
+        over the same span are removed in the same batch. Two layers of slightly
+        different captions is not a state anyone asks for, and the overlap rule
+        would refuse it anyway — with a message about tick collisions rather
+        than about captions.
+        """
+        state = self.open_project(project_id)
+        track, clip = state.project.find_clip(clip_id)
+        if clip.kind not in ("video", "audio"):
+            raise TimelineError(
+                f"A {clip.kind} clip has no sound. Captions come from speech — "
+                "select the voiceover or the footage."
+            )
+        if not clip.asset_id:
+            raise TimelineError("That clip has no media behind it to listen to.")
+
+        transcript = self.transcribe(clip.asset_id, language=language, refresh=refresh)
+        words = captioning.words_from_transcript(transcript.get("words") or [])
+        if not words:
+            raise TimelineError(
+                "The transcript came back with no timed words, so there is "
+                "nothing to place. The recording may be silent."
+            )
+
+        cues = captioning.to_timeline(
+            captioning.build_cues(words, max_chars=max_chars),
+            clip,
+            fps=state.project.fps,
+        )
+        if not cues:
+            raise TimelineError(
+                "Every caption fell outside what this clip actually shows. The "
+                "speech is in a part of the media the clip was trimmed away from."
+            )
+
+        caption_style, y = captioning.caption_style(style, height=state.project.height)
+        existing = next(
+            (
+                item
+                for item in state.project.tracks
+                if item.kind == "video" and item.name == captioning.CAPTION_TRACK_NAME
+            ),
+            None,
+        )
+        operations: list[dict[str, Any]] = []
+        if existing is None:
+            after = self.edit(
+                project_id,
+                "add_track",
+                {"kind": "video", "name": captioning.CAPTION_TRACK_NAME},
+            )
+            caption_track = next(
+                item
+                for item in after.project.tracks
+                if item.name == captioning.CAPTION_TRACK_NAME
+            )
+        else:
+            caption_track = existing
+            first, last = cues[0].start, cues[-1].end
+            operations.extend(
+                {"op": "remove_clip", "params": {"clip_id": item.id}}
+                for item in existing.clips
+                if item.start < last and item.start + item.duration > first
+            )
+
+        operations.extend(
+            captioning.as_operations(cues, track_id=caption_track.id, style=caption_style, y=y)
+        )
+        final = self.batch(project_id, operations)
+        return {
+            **captioning.report(cues),
+            "track_id": caption_track.id,
+            "language": str(transcript.get("language") or language or ""),
+            "provider_id": str(transcript.get("provider_id") or ""),
+            "model_id": str(transcript.get("model_id") or ""),
+            "reused_transcript": bool(transcript.get("reused")),
+            "project": final.to_dict(),
+        }
+
     # ── what the renderer needs ─────────────────────────────────────────────
+
+    def resolve_asset(self, asset_id: str) -> dict[str, Any]:
+        """One asset id, whichever store it came from.
+
+        A timeline holds two kinds of material — pictures the image campaign
+        generated, and recordings imported here — and a clip refers to both the
+        same way. Resolving in one place means nothing else in the editor has to
+        know which store an id belongs to, and adding a third source later
+        touches this function alone.
+        """
+        try:
+            media = self.store.get_media(asset_id)
+        except KeyError:
+            pass
+        else:
+            return {
+                "id": asset_id,
+                "source": "media",
+                "path": str(media.get("path") or ""),
+                "media_type": str(media.get("media_type") or ""),
+                "width": int(media.get("width") or 0),
+                "height": int(media.get("height") or 0),
+                "duration_ticks": int(media.get("duration_ticks") or 0),
+                "has_audio": bool(media.get("has_audio")),
+                "status": "imported",
+            }
+        if self.asset_reader is None:
+            raise KeyError(f"Asset not found: {asset_id}")
+        asset = dict(self.asset_reader(asset_id))
+        return {
+            "id": asset_id,
+            "source": "image",
+            "path": str(asset.get("path") or ""),
+            "media_type": str(asset.get("media_type") or ""),
+            "width": int(asset.get("width") or 0),
+            "height": int(asset.get("height") or 0),
+            "duration_ticks": 0,
+            "has_audio": False,
+            "status": str(asset.get("status") or ""),
+        }
 
     def manifest(self, project_id: str) -> dict[str, Any]:
         """Everything the browser needs to draw this project, and what is wrong
@@ -292,26 +581,15 @@ class VideoEditorEngine:
         warnings: list[str] = []
         for asset_id in project.asset_ids():
             entry: dict[str, Any] = {"id": asset_id, "available": False}
-            if self.asset_reader is None:
-                warnings.append("This engine cannot resolve assets, so nothing can be drawn.")
-                assets.append(entry)
-                continue
             try:
-                asset = dict(self.asset_reader(asset_id))
+                asset = self.resolve_asset(asset_id)
             except KeyError:
                 warnings.append(f"Asset {asset_id} is referenced by a clip and no longer exists.")
                 assets.append(entry)
                 continue
             path = str(asset.get("path") or "")
-            entry.update(
-                {
-                    "available": bool(path) and Path(path).exists(),
-                    "media_type": str(asset.get("media_type") or ""),
-                    "width": int(asset.get("width") or 0),
-                    "height": int(asset.get("height") or 0),
-                    "status": str(asset.get("status") or ""),
-                }
-            )
+            entry.update({**asset, "available": bool(path) and Path(path).exists()})
+            entry.pop("path", None)
             if not entry["available"]:
                 warnings.append(
                     f"Asset {asset_id} was discarded after it was placed, so its "
@@ -321,6 +599,25 @@ class VideoEditorEngine:
 
         if project.duration <= 0:
             warnings.append("This timeline is empty. There is nothing to export.")
+
+        # Imported footage can be *heard* but not yet *seen*: the painter draws
+        # stills, text and colour, and decoding video frames in the browser is a
+        # separate piece of work. Said here rather than discovered at export,
+        # because the alternative is a finished-looking file with a hole in it.
+        footage = [
+            clip.id
+            for track in project.tracks
+            if track.kind == "video"
+            for clip in track.clips
+            if clip.kind == "video"
+        ]
+        if footage:
+            warnings.append(
+                f"{len(footage)} video clip(s) are on the timeline. Their sound "
+                "works and can be captioned, but the picture is not drawn yet — "
+                "the renderer handles stills, text and colour. Exporting now "
+                "would leave those clips blank."
+            )
 
         return {
             "project_id": project.id,
@@ -430,8 +727,12 @@ class VideoEditorEngine:
         }
 
 
-def _first_video_track(project: Project):
+def _first_track(project: Project, kind: str = "video"):
     for track in project.tracks:
-        if track.kind == "video" and not track.locked:
+        if track.kind == kind and not track.locked:
+            # Captions get their own track, and dropping new material onto it
+            # would put a picture in the middle of the subtitles.
+            if kind == "video" and track.name == captioning.CAPTION_TRACK_NAME:
+                continue
             return track
-    raise TimelineError("This project has no unlocked video track to place a clip on.")
+    raise TimelineError(f"This project has no unlocked {kind} track to place a clip on.")

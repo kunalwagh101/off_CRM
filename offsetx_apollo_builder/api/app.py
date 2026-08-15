@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
+from ..distribution.automation import ContentAutomationService
 from ..distribution.engine import DistributionEngine
 from ..distribution.platforms import list_platforms as list_distribution_platforms
 from ..distribution.pipeline import TrendPipeline
@@ -142,6 +143,25 @@ class CampaignLocks:
 
 def _engine(request: Request) -> OutreachEngine:
     return request.app.state.engine
+
+
+class _TimerScope:
+    """Enough of a request for the per-request factories to work off a timer.
+
+    `_trends`, `_imagery`, `_distribution` and `_pipeline` are built per request
+    because they need the workspace's credential resolver. Every one of them
+    reads only ``request.app.state`` and the workspace id, which is constant —
+    so a timer needs an object with an ``.app`` and nothing else.
+
+    The alternative is changing all four signatures and their thirty call sites
+    to take an app, which lands in the same place and leaves two ways to build
+    every engine while it is half done.
+    """
+
+    __slots__ = ("app",)
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
 
 def _ai_chat(request: Request) -> AIChatService:
     return request.app.state.ai_chat
@@ -339,11 +359,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ),
             own_email_factory=lambda: resolved.own_email,
         )
+        # The content engine's own timer. Separate from the email one on
+        # purpose: that service is email-shaped — a mail provider, an own
+        # address, run_due — and BUILD_STATE's rule is that nothing built from
+        # here may assume email.
+        app.state.content_automation = ContentAutomationService(
+            resolved.data_dir / "content_automation.json",
+            trends_factory=lambda: _trends(_TimerScope(app)),
+            pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
+            distribution_factory=lambda: _distribution(_TimerScope(app)),
+        )
         await app.state.automation.start()
+        await app.state.content_automation.start()
         try:
             yield
         finally:
             await app.state.automation.stop()
+            await app.state.content_automation.stop()
             app.state.engine.close()
             app.state.ai_egress_log.close()
             app.state.image_store.close()
@@ -781,6 +813,32 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/automation/run")
     def run_automation(request: Request) -> dict[str, Any]:
         results = request.app.state.automation.run_once()
+        return {"results": results, "total": len(results)}
+
+    @app.get(f"{API_PREFIX}/content-automation")
+    def content_automation_status(request: Request) -> dict[str, Any]:
+        """What the content engine is set to do unattended, and what it last did."""
+        return request.app.state.content_automation.status()
+
+    @app.patch(f"{API_PREFIX}/content-automation")
+    def update_content_automation(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Declare which campaign pairs run, and how often.
+
+        Deliberately not a typed model: ``pipelines`` is a list of pairs the
+        owner writes down, and the service normalises it and drops half-declared
+        entries itself. One place decides what a legal pipeline is, rather than
+        that rule living in a schema and again in the service.
+        """
+        return request.app.state.content_automation.update(body or {})
+
+    @app.post(f"{API_PREFIX}/content-automation/run")
+    def run_content_automation(request: Request) -> dict[str, Any]:
+        """Run one cycle now, whether or not the timer is enabled.
+
+        The same code the timer runs — there is no separate manual path, so a
+        cycle that works here works unattended.
+        """
+        results = request.app.state.content_automation.run_once()
         return {"results": results, "total": len(results)}
 
     @app.post(f"{API_PREFIX}/backups/export")

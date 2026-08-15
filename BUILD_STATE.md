@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **957 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **983 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 20 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -729,6 +729,38 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 1 — the content engine runs itself (2026-08-14)
+- [x] `distribution/automation.py` — `ContentAutomationService`. Sweep → plan →
+      draft → publish-due, on a timer, started and stopped with the app.
+      Blueprint: `docs/architecture/CONTENT_ENGINE_BLUEPRINT.md` Stage 1.
+- [x] **This was the highest-value missing line in the project.** Every piece of
+      the content pipeline worked and none of them ran on their own; the Amul
+      point in the brief is about time, and a trend acted on tomorrow is one
+      somebody else already used.
+- [x] **Which campaigns run is declared, not inferred.** The pipeline needs a
+      distribution campaign *and* an image campaign, and nothing in the schema
+      says which pairs with which. Guessing would post from the wrong brand, so
+      the pairs live in the service's own config, a half-declared pair is
+      dropped, and enabling with none declared is refused with a message.
+- [x] **A failing step does not cost the cycle.** A YouTube quota error at the
+      sweep must not stop posts a person already approved from going out. Each
+      step is caught, recorded and reported; the next cycle tries again.
+- [x] **The two human gates are untouched.** `publish_due` can only act on posts
+      that already carry an approval. This service drives the machine either
+      side of the swipe and the approval and stops at both.
+- [x] The loop **waits before it runs**, so a restart loop cannot become a burst
+      of sweeps against a quota. Interval clamped to 300s–24h.
+- [x] Separate from the email `AutomationService` on purpose: that one is
+      email-shaped, and nothing built from here may assume email.
+- [x] `_TimerScope` — the four per-request engine factories read only
+      `request.app.state`, so the timer passes an object with an `.app`. The
+      alternative was changing thirty call sites to land in the same place.
+- [x] 26 tests: declaration rules, corrupt-config safety, bounds, step order,
+      per-step failure isolation, switch-off-by-name, no overlapping cycles,
+      the wait-then-run loop, clean start/stop, and a live HTTP cycle through
+      the app's real factories. Plus a structural test that this module imports
+      no transport.
 
 ### Video projects on Postgres (2026-08-14)
 - [x] `VideoStore` is opened through `resolve_target`, the same seam the egress

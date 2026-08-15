@@ -31,9 +31,15 @@ from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
+from ..video.presets import catalogue as video_preset_catalogue
 from ..video.engine import VideoEditorEngine
 from ..video.store import VideoStore
-from ..video.timeline import FRAME_RATES, PRESETS as CANVAS_PRESETS, TICKS_PER_SECOND
+from ..video.timeline import (
+    BLEND_MODES,
+    FRAME_RATES,
+    PRESETS as CANVAS_PRESETS,
+    TICKS_PER_SECOND,
+)
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
@@ -1074,6 +1080,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ],
             "frame_rates": sorted(FRAME_RATES),
             "operations": sorted(VIDEO_OPERATIONS),
+            "blend_modes": list(BLEND_MODES),
+            # The whole preset space in one response. It is data, so the picker
+            # in the UI and anything that later *searches* the space read the
+            # same list rather than each keeping their own copy.
+            **video_preset_catalogue(),
         }
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects", status_code=201)

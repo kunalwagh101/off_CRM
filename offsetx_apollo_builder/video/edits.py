@@ -21,7 +21,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
+from . import presets
 from .timeline import (
+    BLEND_MODES,
     EASINGS,
     PRESETS,
     TRACK_KINDS,
@@ -39,6 +41,9 @@ from .timeline import (
     _validate_clip,
     frame_rate,
     interpolate,
+    Transition,
+    _assert_transitions_fit,
+    prune_transitions,
 )
 
 
@@ -50,6 +55,11 @@ def _commit(project: Project, track: Track) -> Project:
     """Re-sort and re-check one track after it has been changed."""
     track.clips.sort(key=lambda clip: clip.start)
     _assert_no_overlap(track)
+    # A transition describes a cut. An edit that moved either side has destroyed
+    # that cut, so the transition goes with it rather than lingering as a ghost
+    # that reappears if the clips ever line up again.
+    track.transitions = prune_transitions(track)
+    _assert_transitions_fit(track)
     return project
 
 
@@ -71,28 +81,40 @@ def _resample_keyframes(frames: list[Keyframe], *, start: int, end: int) -> list
     from its first keyframe's value, which shows up as a jump at every cut, on
     the frame the viewer is most likely to be looking at.
 
-    A boundary keyframe is only synthesised when the boundary falls *between*
-    two real ones. Outside that range the value is already constant, so adding
-    one would make every trim grow the keyframe list for no change in output.
+    **The keyframes are shifted, not rebuilt.** An earlier version synthesised a
+    keyframe at each boundary from the interpolated value, which is exact for a
+    linear segment and wrong for every other kind: a sub-range of an ease-out
+    curve is not itself an ease-out curve, so re-easing the halves changed the
+    shape between the samples. Splitting a clip mid-ease visibly altered the
+    animation, and the test that should have caught it happened to use a linear
+    segment.
+
+    Shifting every keyframe by ``start`` reproduces the original curve exactly,
+    because the curve is defined by the same control points measured from a new
+    origin. Keyframes outside the range are then dropped **except** the nearest
+    one on each side, which are the two that anchor the interpolation at the
+    boundaries. Exact, and bounded — a clip split fifty times does not carry
+    fifty times the keyframes.
     """
     if not frames:
         return []
     ordered = sorted(frames, key=lambda item: item.at)
-    first, last = ordered[0].at, ordered[-1].at
-    span = end - start
-    kept: dict[int, Keyframe] = {}
-    for frame in ordered:
-        if start <= frame.at <= end:
-            kept[frame.at - start] = Keyframe(frame.at - start, frame.value, frame.easing)
-    if first < start < last and 0 not in kept:
-        kept[0] = Keyframe(0, interpolate(ordered, start), _easing_at(ordered, start))
-    if first < end < last and span not in kept:
-        kept[span] = Keyframe(span, interpolate(ordered, end), _easing_at(ordered, end))
+    inside = [frame for frame in ordered if start <= frame.at <= end]
+    before = [frame for frame in ordered if frame.at < start]
+    after = [frame for frame in ordered if frame.at > end]
+
+    kept = list(inside)
+    if before:
+        kept.insert(0, before[-1])
+    if after:
+        kept.append(after[0])
     if not kept:
-        # The whole range sits outside every keyframe, so the value is held.
-        # One keyframe carrying that value says the same thing in less space.
-        kept[0] = Keyframe(0, interpolate(ordered, start), ordered[0].easing)
-    return sorted(kept.values(), key=lambda item: item.at)
+        kept = [ordered[0]]
+
+    return [
+        Keyframe(frame.at - start, frame.value, frame.easing)
+        for frame in sorted(kept, key=lambda item: item.at)
+    ]
 
 
 def _resample_clip_keyframes(
@@ -237,7 +259,7 @@ def remove_clip(project: Project, *, clip_id: str) -> Project:
     track, clip = result.find_clip(clip_id)
     _assert_editable(track)
     track.clips = [item for item in track.clips if item.id != clip_id]
-    return result
+    return _commit(result, track)
 
 
 def ripple_delete(project: Project, *, clip_id: str) -> Project:
@@ -574,6 +596,240 @@ def clear_keyframes(project: Project, *, clip_id: str, name: str = "") -> Projec
     return result
 
 
+# ── transitions ─────────────────────────────────────────────────────────────
+
+
+def add_transition(
+    project: Project,
+    *,
+    clip_id: str,
+    preset: str = "dissolve",
+    duration: int = presets.DEFAULT_TRANSITION_TICKS,
+    side: str = "after",
+) -> Project:
+    """Blend this clip into the one next to it.
+
+    Addressed by *one* clip and a side rather than by two, because that is how
+    it is used: you select a clip and put a transition on its end. Naming both
+    sides would make the caller find the neighbour, and the caller finding the
+    wrong neighbour is a dissolve in the wrong place.
+    """
+    spec = presets.transition(preset)
+    span = max(
+        presets.MIN_TRANSITION_TICKS,
+        min(int(duration), presets.MAX_TRANSITION_TICKS),
+    )
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+
+    ordered = sorted(track.clips, key=lambda item: item.start)
+    position = next(index for index, item in enumerate(ordered) if item.id == clip_id)
+    if str(side) == "before":
+        left = ordered[position - 1] if position > 0 else None
+        right = clip
+    else:
+        left = clip
+        right = ordered[position + 1] if position + 1 < len(ordered) else None
+
+    if left is None or right is None:
+        raise TimelineError(
+            f"There is no clip {'before' if side == 'before' else 'after'} "
+            f"{clip_id!r} to blend into. A transition needs two clips."
+        )
+    if left.end != right.start:
+        raise TimelineError(
+            "Those two clips do not meet — there is a gap between them. A "
+            "transition blends across a cut, so close the gap first."
+        )
+
+    # One transition per cut. Adding a second would mean two blends over the
+    # same frames, which has no defined answer.
+    track.transitions = [
+        item
+        for item in track.transitions
+        if not (item.from_clip_id == left.id and item.to_clip_id == right.id)
+    ]
+    track.transitions.append(
+        Transition(
+            id=_new_id("xt"),
+            from_clip_id=left.id,
+            to_clip_id=right.id,
+            preset=spec.id,
+            duration=span,
+        )
+    )
+    return _commit(result, track)
+
+
+def set_transition(
+    project: Project,
+    *,
+    transition_id: str,
+    preset: str = "",
+    duration: int = 0,
+) -> Project:
+    result = _copy(project)
+    for track in result.tracks:
+        for index, item in enumerate(track.transitions):
+            if item.id != transition_id:
+                continue
+            track.transitions[index] = Transition(
+                id=item.id,
+                from_clip_id=item.from_clip_id,
+                to_clip_id=item.to_clip_id,
+                preset=presets.transition(preset).id if preset else item.preset,
+                duration=(
+                    max(
+                        presets.MIN_TRANSITION_TICKS,
+                        min(int(duration), presets.MAX_TRANSITION_TICKS),
+                    )
+                    if duration
+                    else item.duration
+                ),
+            )
+            return _commit(result, track)
+    raise TimelineError(f"No transition {transition_id!r} in this project.")
+
+
+def remove_transition(project: Project, *, transition_id: str) -> Project:
+    result = _copy(project)
+    for track in result.tracks:
+        if any(item.id == transition_id for item in track.transitions):
+            track.transitions = [item for item in track.transitions if item.id != transition_id]
+            return result
+    raise TimelineError(f"No transition {transition_id!r} in this project.")
+
+
+def apply_transition_to_all(
+    project: Project,
+    *,
+    track_id: str,
+    preset: str = "dissolve",
+    duration: int = presets.DEFAULT_TRANSITION_TICKS,
+) -> Project:
+    """Put the same transition on every cut in a track.
+
+    Cuts that cannot take one — because a clip is too short for the halves at
+    both its ends — are skipped rather than failing the whole operation. Asking
+    for "all" and getting nothing because one clip was short is not what anyone
+    means by all.
+    """
+    result = project
+    working = _copy(project)
+    ordered = sorted(working.track(track_id).clips, key=lambda item: item.start)
+    for left, right in zip(ordered, ordered[1:]):
+        if left.end != right.start:
+            continue
+        try:
+            result = add_transition(
+                result, clip_id=left.id, preset=preset, duration=duration, side="after"
+            )
+        except TimelineError:
+            continue
+    return result
+
+
+# ── animations and styles, from the preset registry ─────────────────────────
+
+
+def apply_animation(
+    project: Project,
+    *,
+    clip_id: str,
+    preset: str,
+    duration: int = presets.DEFAULT_ANIMATION_TICKS,
+) -> Project:
+    """Turn a named animation into ordinary keyframes on this clip.
+
+    Deliberately not a new kind of object. Once applied there is nothing special
+    about an animated clip — it survives a split, travels with a trim and
+    resolves identically in both languages, because it *is* keyframes and all of
+    that already works.
+    """
+    spec = presets.animation(preset)
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+
+    window = max(1, min(int(duration), clip.duration))
+    plan = presets.keyframes_for(spec, window=window, clip_duration=clip.duration)
+    for name, points in plan.items():
+        key = _check_property(name)
+        existing = {frame.at: frame for frame in clip.keyframes.get(key, [])}
+        for at, value, easing in points:
+            offset = max(0, min(int(at), clip.duration))
+            existing[offset] = Keyframe(offset, _clamp(key, value), easing)
+        clip.keyframes[key] = sorted(existing.values(), key=lambda frame: frame.at)
+    clip.style = {**clip.style, "animation": spec.id}
+    return result
+
+
+def apply_text_style(project: Project, *, clip_id: str, style: str) -> Project:
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    if clip.kind != "text":
+        raise TimelineError(f"Clip {clip_id!r} is a {clip.kind} clip, not a text clip.")
+    clip.style = {**clip.style, **presets.text_style(style), "preset": style}
+    return result
+
+
+def set_blend_mode(project: Project, *, clip_id: str, mode: str) -> Project:
+    """How this clip mixes with what is under it.
+
+    A name rather than a number, so it lives in style and not in the property
+    set — half of a blend mode is not a blend mode, and there is nothing to
+    interpolate.
+    """
+    key = str(mode or "normal").strip().lower()
+    if key not in BLEND_MODES:
+        raise TimelineError(
+            f"Unknown blend mode {mode!r}. Known: {', '.join(BLEND_MODES)}."
+        )
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    clip.style = {**clip.style, "blend": key}
+    return result
+
+
+def copy_attributes(
+    project: Project,
+    *,
+    from_clip_id: str,
+    to_clip_ids: list[str],
+    properties: bool = True,
+    keyframes: bool = False,
+    style: bool = True,
+) -> Project:
+    """Paste one clip's look onto others.
+
+    Keyframes are **off by default**: they are measured against the source
+    clip's length, and pasting them onto a clip of a different length puts the
+    animation somewhere nobody chose. Asking for them explicitly is the point at
+    which the caller has thought about that.
+    """
+    result = _copy(project)
+    _, source = result.find_clip(from_clip_id)
+    for target_id in to_clip_ids:
+        track, clip = result.find_clip(target_id)
+        _assert_editable(track)
+        if properties:
+            clip.properties = dict(source.properties)
+        if style:
+            clip.style = {**clip.style, **source.style}
+        if keyframes:
+            clip.keyframes = {
+                name: [
+                    Keyframe(min(frame.at, clip.duration), frame.value, frame.easing)
+                    for frame in frames
+                ]
+                for name, frames in source.keyframes.items()
+            }
+    return result
+
+
 # ── markers and the canvas ──────────────────────────────────────────────────
 
 
@@ -656,6 +912,14 @@ OPERATIONS: dict[str, Callable[..., Project]] = {
     "add_keyframe": add_keyframe,
     "remove_keyframe": remove_keyframe,
     "clear_keyframes": clear_keyframes,
+    "add_transition": add_transition,
+    "set_transition": set_transition,
+    "remove_transition": remove_transition,
+    "apply_transition_to_all": apply_transition_to_all,
+    "apply_animation": apply_animation,
+    "apply_text_style": apply_text_style,
+    "set_blend_mode": set_blend_mode,
+    "copy_attributes": copy_attributes,
     "add_marker": add_marker,
     "remove_marker": remove_marker,
     "set_canvas": set_canvas,

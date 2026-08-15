@@ -42,8 +42,30 @@ export const PROPERTY_SPEC: Record<string, [number, number, number]> = {
   brightness: [0, -1, 1],
   contrast: [0, -1, 1],
   saturation: [0, -1, 1],
-  blur: [0, 0, 100]
+  blur: [0, 0, 100],
+  exposure: [0, -2, 2],
+  temperature: [0, -1, 1],
+  tint: [0, -1, 1],
+  vignette: [0, 0, 1],
+  sharpen: [0, 0, 2],
+  grain: [0, 0, 1],
+  /** 0 or 1 rather than booleans, so they animate like everything else. */
+  flip_x: [0, 0, 1],
+  flip_y: [0, 0, 1],
+  corner_radius: [0, 0, 1000],
+  border_width: [0, 0, 200],
+  shadow: [0, 0, 200],
+  letter_spacing: [0, -50, 200]
 };
+
+/** How a clip mixes with what is under it. A name, not a number — half a blend
+ *  mode is not a blend mode, so it lives in style rather than in properties. */
+export const BLEND_MODES = [
+  "normal", "multiply", "screen", "overlay", "darken", "lighten",
+  "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
+  "exclusion", "hue", "saturation", "color", "luminosity"
+] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
 
 export type Easing = "linear" | "hold" | "ease_in" | "ease_out" | "ease_in_out";
 export type ClipKind = "video" | "image" | "audio" | "text" | "solid";
@@ -73,6 +95,19 @@ export interface Clip {
   style: Record<string, unknown>;
 }
 
+/** A blend across the cut between two adjacent clips.
+ *
+ *  Not a clip: a dissolve needs both sides on screen at once, and clips on a
+ *  track cannot overlap by a tick. The overlap is a declared property of the
+ *  boundary instead, which is what keeps the invariant intact. */
+export interface Transition {
+  id: string;
+  from_clip_id: string;
+  to_clip_id: string;
+  preset: string;
+  duration: number;
+}
+
 export interface Track {
   id: string;
   kind: TrackKind;
@@ -81,6 +116,7 @@ export interface Track {
   muted: boolean;
   hidden: boolean;
   clips: Clip[];
+  transitions?: Transition[];
 }
 
 export interface Marker {
@@ -118,6 +154,15 @@ export interface DrawItem {
   gain: number;
   properties: Record<string, number>;
   style: Record<string, unknown>;
+  /** Set while this clip is inside a transition. `progress` runs 0 → 1 across
+   *  the whole window for both sides, so the painter blends one number. */
+  transition: {
+    id?: string;
+    preset?: string;
+    progress?: number;
+    role?: "from" | "to";
+    partner?: string;
+  };
 }
 
 export interface Frame {

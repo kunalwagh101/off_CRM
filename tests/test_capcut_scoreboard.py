@@ -89,12 +89,32 @@ def test_auto_captions_is_marked_built_because_it_is():
 
 
 def test_nothing_claims_to_be_built_that_the_code_does_not_have():
-    """Spot-check the claims that would be easiest to inflate."""
+    """Spot-check the claims that would be easiest to inflate.
+
+    Masks and keying need shader work that does not exist; MP4 needs a second
+    muxer; text-to-video needs a generator nobody has wired. None of them may
+    be marked built, whatever else moves.
+    """
     marks = {feature: mark for feature, _, mark in rows()}
-    # Transitions need a real transition object; the overlap rule forbids the
-    # naive version, so none of these may be marked built.
     for feature, mark in marks.items():
-        if "Transition" in feature or "Masks:" in feature or "Chroma key" in feature:
+        if feature.startswith("Masks:") or "Chroma key" in feature or "Mask invert" in feature:
             assert mark == NOT_BUILT, f"{feature!r} is not built"
     assert marks["MP4 / MOV, H.264 / HEVC"] == NOT_BUILT
     assert marks["**Text to video**"] == NOT_BUILT
+    assert marks["Freeze frame"] == NOT_BUILT
+    assert marks["Reverse clip"] == NOT_BUILT
+
+
+def test_the_rows_stage_two_delivered_are_marked_built():
+    """The other direction: work that shipped must not quietly lose its mark."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "Transitions: dissolve, wipe, glitch, zoom, whip, prism, page turn, light leak",
+        "Transition duration slider",
+        "Apply transition to all cuts",
+        "Clip animations: in, out, combo/loop",
+        "Blend modes (screen, multiply, overlay…)",
+        "Copy–paste attributes between clips",
+        "Text style presets",
+    ):
+        assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"

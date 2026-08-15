@@ -40,6 +40,15 @@ describe("timeline conformance with the server resolver", () => {
         expect(got.opacity, where).toBeCloseTo(want.opacity, 6);
         expect(got.gain, where).toBeCloseTo(want.gain, 6);
         expect(got.style, where).toEqual(want.style);
+        // The transition field is the one place a clip is drawn outside its own
+        // bounds, so it is exactly where the two resolvers could diverge.
+        expect(got.transition?.id ?? "", where).toBe(want.transition?.id ?? "");
+        expect(got.transition?.preset ?? "", where).toBe(want.transition?.preset ?? "");
+        expect(got.transition?.role ?? "", where).toBe(want.transition?.role ?? "");
+        expect(got.transition?.partner ?? "", where).toBe(want.transition?.partner ?? "");
+        if (want.transition?.progress !== undefined) {
+          expect(got.transition?.progress, where).toBeCloseTo(want.transition.progress, 6);
+        }
         for (const [name, value] of Object.entries(want.properties)) {
           expect(got.properties[name], `${where} ${name}`).toBeCloseTo(value, 6);
         }
@@ -58,6 +67,40 @@ describe("timeline conformance with the server resolver", () => {
     const hidden = frame.items.find((item) => item.clip_id === "clip_hidden");
     expect(hidden).toBeDefined();
     expect(hidden?.opacity).toBe(0);
+  });
+
+  it("draws both sides of a transition, on one shared progress", () => {
+    const track = fixture.document.tracks.find((item) => item.id === "track_base");
+    expect(track?.transitions?.length).toBe(1);
+
+    // Before the window: only the outgoing clip.
+    expect(
+      frameAt(fixture.document, 45_000).items.filter((item) => item.transition?.role).length
+    ).toBe(0);
+
+    // Across it: both, with one number between them.
+    const mid = frameAt(fixture.document, 90_000);
+    const from = mid.items.find((item) => item.transition?.role === "from");
+    const to = mid.items.find((item) => item.transition?.role === "to");
+    expect(from?.clip_id).toBe("clip_still");
+    expect(to?.clip_id).toBe("clip_slow");
+    expect(from?.transition?.progress).toBeCloseTo(0.5, 6);
+    expect(from?.transition?.progress).toBe(to?.transition?.progress);
+    expect(from?.transition?.preset).toBe("wipe_left");
+
+    // After it: only the incoming clip, and it is no longer in a transition.
+    const after = frameAt(fixture.document, 112_500);
+    expect(after.items.some((item) => item.clip_id === "clip_still")).toBe(false);
+    expect(after.items.find((item) => item.clip_id === "clip_slow")?.transition).toEqual({});
+  });
+
+  it("keeps a clip inside its own material while it is drawn past its end", () => {
+    // clip_still is 0–90000 but drawn to 112500 by the transition. Its clip
+    // time must not run past its own last frame.
+    const late = frameAt(fixture.document, 112_499);
+    const still = late.items.find((item) => item.clip_id === "clip_still");
+    expect(still).toBeDefined();
+    expect(still!.clip_time).toBeLessThan(90_000);
   });
 
   it("ends the timeline exactly, with nothing live one tick past the end", () => {

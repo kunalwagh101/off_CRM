@@ -45,9 +45,12 @@ SAMPLE_TICKS = [
     1,          # one tick in, where a fade has barely begun
     22500,      # 0.25s, inside the first fade
     45000,      # 0.5s
+    67500,      # a quarter second before the cut: the transition has begun
     89999,      # the tick before a cut
     90000,      # the cut itself, where the half-open interval decides
     90001,      # the tick after
+    112499,     # the last tick of the transition window
+    112500,     # one past it: only the second clip remains
     135000,     # 1.5s, mid-animation on the second clip
     180000,     # 2s, where the overlay starts
     225000,     # 2.5s, two video tracks and audio all live
@@ -168,6 +171,25 @@ def build() -> Project:
     )
     project = edits.set_property(project, clip_id="clip_slow", name="saturation", value=0.3)
     project = edits.add_marker(project, at=90000, label="cut", colour="#ffcc00")
+
+    # A transition across the cut at 90000. Both clips are drawn for a quarter
+    # second either side of it, which is the one case where the resolver returns
+    # a clip outside its own bounds — so the browser has to agree about it.
+    project = edits.add_transition(
+        project, clip_id="clip_still", preset="wipe_left", duration=45000, side="after"
+    )
+    project.tracks[0].transitions[0] = type(project.tracks[0].transitions[0])(
+        id="xt_cut",
+        from_clip_id="clip_still",
+        to_clip_id="clip_slow",
+        preset="wipe_left",
+        duration=45000,
+    )
+
+    # A blend mode and an applied animation, so the style fields the painter
+    # reads are exercised rather than assumed.
+    project = edits.set_blend_mode(project, clip_id="clip_text", mode="screen")
+    project = edits.apply_animation(project, clip_id="clip_text", preset="pop_in", duration=22500)
     return project
 
 

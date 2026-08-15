@@ -9,6 +9,7 @@
  */
 
 import type { DrawItem, Frame, ProjectDoc } from "./document";
+import { NO_TRANSITION, paintFor, type TransitionPaint } from "./transitions";
 
 /** Whatever a clip draws from: a decoded picture, or a video frame. */
 export type AssetSource = CanvasImageSource & { width?: number; height?: number };
@@ -21,18 +22,50 @@ export interface LoadedAsset {
 
 export type AssetTable = Map<string, LoadedAsset>;
 
-function filterFor(properties: Record<string, number>): string {
+function filterFor(properties: Record<string, number>, extraBlur = 0): string {
   const parts: string[] = [];
   const brightness = properties.brightness ?? 0;
+  const exposure = properties.exposure ?? 0;
   const contrast = properties.contrast ?? 0;
   const saturation = properties.saturation ?? 0;
-  const blur = properties.blur ?? 0;
-  if (brightness) parts.push(`brightness(${(1 + brightness).toFixed(4)})`);
+  const temperature = properties.temperature ?? 0;
+  const blur = (properties.blur ?? 0) + extraBlur;
+  // Exposure is a stop, so it multiplies rather than adds — and it composes
+  // with brightness instead of replacing it.
+  const light = (1 + brightness) * 2 ** exposure;
+  if (light !== 1) parts.push(`brightness(${light.toFixed(4)})`);
   if (contrast) parts.push(`contrast(${(1 + contrast).toFixed(4)})`);
   if (saturation) parts.push(`saturate(${(1 + saturation).toFixed(4)})`);
+  // Warm and cool are a hue rotation plus a sepia wash — cheap, and close
+  // enough that nobody reaches for a colour matrix at this size.
+  if (temperature) {
+    parts.push(`sepia(${Math.min(1, Math.abs(temperature)).toFixed(3)})`);
+    parts.push(`hue-rotate(${(temperature < 0 ? 170 : -10) * Math.abs(temperature)}deg)`);
+  }
   if (blur > 0) parts.push(`blur(${blur.toFixed(2)}px)`);
   return parts.length ? parts.join(" ") : "none";
 }
+
+/** The transition paint for this item, or a no-op when it is not in one. */
+function transitionPaint(
+  item: DrawItem,
+  project: ProjectDoc,
+  lookup: TransitionLookup | undefined
+): TransitionPaint {
+  const preset = item.transition?.preset;
+  if (!preset || !lookup) return NO_TRANSITION;
+  const spec = lookup(preset);
+  if (!spec) return NO_TRANSITION;
+  return paintFor(item, spec.family, spec.params ?? {}, {
+    width: project.width,
+    height: project.height
+  });
+}
+
+/** Resolves a preset id to its family and params — the registry, fetched once. */
+export type TransitionLookup = (
+  preset: string
+) => { family: string; params: Record<string, unknown> } | undefined;
 
 /**
  * How a source of one shape sits inside a canvas of another.
@@ -130,7 +163,8 @@ export function paintFrame(
   context: CanvasRenderingContext2D,
   project: ProjectDoc,
   frame: Frame,
-  assets: AssetTable
+  assets: AssetTable,
+  transitions?: TransitionLookup
 ): void {
   const { width, height } = project;
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -139,21 +173,36 @@ export function paintFrame(
   context.fillStyle = project.background || "#000000";
   context.fillRect(0, 0, width, height);
 
+  const flashes: Array<{ colour: string; alpha: number }> = [];
+
   for (const item of frame.items) {
     if (item.kind === "audio") continue;
-    if (item.opacity <= 0) continue;
+    const paint = transitionPaint(item, project, transitions);
+    const alpha = Math.max(0, Math.min(1, item.opacity * paint.alpha));
+    if (paint.flash) flashes.push(paint.flash);
+    if (alpha <= 0) continue;
     const properties = item.properties;
     const style = item.style as Record<string, unknown>;
 
     context.save();
-    context.globalAlpha = Math.max(0, Math.min(1, item.opacity));
-    context.filter = filterFor(properties);
+    context.globalAlpha = alpha;
+    context.filter = filterFor(properties, paint.blur);
+    context.globalCompositeOperation =
+      (style.blend as GlobalCompositeOperation | undefined) ?? "source-over";
+    if (paint.clip) {
+      context.beginPath();
+      context.rect(paint.clip.x, paint.clip.y, paint.clip.width, paint.clip.height);
+      context.clip();
+    }
     context.translate(
-      width * properties.anchor_x + properties.x,
-      height * properties.anchor_y + properties.y
+      width * properties.anchor_x + properties.x + paint.x,
+      height * properties.anchor_y + properties.y + paint.y
     );
-    context.rotate((properties.rotation * Math.PI) / 180);
-    context.scale(properties.scale, properties.scale);
+    context.rotate(((properties.rotation + paint.rotation) * Math.PI) / 180);
+    context.scale(
+      properties.scale * paint.scale * (properties.flip_x >= 0.5 ? -1 : 1),
+      properties.scale * paint.scale * (properties.flip_y >= 0.5 ? -1 : 1)
+    );
 
     if (item.kind === "solid") {
       context.fillStyle = String(style.colour ?? "#000000");
@@ -195,7 +244,14 @@ export function paintFrame(
     context.restore();
   }
 
+  // Flashes go over everything, which is what makes them hide a cut.
   context.setTransform(1, 0, 0, 1, 0, 0);
-  context.globalAlpha = 1;
+  context.globalCompositeOperation = "source-over";
   context.filter = "none";
+  for (const flash of flashes) {
+    context.globalAlpha = Math.max(0, Math.min(1, flash.alpha));
+    context.fillStyle = flash.colour;
+    context.fillRect(0, 0, width, height);
+  }
+  context.globalAlpha = 1;
 }

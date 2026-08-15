@@ -137,7 +137,29 @@ PROPERTY_SPEC: dict[str, tuple[float, float, float]] = {
     "contrast": (0.0, -1.0, 1.0),
     "saturation": (0.0, -1.0, 1.0),
     "blur": (0.0, 0.0, 100.0),
+    "exposure": (0.0, -2.0, 2.0),
+    "temperature": (0.0, -1.0, 1.0),
+    "tint": (0.0, -1.0, 1.0),
+    "vignette": (0.0, 0.0, 1.0),
+    "sharpen": (0.0, 0.0, 2.0),
+    "grain": (0.0, 0.0, 1.0),
+    #: Flips are 0 or 1 rather than booleans so they animate like everything
+    #: else and need no second code path in either resolver.
+    "flip_x": (0.0, 0.0, 1.0),
+    "flip_y": (0.0, 0.0, 1.0),
+    "corner_radius": (0.0, 0.0, 1000.0),
+    "border_width": (0.0, 0.0, 200.0),
+    "shadow": (0.0, 0.0, 200.0),
+    "letter_spacing": (0.0, -50.0, 200.0),
 }
+
+#: Blend modes a clip may declare. Not a property because it is a name, not a
+#: number, and a half-interpolated blend mode is not a thing.
+BLEND_MODES = (
+    "normal", "multiply", "screen", "overlay", "darken", "lighten",
+    "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
+    "exclusion", "hue", "saturation", "color", "luminosity",
+)
 
 #: How a value travels from one keyframe to the next. ``hold`` is a step, which
 #: is the one people reach for when they want a thing to appear rather than
@@ -342,6 +364,48 @@ class Clip:
         )
 
 
+@dataclass(frozen=True)
+class Transition:
+    """A blend between two clips that meet at a cut.
+
+    **Not a clip, and that is the whole design.** A dissolve needs both clips on
+    screen at once, and the timeline's central rule is that clips on a track
+    cannot overlap by a single tick. Relaxing that rule to allow transitions
+    would reopen the worst bug class an editor has — two clips claiming one tick,
+    with the preview and the export free to disagree about which wins.
+
+    So the clips stay adjacent and untouched, and this object says *how long
+    either side of their shared cut both should be drawn for*. The overlap is a
+    property of the boundary, declared and bounded, rather than an accident of
+    two clips' positions.
+    """
+
+    id: str
+    from_clip_id: str
+    to_clip_id: str
+    preset: str = "dissolve"
+    duration: int = 45_000
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "from_clip_id": self.from_clip_id,
+            "to_clip_id": self.to_clip_id,
+            "preset": self.preset,
+            "duration": int(self.duration),
+        }
+
+    @staticmethod
+    def from_dict(raw: Mapping[str, Any]) -> "Transition":
+        return Transition(
+            id=str(raw.get("id") or _new_id("xt")),
+            from_clip_id=str(raw.get("from_clip_id") or ""),
+            to_clip_id=str(raw.get("to_clip_id") or ""),
+            preset=str(raw.get("preset") or "dissolve"),
+            duration=int(raw.get("duration") or 45_000),
+        )
+
+
 @dataclass
 class Track:
     """A lane. Order is z-order for video: later tracks draw on top."""
@@ -353,6 +417,7 @@ class Track:
     muted: bool = False
     hidden: bool = False
     clips: list[Clip] = field(default_factory=list)
+    transitions: list[Transition] = field(default_factory=list)
 
     @property
     def duration(self) -> int:
@@ -373,6 +438,7 @@ class Track:
             "muted": self.muted,
             "hidden": self.hidden,
             "clips": [clip.to_dict() for clip in self.clips],
+            "transitions": [item.to_dict() for item in self.transitions],
         }
 
     @staticmethod
@@ -392,6 +458,7 @@ class Track:
             muted=bool(raw.get("muted")),
             hidden=bool(raw.get("hidden")),
             clips=clips,
+            transitions=[Transition.from_dict(item) for item in raw.get("transitions") or []],
         )
 
 
@@ -633,6 +700,11 @@ class DrawItem:
     gain: float
     properties: dict[str, float]
     style: dict[str, Any]
+    #: ``{"id","preset","progress","role"}`` while this clip is inside a
+    #: transition, otherwise empty. ``progress`` runs 0 → 1 across the whole
+    #: window for both sides, so the painter blends one number rather than
+    #: reconciling two clocks.
+    transition: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -649,6 +721,7 @@ class DrawItem:
             "gain": round(float(self.gain), 6),
             "properties": {name: round(float(value), 6) for name, value in sorted(self.properties.items())},
             "style": dict(self.style),
+            "transition": dict(self.transition),
         }
 
 
@@ -669,6 +742,21 @@ class Frame:
 
     def to_dict(self) -> dict[str, Any]:
         return {"tick": int(self.tick), "items": [item.to_dict() for item in self.items]}
+
+
+def transition_window(track: "Track", item: Transition) -> tuple[int, int] | None:
+    """The span both clips are drawn for, centred on their shared cut.
+
+    Returns ``None`` when the two clips are not actually adjacent — a transition
+    left behind by an edit that moved one of them. Silently rendering it
+    somewhere near the old cut would put a dissolve in the middle of a clip.
+    """
+    left = next((clip for clip in track.clips if clip.id == item.from_clip_id), None)
+    right = next((clip for clip in track.clips if clip.id == item.to_clip_id), None)
+    if left is None or right is None or left.end != right.start:
+        return None
+    half = max(1, int(item.duration) // 2)
+    return (max(0, left.end - half), left.end + half)
 
 
 def _fade_factor(clip: Clip, offset: int) -> float:
@@ -700,10 +788,42 @@ def frame_at(project: Project, tick: int) -> Frame:
     moment = max(0, int(tick))
     items: list[DrawItem] = []
     for index, track in enumerate(project.tracks):
-        for clip in track.clips:
-            if not (clip.start <= moment < clip.end):
+        # Which clips this instant asks for beyond their own bounds, and how far
+        # through the blend it is. Computed once per track rather than per clip:
+        # a transition is a property of a boundary, not of either side.
+        extended: dict[str, dict[str, Any]] = {}
+        for item in track.transitions:
+            window = transition_window(track, item)
+            if window is None:
                 continue
-            offset = moment - clip.start
+            start, end = window
+            if not (start <= moment < end):
+                continue
+            span = max(1, end - start)
+            progress = min(1.0, max(0.0, (moment - start) / span))
+            extended[item.from_clip_id] = {
+                "id": item.id,
+                "preset": item.preset,
+                "progress": round(progress, 6),
+                "role": "from",
+                "partner": item.to_clip_id,
+            }
+            extended[item.to_clip_id] = {
+                "id": item.id,
+                "preset": item.preset,
+                "progress": round(progress, 6),
+                "role": "to",
+                "partner": item.from_clip_id,
+            }
+
+        for clip in track.clips:
+            crossing = extended.get(clip.id, {})
+            if not (clip.start <= moment < clip.end) and not crossing:
+                continue
+            # A clip drawn outside its own bounds is held at its nearest frame —
+            # the alternative is reading past the end of its material, which the
+            # validator spent its whole existence preventing.
+            offset = min(max(0, moment - clip.start), max(0, clip.duration - 1))
             resolved = clip.property_at(offset)
             fade = _fade_factor(clip, offset)
             has_source = clip.kind in ("video", "audio")
@@ -731,6 +851,7 @@ def frame_at(project: Project, tick: int) -> Frame:
                     gain=gain,
                     properties=resolved,
                     style=dict(clip.style),
+                    transition=dict(crossing),
                 )
             )
     items.sort(key=lambda item: (item.z, item.clip_id))
@@ -750,6 +871,43 @@ def _assert_no_overlap(track: Track, *, ignore: str = "") -> None:
                 f"Clips {left.id!r} and {right.id!r} would both occupy track "
                 f"{track.id!r} at tick {right.start}. Move one, or put it on "
                 "another track — a track cannot show two things at once."
+            )
+
+
+def prune_transitions(track: Track) -> list[Transition]:
+    """Drop transitions whose cut no longer exists.
+
+    An edit that moves or deletes one side of a cut leaves a transition
+    describing a boundary that is not there any more. Keeping it would mean a
+    dissolve reappearing if the clips ever happened to line up again, which is
+    the kind of ghost nobody can debug.
+    """
+    return [item for item in track.transitions if transition_window(track, item) is not None]
+
+
+def _assert_transitions_fit(track: Track) -> None:
+    """A clip must be long enough for the transitions at both its ends.
+
+    Half a transition extends past each side of the cut, so a clip with one at
+    each end gives up half of each. If those halves exceed the clip, the two
+    transitions overlap *each other* inside it — and a frame belonging to two
+    blends at once has no defined answer, which is the same objection as two
+    clips claiming one tick.
+    """
+    consumed: dict[str, int] = {}
+    for item in track.transitions:
+        if transition_window(track, item) is None:
+            continue
+        half = max(1, int(item.duration) // 2)
+        consumed[item.from_clip_id] = consumed.get(item.from_clip_id, 0) + half
+        consumed[item.to_clip_id] = consumed.get(item.to_clip_id, 0) + half
+    for clip in track.clips:
+        used = consumed.get(clip.id, 0)
+        if used > clip.duration:
+            raise TimelineError(
+                f"The transitions either side of clip {clip.id!r} need {used} "
+                f"ticks of it and it is only {clip.duration} long. Shorten one of "
+                "them, or make the clip longer — two blends cannot share a frame."
             )
 
 

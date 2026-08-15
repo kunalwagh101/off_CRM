@@ -227,6 +227,59 @@ def test_a_split_is_transparent_to_the_resolver(project):
             assert left["opacity"] == right["opacity"]
 
 
+def test_a_split_is_transparent_through_a_non_linear_ease(project):
+    """The case the linear test above cannot see.
+
+    A sub-range of an ease-out curve is not itself an ease-out curve, so an
+    earlier implementation that synthesised boundary keyframes and re-eased the
+    halves changed the animation's shape between the samples. It passed the test
+    above because that one happens to use a linear segment; splitting mid-ease
+    visibly altered the zoom.
+    """
+    clip = only_clip(project).id
+    for easing in ("ease_in", "ease_out", "ease_in_out"):
+        animated = edits.add_keyframe(
+            project, clip_id=clip, name="scale", at=0, value=0.5, easing=easing
+        )
+        animated = edits.add_keyframe(
+            animated, clip_id=clip, name="scale", at=4 * SECOND, value=2.0
+        )
+        ticks = range(0, 5 * SECOND, SECOND // 12)
+        before = [round(frame_at(animated, tick).items[0].properties["scale"], 9) for tick in ticks]
+        for cut in (SECOND, 2 * SECOND, 3 * SECOND):
+            split = edits.split_clip(animated, clip_id=clip, at=cut)
+            after = [round(frame_at(split, tick).items[0].properties["scale"], 9) for tick in ticks]
+            assert before == after, f"{easing} split at {cut}"
+
+
+def test_a_trim_is_transparent_through_a_non_linear_ease(project):
+    """Same property, the other operation that re-bases keyframes."""
+    clip = only_clip(project).id
+    animated = edits.add_keyframe(
+        project, clip_id=clip, name="scale", at=0, value=0.5, easing="ease_out"
+    )
+    animated = edits.add_keyframe(animated, clip_id=clip, name="scale", at=4 * SECOND, value=2.0)
+    trimmed = edits.trim_clip(animated, clip_id=clip, head=SECOND)
+    for tick in range(SECOND, 5 * SECOND, SECOND // 12):
+        original = frame_at(animated, tick).items[0].properties["scale"]
+        moved = frame_at(trimmed, tick).items[0].properties["scale"]
+        assert round(original, 9) == round(moved, 9), tick
+
+
+def test_splitting_repeatedly_does_not_grow_the_keyframes(project):
+    """Exactness must not cost an ever-growing document."""
+    clip = only_clip(project).id
+    animated = edits.add_keyframe(project, clip_id=clip, name="scale", at=0, value=1.0)
+    animated = edits.add_keyframe(animated, clip_id=clip, name="scale", at=4 * SECOND, value=2.0)
+    working = animated
+    target = clip
+    for cut in (SECOND, 2 * SECOND, 3 * SECOND):
+        working = edits.split_clip(working, clip_id=target, at=cut)
+        target = sorted(working.tracks[0].clips, key=lambda item: item.start)[-1].id
+    for piece in working.tracks[0].clips:
+        assert len(piece.keyframes.get("scale", [])) <= 3
+
+
 def test_a_split_moves_the_second_half_of_the_material_with_it(project):
     """Wrong at 1x is invisible; wrong on a slowed clip is obvious."""
     document = edits.add_clip(

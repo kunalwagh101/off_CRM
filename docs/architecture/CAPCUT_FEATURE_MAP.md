@@ -13,14 +13,14 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **29** | 18% |
-| ◐ Partly built | **17** | 11% |
-| ○ Not built | **112** | 71% |
+| ● Built | **40** | 25% |
+| ◐ Partly built | **15** | 9% |
+| ○ Not built | **103** | 65% |
 | | **158** | |
 
-Nine of those 112 are **out of scope on purpose** — a phone camera, a licensed
+9 of those 103 are **out of scope on purpose** — a phone camera, a licensed
 music library, a template marketplace. Against the 149 rows that are actually
-reachable, 46 are touched: **31%**.
+reachable, 55 are touched: **37%**.
 
 The 29 are not the easy 29. They are the timeline, its invariants, keyframes,
 undo, the export and its gates, and auto-captions — the floor everything else
@@ -70,7 +70,7 @@ timeline that now exists.
 | Markers on the timeline | B | ● |
 | Lock, mute, hide a track | B | ● |
 | Group / ungroup clips | B | ○ |
-| Copy–paste attributes between clips | B | ○ |
+| Copy–paste attributes between clips | B | ● keyframes off by default — they are measured against the source length |
 | Undo / redo, full history | B | ● |
 | Keyboard shortcuts, editable map | B | ● shortcuts yes, remapping no |
 | Frame-by-frame stepping | R | ● arrows step a frame, shift steps ten |
@@ -85,13 +85,13 @@ timeline that now exists.
 
 | Feature | | Status |
 |---|---|---|
-| Position, scale, rotate, flip | B | ◐ no flip |
+| Position, scale, rotate, flip | B | ● flip is a number, so it keyframes |
 | Crop | B | ● |
 | Aspect presets 9:16, 1:1, 4:5, 16:9, 4:3, 21:9, custom | B | ● 6 presets plus custom, 8 frame rates |
 | Background fill: blur, colour, image | B | ◐ colour only |
 | Ken Burns / zoom-pan | B | ● keyframed scale and position is exactly this |
 | Opacity | B | ● |
-| Blend modes (screen, multiply, overlay…) | B | ○ |
+| Blend modes (screen, multiply, overlay…) | B | ● all 16 |
 | Corner radius, borders, shadow | B | ○ |
 
 ## 4. Speed and time
@@ -109,11 +109,11 @@ timeline that now exists.
 
 | Feature | | Status |
 |---|---|---|
-| Transitions: dissolve, wipe, glitch, zoom, whip, prism, page turn, light leak | B | ○ |
-| Transition duration slider | B | ○ |
-| Apply transition to all cuts | B | ○ |
-| Clip animations: in, out, combo/loop | B | ○ |
-| Text and sticker animations | B | ○ |
+| Transitions: dissolve, wipe, glitch, zoom, whip, prism, page turn, light leak | B | ● 46 presets over 9 families |
+| Transition duration slider | B | ● 0.1s–2.0s, bounded |
+| Apply transition to all cuts | B | ● cuts that cannot take one are skipped, not failed |
+| Clip animations: in, out, combo/loop | B | ● 32 presets; applied as ordinary keyframes |
+| Text and sticker animations | B | ● the same animations work on text clips |
 
 ## 6. Effects and filters
 
@@ -130,9 +130,9 @@ timeline that now exists.
 
 | Feature | | Status |
 |---|---|---|
-| Brightness, contrast, saturation, exposure | B | ◐ brightness, contrast, saturation; no exposure |
-| Highlights, shadows, temperature, tint | B | ○ |
-| Sharpen, vignette, fade, grain | B | ○ |
+| Brightness, contrast, saturation, exposure | B | ● all four |
+| Highlights, shadows, temperature, tint | B | ◐ temperature and tint; highlights and shadows still absent |
+| Sharpen, vignette, fade, grain | B | ◐ sharpen, vignette and grain |
 | HSL per channel, curves | B | ○ |
 | Auto-adjust | B | ○ |
 | Colour match across clips | M | ○ |
@@ -155,11 +155,11 @@ timeline that now exists.
 | Feature | | Status |
 |---|---|---|
 | Text box, multi-language fonts | B | ● |
-| Size, colour, gradient, stroke, shadow, glow, background box | B | ◐ no gradient or glow |
-| Letter spacing, line spacing, alignment, opacity | B | ◐ no letter spacing |
-| Text style presets | B | ◐ one caption style, overridable; no library |
+| Size, colour, gradient, stroke, shadow, glow, background box | B | ◐ gradient and glow in the style registry |
+| Letter spacing, line spacing, alignment, opacity | B | ◐ letter spacing added |
+| Text style presets | B | ● 12 named styles |
 | Animated text templates | B | ○ |
-| Text animations in / out / loop | B | ◐ fades and keyframes, no named presets |
+| Text animations in / out / loop | B | ● the animation registry |
 | Text tracked to a moving object | M | ○ |
 | Text behind subject | M | ○ |
 | Text to speech from the text layer | M | ○ |

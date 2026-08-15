@@ -17,7 +17,7 @@
  * places — see `roundHalfToEven`. Matching Python exactly is the whole job.
  */
 
-import type { Clip, DrawItem, Frame, Keyframe, ProjectDoc, Track } from "./document";
+import type { Clip, DrawItem, Frame, Keyframe, ProjectDoc, Track, Transition } from "./document";
 import { PROPERTY_SPEC } from "./document";
 
 /**
@@ -32,6 +32,12 @@ export function roundHalfToEven(value: number): number {
   if (remainder > 0.5) return floor + 1;
   if (remainder < 0.5) return floor;
   return floor % 2 === 0 ? floor : floor + 1;
+}
+
+/** Six decimal places, matching what the server writes into the fixture. */
+export function roundTo(value: number, places: number): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
 }
 
 export function clampProperty(name: string, value: number): number {
@@ -106,6 +112,22 @@ export function fadeFactor(clip: Clip, offset: number): number {
 }
 
 /**
+ * The span both clips of a transition are drawn for, centred on their cut.
+ *
+ * Returns null when the two clips are not adjacent any more — a transition left
+ * behind by an edit that moved one of them. Drawing it near the old cut would
+ * put a dissolve in the middle of a clip.
+ */
+export function transitionWindow(track: Track, item: Transition): [number, number] | null {
+  const left = track.clips.find((clip) => clip.id === item.from_clip_id);
+  const right = track.clips.find((clip) => clip.id === item.to_clip_id);
+  if (!left || !right) return null;
+  if (left.start + left.duration !== right.start) return null;
+  const half = Math.max(1, Math.trunc(item.duration / 2));
+  return [Math.max(0, left.start + left.duration - half), left.start + left.duration + half];
+}
+
+/**
  * What the viewer sees and hears at `tick`.
  *
  * A clip is live when `start <= tick < end`. The half-open interval is what
@@ -115,9 +137,40 @@ export function frameAt(project: ProjectDoc, tick: number): Frame {
   const moment = Math.max(0, Math.trunc(tick));
   const items: DrawItem[] = [];
   project.tracks.forEach((track: Track, index: number) => {
+    // Which clips this instant asks for beyond their own bounds, and how far
+    // through the blend it is. Once per track: a transition belongs to a
+    // boundary, not to either side of it.
+    const extended = new Map<string, DrawItem["transition"]>();
+    for (const item of track.transitions ?? []) {
+      const window = transitionWindow(track, item);
+      if (!window) continue;
+      const [start, end] = window;
+      if (!(start <= moment && moment < end)) continue;
+      const span = Math.max(1, end - start);
+      const progress = Math.min(1, Math.max(0, (moment - start) / span));
+      extended.set(item.from_clip_id, {
+        id: item.id,
+        preset: item.preset,
+        progress: roundTo(progress, 6),
+        role: "from",
+        partner: item.to_clip_id
+      });
+      extended.set(item.to_clip_id, {
+        id: item.id,
+        preset: item.preset,
+        progress: roundTo(progress, 6),
+        role: "to",
+        partner: item.from_clip_id
+      });
+    }
+
     for (const clip of track.clips) {
-      if (!(clip.start <= moment && moment < clip.start + clip.duration)) continue;
-      const offset = moment - clip.start;
+      const crossing = extended.get(clip.id);
+      const live = clip.start <= moment && moment < clip.start + clip.duration;
+      if (!live && !crossing) continue;
+      // A clip drawn outside its own bounds is held at its nearest frame — the
+      // alternative is reading past the end of its own material.
+      const offset = Math.min(Math.max(0, moment - clip.start), Math.max(0, clip.duration - 1));
       const resolved = propertyAt(clip, offset);
       const fade = fadeFactor(clip, offset);
       const hasSource = clip.kind === "video" || clip.kind === "audio";
@@ -139,7 +192,8 @@ export function frameAt(project: ProjectDoc, tick: number): Frame {
         opacity: resolved.opacity * (track.kind === "video" ? fade : 1) * visible,
         gain,
         properties: resolved,
-        style: { ...(clip.style ?? {}) }
+        style: { ...(clip.style ?? {}) },
+        transition: crossing ? { ...crossing } : {}
       });
     }
   });

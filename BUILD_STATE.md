@@ -9,8 +9,8 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **1017 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 20 frontend passed, frontend build clean.
+Tests: **1057 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 22 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
@@ -729,6 +729,39 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 2 — transitions, animations, the preset registry (2026-08-14)
+- [x] `video/presets.py` + `frontend/src/video/transitions.ts`. **46 transitions
+      over 9 families, 32 animations over 3, 12 text styles, 16 blend modes, 12
+      more animatable properties.** Feature map: 29 → **40 built**, 37% of the
+      reachable rows touched.
+- [x] **Transitions without relaxing the invariant.** A dissolve needs both
+      clips on screen and clips cannot overlap by a tick. The clips stay
+      adjacent and a `Transition` on the track declares how far either side of
+      the cut both are drawn — a bounded, declared property of the boundary
+      instead of an accident of two clips' positions. Both sides share one
+      `progress`; a clip drawn past its end is held at its last frame; one
+      transition per cut; halves at both ends must fit inside the clip; an edit
+      that destroys the cut removes the transition.
+- [x] **Presets are rows, families are code.** A new transition is a line of
+      YAML-shaped data, which is what makes the space searchable by the
+      orchestrator later. `CAPCUT_TOOL_INVENTORY.md` argued this; this is it.
+- [x] **An animation is ordinary keyframes**, so it survives a split, travels
+      with a trim and resolves identically in both languages — none of which
+      was rebuilt.
+- [x] **A real bug found by the new tests: splitting inside a non-linear ease
+      was not transparent.** The old resampler synthesised boundary keyframes
+      from interpolated values, which is exact for a linear segment and wrong
+      for every other kind — a sub-range of an ease-out curve is not an ease-out
+      curve. The original split test passed only because it used a linear
+      segment. Keyframes are now shifted rather than rebuilt: exact, and bounded
+      by keeping only the nearest anchor either side.
+- [x] Conformance fixture regenerated with a transition, a blend mode and an
+      applied animation across it, and the TS test now asserts the transition
+      field — the one place a clip is drawn outside its own bounds.
+- [x] 36 new preset/transition tests, 3 regression tests for the eased split and
+      trim, and the scoreboard guard now checks **both** directions: nothing
+      claims to be built that is not, and nothing that shipped loses its mark.
 
 ### Goal-driven pacing (2026-08-14)
 - [x] `distribution/pacing.py` — posting volume is adjustable **and the goal

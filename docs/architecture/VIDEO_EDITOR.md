@@ -99,6 +99,50 @@ resolves every tick either side of a split and asserts the two lists are equal.
 **Trimming the head moves the animation with the material**, for the same
 reason — keyframes are anchored to the footage, not to the timeline.
 
+**Re-basing keyframes shifts them; it does not rebuild them.** An earlier
+version synthesised a keyframe at each boundary from the interpolated value,
+which is exact for a linear segment and wrong for every other kind — a sub-range
+of an ease-out curve is not itself an ease-out curve, so re-easing the halves
+changed the shape between the samples. Splitting mid-ease visibly altered the
+animation, and the test that should have caught it happened to use a linear
+segment. Shifting reproduces the curve exactly because it is the same control
+points from a new origin; everything outside the range is dropped except the
+nearest keyframe on each side, which are the two that anchor the boundaries.
+Exact, and bounded.
+
+---
+
+## Transitions, without relaxing the invariant
+
+A dissolve needs both clips on screen at once. Clips on a track cannot overlap
+by a tick. Those two facts look like a contradiction and the tempting fix —
+allowing transitions to overlap — would reopen the exact bug the invariant
+exists to prevent: two clips claiming one tick, with the preview and the export
+free to disagree about which wins.
+
+So the clips stay adjacent and untouched, and a **`Transition` object on the
+track** declares how far either side of their shared cut both are drawn. The
+overlap becomes a bounded, declared property of the boundary rather than an
+accident of two clips' positions.
+
+| Rule | Why |
+|---|---|
+| Both sides get **one shared `progress`**, 0 → 1 across the window | Two clocks are how the halves end up disagreeing about where the middle is |
+| A clip drawn past its end is **held at its last frame** | Otherwise it reads past the end of its own material — the thing the validator exists to prevent |
+| One transition per cut | Two blends over the same frames has no defined answer |
+| Halves at both ends of a clip must **fit inside it** | If they overlap each other, a frame belongs to two blends |
+| An edit that destroys the cut **removes the transition** | Otherwise it lingers as a ghost that reappears if the clips ever line up again |
+
+**46 presets over 9 families.** The families are code in
+`frontend/src/video/transitions.ts`; the presets are rows in
+`video/presets.py`. A new transition is a row and nothing else — which is what
+makes the space searchable by something choosing a look, per
+`CAPCUT_TOOL_INVENTORY.md`.
+
+Animations work the same way, except they are not even a new concept: applying
+one **writes ordinary keyframes**, so it survives a split, travels with a trim
+and resolves identically in both languages, because all of that already worked.
+
 ---
 
 ## The conformance fixture

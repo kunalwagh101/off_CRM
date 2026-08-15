@@ -49,6 +49,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable
 
+from . import pacing
+
 #: An hour. Trends do not move in minutes, and a sweep costs quota — the
 #: default is chosen to be useful on a free YouTube key rather than to feel
 #: responsive. `plan` also has a per-topic cooldown of a week, so a faster
@@ -65,8 +67,14 @@ DEFAULT_CONTENT_AUTOMATION: dict[str, Any] = {
     "draft": True,
     "publish_due": True,
     "per_channel": 10,
+    #: The declared rate. With `auto_pace` on this is the *starting* point and
+    #: the controller moves it; with it off this is simply what runs.
+    "posts_per_day": 1.0,
     "max_topics": 2,
     "candidates": 3,
+    #: Let the goal decide the rate. Off by default: a control that changes how
+    #: loudly you speak in public should be switched on deliberately.
+    "auto_pace": False,
     #: [{distribution_campaign_id, image_campaign_id, angle, account_ids}]
     "pipelines": [],
 }
@@ -93,6 +101,7 @@ class ContentAutomationService:
         trends_factory: Callable[[], Any],
         pipeline_factory: Callable[[str], Any],
         distribution_factory: Callable[[], Any],
+        pacing_reader: Callable[[str], dict[str, Any]] | None = None,
     ) -> None:
         self.path = Path(path)
         self.trends_factory = trends_factory
@@ -101,6 +110,11 @@ class ContentAutomationService:
         #: public and narrows which models may see it.
         self.pipeline_factory = pipeline_factory
         self.distribution_factory = distribution_factory
+        #: Called with a distribution campaign id, returning the goal, the
+        #: measured metrics and the platform ceiling for that campaign. Injected
+        #: for the same reason everything else here is: this module owns the
+        #: order of the work and no knowledge of storage.
+        self.pacing_reader = pacing_reader
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
         self._run_lock = threading.Lock()
@@ -137,7 +151,16 @@ class ContentAutomationService:
         payload["interval_seconds"] = max(
             300, min(int(payload.get("interval_seconds") or DEFAULT_INTERVAL_SECONDS), 86400)
         )
+        payload["auto_pace"] = bool(payload.get("auto_pace"))
         payload["per_channel"] = max(1, min(int(payload.get("per_channel") or 10), 50))
+        # Not `or 1.0`: a rate deliberately set to zero is a paused campaign,
+        # and `0.0 or 1.0` is 1.0 — which would quietly start posting again.
+        raw_rate = payload.get("posts_per_day")
+        try:
+            rate = float(raw_rate) if raw_rate is not None else 1.0
+        except (TypeError, ValueError):
+            rate = 1.0
+        payload["posts_per_day"] = max(0.0, min(rate, pacing.MAX_PER_DAY))
         payload["max_topics"] = max(1, min(int(payload.get("max_topics") or 2), 10))
         payload["candidates"] = max(1, min(int(payload.get("candidates") or 3), 8))
         payload["pipelines"] = [
@@ -170,7 +193,16 @@ class ContentAutomationService:
 
     def update(self, values: dict[str, Any]) -> dict[str, Any]:
         merged = dict(self.config())
-        for key in ("enabled", "interval_seconds", "per_channel", "max_topics", "candidates", "pipelines"):
+        for key in (
+            "enabled",
+            "interval_seconds",
+            "per_channel",
+            "posts_per_day",
+            "max_topics",
+            "candidates",
+            "auto_pace",
+            "pipelines",
+        ):
             if key in values:
                 merged[key] = values[key]
         for step in STEPS:
@@ -222,10 +254,14 @@ class ContentAutomationService:
                 results.append({"step": "sweep", "status": "skipped"})
 
             for pipeline in config["pipelines"]:
+                # The goal decides how much to make, before anything is made.
+                paced, decision = self._pace(config, pipeline)
+                if decision is not None:
+                    results.append(decision)
                 if config["plan"]:
-                    results.append(self._plan(config, pipeline))
+                    results.append(self._plan(paced, pipeline))
                 if config["draft"]:
-                    results.append(self._draft(config, pipeline))
+                    results.append(self._draft(paced, pipeline))
 
             if config["publish_due"]:
                 results.append(self._publish_due())
@@ -242,6 +278,61 @@ class ContentAutomationService:
             raise
         finally:
             self._run_lock.release()
+
+    def _pace(
+        self, config: dict[str, Any], pipeline: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        """Let the goal set the rate, and record the reasoning.
+
+        Returns the config this cycle should actually use. With ``auto_pace``
+        off, or with nothing measured yet, that is the declared config unchanged
+        — the controller refuses to steer on data it does not have, which is the
+        first rule in :mod:`pacing`.
+
+        The **stored** rate is updated too, so the ramp compounds across cycles
+        instead of starting from the declared number every hour and never
+        arriving.
+        """
+        if not config.get("auto_pace") or self.pacing_reader is None:
+            return config, None
+
+        campaign_id = pipeline["distribution_campaign_id"]
+        try:
+            inputs = self.pacing_reader(campaign_id) or {}
+            decision = pacing.decide(
+                goal_target=int(inputs.get("goal_target") or 0),
+                goal_deadline=str(inputs.get("goal_deadline") or ""),
+                metrics=inputs.get("metrics") or [],
+                current_per_day=float(config.get("posts_per_day") or 0.0),
+                ceiling=float(inputs.get("ceiling") or pacing.MAX_PER_DAY),
+                ceiling_source=str(inputs.get("ceiling_source") or ""),
+                candidates_per_topic=int(config["candidates"]),
+            )
+        except Exception as exc:  # noqa: BLE001 - a failed decision holds the rate
+            return config, {
+                "step": "pace",
+                "distribution_campaign_id": campaign_id,
+                "status": "failed",
+                "error": str(exc)[:500],
+            }
+
+        used = dict(config)
+        if decision.steering:
+            used["max_topics"] = decision.max_topics
+            used["candidates"] = decision.candidates
+            if abs(decision.posts_per_day - float(config.get("posts_per_day") or 0.0)) > 1e-9:
+                try:
+                    self.update({"posts_per_day": decision.posts_per_day})
+                except Exception:  # noqa: BLE001 - the cycle still runs at the new rate
+                    pass
+            used["posts_per_day"] = decision.posts_per_day
+
+        return used, {
+            "step": "pace",
+            "distribution_campaign_id": campaign_id,
+            "status": "ok",
+            **decision.to_dict(),
+        }
 
     # Each step returns a row rather than raising, so one bad provider does not
     # cost the whole cycle. The row carries the error where there was one.

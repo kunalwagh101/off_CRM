@@ -327,6 +327,32 @@ polling. What is missing is *which* slot, which needs own-account analytics
 (§3.2) — until there is data, use published best-time defaults per platform and
 say plainly in the UI that they are defaults, not learned.
 
+## 6.4 Pacing: the goal sets the rate
+
+Posting volume is not a number set once and forgotten. `distribution/pacing.py`
+computes it:
+
+```
+posts per day  =  (target − measured views) ÷ views per post ÷ days left
+```
+
+Every term is something the owner can check, which is deliberate. A model could
+produce this number and nobody could argue with it — the wrong property for a
+control that decides how loudly you speak in public.
+
+Four rules, and they are the whole design:
+
+| Rule | Why |
+|---|---|
+| **No data, no steering** | Before ~5 measured posts there is no views-per-post figure. It holds the declared rate and says so. A controller with nothing to measure is a random number generator. |
+| **Raise slowly, lower at once** | A missed goal is recoverable next week; a banned account is not. Rises are capped at +25% per cycle. An engine that spots it is behind and posts 10× more *is* a spam bot at that moment. |
+| **Deadband of 10%** | Without it the rate moves every cycle on noise, and a schedule that changes hourly is unplannable. |
+| **Platform caps are hard** | Instagram's 25/day is a ceiling the arithmetic approaches and never crosses. The goal does not get a vote on the platform's terms. |
+
+The new rate is **stored**, so the ramp compounds across cycles rather than
+restarting from the declared number every hour and never arriving. `auto_pace`
+is off by default.
+
 ## 6.3 Learning
 
 Three loops, three speeds:
@@ -463,9 +489,9 @@ Wrong answers here change the build, so they are questions rather than guesses.
 | 1 | Which brands/accounts, and do they exist yet? | Whether Stage 1 has anything to watch or post as |
 | 2 | Are Meta / TikTok / LinkedIn applications started? | Stage 7's date; weeks of lead time |
 | 3 | Target follower growth rate, and cost ceiling per 1,000 views? | Two of the success metrics are undefined without them |
-| 4 | Posting volume per week per platform? | Decides whether hypotheses can ever reach significance |
+| 4 | ~~Posting volume per week per platform?~~ | **Answered: adjustable, and the goal moves it.** Built — see §6.4. What is still open is the *ceiling* you are comfortable with per platform. |
 | 5 | Is the editor a product you will sell, or an internal tool? | Changes Stage 8 from optional to required, and changes Stage 2's polish bar |
-| 6 | Do you have any historical post performance? | If yes, the attention registry starts with priors instead of nothing |
+| 6 | ~~Do you have any historical post performance?~~ | **Answered: no.** The attention registry starts with `evidence: none_yet` on every hypothesis and earns its numbers from scratch. |
 | 7 | Budget per month for model calls? | Decides local vs hosted, and whether video generation is in reach |
 
 ---

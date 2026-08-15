@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-14
 Branch: `main`
-Tests: **983 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **1017 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 20 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -729,6 +729,32 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Goal-driven pacing (2026-08-14)
+- [x] `distribution/pacing.py` — posting volume is adjustable **and the goal
+      moves it**. `(target − measured views) ÷ views per post ÷ days left`, with
+      every term checkable by hand. Blueprint §6.4.
+- [x] **No data, no steering.** Below 5 measured posts there is no
+      views-per-post figure, so it holds the declared rate and says why. A
+      controller with nothing to measure is a random number generator, and that
+      is the rule most likely to be broken by someone making it look clever.
+- [x] **Raise slowly (+25%/cycle), lower immediately.** The errors are not
+      symmetrical: a missed goal is recoverable next week and a banned account
+      is not. An engine that notices it is behind and posts ten times more *is*
+      a spam bot at that moment.
+- [x] **10% deadband**, or the rate moves every cycle on noise and the schedule
+      becomes unplannable. **Platform caps are hard** — Instagram's 25/day is a
+      ceiling the arithmetic may approach and never cross, and the capping
+      platform is named so a throttled campaign does not look like an
+      under-performing one.
+- [x] The new rate is stored, so the ramp compounds instead of restarting from
+      the declared number every cycle and never arriving. `auto_pace` off by
+      default.
+- [x] A falsy-zero bug found by its own test: `float(x or 1.0)` turned a rate
+      deliberately set to 0 — a paused campaign — back into 1/day.
+- [x] 26 pacing tests + 8 in the automation cycle, including a live HTTP run
+      against a real goal and 20 real metric rows: holds at zero data, then
+      raises to a ramped 1.25 against a measured requirement of 9.8.
 
 ### Stage 1 — the content engine runs itself (2026-08-14)
 - [x] `distribution/automation.py` — `ContentAutomationService`. Sweep → plan →

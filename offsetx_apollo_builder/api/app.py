@@ -19,6 +19,7 @@ from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..distribution.automation import ContentAutomationService
+from ..distribution.pacing import platform_ceiling as pacing_ceiling
 from ..distribution.engine import DistributionEngine
 from ..distribution.platforms import list_platforms as list_distribution_platforms
 from ..distribution.pipeline import TrendPipeline
@@ -368,6 +369,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             trends_factory=lambda: _trends(_TimerScope(app)),
             pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
             distribution_factory=lambda: _distribution(_TimerScope(app)),
+            pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
         )
         await app.state.automation.start()
         await app.state.content_automation.start()
@@ -1295,6 +1297,35 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             asset_reader=state.image_store.get_asset,
             workspace_id=_workspace_id(request),
         )
+
+    def _pacing_inputs(app_ref: Any, campaign_id: str) -> dict[str, Any]:
+        """What the pacing controller needs, read from the stores it must not know about.
+
+        The controller is arithmetic over four numbers — target, deadline,
+        measured views, platform ceiling. Fetching them here keeps
+        ``distribution/pacing.py`` free of any storage knowledge, so it stays
+        testable with plain dictionaries.
+        """
+        store = app_ref.state.distribution_store
+        goals = store.list_goals(campaign_id)
+        views_goal = next(
+            (goal for goal in goals if str(goal.get("metric") or "views") == "views"), None
+        )
+        accounts = store.list_accounts()
+        platform_ids = {str(account.get("platform") or "") for account in accounts}
+        platforms = [
+            platform
+            for platform in list_distribution_platforms()
+            if platform.get("id") in platform_ids
+        ]
+        ceiling, source = pacing_ceiling(platforms, accounts=max(1, len(accounts)))
+        return {
+            "goal_target": int(views_goal.get("target") or 0) if views_goal else 0,
+            "goal_deadline": str(views_goal.get("deadline") or "") if views_goal else "",
+            "metrics": store.latest_metrics(campaign_id),
+            "ceiling": ceiling,
+            "ceiling_source": source,
+        }
 
     def _trends(request: Request) -> TrendWatcher:
         """The competitor watcher, with a client only if a key is configured.

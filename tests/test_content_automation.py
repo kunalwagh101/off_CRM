@@ -515,3 +515,128 @@ def test_the_timer_starts_and_stops_with_the_app(tmp_path):
         assert client.get("/api/v1/content-automation").json()["running"] is True
     # After the lifespan closes, the task is gone rather than orphaned.
     assert application.state.content_automation._task is None
+
+
+# ── the goal setting the rate ───────────────────────────────────────────────
+
+
+def _paced(tmp_path: Path, parts, inputs: dict[str, Any]):
+    return ContentAutomationService(
+        tmp_path / "c.json",
+        trends_factory=lambda: parts["watcher"],
+        pipeline_factory=lambda angle: parts["pipeline"],
+        distribution_factory=lambda: parts["distribution"],
+        pacing_reader=lambda campaign_id: inputs,
+    )
+
+
+def _in_days(days: int) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+
+
+#: A million views in 100 days at 1,000 views a post is 9.8 posts a day — well
+#: above the declared rate, so the controller has to raise. (An earlier version
+#: of this fixture used a deadline in 2099, which is 26,700 days and therefore
+#: comfortably *ahead* of pace: 0.04 posts a day.)
+BEHIND = {
+    "goal_target": 1_000_000,
+    "goal_deadline": _in_days(100),
+    "metrics": [{"post_id": f"p{i}", "views": 1_000} for i in range(20)],
+    "ceiling": 20.0,
+    "ceiling_source": "",
+}
+
+
+def test_pacing_is_off_unless_asked_for(tmp_path, parts):
+    """A control that changes how loudly you speak in public is switched on
+    deliberately."""
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR]})
+    results = service.run_once()
+    assert "pace" not in steps_of(results)
+
+
+def test_the_goal_raises_the_rate_and_says_why(tmp_path, parts):
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 1.0})
+    results = service.run_once()
+    pace = next(row for row in results if row["step"] == "pace")
+    assert pace["status"] == "ok"
+    assert pace["action"] == "raise"
+    assert pace["steering"] is True
+    assert pace["posts_per_day"] > 1.0
+    assert pace["reason"]
+
+
+def test_the_new_rate_is_kept_so_the_ramp_compounds(tmp_path, parts):
+    """Otherwise every cycle starts from the declared number and never arrives."""
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 1.0})
+    first = service.run_once()
+    stored = service.config()["posts_per_day"]
+    assert stored > 1.0
+    second = service.run_once()
+    assert next(row for row in second if row["step"] == "pace")["previous_per_day"] == pytest.approx(
+        stored
+    )
+    assert service.config()["posts_per_day"] > stored
+
+
+def test_the_paced_rate_is_what_the_planner_is_asked_for(tmp_path, parts):
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update(
+        {"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 8.0, "max_topics": 1}
+    )
+    service.run_once()
+    # The planner got the paced number, not the declared max_topics of 1.
+    assert parts["pipeline"].planned[0]["max_topics"] > 1
+
+
+def test_with_nothing_measured_the_rate_is_held_and_the_reason_is_recorded(tmp_path, parts):
+    service = _paced(tmp_path, parts, {**BEHIND, "metrics": []})
+    service.update({"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 2.0})
+    results = service.run_once()
+    pace = next(row for row in results if row["step"] == "pace")
+    assert pace["action"] == "hold"
+    assert pace["steering"] is False
+    assert service.config()["posts_per_day"] == 2.0
+
+
+def test_a_failing_pacing_read_holds_the_rate_and_does_not_cost_the_cycle(tmp_path, parts):
+    def explode(campaign_id):
+        raise RuntimeError("metrics store down")
+
+    service = ContentAutomationService(
+        tmp_path / "c.json",
+        trends_factory=lambda: parts["watcher"],
+        pipeline_factory=lambda angle: parts["pipeline"],
+        distribution_factory=lambda: parts["distribution"],
+        pacing_reader=explode,
+    )
+    service.update({"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 3.0})
+    results = service.run_once()
+    pace = next(row for row in results if row["step"] == "pace")
+    assert pace["status"] == "failed"
+    assert service.config()["posts_per_day"] == 3.0
+    assert next(row for row in results if row["step"] == "publish_due")["status"] == "ok"
+
+
+def test_a_platform_ceiling_survives_the_round_trip(tmp_path, parts):
+    service = _paced(
+        tmp_path, parts, {**BEHIND, "ceiling": 2.0, "ceiling_source": "instagram"}
+    )
+    service.update({"pipelines": [PAIR], "auto_pace": True, "posts_per_day": 8.0})
+    results = service.run_once()
+    pace = next(row for row in results if row["step"] == "pace")
+    assert pace["posts_per_day"] <= 2.0
+    assert pace["capped_by"] == "instagram"
+
+
+def test_the_rate_is_bounded_however_it_is_set(tmp_path, parts):
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "posts_per_day": 10**6})
+    assert service.config()["posts_per_day"] == 20.0
+    service.update({"posts_per_day": -5})
+    assert service.config()["posts_per_day"] == 0.0

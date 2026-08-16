@@ -444,11 +444,17 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
   on a test track — that is the beat-detection half, which is not built.
 
 ### Stage 5 — Video and auto-assembly *(the brief's centre)*
-- Draw footage on the canvas (decode) → unlocks freeze frame, reverse, real speed
-- Text→video and image→video generators
-- **The assembly orchestrator**: script + assets + recipe → a finished timeline
+- ✅ Draw footage on the canvas: a hand-written MP4 and WebM demuxer feeding
+  `VideoDecoder`, forward-only with a cursor, in the preview and the export
+- ⬜ Freeze frame, reverse, speed curves — edits over footage that now decodes
+- ⬜ Text→video and image→video generators
+- ⬜ **The assembly orchestrator**: script + assets + recipe → a finished timeline
 - **Unlocks:** *"CapCut, but it does it automatically."*
-- **Acceptance:** a topic goes to a finished, gate-passing video with zero manual timeline edits, and the owner's edit-diff is measured against it.
+- **Acceptance:** ✅ for the decode half — 30 of 30 exported frames matched their
+  own source frame in a real browser, measured by reading the canvas, with
+  nothing duplicated or dropped. ⬜ a topic goes to a finished, gate-passing
+  video with zero manual timeline edits, and the owner's edit-diff is measured
+  against it.
 
 ### Stage 6 — The effect engine *(~40 primitives, ~800 presets)*
 - Shader primitives, then transitions/effects/filters as declared data

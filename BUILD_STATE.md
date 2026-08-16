@@ -9,15 +9,15 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-16
 Branch: `main`
-Tests: **1093 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 47 frontend passed, frontend build clean.
+Tests: **1094 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 83 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 43 of its 159
+from, and it now carries a **status column and a scoreboard**: 44 of its 160
 rows built, 14 partly, 38% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
@@ -108,6 +108,16 @@ offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── captions.py   transcript -> readable cues -> text clips, deterministic
 ├── store.py      projects, version history (undo), media, transcripts, renders
 └── engine.py     create -> edit -> undo -> caption -> render -> gate
+
+frontend/src/video/                 ← the half that needs a GPU and a codec
+├── resolve.ts    the frame resolver again, pinned to Python by one fixture
+├── mixdown.ts    the gain-envelope planner again, pinned by the same fixture
+├── audio.ts      OfflineAudioContext mix -> Opus chunks for the muxer
+├── demux/        MP4 and WebM read for their frames, by hand
+├── footage.ts    a decoder, a cursor and a frame cache, per video clip
+├── render.ts     paints one resolved frame; the preview and export share it
+├── webm.ts       the muxer; the only thing that writes the finished file
+└── export.ts     load -> mix -> paint -> encode -> mux -> upload
 
 offsetx_apollo_builder/             ← deliberately OUTSIDE ai/
 ├── intake.py     two-mode campaign intake; a contact list never meets a model
@@ -731,6 +741,70 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 5a — video on the canvas (2026-08-16)
+- [x] **Imported footage draws now**, in the preview and in the export. Until
+      today a video clip's sound worked and its picture was a red hole, and the
+      manifest refused to call any project with footage on it renderable.
+      Blueprint Stage 5, first half; feature map 43 → **44 built**.
+- [x] **`paintFrame` needed one line.** Its `AssetSource` is a
+      `CanvasImageSource` and a `VideoFrame` is one, so the painter could always
+      draw a frame — what was missing was anything that could produce *the frame
+      at a given instant*. The one line is that a clip's own table entry wins
+      over its asset's: a still is shared by every clip that places it, a piece
+      of footage is at a different moment of itself in each.
+- [x] **A demuxer, written by hand, for both containers.** `demux/matroska.ts`
+      walks EBML into Clusters and reads SimpleBlocks; `demux/isobmff.ts`
+      expands MP4's five parallel sample tables — `stts`, `ctts`, `stss`,
+      `stsc`, `stsz`/`stco` — into one flat frame list. One level deeper than
+      `video/gates.py`, which already walks both formats to read a file's shape.
+- [x] **Not a `<video>` element**, which reads as simpler and is worse three
+      ways: a seek costs tens of milliseconds and an export asks for every frame
+      in order, so a sixty-second render pays a minute in seeks; it needs a
+      document, so no worker and no `OffscreenCanvas`; and it gives no way to
+      *hold* a decoded frame, which is what freeze frame and reverse are made of.
+- [x] **Forward-only decoding with a cursor.** An export asks in increasing
+      order, so the cursor never goes back and every frame is decoded exactly
+      once. A backwards jump or a jump into another group of pictures restarts
+      from that group's keyframe — what a seek costs in any editor. Twelve
+      frames cached, and clips that leave the screen give their decoder back.
+- [x] **Decode order is not presentation order.** The frame list stays in decode
+      order because that is what a decoder must be fed, and a separate index
+      sorted by presentation time answers "which frame is showing at T". The MP4
+      fixture carries a signed `ctts` so the two genuinely differ.
+- [x] **A real bug real Chromium found: a flushed decoder will not take a delta
+      frame.** `decodeQueueSize` falls to zero when a chunk is *accepted*, long
+      before its frame comes out, so treating that as "done" flushed on the
+      first frame of every file and then refused the second. The pump now waits
+      for output to stop arriving before it concludes anything.
+- [x] **A second real bug, found by measuring: an output frame is an interval,
+      not an instant.** A container stores times in its own units, so 30fps
+      footage has frames at 33ms and 67ms while a 30fps timeline asks at 33.333
+      and 66.667. Sampled at the leading edge that asks for frame 1 twice and
+      never asks for frame 2 — a third of the footage silently replaced by
+      duplicates. The exporter samples half an output frame ahead, at the middle
+      of the interval the frame covers. The measurement read `0,1,1,3,4,4,6,7,7`
+      before and `0,1,2,3,4,5,6,7,8` after.
+- [x] **Verified in a real browser, and measured.** Chromium encoded a real
+      60-frame VP9 file where frame *n* is a flat colour spelling *n* out as a
+      three-digit base-4 number — levels 85 apart, so the dozen levels a lossy
+      codec shifts a flat fill by cannot round a channel wrong. Demuxed,
+      decoded, put on a timeline, painted, and the canvas's centre pixel read:
+      **30 of 30 output frames matched their own source frame, in order, nothing
+      duplicated and nothing dropped.** The export passed the gates and ffmpeg
+      read it as `vp9 1080x1920 30fps, 2.00s`.
+- [x] `scripts/build_mp4_fixture.py` — Python writes an MP4 from the spec with
+      three different chunk sizes, sparse sync samples, a signed `ctts` and a
+      version-1 `mdhd`, and the browser reads every frame's offset, length,
+      keyframe flag and presentation time back exactly. The same cross-language
+      check the WebM muxer already had, in the other direction.
+- [x] **What the server cannot check, said plainly.** There is a gate for a
+      missing audio track because a header says whether one exists. A clip that
+      drew as a red hole produces a file whose header is perfect, so there is no
+      equivalent — the browser reports per-file failures instead, and one
+      unreadable import costs its own clip rather than the whole render.
+- [x] 18 demux tests + 18 footage tests in the browser, 1 fixture guard in
+      Python. **1,094 Python tests, 83 frontend**, build clean.
 
 ### Stage 4 — audio in the export (2026-08-16)
 - [x] **Every file this project produced before today was silent.** The timeline

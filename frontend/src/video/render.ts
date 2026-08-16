@@ -210,7 +210,10 @@ export function paintFrame(
     } else if (item.kind === "text") {
       drawTextItem(context, item, width);
     } else {
-      const asset = assets.get(item.asset_id);
+      // A clip's own entry wins over its asset's. A still is shared by every
+      // clip that places it; a piece of footage is at a different moment of
+      // itself in every clip that uses it, so `footage.ts` keys those by clip.
+      const asset = assets.get(item.clip_id) ?? assets.get(item.asset_id);
       if (asset) {
         const cropLeft = properties.crop_left;
         const cropTop = properties.crop_top;

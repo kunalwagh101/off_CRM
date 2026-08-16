@@ -600,9 +600,11 @@ def test_the_api_refuses_media_it_cannot_measure(tmp_path):
         assert "MP3" in refused.json()["detail"]
 
 
-def test_imported_footage_is_reported_as_audible_but_not_yet_drawable(engine):
-    """The picture is not drawn yet. Saying so before an export beats handing
-    back a finished-looking file with a hole in it."""
+def test_footage_on_a_timeline_is_renderable_now_that_its_picture_is_drawn(engine):
+    """This used to be blocked. The manifest refused to call a project with
+    footage on it renderable, because the painter handled stills and nothing
+    else. The browser demuxes and decodes footage now, so the block is gone —
+    and it has to stay gone, which is what this asserts."""
     project = engine.create_project(CAMPAIGN, name="Reel")
     # A real container, borrowed from the muxer's own fixture.
     fixture = Path(__file__).parent / "fixtures" / "muxed_sample.webm"
@@ -610,5 +612,5 @@ def test_imported_footage_is_reported_as_audible_but_not_yet_drawable(engine):
     assert media["kind"] == "video"
     engine.place_media(project.project.id, media_id=media["id"])
     manifest = engine.manifest(project.project.id)
-    assert not manifest["renderable"]
-    assert any("not drawn yet" in warning for warning in manifest["warnings"])
+    assert manifest["renderable"], manifest["warnings"]
+    assert not any("not drawn" in warning for warning in manifest["warnings"])

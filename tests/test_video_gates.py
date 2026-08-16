@@ -321,6 +321,31 @@ def test_a_file_with_no_video_track_is_not_an_export():
     assert "no video track" in failure.detail
 
 
+def test_the_mp4_fixtures_are_still_what_the_builder_produces():
+    """`scripts/build_mp4_fixture.py` writes the files the browser's demuxer is
+    tested against, and a fixture nobody can regenerate is a fixture nobody can
+    trust. This also means the server's own MP4 parser reads a file written from
+    the spec by something other than itself."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_mp4_fixture", Path(__file__).parents[1] / "scripts" / "build_mp4_fixture.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for name, version in (("sample_tables.mp4", 0), ("sample_tables_v1.mp4", 1)):
+        path = Path(__file__).parent / "fixtures" / name
+        assert path.read_bytes() == module.build(mdhd_version=version), (
+            f"{name} is out of date — run python scripts/build_mp4_fixture.py"
+        )
+        found = probe(path.read_bytes())
+        assert (found.width, found.height) == (640, 360)
+        assert found.has_video and found.has_audio
+        # 540 units of a 600Hz timescale.
+        assert found.duration_ticks == int(0.9 * SECOND)
+
+
 def test_the_audio_track_the_browser_muxer_wrote_is_read_back_correctly():
     """The cross-language check for Stage 4.
 

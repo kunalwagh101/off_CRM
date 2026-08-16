@@ -13,19 +13,20 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **43** | 27% |
+| ● Built | **44** | 28% |
 | ◐ Partly built | **14** | 9% |
 | ○ Not built | **102** | 64% |
-| | **159** | |
+| | **160** | |
 
 9 of those 102 are **out of scope on purpose** — a phone camera, a licensed
-music library, a template marketplace. Against the 150 rows that are actually
-reachable, 57 are touched: **38%**.
+music library, a template marketplace. Against the 151 rows that are actually
+reachable, 58 are touched: **38%**.
 
-Those 57 are not the easy 57. They are the timeline and its invariants,
+Those 58 are not the easy 58. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
-gates, and now the sound inside the file. Masks, effects and the AI rows are
-each a feature on top of a timeline that now exists.
+gates, the sound inside the file, and now the picture of imported footage.
+Masks, effects and the AI rows are each a feature on top of a timeline that now
+exists.
 
 ---
 
@@ -46,6 +47,7 @@ each a feature on top of a timeline that now exists.
 | Feature | | Status |
 |---|---|---|
 | Import video, image, audio from disk | B | ● audio and video import; pictures come from the image campaign |
+| **Video frames on the canvas — MP4 and WebM demuxed, WebCodecs decoded** | R | ● in the preview and in the export |
 | Camera roll / phone gallery | X | ○ |
 | Record voiceover in-app | B | ○ |
 | Screen recording (desktop) | X | ○ |

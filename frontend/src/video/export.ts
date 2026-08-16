@@ -19,6 +19,7 @@
 import { AudioUnsupported, buildAudioTrack, type AudioTrackResult } from "./audio";
 import type { ProjectDoc } from "./document";
 import { TICKS_PER_SECOND, ticksPerFrame } from "./document";
+import { FootageLibrary } from "./footage";
 import { planMix } from "./mixdown";
 import { frameAt } from "./resolve";
 import { paintFrame, type AssetTable } from "./render";
@@ -33,7 +34,7 @@ const KEYFRAME_SECONDS = 2;
 export interface ExportProgress {
   frame: number;
   frames: number;
-  stage: "mixing" | "encoding" | "flushing" | "muxing" | "uploading" | "done";
+  stage: "loading" | "mixing" | "encoding" | "flushing" | "muxing" | "uploading" | "done";
 }
 
 export interface ExportOptions {
@@ -44,11 +45,13 @@ export interface ExportOptions {
   /** Bits per second for the audio track. */
   audioBitrate?: number;
   /**
-   * Where to fetch an asset's bytes from, for the audio mix. Without it the
-   * export is silent — which is what it was before there was an audio track at
-   * all, so leaving it out degrades rather than fails.
+   * Where to fetch an imported file's bytes from. Used for both halves of a
+   * piece of footage — its sound, which `decodeAudioData` reads out, and its
+   * picture, which `footage.ts` demuxes and decodes. Without it the export is
+   * silent and its footage draws as a hole, which is what it did before either
+   * existed, so leaving it out degrades rather than fails.
    */
-  audioUrlFor?: (assetId: string) => string;
+  mediaUrlFor?: (assetId: string) => string;
   onProgress?: (progress: ExportProgress) => void;
   signal?: AbortSignal;
 }
@@ -69,6 +72,13 @@ export interface ExportResult {
     limitedBy: number;
     /** Assets that would not decode; their clips are missing from the mix. */
     missing: string[];
+  };
+  /** What happened to the footage. */
+  footage: {
+    /** How many video clips drew real frames. */
+    drawn: number;
+    /** Files that would not demux or decode; their clips drew as holes. */
+    problems: Array<{ assetId: string; reason: string }>;
   };
 }
 
@@ -165,9 +175,22 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
   }) as CanvasRenderingContext2D | null;
   if (!context) throw new Error("This browser would not give the exporter a 2D canvas.");
 
-  // The sound is built first, because the muxer declares its tracks up front and
-  // has to know whether there is one. It also fails fast: an unreadable music
-  // file is better found before a thousand frames have been encoded.
+  // Footage first: demuxing a file that turns out to be unreadable is better
+  // found now than a thousand frames into an encode.
+  const needs = FootageLibrary.needs(project);
+  let footage: FootageLibrary | null = null;
+  const footageReport = { drawn: 0, problems: [] as Array<{ assetId: string; reason: string }> };
+  if (needs.length && options.mediaUrlFor) {
+    onProgress?.({ frame: 0, frames, stage: "loading" });
+    footage = await FootageLibrary.load(needs, options.mediaUrlFor);
+    // Read now rather than at the end: the library is closed in the `finally`
+    // below, and a closed one has no clips to count.
+    footageReport.drawn = needs.filter((item) => footage!.has(item.clipId)).length;
+    footageReport.problems = footage.problems;
+  }
+
+  // Then the sound, because the muxer declares its tracks up front and has to
+  // know whether there is one.
   onProgress?.({ frame: 0, frames, stage: "mixing" });
   const sound = await buildSound(project, options);
   if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
@@ -212,7 +235,14 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
       if (failure) throw failure;
 
       const tick = Math.round(index * perFrame);
-      paintFrame(context, project, frameAt(project, tick), assets);
+      const resolved = frameAt(project, tick);
+      // Ticks only ever go up here, so every footage decoder runs forwards and
+      // decodes each frame exactly once — the same work the file already is.
+      // Half a frame ahead, because this frame covers the interval up to the
+      // next one and the middle of that interval is what represents it. See
+      // `FootageLibrary.apply`.
+      if (footage) await footage.apply(resolved, assets, Math.floor(perFrame / 2));
+      paintFrame(context, project, resolved, assets);
 
       const videoFrame = new scope.VideoFrame!(canvas as CanvasImageSource, {
         timestamp: Math.round((tick / TICKS_PER_SECOND) * 1_000_000),
@@ -239,6 +269,9 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
     } catch {
       // Closing an encoder that already errored is not itself a problem.
     }
+    // Every decoded frame is a GPU buffer, and a render that threw halfway
+    // still has to give them back.
+    footage?.close();
   }
 
   onProgress?.({ frame: frames, frames, stage: "muxing" });
@@ -255,7 +288,8 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
       reason: sound.reason,
       limitedBy: sound.track?.limitedBy ?? 1,
       missing: sound.track?.missing ?? []
-    }
+    },
+    footage: footageReport
   };
 }
 
@@ -276,14 +310,14 @@ async function buildSound(
   if (plan.silent) {
     return { track: null, reason: "Nothing on this timeline makes a sound." };
   }
-  if (!options.audioUrlFor) {
+  if (!options.mediaUrlFor) {
     return {
       track: null,
       reason: "The exporter was given no way to fetch audio, so this file is silent."
     };
   }
   try {
-    const track = await buildAudioTrack(plan, options.audioUrlFor, {
+    const track = await buildAudioTrack(plan, options.mediaUrlFor, {
       bitrate: options.audioBitrate
     });
     if (!track) {

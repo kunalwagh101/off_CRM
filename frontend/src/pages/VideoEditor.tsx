@@ -7,6 +7,7 @@ import { TICKS_PER_SECOND, formatTimecode, ticksPerFrame } from "../video/docume
 import { frameAt, projectDuration } from "../video/resolve";
 import { paintFrame, type AssetTable } from "../video/render";
 import { ExportUnsupported, exportProject, exportSupport, loadAssets } from "../video/export";
+import { FootageLibrary } from "../video/footage";
 
 /**
  * The editor.
@@ -64,6 +65,10 @@ export default function VideoEditor() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<{ frame: number; frames: number; stage: string } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const footageRef = useRef<FootageLibrary | null>(null);
+  /** Bumped when something off-screen changes what the canvas should show —
+   *  a decoder opening, for one. */
+  const [repaint, setRepaint] = useState(0);
   const support = useMemo(() => exportSupport(), []);
 
   const project = state?.document ?? null;
@@ -123,9 +128,10 @@ export default function VideoEditor() {
     [manifest]
   );
 
-  /** Decode every picture the document needs, once, and keep it for drawing.
-   *  Only the generated stills: imported footage is audible but not yet drawn,
-   *  and asking an image decoder for a video would simply fail. */
+  /** Decode every still the document needs, once, and keep it for drawing.
+   *  Footage does not come through here — a picture decoder cannot open a video
+   *  container, and a video's frame changes with the playhead where a still's
+   *  never does. `footage.ts` handles those. */
   useEffect(() => {
     let live = true;
     const ids = assetKey ? assetKey.split(",") : [];
@@ -136,6 +142,48 @@ export default function VideoEditor() {
       live = false;
     };
   }, [assetKey]);
+
+  /** Which clips need footage, as a value that only changes when the set does —
+   *  `project` is a fresh object after every edit, and re-demuxing a video on
+   *  each nudge of a clip would make the editor unusable. */
+  const footageKey = useMemo(
+    () =>
+      project
+        ? FootageLibrary.needs(project)
+            .map((item) => `${item.clipId}:${item.assetId}`)
+            .join(",")
+        : "",
+    [project]
+  );
+
+  /** Open a decoder for every piece of footage on the timeline. */
+  useEffect(() => {
+    let live = true;
+    footageRef.current?.close();
+    footageRef.current = null;
+    if (!footageKey) return;
+    const needs = footageKey.split(",").map((pair) => {
+      const [clipId, assetId] = pair.split(":");
+      return { clipId, assetId };
+    });
+    FootageLibrary.load(needs, (id) => api.url(`/video-media/${id}/file`)).then((library) => {
+      if (!live) {
+        library.close();
+        return;
+      }
+      footageRef.current = library;
+      if (library.problems.length) {
+        notify(`${library.problems[0].assetId}: ${library.problems[0].reason}`, "warning");
+      }
+      // Frames exist now that did not a moment ago, so the canvas is stale.
+      setRepaint((value) => value + 1);
+    });
+    return () => {
+      live = false;
+      footageRef.current?.close();
+      footageRef.current = null;
+    };
+  }, [footageKey, notify]);
 
   // ── editing ───────────────────────────────────────────────────────────────
 
@@ -198,7 +246,13 @@ export default function VideoEditor() {
     return () => cancelAnimationFrame(raf);
   }, [playing, project, duration]);
 
-  /** Redraw whenever the document, the playhead or the decoded assets change. */
+  /** Redraw whenever the document, the playhead or the decoded assets change.
+   *
+   *  Stills paint straight away. Footage cannot: a frame has to be decoded
+   *  first, and by the time it arrives the playhead may have moved — so a
+   *  superseded paint is dropped rather than drawn late, which is the
+   *  difference between a preview that scrubs and one that appears to lag
+   *  behind its own playhead. */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !project) return;
@@ -206,8 +260,26 @@ export default function VideoEditor() {
     if (!context) return;
     canvas.width = project.width;
     canvas.height = project.height;
-    paintFrame(context, project, frameAt(project, Math.round(playhead)), table);
-  }, [project, playhead, table]);
+    const resolved = frameAt(project, Math.round(playhead));
+    const library = footageRef.current;
+    if (!library || !library.size) {
+      paintFrame(context, project, resolved, table);
+      return;
+    }
+    let live = true;
+    // The table is a draw cache rather than a rendered value: `apply` puts this
+    // instant's video frames into it in place, and this effect is the only
+    // thing that reads it.
+    library
+      .apply(resolved, table)
+      .catch(() => undefined)
+      .then(() => {
+        if (live) paintFrame(context, project, resolved, table);
+      });
+    return () => {
+      live = false;
+    };
+  }, [project, playhead, table, repaint]);
 
   // ── keyboard ──────────────────────────────────────────────────────────────
 
@@ -373,9 +445,9 @@ export default function VideoEditor() {
       const result = await exportProject({
         project,
         assets: table,
-        // Audio clips always come from imported material, which is the only
-        // store that serves whole files rather than pictures.
-        audioUrlFor: (id) => api.url(`/video-media/${id}/file`),
+        // Footage and audio both come from imported material, which is the
+        // only store that serves whole files rather than pictures.
+        mediaUrlFor: (id) => api.url(`/video-media/${id}/file`),
         onProgress: (value) => setProgress(value)
       });
       setProgress({ frame: manifest.frames, frames: manifest.frames, stage: "uploading" });
@@ -394,7 +466,10 @@ export default function VideoEditor() {
       // to say: a file that came out quieter or shorter of a track than the
       // timeline asked for is still a file, and the person who exported it is
       // the one who needs to know.
-      if (!result.audio.present && !manifest.mix.silent) {
+      if (result.footage.problems.length) {
+        const first = result.footage.problems[0];
+        notify(`${first.assetId} could not be drawn: ${first.reason}`, "warning");
+      } else if (!result.audio.present && !manifest.mix.silent) {
         notify(result.audio.reason || "The export came out silent.", "warning");
       } else if (result.audio.missing.length) {
         notify(

@@ -601,25 +601,6 @@ class VideoEditorEngine:
         if project.duration <= 0:
             warnings.append("This timeline is empty. There is nothing to export.")
 
-        # Imported footage can be *heard* but not yet *seen*: the painter draws
-        # stills, text and colour, and decoding video frames in the browser is a
-        # separate piece of work. Said here rather than discovered at export,
-        # because the alternative is a finished-looking file with a hole in it.
-        footage = [
-            clip.id
-            for track in project.tracks
-            if track.kind == "video"
-            for clip in track.clips
-            if clip.kind == "video"
-        ]
-        if footage:
-            warnings.append(
-                f"{len(footage)} video clip(s) are on the timeline. Their sound "
-                "works and can be captioned, but the picture is not drawn yet — "
-                "the renderer handles stills, text and colour. Exporting now "
-                "would leave those clips blank."
-            )
-
         # What the export's audio track should be. Stated by the server so the
         # browser's mixer has an answer to be checked against, and so the editor
         # can say "this will clip" before a render rather than after one.

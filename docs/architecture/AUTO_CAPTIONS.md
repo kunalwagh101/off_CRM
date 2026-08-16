@@ -205,10 +205,11 @@ In the UI: select the voiceover clip, press **Auto captions**.
 - **Translation.** A second call on the transcript, which the broker can
   already make — it is simply not wired.
 - **Speaker labels.** Whisper does not diarise; that is a different model.
-- **Imported footage is audible but not drawable.** Its sound can be captioned
-  today. The picture is not painted — the renderer handles stills, text and
-  colour — and the manifest **says so and marks the project unrenderable**
-  rather than exporting a file with a hole in it.
+- ~~**Imported footage is audible but not drawable.**~~ No longer true. The
+  browser demuxes and decodes footage now, so a clip that was captioned shows
+  its own picture in the preview and in the export, and the manifest no longer
+  refuses to call the project renderable. See "The picture: demuxing in the
+  browser" in `VIDEO_EDITOR.md`.
 - **No recording in the browser.** The UI takes a file. `MediaRecorder` would
   do it and it is not wired.
 - **Nothing chooses the language.** It is passed through if given, and detected

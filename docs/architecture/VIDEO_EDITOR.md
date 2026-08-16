@@ -37,6 +37,7 @@ and encoding them. Every machine running off_CRM has both.
 | Document, edits, invariants | Python | Rules belong where they can be tested offline |
 | Frame resolution | **Both** | A preview cannot make a request per frame |
 | The audio mix, as a plan | **Both** | Deciding the gain shape is arithmetic; applying it needs a decoder |
+| Demuxing and decoding footage | Browser | The codec is already there and the frames are needed per frame |
 | Painting, encoding, muxing | Browser | A canvas is already a compositor |
 | Gates on the result | Python | A renderer checking its own output cannot fail |
 
@@ -270,6 +271,78 @@ stage exists to prevent.
 
 ---
 
+## The picture: demuxing in the browser
+
+`paintFrame` could always draw a video frame — its `AssetSource` is a
+`CanvasImageSource` and a `VideoFrame` is one, so the painter needed no change
+at all. What was missing was anything that could produce *the frame at a given
+instant*, and that needs two things the platform does not hand over: a demuxer
+and a decoder. The decoder is `VideoDecoder`, which is free. The demuxer is
+`video/demux/`.
+
+**Why not a `<video>` element.** Setting `video.currentTime` and calling
+`drawImage` reads as much simpler and is worse in three ways that all matter
+here. A seek costs tens of milliseconds and an export asks for every frame in
+order, so a sixty-second render pays about a minute in seeks alone. It cannot be
+done in a worker or against an `OffscreenCanvas`, because a `<video>` needs a
+document. And it gives no way to *hold* a decoded frame, which is what freeze
+frame and reverse are made of. A decoder fed in order does the same work once,
+forwards, at decode speed.
+
+| Piece | Does |
+|---|---|
+| `demux/matroska.ts` | walks EBML into Clusters and reads the SimpleBlocks |
+| `demux/isobmff.ts` | expands MP4's five parallel sample tables into one frame list |
+| `demux/index.ts` | dispatches on the container's own magic; asks `isConfigSupported` |
+| `footage.ts` | a cursor, a decoder and a small frame cache per clip |
+
+The two parsers are one level deeper than `video/gates.py`, which already walks
+both formats on the server to read a file's shape. Same boxes, same elements.
+
+**Forward-only, and that is the design.** A decoder cannot start anywhere: it
+needs a keyframe and then every frame between that keyframe and the one you
+want. So `Footage` keeps a cursor, feeds chunks in decode order and holds the
+last dozen decoded frames. An export asks in increasing order, so the cursor
+never goes backwards and each frame is decoded exactly once. Scrubbing jumps
+around, and a jump backwards or into a different group of pictures restarts from
+that group's keyframe — which is what a seek costs in any editor.
+
+Four things that are not obvious and are each a test:
+
+- **Decode order is not presentation order.** Anything with B-frames stores
+  frames in the order they must be *decoded* and displays them in another. The
+  frame list stays in decode order, because that is what a decoder has to be
+  fed, and a separate index sorted by presentation time answers "which frame is
+  showing at T". MP4 spells the difference out in its `ctts` table; the fixture
+  carries one.
+- **A flushed decoder will not take a delta frame.** Flushing is how you make a
+  reordering decoder give up what it is holding, and afterwards it has forgotten
+  everything a delta frame refers back to. Flushing on a hunch — `decodeQueueSize`
+  hits zero when a chunk is *accepted*, long before its frame comes out — meant
+  flushing on the first frame of every file and then refusing the second. Real
+  Chromium found that one.
+- **One clip, one cursor.** Two clips of the same recording at different points
+  each get their own reader over shared bytes. Sharing one would make each seek
+  the other backwards on every frame. The asset table is keyed by clip for
+  footage and by asset for stills, which is the whole difference between them.
+- **An output frame is an interval, not an instant.** A container stores times
+  in its own units, so 30fps footage has frames at 33ms and 67ms while a 30fps
+  timeline asks at 33.333ms and 66.667ms. Sampled at the leading edge that asks
+  for frame 1 twice and never asks for frame 2 — a third of the footage silently
+  replaced by duplicates. The exporter samples half an output frame ahead, at
+  the middle of the interval the frame actually covers, and every source frame
+  is then asked for exactly once. A preview passes nothing: the playhead is a
+  real instant.
+
+**What the server cannot check.** There is a gate for a missing audio track,
+because a header says whether one exists. There is no equivalent for footage: a
+clip that drew as a red hole produces a file whose header is perfect. So the
+browser reports per-file failures instead — a container it cannot parse, a codec
+this browser will not take — and one unreadable import costs its own clip rather
+than the whole render.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -344,6 +417,25 @@ outside this project:
    fade came out of the file as the shape the planner described, and the peak
    frequencies came back 440Hz left and 660Hz right — so the channels did not
    swap on the way through either.
+6. **The footage was measured the same way.** Headless Chromium encoded a real
+   60-frame VP9 file in which frame *n* is a flat colour spelling *n* out as a
+   three-digit base-4 number, one digit per channel. The levels are 85 apart on
+   purpose: a flat fill through VP9 becomes limited-range YUV 4:2:0 and comes
+   back a dozen levels off, and at that spacing no amount of that drift can
+   round a channel to the wrong level, so "which frame is this" has an exact
+   answer. That file was demuxed by `demux/matroska.ts`, decoded, placed on a
+   timeline, and painted by `paintFrame`; the centre pixel of the canvas was
+   read for the first thirty output frames.
+
+   **All thirty matched their own source frame, in order, with nothing
+   duplicated and nothing dropped.** The same measurement before the half-frame
+   sampling fix read `0,1,1,3,4,4,6,7,7,…` — which is how that bug was found.
+
+   `scripts/build_mp4_fixture.py` covers the other container from the other
+   direction: Python writes an MP4 from the spec — three different chunk sizes,
+   sparse sync samples, a signed `ctts` and a version-1 `mdhd` — and
+   `demux/isobmff.ts` reads every frame's offset, length, keyframe flag and
+   presentation time back out exactly.
 
 ---
 
@@ -445,11 +537,10 @@ feature map makes it look larger.
   removal, text-to-video — every row marked **M** in the feature map — is a
   model call through the broker, and none is wired. The timeline is the thing
   they will all edit; this is the floor they stand on.
-- **A video clip's picture is not drawn.** The document, the gates, speed,
-  in-points and source duration all handle video, and its *sound* is mixed into
-  the export. The painter draws stills, text and colour; decoding video frames
-  in the browser is its own piece of work. The manifest says so before an export
-  rather than leaving a hole in a finished-looking file.
+- **No freeze frame, no reverse, no speed curves.** All three are edits over
+  footage that can now be decoded, rather than the decoding itself — a freeze is
+  a clip that asks for one instant however long it runs, and a reverse asks for
+  them backwards, which is a decoder cache problem rather than a new capability.
 - **The mix is plain.** No ducking, no compression, no EQ, no normalisation, no
   waveform to look at and no beat detection to cut to. Gain, fades and volume
   keyframes reach the file exactly as the preview plays them, and that is all.

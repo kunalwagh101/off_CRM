@@ -36,6 +36,7 @@ and encoding them. Every machine running off_CRM has both.
 |---|---|---|
 | Document, edits, invariants | Python | Rules belong where they can be tested offline |
 | Frame resolution | **Both** | A preview cannot make a request per frame |
+| The audio mix, as a plan | **Both** | Deciding the gain shape is arithmetic; applying it needs a decoder |
 | Painting, encoding, muxing | Browser | A canvas is already a compositor |
 | Gates on the result | Python | A renderer checking its own output cannot fail |
 
@@ -199,6 +200,76 @@ sync error.
 
 ---
 
+## The sound: a plan, not samples
+
+Until Stage 4 every file off_CRM produced was silent. The timeline had resolved
+gain per clip per instant since the day it was written and the exporter threw
+all of it away. Platforms bury silent video, so this was the difference between
+an export that can be posted and one that cannot.
+
+The obvious fix is to ask the resolver what the gain is and write a sample. At
+48kHz that is forty-eight thousand resolver calls a second, to produce a number
+that changes a few times across a whole clip — and it would mean a second mixing
+implementation in Python that nothing ever runs, since the audio is assembled in
+the browser where the decoder is.
+
+So `video/mixdown.py` produces an **envelope**: the points at which each clip's
+gain changes, in the clip's own time. WebAudio applies exactly that shape with
+`setValueAtTime` and `linearRampToValueAtTime`, which is what a `GainNode` is
+for. The arithmetic that decides the shape stays in Python, testable and
+offline; the sample-pushing stays where the samples are.
+
+**Where the envelope is dense and where it is not.** Between two keyframes the
+gain is a straight line, and a straight line needs its two ends. Two things bend
+it: an eased keyframe segment, and a fade — which is linear on its own but
+*multiplies* the volume curve, so a fade over a ramp is a product of two lines
+and therefore a parabola. Those stretches, and only those, are sampled at 100Hz,
+and whatever turns out straight anyway is collapsed back to its endpoints. A
+constant clip is two points; a one-second linear fade is three; a two-second
+eased ramp is about eighty.
+
+| Piece | Does |
+|---|---|
+| `video/mixdown.py` | plans the mix: which clips, read from where, at what gain shape |
+| `frontend/src/video/mixdown.ts` | the same plan in the browser, pinned to the same fixture |
+| `frontend/src/video/audio.ts` | `OfflineAudioContext` renders it, `AudioEncoder` makes it Opus |
+| `frontend/src/video/webm.ts` | muxes the Opus track alongside the video one |
+
+Three decisions worth naming:
+
+- **A video clip is in the mix.** Its sound travels inside the same container as
+  its picture, and `decodeAudioData` reads it out. The picture cannot be drawn
+  yet, but leaving footage out of the mix because its picture is unfinished
+  would be keeping the wrong half.
+- **The gain rule lives in one function.** `clip_gain()` in `timeline.py`,
+  `clipGain()` in `resolve.ts`. The preview reads it through the frame resolver
+  and the mixer reads it directly, and those two disagreeing would be a preview
+  that lies about the file it is previewing.
+- **Clipping is scaled, not clamped.** Two clips at full volume sum to 2.0 and
+  the samples wrap into a rasp. `headroom()` reports the worst-case sum and the
+  whole mix is scaled by its reciprocal — uniform, so the balance between clips
+  is untouched — and the export says it happened rather than quietly changing
+  how loud someone's video is. The manifest says it *before* the render, so it
+  can be fixed properly instead.
+
+**Deliberately not built:** ducking, compression, EQ, normalisation. Each is a
+real feature and each changes what the mix *sounds* like rather than what it
+*is*; building them before the plain mix works would mean debugging two things
+at once. `headroom()` is the number auto-ducking will act on when it arrives.
+
+The plan is in the conformance fixture's `mix` block, so the two planners are
+pinned to one file exactly the way the two resolvers are — including the number
+of points in each envelope, because the same curve described in a different
+number of points means one simplifier moved.
+
+And the gate closes the loop: the server plans the mix itself, so if the
+timeline makes a sound and the file that comes back has no audio track, the
+render fails. A browser that could not encode Opus hands back a perfectly good
+picture, and a silent video nobody noticed was silent is the exact failure this
+stage exists to prevent.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -225,6 +296,7 @@ Two details that are not obvious and are both tested:
 | `not_empty` | a container with a header and no frames — the encoder ran, nothing was painted |
 | `readable_header` | truncated, or a moov that was never written |
 | `has_video_track` | an audio file with a video extension |
+| `has_audio_track` | a silent file from a timeline that makes a sound — only asked for when the mix plan says so |
 | `aspect_ratio` | an export of the wrong shape, within 5% for macroblock rounding |
 | `duration_matches` | an export that stopped somewhere other than the end of the edit |
 | `not_duplicate` | the same bytes stored twice |
@@ -242,6 +314,9 @@ outside this project:
 1. **`tests/fixtures/muxed_sample.webm` is written by the TypeScript muxer**
    (`cd frontend && npm run fixtures`) and parsed by the Python gates in CI. One
    language writes the format, the other reads it, and neither can drift alone.
+   `muxed_sample_audio.webm` is the same file with an Opus track, carrying the
+   real `opusHead()` bytes `audio.ts` writes — the Python parser reads 48000Hz
+   and 2 channels back out of it.
 2. **ffmpeg reads that file** as `matroska,webm 1080x1920, 3.00s, vp9, 30fps`.
 3. **A real Chromium export**, driven headless: a document with a scale ramp and
    a text clip, encoded through WebCodecs and muxed by `webm.ts`. The gates
@@ -249,6 +324,26 @@ outside this project:
 4. **The pixels were measured, not eyeballed.** Frame 0 of that export decodes
    to a blue rectangle of exactly 432×768 at (324, 576) — precisely scale 0.4 of
    a 1080×1920 canvas, which is what the keyframe at tick 0 says it should be.
+5. **The samples were measured too.** A real 3-second WAV — 440Hz left, 660Hz
+   right — placed on an audio track with a one-second fade at each end, exported
+   through headless Chromium, then decoded back by Chromium's own demuxer and
+   Opus decoder. ffmpeg reads the result as
+   `matroska,webm … vp9 1080x1920 30fps / opus 48000 Hz stereo, 3.00s`, and the
+   gates pass it. The RMS of the decoded left channel per quarter-second:
+
+   | Window | Measured | Predicted from the envelope |
+   |---|---|---|
+   | 0.00–0.25s | 0.0623 | 0.0623 |
+   | 0.25–0.50s | 0.1648 | 0.1648 |
+   | 0.50–0.75s | 0.2716 | 0.2715 |
+   | 0.75–1.00s | 0.3794 | 0.3789 |
+   | the flat middle | 0.4310–0.4320 | 0.4316 |
+
+   The prediction is arithmetic, not a previous run: for a sine of amplitude *A*
+   ramped linearly, the RMS over `[a, b]` is `A/√2 · √((b³−a³)/3(b−a))`. The
+   fade came out of the file as the shape the planner described, and the peak
+   frequencies came back 440Hz left and 660Hz right — so the channels did not
+   swap on the way through either.
 
 ---
 
@@ -350,17 +445,16 @@ feature map makes it look larger.
   removal, text-to-video — every row marked **M** in the feature map — is a
   model call through the broker, and none is wired. The timeline is the thing
   they will all edit; this is the floor they stand on.
-- **Video clips are modelled but there is no video material.** The document,
-  the gates, speed, in-points and source duration all handle video. The image
-  campaign generates stills, so nothing produces a video asset to place yet.
-- **Audio is modelled and not exported.** Tracks, gain, fades and volume
-  keyframes all resolve, and the muxer has an audio track ready. Nothing
-  generates audio to put on it, so the exporter writes video only.
-- **No transitions.** A dissolve is two clips overlapping in time, which the
-  no-overlap invariant currently forbids on one track. It needs a real transition
-  object between adjacent clips rather than a relaxed invariant.
-- **No transcript, so no text-based editing.** That needs speech-to-text, which
-  is a model call.
+- **A video clip's picture is not drawn.** The document, the gates, speed,
+  in-points and source duration all handle video, and its *sound* is mixed into
+  the export. The painter draws stills, text and colour; decoding video frames
+  in the browser is its own piece of work. The manifest says so before an export
+  rather than leaving a hole in a finished-looking file.
+- **The mix is plain.** No ducking, no compression, no EQ, no normalisation, no
+  waveform to look at and no beat detection to cut to. Gain, fades and volume
+  keyframes reach the file exactly as the preview plays them, and that is all.
+- **No text-based editing.** There is a transcript — auto-captions produce one —
+  but editing the video by editing its transcript is not wired.
 - **No auto-reframe.** Changing the canvas deliberately does not move anything:
   reframing every clip for a new aspect ratio is a model call, and a crude
   version would slice subjects down the middle and call it done.

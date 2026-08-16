@@ -37,6 +37,7 @@ from typing import Any, Callable, Mapping
 from ..campaigns import assert_kind
 from . import captions as captioning
 from . import edits
+from . import mixdown
 from .gates import VideoDecodeError, VideoGateReport, probe, run_gates
 from .store import VideoStore
 from .timeline import (
@@ -619,6 +620,29 @@ class VideoEditorEngine:
                 "would leave those clips blank."
             )
 
+        # What the export's audio track should be. Stated by the server so the
+        # browser's mixer has an answer to be checked against, and so the editor
+        # can say "this will clip" before a render rather than after one.
+        mix = mixdown.plan(project).to_dict()
+        # Deliberately not folded into ``warnings``: nothing about the sound
+        # stops a file being produced, and ``renderable`` is the flag that
+        # decides whether the export button works. A silent video is a bad idea,
+        # not an impossible one.
+        notes: list[str] = []
+        if mix["silent"] and project.duration > 0:
+            notes.append(
+                "Nothing on this timeline makes a sound, so the export will be "
+                "silent. Most platforms bury silent video."
+            )
+        if mix["headroom"] > 1.0:
+            notes.append(
+                f"Clips overlap loudly enough to sum to {mix['headroom']:.2f}, past "
+                "the point where the output would distort. The export turns the "
+                "whole mix down by that much to compensate — setting a clip's "
+                "volume yourself keeps more of the level."
+            )
+        mix["notes"] = notes
+
         return {
             "project_id": project.id,
             "version": int(state.record["version"]),
@@ -633,6 +657,7 @@ class VideoEditorEngine:
             "frames": project.frame_count(),
             "background": project.background,
             "assets": assets,
+            "mix": mix,
             "warnings": warnings,
             "renderable": not warnings,
         }
@@ -681,12 +706,17 @@ class VideoEditorEngine:
         """
         state = self.open_project(project_id)
         project = state.project
+        # Whether the file is *required* to have sound is the project's own
+        # answer, not the exporter's: the browser saying "I could not encode
+        # Opus" and the server checking "does this timeline make a sound" are
+        # the two halves that catch a silent export.
         report: VideoGateReport = run_gates(
             payload,
             want_width=project.width,
             want_height=project.height,
             want_duration_ticks=project.duration,
             require_video=require_video,
+            require_audio=not mixdown.plan(project).silent,
             seen_hashes=self.store.render_hashes(project_id),
         )
         render_id = self.store.store_render(

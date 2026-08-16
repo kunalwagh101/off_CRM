@@ -7,18 +7,18 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-14
+Last updated: 2026-08-16
 Branch: `main`
-Tests: **1057 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 22 frontend passed, frontend build clean.
+Tests: **1093 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 47 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 29 of its 158
-rows built, 17 partly, 31% of the reachable rows touched.
+from, and it now carries a **status column and a scoreboard**: 43 of its 159
+rows built, 14 partly, 38% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
 wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
@@ -103,6 +103,8 @@ offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── timeline.py   the document, its invariants, and the frame resolver
 ├── edits.py      every edit as a pure function; a default-deny registry
 ├── gates.py      MP4 + WebM + WAV header parsing; gates on the exported file
+├── presets.py    transitions, animations and text styles as searchable data
+├── mixdown.py    the audio mix as a gain-envelope plan the browser executes
 ├── captions.py   transcript -> readable cues -> text clips, deterministic
 ├── store.py      projects, version history (undo), media, transcripts, renders
 └── engine.py     create -> edit -> undo -> caption -> render -> gate
@@ -729,6 +731,82 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 4 — audio in the export (2026-08-16)
+- [x] **Every file this project produced before today was silent.** The timeline
+      had resolved gain per clip per instant since the day it was written and
+      the exporter threw all of it away. Platforms bury silent video, so this
+      was the difference between an export that can be posted and one that
+      cannot. Blueprint Stage 4; feature map 40 → **43 built**, 38% of the
+      reachable rows touched.
+- [x] **A plan, not samples.** `video/mixdown.py` emits an *envelope* per clip —
+      the points where its gain changes, in the clip's own time — and WebAudio
+      applies exactly that shape with `setValueAtTime` /
+      `linearRampToValueAtTime`. Asking the resolver per sample is 48,000 calls
+      a second to produce a number that changes a few times across a clip, and
+      would put a second mixer in Python that nothing ever runs.
+- [x] **Dense only where the curve bends.** Between two keyframes the gain is a
+      straight line. A fade is linear too — but it *multiplies* the volume
+      curve, so a fade over a ramp is a parabola. Those stretches are sampled at
+      100Hz and anything that turns out straight is collapsed back to its ends,
+      each dropped point checked against the last *kept* one so a shallow curve
+      cannot be walked away from one tolerance at a time. A constant clip is 2
+      points; a one-second linear fade is 3; a two-second eased ramp is ~80.
+- [x] **The gain rule now lives in one function per language** — `clip_gain()`
+      in `timeline.py`, `clipGain()` in `resolve.ts` — called by both the frame
+      resolver and the mixer. Two copies of it would be a preview that lies
+      about the file it is previewing. The conformance frames came out
+      byte-identical across that refactor, which is how we know it changed
+      nothing.
+- [x] **Footage is in the mix.** A video clip's sound travels in the same
+      container as its picture and `decodeAudioData` reads it out. The picture
+      still is not drawn; leaving the sound out because of that would be keeping
+      the wrong half.
+- [x] **Clipping is scaled, not clamped.** `headroom()` reports the worst-case
+      sum at every envelope point — measured mid-crossfade, not at clip edges,
+      because two clips fading through each other are loudest where neither
+      starts nor ends. Over 1.0 the whole mix is scaled by the reciprocal, which
+      keeps the balance between clips exactly, and the export reports that it
+      happened. The manifest says it *before* the render, so it can be fixed
+      properly instead.
+- [x] **A new gate: `has_audio_track`**, asked for only when the server's own
+      mix plan says the timeline makes a sound. A browser that cannot encode
+      Opus hands back a perfect picture, and a silent video nobody noticed was
+      silent is exactly this stage's failure mode.
+- [x] `frontend/src/video/audio.ts` — the `OfflineAudioContext` graph, 20ms Opus
+      frames, and a hand-written 19-byte `OpusHead` for when WebCodecs supplies
+      no decoder description, because a WebM Opus track with no CodecPrivate is
+      a file some demuxers refuse.
+- [x] **Two muxer bugs found on the way in.** A cluster's Timecode is a whole
+      millisecond, but block offsets were computed against the unrounded value —
+      up to half a millisecond of error per block, which did not matter until
+      there were two tracks to keep together. And a cluster only ended at a video
+      keyframe, so a keyframe-sparse stretch could run past the 32,767ms a signed
+      16-bit block offset can express; it now also cuts at 30s.
+- [x] **Cross-language, both directions.** `npm run fixtures` now also writes
+      `muxed_sample_audio.webm` carrying the real `opusHead()` bytes, and the
+      Python gates read 48000Hz / 2 channels back out of it — the WebM prober
+      learned `SamplingFrequency` and `Channels` to do it. The mix plan is in the
+      conformance fixture's `mix` block and both planners are asserted to agree
+      **point for point, including how many points**: the same curve described in
+      a different number of points means one simplifier moved.
+- [x] Deliberately not built: ducking, compression, EQ, normalisation, waveform
+      display, beat detection. Each changes what the mix *sounds* like rather
+      than what it *is*, and building them before the plain mix worked would mean
+      debugging two things at once. The scoreboard guard asserts they are still
+      marked not-built, in both directions.
+- [x] **Verified in a real browser against a real tone, and measured.** A 3s WAV
+      (440Hz left, 660Hz right) on a track with a one-second fade at each end,
+      exported through headless Chromium and decoded back by Chromium's own
+      demuxer and Opus decoder. ffmpeg reads the result as `vp9 1080x1920 30fps
+      / opus 48000 Hz stereo, 3.00s`. Decoded RMS per quarter-second — 0.0623,
+      0.1648, 0.2716, 0.3794, then 0.4310–0.4320 across the flat middle —
+      against `A/√2·√((b³−a³)/3(b−a))` predicting 0.0623, 0.1648, 0.2715,
+      0.3789, 0.4316. The fade came out of the file as the shape the planner
+      described, and the channels did not swap on the way through.
+- [x] 29 mixdown tests, 5 engine tests, 4 gate tests and 2 scoreboard guards
+      in Python; 25 in the browser (11 mix conformance, 14 audio scheduling and
+      OpusHead). **1,093 Python tests, 47 frontend**, build clean.
 
 ### Stage 2 — transitions, animations, the preset registry (2026-08-14)
 - [x] `video/presets.py` + `frontend/src/video/transitions.ts`. **46 transitions

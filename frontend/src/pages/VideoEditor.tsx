@@ -373,6 +373,9 @@ export default function VideoEditor() {
       const result = await exportProject({
         project,
         assets: table,
+        // Audio clips always come from imported material, which is the only
+        // store that serves whole files rather than pictures.
+        audioUrlFor: (id) => api.url(`/video-media/${id}/file`),
         onProgress: (value) => setProgress(value)
       });
       setProgress({ frame: manifest.frames, frames: manifest.frames, stage: "uploading" });
@@ -387,6 +390,23 @@ export default function VideoEditor() {
         stored.passed ? `Exported — ${stored.summary}` : `Export stored with problems: ${stored.summary}`,
         stored.passed ? "success" : "warning"
       );
+      // Said separately from the gate result, and only when there is something
+      // to say: a file that came out quieter or shorter of a track than the
+      // timeline asked for is still a file, and the person who exported it is
+      // the one who needs to know.
+      if (!result.audio.present && !manifest.mix.silent) {
+        notify(result.audio.reason || "The export came out silent.", "warning");
+      } else if (result.audio.missing.length) {
+        notify(
+          `${result.audio.missing.length} audio file(s) would not decode and are missing from the mix.`,
+          "warning"
+        );
+      } else if (result.audio.limitedBy > 1) {
+        notify(
+          `The mix was turned down ${result.audio.limitedBy.toFixed(2)}× to stop it clipping.`,
+          "info"
+        );
+      }
     } catch (reason) {
       const message =
         reason instanceof ExportUnsupported
@@ -507,11 +527,18 @@ export default function VideoEditor() {
           {manifest.warnings.join(" ")}
         </p>
       ) : null}
+      {manifest?.mix?.notes?.length ? (
+        <p className="veditor-note" role="status">
+          {manifest.mix.notes.join(" ")}
+        </p>
+      ) : null}
       {progress ? (
         <p className="veditor-note" role="status">
           {progress.stage === "encoding"
             ? `Encoding frame ${progress.frame} of ${progress.frames}`
-            : `${progress.stage}…`}
+            : progress.stage === "mixing"
+              ? "Mixing the audio…"
+              : `${progress.stage}…`}
         </p>
       ) : null}
 

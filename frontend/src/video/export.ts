@@ -16,8 +16,10 @@
  * failure — so an old browser is told plainly what it needs instead.
  */
 
+import { AudioUnsupported, buildAudioTrack, type AudioTrackResult } from "./audio";
 import type { ProjectDoc } from "./document";
 import { TICKS_PER_SECOND, ticksPerFrame } from "./document";
+import { planMix } from "./mixdown";
 import { frameAt } from "./resolve";
 import { paintFrame, type AssetTable } from "./render";
 import { WebMWriter } from "./webm";
@@ -31,7 +33,7 @@ const KEYFRAME_SECONDS = 2;
 export interface ExportProgress {
   frame: number;
   frames: number;
-  stage: "encoding" | "flushing" | "muxing" | "uploading" | "done";
+  stage: "mixing" | "encoding" | "flushing" | "muxing" | "uploading" | "done";
 }
 
 export interface ExportOptions {
@@ -39,6 +41,14 @@ export interface ExportOptions {
   assets: AssetTable;
   /** Bits per second. 8 Mbps is generous for vertical social video. */
   bitrate?: number;
+  /** Bits per second for the audio track. */
+  audioBitrate?: number;
+  /**
+   * Where to fetch an asset's bytes from, for the audio mix. Without it the
+   * export is silent — which is what it was before there was an audio track at
+   * all, so leaving it out degrades rather than fails.
+   */
+  audioUrlFor?: (assetId: string) => string;
   onProgress?: (progress: ExportProgress) => void;
   signal?: AbortSignal;
 }
@@ -49,6 +59,17 @@ export interface ExportResult {
   frames: number;
   codec: string;
   durationMs: number;
+  /** What happened to the sound, in words the export screen can show. */
+  audio: {
+    /** Whether the file has an audio track at all. */
+    present: boolean;
+    /** Why not, when it does not. Empty when it does. */
+    reason: string;
+    /** How far the mix was turned down to stay under clipping, or 1. */
+    limitedBy: number;
+    /** Assets that would not decode; their clips are missing from the mix. */
+    missing: string[];
+  };
 }
 
 export class ExportUnsupported extends Error {}
@@ -144,12 +165,28 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
   }) as CanvasRenderingContext2D | null;
   if (!context) throw new Error("This browser would not give the exporter a 2D canvas.");
 
+  // The sound is built first, because the muxer declares its tracks up front and
+  // has to know whether there is one. It also fails fast: an unreadable music
+  // file is better found before a thousand frames have been encoded.
+  onProgress?.({ frame: 0, frames, stage: "mixing" });
+  const sound = await buildSound(project, options);
+  if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+
   const writer = new WebMWriter({
     width: project.width,
     height: project.height,
     videoCodec: codec,
-    durationMs: (duration / TICKS_PER_SECOND) * 1000
+    durationMs: (duration / TICKS_PER_SECOND) * 1000,
+    audio: sound.track
+      ? {
+          codec: sound.track.codec,
+          sampleRate: sound.track.sampleRate,
+          channels: sound.track.channels,
+          description: sound.track.description
+        }
+      : undefined
   });
+  for (const chunk of sound.track?.chunks ?? []) writer.addAudio(chunk);
 
   const scope = globalThis as unknown as WebCodecsWindow;
   let failure: Error | null = null;
@@ -209,11 +246,54 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
   onProgress?.({ frame: frames, frames, stage: "done" });
   return {
     blob,
-    renderer: `webcodecs/${codec}`,
+    renderer: `webcodecs/${codec}${sound.track ? "+opus" : ""}`,
     frames: writer.frameCount,
     codec,
-    durationMs: (duration / TICKS_PER_SECOND) * 1000
+    durationMs: (duration / TICKS_PER_SECOND) * 1000,
+    audio: {
+      present: Boolean(sound.track),
+      reason: sound.reason,
+      limitedBy: sound.track?.limitedBy ?? 1,
+      missing: sound.track?.missing ?? []
+    }
   };
+}
+
+/**
+ * The audio track, or an explanation of why there isn't one.
+ *
+ * Everything here degrades rather than throws. A browser too old to encode
+ * Opus, a music file that will not decode, a caller that gave no way to fetch
+ * assets — none of those should cost someone their whole render. What they must
+ * not do is happen silently, so each one comes back as a sentence the export
+ * screen can put on the page.
+ */
+async function buildSound(
+  project: ProjectDoc,
+  options: ExportOptions
+): Promise<{ track: AudioTrackResult | null; reason: string }> {
+  const plan = planMix(project);
+  if (plan.silent) {
+    return { track: null, reason: "Nothing on this timeline makes a sound." };
+  }
+  if (!options.audioUrlFor) {
+    return {
+      track: null,
+      reason: "The exporter was given no way to fetch audio, so this file is silent."
+    };
+  }
+  try {
+    const track = await buildAudioTrack(plan, options.audioUrlFor, {
+      bitrate: options.audioBitrate
+    });
+    if (!track) {
+      return { track: null, reason: "None of this project's audio could be decoded." };
+    }
+    return { track, reason: "" };
+  } catch (error) {
+    if (error instanceof AudioUnsupported) return { track: null, reason: error.message };
+    throw error;
+  }
 }
 
 /**

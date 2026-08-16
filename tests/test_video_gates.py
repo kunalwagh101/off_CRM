@@ -35,6 +35,8 @@ from offsetx_apollo_builder.video.gates import (
 from offsetx_apollo_builder.video.timeline import TICKS_PER_SECOND
 
 MUXED = Path(__file__).parent / "fixtures" / "muxed_sample.webm"
+#: The same muxer's output with an Opus track in it, for the audio gate.
+MUXED_AUDIO = Path(__file__).parent / "fixtures" / "muxed_sample_audio.webm"
 SECOND = TICKS_PER_SECOND
 
 #: The identity display matrix, in the 16.16 / 2.30 fixed point MP4 uses.
@@ -123,7 +125,8 @@ def ebml_uint(element_id: bytes, value: int) -> bytes:
 
 
 def webm(*, width: int = 1080, height: int = 1920, duration_ms: float | None = 3000,
-         unknown_size: bool = False, audio_only: bool = False, padding: int = 8192) -> bytes:
+         unknown_size: bool = False, audio_only: bool = False, silent: bool = False,
+         padding: int = 8192) -> bytes:
     header = ebml(b"\x1aE\xdf\xa3", ebml(b"\x42\x82", b"webm"))
     info = ebml_uint(b"\x2a\xd7\xb1", 1_000_000)
     if duration_ms is not None:
@@ -135,7 +138,8 @@ def webm(*, width: int = 1080, height: int = 1920, duration_ms: float | None = 3
             ebml_uint(b"\x83", 1)
             + ebml(b"\xe0", ebml_uint(b"\xb0", width) + ebml_uint(b"\xba", height)),
         )
-    entries += ebml(b"\xae", ebml_uint(b"\x83", 2) + ebml(b"\xe1", ebml_uint(b"\x9f", 2)))
+    if not silent:
+        entries += ebml(b"\xae", ebml_uint(b"\x83", 2) + ebml(b"\xe1", ebml_uint(b"\x9f", 2)))
     body = ebml(b"\x15\x49\xa9\x66", info) + ebml(b"\x16\x54\xae\x6b", entries)
     body += ebml(b"\x1f\x43\xb6\x75", ebml_uint(b"\xe7", 0) + b"\xa3" + vint(padding) + b"\x00" * padding)
     if unknown_size:
@@ -315,6 +319,70 @@ def test_a_file_with_no_video_track_is_not_an_export():
     report = run_gates(webm(audio_only=True), want_width=1080, want_height=1920)
     failure = next(item for item in report.failures if item.name == "has_video_track")
     assert "no video track" in failure.detail
+
+
+def test_the_audio_track_the_browser_muxer_wrote_is_read_back_correctly():
+    """The cross-language check for Stage 4.
+
+    `frontend/src/video/webm.ts` wrote this file with a real `opusHead()` from
+    `audio.ts` as its CodecPrivate, and this parser reads the track out of it.
+    Two halves of one format, written on two sides of the wire."""
+    found = probe(MUXED_AUDIO.read_bytes())
+    assert found.media_type == "video/webm"
+    assert (found.width, found.height) == (1080, 1920)
+    assert found.duration_ticks == 3 * SECOND
+    assert found.has_video and found.has_audio
+    assert (found.sample_rate, found.channels) == (48_000, 2)
+
+
+def test_an_export_with_both_tracks_clears_every_gate():
+    report = run_gates(
+        MUXED_AUDIO.read_bytes(),
+        want_width=1080,
+        want_height=1920,
+        want_duration_ticks=3 * SECOND,
+        require_audio=True,
+    )
+    assert report.passed, report.summary()
+    assert {result.name for result in report.results} >= {
+        "has_video_track",
+        "has_audio_track",
+        "aspect_ratio",
+        "duration_matches",
+    }
+
+
+def test_a_timeline_that_makes_a_sound_must_export_one():
+    """The failure this gate exists for: a perfect picture and no sound.
+
+    The browser can lose its audio track a dozen ways — no Opus encoder, an
+    asset that would not decode, a mixer that threw — and every one of them
+    still hands back a file that looks completely finished."""
+    report = run_gates(
+        MUXED.read_bytes(),
+        want_width=1080,
+        want_height=1920,
+        want_duration_ticks=3 * SECOND,
+        require_audio=True,
+    )
+    failure = next(item for item in report.failures if item.name == "has_audio_track")
+    assert "no audio track" in failure.detail
+    assert not report.passed
+
+
+def test_an_export_with_the_sound_in_it_clears_the_gate():
+    report = run_gates(webm(), want_width=1080, want_height=1920, require_audio=True)
+    result = next(item for item in report.results if item.name == "has_audio_track")
+    assert result.passed, result.detail
+
+
+def test_a_silent_timeline_is_not_asked_for_an_audio_track():
+    """A slideshow with no music is a real export, not a broken one."""
+    report = run_gates(
+        webm(silent=True), want_width=1080, want_height=1920, want_duration_ticks=3 * SECOND
+    )
+    assert report.passed, report.summary()
+    assert not any(item.name == "has_audio_track" for item in report.results)
 
 
 def test_the_same_bytes_twice_is_caught():

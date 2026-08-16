@@ -112,6 +112,26 @@ export function fadeFactor(clip: Clip, offset: number): number {
 }
 
 /**
+ * How loud a clip is, `offset` ticks into itself.
+ *
+ * The only place this rule lives on this side, matching `clip_gain` in
+ * `timeline.py`. The preview reads it through `frameAt` and the exporter's
+ * mixer reads it directly, and those two disagreeing would be a preview that
+ * lies about the file it is previewing.
+ *
+ * `volume` is an escape hatch for a caller that has already resolved this
+ * clip's properties, so `frameAt` does not do that work twice.
+ */
+export function clipGain(track: Track, clip: Clip, offset: number, volume?: number): number {
+  if (track.muted) return 0;
+  // A still or a caption on a video track makes no sound. Footage does, even on
+  // a video track, because its audio travels inside the same file.
+  if (track.kind !== "audio" && clip.kind !== "video") return 0;
+  const level = volume === undefined ? propertyAt(clip, offset).volume : volume;
+  return Math.max(0, level * fadeFactor(clip, offset));
+}
+
+/**
  * The span both clips of a transition are drawn for, centred on their cut.
  *
  * Returns null when the two clips are not adjacent any more — a transition left
@@ -175,9 +195,7 @@ export function frameAt(project: ProjectDoc, tick: number): Frame {
       const fade = fadeFactor(clip, offset);
       const hasSource = clip.kind === "video" || clip.kind === "audio";
       const sourceTime = hasSource ? clip.in_point + roundHalfToEven(offset * clip.speed) : -1;
-      let gain =
-        track.kind === "audio" || clip.kind === "video" ? resolved.volume * fade : 0;
-      if (track.muted) gain = 0;
+      const gain = clipGain(track, clip, offset, resolved.volume);
       const visible = track.hidden && track.kind === "video" ? 0 : 1;
       items.push({
         clip_id: clip.id,

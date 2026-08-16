@@ -13,19 +13,19 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **40** | 25% |
-| ◐ Partly built | **15** | 9% |
-| ○ Not built | **103** | 65% |
-| | **158** | |
+| ● Built | **43** | 27% |
+| ◐ Partly built | **14** | 9% |
+| ○ Not built | **102** | 64% |
+| | **159** | |
 
-9 of those 103 are **out of scope on purpose** — a phone camera, a licensed
-music library, a template marketplace. Against the 149 rows that are actually
-reachable, 55 are touched: **37%**.
+9 of those 102 are **out of scope on purpose** — a phone camera, a licensed
+music library, a template marketplace. Against the 150 rows that are actually
+reachable, 57 are touched: **38%**.
 
-The 29 are not the easy 29. They are the timeline, its invariants, keyframes,
-undo, the export and its gates, and auto-captions — the floor everything else
-stands on. Transitions, masks and the AI rows are each a feature on top of a
-timeline that now exists.
+Those 57 are not the easy 57. They are the timeline and its invariants,
+keyframes, undo, transitions and animations, auto-captions, the export and its
+gates, and now the sound inside the file. Masks, effects and the AI rows are
+each a feature on top of a timeline that now exists.
 
 ---
 
@@ -195,12 +195,13 @@ timeline that now exists.
 |---|---|---|
 | Music library, commercial-use filter | X (licensing) | ○ |
 | Sound effects library | X | ○ |
-| Extract audio from a video | R | ○ |
+| Extract audio from a video | R | ◐ a video clip's sound is mixed into the export; there is no "detach" edit |
 | Record voiceover | B | ○ |
-| Volume, fade in/out, audio keyframes | B | ◐ in the document and the preview; the export writes no audio yet |
+| **Volume, fade in/out, audio keyframes** | B | ● in the document, the preview and the exported file |
 | Waveform display | B | ○ |
 | **Beat detection, auto beat markers** | B | ○ |
-| Audio speed, split, trim | B | ◐ split, trim and speed work on audio clips |
+| **Audio in the export — WebAudio mix, Opus in the muxer** | B | ● the whole mix is scaled down when it would clip; there is no per-clip limiter |
+| Audio speed, split, trim | B | ● split, trim and speed all reach the mix |
 | Noise reduction / denoise | M | ○ |
 | Voice enhance | M | ○ |
 | Voice changer / pitch effects | B | ○ |

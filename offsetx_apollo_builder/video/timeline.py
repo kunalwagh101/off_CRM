@@ -777,6 +777,27 @@ def _fade_factor(clip: Clip, offset: int) -> float:
     return max(0.0, min(1.0, factor))
 
 
+def clip_gain(track: Track, clip: Clip, offset: int, volume: float | None = None) -> float:
+    """How loud this clip is, ``offset`` ticks into itself.
+
+    The only place this rule lives. The resolver needs it to tell the preview
+    what it is hearing, and the mixdown planner needs it to build the export's
+    gain envelope. Those two giving different answers would be a preview that
+    lies about the file it is previewing, so they call the same function.
+
+    ``volume`` is an escape hatch for a caller that has already resolved this
+    clip's properties, so the resolver does not do that work twice.
+    """
+    if track.muted:
+        return 0.0
+    # A still or a caption on a video track makes no sound. Footage does, even
+    # on a video track, because its audio travels inside the same file.
+    if track.kind != "audio" and clip.kind != "video":
+        return 0.0
+    level = clip.property_at(offset)["volume"] if volume is None else volume
+    return max(0.0, level * _fade_factor(clip, offset))
+
+
 def frame_at(project: Project, tick: int) -> Frame:
     """What the viewer sees and hears at ``tick``.
 
@@ -828,9 +849,7 @@ def frame_at(project: Project, tick: int) -> Frame:
             fade = _fade_factor(clip, offset)
             has_source = clip.kind in ("video", "audio")
             source_time = clip.in_point + int(round(offset * clip.speed)) if has_source else -1
-            gain = resolved["volume"] * fade if track.kind == "audio" or clip.kind == "video" else 0.0
-            if track.muted:
-                gain = 0.0
+            gain = clip_gain(track, clip, offset, volume=resolved["volume"])
             # Hiding a track takes away the picture, not the sound. The eye and
             # the speaker are two controls because a voiceover cut against
             # footage has to survive the footage being hidden to look at what is

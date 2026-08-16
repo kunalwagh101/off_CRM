@@ -25,7 +25,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const fixture = resolve(root, "..", "tests", "fixtures", "muxed_sample.webm");
+const fixtures = resolve(root, "..", "tests", "fixtures");
 const outDir = mkdtempSync(join(tmpdir(), "offcrm-webm-"));
 
 await build({
@@ -36,40 +36,78 @@ await build({
     outDir,
     emptyOutDir: true,
     minify: false,
-    lib: { entry: "src/video/webm.ts", formats: ["es"], fileName: "webm" }
+    lib: { entry: { webm: "src/video/webm.ts", audio: "src/video/audio.ts" }, formats: ["es"] }
   }
 });
 
 const { WebMWriter } = await import(join(outDir, "webm.js"));
+const { opusHead } = await import(join(outDir, "audio.js"));
 
 const FPS = 30;
 const SECONDS = 3;
 const WIDTH = 1080;
 const HEIGHT = 1920;
+const SAMPLE_RATE = 48_000;
+const CHANNELS = 2;
+/** Opus's own frame length; the encoder emits one chunk per 20ms. */
+const OPUS_FRAME_MS = 20;
 
-const writer = new WebMWriter({
-  width: WIDTH,
-  height: HEIGHT,
-  videoCodec: "vp09.00.10.08",
-  durationMs: SECONDS * 1000
-});
-
-for (let index = 0; index < FPS * SECONDS; index += 1) {
-  // Varying lengths so the size fields are not all identical, which is how a
-  // length bug hides.
-  const data = new Uint8Array(300 + (index % 17));
-  data.fill(index & 0xff);
-  writer.addVideo({
-    timestamp: Math.round((index * 1_000_000) / FPS),
-    type: index % (FPS * 2) === 0 ? "key" : "delta",
-    byteLength: data.length,
-    copyTo: (target) => target.set(data)
+function muxed(withAudio) {
+  const writer = new WebMWriter({
+    width: WIDTH,
+    height: HEIGHT,
+    videoCodec: "vp09.00.10.08",
+    durationMs: SECONDS * 1000,
+    audio: withAudio
+      ? {
+          codec: "opus",
+          sampleRate: SAMPLE_RATE,
+          channels: CHANNELS,
+          // The real header the exporter writes, so the Python parser meets the
+          // bytes it will actually meet rather than a stand-in.
+          description: opusHead(CHANNELS, SAMPLE_RATE)
+        }
+      : undefined
   });
+
+  for (let index = 0; index < FPS * SECONDS; index += 1) {
+    // Varying lengths so the size fields are not all identical, which is how a
+    // length bug hides.
+    const data = new Uint8Array(300 + (index % 17));
+    data.fill(index & 0xff);
+    writer.addVideo({
+      timestamp: Math.round((index * 1_000_000) / FPS),
+      type: index % (FPS * 2) === 0 ? "key" : "delta",
+      byteLength: data.length,
+      copyTo: (target) => target.set(data)
+    });
+  }
+
+  if (withAudio) {
+    const frames = Math.round((SECONDS * 1000) / OPUS_FRAME_MS);
+    for (let index = 0; index < frames; index += 1) {
+      const data = new Uint8Array(80 + (index % 11));
+      data.fill((index * 7) & 0xff);
+      writer.addAudio({
+        timestamp: index * OPUS_FRAME_MS * 1000,
+        byteLength: data.length,
+        copyTo: (target) => target.set(data)
+      });
+    }
+  }
+  return writer;
 }
 
-const bytes = writer.finish();
-writeFileSync(fixture, bytes);
-console.log(
-  `wrote ${fixture} — ${bytes.length} bytes, ${writer.frameCount} frames, ` +
-    `${WIDTH}x${HEIGHT}, ${SECONDS}s`
-);
+for (const [name, withAudio] of [
+  ["muxed_sample.webm", false],
+  ["muxed_sample_audio.webm", true]
+]) {
+  const writer = muxed(withAudio);
+  const bytes = writer.finish();
+  const path = join(fixtures, name);
+  writeFileSync(path, bytes);
+  console.log(
+    `wrote ${path} — ${bytes.length} bytes, ${writer.frameCount} frames, ` +
+      `${WIDTH}x${HEIGHT}, ${SECONDS}s${withAudio ? ", with an Opus track" : ""}`
+  );
+}

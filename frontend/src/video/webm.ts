@@ -66,6 +66,17 @@ const AUDIO_TRACK = 2;
  */
 const CLUSTER_MS = 2000;
 
+/**
+ * The point at which a cluster is cut whether or not a keyframe has arrived.
+ *
+ * A cluster normally ends at the next video keyframe, which is fine while there
+ * is video. An audio-heavy or keyframe-sparse stretch would otherwise run past
+ * the 32,767ms a signed 16-bit offset can express, and the blocks after that
+ * would be written with wrapped timecodes — a file that parses and plays its
+ * sound in the wrong order.
+ */
+const MAX_CLUSTER_MS = 30_000;
+
 /** Write a variable-length integer: the value, prefixed by its own width. */
 function vint(value: number): Uint8Array {
   let width = 1;
@@ -290,7 +301,7 @@ export class WebMWriter {
         element(
           ID.Cluster,
           concat([
-            uintElement(ID.Timecode, Math.round(clusterMs)),
+            uintElement(ID.Timecode, clusterMs),
             ...current.map((block) => this.simpleBlock(block, clusterMs))
           ])
         )
@@ -298,11 +309,17 @@ export class WebMWriter {
       current = [];
     };
     for (const block of ordered) {
+      const since = block.timestampMs - clusterMs;
       const startsCluster =
         !current.length ||
-        (block.track === VIDEO_TRACK && block.keyframe && block.timestampMs - clusterMs >= CLUSTER_MS);
+        (block.track === VIDEO_TRACK && block.keyframe && since >= CLUSTER_MS) ||
+        since >= MAX_CLUSTER_MS;
       if (startsCluster && current.length) flush();
-      if (!current.length) clusterMs = block.timestampMs;
+      // Rounded on the way in rather than on the way out: the Timecode element
+      // holds a whole millisecond, and computing a block's offset against the
+      // unrounded value would put every block in the cluster up to half a
+      // millisecond away from where it says it is.
+      if (!current.length) clusterMs = Math.round(block.timestampMs);
       current.push(block);
     }
     flush();

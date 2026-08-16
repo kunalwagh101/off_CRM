@@ -66,6 +66,8 @@ _TRACK_ENTRY = 0xAE
 _TRACK_TYPE = 0x83
 _VIDEO = 0xE0
 _AUDIO = 0xE1
+_SAMPLING_FREQUENCY = 0xB5
+_CHANNELS = 0x9F
 _PIXEL_WIDTH = 0xB0
 _PIXEL_HEIGHT = 0xBA
 _DISPLAY_WIDTH = 0x54B0
@@ -430,6 +432,12 @@ def _probe_webm(data: bytes) -> MediaProbe:
                     result.has_video = True
                 elif track_kind == 2:
                     result.has_audio = True
+            elif element == _SAMPLING_FREQUENCY:
+                # An IEEE float in the file, and a whole number everywhere else:
+                # 48000.0 is what a rate is, not what anybody wants to read.
+                result.sample_rate = int(round(_ebml_float(data, index, stop)))
+            elif element == _CHANNELS:
+                result.channels = _ebml_uint(data, index, stop)
             elif element == _PIXEL_WIDTH:
                 pixels = (_ebml_uint(data, index, stop), pixels[1])
             elif element == _PIXEL_HEIGHT:
@@ -477,6 +485,7 @@ def run_gates(
     want_height: int = 0,
     want_duration_ticks: int = 0,
     require_video: bool = True,
+    require_audio: bool = False,
     seen_hashes: set[str] | None = None,
     min_bytes: int = MIN_BYTES,
 ) -> VideoGateReport:
@@ -484,6 +493,11 @@ def run_gates(
 
     Same contract as the image gates: raising would make one bad export abort a
     batch when the right answer is to record why it failed and keep going.
+
+    ``require_audio`` is set when the project's mix plan says the timeline makes
+    a sound. The browser can fail to encode Opus for half a dozen reasons and
+    still hand back a perfectly good picture, and a silent file that nobody
+    noticed is silent is the exact failure this whole stage exists to prevent.
     """
     report = VideoGateReport()
     try:
@@ -543,6 +557,22 @@ def run_gates(
                     False,
                     "the file muxed no video track. This is an audio file with a "
                     "video extension, not an export.",
+                )
+            )
+
+    if require_audio:
+        if found.has_audio:
+            detail = f"{found.sample_rate or '?'}Hz, {found.channels or '?'} channel(s)"
+            report.results.append(GateResult("has_audio_track", True, detail))
+        else:
+            report.results.append(
+                GateResult(
+                    "has_audio_track",
+                    False,
+                    "the timeline has audible clips but the file muxed no audio "
+                    "track. The picture is fine and the video is silent, which "
+                    "is the version of this failure nobody notices until it is "
+                    "already posted.",
                 )
             )
 

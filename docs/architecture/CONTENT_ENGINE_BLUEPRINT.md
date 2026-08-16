@@ -430,11 +430,18 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
 - **Unlocks:** every post becomes an experiment.
 - **Acceptance:** a hypothesis measured end to end on real posts, with an interval — and one hypothesis retired for losing.
 
-### Stage 4 — Audio for real *(~20 tools)*
-- OfflineAudioContext mixing + Opus in the muxer → **audio in the export**
-- Waveforms, beat detection, ducking, EQ; TTS voiceover
+### Stage 4 — Audio for real *(~20 tools)* — **the mix is built; the rest is not**
+- ✅ `OfflineAudioContext` mixing + Opus in the muxer → **audio in the export**
+- ✅ Gain envelopes from volume keyframes and fades, planned in Python and
+  applied in the browser, pinned by the same conformance fixture as the frames
+- ✅ Clipping reported before the render, and the whole mix scaled to fit
+- ✅ An export gate that fails a silent file from a timeline that makes a sound
+- ⬜ Waveforms, beat detection, ducking, EQ; TTS voiceover
 - **Unlocks:** video with sound. Most platforms punish silent video.
-- **Acceptance:** an exported file whose audio track ffmpeg reads at the right length; beat markers within 50ms of ground truth on a test track.
+- **Acceptance:** ✅ the muxer's own Opus-bearing output is parsed back by the
+  Python gates at 48000Hz / 2 channels, and the two mix planners agree point for
+  point on the conformance document. ⬜ beat markers within 50ms of ground truth
+  on a test track — that is the beat-detection half, which is not built.
 
 ### Stage 5 — Video and auto-assembly *(the brief's centre)*
 - Draw footage on the canvas (decode) → unlocks freeze frame, reverse, real speed

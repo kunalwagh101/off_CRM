@@ -337,6 +337,95 @@ def test_a_clip_pointing_at_an_asset_that_no_longer_exists_is_reported(engine, a
     assert "no longer exists" in engine.manifest(state.project.id)["warnings"][0]
 
 
+# ── what the export should sound like ───────────────────────────────────────
+
+
+def _with_music(engine, assets, *, duration: int = 3 * SECOND, volume: float | None = None) -> str:
+    """A still with a music bed under it."""
+    state = _project(engine)
+    project_id = state.project.id
+    assets.add("asset-1")
+    engine.place_asset(project_id, asset_id="asset-1", duration=duration)
+    engine.edit(
+        project_id,
+        "add_clip",
+        {
+            "track_id": state.project.tracks[1].id,
+            "kind": "audio",
+            "start": 0,
+            "duration": duration,
+            "asset_id": "media-1",
+            "source_duration": 30 * SECOND,
+        },
+    )
+    if volume is not None:
+        clip = engine.open_project(project_id).project.tracks[1].clips[0]
+        engine.edit(
+            project_id, "set_property", {"clip_id": clip.id, "name": "volume", "value": volume}
+        )
+    return project_id
+
+
+def test_the_manifest_says_what_the_export_should_sound_like(engine, assets):
+    """The browser mixes the audio, so the server states the answer it should
+    arrive at — the same arrangement as the frame resolver."""
+    mix = engine.manifest(_with_music(engine, assets))["mix"]
+    assert mix["silent"] is False
+    assert mix["asset_ids"] == ["media-1"]
+    assert mix["sample_rate"] == 48_000
+    assert mix["clips"][0]["envelope"] == [[0, 1.0], [3 * SECOND, 1.0]]
+
+
+def test_the_manifest_says_when_a_project_would_export_silent(engine, assets):
+    """A note rather than a warning: a silent video is a bad idea, not an
+    impossible one, and ``renderable`` is what decides whether the button works."""
+    state = _project(engine)
+    assets.add("asset-1")
+    engine.place_asset(state.project.id, asset_id="asset-1")
+    manifest = engine.manifest(state.project.id)
+    assert manifest["mix"]["silent"] is True
+    assert "will be silent" in manifest["mix"]["notes"][0]
+    assert manifest["renderable"], "a silent timeline still exports"
+
+
+def test_the_manifest_warns_before_the_render_that_a_mix_would_clip(engine, assets):
+    project_id = _with_music(engine, assets)
+    engine.edit(project_id, "add_track", {"kind": "audio", "name": "Voice"})
+    engine.edit(
+        project_id,
+        "add_clip",
+        {
+            "track_id": engine.open_project(project_id).project.tracks[-1].id,
+            "kind": "audio",
+            "start": 0,
+            "duration": SECOND,
+            "asset_id": "media-2",
+            "source_duration": SECOND,
+        },
+    )
+    mix = engine.manifest(project_id)["mix"]
+    assert mix["headroom"] == pytest.approx(2.0)
+    assert any("distort" in note for note in mix["notes"])
+
+
+def test_a_project_that_makes_a_sound_must_come_back_with_one(engine, assets):
+    """The export gate's other half. ``muxed_sample.webm`` has no audio track and
+    this timeline says it should — which is exactly the file a browser that could
+    not encode Opus hands back, looking entirely finished."""
+    result = engine.store_render(_with_music(engine, assets), MUXED.read_bytes())
+    assert not result["passed"]
+    assert "has_audio_track" in result["summary"]
+
+
+def test_a_project_whose_sound_is_turned_all_the_way_down_is_not_asked_for_one(engine, assets):
+    """The planner and the gate have to agree: a clip below silence is not in the
+    mix, so the file is not required to carry it."""
+    project_id = _with_music(engine, assets, volume=0.0)
+    assert engine.manifest(project_id)["mix"]["silent"] is True
+    result = engine.store_render(project_id, MUXED.read_bytes())
+    assert result["passed"], result["summary"]
+
+
 # ── the file that comes back ────────────────────────────────────────────────
 
 

@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from offsetx_apollo_builder.video import edits  # noqa: E402
+from offsetx_apollo_builder.video import edits, mixdown  # noqa: E402
 from offsetx_apollo_builder.video.timeline import (  # noqa: E402
     TICKS_PER_SECOND,
     Project,
@@ -199,10 +199,18 @@ def main() -> int:
         "ticks_per_second": TICKS_PER_SECOND,
         "document": project.to_dict(),
         "frames": [frame_at(project, tick).to_dict() for tick in SAMPLE_TICKS],
+        # The export's audio. Pinned here for the same reason the frames are:
+        # the mix is planned twice, once in Python and once in the browser, and
+        # a silent divergence would mean an exported file whose sound does not
+        # match the preview that was approved.
+        "mix": mixdown.plan(project).to_dict(),
     }
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"wrote {FIXTURE} — {len(payload['frames'])} frames, duration {project.duration} ticks")
+    print(
+        f"wrote {FIXTURE} — {len(payload['frames'])} frames, "
+        f"{len(payload['mix']['clips'])} mixed clips, duration {project.duration} ticks"
+    )
     return 0
 
 

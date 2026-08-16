@@ -118,3 +118,29 @@ def test_the_rows_stage_two_delivered_are_marked_built():
         "Text style presets",
     ):
         assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
+
+
+def test_the_rows_stage_four_delivered_are_marked_built():
+    """Audio in the export. Every file this project produced before it was
+    silent, so this is the row that must never quietly go back."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "**Audio in the export — WebAudio mix, Opus in the muxer**",
+        "**Volume, fade in/out, audio keyframes**",
+        "Audio speed, split, trim",
+    ):
+        assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
+
+
+def test_the_audio_work_that_was_deliberately_left_out_is_still_marked_so():
+    """Ducking, EQ and vocal isolation change what the mix *sounds* like rather
+    than what it *is*, and each is a feature in its own right."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "Auto ducking under speech",
+        "Equaliser, reverb, echo",
+        "Noise reduction / denoise",
+        "Waveform display",
+        "**Beat detection, auto beat markers**",
+    ):
+        assert marks[feature] == NOT_BUILT, f"{feature!r} is not built"

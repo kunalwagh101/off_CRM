@@ -196,6 +196,32 @@ export interface RenderManifest {
     has_audio?: boolean;
     status?: string;
   }>;
+  /**
+   * What the export should sound like, as the server plans it.
+   *
+   * `notes` are deliberately not `warnings`: nothing about the sound stops a
+   * file being produced, and `warnings` is what `renderable` is computed from.
+   */
+  mix: {
+    duration_ticks: number;
+    duration_seconds: number;
+    sample_rate: number;
+    channels: number;
+    silent: boolean;
+    headroom: number;
+    clips: Array<{
+      clip_id: string;
+      asset_id: string;
+      kind: string;
+      start: number;
+      duration: number;
+      in_point: number;
+      speed: number;
+      envelope: Array<[number, number]>;
+    }>;
+    asset_ids: string[];
+    notes: string[];
+  };
   warnings: string[];
   renderable: boolean;
 }

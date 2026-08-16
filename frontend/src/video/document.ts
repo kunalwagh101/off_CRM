@@ -87,6 +87,13 @@ export interface Clip {
   asset_id: string;
   text: string;
   speed: number;
+  /** Speed over the clip's own time, when it is not one number. Straight
+   *  between points, which is what makes the material consumed an exact sum of
+   *  trapezoids in both languages. Empty means `speed` governs throughout. */
+  speed_curve?: Keyframe[];
+  /** Read the material backwards. A flag rather than a negative speed, which
+   *  would make every other piece of arithmetic here signed. */
+  reversed?: boolean;
   fade_in: number;
   fade_out: number;
   label: string;
@@ -220,6 +227,8 @@ export interface RenderManifest {
       envelope: Array<[number, number]>;
     }>;
     asset_ids: string[];
+    /** `[clipId, why]` for audible clips deliberately left out of the mix. */
+    excluded: Array<[string, string]>;
     notes: string[];
   };
   warnings: string[];

@@ -308,6 +308,58 @@ describe("the library", () => {
     delete scope.fetch;
   });
 
+  it("takes each clip's source time from the frame resolved half a step later", async () => {
+    // The exporter samples the middle of an output frame rather than its
+    // leading edge. It has to do that by resolving a second frame, not by
+    // adding half a frame times the clip's speed: a reversed clip moves
+    // backwards through its material and a curved one moves at a rate that is
+    // different at every instant, so the arithmetic version is wrong in both
+    // directions. A real browser found this; this keeps it found.
+    const scope = globalThis as Record<string, unknown>;
+    scope.fetch = async () =>
+      ({ ok: true, arrayBuffer: async () => webm().buffer }) as unknown as Response;
+    const library = await FootageLibrary.load(
+      [{ clipId: "clip-a", assetId: "asset-1" }],
+      (id) => `/media/${id}`
+    );
+    const table = new Map();
+    const draw = (sourceTime: number) => ({
+      tick: 0,
+      items: [
+        {
+          clip_id: "clip-a",
+          track_id: "t",
+          kind: "video",
+          z: 0,
+          asset_id: "asset-1",
+          text: "",
+          source_time: sourceTime,
+          clip_time: 0,
+          speed: 1,
+          opacity: 1,
+          gain: 0,
+          properties: {},
+          style: {},
+          transition: {}
+        }
+      ]
+    });
+
+    // Frame 0's leading edge, with the half-step landing on frame 4's time —
+    // a jump no multiplication by `speed` would have produced.
+    await library.apply(draw(0) as never, table, draw(tickOf(4)) as never);
+    const asset = table.get("clip-a") as { source: { timestamp: number } };
+    expect(asset.source.timestamp).toBe(PRESENTATION[4].timestampUs);
+
+    // And with no second frame it falls back to the one it was given.
+    await library.apply(draw(tickOf(2)) as never, table);
+    const fallback = table.get("clip-a") as { source: { timestamp: number } };
+    expect(fallback.source.timestamp).toBe(PRESENTATION[2].timestampUs);
+
+    library.close();
+    delete scope.fetch;
+  });
+
   it("names every video clip a document needs footage for", () => {
     const project = {
       tracks: [

@@ -101,8 +101,8 @@ def test_nothing_claims_to_be_built_that_the_code_does_not_have():
             assert mark == NOT_BUILT, f"{feature!r} is not built"
     assert marks["MP4 / MOV, H.264 / HEVC"] == NOT_BUILT
     assert marks["**Text to video**"] == NOT_BUILT
-    assert marks["Freeze frame"] == NOT_BUILT
-    assert marks["Reverse clip"] == NOT_BUILT
+    assert marks["Smooth slow motion (frame interpolation)"] == NOT_BUILT
+    assert marks["Motion blur between keyframes"] == NOT_BUILT
 
 
 def test_the_rows_stage_two_delivered_are_marked_built():
@@ -128,6 +128,21 @@ def test_the_rows_stage_four_delivered_are_marked_built():
         "**Audio in the export — WebAudio mix, Opus in the muxer**",
         "**Volume, fade in/out, audio keyframes**",
         "Audio speed, split, trim",
+    ):
+        assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
+
+
+def test_the_rows_the_retime_build_delivered_are_marked_built():
+    """Freeze, reverse and speed curves are one thing in the document — the map
+    lists them as three, and all three have to move together or one of them is
+    a claim the code does not back."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "**Freeze frame**",
+        "**Reverse clip**",
+        "**Speed curves — ramp, hero, bullet, stutter, pulse**",
+        "**Time remapping with keyframes**",
+        "Freeze frame, reverse",
     ):
         assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
 

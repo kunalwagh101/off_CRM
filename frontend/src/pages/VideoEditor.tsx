@@ -40,6 +40,16 @@ type MediaItem = {
   duration_ticks: number;
   has_audio: boolean;
 };
+/** One entry from the server's preset catalogue. Points are `[where, speed]`
+ *  with *where* as a fraction of the clip, so one preset fits any length. */
+type SpeedPreset = {
+  id: string;
+  label: string;
+  family: string;
+  points: Array<[number, number]>;
+  average: number;
+  note: string;
+};
 type CaptionResult = {
   captions: number;
   too_fast: number;
@@ -55,6 +65,7 @@ export default function VideoEditor() {
   const [manifest, setManifest] = useState<RenderManifest | null>(null);
   const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
+  const [speedCurves, setSpeedCurves] = useState<SpeedPreset[]>([]);
   const [table, setTable] = useState<AssetTable>(new Map());
   const [selected, setSelected] = useState("");
   const [playhead, setPlayhead] = useState(0);
@@ -100,6 +111,21 @@ export default function VideoEditor() {
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  /** The preset space, fetched once. It is data on the server so the picker here
+   *  and anything that later *searches* the space read the same list. */
+  useEffect(() => {
+    let live = true;
+    api
+      .get<{ speed_curves: SpeedPreset[] }>("/video/presets")
+      .then((catalogue) => {
+        if (live) setSpeedCurves(catalogue.speed_curves ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const openProject = useCallback(async (projectId: string) => {
     setBusy(true);
@@ -641,6 +667,8 @@ export default function VideoEditor() {
             onImport={importMedia}
             onPlaceMedia={placeMedia}
             onCaption={runCaptions}
+            playhead={playhead}
+            speedCurves={speedCurves}
             onPlace={async (assetId) => {
               const next = await api.post<ProjectState>(`/video-projects/${state.id}/place-asset`, {
                 asset_id: assetId,
@@ -770,13 +798,17 @@ function Inspector({
   onPlace,
   onImport,
   onPlaceMedia,
-  onCaption
+  onCaption,
+  playhead,
+  speedCurves
 }: {
   clip: Clip | null;
   project: ProjectDoc;
   assets: ImageAsset[];
   media: MediaItem[];
   busy: boolean;
+  playhead: number;
+  speedCurves: SpeedPreset[];
   onEdit: (op: string, params: Record<string, unknown>) => Promise<unknown>;
   onPlace: (assetId: string) => Promise<void>;
   onImport: (file: File) => Promise<void>;
@@ -785,6 +817,18 @@ function Inspector({
 }) {
   const videoTrack = project.tracks.find((track) => track.kind === "video" && !track.locked);
   const end = project.tracks.flatMap((track) => track.clips).reduce((last, item) => Math.max(last, item.start + item.duration), 0);
+  // Which preset a curve came from is not stored — a curve is just its points,
+  // so it can be edited into something no preset describes. Matching on the
+  // point count and the first speed is enough to keep the right name selected
+  // for a curve nobody has touched since applying it.
+  const curvePreset =
+    speedCurves.find(
+      (preset) =>
+        preset.points.length === clip?.speed_curve?.length &&
+        preset.points[0][1] === clip?.speed_curve?.[0]?.value
+    )?.id ?? "";
+  // A freeze has to land somewhere the clip actually plays.
+  const insideClip = Boolean(clip && clip.start < playhead && playhead < clip.start + clip.duration);
 
   if (!clip) {
     return (
@@ -902,6 +946,54 @@ function Inspector({
             onBlur={(event) => onEdit("set_text", { clip_id: clip.id, text: event.target.value })}
           />
         </label>
+      ) : null}
+      {clip.kind === "video" ? (
+        <>
+          <p className="vinspector-heading">Time</p>
+          <label className="vinspector-field">
+            <span>Speed curve</span>
+            <select
+              value={clip.speed_curve?.length ? curvePreset : ""}
+              onChange={(event) =>
+                event.target.value
+                  ? onEdit("apply_speed_curve", { clip_id: clip.id, preset: event.target.value })
+                  : onEdit("clear_speed_curve", { clip_id: clip.id })
+              }
+            >
+              <option value="">One rate ({clip.speed}×)</option>
+              {speedCurves.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label} — {preset.note}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="vinspector-actions">
+            <Button
+              tone={clip.reversed ? "primary" : "ghost"}
+              disabled={busy}
+              onClick={() => onEdit("reverse_clip", { clip_id: clip.id })}
+            >
+              {clip.reversed ? "Playing backwards" : "Reverse"}
+            </Button>
+            <Button
+              tone="ghost"
+              disabled={busy || !insideClip}
+              onClick={() => onEdit("freeze_frame", { clip_id: clip.id, at: Math.round(playhead) })}
+            >
+              Freeze here
+            </Button>
+          </div>
+          {clip.speed_curve?.length || clip.reversed || clip.speed === 0 ? (
+            <p className="vinspector-empty">
+              Retimed clips export without their sound. Playing audio at one rate
+              under a picture doing something else drifts further apart the
+              longer the clip runs, and resampling it properly means deciding
+              what to do about the pitch.
+            </p>
+          ) : null}
+          <div className="vinspector-divider" />
+        </>
       ) : null}
       {(
         [

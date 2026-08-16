@@ -291,6 +291,17 @@ class Clip:
     asset_id: str = ""
     text: str = ""
     speed: float = 1.0
+    #: Speed over the clip's own time, when it is not one number.
+    #:
+    #: ``at`` is ticks into the clip and ``value`` is the speed there; the curve
+    #: is straight between points, which is what makes the amount of material
+    #: consumed an exact sum of trapezoids rather than something two languages
+    #: have to agree to approximate. Empty means ``speed`` governs throughout.
+    speed_curve: list[Keyframe] = field(default_factory=list)
+    #: Play the material backwards. Separate from a negative speed on purpose —
+    #: a negative speed makes every other piece of arithmetic here signed for
+    #: the sake of one flag.
+    reversed: bool = False
     fade_in: int = 0
     fade_out: int = 0
     label: str = ""
@@ -301,6 +312,33 @@ class Clip:
     @property
     def end(self) -> int:
         return self.start + self.duration
+
+    @property
+    def retimed(self) -> bool:
+        """Whether this clip does anything to time beyond running at one rate."""
+        return bool(self.speed_curve) or self.reversed
+
+    def consumed(self, offset: int) -> float:
+        """How much source this clip has read by ``offset`` ticks into itself.
+
+        The whole of time remapping is this one integral. At a constant speed it
+        is ``offset * speed`` and nothing about the old behaviour changes; with
+        a curve it is the area under the speed curve, which is a sum of
+        trapezoids because the curve is straight between its points.
+        """
+        return _consumed(self.speed_curve, self.speed, max(0, min(offset, self.duration)))
+
+    def source_at(self, offset: int) -> int:
+        """Where in the material this clip is reading, ``offset`` ticks in.
+
+        Reversed clips walk the same range from the far end: at offset 0 they
+        are at the last instant they will ever read, and at the end of the clip
+        they are back at the in-point.
+        """
+        if self.reversed:
+            span = _consumed(self.speed_curve, self.speed, self.duration)
+            return self.in_point + int(round(span - self.consumed(offset)))
+        return self.in_point + int(round(self.consumed(offset)))
 
     def property_at(self, offset: int) -> dict[str, float]:
         """Every property, resolved at ``offset`` ticks into this clip."""
@@ -322,6 +360,8 @@ class Clip:
             "asset_id": self.asset_id,
             "text": self.text,
             "speed": float(self.speed),
+            "speed_curve": [frame.to_dict() for frame in self.speed_curve],
+            "reversed": bool(self.reversed),
             "fade_in": int(self.fade_in),
             "fade_out": int(self.fade_out),
             "label": self.label,
@@ -354,7 +394,11 @@ class Clip:
             source_duration=int(raw.get("source_duration") or 0),
             asset_id=str(raw.get("asset_id") or ""),
             text=str(raw.get("text") or ""),
-            speed=float(raw.get("speed") or 1.0),
+            # A speed deliberately set to 0 is a freeze, not a missing value, so
+            # this cannot use `or 1.0` the way the others use `or 0`.
+            speed=float(raw["speed"]) if raw.get("speed") is not None else 1.0,
+            speed_curve=[Keyframe.from_dict(item) for item in raw.get("speed_curve") or []],
+            reversed=bool(raw.get("reversed")),
             fade_in=int(raw.get("fade_in") or 0),
             fade_out=int(raw.get("fade_out") or 0),
             label=str(raw.get("label") or ""),
@@ -642,6 +686,47 @@ def _ease(easing: str, ratio: float) -> float:
     return ratio
 
 
+def _consumed(curve: Sequence[Keyframe], speed: float, offset: int) -> float:
+    """The area under a speed curve from 0 to ``offset``.
+
+    A speed curve says how fast the clip is reading at each instant, so the
+    amount of material it has read by a given moment is the integral of it. The
+    curve is straight between its points, which makes each piece a trapezoid —
+    exact, and computable identically in two languages, which a bezier is not.
+
+    Before the first point the first speed holds and after the last the last
+    one does, matching :func:`interpolate` and for the same reason:
+    extrapolating a *speed* past its last keyframe can send a clip off the end
+    of its own material.
+    """
+    if not curve:
+        return offset * speed
+    points = sorted(curve, key=lambda frame: frame.at)
+    total = 0.0
+    # Anything before the first point runs at the first point's speed.
+    head = min(offset, points[0].at)
+    if head > 0:
+        total += head * points[0].value
+    for left, right in zip(points, points[1:]):
+        if offset <= left.at:
+            break
+        span = right.at - left.at
+        if span <= 0:
+            continue
+        if offset >= right.at:
+            total += (left.value + right.value) / 2 * span
+            continue
+        # Part of a segment: the speed at the cut is on the straight line
+        # between its ends, and the area is the trapezoid up to there.
+        ratio = (offset - left.at) / span
+        here = left.value + (right.value - left.value) * ratio
+        total += (left.value + here) / 2 * (offset - left.at)
+        break
+    if offset > points[-1].at:
+        total += (offset - points[-1].at) * points[-1].value
+    return total
+
+
 def interpolate(frames: Sequence[Keyframe], offset: int) -> float:
     """The value of an animated property at ``offset`` ticks into its clip.
 
@@ -848,7 +933,7 @@ def frame_at(project: Project, tick: int) -> Frame:
             resolved = clip.property_at(offset)
             fade = _fade_factor(clip, offset)
             has_source = clip.kind in ("video", "audio")
-            source_time = clip.in_point + int(round(offset * clip.speed)) if has_source else -1
+            source_time = clip.source_at(offset) if has_source else -1
             gain = clip_gain(track, clip, offset, volume=resolved["volume"])
             # Hiding a track takes away the picture, not the sound. The eye and
             # the speaker are two controls because a voiceover cut against
@@ -937,6 +1022,22 @@ def _assert_editable(track: Track) -> None:
         )
 
 
+def _check_speed(value: float, what: str) -> None:
+    """Zero is allowed and means *hold this instant* — a freeze frame.
+
+    It is not a missing value and not an error: a frozen stretch inside a speed
+    curve is what every "bullet time" preset is made of. Everything between zero
+    and the minimum is refused, because a clip reading a hundredth of a tick per
+    tick is a mistake rather than an intention.
+    """
+    if value == 0:
+        return
+    if not (MIN_SPEED <= value <= MAX_SPEED):
+        raise TimelineError(
+            f"{what} must be 0 (freeze) or between {MIN_SPEED} and {MAX_SPEED}; got {value}."
+        )
+
+
 def _validate_clip(clip: Clip, track: Track) -> None:
     if clip.kind not in CLIP_KINDS:
         raise TimelineError(f"Unknown clip kind {clip.kind!r}. Known: {', '.join(CLIP_KINDS)}.")
@@ -953,12 +1054,30 @@ def _validate_clip(clip: Clip, track: Track) -> None:
             f"({ticks_to_seconds(MIN_CLIP_TICKS):.3f}s, one frame at 60fps). "
             f"This one is {clip.duration}."
         )
-    if not (MIN_SPEED <= clip.speed <= MAX_SPEED):
-        raise TimelineError(f"Speed must be between {MIN_SPEED} and {MAX_SPEED}; got {clip.speed}.")
+    _check_speed(clip.speed, "Speed")
+    for frame in clip.speed_curve:
+        _check_speed(frame.value, f"The speed at tick {frame.at}")
+        if not (0 <= frame.at <= clip.duration):
+            raise TimelineError(
+                f"A speed point at tick {frame.at} is outside a clip {clip.duration} "
+                "ticks long, so the clip would never reach it."
+            )
+        if frame.easing != "linear":
+            raise TimelineError(
+                f"A speed point cannot be eased ({frame.easing!r}). How much material "
+                "a clip reads is the area under its speed curve, and that is only "
+                "exact — in both the server and the browser — while the curve is "
+                "straight between its points. Use more points instead."
+            )
+    if len(clip.speed_curve) == 1:
+        raise TimelineError(
+            "A speed curve of one point is a constant speed written the long way. "
+            "Set `speed` instead, or give the curve a second point."
+        )
     if clip.in_point < 0:
         raise TimelineError("A clip cannot start reading before the start of its source.")
     if clip.source_duration > 0:
-        consumed = int(round(clip.duration * clip.speed))
+        consumed = int(round(clip.consumed(clip.duration)))
         if clip.in_point + consumed > clip.source_duration:
             over = clip.in_point + consumed - clip.source_duration
             raise TimelineError(

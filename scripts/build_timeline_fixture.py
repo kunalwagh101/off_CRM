@@ -55,7 +55,16 @@ SAMPLE_TICKS = [
     180000,     # 2s, where the overlay starts
     225000,     # 2.5s, two video tracks and audio all live
     270000,     # 3s
-    315000,     # 3.5s, inside the tail fade
+    315000,     # 3.5s, inside the tail fade, and the retimed clip's first tick
+    # Four instants across the retimed clip: inside its fast opening ramp, at
+    # the corner where the ramp meets the held slow section, inside that
+    # section, and inside the closing ramp. Time remapping is the one place a
+    # clip's source time stops being a multiple of its offset, so an even spread
+    # here would prove nothing.
+    322000,
+    328500,
+    340000,
+    352000,
     359999,     # the last tick of the timeline
     360000,     # one past the end: everything must be gone
     450000,     # well past the end
@@ -130,6 +139,25 @@ def build() -> Project:
     )
     project.tracks[3].clips[0].id = "clip_hidden"
     project = edits.set_track(project, track_id="track_hidden", hidden=True)
+
+    # Overlay again, after the text: footage that is both retimed and reversed.
+    # Time remapping is the one thing where a clip's source time stops being a
+    # multiple of its offset, so if the two resolvers are going to disagree
+    # anywhere it is here.
+    project = edits.add_clip(
+        project,
+        track_id="track_overlay",
+        kind="video",
+        start=315000,
+        duration=45000,
+        in_point=0,
+        source_duration=900000,
+        asset_id="asset_clip",
+        label="retimed",
+    )
+    project.tracks[2].clips[1].id = "clip_retimed"
+    project = edits.apply_speed_curve(project, clip_id="clip_retimed", preset="hero")
+    project = edits.reverse_clip(project, clip_id="clip_retimed", reversed=True)
 
     # Audio: fades at both ends, and a volume ramp in the middle.
     project = edits.add_clip(

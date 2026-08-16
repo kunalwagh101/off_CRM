@@ -26,6 +26,7 @@ function plan(overrides: Partial<MixPlan> = {}): MixPlan {
     headroom: 1,
     clips: [],
     asset_ids: [],
+    excluded: [],
     ...overrides
   };
 }

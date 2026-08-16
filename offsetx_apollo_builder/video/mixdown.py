@@ -122,6 +122,9 @@ class MixPlan:
     #: Assets that have to be fetched and decoded before rendering, in the order
     #: they are first heard.
     asset_ids: list[str] = field(default_factory=list)
+    #: ``(clip_id, why)`` for audible clips deliberately left out, so a silent
+    #: clip is a stated decision rather than something nobody noticed.
+    excluded: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def silent(self) -> bool:
@@ -143,6 +146,7 @@ class MixPlan:
             "headroom": round(headroom(self), 6),
             "clips": [item.to_dict() for item in self.clips],
             "asset_ids": list(self.asset_ids),
+            "excluded": [[clip_id, why] for clip_id, why in self.excluded],
         }
 
 
@@ -248,8 +252,32 @@ def audible_clips(project: Project) -> list[tuple[Track, Clip]]:
         for clip in track.clips:
             if clip.kind not in AUDIBLE_KINDS or not clip.asset_id:
                 continue
+            if retimed_reason(clip):
+                continue
             found.append((track, clip))
     return found
+
+
+def retimed_reason(clip: Clip) -> str:
+    """Why this clip's sound is left out of the mix, or an empty string.
+
+    A clip whose rate changes over its own length, or that is frozen, or that
+    reads backwards, needs its samples resampled — and resampling sound is not
+    playing it faster, it is deciding what to do about the pitch. That decision
+    is a feature of its own and it is not built.
+
+    The picture of such a clip is fine: `footage.ts` simply asks for a different
+    frame. So this leaves the sound out and says so, rather than playing the
+    audio at one rate underneath a picture that is doing something else, which
+    would drift further apart the longer the clip ran.
+    """
+    if clip.speed_curve:
+        return "its speed changes over its own length"
+    if clip.reversed:
+        return "it plays backwards"
+    if clip.speed == 0:
+        return "it is frozen on one instant"
+    return ""
 
 
 def plan(project: Project) -> MixPlan:
@@ -259,6 +287,12 @@ def plan(project: Project) -> MixPlan:
     at zero — each one costs a fetch and a decode to contribute nothing.
     """
     result = MixPlan(duration_ticks=project.duration)
+    for track in project.tracks:
+        for clip in track.clips:
+            if clip.kind in AUDIBLE_KINDS and clip.asset_id and not track.muted:
+                why = retimed_reason(clip)
+                if why:
+                    result.excluded.append((clip.id, why))
     for track, clip in audible_clips(project):
         envelope = envelope_for(track, clip)
         if not envelope:

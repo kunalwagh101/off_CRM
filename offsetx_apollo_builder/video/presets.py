@@ -247,11 +247,126 @@ TEXT_STYLES: dict[str, dict[str, Any]] = {
 }
 
 
+# ── speed curves ────────────────────────────────────────────────────────────
+
+SPEED_FAMILIES = ("ramp", "hero", "impact", "loop")
+
+
+@dataclass(frozen=True)
+class SpeedPreset:
+    """A shape for how fast a clip reads, over its own length.
+
+    ``points`` are ``(where, speed)`` with *where* as a fraction of the clip, so
+    one preset fits a clip of any length. They become real keyframes in
+    :func:`speed_points_for`, which is the only place a fraction meets a
+    duration.
+
+    A speed of 0 is a freeze, and it is the whole point of the impact presets:
+    what everybody means by "bullet time" is a hard stop in the middle of a
+    move, and a curve that can hold at zero says so without needing a second
+    feature to say it.
+    """
+
+    id: str
+    label: str
+    family: str
+    points: tuple[tuple[float, float], ...]
+    note: str = ""
+
+    @property
+    def average(self) -> float:
+        """How much material this consumes per tick of timeline, on average.
+
+        The area under the curve over its own length — which is exactly what
+        decides whether a clip still fits inside its source. Reported so a UI
+        can say "this needs 1.8× the material" before an edit is refused for
+        precisely that.
+        """
+        total = 0.0
+        for (left_at, left_speed), (right_at, right_speed) in zip(self.points, self.points[1:]):
+            total += (left_speed + right_speed) / 2 * (right_at - left_at)
+        return total
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "family": self.family,
+            "points": [[round(at, 4), round(speed, 4)] for at, speed in self.points],
+            "average": round(self.average, 4),
+            "note": self.note,
+        }
+
+
+def _s(id: str, label: str, family: str, note: str, *points: tuple[float, float]) -> SpeedPreset:
+    return SpeedPreset(id=id, label=label, family=family, points=tuple(points), note=note)
+
+
+SPEED_CURVES: dict[str, SpeedPreset] = {
+    preset.id: preset
+    for preset in (
+        # ramp — one direction, the plainest thing a curve can do
+        _s("ramp_up", "Ramp up", "ramp", "Slow into fast.", (0.0, 0.5), (1.0, 2.0)),
+        _s("ramp_down", "Ramp down", "ramp", "Fast into slow.", (0.0, 2.0), (1.0, 0.5)),
+        _s("ease_in_fast", "Ease in fast", "ramp", "Holds, then runs.",
+           (0.0, 0.4), (0.6, 0.5), (1.0, 3.0)),
+        _s("ease_out_slow", "Ease out slow", "ramp", "Runs, then settles.",
+           (0.0, 3.0), (0.4, 0.5), (1.0, 0.4)),
+        # hero — fast in, slow through the thing worth seeing, fast out
+        _s("hero", "Hero", "hero", "Fast, slow on the subject, fast.",
+           (0.0, 2.5), (0.3, 0.5), (0.7, 0.5), (1.0, 2.5)),
+        _s("hero_soft", "Hero soft", "hero", "The same shape, less extreme.",
+           (0.0, 1.6), (0.3, 0.7), (0.7, 0.7), (1.0, 1.6)),
+        _s("reveal", "Reveal", "hero", "Slow open, then away.",
+           (0.0, 0.4), (0.35, 0.4), (1.0, 2.5)),
+        # impact — a stop in the middle, which is what "bullet time" means
+        _s("bullet", "Bullet", "impact", "Runs in, freezes, runs out.",
+           (0.0, 3.0), (0.35, 0.0), (0.55, 0.0), (1.0, 3.0)),
+        _s("stutter", "Stutter", "impact", "Three hard stops.",
+           (0.0, 2.0), (0.2, 0.0), (0.3, 2.0), (0.45, 0.0), (0.55, 2.0), (0.7, 0.0), (1.0, 2.0)),
+        _s("punch", "Punch", "impact", "One beat, held near the end.",
+           (0.0, 1.4), (0.7, 1.4), (0.78, 0.0), (0.86, 0.0), (1.0, 2.2)),
+        # loop — a rate that comes back to where it started
+        _s("pulse", "Pulse", "loop", "Speeds up and back, twice.",
+           (0.0, 1.0), (0.25, 2.0), (0.5, 1.0), (0.75, 2.0), (1.0, 1.0)),
+        _s("breathe", "Breathe", "loop", "One slow swell.",
+           (0.0, 1.0), (0.5, 0.45), (1.0, 1.0)),
+    )
+}
+
+
 # ── lookups, default-deny ───────────────────────────────────────────────────
 
 
 class UnknownPreset(ValueError):
     """A preset nobody declared. Never rendered as something arbitrary."""
+
+
+def speed_curve(preset_id: str) -> SpeedPreset:
+    key = str(preset_id or "").strip()
+    if key not in SPEED_CURVES:
+        raise UnknownPreset(
+            f"Unknown speed curve {preset_id!r}. A clip that quietly fell back to "
+            "one flat rate would export something nobody chose. Known: "
+            f"{', '.join(sorted(SPEED_CURVES))}."
+        )
+    return SPEED_CURVES[key]
+
+
+def speed_points_for(preset_id: str, duration: int) -> list[dict[str, Any]]:
+    """A preset's points as real keyframes on a clip of this length.
+
+    The only place a fraction meets a duration. Points land on whole ticks and
+    two that round to the same tick collapse — a vertical jump in speed has no
+    single area under it, and this is where that becomes representable if it is
+    allowed to.
+    """
+    preset = speed_curve(preset_id)
+    span = max(1, int(duration))
+    seen: dict[int, float] = {}
+    for at, value in preset.points:
+        seen[max(0, min(span, int(round(at * span))))] = float(value)
+    return [{"at": at, "value": seen[at], "easing": "linear"} for at in sorted(seen)]
 
 
 def transition(preset_id: str) -> TransitionPreset:
@@ -291,6 +406,8 @@ def catalogue() -> dict[str, Any]:
         "animations": [item.to_dict() for item in ANIMATIONS.values()],
         "animation_families": list(ANIMATION_FAMILIES),
         "text_styles": {name: dict(style) for name, style in TEXT_STYLES.items()},
+        "speed_curves": [item.to_dict() for item in SPEED_CURVES.values()],
+        "speed_families": list(SPEED_FAMILIES),
         "limits": {
             "min_transition_ticks": MIN_TRANSITION_TICKS,
             "max_transition_ticks": MAX_TRANSITION_TICKS,

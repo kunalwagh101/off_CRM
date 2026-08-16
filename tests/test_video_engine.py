@@ -408,6 +408,31 @@ def test_the_manifest_warns_before_the_render_that_a_mix_would_clip(engine, asse
     assert any("distort" in note for note in mix["notes"])
 
 
+def test_the_manifest_says_which_clips_will_play_without_their_sound(engine, assets):
+    """A retimed clip is silent on purpose, and "on purpose" has to be visible
+    before the render rather than discovered in the file."""
+    project_id = _with_music(engine, assets)
+    engine.edit(
+        project_id,
+        "add_clip",
+        {
+            "track_id": engine.open_project(project_id).project.tracks[0].id,
+            "kind": "video",
+            "start": 4 * SECOND,
+            "duration": 3 * SECOND,
+            "asset_id": "media-2",
+            "source_duration": 30 * SECOND,
+        },
+    )
+    clip = engine.open_project(project_id).project.tracks[0].clips[-1]
+    engine.edit(project_id, "apply_speed_curve", {"clip_id": clip.id, "preset": "hero"})
+
+    mix = engine.manifest(project_id)["mix"]
+    assert mix["excluded"] == [[clip.id, "its speed changes over its own length"]]
+    assert any("without its sound" in note for note in mix["notes"])
+    assert clip.id not in [item["clip_id"] for item in mix["clips"]]
+
+
 def test_a_project_that_makes_a_sound_must_come_back_with_one(engine, assets):
     """The export gate's other half. ``muxed_sample.webm`` has no audio track and
     this timeline says it should — which is exactly the file a browser that could

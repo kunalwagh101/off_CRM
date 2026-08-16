@@ -25,6 +25,7 @@ from . import presets
 from .timeline import (
     BLEND_MODES,
     EASINGS,
+    MIN_CLIP_TICKS,
     PRESETS,
     TRACK_KINDS,
     Clip,
@@ -45,6 +46,11 @@ from .timeline import (
     _assert_transitions_fit,
     prune_transitions,
 )
+
+
+#: How long a freeze lasts when nobody says. Two seconds is long enough to read
+#: as deliberate and short enough that nobody has to trim it.
+DEFAULT_FREEZE_TICKS = 180_000
 
 
 def _copy(project: Project) -> Project:
@@ -241,7 +247,10 @@ def add_clip(
         asset_id=str(asset_id or ""),
         text=str(text or ""),
         label=str(label or "")[:120],
-        speed=float(speed or 1.0),
+        # `float(speed or 1.0)` would turn a speed deliberately set to 0 — a
+        # freeze — back into normal playback, silently. The same shape of bug
+        # once restarted a paused campaign.
+        speed=1.0 if speed is None else float(speed),
         style=dict(style or {}),
         properties={
             _check_property(name): _clamp(_check_property(name), value)
@@ -443,15 +452,22 @@ def set_speed(project: Project, *, clip_id: str, speed: float, keep_duration: bo
     track, clip = result.find_clip(clip_id)
     _assert_editable(track)
     rate = float(speed)
-    if keep_duration or clip.source_duration <= 0:
-        changed = Clip(**{**clip.__dict__, "speed": rate, "properties": dict(clip.properties)})
+    # One rate replaces a curve rather than arguing with it. A clip cannot be at
+    # 2x *and* on a hero ramp, and keeping the curve silently would make the
+    # number in the box a lie. A rate of 0 is a freeze, which has no length to
+    # solve for, so it always keeps the clip's own.
+    if keep_duration or clip.source_duration <= 0 or rate == 0:
+        changed = Clip(
+            **{**clip.__dict__, "speed": rate, "speed_curve": [], "properties": dict(clip.properties)}
+        )
     else:
-        consumed = int(round(clip.duration * clip.speed))
+        consumed = int(round(clip.consumed(clip.duration)))
         span = max(1, int(round(consumed / rate)))
         changed = Clip(
             **{
                 **clip.__dict__,
                 "speed": rate,
+                "speed_curve": [],
                 "duration": span,
                 "properties": dict(clip.properties),
                 "keyframes": _scale_keyframes(clip, factor=span / clip.duration if clip.duration else 1.0),
@@ -462,6 +478,146 @@ def set_speed(project: Project, *, clip_id: str, speed: float, keep_duration: bo
     _validate_clip(changed, track)
     track.clips = [changed if item.id == clip_id else item for item in track.clips]
     return _commit(result, track)
+
+
+def apply_speed_curve(
+    project: Project, *, clip_id: str, preset: str, keep_duration: bool = True
+) -> Project:
+    """Give a clip a speed that changes over its own length.
+
+    The clip keeps its slot on the timeline and reads a different amount of
+    material — which is the whole point, and also the thing that can fail: a
+    ``hero`` ramp averages more than 1×, so a clip already reading to the end of
+    its source will not fit. The validator says so with the numbers rather than
+    letting it read past the end.
+
+    With ``keep_duration=False`` the clip is stretched or squeezed so it consumes
+    exactly what it consumed before, which is how to put a curve on a clip that
+    is already using all the material it has.
+    """
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    if clip.kind not in ("video", "audio"):
+        raise TimelineError(
+            f"A {clip.kind} clip has no material to read at a rate, so a speed "
+            "curve would do nothing to it."
+        )
+
+    before = clip.consumed(clip.duration)
+    points = [Keyframe.from_dict(item) for item in presets.speed_points_for(preset, clip.duration)]
+    changed = Clip(**{**clip.__dict__, "speed": 1.0, "speed_curve": points})
+
+    if not keep_duration and clip.source_duration > 0 and before > 0:
+        # Solve for the length at which this curve consumes what the clip used
+        # to. The curve is defined on fractions of the clip, so its average rate
+        # is the same whatever the length — which makes this a division and not
+        # a search.
+        average = presets.speed_curve(preset).average
+        span = max(MIN_CLIP_TICKS, int(round(before / average))) if average > 0 else clip.duration
+        points = [Keyframe.from_dict(item) for item in presets.speed_points_for(preset, span)]
+        changed = Clip(
+            **{
+                **clip.__dict__,
+                "speed": 1.0,
+                "speed_curve": points,
+                "duration": span,
+                "properties": dict(clip.properties),
+                "keyframes": _scale_keyframes(clip, factor=span / clip.duration if clip.duration else 1.0),
+            }
+        )
+        changed.fade_in = min(changed.fade_in, changed.duration)
+        changed.fade_out = min(changed.fade_out, max(0, changed.duration - changed.fade_in))
+
+    _validate_clip(changed, track)
+    track.clips = [changed if item.id == clip_id else item for item in track.clips]
+    return _commit(result, track)
+
+
+def clear_speed_curve(project: Project, *, clip_id: str) -> Project:
+    """Back to one rate. The clip keeps its slot and its `speed`."""
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    changed = Clip(**{**clip.__dict__, "speed_curve": []})
+    _validate_clip(changed, track)
+    track.clips = [changed if item.id == clip_id else item for item in track.clips]
+    return result
+
+
+def reverse_clip(project: Project, *, clip_id: str, reversed: bool | None = None) -> Project:
+    """Play the material backwards. Called with no argument it toggles.
+
+    Only the reading direction changes: the clip keeps its slot, its length and
+    its speed curve, and reads the same span of material from the far end. That
+    is why this is a flag rather than a negative speed — a negative speed would
+    make every other piece of arithmetic in the timeline signed for the sake of
+    one clip.
+    """
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    if clip.kind != "video":
+        raise TimelineError(
+            f"Only footage can be reversed; this is a {clip.kind} clip. Reversing "
+            "a still would change nothing, and reversing sound needs a resampler "
+            "that is not built."
+        )
+    changed = Clip(**{**clip.__dict__, "reversed": (not clip.reversed) if reversed is None else bool(reversed)})
+    _validate_clip(changed, track)
+    track.clips = [changed if item.id == clip_id else item for item in track.clips]
+    return result
+
+
+def freeze_frame(project: Project, *, clip_id: str, at: int, duration: int = DEFAULT_FREEZE_TICKS) -> Project:
+    """Hold one instant of a clip, pushing everything after it along.
+
+    Three edits in a coat: cut the clip at ``at``, open a gap there, and drop in
+    a piece that reads one instant of the same material forever. That last part
+    is a clip at speed 0 — a freeze is not a separate concept, it is what a
+    speed of zero means, which is also why a frozen stretch can appear in the
+    middle of a speed curve.
+
+    The frozen piece inherits the resolved properties of the instant it froze,
+    so a clip caught mid-zoom holds the size it was at rather than snapping
+    back to its defaults.
+    """
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    if clip.kind != "video":
+        raise TimelineError(
+            f"Only footage can be frozen; this is a {clip.kind} clip. A still is "
+            "already a held frame."
+        )
+    moment = int(at)
+    if not (clip.start < moment < clip.end):
+        raise TimelineError(
+            f"Tick {moment} is not inside clip {clip_id!r} ({clip.start}–{clip.end}). "
+            "A freeze has to be somewhere the clip actually plays."
+        )
+    span = max(MIN_CLIP_TICKS, int(duration))
+    offset = moment - clip.start
+    held = clip.source_at(offset)
+    properties = clip.property_at(offset)
+
+    result = split_clip(result, clip_id=clip_id, at=moment)
+    result = insert_gap(result, track_id=track.id, at=moment, duration=span)
+    result = add_clip(
+        result,
+        track_id=track.id,
+        kind="video",
+        start=moment,
+        duration=span,
+        asset_id=clip.asset_id,
+        source_duration=clip.source_duration,
+        in_point=held,
+        label=clip.label,
+        speed=0.0,
+        style=dict(clip.style),
+        properties=properties,
+    )
+    return result
 
 
 def set_fade(project: Project, *, clip_id: str, fade_in: int | None = None, fade_out: int | None = None) -> Project:
@@ -903,6 +1059,10 @@ OPERATIONS: dict[str, Callable[..., Project]] = {
     "trim_clip": trim_clip,
     "duplicate_clip": duplicate_clip,
     "set_speed": set_speed,
+    "apply_speed_curve": apply_speed_curve,
+    "clear_speed_curve": clear_speed_curve,
+    "reverse_clip": reverse_clip,
+    "freeze_frame": freeze_frame,
     "set_fade": set_fade,
     "set_text": set_text,
     "set_style": set_style,

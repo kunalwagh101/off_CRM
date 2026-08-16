@@ -343,6 +343,67 @@ than the whole render.
 
 ---
 
+## Time remapping: one integral, three features
+
+Freeze frame, reverse and speed curves look like three items in a menu. In the
+document they are one thing — how a clip's own offset maps to a position in its
+material — and building them as three would have meant three answers to that
+question that have to agree.
+
+At a constant rate the map is a multiplication: `source = in_point + offset ×
+speed`. A **speed curve** makes it the integral of a rate that varies, a
+**freeze** is that same integral with the rate at zero, and **reverse** walks
+the same span from the far end. So there is one function, `Clip.source_at`, and
+`speed × offset` is simply what it computes when there is no curve — which is
+why the conformance frames came out unchanged when it landed.
+
+```
+consumed(t) = ∫₀ᵗ speed(u) du        the area under the speed curve
+source_at(t) = in_point + consumed(t)                    forwards
+             = in_point + consumed(duration) − consumed(t)   reversed
+```
+
+**The curve is straight between its points, and that is a decision.** CapCut's
+speed curves are beziers. A bezier's integral is fine on paper and a problem
+here: the resolver exists twice, in Python and in TypeScript, and the two have
+to agree *to the tick* or the preview stops describing the export. Straight
+segments make each piece a trapezoid — `(v₀+v₁)/2 × Δt` — which is the same
+arithmetic in both languages on the same doubles. An eased speed point is
+refused, and the error says to use more points instead.
+
+**A speed of zero is a freeze, not a missing value.** That is what lets a frozen
+stretch live *inside* a curve, which is what every "bullet time" preset is:
+`bullet` runs in at 3×, holds at 0 for a fifth of the clip, and runs out at 3×.
+Two places had to learn not to write `float(speed or 1.0)` — the same
+falsy-zero shape that once restarted a paused campaign.
+
+**Presets are rows, families are code**, the same as transitions and animations.
+Twelve curves over four families — `ramp`, `hero`, `impact`, `loop` — each a
+list of `(fraction, speed)` points, so one preset fits a clip of any length.
+Each carries its `average`, which is the number that decides whether a clip
+still fits inside its own source: a `hero` ramp averages 1.10×, so a ten-second
+clip on one needs eleven seconds of material. `apply_speed_curve` with
+`keep_duration=False` divides by that average to find the length at which the
+curve consumes exactly what the clip consumed before.
+
+**Retimed sound is left out, and the manifest says which clips and why.**
+Resampling audio is not playing it faster — it is deciding what to do about the
+pitch, and that is a feature of its own. Playing a clip's audio at one rate
+underneath a picture doing something else would drift further apart the longer
+the clip ran, so `mixdown.retimed_reason` names the clip and the reason and the
+mix goes on without it. The picture is unaffected.
+
+**One bug here only a real browser could find.** The exporter samples the middle
+of an output frame rather than its leading edge (see the footage section), and
+it originally did that by adding `half a frame × clip.speed` to the resolved
+source time. That is wrong twice over once time is remapped: a reversed clip
+moves *backwards* through its material, and a curved clip's local rate is not
+its `speed` field at all. It now resolves a second frame half a step later and
+takes each clip's source time from that — while still drawing the cast of the
+first, because at a cut the two hold different clips.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -436,6 +497,25 @@ outside this project:
    sparse sync samples, a signed `ctts` and a version-1 `mdhd` — and
    `demux/isobmff.ts` reads every frame's offset, length, keyframe flag and
    presentation time back out exactly.
+7. **Time remapping was checked against the server's own prediction.** Python
+   resolved three documents — a `hero` curve, a `bullet` freeze and a reverse —
+   and wrote down, for each of thirty output frames, the source tick it says
+   should be on screen. Chromium then ran the same documents through the
+   browser's resolver, decoder and painter over the same 60-frame test video.
+
+   **All ninety source ticks were identical, and every drawn frame matched.**
+   The sequences are the features, legible on their own:
+
+   ```
+   hero    1,3,5,7,9,10,11,12,13,13,14,14,15,15,16,16,17,17,18,18,…,24,25,27,29,31
+   bullet  1,4,6,8,10,12,13,14,15,15,15,15,15,15,15,15,15,15,16,16,…,26,29,31,34
+   reverse 29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,…,3,2,1,0
+   ```
+
+   Fast in and out with a slow middle; a hard stop on frame 15 for eight output
+   frames; and a countdown with nothing repeated or skipped. The first run of
+   this found the off-by-one described above — every reverse frame was exactly
+   one too far along.
 
 ---
 
@@ -537,10 +617,12 @@ feature map makes it look larger.
   removal, text-to-video — every row marked **M** in the feature map — is a
   model call through the broker, and none is wired. The timeline is the thing
   they will all edit; this is the floor they stand on.
-- **No freeze frame, no reverse, no speed curves.** All three are edits over
-  footage that can now be decoded, rather than the decoding itself — a freeze is
-  a clip that asks for one instant however long it runs, and a reverse asks for
-  them backwards, which is a decoder cache problem rather than a new capability.
+- **Retimed audio.** A clip on a speed curve, frozen, or reversed exports
+  without its sound. Doing it properly means resampling, and resampling means
+  deciding about pitch — a feature in its own right. The manifest names every
+  clip this affects rather than leaving it to be noticed in the file.
+- **Speed curves are straight between their points**, not bezier. Two resolvers
+  have to agree to the tick, and a trapezoid does that where a cubic does not.
 - **The mix is plain.** No ducking, no compression, no EQ, no normalisation, no
   waveform to look at and no beat detection to cut to. Gain, fades and volume
   keyframes reach the file exactly as the preview plays them, and that is all.

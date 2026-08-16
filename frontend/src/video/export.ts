@@ -238,10 +238,14 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
       const resolved = frameAt(project, tick);
       // Ticks only ever go up here, so every footage decoder runs forwards and
       // decodes each frame exactly once — the same work the file already is.
-      // Half a frame ahead, because this frame covers the interval up to the
-      // next one and the middle of that interval is what represents it. See
-      // `FootageLibrary.apply`.
-      if (footage) await footage.apply(resolved, assets, Math.floor(perFrame / 2));
+      // Resolved again half an output frame later, because this frame covers
+      // the interval up to the next one and the middle of that interval is what
+      // represents it. A second resolution rather than an offset added to a
+      // source time: a reversed clip runs backwards and a curved one runs at a
+      // rate that changes. See `FootageLibrary.apply`.
+      if (footage) {
+        await footage.apply(resolved, assets, frameAt(project, tick + Math.floor(perFrame / 2)));
+      }
       paintFrame(context, project, resolved, assets);
 
       const videoFrame = new scope.VideoFrame!(canvas as CanvasImageSource, {

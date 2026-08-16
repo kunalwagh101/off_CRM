@@ -82,6 +82,60 @@ export function interpolate(frames: Keyframe[], offset: number): number {
   return ordered[ordered.length - 1].value;
 }
 
+/**
+ * The area under a speed curve from 0 to `offset` — how much material a clip
+ * has read by then. Matches `_consumed` in `timeline.py`.
+ *
+ * The curve is straight between its points, so each piece is a trapezoid:
+ * exact, and computable identically in two languages, which a bezier is not.
+ * Before the first point the first speed holds and after the last the last one
+ * does, for the same reason `interpolate` holds rather than extrapolating —
+ * running a *speed* past its last keyframe can send a clip off the end of its
+ * own material.
+ */
+export function consumed(clip: Clip, offset: number): number {
+  const at = Math.max(0, Math.min(offset, clip.duration));
+  const curve = clip.speed_curve ?? [];
+  if (!curve.length) return at * clip.speed;
+  const points = [...curve].sort((a, b) => a.at - b.at);
+  let total = 0;
+  const head = Math.min(at, points[0].at);
+  if (head > 0) total += head * points[0].value;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const left = points[index];
+    const right = points[index + 1];
+    if (at <= left.at) break;
+    const span = right.at - left.at;
+    if (span <= 0) continue;
+    if (at >= right.at) {
+      total += ((left.value + right.value) / 2) * span;
+      continue;
+    }
+    const ratio = (at - left.at) / span;
+    const here = left.value + (right.value - left.value) * ratio;
+    total += ((left.value + here) / 2) * (at - left.at);
+    break;
+  }
+  const last = points[points.length - 1];
+  if (at > last.at) total += (at - last.at) * last.value;
+  return total;
+}
+
+/**
+ * Where in its material a clip is reading, `offset` ticks in.
+ *
+ * A reversed clip walks the same span from the far end: at offset 0 it is at
+ * the last instant it will ever read, and at the end of the clip it is back at
+ * the in-point.
+ */
+export function sourceAt(clip: Clip, offset: number): number {
+  if (clip.reversed) {
+    const span = consumed(clip, clip.duration);
+    return clip.in_point + roundHalfToEven(span - consumed(clip, offset));
+  }
+  return clip.in_point + roundHalfToEven(consumed(clip, offset));
+}
+
 /** Every property of one clip, resolved at `offset` ticks into it. */
 export function propertyAt(clip: Clip, offset: number): Record<string, number> {
   const values: Record<string, number> = {};
@@ -194,7 +248,7 @@ export function frameAt(project: ProjectDoc, tick: number): Frame {
       const resolved = propertyAt(clip, offset);
       const fade = fadeFactor(clip, offset);
       const hasSource = clip.kind === "video" || clip.kind === "audio";
-      const sourceTime = hasSource ? clip.in_point + roundHalfToEven(offset * clip.speed) : -1;
+      const sourceTime = hasSource ? sourceAt(clip, offset) : -1;
       const gain = clipGain(track, clip, offset, resolved.volume);
       const visible = track.hidden && track.kind === "video" ? 0 : 1;
       items.push({

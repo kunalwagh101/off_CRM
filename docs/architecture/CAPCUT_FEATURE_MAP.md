@@ -13,20 +13,20 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **44** | 28% |
+| ● Built | **49** | 31% |
 | ◐ Partly built | **14** | 9% |
-| ○ Not built | **102** | 64% |
+| ○ Not built | **97** | 61% |
 | | **160** | |
 
-9 of those 102 are **out of scope on purpose** — a phone camera, a licensed
+9 of those 97 are **out of scope on purpose** — a phone camera, a licensed
 music library, a template marketplace. Against the 151 rows that are actually
-reachable, 58 are touched: **38%**.
+reachable, 63 are touched: **42%**.
 
-Those 58 are not the easy 58. They are the timeline and its invariants,
+Those 63 are not the easy 63. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
-gates, the sound inside the file, and now the picture of imported footage.
-Masks, effects and the AI rows are each a feature on top of a timeline that now
-exists.
+gates, the sound inside the file, the picture of imported footage, and time
+remapping over the top of it. Masks, effects and the AI rows are each a feature
+on top of a timeline that now exists.
 
 ---
 
@@ -76,8 +76,8 @@ exists.
 | Undo / redo, full history | B | ● |
 | Keyboard shortcuts, editable map | B | ● shortcuts yes, remapping no |
 | Frame-by-frame stepping | R | ● arrows step a frame, shift steps ten |
-| Freeze frame | R | ○ |
-| Reverse clip | R | ○ |
+| **Freeze frame** | R | ● holds one instant and pushes the rest along |
+| **Reverse clip** | R | ● picture only; retimed sound is left out and said so |
 | Split-screen layouts | B | ○ |
 | **Keyframes on any property** | B | ● 16 properties, 5 easings |
 | Motion blur between keyframes | R | ○ |
@@ -101,11 +101,11 @@ exists.
 | Feature | | Status |
 |---|---|---|
 | Uniform speed 0.1×–100× | R | ● 0.1x-100x, and a keep-the-length variant |
-| Speed curves — montage, hero, bullet, jump cut, custom | R | ○ |
+| **Speed curves — ramp, hero, bullet, stutter, pulse** | R | ● 12 presets over 4 families; a curve is keyframes, so it is also custom |
 | Smooth slow motion (frame interpolation) | M | ○ |
-| Pitch preservation on speed change | R | ○ |
-| Time remapping with keyframes | R | ○ |
-| Freeze frame, reverse | R | ○ |
+| Pitch preservation on speed change | R | ○ retimed clips export silent rather than at the wrong pitch |
+| **Time remapping with keyframes** | R | ● the source position is the integral of the speed curve |
+| Freeze frame, reverse | R | ● both, and a freeze is a speed of zero rather than a second concept |
 
 ## 5. Transitions and animations
 

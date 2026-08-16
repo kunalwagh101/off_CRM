@@ -446,7 +446,8 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
 ### Stage 5 — Video and auto-assembly *(the brief's centre)*
 - ✅ Draw footage on the canvas: a hand-written MP4 and WebM demuxer feeding
   `VideoDecoder`, forward-only with a cursor, in the preview and the export
-- ⬜ Freeze frame, reverse, speed curves — edits over footage that now decodes
+- ✅ Freeze frame, reverse, speed curves — one integral, three menu items; 12
+  curve presets over 4 families, verified frame for frame against the server
 - ⬜ Text→video and image→video generators
 - ⬜ **The assembly orchestrator**: script + assets + recipe → a finished timeline
 - **Unlocks:** *"CapCut, but it does it automatically."*

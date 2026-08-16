@@ -615,6 +615,14 @@ class VideoEditorEngine:
                 "Nothing on this timeline makes a sound, so the export will be "
                 "silent. Most platforms bury silent video."
             )
+        if mix["excluded"]:
+            first = mix["excluded"][0]
+            others = f" ({len(mix['excluded']) - 1} more)" if len(mix["excluded"]) > 1 else ""
+            notes.append(
+                f"Clip {first[0]} plays without its sound because {first[1]}{others}. "
+                "Retimed audio needs a resampler that decides what to do about "
+                "the pitch, and that is not built — the picture is unaffected."
+            )
         if mix["headroom"] > 1.0:
             notes.append(
                 f"Clips overlap loudly enough to sum to {mix['headroom']:.2f}, past "

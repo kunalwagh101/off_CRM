@@ -445,32 +445,42 @@ export class FootageLibrary {
    * footage would sit on twenty decoders' worth of GPU memory to draw the one
    * that is visible.
    *
-   * **`sampleAhead`, and why an exporter passes half a frame.** An output frame
-   * is not an instant, it is the interval until the next one, and the source
-   * frame that best represents that interval is the one showing in the middle
-   * of it — not the one showing at its leading edge. The difference is invisible
-   * until the two frame rates are close but not identical, which is exactly the
+   * **`ahead`, and why an exporter passes a second frame.** An output frame is
+   * not an instant, it is the interval until the next one, and the source frame
+   * that best represents that interval is the one showing in the middle of it —
+   * not the one showing at its leading edge. The difference is invisible until
+   * the two frame rates are close but not identical, which is exactly the
    * ordinary case: a container stores its times in its own units, so 30fps
    * footage has frames at 33ms and 67ms while a 30fps timeline asks at 33.333ms
    * and 66.667ms. Sampled at the edge, that asks for frame 1 twice and never
    * asks for frame 2 — a third of the footage silently replaced by duplicates.
-   * Sampled at the middle, every frame is asked for exactly once.
+   *
+   * So the exporter resolves a *second* frame half an output frame later and
+   * passes it here, and each clip takes its source time from that. It has to be
+   * a resolved frame rather than a number to add on: a reversed clip moves
+   * backwards through its material, and a clip on a speed curve moves at a rate
+   * that is different at every instant. Adding half a frame times the clip's
+   * `speed` gets both of those wrong, in opposite directions.
+   *
+   * Which clips are *drawn* still comes from `frame`. At a cut the two
+   * resolutions hold different clips, and taking the cast from the later one
+   * would leave the outgoing clip with nothing to draw on the frame it is
+   * still on screen for.
    *
    * A preview passes nothing: the playhead is a real instant, and the honest
    * answer there is the frame actually showing at it.
    */
-  async apply(frame: Frame, into: AssetTable, sampleAhead = 0): Promise<void> {
+  async apply(frame: Frame, into: AssetTable, ahead?: Frame): Promise<void> {
+    const later = new Map<string, number>();
+    for (const item of ahead?.items ?? []) later.set(item.clip_id, item.source_time);
+
     const live = new Set<string>();
     for (const item of frame.items) {
       if (item.kind !== "video") continue;
       const source = this.readers.get(item.clip_id);
       if (!source) continue;
       live.add(item.clip_id);
-      // `sampleAhead` moves the question from the leading edge of an output
-      // frame to its middle, scaled the same way the resolver scales source
-      // time. See the parameter's own note — without it, 30fps footage in a
-      // 30fps export stutters.
-      const at = item.source_time + Math.round(sampleAhead * item.speed);
+      const at = later.get(item.clip_id) ?? item.source_time;
       const picture = await source.frameAt(at);
       if (!picture) {
         into.delete(item.clip_id);

@@ -56,6 +56,8 @@ export interface MixPlan {
   headroom: number;
   clips: MixClip[];
   asset_ids: string[];
+  /** `[clipId, why]` for audible clips deliberately left out. */
+  excluded: Array<[string, string]>;
 }
 
 function volumeKeyframes(clip: Clip) {
@@ -158,10 +160,27 @@ export function audibleClips(project: ProjectDoc): Array<[Track, Clip]> {
     if (track.muted) continue;
     for (const clip of track.clips) {
       if (!AUDIBLE_KINDS.includes(clip.kind) || !clip.asset_id) continue;
+      if (retimedReason(clip)) continue;
       found.push([track, clip]);
     }
   }
   return found;
+}
+
+/**
+ * Why a clip's sound is left out of the mix, or an empty string.
+ *
+ * A clip whose rate changes over its own length, or that is frozen, or that
+ * reads backwards, needs its samples resampled — and resampling sound is not
+ * playing it faster, it is deciding what to do about the pitch. That decision
+ * is a feature of its own and it is not built. Its *picture* is fine, because
+ * `footage.ts` simply asks for a different frame.
+ */
+export function retimedReason(clip: Clip): string {
+  if (clip.speed_curve?.length) return "its speed changes over its own length";
+  if (clip.reversed) return "it plays backwards";
+  if (clip.speed === 0) return "it is frozen on one instant";
+  return "";
 }
 
 /** The envelope's own reading at `offset`, the way WebAudio will read it. */
@@ -218,6 +237,15 @@ export function headroom(clips: MixClip[]): number {
  */
 export function planMix(project: ProjectDoc): MixPlan {
   const clips: MixClip[] = [];
+  const excluded: Array<[string, string]> = [];
+  for (const track of project.tracks) {
+    if (track.muted) continue;
+    for (const clip of track.clips) {
+      if (!AUDIBLE_KINDS.includes(clip.kind) || !clip.asset_id) continue;
+      const why = retimedReason(clip);
+      if (why) excluded.push([clip.id, why]);
+    }
+  }
   for (const [track, clip] of audibleClips(project)) {
     const envelope = envelopeFor(track, clip);
     if (!envelope.length) continue;
@@ -255,6 +283,7 @@ export function planMix(project: ProjectDoc): MixPlan {
     silent: clips.length === 0,
     headroom: roundTo(headroom(clips), 6),
     clips,
-    asset_ids: assetIds
+    asset_ids: assetIds,
+    excluded
   };
 }

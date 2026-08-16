@@ -9,16 +9,16 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-16
 Branch: `main`
-Tests: **1094 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 83 frontend passed, frontend build clean.
+Tests: **1130 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 95 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 44 of its 160
-rows built, 14 partly, 38% of the reachable rows touched.
+from, and it now carries a **status column and a scoreboard**: 49 of its 160
+rows built, 14 partly, 42% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
 wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
@@ -103,7 +103,7 @@ offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── timeline.py   the document, its invariants, and the frame resolver
 ├── edits.py      every edit as a pure function; a default-deny registry
 ├── gates.py      MP4 + WebM + WAV header parsing; gates on the exported file
-├── presets.py    transitions, animations and text styles as searchable data
+├── presets.py    transitions, animations, text styles and speed curves, as data
 ├── mixdown.py    the audio mix as a gain-envelope plan the browser executes
 ├── captions.py   transcript -> readable cues -> text clips, deterministic
 ├── store.py      projects, version history (undo), media, transcripts, renders
@@ -741,6 +741,63 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 5b — time remapping: curves, freeze, reverse (2026-08-16)
+- [x] **Three menu items, one integral.** Freeze frame, reverse and speed curves
+      are all the same question — how a clip's offset maps to a position in its
+      material — so they are one function, `Clip.source_at`. At a constant rate
+      it is `offset × speed`, which is why the conformance frames came out
+      unchanged when it landed. Feature map 44 → **49 built**, 38% → **42%** of
+      the reachable rows.
+- [x] **`consumed(t)` is the area under the speed curve**, and the curve is
+      straight between its points. CapCut's are bezier; these are not, on
+      purpose. The resolver exists twice and the two copies have to agree *to
+      the tick*, and a trapezoid — `(v₀+v₁)/2 × Δt` — is the same arithmetic on
+      the same doubles in both languages where a cubic is not. An eased speed
+      point is refused, and the message says to use more points instead.
+- [x] **A speed of zero is a freeze, not a missing value.** That is what lets a
+      frozen stretch live *inside* a curve, which is what every "bullet time"
+      preset is. Two places had to stop writing `float(speed or 1.0)` — the
+      third sighting of the falsy-zero bug that once restarted a paused campaign,
+      and the first one caught by a test written before the code.
+- [x] **`freeze_frame` is three edits in a coat**: split at the playhead, open a
+      gap, drop in a clip at speed 0 reading the instant that was on screen. It
+      inherits the *resolved* properties of that instant, so a clip caught
+      mid-zoom holds the size it was at rather than snapping back to defaults.
+- [x] **Reverse is a flag, not a negative speed.** A negative speed makes every
+      other piece of arithmetic in the timeline signed for the sake of one clip.
+- [x] **12 speed presets over 4 families** — `ramp`, `hero`, `impact`, `loop` —
+      as rows, the same shape as transitions and animations. Each carries its
+      `average`, which is the number that decides whether a clip still fits in
+      its source: `hero` averages 1.10×, so a ten-second clip on one needs eleven
+      seconds of material. `keep_duration=False` divides by that average to find
+      the length at which the curve consumes what the clip consumed before.
+- [x] **Retimed sound is left out and the manifest says which clips and why.**
+      Resampling audio is not playing it faster, it is deciding about pitch.
+      Playing a clip's audio at one rate under a picture doing something else
+      drifts further apart the longer it runs, so `retimed_reason` names the clip
+      and the mix goes on without it. Both languages carry the rule and the
+      conformance fixture pins the answer.
+- [x] **A bug only a real browser could find.** The exporter samples the middle
+      of an output frame, and it did that by adding `half a frame × clip.speed`
+      to the resolved source time. Wrong twice over once time is remapped: a
+      reversed clip moves *backwards*, and a curved clip's local rate is not its
+      `speed` field. It now resolves a second frame half a step later and takes
+      source times from that — while still drawing the cast of the first,
+      because at a cut the two hold different clips.
+- [x] **Verified against the server's own prediction.** Python resolved a `hero`
+      curve, a `bullet` freeze and a reverse and wrote down the source tick it
+      says belongs on each of thirty output frames; Chromium ran the same
+      documents through its resolver, decoder and painter over the 60-frame test
+      video. **All ninety source ticks identical, every drawn frame matching** —
+      `bullet` holding frame 15 for eight output frames, `reverse` counting 29
+      down to 0 with nothing repeated. The first run is what found the off-by-one.
+- [x] The conformance document now carries a clip that is both on a `hero` curve
+      and reversed, with four sample ticks across it — time remapping is the one
+      place a clip's source time stops being a multiple of its offset, so an even
+      spread there would prove nothing.
+- [x] 34 retime tests in Python, 11 in the browser, plus a regression test for
+      the sampling bug. **1,130 Python tests, 95 frontend**, build clean.
 
 ### Stage 5a — video on the canvas (2026-08-16)
 - [x] **Imported footage draws now**, in the preview and in the export. Until

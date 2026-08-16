@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ..campaigns import assert_kind
+from . import assembly
 from . import captions as captioning
 from . import edits
 from . import mixdown
@@ -93,12 +94,18 @@ class VideoEditorEngine:
         store: VideoStore,
         campaign_reader: Callable[[str], Mapping[str, Any]],
         asset_reader: Callable[[str], Mapping[str, Any]] | None = None,
+        campaign_asset_reader: Callable[[str], list[Mapping[str, Any]]] | None = None,
         transcriber: Callable[..., Any] | None = None,
         workspace_id: str = "local",
     ) -> None:
         self.store = store
         self.campaign_reader = campaign_reader
         self.asset_reader = asset_reader
+        #: Every keepable picture in a campaign, for an assembly that was given
+        #: no explicit list. Separate from ``asset_reader`` because "look one up"
+        #: and "list them all" are different questions of the image store, and
+        #: an engine given only the first can still do everything but assemble.
+        self.campaign_asset_reader = campaign_asset_reader
         #: Called with ``(audio=, media_type=, filename=, language=)`` and
         #: returning the broker's ``TranscriptResult``. Injected rather than
         #: imported so this module owns no transport and no provider knowledge —
@@ -135,6 +142,122 @@ class VideoEditorEngine:
             workspace_id=self.workspace_id,
         )
         return ProjectState(record=record, project=project, can_undo=False, can_redo=False)
+
+    def assemble(
+        self,
+        campaign_id: str,
+        *,
+        recipe: str,
+        target_ticks: int,
+        name: str = "",
+        lines: list[str] | None = None,
+        asset_ids: list[str] | None = None,
+        media_ids: list[str] | None = None,
+        music_id: str = "",
+        voice_id: str = "",
+        preset: str = "vertical",
+        fps: str = "30",
+        seed: int = 0,
+    ) -> tuple[ProjectState, assembly.AssemblyReport]:
+        """Build a whole project out of what this campaign already has.
+
+        The path the brief this editor exists for actually describes: a topic
+        becomes a finished timeline with nobody touching it. Given nothing but a
+        recipe and a length, it uses every approved picture and every imported
+        clip in the campaign; given explicit ids, only those.
+
+        The material comes from here rather than from the caller because the
+        caller cannot be trusted with it — a rejected picture has had its file
+        deleted, and a clip pointing at one is a hole nobody notices until the
+        export. Everything below reads the real rows.
+        """
+        self._require_own_kind(campaign_id, "assembling a video project")
+        visuals = self._visual_pool(campaign_id, asset_ids, media_ids)
+        brief = assembly.AssemblyBrief(
+            name=name or f"{recipe.replace('_', ' ').title()}",
+            recipe=recipe,
+            visuals=visuals,
+            target_ticks=int(target_ticks),
+            lines=[str(line) for line in (lines or []) if str(line).strip()],
+            music=self._sound(music_id),
+            voice=self._sound(voice_id),
+            preset=preset,
+            fps=fps,
+            seed=int(seed),
+        )
+        report = assembly.assemble(brief)
+        record = self.store.create_project(
+            project_id=report.project.id,
+            campaign_id=campaign_id,
+            document=report.project.to_dict(),
+            workspace_id=self.workspace_id,
+        )
+        state = ProjectState(record=record, project=report.project, can_undo=False, can_redo=False)
+        return state, report
+
+    def _visual_pool(
+        self,
+        campaign_id: str,
+        asset_ids: list[str] | None,
+        media_ids: list[str] | None,
+    ) -> list[assembly.Visual]:
+        """Every picture and piece of footage this assembly may draw on."""
+        visuals: list[assembly.Visual] = []
+
+        wanted_assets = list(asset_ids) if asset_ids is not None else None
+        if self.asset_reader is not None and wanted_assets:
+            for asset_id in wanted_assets:
+                asset = dict(self.asset_reader(asset_id))
+                if str(asset.get("status") or "") not in PLACEABLE_STATUSES:
+                    continue
+                if not str(asset.get("path") or ""):
+                    continue
+                visuals.append(
+                    assembly.Visual(
+                        asset_id=asset_id,
+                        kind="image",
+                        width=int(asset.get("width") or 0),
+                        height=int(asset.get("height") or 0),
+                    )
+                )
+        elif wanted_assets is None and self.campaign_asset_reader is not None:
+            for asset in self.campaign_asset_reader(campaign_id):
+                if not str(asset.get("path") or ""):
+                    continue
+                visuals.append(
+                    assembly.Visual(
+                        asset_id=str(asset["id"]),
+                        kind="image",
+                        width=int(asset.get("width") or 0),
+                        height=int(asset.get("height") or 0),
+                    )
+                )
+
+        rows = self.store.list_media(campaign_id, limit=200)
+        chosen = set(media_ids) if media_ids is not None else None
+        for row in rows:
+            if str(row.get("kind")) != "video":
+                continue
+            if chosen is not None and str(row["id"]) not in chosen:
+                continue
+            visuals.append(
+                assembly.Visual(
+                    asset_id=str(row["id"]),
+                    kind="video",
+                    source_ticks=int(row.get("duration_ticks") or 0),
+                    width=int(row.get("width") or 0),
+                    height=int(row.get("height") or 0),
+                )
+            )
+        return visuals
+
+    def _sound(self, media_id: str) -> assembly.Sound | None:
+        if not media_id:
+            return None
+        row = self.store.get_media(media_id)
+        return assembly.Sound(
+            asset_id=str(row["id"]), source_ticks=int(row.get("duration_ticks") or 0)
+        )
 
     def list_projects(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         self._require_own_kind(campaign_id, "listing video projects")

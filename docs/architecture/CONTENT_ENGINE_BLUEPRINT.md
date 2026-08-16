@@ -448,14 +448,19 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
   `VideoDecoder`, forward-only with a cursor, in the preview and the export
 - ✅ Freeze frame, reverse, speed curves — one integral, three menu items; 12
   curve presets over 4 families, verified frame for frame against the server
+- ✅ **The assembly orchestrator**: assets + recipe → a finished timeline. 8
+  recipes over 5 families, deterministic and seeded; a model picks the recipe
+  and writes the words, never the document
+- ✅ The edit-diff, so what the owner changes afterwards is measurable
 - ⬜ Text→video and image→video generators
-- ⬜ **The assembly orchestrator**: script + assets + recipe → a finished timeline
+- ⬜ Something that *writes* the script and *chooses* the recipe — the model
+  half, which the assembler is now the safe target for
 - **Unlocks:** *"CapCut, but it does it automatically."*
-- **Acceptance:** ✅ for the decode half — 30 of 30 exported frames matched their
-  own source frame in a real browser, measured by reading the canvas, with
-  nothing duplicated or dropped. ⬜ a topic goes to a finished, gate-passing
-  video with zero manual timeline edits, and the owner's edit-diff is measured
-  against it.
+- **Acceptance:** ✅ 30 of 30 exported frames matched their own source frame in a
+  real browser, measured by reading the canvas. ✅ a recipe and a length went to
+  a finished video with zero manual timeline edits — manifest `renderable: true`
+  with no warnings, exported in Chromium, **all eight server gates passed**, and
+  `difference()` measures what an owner changes against it.
 
 ### Stage 6 — The effect engine *(~40 primitives, ~800 presets)*
 - Shader primitives, then transitions/effects/filters as declared data

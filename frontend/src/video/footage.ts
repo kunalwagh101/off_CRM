@@ -428,6 +428,15 @@ export class FootageLibrary {
     return this.readers.size;
   }
 
+  /** Record a file's failure once, however many clips of it there are. */
+  private blame(assetId: string, error: unknown): void {
+    if (this.problems.some((item) => item.assetId === assetId)) return;
+    this.problems.push({
+      assetId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   has(clipId: string): boolean {
     return this.readers.has(clipId);
   }
@@ -481,7 +490,21 @@ export class FootageLibrary {
       if (!source) continue;
       live.add(item.clip_id);
       const at = later.get(item.clip_id) ?? item.source_time;
-      const picture = await source.frameAt(at);
+      let picture: VideoFrameLike | null = null;
+      try {
+        picture = await source.frameAt(at);
+      } catch (error) {
+        // A file that demuxed cleanly and named a codec this browser supports
+        // can still carry a bitstream the decoder rejects — a container whose
+        // frames are not what its header says they are. That costs this clip,
+        // which draws the hole the painter already draws for a missing asset,
+        // and it is reported rather than taking the whole render down with it.
+        this.blame(source.assetId, error);
+        this.readers.delete(item.clip_id);
+        into.delete(item.clip_id);
+        source.close();
+        continue;
+      }
       if (!picture) {
         into.delete(item.clip_id);
         continue;

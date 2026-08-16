@@ -50,6 +50,14 @@ type SpeedPreset = {
   average: number;
   note: string;
 };
+/** One assembly shape, from the server's recipe catalogue. */
+type RecipeSummary = {
+  id: string;
+  label: string;
+  family: string;
+  beats: Array<{ name: string; share: number }>;
+  note: string;
+};
 type CaptionResult = {
   captions: number;
   too_fast: number;
@@ -66,6 +74,7 @@ export default function VideoEditor() {
   const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [speedCurves, setSpeedCurves] = useState<SpeedPreset[]>([]);
+  const [recipeList, setRecipeList] = useState<RecipeSummary[]>([]);
   const [table, setTable] = useState<AssetTable>(new Map());
   const [selected, setSelected] = useState("");
   const [playhead, setPlayhead] = useState(0);
@@ -120,6 +129,12 @@ export default function VideoEditor() {
       .get<{ speed_curves: SpeedPreset[] }>("/video/presets")
       .then((catalogue) => {
         if (live) setSpeedCurves(catalogue.speed_curves ?? []);
+      })
+      .catch(() => undefined);
+    api
+      .get<{ recipes: RecipeSummary[] }>("/video/recipes")
+      .then((catalogue) => {
+        if (live) setRecipeList(catalogue.recipes ?? []);
       })
       .catch(() => undefined);
     return () => {
@@ -210,6 +225,33 @@ export default function VideoEditor() {
       footageRef.current = null;
     };
   }, [footageKey, notify]);
+
+  /** A whole project from a recipe and a length, with nobody touching a
+   *  timeline. The notes are the half worth reading — a brief the material
+   *  could not meet exactly is not a failure and is not silent either. */
+  const assembleProject = useCallback(async () => {
+    if (!campaignId || !recipeList.length) return;
+    const shape = recipeList[Math.floor(Math.random() * recipeList.length)];
+    setBusy(true);
+    try {
+      const created = await api.post<ProjectState & { notes: string[] }>(
+        `/campaigns/${campaignId}/video-projects/assemble`,
+        { recipe: shape.id, target_ticks: 15 * TICKS_PER_SECOND, name: shape.label }
+      );
+      await loadProjects();
+      await openProject(created.id);
+      notify(
+        created.notes.length
+          ? `${shape.label}: ${created.notes[0]}`
+          : `${shape.label} assembled — ${shape.beats.length} beats, nothing to report`,
+        created.notes.length ? "warning" : "success"
+      );
+    } catch (reason) {
+      notify(reason instanceof Error ? reason.message : "Could not assemble", "error");
+    } finally {
+      setBusy(false);
+    }
+  }, [campaignId, recipeList, loadProjects, openProject, notify]);
 
   // ── editing ───────────────────────────────────────────────────────────────
 
@@ -552,19 +594,29 @@ export default function VideoEditor() {
           title="Video editor"
           description="Cut the pictures this campaign generated into something that can be posted."
           actions={
-            <Button
-              busy={busy}
-              onClick={async () => {
-                const created = await api.post<ProjectState>(
-                  `/campaigns/${campaignId}/video-projects`,
-                  { name: `Reel ${projects.length + 1}`, preset: "vertical", fps: "30" }
-                );
-                await loadProjects();
-                openProject(created.id);
-              }}
-            >
-              New project
-            </Button>
+            <>
+              <Button
+                busy={busy}
+                disabled={!recipeList.length}
+                onClick={() => void assembleProject()}
+              >
+                Assemble one
+              </Button>
+              <Button
+                tone="ghost"
+                busy={busy}
+                onClick={async () => {
+                  const created = await api.post<ProjectState>(
+                    `/campaigns/${campaignId}/video-projects`,
+                    { name: `Reel ${projects.length + 1}`, preset: "vertical", fps: "30" }
+                  );
+                  await loadProjects();
+                  openProject(created.id);
+                }}
+              >
+                Empty project
+              </Button>
+            </>
           }
         />
         <Panel title="Projects" subtitle={`${projects.length} in this campaign`}>

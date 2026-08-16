@@ -360,6 +360,68 @@ describe("the library", () => {
     delete scope.fetch;
   });
 
+  it("lets a bitstream the decoder rejects cost its own clip and no more", async () => {
+    // A file can demux cleanly, name a codec the browser supports, and still
+    // carry frames the decoder refuses — a container whose contents are not
+    // what its header says. Found by exporting a real assembly against a
+    // fixture whose frame payloads were synthetic: the decode threw and took
+    // the whole render with it. It now costs the clip, which draws the hole the
+    // painter already draws for a missing asset, and it is reported.
+    const scope = globalThis as Record<string, unknown>;
+    scope.fetch = async () =>
+      ({ ok: true, arrayBuffer: async () => webm().buffer }) as unknown as Response;
+    const library = await FootageLibrary.load(
+      [{ clipId: "clip-a", assetId: "asset-1" }],
+      (id) => `/media/${id}`
+    );
+    // Make the decoder reject everything, the way Chrome rejects a chunk whose
+    // bitstream does not match the keyframe flag it was given.
+    scope.VideoDecoder = class extends FakeDecoder {
+      decode() {
+        throw new DOMException("A key frame is required after configure()", "DataError");
+      }
+    };
+    (scope.VideoDecoder as unknown as Record<string, unknown>).isConfigSupported = async () => ({
+      supported: true
+    });
+
+    const table = new Map();
+    const frame = {
+      tick: 0,
+      items: [
+        {
+          clip_id: "clip-a",
+          track_id: "t",
+          kind: "video",
+          z: 0,
+          asset_id: "asset-1",
+          text: "",
+          source_time: 0,
+          clip_time: 0,
+          speed: 1,
+          opacity: 1,
+          gain: 0,
+          properties: {},
+          style: {},
+          transition: {}
+        }
+      ]
+    };
+
+    await expect(library.apply(frame as never, table)).resolves.toBeUndefined();
+    expect(table.has("clip-a")).toBe(false);
+    expect(library.problems).toHaveLength(1);
+    expect(library.problems[0].assetId).toBe("asset-1");
+    expect(library.problems[0].reason).toContain("key frame");
+
+    // And it does not try again on every subsequent frame of a long export.
+    await library.apply(frame as never, table);
+    expect(library.problems).toHaveLength(1);
+
+    library.close();
+    delete scope.fetch;
+  });
+
   it("names every video clip a document needs footage for", () => {
     const project = {
       tracks: [

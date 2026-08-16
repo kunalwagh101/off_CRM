@@ -32,6 +32,7 @@ from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
 from ..video.presets import catalogue as video_preset_catalogue
+from ..video.recipes import catalogue as video_recipe_catalogue
 from ..video.engine import VideoEditorEngine
 from ..video.store import VideoStore
 from ..video.timeline import (
@@ -1065,6 +1066,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             store=state.video_store,
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
             asset_reader=state.image_store.get_asset,
+            # Approved only. An assembly drawing on pictures nobody reviewed
+            # would put unseen output on a timeline, which is the one thing the
+            # swipe queue exists to stop.
+            campaign_asset_reader=lambda cid: state.image_store.list_assets(
+                cid, status="approved", limit=200
+            ),
             transcriber=transcriber,
             workspace_id=workspace_id,
         )
@@ -1097,6 +1104,47 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             width=int(body.get("width") or 0),
             height=int(body.get("height") or 0),
         ).to_dict()
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects/assemble", status_code=201)
+    def assemble_video_project(
+        campaign_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """A recipe and a length in, a finished timeline out.
+
+        The one endpoint the "CapCut, but it does it automatically" line in the
+        brief actually names. Nothing here builds a document: it picks a
+        declared recipe, hands the campaign's own material to the assembler, and
+        stores what comes back — so an assembled project is valid for the same
+        reason a hand-made one is.
+
+        ``notes`` is the half worth reading. A brief the material could not meet
+        exactly is not a failure, and it must not be silent either.
+        """
+        state, report = _video(request).assemble(
+            campaign_id,
+            recipe=str(body.get("recipe") or ""),
+            target_ticks=int(body.get("target_ticks") or 0),
+            name=str(body.get("name") or ""),
+            lines=list(body.get("lines") or []),
+            asset_ids=list(body["asset_ids"]) if body.get("asset_ids") is not None else None,
+            media_ids=list(body["media_ids"]) if body.get("media_ids") is not None else None,
+            music_id=str(body.get("music_id") or ""),
+            voice_id=str(body.get("voice_id") or ""),
+            preset=str(body.get("preset") or "vertical"),
+            fps=str(body.get("fps") or "30"),
+            seed=int(body.get("seed") or 0),
+        )
+        return {**state.to_dict(), "beats": report.beats, "notes": report.notes}
+
+    @app.get(f"{API_PREFIX}/video/recipes")
+    def video_recipes() -> dict[str, Any]:
+        """Every assembly shape that exists, as data.
+
+        The same arrangement as the preset catalogue: the picker in the UI and
+        anything that later *searches* the space read one list, so a recipe
+        added here is immediately choosable and immediately scoreable.
+        """
+        return video_recipe_catalogue()
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects")
     def list_video_projects(campaign_id: str, request: Request) -> dict[str, Any]:

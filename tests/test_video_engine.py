@@ -337,6 +337,94 @@ def test_a_clip_pointing_at_an_asset_that_no_longer_exists_is_reported(engine, a
     assert "no longer exists" in engine.manifest(state.project.id)["warnings"][0]
 
 
+# ── assembly ────────────────────────────────────────────────────────────────
+
+
+def test_an_assembled_project_is_renderable_with_nobody_touching_it(engine, assets):
+    """Stage 5's acceptance criterion, written down before it was built: a topic
+    goes to a finished, gate-passing video with zero manual timeline edits."""
+    for index in range(4):
+        assets.add(f"asset-{index}")
+    state, report = engine.assemble(
+        CAMPAIGN,
+        recipe="hook_hold_payoff",
+        target_ticks=15 * SECOND,
+        asset_ids=[f"asset-{index}" for index in range(4)],
+        lines=["Stop scrolling.", "Here is why.", "That is the point."],
+    )
+    manifest = engine.manifest(state.project.id)
+    assert manifest["renderable"], manifest["warnings"]
+    assert manifest["duration_ticks"] == 15 * SECOND
+    assert manifest["frames"] == 450
+    assert report.beats and len(report.beats) == 3
+
+
+def test_an_assembly_is_stored_like_any_other_project_and_can_be_edited(engine, assets):
+    """It is an ordinary document from the moment it exists. If it were not, the
+    owner could not fix it — which is why the editor came before the assembler."""
+    assets.add("asset-1")
+    state, _ = engine.assemble(
+        CAMPAIGN, recipe="quick_list", target_ticks=9 * SECOND, asset_ids=["asset-1"]
+    )
+    assert state.project.id in [item["id"] for item in engine.list_projects(CAMPAIGN)]
+    clip = state.project.tracks[0].clips[0]
+    after = engine.edit(state.project.id, "set_property", {"clip_id": clip.id, "name": "scale", "value": 1.3})
+    assert after.can_undo
+
+
+def test_an_assembly_uses_every_approved_picture_when_told_nothing(engine, assets, tmp_path):
+    """The zero-input path: a recipe and a length, and it finds its own material."""
+    for index in range(3):
+        assets.add(f"asset-{index}")
+    assets.add("rejected-one", status="rejected")
+    engine.campaign_asset_reader = lambda cid: [
+        row for row in assets.rows.values() if row["status"] == "approved"
+    ]
+    state, _ = engine.assemble(CAMPAIGN, recipe="three_points", target_ticks=20 * SECOND)
+    used = {clip.asset_id for clip in state.project.tracks[0].clips}
+    assert used == {"asset-0", "asset-1", "asset-2"}
+    assert "rejected-one" not in used
+
+
+def test_an_assembly_refuses_a_campaign_that_is_not_an_image_campaign(tmp_path):
+    store = VideoStore(tmp_path / "v.db", renders_dir=tmp_path / "r")
+    runner = VideoEditorEngine(
+        store=store, campaign_reader=lambda cid: {"id": cid, "kind": "email"}
+    )
+    try:
+        with pytest.raises(WrongCampaignKind):
+            runner.assemble(CAMPAIGN, recipe="quick_list", target_ticks=9 * SECOND)
+    finally:
+        store.close()
+
+
+def test_assembling_over_http_returns_the_beats_and_the_notes(tmp_path):
+    """The half of the response worth reading: what it settled for."""
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+    )
+    with TestClient(create_app(settings)) as client:
+        campaign = client.post(
+            "/api/v1/campaigns", json={"name": "Assembly", "kind": "image"}
+        ).json()
+        catalogue = client.get("/api/v1/video/recipes").json()
+        assert catalogue["recipes"], "the recipe space is served as data"
+
+        response = client.post(
+            f"/api/v1/campaigns/{campaign['id']}/video-projects/assemble",
+            json={"recipe": "quick_list", "target_ticks": 9 * SECOND, "asset_ids": []},
+        )
+        # No pictures at all is a refusal with a sentence, not a stack trace.
+        # 422 is what this API already maps a TimelineError to, and an
+        # AssemblyRefused is one.
+        assert response.status_code == 422
+        assert "nothing to show" in str(response.json())
+
+
 # ── what the export should sound like ───────────────────────────────────────
 
 

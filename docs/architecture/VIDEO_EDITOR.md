@@ -404,6 +404,76 @@ first, because at a cut the two hold different clips.
 
 ---
 
+## The assembler: material in, finished timeline out
+
+The line the whole editor was cut from — *"CapCut, but it does it
+automatically"* — and the one endpoint that names it:
+`POST /campaigns/{id}/video-projects/assemble`. A recipe and a length go in; a
+whole project comes out, cut, animated, captioned and scored, and the export
+gates accept it with nobody having touched a timeline.
+
+**A model picks the recipe and writes the words. It never builds the timeline.**
+That is the decision the rest follows from. The obvious way to build "AI that
+edits video" is to have a model emit a document, and it is the way that cannot
+work here: a model that writes a timeline writes invalid ones — clips that
+overlap, transitions that do not fit, footage read past its end — and every
+invariant this project spent its existence enforcing becomes a suggestion.
+Choosing from a declared list is something a model is good at and something
+that can be checked. Assembly is arithmetic, and it runs with no model at all.
+
+**Nothing constructs a clip.** Every piece goes through the same `edits`
+functions a person's clicks do, so an assembled project is valid for exactly the
+same reason a hand-made one is — and if the assembler could produce an
+overlapping timeline, so could a user, and the invariant would already be
+broken. That costs a copy of the document per operation and buys the property
+the whole feature rests on.
+
+| Piece | Does |
+|---|---|
+| `recipes.py` | 8 shapes over 5 families, as data: beats, shares, which preset each beat uses |
+| `assembly.py` | the arithmetic — beats to spans, spans to clips, clips to cuts |
+| `assembly.difference()` | what the owner changed afterwards, which is the signal |
+
+A **recipe** is a structure, not a taste label. `hook_hold_payoff` is 18% / 60% /
+22% with a `ramp_up` on the opening and a `hero` curve on the close;
+`fast_montage` is ten cuts in the middle and a stop at the end. Shares are
+fractions, so one recipe fits any length. Every id it names is checked against
+the preset registries by a test — a recipe pointing at an animation nobody
+declared is a recipe that fails on the one video somebody actually wanted.
+
+Four things the arithmetic has to get right:
+
+- **The duration is exact.** The export gate compares a rendered file against
+  the project's length, so a target of thirty seconds produces a project of
+  exactly thirty seconds — snapped to a whole frame, with the last beat
+  absorbing whatever the shares round away. Every recipe at every length is
+  tested for this, because a timeline that is 29.97s "because the fractions did
+  not add up" fails a gate for a reason nobody could see.
+- **The material decides the cuts, inside what the recipe asked for.** A beat
+  longer than one piece of footage can stretch to gets more cuts whatever the
+  recipe wanted — ten times its own length is as far as one clip goes. 300
+  seconds from one second of footage cuts itself 31 times and still lands
+  exactly.
+- **Short footage is slowed, not gapped.** A two-second clip over a six-second
+  beat plays at 0.37×, reading all of its material and none past the end. The
+  rate is rounded *down* to four places: rounding the last one up makes a clip
+  consume a handful of ticks the source does not have, which the assembler
+  found by refusing itself.
+- **It says what it settled for.** Music shorter than the video, a curve a clip
+  has no material to spare for, a line nobody could read in the time it is on
+  screen — each comes back as a sentence. A brief the material cannot meet
+  exactly is not a failure; producing something else silently is.
+
+**The edit-diff.** `difference(before, after)` counts what was added, removed,
+moved, retimed, restyled and rewritten, and reports what share of the assembly
+survived. It is deliberately coarse — a per-property delta would drown the
+signal in somebody nudging a slider — and it exists because a person who accepts
+a cut is saying nothing while a person who moves it is saying something
+specific. That is the only measurement any later "learn from what gets edited"
+can be built on, and it is worth having before there is anything to learn.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -516,6 +586,22 @@ outside this project:
    frames; and a countdown with nothing repeated or skipped. The first run of
    this found the off-by-one described above — every reverse frame was exactly
    one too far along.
+8. **The assembler's whole claim was run end to end.** The server assembled a
+   project from `setup_turn_resolve` and a length, over two real VP9 shots and a
+   WAV bed, with nobody touching a timeline. Its manifest came back
+   `renderable: true` with no warnings. Chromium exported that exact document
+   and the file went back through the server's own gates:
+
+   ```
+   renderer : webcodecs/vp09.00.10.08+opus
+   footage  : 6 clips drawn, 0 problems
+   gates    : PASSED — 1080x1920 video/webm, 8.00s, all gates passed
+   ```
+
+   ffmpeg reads it as `vp9 1080x1920 30fps / opus 48000 Hz stereo, 8.00s`. The
+   first attempt at this found a real gap: a bitstream the decoder rejects used
+   to take the whole render down with it, and now costs its own clip and is
+   reported like any other unreadable import.
 
 ---
 

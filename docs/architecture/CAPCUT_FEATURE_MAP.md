@@ -13,20 +13,21 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **49** | 31% |
-| ◐ Partly built | **14** | 9% |
-| ○ Not built | **97** | 61% |
-| | **160** | |
+| ● Built | **52** | 32% |
+| ◐ Partly built | **16** | 10% |
+| ○ Not built | **93** | 58% |
+| | **161** | |
 
-9 of those 97 are **out of scope on purpose** — a phone camera, a licensed
-music library, a template marketplace. Against the 151 rows that are actually
-reachable, 63 are touched: **42%**.
+9 of those 93 are **out of scope on purpose** — a phone camera, a licensed
+music library, a template marketplace. Against the 152 rows that are actually
+reachable, 68 are touched: **45%**.
 
-Those 63 are not the easy 63. They are the timeline and its invariants,
+Those 68 are not the easy 68. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
-gates, the sound inside the file, the picture of imported footage, and time
-remapping over the top of it. Masks, effects and the AI rows are each a feature
-on top of a timeline that now exists.
+gates, the sound inside the file, the picture of imported footage, time
+remapping over the top of it — and the assembler that now puts all of those
+together on its own. Masks and effects are each a feature on top of a timeline
+that exists; the AI rows are a model call away from an assembler that exists.
 
 ---
 
@@ -217,7 +218,7 @@ on top of a timeline that now exists.
 
 | Feature | | Status |
 |---|---|---|
-| Script → video, auto-assembled | M | ○ |
+| Script → video, auto-assembled | M | ◐ the assembly is built and deterministic; nothing writes the script yet |
 | AI script / hook writer | M | ○ |
 | **Text to image** | M — already built in `imagery/` | ● the image campaign, which predates the editor |
 | **Text to video** | M | ○ |
@@ -249,9 +250,10 @@ on top of a timeline that now exists.
 | Feature | | Status |
 |---|---|---|
 | Template feed, trending by platform | X (marketplace) | ○ |
-| Apply a template, auto-fill your clips into its slots | B | ○ |
-| Build and save your own template | B | ○ |
-| One-tap auto montage from a folder of clips | M | ○ |
+| **Apply a template, auto-fill your clips into its slots** | B | ● 8 recipes over 5 families; beats, cuts, animations, curves and captions |
+| Build and save your own template | B | ◐ recipes are data and default-deny; adding one is a row, editing from the UI is not built |
+| **One-tap auto montage from a folder of clips** | B | ● deterministic and seeded, not a model — a model picks the recipe, never the timeline |
+| **Measure what the owner changed after an auto-edit** | B | ● the edit-diff, which is what any later learning has to be built on |
 
 ## 15. Projects, brand, collaboration
 

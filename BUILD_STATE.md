@@ -9,16 +9,16 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-16
 Branch: `main`
-Tests: **1130 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 95 frontend passed, frontend build clean.
+Tests: **1229 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 96 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 49 of its 160
-rows built, 14 partly, 42% of the reachable rows touched.
+from, and it now carries a **status column and a scoreboard**: 52 of its 161
+rows built, 16 partly, 45% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
 wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
@@ -104,6 +104,8 @@ offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── edits.py      every edit as a pure function; a default-deny registry
 ├── gates.py      MP4 + WebM + WAV header parsing; gates on the exported file
 ├── presets.py    transitions, animations, text styles and speed curves, as data
+├── recipes.py    whole-video shapes: beats, shares, which preset each beat uses
+├── assembly.py   material + recipe -> a finished project, and the edit-diff
 ├── mixdown.py    the audio mix as a gain-envelope plan the browser executes
 ├── captions.py   transcript -> readable cues -> text clips, deterministic
 ├── store.py      projects, version history (undo), media, transcripts, renders
@@ -741,6 +743,66 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 5c — the assembler: material in, finished timeline out (2026-08-16)
+- [x] **The line the whole editor was cut from.** `POST /campaigns/{id}/video-
+      projects/assemble` takes a recipe and a length and returns a whole project
+      — cut, animated, captioned, scored — that the gates accept with nobody
+      having touched a timeline. Blueprint Stage 5's centre; feature map 49 →
+      **52 built**, 42% → **45%** of the reachable rows.
+- [x] **A model picks the recipe and writes the words; it never builds the
+      timeline.** The decision everything else follows from. A model that emits
+      a document emits invalid ones — overlapping clips, transitions that do not
+      fit, footage read past its end — and every invariant this project enforces
+      becomes a suggestion. Choosing from a declared list is what a model is
+      good at and what can be checked. Assembly is arithmetic and runs with no
+      model at all.
+- [x] **Nothing constructs a clip.** Every piece goes through the same `edits`
+      functions a person's clicks do, so an assembled project is valid for the
+      same reason a hand-made one is. If the assembler could produce an
+      overlapping timeline, so could a user, and the invariant would already be
+      broken.
+- [x] `video/recipes.py` — **8 shapes over 5 families** (`hook`, `list`,
+      `story`, `montage`, `demo`) as rows: beats with shares, and which
+      animation, speed curve and text style each beat uses. Shares are fractions,
+      so one recipe fits any length. A test resolves every preset id a recipe
+      names — one pointing at an animation nobody declared is one that fails on
+      the video somebody actually wanted.
+- [x] **The duration is exact, at every recipe and every length.** The export
+      gate compares a file against the project's own length, so a 30s target
+      produces exactly 30s — snapped to a whole frame, the last beat absorbing
+      what the shares round away. 48 parametrised cases assert it.
+- [x] **The material decides the cuts, inside what the recipe asked for.** A beat
+      longer than one clip can stretch to gets more cuts whatever the recipe
+      wanted; ten times its own length is as far as one goes. 300s from 1s of
+      footage cuts itself 31 times and still lands exactly.
+- [x] **Short footage is slowed, not gapped** — 2s over a 6s beat plays at 0.37x,
+      reading all its material and none past the end. The rate rounds *down* to
+      four places: rounding the last one up makes a clip consume ticks the source
+      does not have, which the assembler found by refusing itself.
+- [x] **It says what it settled for.** Music shorter than the video, a curve a
+      clip has no material to spare for, a line nobody could read in the time it
+      is on screen — each a sentence in `notes`. The readability rule is the
+      caption engine's own `READABLE_CPS`, not a second copy of it.
+- [x] **`difference(before, after)` — the edit-diff.** What was added, removed,
+      moved, retimed, restyled and rewritten, and what share of the assembly
+      survived. Deliberately coarse. A person who accepts a cut says nothing; a
+      person who moves it says something specific, and this is the only place
+      that gets written down — the signal any later "learn from what gets edited"
+      has to be built on, worth having before there is anything to learn.
+- [x] **Verified end to end, for real.** The server assembled a project from
+      `setup_turn_resolve` over two real VP9 shots and a WAV bed; its manifest
+      came back `renderable: true` with no warnings; Chromium exported that exact
+      document and the file went back through the server's gates: **all eight
+      passed** — `1080x1920 video/webm, 8.00s`, six footage clips drawn, an Opus
+      track. ffmpeg reads it as `vp9 30fps / opus 48000 Hz stereo`.
+- [x] **A real gap that run found:** a bitstream the decoder rejects — a file
+      that demuxes cleanly and names a supported codec but whose frames are not
+      what its header says — used to take the whole render down with it. It now
+      costs its own clip, draws the hole the painter already draws for a missing
+      asset, and is reported once per file however many clips use it.
+- [x] 93 assembly tests and 5 engine tests in Python, 1 regression test in the
+      browser. **1,229 Python tests, 96 frontend**, build clean.
 
 ### Stage 5b — time remapping: curves, freeze, reverse (2026-08-16)
 - [x] **Three menu items, one integral.** Freeze frame, reverse and speed curves

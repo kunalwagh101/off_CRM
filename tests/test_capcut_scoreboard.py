@@ -147,6 +147,20 @@ def test_the_rows_the_retime_build_delivered_are_marked_built():
         assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
 
 
+def test_the_rows_the_assembler_delivered_are_marked_built():
+    """The centre of the brief: material in, finished timeline out."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "**Apply a template, auto-fill your clips into its slots**",
+        "**One-tap auto montage from a folder of clips**",
+        "**Measure what the owner changed after an auto-edit**",
+    ):
+        assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
+    # The assembler is deterministic; nothing writes the script for it yet, and
+    # that row must not creep up to built on the strength of the half that is.
+    assert marks["Script → video, auto-assembled"] == PARTIAL
+
+
 def test_the_audio_work_that_was_deliberately_left_out_is_still_marked_so():
     """Ducking, EQ and vocal isolation change what the mix *sounds* like rather
     than what it *is*, and each is a feature in its own right."""

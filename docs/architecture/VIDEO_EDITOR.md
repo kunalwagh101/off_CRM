@@ -474,6 +474,54 @@ can be built on, and it is worth having before there is anything to learn.
 
 ---
 
+## The director: where a model is safe
+
+`assembly.py` builds a timeline out of a recipe, a length and some lines.
+`director.py` is the thing that chooses them, and it is the one place in this
+feature where a model runs.
+
+**A model asked to emit a timeline emits invalid ones** — overlapping clips,
+transitions that do not fit, footage read past its end — and there is no way to
+review four hundred lines of JSON before they become a video. A model asked to
+pick one of eight declared ids and write three sentences is doing a job it is
+good at, and the answer is small enough to check completely.
+
+So the module is almost entirely the checking. The prompt is a page of text;
+`parse_direction` is the part that matters, and it treats the reply as what it
+is — **untrusted input**.
+
+| The model does | And this refuses or corrects |
+|---|---|
+| names a shape nobody declared | refused, by name, with the list of real ones |
+| replies with prose | refused; nothing guesses what it meant |
+| wraps its JSON in a fence | unwrapped — they all do this |
+| writes a sentence before the JSON | the object is found and read |
+| asks for 3 seconds, or 9999 | clamped to the floor or ceiling, and said so |
+| writes forty lines | cut to what the beats hold, and said so |
+| writes a 400-character caption | trimmed, and said so |
+| invents a field | ignored, and named |
+
+**A hostile topic cannot do much.** Topics often come from scraping, so a trend
+title can say anything at all — including instructions aimed at whatever reads
+it next. The reply is validated against a closed set, so the worst it achieves
+is a video in a *different one of the eight declared shapes*. There is no field
+it can fill with an arbitrary edit, no path from the reply to a file, and
+nothing here that runs what it is told. That property comes from the
+architecture rather than from asking the model nicely — though the prompt does
+say the topic is quoted material, because the cheap half of a defence is still
+worth having.
+
+**The prompt lists the real recipes**, read from the registry at call time. A
+prompt naming a shape the assembler does not have produces a refusal nobody can
+act on; one missing a shape never offers it.
+
+The whole loop is then one call: `POST /campaigns/{id}/video-projects/direct`
+takes a topic and returns a stored, renderable project, with the model's own
+`rationale` attached so an owner can see why it looks like that — and notice a
+model that read the topic wrongly.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`

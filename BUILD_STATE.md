@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-16
 Branch: `main`
-Tests: **1229 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **1266 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 96 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -17,8 +17,8 @@ The video editor is built: `offsetx_apollo_builder/video/` plus
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 52 of its 161
-rows built, 16 partly, 45% of the reachable rows touched.
+from, and it now carries a **status column and a scoreboard**: 53 of its 161
+rows built, 15 partly, 45% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
 wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
@@ -106,6 +106,7 @@ offsetx_apollo_builder/video/       ← the timeline editor (CapCut's shape)
 ├── presets.py    transitions, animations, text styles and speed curves, as data
 ├── recipes.py    whole-video shapes: beats, shares, which preset each beat uses
 ├── assembly.py   material + recipe -> a finished project, and the edit-diff
+├── director.py   a topic -> a shape and the words; the model's reply, checked
 ├── mixdown.py    the audio mix as a gain-envelope plan the browser executes
 ├── captions.py   transcript -> readable cues -> text clips, deterministic
 ├── store.py      projects, version history (undo), media, transcripts, renders
@@ -743,6 +744,48 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 5d — the director: a topic in, a finished project out (2026-08-16)
+- [x] **The model half.** `POST /campaigns/{id}/video-projects/direct` takes a
+      topic and returns a stored, renderable project. The model chooses the
+      shape and writes the words; the assembler does everything else. Feature
+      map 52 → **53 built**; "Script → video, auto-assembled" is now ●.
+- [x] **A model asked to emit a timeline emits invalid ones**, and nobody can
+      review four hundred lines of JSON before they become a video. A model
+      asked to pick one of eight declared ids and write three sentences is doing
+      a job it is good at, and the answer is small enough to check completely.
+      So `director.py` is almost entirely the checking.
+- [x] **The reply is untrusted input.** A shape nobody declared is refused by
+      name with the real list; prose is refused rather than guessed at; a fence
+      is unwrapped (they all do it); a sentence before the JSON is read past; a
+      length outside the bounds is clamped and said so; forty lines are cut to
+      what the beats hold; a 400-character caption is trimmed; an invented field
+      is ignored and named. Twenty of the thirty-one tests are that list.
+- [x] **A hostile topic cannot do much, and that is architectural.** Topics come
+      from scraping, so a trend title can say anything — including instructions
+      aimed at whatever reads it next. The reply is validated against a closed
+      set, so the worst it achieves is a video in a *different one of the eight
+      declared shapes*. There is no field it can fill with an arbitrary edit and
+      no path from the reply to a file. A test proves it with a real injection
+      string.
+- [x] **The prompt lists the real recipes**, read from the registry at call
+      time. One naming a shape the assembler does not have produces a refusal
+      nobody can act on; one missing a shape never offers it.
+- [x] **Data class `public`, not `campaign`.** A topic is usually a trend title
+      that was already on somebody else's website, and calling it campaign
+      material would narrow the tier rules for something already public.
+- [x] **Two real bugs found by running it.** `DirectionRefused` was a plain
+      `ValueError`, so a model picking a bad recipe would have returned a 500
+      instead of the sentence — it is a `TimelineError` now, like every other
+      refusal. And the new endpoint did not catch `NoPermittedProvider`, so the
+      very first thing anyone hits — no provider connected — was a stack trace
+      instead of the 409 that says to open Connectors.
+- [x] **Verified end to end.** Topic `"why nobody reads changelogs"` → the model
+      picked `pattern_interrupt`, wrote three lines, asked for 12s → assembled
+      over two real VP9 shots and a WAV bed → **`renderable: true`, no
+      warnings**, one note about the music being shorter than the video.
+- [x] 31 director tests and 6 engine tests. **1,266 Python tests, 96 frontend**,
+      build clean.
 
 ### Stage 5c — the assembler: material in, finished timeline out (2026-08-16)
 - [x] **The line the whole editor was cut from.** `POST /campaigns/{id}/video-

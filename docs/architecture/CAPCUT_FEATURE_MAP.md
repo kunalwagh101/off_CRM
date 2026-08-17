@@ -13,8 +13,8 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **52** | 32% |
-| ◐ Partly built | **16** | 10% |
+| ● Built | **53** | 33% |
+| ◐ Partly built | **15** | 9% |
 | ○ Not built | **93** | 58% |
 | | **161** | |
 
@@ -26,8 +26,9 @@ Those 68 are not the easy 68. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
 gates, the sound inside the file, the picture of imported footage, time
 remapping over the top of it — and the assembler that now puts all of those
-together on its own. Masks and effects are each a feature on top of a timeline
-that exists; the AI rows are a model call away from an assembler that exists.
+together on its own — from a topic, through a model that picks the shape and
+writes the words. Masks and effects are each a feature on top of a timeline that
+exists.
 
 ---
 
@@ -218,7 +219,7 @@ that exists; the AI rows are a model call away from an assembler that exists.
 
 | Feature | | Status |
 |---|---|---|
-| Script → video, auto-assembled | M | ◐ the assembly is built and deterministic; nothing writes the script yet |
+| **Script → video, auto-assembled** | M | ● a topic picks a shape and writes the words, through the broker; the reply is checked against the registry before a clip is laid |
 | AI script / hook writer | M | ○ |
 | **Text to image** | M — already built in `imagery/` | ● the image campaign, which predates the editor |
 | **Text to video** | M | ○ |

@@ -1062,6 +1062,28 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 **kwargs,
             )
 
+        def video_director(**kwargs: Any) -> Any:
+            """The one model call the editor makes for itself.
+
+            `public_text` and not `campaign_notes`: a topic is usually a trend
+            title scraped off somebody else's site, and calling it campaign
+            material would narrow the tier rules for something that was already
+            public. The reply is validated against the recipe registry before a
+            clip is laid, so a hostile topic can at most pick a different one of
+            the declared shapes.
+            """
+            return state.ai_broker.call(
+                EgressRequest(
+                    task_type="video_direction",
+                    data_class=DataClass.PUBLIC,
+                    instructions=str(kwargs.get("topic") or ""),
+                    public_text=str(kwargs.get("topic") or ""),
+                ),
+                settings,
+                system_prompt=str(kwargs.get("system_prompt") or ""),
+                expect_json=True,
+            )
+
         return VideoEditorEngine(
             store=state.video_store,
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
@@ -1073,6 +1095,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 cid, status="approved", limit=200
             ),
             transcriber=transcriber,
+            director=video_director,
             workspace_id=workspace_id,
         )
 
@@ -1135,6 +1158,45 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             seed=int(body.get("seed") or 0),
         )
         return {**state.to_dict(), "beats": report.beats, "notes": report.notes}
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects/direct", status_code=201)
+    def direct_video_project(
+        campaign_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """A topic in, a finished project out. The whole loop in one call.
+
+        The model chooses the shape and writes the words; the assembler does
+        everything else. Its reply is checked against the recipe registry before
+        a single clip is laid, which is what makes a topic scraped off somebody
+        else's website safe to pass in — the worst a hostile one achieves is a
+        video in a different one of the declared shapes.
+        """
+        try:
+            state, report, direction = _video(request).direct_and_assemble(
+                campaign_id,
+                topic=str(body.get("topic") or ""),
+                style=str(body.get("style") or ""),
+                target_ticks=int(body.get("target_ticks") or 0),
+                name=str(body.get("name") or ""),
+                asset_ids=list(body["asset_ids"]) if body.get("asset_ids") is not None else None,
+                media_ids=list(body["media_ids"]) if body.get("media_ids") is not None else None,
+                music_id=str(body.get("music_id") or ""),
+                voice_id=str(body.get("voice_id") or ""),
+                preset=str(body.get("preset") or "vertical"),
+                fps=str(body.get("fps") or "30"),
+                seed=int(body.get("seed") or 0),
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            # The first thing anyone hits is "no provider connected", and it
+            # already carries the sentence that says what to do. Letting it out
+            # as a 500 would replace that with a stack trace.
+            raise _ai_error(exc) from exc
+        return {
+            **state.to_dict(),
+            "beats": report.beats,
+            "notes": report.notes,
+            "direction": direction.to_dict(),
+        }
 
     @app.get(f"{API_PREFIX}/video/recipes")
     def video_recipes() -> dict[str, Any]:

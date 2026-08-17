@@ -453,8 +453,9 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
   and writes the words, never the document
 - ✅ The edit-diff, so what the owner changes afterwards is measurable
 - ⬜ Text→video and image→video generators
-- ⬜ Something that *writes* the script and *chooses* the recipe — the model
-  half, which the assembler is now the safe target for
+- ✅ **The director**: a topic picks the shape and writes the words, through the
+  broker. Its reply is validated against the recipe registry before a clip is
+  laid, which is what makes a scraped topic safe to pass in
 - **Unlocks:** *"CapCut, but it does it automatically."*
 - **Acceptance:** ✅ 30 of 30 exported frames matched their own source frame in a
   real browser, measured by reading the canvas. ✅ a recipe and a length went to

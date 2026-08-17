@@ -37,6 +37,7 @@ from typing import Any, Callable, Mapping
 from ..campaigns import assert_kind
 from . import assembly
 from . import captions as captioning
+from . import director
 from . import edits
 from . import mixdown
 from .gates import VideoDecodeError, VideoGateReport, probe, run_gates
@@ -59,6 +60,11 @@ DEFAULT_STILL_TICKS = 5 * TICKS_PER_SECOND
 #: deletes the file — placing one would put a clip on the timeline whose picture
 #: no longer exists, and the failure would not show up until export.
 PLACEABLE_STATUSES = ("pending", "approved")
+
+
+def _title_from(topic: str) -> str:
+    """A project name out of a topic, when nobody gave one."""
+    return " ".join(str(topic or "").split())[:60].strip() or "Untitled"
 
 
 @dataclass
@@ -96,6 +102,7 @@ class VideoEditorEngine:
         asset_reader: Callable[[str], Mapping[str, Any]] | None = None,
         campaign_asset_reader: Callable[[str], list[Mapping[str, Any]]] | None = None,
         transcriber: Callable[..., Any] | None = None,
+        director: Callable[..., Any] | None = None,
         workspace_id: str = "local",
     ) -> None:
         self.store = store
@@ -111,6 +118,10 @@ class VideoEditorEngine:
         #: imported so this module owns no transport and no provider knowledge —
         #: the same rule the image runner follows.
         self.transcriber = transcriber
+        #: Called with ``(system_prompt=, topic=)`` and returning the broker's
+        #: ``EgressResult``. Injected for the same reason the transcriber is:
+        #: this module owns no transport and knows no provider.
+        self.director = director
         self.workspace_id = workspace_id
 
     # ── the kind gate ───────────────────────────────────────────────────────
@@ -194,6 +205,65 @@ class VideoEditorEngine:
         )
         state = ProjectState(record=record, project=report.project, can_undo=False, can_redo=False)
         return state, report
+
+    def direct_and_assemble(
+        self,
+        campaign_id: str,
+        *,
+        topic: str,
+        style: str = "",
+        target_ticks: int = 0,
+        name: str = "",
+        asset_ids: list[str] | None = None,
+        media_ids: list[str] | None = None,
+        music_id: str = "",
+        voice_id: str = "",
+        preset: str = "vertical",
+        fps: str = "30",
+        seed: int = 0,
+    ) -> tuple[ProjectState, assembly.AssemblyReport, director.Direction]:
+        """A topic in, a finished project out. The whole loop, in one call.
+
+        The model decides the *shape* and writes the *words*; the assembler does
+        everything else. Both halves refuse rather than approximate, so the two
+        failure modes are "no shape that exists matches" and "the material
+        cannot cover the length" — and each says which.
+
+        Nothing here trusts the reply. It is validated against the recipe
+        registry before a single clip is laid, which is also what makes a topic
+        scraped off somebody else's website safe to pass in: the worst a hostile
+        one achieves is a different one of the declared shapes.
+        """
+        self._require_own_kind(campaign_id, "directing a video project")
+        if self.director is None:
+            raise TimelineError(
+                "This engine was built without a model to ask. Assemble with an "
+                "explicit recipe instead, or connect a provider."
+            )
+        direction = director.direct(
+            topic=topic,
+            ask=self.director,
+            style=style,
+            pinned_ticks=int(target_ticks),
+        )
+        state, report = self.assemble(
+            campaign_id,
+            recipe=direction.recipe,
+            target_ticks=direction.target_ticks,
+            name=name or _title_from(topic),
+            lines=direction.lines,
+            asset_ids=asset_ids,
+            media_ids=media_ids,
+            music_id=music_id,
+            voice_id=voice_id,
+            preset=preset,
+            fps=fps,
+            seed=seed,
+        )
+        # The model's own notes come first: an owner reading why a video looks
+        # like it does wants "it chose a montage" before "the music was short".
+        report.notes = list(direction.notes) + report.notes
+        return state, report, direction
 
     def _visual_pool(
         self,

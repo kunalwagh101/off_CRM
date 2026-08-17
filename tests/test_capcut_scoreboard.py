@@ -156,9 +156,7 @@ def test_the_rows_the_assembler_delivered_are_marked_built():
         "**Measure what the owner changed after an auto-edit**",
     ):
         assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
-    # The assembler is deterministic; nothing writes the script for it yet, and
-    # that row must not creep up to built on the strength of the half that is.
-    assert marks["Script → video, auto-assembled"] == PARTIAL
+    assert marks["**Script → video, auto-assembled**"] == BUILT
 
 
 def test_the_audio_work_that_was_deliberately_left_out_is_still_marked_so():

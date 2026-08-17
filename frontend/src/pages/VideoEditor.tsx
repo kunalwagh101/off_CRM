@@ -253,6 +253,35 @@ export default function VideoEditor() {
     }
   }, [campaignId, recipeList, loadProjects, openProject, notify]);
 
+  /** A topic in, a finished project out. The model picks the shape and writes
+   *  the words; the assembler does the rest. Its `rationale` is shown because an
+   *  owner deciding whether to keep a video wants to know why it looks like
+   *  that — and it is the fastest way to notice a model reading the topic
+   *  wrongly. */
+  const directProject = useCallback(
+    async (topic: string) => {
+      if (!campaignId) return;
+      setBusy(true);
+      try {
+        const created = await api.post<
+          ProjectState & { notes: string[]; direction: { recipe: string; rationale: string } }
+        >(`/campaigns/${campaignId}/video-projects/direct`, { topic });
+        await loadProjects();
+        await openProject(created.id);
+        notify(
+          `${created.direction.recipe}: ${created.direction.rationale || "no reason given"}`,
+          "success"
+        );
+        if (created.notes.length) notify(created.notes[0], "warning");
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "Could not make one", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [campaignId, loadProjects, openProject, notify]
+  );
+
   // ── editing ───────────────────────────────────────────────────────────────
 
   const edit = useCallback(
@@ -596,6 +625,16 @@ export default function VideoEditor() {
           actions={
             <>
               <Button
+                busy={busy}
+                onClick={() => {
+                  const topic = window.prompt("What is it about?");
+                  if (topic?.trim()) void directProject(topic.trim());
+                }}
+              >
+                Make one from a topic
+              </Button>
+              <Button
+                tone="ghost"
                 busy={busy}
                 disabled={!recipeList.length}
                 onClick={() => void assembleProject()}

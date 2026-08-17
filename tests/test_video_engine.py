@@ -425,6 +425,96 @@ def test_assembling_over_http_returns_the_beats_and_the_notes(tmp_path):
         assert "nothing to show" in str(response.json())
 
 
+def test_a_topic_goes_all_the_way_to_a_renderable_project(engine, assets):
+    """The whole loop in one call: the model picks the shape and writes the
+    words, the assembler does the rest, and nobody touches a timeline."""
+    for index in range(3):
+        assets.add(f"asset-{index}")
+    engine.director = lambda **kwargs: type(
+        "R",
+        (),
+        {
+            "text": '{"recipe": "three_points", "seconds": 20, '
+            '"lines": ["First.", "Second.", "Third."], "rationale": "Listy topic."}',
+            "provider_id": "nvidia",
+            "model_id": "llama-3.1",
+        },
+    )()
+
+    state, report, direction = engine.direct_and_assemble(
+        CAMPAIGN, topic="three things nobody tells you about changelogs",
+        asset_ids=[f"asset-{index}" for index in range(3)],
+    )
+    assert direction.recipe == "three_points"
+    assert direction.model_id == "llama-3.1"
+    assert engine.manifest(state.project.id)["renderable"]
+    assert state.project.duration == 20 * SECOND
+    assert len(report.beats) == 5
+    # The name comes from the topic when nobody gave one.
+    assert "changelogs" in state.project.name
+
+
+def test_a_shape_the_model_invented_stops_before_a_clip_is_laid(engine, assets):
+    """The refusal has to happen at the boundary, not halfway through building
+    a document nobody can review."""
+    assets.add("asset-1")
+    engine.director = lambda **_: '{"recipe": "make_it_pop", "lines": [], "seconds": 15}'
+    with pytest.raises(TimelineError, match="not a shape that exists"):
+        engine.direct_and_assemble(CAMPAIGN, topic="anything", asset_ids=["asset-1"])
+    assert engine.list_projects(CAMPAIGN) == [], "nothing was stored"
+
+
+def test_directing_without_a_model_says_what_to_do_instead(engine, assets):
+    assets.add("asset-1")
+    with pytest.raises(TimelineError, match="without a model to ask"):
+        engine.direct_and_assemble(CAMPAIGN, topic="anything", asset_ids=["asset-1"])
+
+
+def test_the_model_s_notes_come_before_the_assembler_s(engine, assets):
+    """An owner reading why a video looks like it does wants "it chose a
+    montage" before "the music was short"."""
+    assets.add("asset-1")
+    engine.director = lambda **_: '{"recipe": "quick_list", "seconds": 900, "lines": []}'
+    _, report, direction = engine.direct_and_assemble(
+        CAMPAIGN, topic="anything", asset_ids=["asset-1"]
+    )
+    assert direction.notes, "600s is past the ceiling"
+    assert report.notes[0] == direction.notes[0]
+
+
+def test_a_pinned_length_reaches_the_director(engine, assets):
+    assets.add("asset-1")
+    engine.director = lambda **_: '{"recipe": "quick_list", "seconds": 90, "lines": []}'
+    state, _, direction = engine.direct_and_assemble(
+        CAMPAIGN, topic="anything", asset_ids=["asset-1"], target_ticks=12 * SECOND
+    )
+    assert direction.target_ticks == 12 * SECOND
+    assert state.project.duration == 12 * SECOND
+
+
+def test_directing_with_no_provider_connected_says_what_to_do(tmp_path):
+    """The first thing anyone hits. The broker already carries the sentence;
+    letting it out as a 500 would replace it with a stack trace."""
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+    )
+    with TestClient(create_app(settings)) as client:
+        campaign = client.post(
+            "/api/v1/campaigns", json={"name": "Loop", "kind": "image"}
+        ).json()
+        response = client.post(
+            f"/api/v1/campaigns/{campaign['id']}/video-projects/direct",
+            json={"topic": "why nobody reads changelogs"},
+        )
+        assert response.status_code == 409
+        assert "no_permitted_provider" in str(response.json())
+        assert "Connectors" in str(response.json())
+
+
 # ── what the export should sound like ───────────────────────────────────────
 
 

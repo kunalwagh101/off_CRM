@@ -72,14 +72,29 @@ DEFAULT_CONTENT_AUTOMATION: dict[str, Any] = {
     "posts_per_day": 1.0,
     "max_topics": 2,
     "candidates": 3,
-    #: Let the goal decide the rate. Off by default: a control that changes how
-    #: loudly you speak in public should be switched on deliberately.
-    "auto_pace": False,
+    #: What the pacer is allowed to do about the rate:
+    #:
+    #: ``off``      — the rate is whatever you set, and nothing moves it.
+    #: ``suggest``  — the ideal rate is worked out every cycle and *waits* for
+    #:               you. This is the default, and it is the honest one: the
+    #:               machine is better at the arithmetic and you are the one
+    #:               whose name is on the account.
+    #: ``auto``     — it moves on its own, still never past your cap.
+    #:
+    #: The old boolean ``auto_pace`` is still read on the way in, so a workspace
+    #: configured before this existed keeps behaving exactly as it did.
+    "pace_mode": "suggest",
+    #: The last thing the pacer worked out and is waiting on, or {}. Written by
+    #: `suggest` mode, cleared when it is accepted or dismissed.
+    "pending_pace": {},
     #: [{distribution_campaign_id, image_campaign_id, angle, account_ids}]
     "pipelines": [],
 }
 
 STEPS = ("sweep", "plan", "draft", "publish_due")
+
+#: What the pacer may do. See `DEFAULT_CONTENT_AUTOMATION["pace_mode"]`.
+PACE_MODES = ("off", "suggest", "auto")
 
 
 def _now() -> str:
@@ -151,7 +166,22 @@ class ContentAutomationService:
         payload["interval_seconds"] = max(
             300, min(int(payload.get("interval_seconds") or DEFAULT_INTERVAL_SECONDS), 86400)
         )
-        payload["auto_pace"] = bool(payload.get("auto_pace"))
+        # A workspace written before there were three modes carries the old
+        # boolean. True meant "move it yourself", so that is `auto`; False meant
+        # "leave it alone", so that is `off`. Neither silently becomes the new
+        # default, because that would change what an existing install does.
+        # Read from `values`, not from `payload`: payload already carries the
+        # new default, so asking it would never see the old boolean at all.
+        mode = str(values.get("pace_mode") or "").strip().lower()
+        if mode not in PACE_MODES:
+            mode = "auto" if values.get("auto_pace") else (
+                "off" if "auto_pace" in values else DEFAULT_CONTENT_AUTOMATION["pace_mode"]
+            )
+        payload["pace_mode"] = mode
+        # Kept in step so anything still reading the flag sees the truth.
+        payload["auto_pace"] = mode == "auto"
+        pending = payload.get("pending_pace")
+        payload["pending_pace"] = dict(pending) if isinstance(pending, dict) else {}
         payload["per_channel"] = max(1, min(int(payload.get("per_channel") or 10), 50))
         # Not `or 1.0`: a rate deliberately set to zero is a paused campaign,
         # and `0.0 or 1.0` is 1.0 — which would quietly start posting again.
@@ -192,6 +222,10 @@ class ContentAutomationService:
         }
 
     def update(self, values: dict[str, Any]) -> dict[str, Any]:
+        # A caller still speaking the old boolean means it, and the stored
+        # `pace_mode` would otherwise win the merge and ignore them.
+        if "auto_pace" in values and "pace_mode" not in values:
+            values = {**values, "pace_mode": "auto" if values["auto_pace"] else "off"}
         merged = dict(self.config())
         for key in (
             "enabled",
@@ -201,6 +235,8 @@ class ContentAutomationService:
             "max_topics",
             "candidates",
             "auto_pace",
+            "pace_mode",
+            "pending_pace",
             "pipelines",
         ):
             if key in values:
@@ -293,7 +329,8 @@ class ContentAutomationService:
         instead of starting from the declared number every hour and never
         arriving.
         """
-        if not config.get("auto_pace") or self.pacing_reader is None:
+        mode = str(config.get("pace_mode") or "off")
+        if mode == "off" or self.pacing_reader is None:
             return config, None
 
         campaign_id = pipeline["distribution_campaign_id"]
@@ -306,6 +343,7 @@ class ContentAutomationService:
                 current_per_day=float(config.get("posts_per_day") or 0.0),
                 ceiling=float(inputs.get("ceiling") or pacing.MAX_PER_DAY),
                 ceiling_source=str(inputs.get("ceiling_source") or ""),
+                owner_cap=float(inputs.get("owner_cap") or 0.0),
                 candidates_per_topic=int(config["candidates"]),
             )
         except Exception as exc:  # noqa: BLE001 - a failed decision holds the rate
@@ -314,6 +352,19 @@ class ContentAutomationService:
                 "distribution_campaign_id": campaign_id,
                 "status": "failed",
                 "error": str(exc)[:500],
+            }
+
+        if mode == "suggest":
+            # Worked out and left alone. The whole point of this mode is that
+            # the rate on the next cycle is still the one the owner set, so the
+            # returned config is untouched and only the suggestion is stored.
+            self._remember_suggestion(campaign_id, decision)
+            return config, {
+                "step": "pace",
+                "distribution_campaign_id": campaign_id,
+                "status": "ok",
+                "applied": False,
+                **decision.to_dict(),
             }
 
         used = dict(config)
@@ -331,8 +382,52 @@ class ContentAutomationService:
             "step": "pace",
             "distribution_campaign_id": campaign_id,
             "status": "ok",
+            "applied": True,
             **decision.to_dict(),
         }
+
+    def _remember_suggestion(self, campaign_id: str, decision: pacing.PacingDecision) -> None:
+        """Store what the pacer would have done, for the owner to look at.
+
+        Only when it is actually different. A suggestion that repeats the rate
+        already running is not a suggestion, and a screen that shows one every
+        hour is a screen people stop reading.
+        """
+        current = float(self.config().get("posts_per_day") or 0.0)
+        if not decision.steering or abs(decision.posts_per_day - current) < 0.05:
+            self.update({"pending_pace": {}})
+            return
+        self.update({
+            "pending_pace": {
+                "distribution_campaign_id": campaign_id,
+                "suggested_per_day": round(decision.posts_per_day, 3),
+                "current_per_day": round(current, 3),
+                "reason": decision.reason,
+                "action": decision.action,
+                "capped_by": decision.capped_by,
+                "at": _now(),
+            }
+        })
+
+    def accept_pace(self) -> dict[str, Any]:
+        """Take the suggestion. The owner pressing the button, and nothing else.
+
+        Separate from `update` on purpose: this is the one place a rate changes
+        because the machine asked for it, and it should be visible as that in
+        the code as well as on the screen.
+        """
+        config = self.config()
+        pending = dict(config.get("pending_pace") or {})
+        if not pending:
+            raise ValueError("There is no rate suggestion waiting.")
+        return self.update({
+            "posts_per_day": float(pending["suggested_per_day"]),
+            "pending_pace": {},
+        })
+
+    def dismiss_pace(self) -> dict[str, Any]:
+        """Leave the rate alone. Recorded as a decision, not as an absence."""
+        return self.update({"pending_pace": {}})
 
     # Each step returns a row rather than raising, so one bad provider does not
     # cost the whole cycle. The row carries the error where there was one.

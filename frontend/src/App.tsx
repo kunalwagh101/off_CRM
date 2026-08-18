@@ -13,6 +13,7 @@ import SalesTracker from "./pages/SalesTracker";
 import Experiments from "./pages/Experiments";
 import ImageReview from "./pages/ImageReview";
 import VideoEditor from "./pages/VideoEditor";
+import Posting from "./pages/Posting";
 import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
@@ -33,6 +34,7 @@ const pages = {
   experiments: Experiments,
   imagereview: ImageReview,
   videoeditor: VideoEditor,
+  posting: Posting,
   connectors: Connectors,
   egress: Egress,
   memory: Memory,
@@ -58,6 +60,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "experiments", label: "Experiments", icon: "A/B" },
   { page: "imagereview", label: "Image review", icon: "▣", group: "Images" },
   { page: "videoeditor", label: "Video editor", icon: "▶", group: "Video" },
+  { page: "posting", label: "Posting", icon: "◷", group: "Distribution" },
   { page: "settings", label: "Settings", icon: "⚙", group: "System" }
 ];
 

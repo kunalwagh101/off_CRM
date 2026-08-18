@@ -92,6 +92,66 @@ fiction enters the benchmark.
 
 ---
 
+## Two ceilings, and the owner's is the one that matters
+
+The platform says what is **allowed**. The owner says what they are **willing to
+do with their name on it**, and for almost everybody that is a much smaller
+number — Instagram permits 25 API posts a day and nobody sane posts 25 a day.
+
+So an account carries a `daily_cap`: the most that handle may commit to in one
+day, set by the owner. It sits under the platform's published limit, under the
+pacing arithmetic, and under any goal.
+
+**Zero means no cap, not zero posts.** Nothing here invents a default. A number
+this code made up would be a limit the owner never chose being enforced as
+though they had, and the honest state before anyone sets one is the platform's
+own limit and nothing else.
+
+**Checked when a post is scheduled**, alongside the platform's, and counted
+**across every campaign** — it is the handle that gets restricted, and it does
+not care which campaign filled its day. Reconnecting an account does not reset
+its cap: the limit is a decision about the handle, not about that connection.
+
+A campaign's own ceiling is the **sum** of the caps on the accounts it posts to,
+because the rate is one campaign-wide number and three handles capped at two
+really can carry six posts between them. If any enabled account has no cap, the
+campaign has none — summing over a partly-capped set would invent a limit out of
+handles the owner deliberately left open.
+
+## Recommending and doing are two different things
+
+`pacing.py` is good at the arithmetic. It can see the goal, the deadline, how
+many views a post is actually worth and what the platform allows. What it cannot
+see is whether you want to speak that loudly this week.
+
+So the rate has three modes, and the middle one is the default:
+
+| Mode | What happens |
+|---|---|
+| `off` | The rate is whatever you set. The step does not even run. |
+| **`suggest`** | The ideal rate is worked out every cycle and **waits for you**. |
+| `auto` | It moves on its own — still never past your cap. |
+
+In `suggest` the cycle computes the number, stores it as `pending_pace` with its
+reasoning, and **returns the config untouched**. `POST /content-automation/pace`
+with `accept` or `dismiss` is the owner answering. That endpoint takes a word
+rather than a rate on purpose: setting the rate is a `PATCH` on the automation,
+and this is a different act — a person answering something the machine asked.
+
+It is the same shape the video review queue has, for the same reason. **A
+machine that makes things unattended must not also be the thing that decides
+they go out.**
+
+A suggestion is only stored when it differs from what is already running. A
+screen that shows the same suggestion every hour is a screen people stop
+reading.
+
+**The old `auto_pace` boolean still works.** `True` reads as `auto` and `False`
+as `off`, so a workspace configured before there were three modes does not
+change behaviour because the default did.
+
+---
+
 ## This closes the benchmark
 
 `CAMPAIGN_TYPES.md` described three layers: deterministic gates, the owner's
@@ -111,7 +171,11 @@ list rather than a guess.
 
 ```
 GET  /distribution/platforms              what each allows, what is refused
-POST /distribution/accounts               {"platform": "local_outbox", "handle": "@you"}
+POST /distribution/accounts               {"platform": "local_outbox", "handle": "@you",
+                                           "daily_cap": 3}          0 or absent = no cap
+PATCH /distribution/accounts/{id}         {"daily_cap": 3}          change it later
+GET  /campaigns/{id}/pacing               what the ideal rate would be, and why
+POST /content-automation/pace             {"decision": "accept" | "dismiss"}
 POST /campaigns                           {"name": "...", "kind": "distribution"}
 POST /campaigns/{id}/goals                {"metric": "views", "target": 1000000}
 POST /campaigns/{id}/posts                {"account_id": "...", "caption": "...", "asset_id": "..."}
@@ -123,9 +187,12 @@ GET  /campaigns/{id}/progress
 ```
 
 Approval is required before scheduling: it is the point at which a person agreed
-to it going out. Instagram's per-account daily ceiling is checked **when a post
-is scheduled**, not when it is sent — a schedule that cannot be delivered looks
-like a plan, and you would act as though it were one.
+to it going out. Both daily ceilings — your cap and the platform's — are checked
+**when a post is scheduled**, not when it is sent: a schedule that cannot be
+delivered looks like a plan, and you would act as though it were one.
+
+The **Posting** screen is where this lives: a cap box per handle, the three
+modes, and the waiting suggestion with its reasoning and an Accept button.
 
 ---
 
@@ -142,4 +209,12 @@ like a plan, and you would act as though it were one.
   next piece.
 - **Scheduled publishing.** `publish-due` is called; nothing calls it on a timer
   yet. `AutomationService` is where that belongs.
-- **A UI.** API only, like the tool registry.
+- **A UI for most of it.** The **Posting** screen covers the caps and the rate;
+  accounts, goals, posts and metrics are still API only.
+- **A cap per platform rather than per handle.** The limit is on the account,
+  which is the thing that gets restricted. Somebody with six Instagram handles
+  who wants one number across all of them has to set six.
+- **Nothing recommends the cap itself.** The pacer recommends a *rate* and
+  respects the cap; it does not look at how an account has fared at different
+  rates and suggest what the cap should be. That needs a history of caps and
+  outcomes, and there is not one yet.

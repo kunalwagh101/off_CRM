@@ -39,6 +39,31 @@ exactly like a spam bot, because at that moment it is behaving like one.
 Instagram allows 25 API-published posts per account per day. That number is a
 ceiling the controller may approach and never cross, whatever the arithmetic
 says. The goal does not get a vote on the platform's terms.
+
+---
+
+**The owner's cap outranks all of it.**
+
+The platform says what is *allowed*. The owner says what they are *willing to
+do with their name on it*, and that is a smaller number for almost everybody —
+Instagram permits 25 a day and nobody sane posts 25 a day. So an owner cap sits
+under every other limit, and the controller treats it exactly as it treats the
+platform's: a number to approach and never cross.
+
+It is deliberately not a default. A cap this module invented would be a number
+the owner never chose being enforced as though they had, and the honest state
+before anyone sets one is *no cap*, with the platform's limit still binding.
+
+---
+
+**Recommending and doing are two different things.**
+
+This module only ever *works out a number*. Whether that number is applied is a
+decision made above it, and the owner picks between three modes: leave the rate
+alone, be told what the ideal rate would be, or let it move on its own within
+the cap. That split is the same one the review queue makes about video — the
+machine proposes, the person decides — and it exists for the same reason. How
+loudly you speak in public is not a setting to have changed for you.
 """
 
 from __future__ import annotations
@@ -90,6 +115,8 @@ class PacingDecision:
     shortfall: int = 0
     capped_by: str = ""
     steering: bool = False
+    #: The owner's own limit, or 0 when they have not set one.
+    owner_cap: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +134,7 @@ class PacingDecision:
             "shortfall": self.shortfall,
             "capped_by": self.capped_by,
             "steering": self.steering,
+            "owner_cap": round(self.owner_cap, 3),
         }
 
 
@@ -173,6 +201,7 @@ def decide(
     now: datetime | None = None,
     ceiling: float = MAX_PER_DAY,
     ceiling_source: str = "",
+    owner_cap: float = 0.0,
     floor: float = MIN_PER_DAY,
     candidates_per_topic: int = 3,
 ) -> PacingDecision:
@@ -185,6 +214,12 @@ def decide(
     public.
     """
     moment = now or datetime.now(timezone.utc)
+    # The owner's number outranks the platform's, because it is the smaller one
+    # for almost everybody and it is the one with their name on it. Zero means
+    # they have not set one, which is not the same as zero posts a day.
+    cap = float(owner_cap or 0.0)
+    if cap > 0 and cap < ceiling:
+        ceiling, ceiling_source = cap, "your own cap"
     views, posts, per_post = measure(metrics)
     decision = PacingDecision(
         posts_per_day=current_per_day,
@@ -194,7 +229,21 @@ def decide(
         measured_views=views,
         measured_posts=posts,
         views_per_post=per_post,
+        owner_cap=cap,
     )
+
+    if cap > 0 and current_per_day > cap:
+        # Before any goal arithmetic. A rate already above the cap is not a
+        # pacing question, it is a limit being exceeded right now.
+        decision.posts_per_day = cap
+        decision.action = "lower"
+        decision.capped_by = "your own cap"
+        decision.reason = (
+            f"The rate is set to {current_per_day:.2f} a day and your cap is "
+            f"{cap:.2f}. Lowering to the cap — a limit you set is not something "
+            "the goal gets to argue with."
+        )
+        return decision
 
     if goal_target <= 0:
         decision.action = "hold"
@@ -286,10 +335,19 @@ def decide(
     bounded = max(float(floor), min(float(target), float(ceiling), MAX_PER_DAY))
     if ceiling < target and ceiling_source:
         decision.capped_by = ceiling_source
+        # Two different sentences, because they are two different facts: a
+        # platform limit is something neither of you chose, and an owner cap is
+        # something one of you did.
         decision.reason += (
-            f" Capped at {ceiling:.2f} a day by {ceiling_source}'s published "
-            "limit, which the goal does not get a vote on."
+            f" Capped at {ceiling:.2f} a day by your own cap. Raise it if you "
+            "want the goal met sooner."
+            if ceiling_source == "your own cap"
+            else f" Capped at {ceiling:.2f} a day by {ceiling_source}'s published "
+                 "limit, which the goal does not get a vote on."
         )
+    elif bounded != target and cap > 0 and bounded == cap:
+        decision.capped_by = "your own cap"
+        decision.reason += f" Held at your cap of {cap:.2f} a day."
     elif bounded != target and bounded == MAX_PER_DAY:
         decision.capped_by = "safety_ceiling"
         decision.reason += f" Capped at the {MAX_PER_DAY:.0f}/day safety ceiling."

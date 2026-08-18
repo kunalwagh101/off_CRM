@@ -882,6 +882,28 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .vstack-move button:disabled { opacity: .35; }
 .vstack input[type="range"] { width: 100%; margin-top: 6px; accent-color: var(--blue); }
 
+/* Posting: caps and the rate ------------------------------------------------- */
+.posting-rate { margin: 0 0 6px; font-size: 1.05rem; }
+.posting-rate strong { font-variant-numeric: tabular-nums; }
+.posting-reason { margin: 0 0 12px; color: var(--muted); font-size: .8rem; line-height: 1.6; }
+.posting-modes { display: grid; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.posting-modes label { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: white; cursor: pointer; }
+.posting-modes label:hover { border-color: var(--blue); }
+.posting-modes input { margin-top: 3px; accent-color: var(--blue); }
+.posting-modes span { display: grid; gap: 2px; }
+.posting-modes strong { font-size: .82rem; }
+.posting-modes em { color: var(--muted); font-size: .74rem; font-style: normal; line-height: 1.5; }
+.posting-live { border-top: 1px solid var(--border); padding-top: 12px; }
+.posting-live p { margin: 0 0 6px; font-size: .8rem; }
+.posting-accounts { display: grid; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.posting-accounts li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: white; }
+.posting-who { display: grid; gap: 2px; min-width: 0; }
+.posting-who strong { font-size: .84rem; }
+.posting-who span { color: var(--muted); font-size: .74rem; }
+.posting-cap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.posting-cap span { color: var(--muted); font-size: .72rem; }
+.posting-cap input { width: 88px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: .8rem; text-align: right; }
+
 .vasset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .vasset-grid button { display: block; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; padding: 0; background: #f4f6f9; }
 .vasset-grid button:hover { border-color: var(--blue); }

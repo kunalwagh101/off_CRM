@@ -19,6 +19,7 @@ from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..distribution.automation import ContentAutomationService
+from ..distribution.pacing import decide as pacing_decide
 from ..distribution.pacing import platform_ceiling as pacing_ceiling
 from ..distribution.engine import DistributionEngine
 from ..distribution.platforms import list_platforms as list_distribution_platforms
@@ -1559,12 +1560,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             if platform.get("id") in platform_ids
         ]
         ceiling, source = pacing_ceiling(platforms, accounts=max(1, len(accounts)))
+        # The owner's own ceiling for this campaign is the sum of the caps on
+        # the accounts it can post to. Summed rather than taken as the smallest,
+        # because the rate is a campaign-wide number and three handles capped at
+        # two a day really can carry six posts between them. An account with no
+        # cap contributes nothing, and if none of them has one the total is zero
+        # — which the pacer reads as "no cap set", not as "no posting".
+        capped = [int(item.get("daily_cap") or 0) for item in accounts if item.get("enabled")]
+        owner_cap = float(sum(capped)) if capped and all(capped) else 0.0
         return {
             "goal_target": int(views_goal.get("target") or 0) if views_goal else 0,
             "goal_deadline": str(views_goal.get("deadline") or "") if views_goal else "",
             "metrics": store.latest_metrics(campaign_id),
             "ceiling": ceiling,
             "ceiling_source": source,
+            "owner_cap": owner_cap,
         }
 
     def _trends(request: Request) -> TrendWatcher:
@@ -1752,6 +1762,74 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             platform=str(body.get("platform", "")),
             handle=str(body.get("handle", "")),
             label=str(body.get("label", "")),
+            daily_cap=int(body.get("daily_cap") or 0),
+        )
+
+    @app.patch(f"{API_PREFIX}/distribution/accounts/{{account_id}}")
+    def set_distribution_account(
+        account_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """The owner's own limit on one handle, in posts per day.
+
+        Zero means no cap, which is not the same as zero posts: with no cap the
+        platform's published limit is still what binds. Nothing here invents a
+        default — a cap this endpoint made up would be a number the owner never
+        chose being enforced as though they had.
+        """
+        changes: dict[str, Any] = {}
+        if "daily_cap" in body:
+            changes["daily_cap"] = int(body.get("daily_cap") or 0)
+        if "label" in body:
+            changes["label"] = str(body.get("label") or "")
+        if "enabled" in body:
+            changes["enabled"] = 1 if body.get("enabled") else 0
+        return _distribution(request).set_account(account_id, **changes)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/pacing")
+    def pacing_suggestion(campaign_id: str, request: Request) -> dict[str, Any]:
+        """What the ideal posting rate would be, right now, and why.
+
+        Read-only. It never changes the rate — that is the owner's press of a
+        button, and it lives at ``/content-automation/pace``.
+        """
+        state = request.app.state
+        _distribution(request)._require_own_kind(campaign_id, "reading the pacing")
+        inputs = _pacing_inputs(request.app, campaign_id)
+        config = state.content_automation.config()
+        decision = pacing_decide(
+            goal_target=int(inputs["goal_target"]),
+            goal_deadline=str(inputs["goal_deadline"]),
+            metrics=inputs["metrics"],
+            current_per_day=float(config.get("posts_per_day") or 0.0),
+            ceiling=float(inputs["ceiling"]),
+            ceiling_source=str(inputs["ceiling_source"]),
+            owner_cap=float(inputs["owner_cap"]),
+            candidates_per_topic=int(config.get("candidates") or 3),
+        )
+        return {
+            "campaign_id": campaign_id,
+            "mode": config.get("pace_mode"),
+            "pending": config.get("pending_pace") or {},
+            **decision.to_dict(),
+        }
+
+    @app.post(f"{API_PREFIX}/content-automation/pace")
+    def decide_pacing(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Take the machine's suggestion, or turn it down.
+
+        Two words rather than a rate, because this endpoint is not "set the
+        rate" — that is a `PATCH` on the automation. This is the owner
+        answering something the machine asked, and it should read that way.
+        """
+        service = request.app.state.content_automation
+        decision = str(body.get("decision", "")).strip().lower()
+        if decision == "accept":
+            return service.accept_pace()
+        if decision == "dismiss":
+            return service.dismiss_pace()
+        raise HTTPException(
+            400,
+            detail={"error": "unknown_decision", "message": "decision must be accept or dismiss."},
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/goals", status_code=201)

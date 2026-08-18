@@ -489,12 +489,16 @@ def test_the_engine_can_be_declared_and_run_over_http(tmp_path):
         ran = client.post("/api/v1/content-automation/run")
         assert ran.status_code == 200, ran.text
         results = ran.json()["results"]
-        assert [row["step"] for row in results] == ["sweep", "plan", "draft", "publish_due"]
+        # `pace` is in there because working out the ideal rate is the default;
+        # it changes nothing until the owner accepts it.
+        assert [row["step"] for row in results] == [
+            "sweep", "pace", "plan", "draft", "publish_due"
+        ]
         assert next(row for row in results if row["step"] == "publish_due")["status"] == "ok"
 
         after = client.get("/api/v1/content-automation").json()
         assert after["last_run_at"]
-        assert len(after["last_results"]) == 4
+        assert len(after["last_results"]) == 5
 
 
 def test_the_timer_starts_and_stops_with_the_app(tmp_path):
@@ -549,13 +553,73 @@ BEHIND = {
 }
 
 
-def test_pacing_is_off_unless_asked_for(tmp_path, parts):
-    """A control that changes how loudly you speak in public is switched on
-    deliberately."""
+def test_by_default_the_rate_is_worked_out_and_then_left_alone(tmp_path, parts):
+    """The default is `suggest`: the machine is better at the arithmetic and the
+    owner is the one whose name is on the account. So the number is computed
+    every cycle and **applied by nobody**."""
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "posts_per_day": 1.0})
+    results = service.run_once()
+
+    pace = next(row for row in results if row["step"] == "pace")
+    assert pace["applied"] is False
+    assert pace["action"] == "raise", "it worked out that the rate should go up"
+    assert service.config()["posts_per_day"] == 1.0, "and changed nothing"
+
+    waiting = service.config()["pending_pace"]
+    assert waiting["suggested_per_day"] > 1.0
+    assert waiting["current_per_day"] == 1.0
+    assert waiting["reason"]
+
+
+def test_the_suggestion_is_taken_only_when_the_owner_takes_it(tmp_path, parts):
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "posts_per_day": 1.0})
+    service.run_once()
+    suggested = service.config()["pending_pace"]["suggested_per_day"]
+
+    service.accept_pace()
+    assert service.config()["posts_per_day"] == pytest.approx(suggested)
+    assert service.config()["pending_pace"] == {}, "and it stops asking"
+
+
+def test_a_suggestion_can_be_turned_down_and_the_rate_stays_where_it_was(tmp_path, parts):
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "posts_per_day": 1.0})
+    service.run_once()
+    service.dismiss_pace()
+    assert service.config()["posts_per_day"] == 1.0
+    assert service.config()["pending_pace"] == {}
+
+
+def test_accepting_nothing_is_refused_rather_than_silently_doing_nothing(tmp_path, parts):
     service = _paced(tmp_path, parts, BEHIND)
     service.update({"pipelines": [PAIR]})
-    results = service.run_once()
-    assert "pace" not in steps_of(results)
+    with pytest.raises(ValueError, match="no rate suggestion waiting"):
+        service.accept_pace()
+
+
+def test_off_means_the_step_does_not_run_at_all(tmp_path, parts):
+    """Not "runs and is ignored" — a cycle that computes a number nobody asked
+    for is work, and the reading of the metrics behind it is a query."""
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "pace_mode": "off"})
+    assert "pace" not in steps_of(service.run_once())
+
+
+def test_the_old_auto_pace_flag_still_means_what_it_meant(tmp_path, parts):
+    """A workspace configured before there were three modes must not change
+    behaviour because the default did."""
+    service = _paced(tmp_path, parts, BEHIND)
+    service.update({"pipelines": [PAIR], "auto_pace": False})
+    assert service.config()["pace_mode"] == "off"
+    assert "pace" not in steps_of(service.run_once())
+
+    service.update({"auto_pace": True, "posts_per_day": 1.0})
+    assert service.config()["pace_mode"] == "auto"
+    pace = next(row for row in service.run_once() if row["step"] == "pace")
+    assert pace["applied"] is True
+    assert service.config()["posts_per_day"] > 1.0
 
 
 def test_the_goal_raises_the_rate_and_says_why(tmp_path, parts):

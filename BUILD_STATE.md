@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-18
 Branch: `main`
-Tests: **1358 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **1383 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 115 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -744,6 +744,55 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 7a — the posting-rate control: your cap, the engine's advice (2026-08-18)
+- [x] **The owner's answer changed the design.** Asked for a daily posting
+      ceiling, the owner said: *"it should be left up to the user, he will
+      decide, although the AI will make him the ideal recommendation after
+      looking at the data."* That is a better shape than a number, and it is
+      what got built.
+- [x] **A cap per handle.** `dist_accounts.daily_cap`, set by the owner, checked
+      when a post is scheduled, counted **across every campaign** — the handle is
+      what gets restricted and it does not care which campaign filled its day.
+      It sits under the platform's published limit, under the pacing arithmetic
+      and under any goal.
+- [x] **Zero means no cap, not zero posts.** Nothing invents a default: a number
+      this code made up would be a limit the owner never chose being enforced as
+      though they had. With none set, the platform's own limit still binds.
+      Reconnecting an account does not reset it either.
+- [x] **A campaign's ceiling is the sum of its accounts' caps**, because the rate
+      is one campaign-wide number and three handles capped at two can carry six
+      between them. One uncapped account means the campaign has no cap — summing
+      over a partly-capped set would invent a limit out of handles left open.
+- [x] **The pacer recommends and waits.** `auto_pace` became `pace_mode` with
+      three values: `off` (nothing runs), **`suggest`** (the number is worked out
+      every cycle and applied by nobody — the new default), `auto` (it moves
+      itself, still never past the cap). The same shape the video review queue
+      has, for the same reason: a machine that makes things unattended must not
+      also decide they go out.
+- [x] **`accept` or `dismiss`, not a number.** `POST /content-automation/pace`
+      takes a word, because setting the rate is a `PATCH` and this is a different
+      act — a person answering something the machine asked. A suggestion is only
+      stored when it differs from what is running; a screen that repeats itself
+      hourly is one people stop reading.
+- [x] **The old boolean still means what it meant.** `auto_pace: true` reads as
+      `auto`, `false` as `off`, so no existing install changes behaviour because
+      the default did. There is a test for exactly that.
+- [x] **A UI, because a cap you can only set with curl is not the owner's.** New
+      **Posting** screen: a cap box per handle, the three modes with their
+      consequences in words, and the waiting suggestion with its reasoning and an
+      Accept button.
+- [x] **Verified on a live server.** A handle capped at 2 took two posts for one
+      day and refused the third by name; the next day was fresh; with 20 real
+      published posts at 1,000 views each against a million-view goal 100 days
+      out, the engine wanted **9.80/day**, ramped its suggestion to **1.25/day**,
+      and a cap of 1 pulled that to **1.00/day** with *"Capped at 1.00 a day by
+      your own cap. Raise it if you want the goal met sooner."*
+- [x] **What is still blocked on the owner, and only this:** no platform app
+      approvals have been started. YouTube is the one reachable adapter and needs
+      a Google Cloud project with the Data API enabled. Nothing else waits.
+- [x] 19 pacing-cap tests, 6 rewritten automation tests. **1,383 Python tests,
+      115 frontend**, build clean.
 
 ### Stage 6 — the effect engine: 48 primitives, 124 looks (2026-08-18)
 - [x] **The largest part of an editor, made searchable.** CapCut's eight hundred

@@ -102,7 +102,13 @@ class DistributionEngine:
 
     # ── accounts ────────────────────────────────────────────────────────────
 
-    def connect_account(self, *, platform: str, handle: str, label: str = "") -> dict[str, Any]:
+    def set_account(self, account_id: str, **changes: Any) -> dict[str, Any]:
+        """Change a connected handle: its label, whether it is on, and its cap."""
+        return self.store.set_account(account_id, changes)
+
+    def connect_account(
+        self, *, platform: str, handle: str, label: str = "", daily_cap: int = 0
+    ) -> dict[str, Any]:
         """Register an account to post to.
 
         Refused for a platform off_CRM cannot publish to. Storing it anyway would
@@ -111,7 +117,8 @@ class DistributionEngine:
         """
         assert_publishable(platform)
         account_id = self.store.add_account(
-            platform=platform, handle=handle, label=label, workspace_id=self.workspace_id
+            platform=platform, handle=handle, label=label,
+            daily_cap=daily_cap, workspace_id=self.workspace_id,
         )
         return self.store.get_account(account_id)
 
@@ -178,25 +185,29 @@ class DistributionEngine:
             )
         spec = assert_publishable(str(post["platform"]))
         when = at if isinstance(at, str) else at.isoformat()
+        day = str(when)[:10]
+        account = self.store.get_account(str(post["account_id"]))
+
+        # Two ceilings, and the owner's is checked first because it is the one
+        # they will be surprised by. Counted across the whole account rather
+        # than one campaign: the handle is what gets restricted, and it does not
+        # care which campaign filled its day.
+        owner_cap = int(account.get("daily_cap") or 0)
+        already = self.store.published_on(str(post["account_id"]), day=day)
+        if owner_cap and already >= owner_cap:
+            raise ValueError(
+                f"You capped {account['handle']} at {owner_cap} post(s) a day and "
+                f"{already} are already committed for {day}. Pick another day, "
+                "another account, or raise the cap."
+            )
 
         limit = spec.daily_posts_per_account
-        if limit:
-            day = str(when)[:10]
-            already = len(
-                [
-                    item
-                    for item in self.store.list_posts(str(post["campaign_id"]))
-                    if item["account_id"] == post["account_id"]
-                    and item["status"] in ("scheduled", "published")
-                    and str(item.get("scheduled_at") or item.get("published_at"))[:10] == day
-                ]
+        if limit and already >= limit:
+            raise ValueError(
+                f"{spec.label} allows {limit} API posts per account per day, "
+                f"and {already} are already queued for {day}. Pick another "
+                "day or another account."
             )
-            if already >= limit:
-                raise ValueError(
-                    f"{spec.label} allows {limit} API posts per account per day, "
-                    f"and {already} are already queued for {day}. Pick another "
-                    "day or another account."
-                )
         return self.store.update_post(post_id, {"status": "scheduled", "scheduled_at": when})
 
     # ── publishing ──────────────────────────────────────────────────────────

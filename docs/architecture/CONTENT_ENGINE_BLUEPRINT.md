@@ -489,9 +489,17 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
   stack may reference either, so it can compose what the catalogue does not name.
 
 ### Stage 7 — Platform adapters
-- YouTube first (only one usable now), then Instagram/Facebook on approval
-- **Gated on your app reviews, not on us.**
-- **Acceptance:** a real post published through the official API and its metrics read back.
+- ✅ **The posting-rate control**, which is the half that was never blocked: an
+  owner cap per handle that nothing may cross, and a pacer that **recommends and
+  waits** rather than acting. Three modes — off, suggest, auto — with suggest as
+  the default
+- ⬜ YouTube first (only one usable now), then Instagram/Facebook on approval
+- **Gated on your app reviews, not on us.** No approvals started as of
+  2026-08-18, so YouTube is the only reachable one and it still needs a Google
+  Cloud project with the Data API enabled.
+- **Acceptance:** ✅ a cap set on a handle refuses the post that would cross it,
+  and binds the pacer's recommendation, both checked on a live server;
+  ⬜ a real post published through the official API and its metrics read back.
 
 ### Stage 8 — Standalone
 - Extract `video/` + `attention/` as an installable product

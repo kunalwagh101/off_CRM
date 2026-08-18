@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS dist_accounts (
     handle TEXT NOT NULL,
     label TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
+    -- The owner's own ceiling for this handle, in posts per day. 0 means they
+    -- have not set one, which is not the same as zero: with no cap the
+    -- platform's published limit is still what binds.
+    daily_cap INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_dist_account
@@ -112,6 +116,12 @@ class DistributionStore:
         if self._connection is None:
             database = open_database(self.target)
             database.executescript(SCHEMA)
+            # `CREATE TABLE IF NOT EXISTS` does nothing to a table that already
+            # exists, so a workspace created before caps existed needs the
+            # column added rather than declared.
+            database.add_column_if_missing(
+                "dist_accounts", "daily_cap", "INTEGER NOT NULL DEFAULT 0"
+            )
             self._connection = database
         return self._connection
 
@@ -123,15 +133,24 @@ class DistributionStore:
     # ── accounts ────────────────────────────────────────────────────────────
 
     def add_account(
-        self, *, platform: str, handle: str, label: str = "", workspace_id: str = "local"
+        self,
+        *,
+        platform: str,
+        handle: str,
+        label: str = "",
+        daily_cap: int = 0,
+        workspace_id: str = "local",
     ) -> str:
         account_id = str(uuid.uuid4())
         self.connection.execute(
             "INSERT INTO dist_accounts(id, workspace_id, platform, handle, label,"
-            " enabled, created_at) VALUES(?,?,?,?,?,1,?)"
+            " enabled, daily_cap, created_at) VALUES(?,?,?,?,?,1,?,?)"
+            # Reconnecting an account deliberately does not reset its cap: the
+            # limit is a decision about the handle, not about this connection.
             " ON CONFLICT(workspace_id, platform, handle) DO UPDATE SET"
             " label = excluded.label, enabled = 1",
-            (account_id, workspace_id, platform, handle, label or handle, _now()),
+            (account_id, workspace_id, platform, handle, label or handle,
+             max(0, int(daily_cap or 0)), _now()),
         )
         row = self.connection.execute(
             "SELECT id FROM dist_accounts WHERE workspace_id = ? AND platform = ?"
@@ -147,6 +166,43 @@ class DistributionStore:
         if not row:
             raise KeyError(f"Account not found: {account_id}")
         return dict(row)
+
+    def set_account(
+        self, account_id: str, changes: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Change what an owner is allowed to change about a connected handle.
+
+        Deliberately a closed list. An account row is the thing that decides
+        where posts go, and a generic column writer here would let any caller
+        move a post to another platform by name.
+        """
+        allowed = {"label": str, "enabled": int, "daily_cap": int}
+        updates = {key: allowed[key](value) for key, value in changes.items() if key in allowed}
+        if "daily_cap" in updates:
+            updates["daily_cap"] = max(0, min(int(updates["daily_cap"]), 200))
+        if not updates:
+            return self.get_account(account_id)
+        assignments = ", ".join(f"{key} = ?" for key in updates)
+        self.connection.execute(
+            f"UPDATE dist_accounts SET {assignments} WHERE id = ?",
+            (*updates.values(), account_id),
+        )
+        return self.get_account(account_id)
+
+    def published_on(self, account_id: str, *, day: str) -> int:
+        """How many posts this handle has already committed to one day.
+
+        Scheduled counts as well as published: a post queued for tomorrow is a
+        post that will go out tomorrow, and a cap that only looked at what had
+        already happened would let a whole day be filled in one afternoon.
+        """
+        row = self.connection.execute(
+            "SELECT COUNT(*) AS total FROM dist_posts WHERE account_id = ?"
+            " AND status IN ('scheduled', 'published')"
+            " AND substr(COALESCE(NULLIF(scheduled_at, ''), published_at, ''), 1, 10) = ?",
+            (account_id, day),
+        ).fetchone()
+        return int(row["total"]) if row else 0
 
     def list_accounts(self, *, workspace_id: str = "local") -> list[dict[str, Any]]:
         rows = self.connection.execute(

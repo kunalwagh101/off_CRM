@@ -9,7 +9,7 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-18
 Branch: `main`
-Tests: **1383 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **1415 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 115 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -744,6 +744,61 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Browser agent, Stage 1 — off_CRM gets hands (2026-08-18)
+- [x] **The blueprint first.** `docs/architecture/BROWSER_AGENT_BLUEPRINT.md`
+      maps every Strawberry feature the owner listed onto eight stages, and says
+      honestly which are already built here under other names — model routing,
+      memory, credits, local-first, routines and the permission substrate all
+      exist. The genuinely new work is the browser, the run loop, companions,
+      skills, MCP and the crawler.
+- [x] **No Chromium fork, and the reason is written down.** A fork buys one
+      thing: the agent runs in your real session. The same property comes from
+      launching *your* browser against *your* profile with a debugging port and
+      driving it over CDP. What it does not buy is an app with your name on the
+      icon — stated rather than glossed.
+- [x] **A hand-written CDP client**, for the reason the WebM muxer is
+      hand-written. Playwright's value is launching browsers and we are
+      attaching to one that already exists; it would add ~300MB of browsers we
+      would never run.
+- [x] **The accessibility tree, not the markup.** A fiftieth the tokens, stable
+      across restyling, and expressed in the vocabulary instructions are written
+      in. Every actionable node gets an integer; **a model names a handle and
+      cannot describe an element**, which is the same closed-vocabulary rule
+      `ai/tools.py` applies to Docker.
+- [x] **Ten verbs and no `evaluate`.** If a model could supply JavaScript to run
+      in a logged-in session, the policy layer would be the only thing between a
+      prompt injection on some page and the owner's Gmail — and the open web
+      will eventually serve one.
+- [x] **Real input, not JavaScript shortcuts.** `Input.dispatchMouseEvent` and
+      real key events, because a synthetic click skips the hover, focus and
+      pointer handlers many sites depend on, and an assigned field value looks
+      filled and behaves empty.
+- [x] **The policy layer is the honest part.** `discovery.py` blocks LinkedIn,
+      Instagram and the rest for its *headless* engines and that stays. Driving
+      your own logged-in session is a different act, so it gets a different
+      policy — drawn at **volume and autonomy** rather than at domain: reading
+      pace on session-gated platforms, and **attended-only**, so the agent goes
+      there when asked and never on a schedule. localhost, `.internal` and the
+      cloud metadata endpoint are refused outright.
+- [x] **An append-only trace.** No delete, no edit, no truncate — an audit log
+      with an eraser in it is not one. It is also what makes a run resumable and
+      what drives the watch-it-think view: one artefact, so the thing you watch
+      and the thing you audit cannot disagree.
+- [x] **Three real bugs found by running it.** `select` was advertised and never
+      implemented; CDP's node list is not document order, so the first snapshot
+      read the page out of sequence; and thirteen Chromium processes leaked per
+      run because `start_new_session=True` makes the browser its own
+      process-group leader and `terminate()` never reached the renderers. The
+      last one presented as flaky tests, which is what a resource leak usually
+      presents as.
+- [x] **Verified against Chromium 141**, not a mock: navigate, perceive, type
+      with real keys, re-read the field from the browser, refuse an unconfirmed
+      send, send, read the page's own output, screenshot with a real PNG header,
+      choose a dropdown by its visible label with the `change` event firing, and
+      refuse a handle nobody issued.
+- [x] 32 browser tests, 3 of them live. **1,415 Python tests**, 0 leaked
+      processes.
 
 ### Stage 7a — the posting-rate control: your cap, the engine's advice (2026-08-18)
 - [x] **The owner's answer changed the design.** Asked for a daily posting

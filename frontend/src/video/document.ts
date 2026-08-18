@@ -100,6 +100,23 @@ export interface Clip {
   properties: Record<string, number>;
   keyframes: Record<string, Keyframe[]>;
   style: Record<string, unknown>;
+  /** Pixel operations over this clip, in order. Each entry names a declared
+   *  look **or** a single primitive, never the operations themselves — the
+   *  server resolves the names into passes and hands them over in the
+   *  manifest, because the catalogue is far too large to ship to draw a clip. */
+  effects?: EffectRef[];
+}
+
+/** One entry in a clip's effect stack, as the document stores it. */
+export interface EffectRef {
+  /** A declared look. Exactly one of this and `primitive` is set. */
+  preset?: string;
+  /** A single pixel operation, for something the catalogue does not name. */
+  primitive?: string;
+  /** Strength. Zero is a guaranteed no-op — every scaling parameter
+   *  interpolates from the value at which its primitive does nothing. */
+  amount: number;
+  params: Record<string, unknown>;
 }
 
 /** A blend across the cut between two adjacent clips.
@@ -230,6 +247,24 @@ export interface RenderManifest {
     /** `[clipId, why]` for audible clips deliberately left out of the mix. */
     excluded: Array<[string, string]>;
     notes: string[];
+  };
+  /**
+   * Every clip's effect stack, already flattened into passes.
+   *
+   * Deliberately not resolved in the browser the way a transition preset is:
+   * a transition is one row, and an effect is an ordered stack drawn from a
+   * catalogue of a hundred-odd looks that nobody should download in order to
+   * draw one clip.
+   */
+  effects: {
+    clips: Record<string, Array<{
+      primitive: string;
+      passes: number;
+      numbers: Record<string, number>;
+      colours: Record<string, string>;
+    }>>;
+    /** What the picture costs, so the editor can warn before somebody waits. */
+    passes_per_frame: number;
   };
   warnings: string[];
   renderable: boolean;

@@ -22,7 +22,9 @@ import { TICKS_PER_SECOND, ticksPerFrame } from "./document";
 import { FootageLibrary } from "./footage";
 import { planMix } from "./mixdown";
 import { frameAt } from "./resolve";
-import { paintFrame, type AssetTable } from "./render";
+import { paintFrame, type AssetTable, type PixelStage } from "./render";
+import type { EffectTable } from "./effects";
+import { EffectPipeline } from "./shaders/pipeline";
 import { WebMWriter } from "./webm";
 
 /** Codecs tried in order. VP9 is smaller at the same quality; VP8 is universal. */
@@ -52,6 +54,13 @@ export interface ExportOptions {
    * existed, so leaving it out degrades rather than fails.
    */
   mediaUrlFor?: (assetId: string) => string;
+  /**
+   * Each clip's effect chain, resolved by the server, from the manifest.
+   *
+   * Left out, the export draws unfiltered — which is exactly what it did before
+   * effects existed, so an old caller degrades rather than breaks.
+   */
+  effects?: EffectTable;
   onProgress?: (progress: ExportProgress) => void;
   signal?: AbortSignal;
 }
@@ -79,6 +88,17 @@ export interface ExportResult {
     drawn: number;
     /** Files that would not demux or decode; their clips drew as holes. */
     problems: Array<{ assetId: string; reason: string }>;
+  };
+  /** What happened to the filters. */
+  effects: {
+    /** Whether the GPU stage ran at all. False on a machine with no WebGL2. */
+    accelerated: boolean;
+    /** Full-screen draws the last frame cost. Zero when nothing is filtered. */
+    passes: number;
+    /** `[clipId, whatWasLost]` for clips the fallback could not draw fully. */
+    losses: Array<[string, string[]]>;
+    /** Primitives whose shader would not compile here. */
+    problems: Array<{ primitive: string; reason: string }>;
   };
 }
 
@@ -150,7 +170,7 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
   const support = exportSupport();
   if (!support.supported) throw new ExportUnsupported(support.reason);
 
-  const { project, assets, onProgress, signal } = options;
+  const { project, assets, effects, onProgress, signal } = options;
   const bitrate = options.bitrate ?? 8_000_000;
   const duration = project.duration;
   if (duration <= 0) {
@@ -229,6 +249,11 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
   });
 
   const frameDurationUs = Math.round(1_000_000 / fps);
+  // One pipeline for the whole export. Building one per frame would recompile
+  // every shader six hundred times for a twenty-second video.
+  const pipeline = EffectPipeline.create();
+  const stage: PixelStage = { pipeline, effects, seed: 0, losses: [] };
+  const losses = new Map<string, string[]>();
   try {
     for (let index = 0; index < frames; index += 1) {
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
@@ -246,7 +271,15 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
       if (footage) {
         await footage.apply(resolved, assets, frameAt(project, tick + Math.floor(perFrame / 2)));
       }
-      paintFrame(context, project, resolved, assets);
+      // The seed is the frame index, never the clock. Grain that changed
+      // between a preview and an export would be two different videos, and a
+      // re-export has to produce the file it produced yesterday.
+      stage.seed = index;
+      stage.losses = [];
+      paintFrame(context, project, resolved, assets, undefined, stage);
+      if (stage.losses.length) {
+        for (const entry of stage.losses) losses.set(entry[0], entry[1]);
+      }
 
       const videoFrame = new scope.VideoFrame!(canvas as CanvasImageSource, {
         timestamp: Math.round((tick / TICKS_PER_SECOND) * 1_000_000),
@@ -278,6 +311,15 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
     footage?.close();
   }
 
+  const effectPasses = Object.values(effects ?? {}).reduce(
+    (total: number, chain) => total + chain.reduce((sum, item) => sum + (item.passes || 1), 0),
+    0
+  );
+  // The GPU context and every compiled program go back now rather than when the
+  // garbage collector gets round to it. A browser gives a tab a small number of
+  // WebGL contexts, and an editor that exports twenty times in a session runs
+  // out of them long before it runs out of memory.
+  pipeline?.dispose();
   onProgress?.({ frame: frames, frames, stage: "muxing" });
   const blob = writer.blob();
   onProgress?.({ frame: frames, frames, stage: "done" });
@@ -293,7 +335,13 @@ export async function exportProject(options: ExportOptions): Promise<ExportResul
       limitedBy: sound.track?.limitedBy ?? 1,
       missing: sound.track?.missing ?? []
     },
-    footage: footageReport
+    footage: footageReport,
+    effects: {
+      accelerated: Boolean(pipeline),
+      passes: effectPasses,
+      losses: [...losses.entries()],
+      problems: pipeline ? [...pipeline.problems] : []
+    }
   };
 }
 

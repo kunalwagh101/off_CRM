@@ -633,6 +633,7 @@ def difference(before: Project, after: Project) -> dict[str, Any]:
     retimed: list[str] = []
     restyled: list[str] = []
     retexted: list[str] = []
+    refiltered: list[str] = []
 
     for clip_id in sorted(set(old) & set(new)):
         was, now = old[clip_id], new[clip_id]
@@ -649,6 +650,11 @@ def difference(before: Project, after: Project) -> dict[str, Any]:
             restyled.append(clip_id)
         if was.text != now.text:
             retexted.append(clip_id)
+        # The effect stack is ordered, so this compares lists and not sets: an
+        # owner who only reordered two filters changed the picture, and a
+        # comparison that shrugged at that would miss the edit entirely.
+        if was.effects != now.effects:
+            refiltered.append(clip_id)
 
     # Removed clips are not in the intersection, so subtracting them here as
     # well would count each one twice and understate what survived.
@@ -660,6 +666,7 @@ def difference(before: Project, after: Project) -> dict[str, Any]:
         "retimed": retimed,
         "restyled": restyled,
         "retexted": retexted,
+        "refiltered": refiltered,
         "duration_before": before.duration,
         "duration_after": after.duration,
         "untouched": max(0, kept),

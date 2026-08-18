@@ -13,22 +13,28 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **54** | 33% |
-| ◐ Partly built | **15** | 9% |
-| ○ Not built | **93** | 58% |
+| ● Built | **61** | 38% |
+| ◐ Partly built | **18** | 11% |
+| ○ Not built | **83** | 51% |
 | | **162** | |
 
-9 of those 93 are **out of scope on purpose** — a phone camera, a licensed
+9 of those 83 are **out of scope on purpose** — a phone camera, a licensed
 music library, a template marketplace. Against the 153 rows that are actually
-reachable, 69 are touched: **45%**.
+reachable, 79 are touched: **52%**.
 
-Those 69 are not the easy 69. They are the timeline and its invariants,
+Those 79 are not the easy 79. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
 gates, the sound inside the file, the picture of imported footage, time
 remapping over the top of it, the assembler that puts all of those together on
 its own — from a topic, through a model that picks the shape and writes the
-words — and the queue that stops any of it reaching an audience until a person
-says so. Masks and effects are each a feature on top of a timeline that exists.
+words — the queue that stops any of it reaching an audience until a person says
+so, and a GPU stage of 48 pixel operations with a catalogue of 124 looks over
+them, masks and keying included.
+
+What is left is mostly **M**: the rows that need a model rather than a
+renderer — auto cutout, motion tracking, colour matching, text to video. Those
+are calls through the broker onto a timeline that is now finished enough to
+take them.
 
 ---
 
@@ -123,35 +129,35 @@ says so. Masks and effects are each a feature on top of a timeline that exists.
 
 | Feature | | Status |
 |---|---|---|
-| Video effects: glitch, VHS, retro, film grain, shake, flash, particles, weather | B (shaders) | ○ |
+| **Video effects: glitch, VHS, retro, film grain, flash** | B (shaders) | ● 48 GPU primitives; particles and weather need a simulator, not a filter |
 | Face / body / AR effects | M | ○ |
-| Effect track spanning several clips | B | ○ |
-| Filter presets by category | B (LUT) | ○ |
-| Filter intensity slider | B | ○ |
-| LUT import | B | ○ |
+| Effect track spanning several clips | B | ◐ apply-to-all puts one stack on every clip; an effect *track* is not a thing here |
+| **Filter presets by category** | B (LUT) | ● 124 looks over 10 packs; a stack of primitives rather than a LUT, so each one has a strength |
+| **Filter intensity slider** | B | ● every look, free — each parameter declares the value at which it does nothing |
+| LUT import | B | ○ a .cube file needs a 3D texture and a sampler; the looks here are operations, not tables |
 
 ## 7. Colour
 
 | Feature | | Status |
 |---|---|---|
 | Brightness, contrast, saturation, exposure | B | ● all four |
-| Highlights, shadows, temperature, tint | B | ◐ temperature and tint; highlights and shadows still absent |
-| Sharpen, vignette, fade, grain | B | ◐ sharpen, vignette and grain |
-| HSL per channel, curves | B | ○ |
-| Auto-adjust | B | ○ |
+| **Highlights, shadows, temperature, tint** | B | ● split-tone reaches both ends separately; temperature and tint are a proper rebalance now, not a sepia wash |
+| **Sharpen, vignette, fade, grain** | B | ● all four, and the first three were declared for months without being drawn |
+| HSL per channel, curves | B | ◐ hue rotate, levels and a filmic S-curve; a per-channel curve editor is not built |
+| Auto-adjust | B | ◐ four repair looks are the fix; nothing measures a picture and chooses for you |
 | Colour match across clips | M | ○ |
 
 ## 8. Masks, keying, compositing
 
 | Feature | | Status |
 |---|---|---|
-| Masks: linear, mirror, circle, rectangle, heart, star | B | ○ |
-| Mask invert, feather, keyframe | B | ○ |
-| Chroma key / green screen | B (shader) | ○ |
+| **Masks: linear, mirror, circle, rectangle** | B | ● linear, radial, rounded rectangle and a mirror fold; heart and star are shapes nobody has drawn |
+| Mask invert, feather, keyframe | B | ◐ invert and feather are parameters; a mask's own keyframes are not |
+| **Chroma key / green screen** | B (shader) | ● hue-distance key with softness and spill suppression; luma key too |
 | **Auto cutout — remove background, no green screen** | M | ○ |
 | Brush cutout, refine edges | M | ○ |
 | Motion tracking — pin text/sticker to a moving thing | M | ○ |
-| Mosaic / blur that follows a face | M | ○ |
+| Mosaic / blur that follows a face | M | ◐ the mosaic and the mask exist; *following a face* is the model call, and it is not wired |
 | Video stabilisation | R | ○ |
 
 ## 9. Text

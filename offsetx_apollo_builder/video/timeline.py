@@ -308,6 +308,19 @@ class Clip:
     properties: dict[str, float] = field(default_factory=dict)
     keyframes: dict[str, list[Keyframe]] = field(default_factory=dict)
     style: dict[str, Any] = field(default_factory=dict)
+    #: Pixel operations run over this clip, in order.
+    #:
+    #: Each entry names **a declared look or a single primitive**, a strength,
+    #: and any parameters that dial it — never the operations themselves. The
+    #: name is what is stored, so improving a look improves every project that
+    #: used it, and a document stays a few hundred bytes rather than carrying a
+    #: copy of the catalogue.
+    #:
+    #: Order matters and is not sorted: a grade after a grain is a different
+    #: picture from a grain after a grade. ``effects.py`` owns which names are
+    #: real; this module only knows the shape, exactly as it knows the shape of
+    #: a transition without knowing how one is drawn.
+    effects: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def end(self) -> int:
@@ -371,6 +384,7 @@ class Clip:
                 for name, frames in sorted(self.keyframes.items())
             },
             "style": dict(self.style),
+            "effects": [dict(item) for item in self.effects],
         }
 
     @staticmethod
@@ -405,6 +419,7 @@ class Clip:
             properties=properties,
             keyframes=keyframes,
             style=dict(raw.get("style") or {}),
+            effects=[dict(item) for item in (raw.get("effects") or []) if isinstance(item, Mapping)],
         )
 
 

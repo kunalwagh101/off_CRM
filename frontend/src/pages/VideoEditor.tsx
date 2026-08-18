@@ -5,7 +5,8 @@ import { useApp } from "../context";
 import type { Clip, ProjectDoc, ProjectState, RenderManifest } from "../video/document";
 import { TICKS_PER_SECOND, formatTimecode, ticksPerFrame } from "../video/document";
 import { frameAt, projectDuration } from "../video/resolve";
-import { paintFrame, type AssetTable } from "../video/render";
+import { paintFrame, type AssetTable, type PixelStage } from "../video/render";
+import { EffectPipeline } from "../video/shaders/pipeline";
 import { ExportUnsupported, exportProject, exportSupport, loadAssets } from "../video/export";
 import { FootageLibrary } from "../video/footage";
 
@@ -50,6 +51,28 @@ type SpeedPreset = {
   average: number;
   note: string;
 };
+/** One declared look, from the server's effect catalogue. */
+type EffectSummary = {
+  id: string;
+  label: string;
+  pack: string;
+  note: string;
+  passes: number;
+  primitives: string[];
+};
+/** One pixel operation, with what a slider needs to draw itself. */
+type PrimitiveSummary = {
+  id: string;
+  label: string;
+  group: string;
+  note: string;
+  passes: number;
+  numbers: Record<string, {
+    default: number; min: number; max: number; neutral: number | null; scales: boolean;
+  }>;
+  colours: Record<string, string>;
+};
+
 /** One assembly shape, from the server's recipe catalogue. */
 type RecipeSummary = {
   id: string;
@@ -97,6 +120,8 @@ export default function VideoEditor() {
   const [speedCurves, setSpeedCurves] = useState<SpeedPreset[]>([]);
   const [recipeList, setRecipeList] = useState<RecipeSummary[]>([]);
   const [queue, setQueue] = useState<ReviewItem[]>([]);
+  const [looks, setLooks] = useState<EffectSummary[]>([]);
+  const [primitives, setPrimitives] = useState<PrimitiveSummary[]>([]);
   const [table, setTable] = useState<AssetTable>(new Map());
   const [selected, setSelected] = useState("");
   const [playhead, setPlayhead] = useState(0);
@@ -111,6 +136,12 @@ export default function VideoEditor() {
   /** Bumped when something off-screen changes what the canvas should show —
    *  a decoder opening, for one. */
   const [repaint, setRepaint] = useState(0);
+  /** One GPU context for the life of this screen. Building one per frame would
+   *  recompile every shader sixty times a second, and a browser hands a tab a
+   *  small number of WebGL contexts before it starts taking them back. */
+  const pipelineRef = useRef<EffectPipeline | null>(null);
+  if (pipelineRef.current === null) pipelineRef.current = EffectPipeline.create();
+  useEffect(() => () => pipelineRef.current?.dispose(), []);
   const support = useMemo(() => exportSupport(), []);
 
   const project = state?.document ?? null;
@@ -159,6 +190,14 @@ export default function VideoEditor() {
       .get<{ recipes: RecipeSummary[] }>("/video/recipes")
       .then((catalogue) => {
         if (live) setRecipeList(catalogue.recipes ?? []);
+      })
+      .catch(() => undefined);
+    api
+      .get<{ effects: EffectSummary[]; primitives: PrimitiveSummary[] }>("/video/effects")
+      .then((catalogue) => {
+        if (!live) return;
+        setLooks(catalogue.effects ?? []);
+        setPrimitives(catalogue.primitives ?? []);
       })
       .catch(() => undefined);
     return () => {
@@ -433,9 +472,17 @@ export default function VideoEditor() {
     canvas.width = project.width;
     canvas.height = project.height;
     const resolved = frameAt(project, Math.round(playhead));
+    // Seeded by the frame the playhead is on, not by the clock, so scrubbing
+    // back to a frame shows the grain that frame will export with.
+    const stage: PixelStage = {
+      pipeline: pipelineRef.current,
+      effects: manifest?.effects?.clips,
+      seed: Math.floor(Math.round(playhead) / ticksPerFrame(project.fps)),
+      losses: []
+    };
     const library = footageRef.current;
     if (!library || !library.size) {
-      paintFrame(context, project, resolved, table);
+      paintFrame(context, project, resolved, table, undefined, stage);
       return;
     }
     let live = true;
@@ -446,12 +493,12 @@ export default function VideoEditor() {
       .apply(resolved, table)
       .catch(() => undefined)
       .then(() => {
-        if (live) paintFrame(context, project, resolved, table);
+        if (live) paintFrame(context, project, resolved, table, undefined, stage);
       });
     return () => {
       live = false;
     };
-  }, [project, playhead, table, repaint]);
+  }, [project, playhead, table, repaint, manifest]);
 
   // ── keyboard ──────────────────────────────────────────────────────────────
 
@@ -620,6 +667,9 @@ export default function VideoEditor() {
         // Footage and audio both come from imported material, which is the
         // only store that serves whole files rather than pictures.
         mediaUrlFor: (id) => api.url(`/video-media/${id}/file`),
+        // Resolved by the server, so the export filters with exactly what the
+        // preview filtered with.
+        effects: manifest.effects?.clips,
         onProgress: (value) => setProgress(value)
       });
       setProgress({ frame: manifest.frames, frames: manifest.frames, stage: "uploading" });
@@ -909,6 +959,8 @@ export default function VideoEditor() {
             onCaption={runCaptions}
             playhead={playhead}
             speedCurves={speedCurves}
+            looks={looks}
+            primitives={primitives}
             onPlace={async (assetId) => {
               const next = await api.post<ProjectState>(`/video-projects/${state.id}/place-asset`, {
                 asset_id: assetId,
@@ -1040,7 +1092,9 @@ function Inspector({
   onPlaceMedia,
   onCaption,
   playhead,
-  speedCurves
+  speedCurves,
+  looks,
+  primitives
 }: {
   clip: Clip | null;
   project: ProjectDoc;
@@ -1049,6 +1103,8 @@ function Inspector({
   busy: boolean;
   playhead: number;
   speedCurves: SpeedPreset[];
+  looks: EffectSummary[];
+  primitives: PrimitiveSummary[];
   onEdit: (op: string, params: Record<string, unknown>) => Promise<unknown>;
   onPlace: (assetId: string) => Promise<void>;
   onImport: (file: File) => Promise<void>;
@@ -1235,6 +1291,19 @@ function Inspector({
           <div className="vinspector-divider" />
         </>
       ) : null}
+      {clip.kind !== "audio" ? (
+        <>
+          <p className="vinspector-heading">Look</p>
+          <EffectStack
+            clip={clip}
+            busy={busy}
+            looks={looks}
+            primitives={primitives}
+            onEdit={onEdit}
+          />
+          <div className="vinspector-divider" />
+        </>
+      ) : null}
       {(
         [
           ["scale", "Scale", 0.1, 4, 0.01],
@@ -1286,5 +1355,197 @@ function Inspector({
         </Button>
       </div>
     </Panel>
+  );
+}
+
+/**
+ * A clip's effect stack: what is on it, in what order, and how strongly.
+ *
+ * The list is the feature. Everything else an editor does to a clip is a set of
+ * independent knobs; a stack is ordered, and a grade after a grain is a
+ * different picture from a grain after a grade — so this shows the order, lets
+ * it be changed, and never sorts it.
+ *
+ * Looks are grouped by pack because a flat list of a hundred-odd names is not
+ * something anyone chooses from. The bare primitives are behind their own
+ * picker, for the case the catalogue does not name.
+ */
+function EffectStack({
+  clip,
+  busy,
+  looks,
+  primitives,
+  onEdit
+}: {
+  clip: Clip;
+  busy: boolean;
+  looks: EffectSummary[];
+  primitives: PrimitiveSummary[];
+  onEdit: (op: string, params: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const stack = clip.effects ?? [];
+  const byPack = useMemo(() => {
+    const grouped = new Map<string, EffectSummary[]>();
+    for (const look of looks) {
+      const list = grouped.get(look.pack) ?? [];
+      list.push(look);
+      grouped.set(look.pack, list);
+    }
+    return [...grouped.entries()];
+  }, [looks]);
+  const labels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const look of looks) map.set(`preset:${look.id}`, look.label);
+    for (const item of primitives) map.set(`primitive:${item.id}`, item.label);
+    return map;
+  }, [looks, primitives]);
+
+  const nameOf = (entry: NonNullable<Clip["effects"]>[number]) =>
+    labels.get(entry.preset ? `preset:${entry.preset}` : `primitive:${entry.primitive}`) ??
+    entry.preset ??
+    entry.primitive ??
+    "?";
+
+  return (
+    <>
+      {stack.length ? (
+        <ul className="vstack">
+          {stack.map((entry, index) => (
+            <li key={`${entry.preset ?? entry.primitive}-${index}`}>
+              <div className="vstack-row">
+                <strong>{nameOf(entry)}</strong>
+                <div className="vstack-move">
+                  <button
+                    type="button"
+                    disabled={busy || index === 0}
+                    title="Earlier in the stack"
+                    onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index - 1 })}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || index === stack.length - 1}
+                    title="Later in the stack"
+                    onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index + 1 })}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title="Remove"
+                    onClick={() => onEdit("remove_effect", { clip_id: clip.id, index })}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              {/* Strength is free for every look: zero is a guaranteed no-op,
+                  because every scaling parameter interpolates from the value at
+                  which its operation does nothing. */}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                defaultValue={entry.amount}
+                onMouseUp={(event) =>
+                  onEdit("set_effect", {
+                    clip_id: clip.id,
+                    index,
+                    amount: Number((event.target as HTMLInputElement).value)
+                  })
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vinspector-empty">
+          Nothing on this clip yet. A look is a stack of pixel operations, and
+          the order is part of it.
+        </p>
+      )}
+
+      <label className="vinspector-field">
+        <span>Add a look</span>
+        <select
+          value=""
+          disabled={busy || !looks.length}
+          onChange={(event) => {
+            if (event.target.value) {
+              void onEdit("add_effect", { clip_id: clip.id, preset: event.target.value });
+            }
+          }}
+        >
+          <option value="">Choose…</option>
+          {byPack.map(([pack, items]) => (
+            <optgroup key={pack} label={pack}>
+              {items.map((look) => (
+                <option key={look.id} value={look.id}>
+                  {look.label} — {look.note}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+
+      <label className="vinspector-field">
+        <span>Or one operation</span>
+        <select
+          value=""
+          disabled={busy || !primitives.length}
+          onChange={(event) => {
+            if (event.target.value) {
+              void onEdit("add_effect", { clip_id: clip.id, primitive: event.target.value });
+            }
+          }}
+        >
+          <option value="">Choose…</option>
+          {["tone", "focus", "distort", "texture", "shape"].map((group) => (
+            <optgroup key={group} label={group}>
+              {primitives
+                .filter((item) => item.group === group)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+
+      {stack.length ? (
+        <div className="vinspector-actions">
+          <Button
+            tone="ghost"
+            disabled={busy}
+            onClick={() => onEdit("clear_effects", { clip_id: clip.id })}
+          >
+            Clear
+          </Button>
+          <Button
+            tone="ghost"
+            disabled={busy || !stack.length}
+            title="Put this clip's whole stack on every picture clip"
+            onClick={() => {
+              const first = stack[0];
+              void onEdit("apply_effect_to_all", {
+                preset: first.preset ?? "",
+                primitive: first.primitive ?? "",
+                amount: first.amount,
+                params: first.params,
+                replace: true
+              });
+            }}
+          >
+            Apply to all
+          </Button>
+        </div>
+      ) : null}
+    </>
   );
 }

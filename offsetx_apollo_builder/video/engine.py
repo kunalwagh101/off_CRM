@@ -49,6 +49,7 @@ from . import assembly
 from . import captions as captioning
 from . import director
 from . import edits
+from . import effects as fx
 from . import mixdown
 from .gates import VideoDecodeError, VideoGateReport, probe, run_gates
 from .store import VideoStore
@@ -848,6 +849,30 @@ class VideoEditorEngine:
             )
         mix["notes"] = notes
 
+        # Every clip's effect stack, flattened into the passes the renderer
+        # runs. Resolved here rather than in the browser for two reasons: the
+        # catalogue is far too large to ship in order to draw one clip, and a
+        # look nobody declared must never reach a renderer that would have to
+        # decide what to do about it. Constant per clip, so it costs one pass of
+        # arithmetic per manifest rather than one per frame.
+        chains: dict[str, list[dict[str, Any]]] = {}
+        passes = 0
+        for track in project.tracks:
+            for clip in track.clips:
+                if not clip.effects:
+                    continue
+                try:
+                    chain = fx.resolve_stack(clip.effects)
+                except (fx.UnknownEffect, fx.UnknownPrimitive, ValueError) as exc:
+                    # A document can only get here by being written by something
+                    # other than the edit operations, or by an id being retired
+                    # out from under it. Either way it is a warning and not a
+                    # crash, and the clip draws unfiltered rather than not at all.
+                    warnings.append(f"Clip {clip.id} has an effect that no longer exists: {exc}")
+                    continue
+                chains[clip.id] = chain
+                passes += sum(int(step["passes"]) for step in chain)
+
         return {
             "project_id": project.id,
             "version": int(state.record["version"]),
@@ -863,6 +888,12 @@ class VideoEditorEngine:
             "background": project.background,
             "assets": assets,
             "mix": mix,
+            "effects": {
+                "clips": chains,
+                # What the picture costs, so the editor can say "this will be
+                # slow" before somebody waits for it rather than after.
+                "passes_per_frame": passes,
+            },
             "warnings": warnings,
             "renderable": not warnings,
         }

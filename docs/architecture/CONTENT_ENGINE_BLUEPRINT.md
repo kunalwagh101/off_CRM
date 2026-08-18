@@ -470,10 +470,23 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
   published through the distribution campaign with the video's own bytes in the
   outbox, verified byte for byte on a live server.
 
-### Stage 6 — The effect engine *(~40 primitives, ~800 presets)*
-- Shader primitives, then transitions/effects/filters as declared data
+### Stage 6 — The effect engine ✅
+- ✅ **48 GPU primitives** as WebGL2 fragment programs — tone, focus,
+  distortion, texture, masks and keys — shared by the preview and the export
+- ✅ **124 looks as declared data**, each an *ordered stack* of primitives; a
+  new one is one row and no code anywhere
+- ✅ **A strength slider on every look, for free**: each parameter declares the
+  value at which its operation does nothing, so `amount=0` is a guaranteed
+  no-op — verified bit-exact over all 124 in a real browser
+- ✅ The seven properties the document has declared since day one and the
+  painter never drew: tint, sharpen, grain, vignette, corner radius, border,
+  shadow
+- ⬜ LUT import, an effect *track*, and keyframing an effect's strength
 - **Unlocks:** the search space the orchestrator needs to be interesting.
-- **Acceptance:** a preset added in YAML with no code change; orchestrator picks a recipe from ≥ 200 candidates.
+- **Acceptance:** ✅ a look added as one row with no code change; ✅ 48 shaders
+  compiled by a real driver with nineteen exact pixel predictions matched; ✅ the
+  orchestrator can pick from **124 looks plus 48 bare operations** — a clip's
+  stack may reference either, so it can compose what the catalogue does not name.
 
 ### Stage 7 — Platform adapters
 - YouTube first (only one usable now), then Instagram/Facebook on approval

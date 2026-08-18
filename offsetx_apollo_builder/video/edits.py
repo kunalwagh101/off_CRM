@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
+from . import effects as fx
 from . import presets
 from .timeline import (
     BLEND_MODES,
@@ -958,6 +959,7 @@ def copy_attributes(
     properties: bool = True,
     keyframes: bool = False,
     style: bool = True,
+    effects: bool = True,
 ) -> Project:
     """Paste one clip's look onto others.
 
@@ -965,6 +967,10 @@ def copy_attributes(
     clip's length, and pasting them onto a clip of a different length puts the
     animation somewhere nobody chose. Asking for them explicitly is the point at
     which the caller has thought about that.
+
+    Effects are **on** by default, and are *replaced* rather than merged. A
+    stack is an ordered thing; merging two of them produces an order neither
+    clip had, which is the one result nobody asked for.
     """
     result = _copy(project)
     _, source = result.find_clip(from_clip_id)
@@ -983,6 +989,8 @@ def copy_attributes(
                 ]
                 for name, frames in source.keyframes.items()
             }
+        if effects and clip.kind != "audio":
+            clip.effects = [dict(item) for item in source.effects]
     return result
 
 
@@ -1045,6 +1053,180 @@ def rename(project: Project, *, name: str) -> Project:
 #: Every operation, by the name the API and the history use. Adding a function
 #: above without adding it here means it cannot be called, which is the right
 #: default for an editor whose whole contract is that the document is valid.
+# ── effects ─────────────────────────────────────────────────────────────────
+#
+# A clip's effect stack is a list, and the list is ordered. Every operation here
+# is therefore about *position* as much as about content — which is why there is
+# a `move_effect` and no `set_effects`: replacing the whole list wholesale is how
+# a UI loses an order the person deliberately arranged.
+
+
+def _effect_stack(clip: Clip) -> list[dict[str, Any]]:
+    return [dict(item) for item in clip.effects]
+
+
+def _at(stack: list[dict[str, Any]], index: int, *, what: str) -> int:
+    if not stack:
+        raise TimelineError(f"This clip has no effects, so there is nothing to {what}.")
+    position = int(index)
+    if position < 0 or position >= len(stack):
+        raise TimelineError(
+            f"There is no effect {position} on this clip — it has {len(stack)}, "
+            f"numbered 0 to {len(stack) - 1}."
+        )
+    return position
+
+
+def add_effect(
+    project: Project,
+    *,
+    clip_id: str,
+    preset: str = "",
+    primitive: str = "",
+    amount: float = 1.0,
+    params: Mapping[str, Any] | None = None,
+    index: int = -1,
+) -> Project:
+    """Put a look, or one bare pixel operation, onto a clip.
+
+    ``index`` is where in the stack it goes; the default appends, which is what
+    "add a filter" means. Inserting matters because the order is the look — a
+    vignette before a blur is blurred, and a vignette after one is not.
+
+    The name is checked here against :mod:`effects`, so an id nobody declared
+    never reaches a document. That is the same boundary a transition preset is
+    checked at, and for the same reason: a stored name that resolves to nothing
+    is a picture that silently loses a step.
+    """
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    if clip.kind == "audio":
+        raise TimelineError(
+            "An audio clip has no picture to filter. Effects are pixel "
+            "operations; for sound, use volume, fades and keyframes."
+        )
+    try:
+        entry = fx.normalise(
+            {"preset": preset, "primitive": primitive, "amount": amount, "params": params or {}}
+        )
+    except (fx.UnknownEffect, fx.UnknownPrimitive, ValueError) as exc:
+        raise TimelineError(str(exc)) from exc
+
+    stack = _effect_stack(clip)
+    position = len(stack) if int(index) < 0 else max(0, min(len(stack), int(index)))
+    stack.insert(position, entry)
+    clip.effects = stack
+    # Resolve the whole stack, not just the new entry: the ceiling is on the
+    # clip, and a preset that costs five passes can only be caught in context.
+    try:
+        fx.resolve_stack(stack)
+    except ValueError as exc:
+        raise TimelineError(str(exc)) from exc
+    return _commit(result, track)
+
+
+def remove_effect(project: Project, *, clip_id: str, index: int) -> Project:
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    stack = _effect_stack(clip)
+    stack.pop(_at(stack, index, what="remove"))
+    clip.effects = stack
+    return _commit(result, track)
+
+
+def move_effect(project: Project, *, clip_id: str, index: int, to: int) -> Project:
+    """Reorder the stack. The one edit that changes nothing but the result."""
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    stack = _effect_stack(clip)
+    position = _at(stack, index, what="move")
+    target = max(0, min(len(stack) - 1, int(to)))
+    stack.insert(target, stack.pop(position))
+    clip.effects = stack
+    return _commit(result, track)
+
+
+def set_effect(
+    project: Project,
+    *,
+    clip_id: str,
+    index: int,
+    amount: float | None = None,
+    params: Mapping[str, Any] | None = None,
+) -> Project:
+    """Dial one entry: its strength, or the parameters that shape it.
+
+    ``params`` merges rather than replaces, so turning one knob does not silently
+    reset the others.
+    """
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    stack = _effect_stack(clip)
+    position = _at(stack, index, what="change")
+    entry = dict(stack[position])
+    if amount is not None:
+        entry["amount"] = float(amount)
+    if params is not None:
+        entry["params"] = {**dict(entry.get("params") or {}), **dict(params)}
+    try:
+        stack[position] = fx.normalise(entry)
+    except (fx.UnknownEffect, fx.UnknownPrimitive, ValueError) as exc:
+        raise TimelineError(str(exc)) from exc
+    clip.effects = stack
+    return _commit(result, track)
+
+
+def clear_effects(project: Project, *, clip_id: str) -> Project:
+    result = _copy(project)
+    track, clip = result.find_clip(clip_id)
+    _assert_editable(track)
+    clip.effects = []
+    return _commit(result, track)
+
+
+def apply_effect_to_all(
+    project: Project,
+    *,
+    preset: str = "",
+    primitive: str = "",
+    amount: float = 1.0,
+    params: Mapping[str, Any] | None = None,
+    track_id: str = "",
+    replace: bool = False,
+) -> Project:
+    """The "apply to all clips" button, which every editor has and every editor
+    needs, because grading one clip of twelve is worse than grading none.
+
+    ``replace`` clears each clip's stack first. Without it the look is appended,
+    so pressing it twice stacks two copies — which is occasionally what someone
+    wants and never what they expect, hence the flag rather than a guess.
+    """
+    result = project
+    targets = [track for track in project.tracks if track.kind == "video"]
+    if track_id:
+        targets = [track for track in targets if track.id == track_id]
+        if not targets:
+            raise TimelineError(f"No video track {track_id!r} to apply an effect to.")
+    clip_ids = [
+        clip.id for track in targets if not track.locked
+        for clip in track.clips if clip.kind != "audio"
+    ]
+    if not clip_ids:
+        raise TimelineError("There are no editable picture clips to apply that to.")
+    for clip_id in clip_ids:
+        if replace:
+            result = clear_effects(result, clip_id=clip_id)
+        result = add_effect(
+            result, clip_id=clip_id, preset=preset, primitive=primitive,
+            amount=amount, params=params,
+        )
+    return result
+
+
 OPERATIONS: dict[str, Callable[..., Project]] = {
     "add_track": add_track,
     "remove_track": remove_track,
@@ -1079,6 +1261,12 @@ OPERATIONS: dict[str, Callable[..., Project]] = {
     "apply_animation": apply_animation,
     "apply_text_style": apply_text_style,
     "set_blend_mode": set_blend_mode,
+    "add_effect": add_effect,
+    "remove_effect": remove_effect,
+    "move_effect": move_effect,
+    "set_effect": set_effect,
+    "clear_effects": clear_effects,
+    "apply_effect_to_all": apply_effect_to_all,
     "copy_attributes": copy_attributes,
     "add_marker": add_marker,
     "remove_marker": remove_marker,

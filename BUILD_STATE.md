@@ -9,16 +9,16 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-08-18
 Branch: `main`
-Tests: **1309 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 96 frontend passed, frontend build clean.
+Tests: **1358 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 115 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 54 of its 162
-rows built, 15 partly, 45% of the reachable rows touched.
+from, and it now carries a **status column and a scoreboard**: 61 of its 162
+rows built, 18 partly, 52% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
 wired: `docs/architecture/AUTO_CAPTIONS.md`, and read its section on audio
@@ -744,6 +744,61 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 6 — the effect engine: 48 primitives, 124 looks (2026-08-18)
+- [x] **The largest part of an editor, made searchable.** CapCut's eight hundred
+      filters written as eight hundred implementations are eight hundred things
+      nothing can rank. `video/effects.py` declares **48 pixel operations** and
+      **124 looks over them**; `frontend/src/video/shaders/` implements the
+      operations in GLSL. A new look is one row. Feature map 54 → **61 built**,
+      45% → **52%** of the reachable rows.
+- [x] **A look is an ordered stack, not a knob.** `noir` is a desaturation, a
+      contrast, a vignette and a grain — in that order, because they do not
+      commute. So a preset is a list of `(primitive, params)` and the renderer
+      runs it as a chain of full-screen passes, ping-ponged between two textures.
+- [x] **Every look gets a strength slider for free.** Each parameter declares
+      the value at which its primitive does *nothing*; applying at `amount`
+      interpolates from there. Colours and structural choices — a mirror's axis,
+      a kaleidoscope's segment count — declare no neutral and do not
+      interpolate, because half a fold is a different picture and not a weaker
+      one.
+- [x] **The server resolves; the browser executes.** The manifest carries each
+      clip's stack already flattened into passes. Deliberately the opposite of
+      how a transition works, and for a reason worth writing down: a transition
+      is one row, a look is a stack drawn from a hundred-odd of them, and nobody
+      should download the catalogue to draw one clip. It also means **a look
+      nobody declared cannot reach a shader**.
+- [x] **Seven controls that were declared and never drawn.** `PROPERTY_SPEC` has
+      carried `tint`, `sharpen`, `grain`, `vignette`, `corner_radius`,
+      `border_width` and `shadow` since the timeline was written — stored,
+      clamped, animated, and drawn by nothing, because a 2D canvas cannot. All
+      seven are primitives now, and `temperature` stopped being a sepia wash
+      plus a hue rotation and became the red/blue rebalance it always claimed.
+- [x] **Nothing is random.** Grain and noise seed from the *frame index*, never
+      the clock. A preview and an export that disagreed about the grain would be
+      two different videos, and a re-export has to produce yesterday's file.
+- [x] **A machine with no WebGL2 still exports**, falls back to CSS filters, and
+      **names what it lost** per clip rather than handing back a picture that is
+      quietly wrong.
+- [x] **A test reads the other language.** Every primitive must have a shader and
+      every shader a primitive, with parameter names matching in both
+      directions — parsed out of the TypeScript, because nothing else would
+      notice a rename on one side.
+- [x] **Two real bugs, both found by running it.** `edge` took a parameter called
+      `mix`, which shadows the GLSL builtin and compiles right until something
+      below it calls `mix()` — there is a test for that class now. And
+      `posterize` neutralised at 64 levels, so a preset containing one was not
+      *quite* a no-op at strength zero; its neutral is 256 and the drift over the
+      whole catalogue is now 0/255.
+- [x] **Verified against real pixels, not assertions.** Headless Chromium on
+      ANGLE/SwiftShader compiled all 48 programs; nineteen exact predictions
+      computed in Python matched the GPU (invert, one stop of exposure, Rec.709
+      luma, the sepia matrix, a 120° hue rotation, chroma and luma keys to alpha
+      0, a blur turning a hard edge into 99/156/166); **all 124 looks at
+      strength zero drifted 0/255**; and `paintFrame` itself put `mono` on a
+      clip at `[119,119,119]` and darkened a vignette's corner from 255 to 110.
+- [x] 49 effect tests and 19 frontend tests. **1,358 Python tests, 115
+      frontend**, build clean.
 
 ### Stage 5e — the review queue: push, ignore, edit (2026-08-18)
 - [x] **The gate between a machine that makes videos alone and an audience.**

@@ -31,6 +31,7 @@ from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
+from ..video.effects import catalogue as video_effects_catalogue
 from ..video.presets import catalogue as video_preset_catalogue
 from ..video.recipes import catalogue as video_recipe_catalogue
 from ..video.engine import VideoEditorEngine
@@ -1197,6 +1198,19 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "notes": report.notes,
             "direction": direction.to_dict(),
         }
+
+    @app.get(f"{API_PREFIX}/video/effects")
+    def video_effects() -> dict[str, Any]:
+        """Every pixel operation and every declared look.
+
+        Two lists, because they are two different things to pick from: a
+        primitive is an operation with parameters, and a look is an ordered
+        stack of them that somebody named. A clip's effect stack may reference
+        either, which is what lets an orchestrator compose something the
+        catalogue does not contain yet without being able to invent an operation
+        the renderer cannot run.
+        """
+        return video_effects_catalogue()
 
     @app.get(f"{API_PREFIX}/video/recipes")
     def video_recipes() -> dict[str, Any]:

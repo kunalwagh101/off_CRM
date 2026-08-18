@@ -604,6 +604,129 @@ assemble / direct ──→ review (waiting) ──┬── push ──→ rend
 
 ---
 
+## The effect engine: 48 operations in code, a catalogue as data
+
+The largest part of an editor by a wide margin, and the one that decides whether
+an orchestrator has anything to search.
+
+CapCut ships something like eight hundred filters and effects. Written as eight
+hundred implementations they are eight hundred units of work and, worse, **eight
+hundred things nothing can rank**. Written over a small set of pixel operations
+they are one code change per operation and one row per look — and a row can be
+scored, A/B tested and picked by a bandit, because it is data.
+
+```
+48 primitives  (GLSL, in the browser)     the code
+124 looks      (rows, in effects.py)      the data
+```
+
+**A look is an ordered stack, not a knob.** `noir` is a desaturation, then a
+contrast, then a vignette, then a grain — in that order, because these do not
+commute. So a preset is a list of `(primitive, params)` and the renderer runs it
+as a chain of full-screen passes.
+
+### Every look gets a strength slider for free
+
+Each parameter declares the value at which its primitive **does nothing** — its
+*neutral*. Applying at `amount` interpolates every scaling parameter from
+neutral toward the value the preset asked for. So `amount=0` is a guaranteed
+no-op and `amount=0.5` is half the look, and no preset ever had to think about
+it.
+
+Parameters with no neutral do not interpolate: colours, a mirror's axis, a
+kaleidoscope's segment count. **Half a fold is not a weaker fold, it is a
+different picture.**
+
+That promise is load-bearing enough to be checked twice — over all 124 looks in
+Python, and again over all 124 in a real browser against a known source colour.
+The browser run found the one place it did not hold: `posterize` neutralised at
+64 levels, and an 8-bit channel quantised to 64 levels is off by about one step.
+Its neutral is 256 now, and the drift over the whole catalogue is **0/255**.
+
+### Where the resolution happens, and why it differs from transitions
+
+A transition preset is resolved **in the browser**: the catalogue is fetched
+once and the painter looks up a name. An effect preset is resolved **on the
+server** and arrives in the manifest already flattened into passes.
+
+The difference is not an inconsistency, it is the size of the two catalogues. A
+transition is one row; a look is an ordered stack drawn from a hundred-odd of
+them, and nobody should download the catalogue in order to draw one clip. It has
+a second benefit that matters more: **a look nobody declared cannot reach a
+shader**, because the only thing that crosses the wire is names of primitives
+and numbers.
+
+A clip's stack is constant, so this costs one pass of arithmetic per manifest
+rather than one per frame.
+
+### The pipeline
+
+Two textures, swapped — the classic ping-pong — so a chain of any length uses
+the memory of a chain of one. Each primitive is one full-screen draw whose
+output becomes the next one's input. The separable gaussian is two passes,
+horizontal then vertical, because a two-dimensional gaussian done properly is
+two one-dimensional ones and doing it in a single pass costs the square of the
+samples for the same picture. Bloom, soft focus, tilt shift and drop shadow each
+want a blurred copy of their input, so they cost three.
+
+**The preview and the export share it**, which is the same rule the rest of this
+feature runs on: a preview drawn by different code than the export is a preview
+that lies.
+
+**Nothing is random.** Grain and noise take a seed derived from the *frame
+index*, never from `Math.random` or the clock. A preview and an export that
+disagreed about the grain would be two different videos, and a re-export has to
+produce the file it produced yesterday.
+
+**Filters cannot move anything.** The chain runs on the clip's own pixels, at
+its own size, with its crop already taken — so a vignette vignettes *the clip*
+and a rounded corner rounds *the clip*. Position, rotation, scale and blend mode
+stay in the 2D context above it. That split is why an effect can never break a
+transform.
+
+**A machine with no WebGL2 still exports.** `EffectPipeline.create` returns null
+rather than throwing; the painter falls back to the CSS filters it used to use
+and **reports which clips lost what**. A canvas filter can express light,
+contrast, saturation and blur, and cannot express a vignette, a grain, a key or
+a mask. Saying so is better than a picture that is quietly wrong.
+
+### Seven properties that were declared and never drawn
+
+`PROPERTY_SPEC` has carried `tint`, `sharpen`, `grain`, `vignette`,
+`corner_radius`, `border_width` and `shadow` since the timeline was written. The
+document stored them, clamped them and animated them — and the painter drew
+**none** of them, because a 2D canvas cannot. Every one is a primitive now, and
+`temperature` stopped being a sepia wash plus a hue rotation and became the
+red/blue rebalance the control always claimed to be.
+
+### The names match, and a test reads the other language to prove it
+
+Every primitive in `effects.py` has a program in `shaders/glsl.ts`, and every
+parameter arrives as a uniform of the same name. Nothing translates between the
+two files, so nothing can translate them differently — but only if the names
+actually match, so `test_video_effects.py` parses the TypeScript and compares
+the two sets in both directions. A primitive with no shader fails; a shader for
+a primitive nobody declared fails too, because that is dead code that looks like
+a feature.
+
+There is also a test asserting no uniform is named after a GLSL builtin. It
+exists because one was: `edge` took a parameter called `mix`, which compiles
+right up until something below it calls `mix()`.
+
+### What an orchestrator gets
+
+An effect reference names **a declared look or a single primitive**. Allowing a
+bare primitive is not a hole in default-deny — a primitive id is as declared as
+a preset id — and it is what lets the layer above compose something the
+catalogue does not contain yet, without being able to invent an operation the
+renderer cannot run.
+
+The ceiling is 48 operations on one clip. Not a performance guess: every one is
+a full-screen draw at the project's resolution, and this is what stops a
+document from being a denial of service against the machine drawing it.
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -742,6 +865,36 @@ outside this project:
    pointing at it published, with **the video's own bytes** landing in the
    outbox — compared byte for byte against the file that was uploaded. A second
    verdict on the same review came back 422.
+10. **All 48 shaders were compiled by a real driver, and the pixels were
+    measured.** Headless Chromium on ANGLE/SwiftShader: every program compiled,
+    none failed to link. Then nineteen exact predictions, computed in Python and
+    compared against what the GPU returned:
+
+    ```
+    invert      #4080c0 → [191,127,63]   255 minus each channel
+    exposure    +1 stop  64 → 128        a stop is a doubling
+    grayscale   #4080c0 → 119            the Rec.709 luma
+    sepia       white   → [255,255,239]  the standard matrix
+    hue_rotate  red +120° → pure green
+    temperature +1 on grey → [174,128,82]  +0.18 R, −0.18 B
+    chroma_key  pure green → alpha 0     and a red → alpha 255
+    mask_radial centre alpha 255, corner alpha 0
+    blur        a hard edge → 99 / 156 / 166 across the frame
+    pixelate    one 64px cell flattens a black/white split to 128
+    ```
+
+    Every one matched. Then the strength promise over the **whole catalogue**:
+    all 124 looks applied at `amount=0` to a known colour, with a largest drift
+    of **0/255**. The first run of that was not clean — `posterize` was off by
+    one step — which is exactly why it was run over 124 and not over four.
+11. **The painter was checked too, not only the shaders.** A two-clip project
+    through `paintFrame` in the same browser: a `#4080c0` solid carrying the
+    `mono` look came back `[119,119,119]` at the centre and the corner, and a
+    white solid with the **vignette property** at 1.0 came back `[255,255,255]`
+    in the middle and `[110,110,110]` in the corner — a control that had been in
+    `PROPERTY_SPEC` for months without drawing anything. Run again with the
+    pipeline forced to null, both clips drew unfiltered and the painter named
+    what it had lost: `[["clip_b2ce…", ["effects"]], ["clip_ef5f…", ["vignette"]]]`.
 
 ---
 
@@ -806,6 +959,7 @@ even if its id is known.
 
 ```
 GET    /video/presets                              canvas shapes, frame rates, edit names
+GET    /video/effects                              48 pixel primitives, 124 looks
 POST   /campaigns/{id}/video-projects              {"name","preset","fps"}
 GET    /campaigns/{id}/video-projects
 GET    /campaigns/{id}/image-assets?status=approved  what can go on the timeline
@@ -878,6 +1032,15 @@ feature map makes it look larger.
 - **One fade per clip, governing picture and sound together.** Separate video
   and audio fades are real; a clip whose picture fades while its audio stays at
   full is worse than either, so one fade drives both until there are two.
+- **An effect's strength does not animate.** A clip's stack carries one number
+  per entry, and it is static. Keyframing it means naming an effect's parameter
+  in the keyframe model, which is keyed by property name — a real feature, and a
+  different one from this.
+- **No LUT import.** A `.cube` file is a 3D lookup table and wants a sampler of
+  its own. The looks here are ordered operations rather than tables, which is
+  what gives every one of them a strength slider a LUT cannot have.
+- **No effect track.** Applying to all clips exists; an effect that spans a
+  stretch of timeline independently of the clips under it does not.
 - **Nothing learns from the queue yet.** The diff is measured and stored on
   every verdict, so the signal starts collecting the day the queue exists — but
   no recipe is reweighted and no director prompt changes because of it. That is

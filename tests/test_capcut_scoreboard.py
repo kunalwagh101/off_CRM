@@ -91,18 +91,38 @@ def test_auto_captions_is_marked_built_because_it_is():
 def test_nothing_claims_to_be_built_that_the_code_does_not_have():
     """Spot-check the claims that would be easiest to inflate.
 
-    Masks and keying need shader work that does not exist; MP4 needs a second
-    muxer; text-to-video needs a generator nobody has wired. None of them may
-    be marked built, whatever else moves.
+    MP4 needs a second muxer; text-to-video needs a generator nobody has wired;
+    cutout and tracking are model calls. None of them may be marked built,
+    whatever else moves.
+
+    Masks and keying used to be on this list and are not any more — the shader
+    stage exists, so the guard on them moved to the *other* direction, below.
     """
     marks = {feature: mark for feature, _, mark in rows()}
-    for feature, mark in marks.items():
-        if feature.startswith("Masks:") or "Chroma key" in feature or "Mask invert" in feature:
-            assert mark == NOT_BUILT, f"{feature!r} is not built"
     assert marks["MP4 / MOV, H.264 / HEVC"] == NOT_BUILT
     assert marks["**Text to video**"] == NOT_BUILT
     assert marks["Smooth slow motion (frame interpolation)"] == NOT_BUILT
     assert marks["Motion blur between keyframes"] == NOT_BUILT
+    assert marks["**Auto cutout — remove background, no green screen**"] == NOT_BUILT
+    assert marks["Motion tracking — pin text/sticker to a moving thing"] == NOT_BUILT
+    assert marks["LUT import"] == NOT_BUILT
+
+
+def test_the_rows_the_effect_engine_delivered_are_marked_built():
+    """48 pixel primitives and a catalogue over them. These are the rows that
+    stop being a promise the moment a shader stops compiling, so they are named
+    here rather than counted."""
+    marks = {feature: mark for feature, _, mark in rows()}
+    for feature in (
+        "**Video effects: glitch, VHS, retro, film grain, flash**",
+        "**Filter presets by category**",
+        "**Filter intensity slider**",
+        "**Highlights, shadows, temperature, tint**",
+        "**Sharpen, vignette, fade, grain**",
+        "**Masks: linear, mirror, circle, rectangle**",
+        "**Chroma key / green screen**",
+    ):
+        assert marks[feature] == BUILT, f"{feature!r} shipped and is not marked built"
 
 
 def test_the_rows_stage_two_delivered_are_marked_built():

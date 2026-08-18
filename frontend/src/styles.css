@@ -862,6 +862,15 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .vproject-list button:hover { border-color: var(--blue); }
 .vproject-list span { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
 
+/* The review queue: push, ignore, edit ------------------------------------- */
+.vqueue { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.vqueue li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px; background: white; }
+.vqueue-what { display: grid; gap: 4px; min-width: 0; }
+.vqueue-what strong { font-size: .86rem; }
+.vqueue-what > span { color: var(--muted); font-size: .74rem; }
+.vqueue-blocker { color: #8a5a12; font-size: .72rem; font-style: normal; line-height: 1.5; }
+.vqueue-verdict { display: flex; gap: 8px; flex-shrink: 0; }
+
 .vasset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .vasset-grid button { display: block; width: 100%; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; padding: 0; background: #f4f6f9; }
 .vasset-grid button:hover { border-color: var(--blue); }

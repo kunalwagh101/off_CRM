@@ -7,9 +7,9 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-16
+Last updated: 2026-08-18
 Branch: `main`
-Tests: **1266 Python passed, 0 failed**, 4 skipped (live Docker egress test;
+Tests: **1309 Python passed, 0 failed**, 4 skipped (live Docker egress test;
 set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 96 frontend passed, frontend build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -17,7 +17,7 @@ The video editor is built: `offsetx_apollo_builder/video/` plus
 `docs/architecture/VIDEO_EDITOR.md` before touching either resolver — there are
 two implementations of one rule and a conformance fixture holding them together.
 `docs/architecture/CAPCUT_FEATURE_MAP.md` is the feature inventory it was cut
-from, and it now carries a **status column and a scoreboard**: 53 of its 161
+from, and it now carries a **status column and a scoreboard**: 54 of its 162
 rows built, 15 partly, 45% of the reachable rows touched.
 `tests/test_capcut_scoreboard.py` recomputes those counts from the table, so the
 summary cannot drift from what it summarises. Auto-captions is the first AI row
@@ -744,6 +744,60 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+### Stage 5e — the review queue: push, ignore, edit (2026-08-18)
+- [x] **The gate between a machine that makes videos alone and an audience.**
+      Every assembled or directed project now lands in a queue by itself, and
+      nothing leaves it except through a person pressing push or ignore. The
+      button the owner asked for early and video never had. Feature map 53 →
+      **54 built** of 162; still 45% of the reachable rows.
+- [x] **Two verdicts, three buttons.** Push and ignore are the answers; *edit*
+      is what you do before answering. There is deliberately no stored `edited`
+      flag — it is `project.version != baseline_version`, a question the
+      document already answers. A flag written at edit time goes stale the
+      moment somebody undoes back to the start.
+- [x] **Push requires a passing export of *this* version.** What distribution
+      publishes is bytes, not a document. Without the "of this version" half the
+      common accident is fatal: export, keep editing, push, and publish a video
+      the owner is no longer looking at. Three refusals, each a sentence the
+      owner can act on: never exported / gates failed / edited since exported.
+- [x] **The diff is measured on both verdicts and stored with them.**
+      `assembly.difference(baseline, current)` — the learning signal starts
+      collecting the day the queue exists. An owner who pushed something
+      untouched approved of the assembler; one who rebuilt half of it first said
+      something far more specific, and named the clips. An ignore after twenty
+      minutes of editing is a different verdict from one on sight.
+- [x] **The baseline is copied into the review, not looked up later.**
+      `video_history` is capped at 300, so a project worked on for an afternoon
+      loses the very version the machine produced. There is a test that edits
+      past the cap and proves the diff still means what it says.
+- [x] **A verdict is given once**, in the engine and again in the store beneath
+      it. A number that moves when you click twice is not a score. One *open*
+      review per project is a partial unique index in SQLite rather than a
+      check-then-insert two requests can both pass; a project ignored and later
+      re-cut can be sent back, and both verdicts are kept.
+- [x] **The handoff is real, and cost one function.** `GET
+      /campaigns/{id}/video-approved` answers what
+      `/image-assets?status=approved` answers for pictures, with the same row
+      shape. The API's asset resolver tries the image store then the render
+      store, so a post carrying a render id publishes the video and the
+      publisher learned nothing. A render that **failed its gates is not
+      resolvable** — posting one would walk around the checks.
+- [x] **A real bug fixed on the way.** `difference()` computed
+      `kept = |old ∩ new| - moved - removed`, but removed clips are already
+      outside the intersection, so every one was counted twice and `kept_share`
+      understated what survived — the exact number this queue makes a headline.
+      Four clips, one removed, one trimmed read 0.25 instead of 0.5.
+- [x] **Verified on a live server, not only in tests.** Real uvicorn, real
+      SQLite: an assembled project appeared in the queue by itself marked
+      not-ready with its sentence; push before an export → 422 *"Nothing has
+      been exported yet"*; an edit after one → *"This has been edited since it
+      was last exported"*; re-export → push with `kept_share 1.0`; the render
+      under `/video-approved`; a post pointing at it published with **the
+      video's own bytes** in the outbox, compared byte for byte; a second
+      verdict → 422.
+- [x] 37 review tests and 1 assembly test. **1,309 Python tests, 96 frontend**,
+      build clean.
 
 ### Stage 5d — the director: a topic in, a finished project out (2026-08-16)
 - [x] **The model half.** `POST /campaigns/{id}/video-projects/direct` takes a

@@ -1312,6 +1312,76 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def list_video_renders(project_id: str, request: Request) -> dict[str, Any]:
         return {"items": _video(request).renders(project_id)}
 
+    # ── push, ignore, edit ──────────────────────────────────────────────────
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-queue")
+    def video_review_queue(campaign_id: str, request: Request) -> dict[str, Any]:
+        """Finished pieces waiting for a verdict, oldest first.
+
+        Every row carries whether it can be pushed and, when it cannot, the one
+        sentence saying why — so the page never renders a dead button with no
+        explanation next to it.
+        """
+        return {"items": _video(request).review_queue(campaign_id)}
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/queue", status_code=201)
+    def queue_video_for_review(
+        project_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Send a hand-built project to the queue.
+
+        Assembled and directed projects arrive there by themselves; this is for
+        one somebody cut by hand and has decided is finished.
+        """
+        review = _video(request).queue_for_review(
+            project_id, origin=str(body.get("origin") or "manual")
+        )
+        return {key: value for key, value in review.items() if key != "baseline"}
+
+    @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/decide")
+    def decide_video(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+        """Push or ignore.
+
+        One endpoint for both because they are one decision with two outcomes,
+        and because each of them measures the same thing: how much of what the
+        machine produced was still there when the owner answered.
+
+        *Edit* is not here, and that is on purpose. Editing is the operations
+        this API already has; it changes the project, not the verdict. The owner
+        still has to come back and say push or ignore, and the diff between the
+        two is what makes the edit worth anything.
+        """
+        engine = _video(request)
+        decision = str(body.get("decision", "")).strip().lower()
+        note = str(body.get("note", ""))
+        if decision == "push":
+            review = engine.push(project_id, note=note)
+        elif decision == "ignore":
+            review = engine.ignore(project_id, note=note)
+        else:
+            raise HTTPException(
+                400,
+                detail={
+                    "error": "unknown_decision",
+                    "message": "decision must be push or ignore.",
+                },
+            )
+        return {key: value for key, value in review.items() if key != "baseline"}
+
+    @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/reviews")
+    def video_project_reviews(project_id: str, request: Request) -> dict[str, Any]:
+        return {"items": _video(request).reviews(project_id)}
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-approved")
+    def approved_videos(campaign_id: str, request: Request) -> dict[str, Any]:
+        """Files the owner pushed — what a distribution post can point at.
+
+        The same question ``/image-assets?status=approved`` answers for
+        pictures, and the answer has the same shape, which is why the publisher
+        needed nothing new to carry a video.
+        """
+        return {"items": _video(request).pushed(campaign_id)}
+
     # ── imported material and captions ──────────────────────────────────────
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-media", status_code=201)
@@ -1409,13 +1479,48 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         return FileResponse(path, media_type=str(render.get("media_type") or "video/webm"))
 
+    def _publishable_asset(request: Request, asset_id: str) -> dict[str, Any]:
+        """Resolve what a post points at — a picture or a finished video.
+
+        The distribution engine wants one callable that turns an id into a row
+        with a ``path`` on it, and both stores already produce exactly that. So
+        a video needs no second publisher, no media-type branch and no new
+        column: it is an asset, and the thing that publishes assets keeps doing
+        what it does.
+
+        Pictures are tried first because there are far more of them, and the ids
+        are UUIDs from two different tables, so a collision is not a thing that
+        happens.
+        """
+        state = request.app.state
+        try:
+            return dict(state.image_store.get_asset(asset_id))
+        except KeyError:
+            pass
+        render = dict(state.video_store.get_render(asset_id))
+        if str(render.get("status")) != "ready":
+            # A file that failed its gates is kept for the report, not for
+            # posting. Publishing one would put an export the checks rejected in
+            # front of an audience.
+            raise KeyError(
+                f"That video did not pass its checks and cannot be posted: {asset_id}"
+            )
+        # ``generator_performance`` groups published posts by the thing that made
+        # the file. A render carries no provider or model, and leaving those
+        # blank would file every video under one nameless bucket next to the
+        # picture generators. Naming the renderer is the honest answer: it is
+        # what produced these bytes.
+        render["provider_id"] = "video"
+        render["model_id"] = str(render.get("renderer") or "browser")
+        return render
+
     def _distribution(request: Request) -> DistributionEngine:
         state = request.app.state
         return DistributionEngine(
             store=state.distribution_store,
             publisher=LocalOutboxPublisher(state.distribution_store.outbox_dir),
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
-            asset_reader=state.image_store.get_asset,
+            asset_reader=lambda asset_id: _publishable_asset(request, asset_id),
             workspace_id=_workspace_id(request),
         )
 

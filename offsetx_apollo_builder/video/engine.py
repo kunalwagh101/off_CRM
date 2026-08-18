@@ -3,10 +3,13 @@
 ```
 approved picture ─┐
 AI video          ├─→ timeline ──→ edits ──→ manifest ──→ browser renders ──→ gates ──→ render
-generated audio  ─┘        ▲                                                              │
-                           └──────────────── undo / redo ────────────────┘                ▼
-                                                                             an asset the distribution
-                                                                             campaign can publish
+generated audio  ─┘        ▲                                                                │
+                           └───── undo / redo · edit ─────┐                                 ▼
+                                                          └─────────────────── push? ignore?
+                                                                                            │
+                                                                                     push ──→ an asset the
+                                                                                     distribution campaign
+                                                                                     can publish
 ```
 
 **Where the work happens is the design.** The browser draws and encodes,
@@ -20,6 +23,13 @@ the part that needs a GPU lives where there is one.
 approved picture goes, so the distribution campaign can post it without learning
 anything new. The editor is a producer of assets, and the thing that already
 knows how to publish assets keeps doing that.
+
+**Nothing gets there on its own.** The assembler and the director make videos
+with nobody watching, so everything they produce lands in a review queue and
+waits for push or ignore. Push needs a passing export of the version on the
+screen — what gets published is a file, not a document — and both verdicts store
+the diff against what the machine made, which is the only signal any later
+"learn from what gets edited" can be built on.
 
 **Which campaign owns a timeline.** The ``image`` kind, whose registry entry has
 said from the day it was written that video was the thing it was missing. A
@@ -169,6 +179,7 @@ class VideoEditorEngine:
         preset: str = "vertical",
         fps: str = "30",
         seed: int = 0,
+        origin: str = "assemble",
     ) -> tuple[ProjectState, assembly.AssemblyReport]:
         """Build a whole project out of what this campaign already has.
 
@@ -201,6 +212,17 @@ class VideoEditorEngine:
             project_id=report.project.id,
             campaign_id=campaign_id,
             document=report.project.to_dict(),
+            workspace_id=self.workspace_id,
+        )
+        # Straight into the queue. Nothing this engine produces on its own
+        # reaches an audience without an owner saying so, and the version that
+        # goes in here is the baseline every later diff is measured against.
+        self.store.open_review(
+            project_id=report.project.id,
+            campaign_id=campaign_id,
+            origin=origin,
+            baseline_version=0,
+            baseline=report.project.to_dict(),
             workspace_id=self.workspace_id,
         )
         state = ProjectState(record=record, project=report.project, can_undo=False, can_redo=False)
@@ -259,6 +281,7 @@ class VideoEditorEngine:
             preset=preset,
             fps=fps,
             seed=seed,
+            origin="direct",
         )
         # The model's own notes come first: an owner reading why a video looks
         # like it does wants "it chose a montage" before "the music was short".
@@ -921,6 +944,183 @@ class VideoEditorEngine:
     def renders(self, project_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
         return self.store.list_renders(project_id, limit=limit)
 
+    # ── the review queue: push, ignore, edit ────────────────────────────────
+
+    def queue_for_review(self, project_id: str, *, origin: str = "manual") -> dict[str, Any]:
+        """Ask the owner about this project.
+
+        Called for you by :meth:`assemble` and :meth:`direct_and_assemble`,
+        because a piece the machine made with nobody watching is exactly the
+        piece that must not go anywhere until somebody says so. Available on its
+        own for a project built by hand that the owner decides is finished.
+        """
+        record = self.store.get_project(project_id)
+        self._require_own_kind(str(record.get("campaign_id") or ""), "queueing a video")
+        return self.store.open_review(
+            project_id=project_id,
+            campaign_id=str(record.get("campaign_id") or ""),
+            origin=origin,
+            baseline_version=int(record["version"]),
+            baseline=record["document"],
+            workspace_id=self.workspace_id,
+        )
+
+    def review_queue(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        """What is waiting for push or ignore, oldest first."""
+        self._require_own_kind(campaign_id, "reading the video queue")
+        return [
+            self._queue_item(review)
+            for review in self.store.list_reviews(campaign_id, verdict="waiting", limit=limit)
+        ]
+
+    def _queue_item(self, review: Mapping[str, Any]) -> dict[str, Any]:
+        """One row of the queue: the piece, whether it is ready, and what changed.
+
+        The baseline document is deliberately not returned. It is a whole
+        timeline per row, and a queue of twenty would be megabytes to draw three
+        buttons; the diff is computed here instead and the numbers are what the
+        page actually shows.
+        """
+        project_id = str(review["project_id"])
+        record = self.store.get_project(project_id)
+        version = int(record["version"])
+        render = self._render_for_version(project_id, version)
+        baseline = Project.from_dict(review["baseline"])
+        current = Project.from_dict(record["document"])
+        return {
+            "review_id": review["id"],
+            "project_id": project_id,
+            "campaign_id": review["campaign_id"],
+            "name": record["name"],
+            "origin": review["origin"],
+            "created_at": review["created_at"],
+            "width": record["width"],
+            "height": record["height"],
+            "fps": record["fps"],
+            "duration_ticks": record["duration_ticks"],
+            "duration_seconds": round(int(record["duration_ticks"]) / TICKS_PER_SECOND, 2),
+            "version": version,
+            "baseline_version": int(review["baseline_version"]),
+            # "Has the owner already been in here?" — derived, never stored. An
+            # `edited` flag written at edit time is a second source of truth that
+            # goes stale the moment somebody undoes back to the baseline.
+            "edited": version != int(review["baseline_version"]),
+            "render_id": str(render["id"]) if render else "",
+            "ready_to_push": render is not None,
+            "blocker": "" if render else self._push_blocker(project_id, version),
+            "diff": assembly.difference(baseline, current),
+        }
+
+    def _render_for_version(self, project_id: str, version: int) -> dict[str, Any] | None:
+        """The newest passing export of exactly this version of the document.
+
+        Exactly, and not "the newest passing export": a render three edits stale
+        is a different video from the one on the screen, and pushing it would
+        publish something the owner never looked at.
+        """
+        for render in self.store.list_renders(project_id, limit=50):
+            if render["status"] == "ready" and int(render["project_version"]) == version:
+                return render
+        return None
+
+    def _push_blocker(self, project_id: str, version: int) -> str:
+        """Why push is greyed out, in words an owner can act on."""
+        renders = self.store.list_renders(project_id, limit=50)
+        if not renders:
+            return "Nothing has been exported yet. Export it, then push."
+        if any(int(item["project_version"]) == version for item in renders):
+            return (
+                "The export of this version did not pass the checks. Open the "
+                "gate report, fix what it names, and export again."
+            )
+        return (
+            "This has been edited since it was last exported. Export the version "
+            "you are looking at, then push."
+        )
+
+    def push(self, project_id: str, *, note: str = "") -> dict[str, Any]:
+        """Yes. This one goes out.
+
+        Push requires a passing export **of the current version**, because what
+        a distribution campaign publishes is a file and not a timeline. Without
+        that rule, push would mean "I approve of a document", and the thing that
+        actually reaches an audience would be whatever happened to be lying in
+        the renders table.
+
+        The diff against what the machine produced is measured here and stored
+        with the verdict. That is the learning signal: an owner who pushed
+        something untouched approved of the assembler, and an owner who rebuilt
+        half of it before pushing said something much more specific.
+        """
+        review = self._open_review(project_id, "pushing")
+        record = self.store.get_project(project_id)
+        version = int(record["version"])
+        render = self._render_for_version(project_id, version)
+        if render is None:
+            raise TimelineError(self._push_blocker(project_id, version))
+        diff = assembly.difference(
+            Project.from_dict(review["baseline"]), Project.from_dict(record["document"])
+        )
+        return self.store.decide_review(
+            str(review["id"]),
+            verdict="pushed",
+            decided_version=version,
+            diff=diff,
+            render_id=str(render["id"]),
+            note=note,
+        )
+
+    def ignore(self, project_id: str, *, note: str = "") -> dict[str, Any]:
+        """No. Not this one.
+
+        Nothing is deleted. A rejected picture has its bytes removed because a
+        clip pointing at one is a hole; an ignored video is a whole project the
+        owner may come back to, and the row is worth more than the disk it
+        costs — a no is as much of a signal as a yes, and this is the only place
+        it gets written down.
+
+        The diff is measured for an ignore too. "I edited it for twenty minutes
+        and *then* gave up" is a different verdict from "I looked at it once and
+        binned it", and only the diff can tell them apart.
+        """
+        review = self._open_review(project_id, "ignoring")
+        record = self.store.get_project(project_id)
+        diff = assembly.difference(
+            Project.from_dict(review["baseline"]), Project.from_dict(record["document"])
+        )
+        return self.store.decide_review(
+            str(review["id"]),
+            verdict="ignored",
+            decided_version=int(record["version"]),
+            diff=diff,
+            note=note,
+        )
+
+    def _open_review(self, project_id: str, action: str) -> dict[str, Any]:
+        record = self.store.get_project(project_id)
+        self._require_own_kind(str(record.get("campaign_id") or ""), f"{action} a video")
+        review = self.store.open_review_for(project_id)
+        if review is None:
+            raise TimelineError(
+                "This project is not waiting for a verdict. Send it to the "
+                "review queue first."
+            )
+        return review
+
+    def reviews(self, project_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Every verdict this project has collected, newest first."""
+        record = self.store.get_project(project_id)
+        self._require_own_kind(str(record.get("campaign_id") or ""), "reading verdicts")
+        return [
+            {key: value for key, value in review.items() if key != "baseline"}
+            for review in self.store.reviews_for(project_id, limit=limit)
+        ]
+
+    def pushed(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Finished files the owner approved — the distribution handoff."""
+        self._require_own_kind(campaign_id, "listing pushed videos")
+        return self.store.pushed_renders(campaign_id, limit=limit)
+
     def summary(self, campaign_id: str) -> dict[str, Any]:
         """The campaign's editing work at a glance."""
         self._require_own_kind(campaign_id, "reading the video summary")
@@ -936,7 +1136,30 @@ class VideoEditorEngine:
             "renders": len(renders),
             "renders_passed": len(ready),
             "renders_failed": len(renders) - len(ready),
+            "reviews": self._verdict_counts(campaign_id),
         }
+
+    def _verdict_counts(self, campaign_id: str) -> dict[str, Any]:
+        """How the owner has been answering, and how much of the machine's work
+        survives them.
+
+        ``kept_share`` is averaged over pushed pieces only. Averaging it over
+        ignores as well would mix "what the assembler gets right" with "how
+        often it is wrong altogether", and those are two different questions
+        with two different fixes.
+        """
+        reviews = self.store.list_reviews(campaign_id, limit=10000)
+        counts = {verdict: 0 for verdict in ("waiting", "pushed", "ignored")}
+        for review in reviews:
+            counts[str(review["verdict"])] = counts.get(str(review["verdict"]), 0) + 1
+        shares = [
+            float(review["diff"].get("kept_share") or 0.0)
+            for review in reviews
+            if review["verdict"] == "pushed" and isinstance(review.get("diff"), dict)
+        ]
+        counts["untouched_pushes"] = len([share for share in shares if share >= 1.0])
+        counts["kept_share"] = round(sum(shares) / len(shares), 4) if shares else 0.0
+        return counts
 
 
 def _first_track(project: Project, kind: str = "video"):

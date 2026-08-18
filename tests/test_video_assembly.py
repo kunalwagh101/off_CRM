@@ -29,6 +29,7 @@ from offsetx_apollo_builder.video.timeline import (
     MIN_CLIP_TICKS,
     Project,
     TimelineError,
+    new_project,
 )
 
 SECOND = TICKS_PER_SECOND
@@ -387,6 +388,31 @@ def test_the_diff_names_what_moved_what_went_and_what_arrived():
     assert clips[0].id in delta["restyled"]
     assert 0 < delta["kept_share"] < 1
     assert delta["duration_after"] > delta["duration_before"]
+
+
+def test_a_removed_clip_is_counted_against_what_survived_exactly_once():
+    """``kept`` is the intersection minus what moved. A removed clip is already
+    outside the intersection, so subtracting it again would understate what
+    survived — and ``kept_share`` is the number a scoreboard would quote."""
+    before = new_project(name="Four", preset="vertical", fps="30")
+    track = before.tracks[0].id
+    for index in range(4):
+        before = edits.add_clip(
+            before, track_id=track, kind="solid", start=index * 2 * SECOND,
+            duration=2 * SECOND, style={"colour": "#101010"},
+        )
+    clips = before.tracks[0].clips
+    assert len(clips) == 4
+
+    after = edits.remove_clip(before, clip_id=clips[0].id)
+    after = edits.trim_clip(after, clip_id=clips[1].id, tail=SECOND)
+
+    delta = assembly.difference(before, after)
+    assert delta["removed"] == [clips[0].id]
+    assert delta["moved"] == [clips[1].id]
+    # Two of the four are exactly as the assembler left them.
+    assert delta["untouched"] == 2
+    assert delta["kept_share"] == 0.5
 
 
 def test_the_diff_notices_retiming_which_is_the_thing_a_recipe_gets_wrong():

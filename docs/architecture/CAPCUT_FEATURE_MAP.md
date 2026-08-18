@@ -13,22 +13,22 @@ having to trust a summary written somewhere else.
 
 | | Rows | Share |
 |---|---|---|
-| ● Built | **53** | 33% |
+| ● Built | **54** | 33% |
 | ◐ Partly built | **15** | 9% |
 | ○ Not built | **93** | 58% |
-| | **161** | |
+| | **162** | |
 
 9 of those 93 are **out of scope on purpose** — a phone camera, a licensed
-music library, a template marketplace. Against the 152 rows that are actually
-reachable, 68 are touched: **45%**.
+music library, a template marketplace. Against the 153 rows that are actually
+reachable, 69 are touched: **45%**.
 
-Those 68 are not the easy 68. They are the timeline and its invariants,
+Those 69 are not the easy 69. They are the timeline and its invariants,
 keyframes, undo, transitions and animations, auto-captions, the export and its
 gates, the sound inside the file, the picture of imported footage, time
-remapping over the top of it — and the assembler that now puts all of those
-together on its own — from a topic, through a model that picks the shape and
-writes the words. Masks and effects are each a feature on top of a timeline that
-exists.
+remapping over the top of it, the assembler that puts all of those together on
+its own — from a topic, through a model that picks the shape and writes the
+words — and the queue that stops any of it reaching an audience until a person
+says so. Masks and effects are each a feature on top of a timeline that exists.
 
 ---
 
@@ -265,6 +265,7 @@ exists.
 | Team / shared workspace | B | ◐ workspace ids run through everything; no UI |
 | **Brand kit — logo, fonts, colours** | B | ○ |
 | Shared asset library | B | ◐ the campaign's kept pictures |
+| **Approve or reject a finished cut before it goes out** | B | ● push / ignore / edit, with the edit-diff measured on both verdicts |
 | Review link, comments on a cut | B | ○ |
 | Mobile ↔ desktop project handoff | X | ○ |
 
@@ -282,7 +283,7 @@ exists.
 | Export current frame as an image | B | ○ |
 | **Batch export several aspect ratios at once** | R | ○ |
 | Export SRT separately | B | ○ |
-| **Publish straight to TikTok / YouTube / Instagram / Facebook** | already built — `distribution/` | ○ the distribution campaign exists; only the local outbox publishes |
+| **Publish straight to TikTok / YouTube / Instagram / Facebook** | already built — `distribution/` | ○ a pushed render is already an asset a post can carry; only the local outbox publishes |
 | Share link | B | ○ |
 
 ---

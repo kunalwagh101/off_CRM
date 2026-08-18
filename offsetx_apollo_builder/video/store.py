@@ -3,7 +3,7 @@
 Its own database, for the reason the image store gives: a timeline shares no
 foreign key with the CRM, so neither has to know about the other.
 
-**Three tables, and the second one is undo.**
+**Five tables, and the second one is undo.**
 
 ``video_projects`` holds the current document and a version number.
 ``video_history`` holds every version that has ever existed, which makes undo a
@@ -20,6 +20,12 @@ database column would bloat every backup and every query that did not want it.
 uncapped history would grow without bound for a document nobody is done with.
 The cap is deep enough that no one reaches the end of it in a session, and the
 oldest versions are dropped rather than the newest.
+
+``video_media`` and ``video_transcripts`` hold imported footage and what was
+said in it. ``video_reviews`` holds the owner's verdict on a finished piece —
+push or ignore — together with a copy of the document the machine produced, so
+the difference between that and what was pushed can still be measured after the
+history that held it has been trimmed away.
 """
 
 from __future__ import annotations
@@ -121,6 +127,33 @@ CREATE TABLE IF NOT EXISTS video_transcripts (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_video_transcript
     ON video_transcripts(media_id, language);
+
+CREATE TABLE IF NOT EXISTS video_reviews (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    campaign_id TEXT NOT NULL DEFAULT '',
+    workspace_id TEXT NOT NULL DEFAULT 'local',
+    origin TEXT NOT NULL DEFAULT '',
+    baseline_version INTEGER NOT NULL DEFAULT 0,
+    baseline TEXT NOT NULL DEFAULT '{}',
+    verdict TEXT NOT NULL DEFAULT 'waiting',
+    decided_version INTEGER NOT NULL DEFAULT -1,
+    render_id TEXT NOT NULL DEFAULT '',
+    diff TEXT NOT NULL DEFAULT '{}',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    decided_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS ix_video_reviews_campaign
+    ON video_reviews(campaign_id, verdict, created_at);
+CREATE INDEX IF NOT EXISTS ix_video_reviews_project
+    ON video_reviews(project_id, created_at);
+-- One *open* review per project, enforced by the database rather than by a
+-- check-then-insert that two requests can both pass. Past decisions are not
+-- covered by it, so a project that was pushed, edited again and re-queued
+-- keeps every verdict it ever collected.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_video_reviews_open
+    ON video_reviews(project_id) WHERE verdict = 'waiting';
 """
 
 #: How many versions of a document are kept. Deep enough that undo never runs
@@ -131,6 +164,22 @@ HISTORY_LIMIT = 300
 #: A render either cleared the gates or it did not. There is no "approved" here
 #: — approval is the swipe, and it happens on the asset the render becomes.
 RENDER_STATUSES = ("ready", "gate_failed")
+
+#: What an owner can say about a finished piece. ``waiting`` is the queue;
+#: ``pushed`` and ``ignored`` are the two ends of it.
+#:
+#: There is deliberately no ``edited`` verdict. *Edit* is a button, not an
+#: answer — the owner opens the project, changes it, and still has to say push
+#: or ignore afterwards. Whether they edited is not something to record
+#: separately either: it is ``project.version > baseline_version``, and the
+#: *what* is the diff stored at decision time.
+REVIEW_VERDICTS = ("waiting", "pushed", "ignored")
+
+#: Where the piece under review came from. Worth keeping because the whole
+#: point of the queue is to score the thing that made it, and "the assembler
+#: with a recipe I picked" and "the model chose everything" are not the same
+#: claim.
+REVIEW_ORIGINS = ("assemble", "direct", "manual")
 
 
 def _now() -> str:
@@ -281,6 +330,7 @@ class VideoStore:
 
     def delete_project(self, project_id: str) -> None:
         self.connection.execute("DELETE FROM video_history WHERE project_id = ?", (project_id,))
+        self.connection.execute("DELETE FROM video_reviews WHERE project_id = ?", (project_id,))
         self.connection.execute("DELETE FROM video_projects WHERE id = ?", (project_id,))
 
     def _set_current(self, project_id: str, version: int, document: dict[str, Any]) -> None:
@@ -427,6 +477,163 @@ class VideoStore:
         ).fetchall()
         return {str(row["sha256"]) for row in rows if row["sha256"]}
 
+
+    # ── the review queue ────────────────────────────────────────────────────
+
+    def open_review(
+        self,
+        *,
+        project_id: str,
+        campaign_id: str,
+        origin: str,
+        baseline_version: int,
+        baseline: dict[str, Any],
+        workspace_id: str = "local",
+    ) -> dict[str, Any]:
+        """Put a project in front of the owner, and remember what it looked like.
+
+        The baseline document is copied here rather than read back out of
+        ``video_history`` later, and that is the whole reason this column
+        exists: history is capped at ``HISTORY_LIMIT`` versions, so a project
+        someone works on for an afternoon can lose the very version the machine
+        produced — which is the one the diff has to be measured against.
+
+        Idempotent. Asking twice returns the review already open rather than a
+        second one, because "queue this" is a statement about a project's state,
+        not an event to be counted.
+        """
+        if str(origin) not in REVIEW_ORIGINS:
+            raise ValueError(f"Unknown review origin: {origin}")
+        existing = self.open_review_for(project_id)
+        if existing is not None:
+            return existing
+        review_id = str(uuid.uuid4())
+        self.connection.execute(
+            "INSERT INTO video_reviews(id, project_id, campaign_id, workspace_id,"
+            " origin, baseline_version, baseline, verdict, decided_version,"
+            " created_at) VALUES(?,?,?,?,?,?,?,'waiting',-1,?)",
+            (
+                review_id,
+                project_id,
+                campaign_id,
+                workspace_id,
+                str(origin),
+                int(baseline_version),
+                json.dumps(baseline),
+                _now(),
+            ),
+        )
+        return self.get_review(review_id)
+
+    def get_review(self, review_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM video_reviews WHERE id = ?", (review_id,)
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Review not found: {review_id}")
+        return _review_row(row)
+
+    def open_review_for(self, project_id: str) -> dict[str, Any] | None:
+        """The verdict this project is still waiting for, if it is waiting."""
+        row = self.connection.execute(
+            "SELECT * FROM video_reviews WHERE project_id = ? AND verdict = 'waiting'",
+            (project_id,),
+        ).fetchone()
+        return _review_row(row) if row else None
+
+    def reviews_for(self, project_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM video_reviews WHERE project_id = ?"
+            " ORDER BY created_at DESC LIMIT ?",
+            (project_id, max(1, int(limit))),
+        ).fetchall()
+        return [_review_row(row) for row in rows]
+
+    def list_reviews(
+        self, campaign_id: str, *, verdict: str = "", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Reviews for a campaign, oldest first.
+
+        Oldest first is the queue order on purpose: a piece that has sat there
+        for three days is the one going stale, and a newest-first queue buries
+        it under everything the machine made this morning.
+        """
+        sql = "SELECT * FROM video_reviews WHERE campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if verdict:
+            if verdict not in REVIEW_VERDICTS:
+                raise ValueError(f"Unknown verdict: {verdict}")
+            sql += " AND verdict = ?"
+            params.append(verdict)
+        sql += " ORDER BY created_at LIMIT ?"
+        params.append(max(1, int(limit)))
+        rows = self.connection.execute(sql, params).fetchall()
+        return [_review_row(row) for row in rows]
+
+    def decide_review(
+        self,
+        review_id: str,
+        *,
+        verdict: str,
+        decided_version: int,
+        diff: dict[str, Any] | None = None,
+        render_id: str = "",
+        note: str = "",
+    ) -> dict[str, Any]:
+        """Record the answer. Once.
+
+        A decision is not editable here. Clicking push twice must not double a
+        number some scoreboard is built on, and turning ``ignored`` into
+        ``pushed`` after the fact would rewrite the record of what the owner
+        actually thought of what the machine made.
+        """
+        if verdict not in ("pushed", "ignored"):
+            raise ValueError("A verdict is push or ignore.")
+        current = self.get_review(review_id)
+        if current["verdict"] != "waiting":
+            raise ValueError(
+                f"This piece was already {current['verdict']}. A verdict is given "
+                "once, so the score of the thing that made it cannot be moved by "
+                "clicking twice."
+            )
+        self.connection.execute(
+            "UPDATE video_reviews SET verdict = ?, decided_version = ?, diff = ?,"
+            " render_id = ?, note = ?, decided_at = ? WHERE id = ?",
+            (
+                verdict,
+                int(decided_version),
+                json.dumps(diff or {}),
+                str(render_id or ""),
+                str(note or "")[:1000],
+                _now(),
+                review_id,
+            ),
+        )
+        return self.get_review(review_id)
+
+    def pushed_renders(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Every file an owner said yes to, newest first.
+
+        This is the handoff. A distribution campaign asks this question and gets
+        rows in the same shape an approved picture has — a path, a hash, a media
+        type — so the thing that already knows how to publish an asset has
+        nothing to learn about timelines.
+        """
+        rows = self.connection.execute(
+            "SELECT r.*, v.id AS review_id, v.decided_at AS pushed_at,"
+            " p.name AS project_name FROM video_reviews v"
+            " JOIN video_renders r ON r.id = v.render_id"
+            " JOIN video_projects p ON p.id = v.project_id"
+            " WHERE v.campaign_id = ? AND v.verdict = 'pushed' AND v.render_id != ''"
+            " ORDER BY v.decided_at DESC LIMIT ?",
+            (campaign_id, max(1, int(limit))),
+        ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["gates"] = _safe_json(item.pop("gate_json", "{}"))
+            items.append(item)
+        return items
 
     # ── imported media ──────────────────────────────────────────────────────
 
@@ -586,6 +793,13 @@ class VideoStore:
         item = dict(row)
         item["words"] = _safe_json(item.pop("words_json", "[]")) or []
         return item
+
+
+def _review_row(row: Any) -> dict[str, Any]:
+    item = dict(row)
+    item["baseline"] = _safe_json(item.get("baseline"))
+    item["diff"] = _safe_json(item.get("diff"))
+    return item
 
 
 def _safe_json(value: Any) -> Any:

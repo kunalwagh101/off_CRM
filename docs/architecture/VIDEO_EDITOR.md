@@ -522,6 +522,88 @@ model that read the topic wrongly.
 
 ---
 
+## The review queue: push, ignore, edit
+
+The assembler and the director make videos with nobody watching. The queue is
+the gate between that and an audience, and it is the reason the rest of it is
+allowed to run unattended at all.
+
+**Two verdicts, three buttons.** Push and ignore are the answers; *edit* is what
+you do before answering. There is deliberately no `edited` state stored —
+whether the owner has been in there is `project.version != baseline_version`, a
+question the document already answers. A flag written at edit time is a second
+source of truth that goes stale the moment somebody undoes back to the start.
+
+**Push requires a file, and specifically *this* file.** What a distribution
+campaign publishes is bytes, so push needs a passing export of the version on
+the screen. Without the "of this version" half, the common accident is fatal:
+export, keep editing, push — and publish a video the owner is no longer looking
+at. When push is not available the queue row carries the sentence saying why,
+which is one of three:
+
+| The state | What the row says |
+|---|---|
+| never exported | Nothing has been exported yet. Export it, then push. |
+| exported, gates failed | The export of this version did not pass the checks… |
+| exported, then edited | This has been edited since it was last exported… |
+
+**Ignore deletes nothing.** A rejected picture has its bytes removed, because a
+clip pointing at a missing file is a hole nobody sees until export. An ignored
+video is a whole project the owner may come back to, and the row is worth more
+than the disk it costs: a no is as much of a signal as a yes.
+
+### The learning signal
+
+Both verdicts store `assembly.difference(baseline, current)` — the edit-diff.
+That is the whole reason the queue was built before anything that learns:
+
+- an owner who **pushed something untouched** approved of the assembler;
+- an owner who **rebuilt half of it first** said something much more specific,
+  and named which clips;
+- an owner who **edited for twenty minutes and then ignored it** is a different
+  verdict from one who binned it on sight, and only the diff separates them.
+
+`kept_share` in the campaign summary is averaged over pushes only. Averaging it
+across ignores as well would blend *"what the assembler gets right"* with *"how
+often it is wrong altogether"* — two questions with two different fixes.
+
+**The baseline is copied, not looked up.** `video_history` is capped at
+`HISTORY_LIMIT` versions, so a project worked on for an afternoon loses the very
+version the machine produced. The review keeps its own copy of that document, so
+the diff still means what it says after the trim. There is a test that edits
+past the cap and proves it.
+
+**A verdict is given once.** The point of the queue is to score the thing that
+made the piece, and a number that moves when you click twice is not a score.
+The engine refuses, and the store refuses under it. A project that was ignored
+and later re-cut can be sent back — that is a *new* review, and both are kept.
+The "one open review per project" rule is a partial unique index in SQLite
+rather than a check-then-insert two requests can both pass.
+
+### The handoff
+
+A pushed render is an asset. `GET /campaigns/{id}/video-approved` answers the
+same question `GET /campaigns/{id}/image-assets?status=approved` answers for
+pictures, and the rows have the same shape — a path, a hash, a media type. So
+the publisher needed nothing new: the API's asset resolver tries the image store
+and then the render store, and a post carrying a `asset_id` that happens to be a
+render publishes the video.
+
+A render that **failed its gates is not resolvable** through that path. Posting
+one would walk straight around the checks that exist to catch a browser which
+gave up mid-encode.
+
+```
+assemble / direct ──→ review (waiting) ──┬── push ──→ render ──→ dist_posts.asset_id ──→ published
+                            ▲            │
+                            │            └── ignore ──→ kept, with its diff
+                       edit ─┘                              │
+                                                            ▼
+                                              what the owner changed, per piece
+```
+
+---
+
 ## Reading a video's shape without a decoder
 
 `video/gates.py` parses MP4 and WebM headers by hand, the way `imagery/gates.py`
@@ -650,6 +732,16 @@ outside this project:
    first attempt at this found a real gap: a bitstream the decoder rejects used
    to take the whole render down with it, and now costs its own clip and is
    reported like any other unreadable import.
+9. **The queue was walked on a live server, not only in tests.** Against a real
+   uvicorn process with a real SQLite file: an assembled project appeared in the
+   queue on its own, marked not-ready with a sentence saying why; push before an
+   export returned 422 *"Nothing has been exported yet. Export it, then push."*;
+   an edit after an export turned that into *"This has been edited since it was
+   last exported…"*; re-exporting made the push succeed with `kept_share 1.0`;
+   the render then showed up under `/video-approved` and a distribution post
+   pointing at it published, with **the video's own bytes** landing in the
+   outbox — compared byte for byte against the file that was uploaded. A second
+   verdict on the same review came back 422.
 
 ---
 
@@ -662,6 +754,9 @@ Its own database, like the image and distribution runners.
 | `video_projects` | the current document and a version number |
 | `video_history` | every version there has ever been |
 | `video_renders` | the exported file: path, hash, gates, which version it came from |
+| `video_media` | imported footage and voiceovers |
+| `video_transcripts` | what was said in them |
+| `video_reviews` | the owner's verdict, the machine's baseline, and the diff |
 
 **Timelines can live in Postgres.** The store goes through the same seam the
 egress log uses — an explicit target wins, then `OFFSETX_DATABASE_URL`, then the
@@ -723,6 +818,12 @@ GET    /video-projects/{id}/frame?tick=            the server's answer for one i
 POST   /video-projects/{id}/place-asset            a kept picture onto the timeline
 POST   /video-projects/{id}/renders                multipart: the exported file
 GET    /video-renders/{id}/file
+
+GET    /campaigns/{id}/video-queue                 what is waiting for a verdict
+POST   /video-projects/{id}/queue                  send a hand-cut project there
+POST   /video-projects/{id}/decide                 {"decision":"push"|"ignore","note"}
+GET    /video-projects/{id}/reviews                every verdict this project got
+GET    /campaigns/{id}/video-approved              pushed files a post can point at
 ```
 
 The batch form of `/edit` exists because a drag produces a stream of moves and
@@ -739,6 +840,13 @@ file that looks finished.
 a timeline with tracks and draggable clips, trim handles, and an inspector.
 Space plays, S splits, Delete removes, Shift+Delete closes the gap, Ctrl+Z and
 Ctrl+Shift+Z walk the history, arrows step a frame and Shift+arrows step ten.
+
+The project list opens with **Waiting for you** when anything is in the queue:
+one row per finished piece with **Push**, **Edit** and **Ignore**, the length,
+where it came from, and — when the owner has already been in there — how much of
+what the machine made they changed. A row that cannot be pushed says why in
+place of a dead button. The same two buttons sit in the editor's header while a
+project is under review, so answering does not mean going back to the list.
 
 ---
 
@@ -770,3 +878,11 @@ feature map makes it look larger.
 - **One fade per clip, governing picture and sound together.** Separate video
   and audio fades are real; a clip whose picture fades while its audio stays at
   full is worse than either, so one fade drives both until there are two.
+- **Nothing learns from the queue yet.** The diff is measured and stored on
+  every verdict, so the signal starts collecting the day the queue exists — but
+  no recipe is reweighted and no director prompt changes because of it. That is
+  the next thing this data is for, and it needs a few hundred verdicts before it
+  means anything.
+- **Pushing does not schedule.** A pushed render becomes something a post can
+  point at; choosing the account, the caption and the time is still the
+  distribution campaign's job, and it is deliberately a second decision.

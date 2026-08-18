@@ -650,7 +650,9 @@ def difference(before: Project, after: Project) -> dict[str, Any]:
         if was.text != now.text:
             retexted.append(clip_id)
 
-    kept = len(set(old) & set(new)) - len(moved) - len(removed)
+    # Removed clips are not in the intersection, so subtracting them here as
+    # well would count each one twice and understate what survived.
+    kept = len(set(old) & set(new)) - len(moved)
     return {
         "added": added,
         "removed": removed,

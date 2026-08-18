@@ -456,12 +456,19 @@ Each stage lists what it unlocks and how we know it worked. **No stage is
 - ✅ **The director**: a topic picks the shape and writes the words, through the
   broker. Its reply is validated against the recipe registry before a clip is
   laid, which is what makes a scraped topic safe to pass in
-- **Unlocks:** *"CapCut, but it does it automatically."*
+- ✅ **The review queue — push / ignore / edit.** Everything the machine makes
+  waits for a person. Push needs a passing export of the version on the screen,
+  because what gets published is a file; ignore keeps the project and the reason.
+  Both verdicts store the edit-diff, so the signal collects from day one
+- **Unlocks:** *"CapCut, but it does it automatically."* — and the owner stays in
+  the loop by choice rather than by having to watch it.
 - **Acceptance:** ✅ 30 of 30 exported frames matched their own source frame in a
   real browser, measured by reading the canvas. ✅ a recipe and a length went to
   a finished video with zero manual timeline edits — manifest `renderable: true`
   with no warnings, exported in Chromium, **all eight server gates passed**, and
-  `difference()` measures what an owner changes against it.
+  `difference()` measures what an owner changes against it. ✅ a pushed render
+  published through the distribution campaign with the video's own bytes in the
+  outbox, verified byte for byte on a live server.
 
 ### Stage 6 — The effect engine *(~40 primitives, ~800 presets)*
 - Shader primitives, then transitions/effects/filters as declared data

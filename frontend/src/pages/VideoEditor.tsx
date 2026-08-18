@@ -58,6 +58,27 @@ type RecipeSummary = {
   beats: Array<{ name: string; share: number }>;
   note: string;
 };
+/** One piece waiting for push or ignore.
+ *
+ *  `ready_to_push` and `blocker` come from the server together on purpose: a
+ *  disabled button with no sentence next to it is a bug report waiting to
+ *  happen, and the rule that decides it (a passing export of *this* version)
+ *  lives in one place rather than being re-derived here. */
+type ReviewItem = {
+  review_id: string;
+  project_id: string;
+  name: string;
+  origin: "assemble" | "direct" | "manual";
+  duration_seconds: number;
+  version: number;
+  baseline_version: number;
+  edited: boolean;
+  render_id: string;
+  ready_to_push: boolean;
+  blocker: string;
+  diff: { added: string[]; removed: string[]; moved: string[]; kept_share: number };
+};
+
 type CaptionResult = {
   captions: number;
   too_fast: number;
@@ -75,6 +96,7 @@ export default function VideoEditor() {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [speedCurves, setSpeedCurves] = useState<SpeedPreset[]>([]);
   const [recipeList, setRecipeList] = useState<RecipeSummary[]>([]);
+  const [queue, setQueue] = useState<ReviewItem[]>([]);
   const [table, setTable] = useState<AssetTable>(new Map());
   const [selected, setSelected] = useState("");
   const [playhead, setPlayhead] = useState(0);
@@ -102,14 +124,16 @@ export default function VideoEditor() {
     setLoading(true);
     setError("");
     try {
-      const [list, kept, imported] = await Promise.all([
+      const [list, kept, imported, waiting] = await Promise.all([
         api.get<{ items: typeof projects }>(`/campaigns/${campaignId}/video-projects`),
         api.get<{ items: ImageAsset[] }>(`/campaigns/${campaignId}/image-assets?status=approved`),
-        api.get<{ items: MediaItem[] }>(`/campaigns/${campaignId}/video-media`)
+        api.get<{ items: MediaItem[] }>(`/campaigns/${campaignId}/video-media`),
+        api.get<{ items: ReviewItem[] }>(`/campaigns/${campaignId}/video-queue`)
       ]);
       setProjects(list.items);
       setAssets(kept.items);
       setMedia(imported.items);
+      setQueue(waiting.items);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not load projects");
     } finally {
@@ -280,6 +304,57 @@ export default function VideoEditor() {
       }
     },
     [campaignId, loadProjects, openProject, notify]
+  );
+
+  // ── push, ignore, edit ────────────────────────────────────────────────────
+
+  /** Say yes or no to a finished piece.
+   *
+   *  Nothing is decided here — the server owns the rule that push needs a
+   *  passing export of the version on the screen, and it owns the sentence
+   *  saying why when it does not. This sends the verdict and reloads.
+   */
+  const decide = useCallback(
+    async (projectId: string, decision: "push" | "ignore") => {
+      setBusy(true);
+      try {
+        await api.post(`/video-projects/${projectId}/decide`, { decision });
+        await loadProjects();
+        notify(
+          decision === "push" ? "Pushed — it can be posted now." : "Ignored. It stays here if you want it back.",
+          decision === "push" ? "success" : "info"
+        );
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "That verdict was refused", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadProjects, notify]
+  );
+
+  /** Send a hand-cut project to the queue. Assembled and directed ones arrive
+   *  there on their own; this is the button for one somebody built by hand. */
+  const sendToQueue = useCallback(
+    async (projectId: string) => {
+      setBusy(true);
+      try {
+        await api.post(`/video-projects/${projectId}/queue`, {});
+        await loadProjects();
+        notify("Waiting for a verdict.", "success");
+      } catch (reason) {
+        notify(reason instanceof Error ? reason.message : "Could not queue it", "error");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadProjects, notify]
+  );
+
+  /** The verdict this project is still waiting for, if it is waiting for one. */
+  const openReview = useMemo(
+    () => (state ? queue.find((item) => item.project_id === state.id) ?? null : null),
+    [queue, state]
   );
 
   // ── editing ───────────────────────────────────────────────────────────────
@@ -658,6 +733,56 @@ export default function VideoEditor() {
             </>
           }
         />
+        {queue.length ? (
+          <Panel
+            title="Waiting for you"
+            subtitle={`${queue.length} finished ${queue.length === 1 ? "piece" : "pieces"} — push it, ignore it, or open it and change it`}
+          >
+            <ul className="vqueue">
+              {queue.map((item) => (
+                <li key={item.review_id}>
+                  <div className="vqueue-what">
+                    <strong>{item.name}</strong>
+                    <span>
+                      <Badge tone={item.origin === "direct" ? "info" : "neutral"}>
+                        {item.origin === "direct"
+                          ? "the model chose this"
+                          : item.origin === "assemble"
+                            ? "assembled"
+                            : "cut by hand"}
+                      </Badge>{" "}
+                      {item.duration_seconds}s
+                      {item.edited
+                        ? ` · you changed ${Math.round((1 - item.diff.kept_share) * 100)}% of it`
+                        : " · untouched"}
+                    </span>
+                    {!item.ready_to_push ? <em className="vqueue-blocker">{item.blocker}</em> : null}
+                  </div>
+                  <div className="vqueue-verdict">
+                    <Button
+                      busy={busy}
+                      disabled={!item.ready_to_push}
+                      onClick={() => void decide(item.project_id, "push")}
+                    >
+                      Push
+                    </Button>
+                    <Button tone="ghost" busy={busy} onClick={() => void openProject(item.project_id)}>
+                      Edit
+                    </Button>
+                    <Button
+                      tone="danger"
+                      busy={busy}
+                      onClick={() => void decide(item.project_id, "ignore")}
+                    >
+                      Ignore
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        ) : null}
+
         <Panel title="Projects" subtitle={`${projects.length} in this campaign`}>
           {!projects.length ? (
             <StatePanel
@@ -705,9 +830,33 @@ export default function VideoEditor() {
             <Button busy={busy} disabled={!support.supported} onClick={runExport}>
               Export
             </Button>
+            {openReview ? (
+              <>
+                <Button
+                  busy={busy}
+                  disabled={!openReview.ready_to_push}
+                  onClick={() => void decide(state.id, "push")}
+                >
+                  Push
+                </Button>
+                <Button tone="danger" busy={busy} onClick={() => void decide(state.id, "ignore")}>
+                  Ignore
+                </Button>
+              </>
+            ) : (
+              <Button tone="ghost" busy={busy} onClick={() => void sendToQueue(state.id)}>
+                Send for review
+              </Button>
+            )}
           </>
         }
       />
+
+      {openReview && !openReview.ready_to_push ? (
+        <p className="veditor-note" role="status">
+          {openReview.blocker}
+        </p>
+      ) : null}
 
       {!support.supported ? (
         <p className="veditor-note" role="status">

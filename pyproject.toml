@@ -3,13 +3,24 @@ name = "offsetx-apollo-builder"
 version = "0.12.0"
 requires-python = ">=3.10"
 description = "Local-first OffsetX POI enrichment, outreach CRM, email expert, FastAPI, and React control center."
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "Kunal Wagh" }]
+keywords = ["crm", "outreach", "lead-discovery", "ai-orchestration", "content-automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
-    "cryptography>=44.0.0,<46.0.0",
+    "cryptography>=50.0.0,<51.0.0",
     "fastapi>=0.115.0,<1.0",
     "httpx>=0.28.0,<1.0",
     "openpyxl>=3.1.5",
     "pandas>=2.2.0",
-    "pypdf>=4.2.0",
+    "pypdf>=6.15.0,<7.0.0",
     "python-dotenv>=1.0.1",
     "python-multipart>=0.0.20",
     "PyYAML>=6.0.1",
@@ -25,9 +36,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.2.0"]
+dev = [
+    "pytest>=8.2.0",
+    "ruff>=0.14.0,<1.0.0",
+]
 crawler = ["crawl4ai>=0.9.2,<0.10"]
 postgres = ["psycopg[binary]>=3.2,<4"]
+email = ["boto3>=1.35,<2"]
 
 [project.scripts]
 offsetx-apollo = "offsetx_apollo_builder.cli:main"
@@ -38,6 +53,12 @@ offsetx-tools = "offsetx_apollo_builder.ai.tool_cli:main"
 offsetx-notebook = "offsetx_apollo_builder.notebook_cli:main"
 offsetx-db = "offsetx_apollo_builder.db_cli:main"
 offsetx-codegraph = "offsetx_apollo_builder.codegraph_cli:main"
+offsetx-email-worker = "offsetx_apollo_builder.email_worker_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kunalwagh101/off_CRM"
+Repository = "https://github.com/kunalwagh101/off_CRM"
+Issues = "https://github.com/kunalwagh101/off_CRM/issues"
 
 [build-system]
 requires = ["setuptools>=77"]

@@ -17,6 +17,13 @@ from offsetx_apollo_builder.ai.registry import (
     ProviderRegistry,
     default_registry_path,
 )
+from offsetx_apollo_builder.ai import evals as evals_module
+from offsetx_apollo_builder.ai.evals import (
+    PACKAGED_EVALS_PATH,
+    SOURCE_EVALS_PATH,
+    checks_for,
+    default_evals_path,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +44,33 @@ def test_the_editable_registry_and_the_packaged_copy_do_not_drift():
         "config/providers.yaml and offsetx_apollo_builder/ai/providers.yaml have "
         "drifted. Copy the config one over the packaged one."
     )
+
+
+def test_the_editable_evals_and_the_packaged_copy_do_not_drift():
+    assert SOURCE_EVALS_PATH.exists(), "config/evals.yaml is missing"
+    assert PACKAGED_EVALS_PATH.exists(), "packaged evals.yaml is missing"
+    assert SOURCE_EVALS_PATH.read_text(encoding="utf-8") == PACKAGED_EVALS_PATH.read_text(
+        encoding="utf-8"
+    ), (
+        "config/evals.yaml and offsetx_apollo_builder/ai/evals.yaml have "
+        "drifted. Copy the config one over the packaged one."
+    )
+
+
+def test_evals_resolve_from_the_installed_package(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OFFSETX_EVALS_CONFIG", raising=False)
+    monkeypatch.setattr(evals_module, "SOURCE_EVALS_PATH", tmp_path / "missing.yaml")
+    resolved = default_evals_path()
+    assert resolved == PACKAGED_EVALS_PATH
+    assert checks_for("email_first_contact", resolved)
+
+
+def test_evals_environment_override_wins(tmp_path, monkeypatch):
+    custom = tmp_path / "custom-evals.yaml"
+    custom.write_text(SOURCE_EVALS_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setenv("OFFSETX_EVALS_CONFIG", str(custom))
+    assert default_evals_path() == custom
 
 
 def test_pyyaml_is_a_real_install_dependency():

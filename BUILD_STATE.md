@@ -7,10 +7,10 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-18
+Last updated: 2026-08-24
 Branch: `main`
-Tests: **1415 Python passed, 0 failed**, 4 skipped (live Docker egress test;
-set `OFF_CRM_SANDBOX_TEST_IMAGE` to a pre-pulled pinned image to run it), 115 frontend passed, frontend build clean.
+Tests: **1432 Python passed, 0 failed**, 8 environment-gated skips, 116 frontend
+passed, frontend production build clean.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
@@ -187,6 +187,55 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 ---
 
 ## 3. Done
+
+### Protected bulk email delivery (beta, 2026-08-24)
+- [x] Added deterministic permission, relationship, global-suppression,
+      frequency, send-window and unsubscribe preflight. AI is not part of any
+      send-policy decision.
+- [x] Added stream- and domain-isolated sending identities with SES verification,
+      seven-day SPF/DKIM/DMARC/alignment freshness, configuration-set and signed
+      SNS-topic requirements. AWS credentials stay in the normal SDK chain.
+- [x] Added schema v9 durable jobs with immutable message snapshots, atomic
+      SQLite claims, cross-path daily caps, per-lane rate/backoff state, bounded
+      retries and `delivery_unknown` quarantine after ambiguous provider state.
+- [x] Added public HMAC one-click unsubscribe, RFC 8058 headers for permission
+      marketing, hard-bounce/complaint suppression, idempotent feedback,
+      campaign health thresholds, auto-pause and explicit resume.
+- [x] Reply sync now cancels already queued jobs. Temporary pauses and closed
+      send windows defer without consuming a provider attempt; cancellations
+      are conditional and cannot race a claimed job into an operator cancel.
+- [x] Added SES v2 raw-MIME transport, a separate `offsetx-email-worker`, API
+      surface, exact `QUEUE LIVE EMAILS` confirmation and a Deliverability UI
+      with loading/error/empty states, identity checks, permission evidence,
+      suppression, job cancellation and health resume.
+- [x] Evidence: 16 focused delivery tests plus the complete 1,432-test Python
+      suite, 116 frontend tests, lock check, optional SES install, CLI smoke and
+      production frontend build. Live AWS/domain/mailbox-cohort validation is
+      still explicitly required; see `docs/architecture/EMAIL_DELIVERY.md`.
+
+### Open-source release hardening (2026-08-20)
+- [x] Replaced the stale public README with the current product boundary: CRM,
+      public-page lead discovery, AI routing, image campaigns, video editing,
+      content distribution and the Stage-1 browser agent, with stable/beta/alpha
+      status and external-provider costs stated plainly.
+- [x] Removed real professional contact details from the public sample exclusion
+      CSV and from the unit-test fixture that repeated one of those identities.
+- [x] Repaired the locked install. `websockets` is now represented as a direct
+      dependency in `uv.lock`, and the exact CI command `uv sync --extra dev
+      --locked` succeeds on a clean environment.
+- [x] Fixed `POST /api/v1/ai/run` in verified mode: a non-empty `checks_suite`
+      called an undefined `_evals_path()` and returned 500. Eval config now has
+      one shared resolver, an environment override, a packaged fallback and a
+      drift test, so both source checkouts and installed wheels load the same
+      rules.
+- [x] Raised `cryptography` to 50.0.0 and `pypdf` to 6.16.1, clearing the known
+      Python dependency advisories found in the release audit.
+- [x] Added a focused Ruff CI gate for syntax and undefined names plus smoke
+      tests for every installed CLI entry point. The gate would have caught the
+      verified-mode failure before release.
+- [x] Verified the full result: 1,416 Python tests, 115 frontend tests, frontend
+      production build, CLI smoke tests, lock check, package compatibility and
+      dependency audit all clean.
 
 ### Security core (§5)
 - [x] Single egress gate. `create_provider` is reachable only from `ai/broker.py`,

@@ -24,7 +24,7 @@ from typing import Sequence
 
 from ..api.config import AppSettings
 from .broker import EgressBroker
-from .evals import EvalRunner, load_suites, suite_summary
+from .evals import EvalRunner, default_evals_path, load_suites, suite_summary
 from .log import EgressLog
 from .modes import ModeRunner
 from .quota import QuotaTracker
@@ -60,8 +60,7 @@ def _build(data_dir: Path):
 def _suite_path(explicit: str) -> Path:
     if explicit:
         return Path(explicit)
-    packaged = Path(__file__).resolve().parents[2] / "config" / "evals.yaml"
-    return packaged
+    return default_evals_path()
 
 
 def cmd_list(args: argparse.Namespace) -> int:

@@ -15,6 +15,9 @@ from ..campaigns import assert_kind
 from ..input_loader import read_input_table
 from ..locked_categories import DEFAULT_CATEGORY, normalize_category
 from .email_expert import LocalEmailExpert, import_expert_documents, route_for_category
+from .deliverability.preflight import PreflightService
+from .deliverability.models import unsubscribe_required
+from .deliverability.store import DeliverabilityStore
 from .models import (
     AIProvider,
     FOLLOWUP_1,
@@ -186,6 +189,9 @@ class OutreachEngine:
         self.mail_archive = mail_archive
         self.workspace_id = workspace_id
         self._lock = threading.RLock()
+        self.deliverability_store = DeliverabilityStore(self.store)
+        self.delivery_preflight = PreflightService(self.deliverability_store)
+        self.unsubscribe_service: Any | None = None
         seed_path = Path(template_file) if template_file else DEFAULT_TEMPLATE_FILE
         if seed_path.exists():
             self.email_expert.seed_templates(seed_path)
@@ -726,6 +732,21 @@ class OutreachEngine:
                         {"campaign_contact_id": str(queued["campaign_contact_id"]), "reason": "valid_email_required"}
                     )
                     continue
+                provider_type = clean_text(getattr(mail_provider, "provider_type", "")) or "local"
+                preflight = self.delivery_preflight.check(
+                    campaign_id,
+                    email,
+                    provider_type=provider_type,
+                    now=now,
+                )
+                if not preflight.allowed:
+                    skipped.append(
+                        {
+                            "campaign_contact_id": str(queued["campaign_contact_id"]),
+                            "reason": preflight.blockers[0].code,
+                        }
+                    )
+                    continue
                 draft = self.store.get_draft_by_id(campaign_id, draft_id)
                 idempotency_key = hashlib.sha256(
                     f"{campaign_id}:{draft_id}:{draft['revision']}".encode("utf-8")
@@ -739,14 +760,50 @@ class OutreachEngine:
                     continue
                 last = self.store.last_outgoing(str(queued["campaign_contact_id"])) or {}
                 try:
+                    settings = self.deliverability_store.get_campaign_settings(campaign_id)
+                    identity = (
+                        self.deliverability_store.get_identity(str(settings["identity_id"]))
+                        if settings.get("identity_id")
+                        else None
+                    )
+                    sent_body = str(draft["body"])
+                    extra_headers: dict[str, str] = {}
+                    needs_unsubscribe = unsubscribe_required(
+                        stream=str(settings["stream"]),
+                        provider_type=provider_type,
+                        configured=bool(settings["require_unsubscribe"]),
+                    )
+                    if (
+                        self.unsubscribe_service is not None
+                        and self.unsubscribe_service.available
+                        and needs_unsubscribe
+                    ):
+                        unsubscribe_url = self.unsubscribe_service.issue(
+                            email=email,
+                            campaign_id=campaign_id,
+                            stream=str(settings["stream"]),
+                        )
+                        sent_body, extra_headers = self.unsubscribe_service.prepare_content(
+                            sent_body,
+                            url=unsubscribe_url,
+                            include_list_headers=settings["stream"] == "permission_marketing",
+                        )
                     provider_result = mail_provider.send_message(
                         to_email=email,
                         subject=str(draft["subject"]),
-                        body=str(draft["body"]),
+                        body=sent_body,
                         thread_id=clean_text(last.get("thread_id")),
                         in_reply_to=clean_text(last.get("internet_message_id")),
                         references=clean_text(last.get("internet_message_id")),
                         idempotency_key=idempotency_key,
+                        from_email=str(identity["from_email"]) if identity else own_email,
+                        from_name=str(identity["name"]) if identity else "",
+                        reply_to=str(identity["reply_to"]) if identity else "",
+                        headers=extra_headers,
+                        tags={
+                            "off_crm_campaign": campaign_id,
+                            "off_crm_stream": str(settings["stream"]),
+                        },
                     )
                     stage = str(draft["stage"])
                     if stage == INITIAL:
@@ -771,6 +828,7 @@ class OutreachEngine:
                         next_action_at=next_action,
                         final_status=final_status,
                         idempotency_key=idempotency_key,
+                        sent_body=sent_body,
                     )
                     sent.append({"draft_id": draft_id, "to": email, "stage": stage})
                     self._count_send(draft)

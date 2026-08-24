@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- Added an email deliverability subsystem with isolated traffic streams,
+  permission evidence, global suppression, one-click unsubscribe, domain-auth
+  checks, durable send jobs, rate/backoff state, an Amazon SES adapter, signed
+  SNS feedback processing, seven-day authentication freshness, reply-aware job
+  cancellation, health thresholds and automatic campaign pause.
+- Added the Deliverability control-centre screen and the
+  `offsetx-email-worker` production worker entry point.
+
+- Rewrote the README around the complete local-first GTM workflow and labelled
+  stable, beta, alpha and external-provider boundaries explicitly.
+- Replaced real contact information in public sample and test data with
+  synthetic records.
+- Fixed the verified AI-run endpoint crash when `checks_suite` is supplied.
+- Added a shared eval-suite path resolver and shipped the eval configuration in
+  the Python package, guarded by source/package drift tests.
+- Repaired the reproducible `uv --locked` installation and upgraded audited
+  Python dependencies.
+- Added critical Ruff checks and installed-CLI smoke tests to CI.
+- Added Apache-2.0 and repository metadata to the Python package declaration.
+
 ## 0.12.0
 
 - Added a self-contained AI module (`offsetx_apollo_builder/ai/`) with a single egress broker that every outbound provider call must pass through.

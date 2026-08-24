@@ -145,6 +145,63 @@ class SendRequest(StrictModel):
     max_messages: int | None = Field(default=None, ge=1, le=500)
 
 
+class EmailIdentityUpsert(StrictModel):
+    id: str = Field(default="", max_length=80)
+    name: str = Field(min_length=1, max_length=120)
+    provider_type: Literal["local", "gmail", "ses"]
+    stream: Literal["permission_marketing", "targeted_outreach", "transactional"]
+    from_email: str = Field(min_length=3, max_length=254)
+    reply_to: str = Field(default="", max_length=254)
+    domain: str = Field(default="", max_length=253)
+    ses_identity: str = Field(default="", max_length=254)
+    aws_region: str = Field(default="", max_length=40)
+    configuration_set: str = Field(default="", max_length=64)
+    dkim_selector: str = Field(default="", max_length=63)
+    mail_from_domain: str = Field(default="", max_length=253)
+    sns_topic_arn: str = Field(default="", max_length=1000)
+    max_per_second: float = Field(default=1, gt=0, le=1000)
+    max_batch_size: int = Field(default=25, ge=1, le=500)
+    status: Literal["active", "paused", "archived"] = "active"
+
+
+class EmailCampaignSettingsUpdate(StrictModel):
+    stream: Literal["permission_marketing", "targeted_outreach", "transactional"] | None = None
+    provider_type: Literal["local", "gmail", "ses"] | None = None
+    identity_id: str | None = Field(default=None, max_length=80)
+    daily_limit: int | None = Field(default=None, ge=1, le=100000)
+    frequency_cap_days: int | None = Field(default=None, ge=1, le=365)
+    frequency_cap_max: int | None = Field(default=None, ge=1, le=100)
+    require_unsubscribe: bool | None = None
+    auto_pause_enabled: bool | None = None
+    health_sample_size: int | None = Field(default=None, ge=1, le=1000000)
+    max_hard_bounce_rate: float | None = Field(default=None, ge=0, le=1)
+    max_complaint_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class EmailPermissionUpdate(StrictModel):
+    status: Literal["unknown", "granted", "denied"]
+    basis: str = Field(default="", max_length=200)
+    source: str = Field(default="", max_length=500)
+    evidence: str = Field(default="", max_length=5000)
+    obtained_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class EmailSuppressionCreate(StrictModel):
+    email: str = Field(min_length=3, max_length=254)
+    reason: str = Field(min_length=1, max_length=500)
+    source: str = Field(default="operator", max_length=200)
+
+
+class EmailEnqueueRequest(StrictModel):
+    max_jobs: int = Field(default=5000, ge=1, le=10000)
+    confirmation: str = Field(default="", max_length=100)
+
+
+class EmailWorkerRequest(StrictModel):
+    max_jobs: int = Field(default=25, ge=1, le=500)
+
+
 class ReplySyncRequest(StrictModel):
     mode: Literal["local", "gmail"] = "local"
 

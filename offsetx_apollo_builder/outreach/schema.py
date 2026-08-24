@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 #: Indexes over columns that arrived through a migration. They cannot live in
@@ -498,3 +498,195 @@ ON ai_messages(chat_id, created_at ASC);
 """
 
 SCHEMA_SQL = SCHEMA_SQL + _AI_CHAT_SCHEMA
+
+# Email delivery is deliberately its own schema boundary. Campaigns are shared
+# by image, distribution and future runners; consent, DNS authentication and
+# provider feedback only make sense for the email runner.
+_EMAIL_DELIVERY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS email_sending_identities (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    provider_type TEXT NOT NULL
+        CHECK(provider_type IN ('local', 'gmail', 'ses')),
+    stream TEXT NOT NULL
+        CHECK(stream IN ('permission_marketing', 'targeted_outreach', 'transactional')),
+    from_email TEXT NOT NULL,
+    reply_to TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL,
+    ses_identity TEXT NOT NULL DEFAULT '',
+    aws_region TEXT NOT NULL DEFAULT '',
+    configuration_set TEXT NOT NULL DEFAULT '',
+    dkim_selector TEXT NOT NULL DEFAULT '',
+    mail_from_domain TEXT NOT NULL DEFAULT '',
+    sns_topic_arn TEXT NOT NULL DEFAULT '',
+    max_per_second REAL NOT NULL DEFAULT 1 CHECK(max_per_second > 0),
+    max_batch_size INTEGER NOT NULL DEFAULT 25
+        CHECK(max_batch_size > 0 AND max_batch_size <= 500),
+    status TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'paused', 'archived')),
+    provider_verified INTEGER NOT NULL DEFAULT 0 CHECK(provider_verified IN (0, 1)),
+    spf_status TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(spf_status IN ('pass', 'fail', 'unknown')),
+    dkim_status TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(dkim_status IN ('pass', 'fail', 'unknown')),
+    dmarc_status TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(dmarc_status IN ('pass', 'fail', 'unknown')),
+    alignment_status TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(alignment_status IN ('pass', 'fail', 'unknown')),
+    dmarc_policy TEXT NOT NULL DEFAULT '',
+    check_details_json TEXT NOT NULL DEFAULT '{}',
+    last_checked_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_identities_from_stream
+ON email_sending_identities(lower(from_email), stream)
+WHERE status <> 'archived';
+
+CREATE TABLE IF NOT EXISTS email_campaign_settings (
+    campaign_id TEXT PRIMARY KEY REFERENCES campaigns(id) ON DELETE CASCADE,
+    stream TEXT NOT NULL DEFAULT 'targeted_outreach'
+        CHECK(stream IN ('permission_marketing', 'targeted_outreach', 'transactional')),
+    provider_type TEXT NOT NULL DEFAULT 'local'
+        CHECK(provider_type IN ('local', 'gmail', 'ses')),
+    identity_id TEXT REFERENCES email_sending_identities(id) ON DELETE SET NULL,
+    daily_limit INTEGER NOT NULL DEFAULT 500
+        CHECK(daily_limit > 0 AND daily_limit <= 100000),
+    frequency_cap_days INTEGER NOT NULL DEFAULT 7
+        CHECK(frequency_cap_days > 0 AND frequency_cap_days <= 365),
+    frequency_cap_max INTEGER NOT NULL DEFAULT 3
+        CHECK(frequency_cap_max > 0 AND frequency_cap_max <= 100),
+    require_unsubscribe INTEGER NOT NULL DEFAULT 1
+        CHECK(require_unsubscribe IN (0, 1)),
+    auto_pause_enabled INTEGER NOT NULL DEFAULT 1
+        CHECK(auto_pause_enabled IN (0, 1)),
+    health_sample_size INTEGER NOT NULL DEFAULT 100
+        CHECK(health_sample_size > 0 AND health_sample_size <= 1000000),
+    max_hard_bounce_rate REAL NOT NULL DEFAULT 0.05
+        CHECK(max_hard_bounce_rate >= 0 AND max_hard_bounce_rate <= 1),
+    max_complaint_rate REAL NOT NULL DEFAULT 0.001
+        CHECK(max_complaint_rate >= 0 AND max_complaint_rate <= 1),
+    paused_reason TEXT NOT NULL DEFAULT '',
+    paused_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_campaign_identity
+ON email_campaign_settings(identity_id, stream);
+
+CREATE TABLE IF NOT EXISTS email_contact_permissions (
+    email TEXT PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'unknown'
+        CHECK(status IN ('unknown', 'granted', 'denied')),
+    basis TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    evidence TEXT NOT NULL DEFAULT '',
+    obtained_at TEXT,
+    expires_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    email TEXT PRIMARY KEY,
+    active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+    reason TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    provider_event_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_suppressions_active
+ON email_suppressions(active, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS email_unsubscribe_tokens (
+    token_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+    stream TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_unsubscribe_email
+ON email_unsubscribe_tokens(email, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS email_send_jobs (
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    campaign_contact_id TEXT NOT NULL REFERENCES campaign_contacts(id) ON DELETE CASCADE,
+    draft_id TEXT NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+    draft_revision INTEGER NOT NULL,
+    identity_id TEXT REFERENCES email_sending_identities(id) ON DELETE SET NULL,
+    stream TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    lane_key TEXT NOT NULL,
+    to_email TEXT NOT NULL,
+    from_email TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    headers_json TEXT NOT NULL DEFAULT '{}',
+    idempotency_key TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK(status IN (
+            'queued', 'sending', 'accepted', 'delivered', 'deferred',
+            'retry_wait', 'blocked', 'failed', 'delivery_unknown', 'cancelled'
+        )),
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+    available_at TEXT NOT NULL,
+    lease_expires_at TEXT,
+    provider_message_id TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    accepted_at TEXT,
+    finished_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_jobs_claim
+ON email_send_jobs(status, available_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_jobs_campaign
+ON email_send_jobs(campaign_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_jobs_recipient
+ON email_send_jobs(to_email, status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_jobs_provider_message
+ON email_send_jobs(provider_message_id) WHERE provider_message_id <> '';
+
+CREATE TABLE IF NOT EXISTS email_rate_state (
+    lane_key TEXT PRIMARY KEY,
+    next_send_at TEXT,
+    backoff_until TEXT,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK(consecutive_failures >= 0),
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS email_delivery_events (
+    id TEXT PRIMARY KEY,
+    provider_type TEXT NOT NULL,
+    provider_event_id TEXT NOT NULL UNIQUE,
+    job_id TEXT REFERENCES email_send_jobs(id) ON DELETE SET NULL,
+    campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+    identity_id TEXT REFERENCES email_sending_identities(id) ON DELETE SET NULL,
+    provider_message_id TEXT NOT NULL DEFAULT '',
+    event_type TEXT NOT NULL
+        CHECK(event_type IN (
+            'accepted', 'delivered', 'deferred', 'soft_bounce', 'hard_bounce',
+            'complaint', 'rejected', 'rendering_failed', 'unsubscribe'
+        )),
+    recipient_email TEXT NOT NULL DEFAULT '',
+    diagnostic TEXT NOT NULL DEFAULT '',
+    raw_json TEXT NOT NULL DEFAULT '{}',
+    occurred_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_events_health
+ON email_delivery_events(campaign_id, identity_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_events_recipient
+ON email_delivery_events(recipient_email, occurred_at DESC);
+"""
+
+SCHEMA_SQL = SCHEMA_SQL + _EMAIL_DELIVERY_SCHEMA

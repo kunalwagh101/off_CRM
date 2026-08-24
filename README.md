@@ -1,250 +1,300 @@
 # off_CRM
-Version 0.12 adds user-controlled parallel discovery workers (1-4, with per-site politeness preserved), one-way Notion export for campaign contacts and sales leads (encrypted local token, schema-aware property matching), a clickable pipeline overview on the dashboard, and plain-language engine/worker controls on the Discovery page.
 
-Version 0.11 adds a complete setter-and-closer sales tracker. Kanban lead cards now drive the lead log, visibility metrics, commissions, leak detection and evidence-labelled monthly forecasts without duplicate entry. The full POI-to-outreach workflow remains local-first and inspectable.
+[![CI](https://github.com/kunalwagh101/off_CRM/actions/workflows/ci.yml/badge.svg)](https://github.com/kunalwagh101/off_CRM/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg)](https://www.python.org/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-## What is included
+**A local-first, open-source GTM operating system for finding opportunities, creating approved outreach and content, and learning from the results.**
 
-- Apollo search for new POIs
-- Sales Kanban with New, Proposal, Deposit, Follow-Up Ongoing, Meeting Follow-Up, Won and Lost stages
-- Complete lead cards for ownership, dates, meeting disposition, call outcome, loss reason, money and last touch
-- Filterable/sortable lead log, setter and closer scorecards, money goals and net commissions
-- Best/expected/worst monthly revenue and cash projection with assumption provenance
-- Automatic red flags for booking lag, aging follow-ups and unpaid deposits
-- Public-page discovery using safe HTTP or optional Crawl4AI 0.9.x JavaScript rendering, with robots.txt, allow-list, rate, size and SSRF controls
-- User-selected parallel discovery workers (1-4); a shared per-domain rate limiter keeps politeness identical to a sequential crawl, so extra workers only speed up multi-site runs
-- One-way Notion export: contacts and sales leads upsert into your chosen Notion databases; the token is Fernet-encrypted on this device and only existing Notion properties are filled
-- Bounded research prompts that compile into target, role, source and connector requirements
-- Local person, company, source-page and reference-only social-profile graph
-- Visible Apollo rejection outcomes plus automatic permanent exclusion of accepted Apollo contacts
-- Reviewable discovery evidence before a POI enters Apollo or the CRM
-- Automatic exclusion against `old_pois`, previous outputs and existing CRM contacts
-- Existing POI CSV/XLSX/XLS enrichment with queue safety and credit caps
-- Campaigns, contacts, draft review, send queue, A/B reporting and CRM exports
-- Three-stage email sequences: first touch, follow-up 1 and follow-up 2
-- Reply detection that cancels all unsent follow-ups
-- Human approval before every eligible send
+off_CRM combines a working outreach CRM, public-web lead discovery, multi-model AI orchestration, image campaigns, a browser-rendered video editor, and a content distribution pipeline. Human approval remains between generation and every important external action.
+
+> **Current status:** strong single-user/local application and disposable hosted demo. It is not yet a multi-tenant production SaaS.
+
+## The product flow
+
+```text
+public evidence
+      |
+      v
+people and trends -> campaigns -> emails, images and videos
+                                      |
+                                      v
+                              human review and approval
+                                      |
+                                      v
+                         local outbox or official adapters
+                                      |
+                                      v
+                           replies and engagement signals
+```
+
+The parts share one safety boundary: models do not pull data from the CRM. off_CRM builds an allowlisted payload and pushes only the permitted fields through one audited AI egress gate.
+
+## What works today
+
+| Capability | Status | What it does |
+|---|---|---|
+| Outreach CRM | Working | Imports contacts, creates three-stage sequences, supports review, scheduling, local outbox or Gmail sending, and stops follow-ups after a reply. |
+| Email deliverability | Beta | Adds consent and suppression controls, stream-isolated identities, SPF/DKIM/DMARC preflight, durable jobs, Amazon SES, one-click unsubscribe, feedback health and auto-pause. Live AWS validation is still required. |
+| Sales tracker | Working | Kanban pipeline, lead log, setter/closer metrics, commissions, leak flags, goals and evidence-labelled revenue projections. |
+| Public-web lead discovery | Working | Extracts people and evidence from user-approved public pages with robots.txt, domain allowlists, rate limits, redirect checks, response limits and SSRF controls. |
+| Apollo enrichment | Working, optional | Searches or enriches POIs with deduplication, permanent exclusions, visible rejection reasons and a hard credit cap. Requires the user's Apollo credentials. |
+| AI orchestration | Working | Routes across configured chat and image models using trust tiers, data policies, quotas, failover, comparison, verification, caching and audit logs. |
+| Local memory and recall | Working | Learns from approved human edits and retrieves only sent-mail context. Received mailbox content is inaccessible by default. |
+| Image campaigns | Working | Generates batches through configured image models, applies deterministic image gates, collects owner approval/rejection labels and learns generator preference. |
+| Video editor | Beta | Browser-rendered timeline editing, still/video import, transitions, effects, retiming, audio mixdown, captions, review queue and WebM/MP4-oriented workflows. AI editing and generated footage/audio remain incomplete. |
+| Content distribution | Beta | Goals, posts, approval, scheduling, owner-set caps, pacing recommendations, engagement snapshots, content automation and a working local outbox. Live Instagram, Facebook, TikTok, LinkedIn and X publishing adapters are not built. |
+| Trend intelligence | Beta | YouTube public-data trend detection, topic clustering and trend-to-post planning. Other platforms depend on their official API permissions. |
+| Browser agent | Alpha | Low-level CDP browser control, accessibility-tree perception, real input events, screenshots, policy checks and append-only traces. It is not yet wired into the main AI/API/UI loop and needs further network hardening. |
+| Hosted multi-user service | Not ready | The current workspace is effectively single-user, most state is local, and the included Render configuration is for disposable demonstrations only. |
+
+## Free and open source
+
+The off_CRM source code is free under the [Apache License 2.0](LICENSE).
+
+A useful local workflow can run with local templates, SQLite, the safe public-page discovery engine and local outboxes. Optional integrations can have their own costs or limits:
+
+- Apollo may charge for enrichment credits.
+- AI and image providers may charge after their free allowance.
+- Gmail, Notion, YouTube and social platforms apply their own API rules and quotas.
+- Hosted infrastructure is separate from the software licence.
+
+The project does not bypass authentication, robots.txt, platform restrictions or account permissions. Authenticated LinkedIn and Instagram scraping is intentionally not supported.
+
+## Core capabilities
+
+### Outreach and CRM
+
+- Campaigns, contacts, drafts, queues and CRM exports
+- First touch plus two follow-ups
+- Reply sync and automatic cancellation of unsent follow-ups
+- Exact preview, editing, bulk corrections, scheduling and approval
 - Safe local outbox by default
-- Gmail OAuth with explicit live-send confirmation
-- Provider-neutral AI adapters for OpenAI, Anthropic, compatible APIs and the future template application
-- Priority-ordered AI failover with normalized output and provider health tests
-- Encrypted local provider profiles and API keys
-- Reply-first automation with hard daily limits and a disabled-by-default Gmail gate
-- Passphrase-encrypted local backup and restore
-- Local SQLite storage with no third-party server between the user and their providers
-- Expert-source retrieval with source and rights provenance
-- Temporary demo login with signed, secure, HTTP-only sessions and login throttling
-- Render Blueprint configuration and automatic `PORT` support
-- Exact pre-send preview, correction, bulk apply, re-audit and scheduling controls
-- Priority, round-robin and parallel-first-success AI routing
-- Per-provider minimal, standard or full data policies with opt-in redacted payload logs
-- Replaceable local memory/RAG backend that learns from human edits and labelled outcomes
-- Experiment hypotheses, controls, minimum samples, confidence intervals and lift
+- Gmail OAuth with an explicit live-send confirmation
+- Durable local/SES delivery jobs with consent, suppression, authentication, feedback and health controls
+- A/B results, memory from approved edits and outcome-labelled learning
+- Setter/closer sales workflow with revenue and cash projections
 
-The old Apollo workflows remain intact. Outreach does not use the legacy team-assignment engine.
+### Lead discovery and enrichment
 
-## Sales tracker workflow
+- Research prompts compiled into target, role, source and connector requirements
+- Safe HTTP discovery and optional local Crawl4AI JavaScript rendering
+- Public person, company, source-page and social-reference graph
+- Evidence review before a person enters Apollo or the CRM
+- Duplicate checks across existing contacts, exclusions and earlier output
+- CSV, XLSX, XLS and text-based PDF contact intake
+- Apollo search and existing-POI enrichment with hard credit controls
+- Rejection and attempt ledgers that explain whether a record may be retried
 
-1. Open **Sales tracker** and create or move lead cards on the Kanban board.
-2. Enter a setter's dials/DMs, conversations and declines once through **Daily activity**.
-3. Review the **Lead log** for every card field, or filter the **Visibility dashboard** by rep, source and date.
-4. Set the monthly revenue/cash goal, then open **Projection** for best, expected and worst end-of-month scenarios.
+Public-page discovery works without Apollo. Apollo is an optional enrichment step when a verified email or provider record is required.
 
-Earnings, conversion rates, revenue, cash, net revenue, commissions, loss analysis, aging and projections are calculated by the backend. See `docs/SALES_TRACKER.md`.
+### AI safety and orchestration
 
-## Lead discovery workflow
+- One central broker for model-provider calls
+- Allowlist payload construction instead of after-the-fact redaction
+- Blocking sensitive-data scanner
+- Provider and per-model trust tiers
+- Minimal, standard and full data policies with explicit overrides
+- Same-tier failover, quota tracking and health checks
+- Simple, verified, compare and orchestrated run modes
+- Deterministic evaluation suites and a repair loop
+- Response caching with privacy-separated partitions
+- Metadata-first egress audit logs
+- No model-facing mailbox, context-store query or recall-search tool
 
-1. Open **Lead discovery** inside a campaign.
-2. Describe the target in the research prompt and add public company-team, event-speaker, association-directory or biography URLs.
-3. Choose safe HTTP or the local Crawl4AI JavaScript worker. Both stay inside policy controls; Scrapling normalizes structured Person evidence and the CRM stores an audit hash instead of raw HTML.
-4. Existing POIs are marked excluded before review.
-5. Review the research graph, approve useful POIs, then add them to the CRM or place them in `local_data/poi_file_queue/inbox` for Apollo.
-6. Apollo accepts enter the permanent exclusion ledger. No-match, no-email and policy rejects appear in the CRM rejection list with an explicit retry policy.
+### Images, video and content
 
-Authenticated LinkedIn or Instagram scraping is intentionally not enabled. Those sites require an approved official API or manual import. AI providers never receive browser sessions, cookies or connected-account credentials. See `docs/LEAD_DISCOVERY.md`.
+- Image generation through the same AI safety boundary
+- Decode, blank-image, header, aspect-ratio and duplicate gates
+- Owner review as the preference signal
+- Generator traffic allocation only after enough evidence exists
+- Timeline-based video editing and browser rendering
+- Effects, transitions, presets, captions, audio and retiming
+- Content goals, post approval, scheduling and engagement measurement
+- Per-account posting caps and explainable pacing suggestions
+- Local distribution outbox and official-API-first platform policy
 
 ## Quick start
 
-Install Python and frontend dependencies:
+### Requirements
 
-```powershell
-uv sync --extra dev
+- Python 3.10 or newer
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 24 and npm
+
+### Install
+
+```bash
+git clone https://github.com/kunalwagh101/off_CRM.git
+cd off_CRM
+
+uv sync --locked
 cd frontend
 npm ci
 npm run build
 cd ..
+
+cp .env.example .env
 ```
 
-Copy `.env.example` to `.env`. Keep the default loopback host.
+On Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`.
 
-Start the complete application:
+### Run
 
-```powershell
-uv run python run_offsetx_web.py
+```bash
+uv run offsetx-web
 ```
 
-Open `http://127.0.0.1:8766`.
+Open:
 
-To enable the local Crawl4AI JavaScript engine:
+- Application: <http://127.0.0.1:8766>
+- API documentation: <http://127.0.0.1:8766/api/docs>
 
-```powershell
-uv sync --extra dev --extra crawler
+The default host is loopback-only. Non-loopback binding is refused unless authentication is configured.
+
+### Optional JavaScript-rendered discovery
+
+```bash
+uv sync --locked --extra crawler
 uv run crawl4ai-setup
 ```
 
-Keep the safe HTTP engine on the small free Render demo. Chromium-based crawling is intended for a local or separately sized worker.
+Keep the safe HTTP engine for ordinary public pages. The Chromium worker is intended for local use or a separately sized worker.
 
-The API reference is at `http://127.0.0.1:8766/api/docs`.
+### Optional Amazon SES bulk delivery
 
-## Render demo
+```bash
+uv sync --locked --extra email
+```
 
-The checked-in `render.yaml` defines a free Docker web service in Singapore. A manual Render setup needs these private environment variables:
+Configure a verified SES identity, configuration set, SNS feedback topic and a public HTTPS unsubscribe URL before live use. See [email delivery architecture](docs/architecture/EMAIL_DELIVERY.md). This improves deliverability controls; it does not guarantee inbox placement.
+
+## First outreach run
+
+1. Create an email campaign.
+2. Import `examples/outreach_contacts_sample.csv`.
+3. Generate a three-stage sequence using local templates or a configured provider.
+4. Review and edit the exact output.
+5. Schedule and approve the drafts.
+6. Run the local outbox.
+7. Connect Gmail only after reviewing the local result.
+8. Sync replies before later sends.
+
+Local mail is written under `local_data/mail/outbox`.
+
+## Configuration
+
+Copy `.env.example` to `.env`. Never commit real values.
+
+Common optional settings:
 
 ```env
-OFFSETX_DEMO_USERNAME=choose-a-demo-username
-OFFSETX_DEMO_PASSWORD=choose-at-least-12-characters
-OFFSETX_SESSION_SECRET=generate-at-least-32-random-characters
-OFFSETX_SESSION_HOURS=8
+APOLLO_API_KEY=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+NVIDIA_API_KEY=
+
+OFFSETX_SENDER_NAME=
+OFFSETX_SENDER_ROLE=
+OFFSETX_SENDER_EMAIL=
+OFFSETX_SENDER_LINKEDIN=
+
+OFFSETX_WEB_HOST=127.0.0.1
+OFFSETX_WEB_PORT=8766
+OFFSETX_LOCAL_API_TOKEN=
+OFFSETX_OUTREACH_DB=local_data/offsetx_outreach.db
+OFFSETX_PUBLIC_BASE_URL=
+OFFSETX_UNSUBSCRIBE_SECRET=
 ```
 
-`OFFSETX_WEB_HOST=0.0.0.0` is already set by the Docker image. Render supplies `PORT` automatically. Do not add Gmail or AI keys for a basic UI demo.
+Provider registry examples are under `config/`. Connected provider profiles and locally managed keys are encrypted on the device.
 
-The free Render filesystem is temporary. SQLite data, outbox files and configuration can disappear after a restart or redeploy. Use the Render service only for disposable demonstration data.
+## Command-line tools
 
-## First outreach workflow
+| Command | Purpose |
+|---|---|
+| `offsetx-web` | Run the FastAPI application and built React frontend. |
+| `offsetx-apollo` | Run POI search, deduplication and enrichment workflows. |
+| `offsetx-outreach` | Manage campaigns, contacts, drafts, approvals and sending. |
+| `offsetx-evals` | Run deterministic AI evaluation suites and compare routing modes. |
+| `offsetx-tools` | Manage the closed, sandboxed tool registry. |
+| `offsetx-notebook` | Export a privacy-controlled research notebook bundle. |
+| `offsetx-db` | Inspect and copy supported database boundaries. |
+| `offsetx-codegraph` | Build or verify the source-only code graph. |
+| `offsetx-email-worker` | Process durable local or Amazon SES email jobs. |
 
-1. Create a campaign and choose a daily limit, timezone and send window.
-2. Import `examples/outreach_contacts_sample.csv` or an Excel file.
-3. Generate the three-stage sequence using local templates or a configured AI provider.
-4. Review the exact output, edit it, optionally apply a correction to selected drafts, schedule it, then approve it.
-5. Run the local outbox first.
-6. Connect Gmail only after reviewing the local results.
-7. Sync replies before every send run. The backend also does this automatically.
+Use `uv run <command> --help` for the complete options.
 
-Local outbox files are written under `local_data/mail/outbox`.
+## Tests and quality checks
 
-Configure the audited sender signature privately in `.env` or Render environment variables:
-
-```env
-OFFSETX_SENDER_NAME=Your name
-OFFSETX_SENDER_ROLE=Building off_CRM - carbon-market infrastructure
-OFFSETX_SENDER_EMAIL=you@example.com
-OFFSETX_SENDER_LINKEDIN=https://www.linkedin.com/in/your-profile/
-```
-
-Personal sender details are intentionally not committed to Git.
-
-## Required contact evidence
-
-A sendable first touch requires:
-
-- POI name
-- valid email before sending
-- one of the nine locked categories
-- verified public hook
-- public hook source
-- route-specific CTA
-- exact off_CRM signature
-- one question mark
-- no confidential or manipulative language
-
-## AI provider portability
-
-API keys are never stored in the database. They can remain in environment variables or be stored in an encrypted local provider vault. The Settings page manages multiple providers, health state, routing strategy, payload policy and call audit. Every provider is normalized to the same subject/body contract.
-
-`minimal` removes recipient identity before a provider call, `standard` removes direct contact data and URLs, and `full` sends the generation context. Request/response bodies are not logged unless the operator explicitly enables local redacted payload logging for that profile.
-
-Examples are in `config/`.
-
-The separate template-intelligence application will integrate through:
-
-```text
-POST /v1/generate
-```
-
-The normalized contract is documented in `docs/TEMPLATE_INTELLIGENCE_CONTRACT.md`.
-
-## Gmail connection
-
-Create a Google OAuth desktop client and set:
-
-```env
-OFFSETX_GMAIL_CLIENT_SECRETS=path/to/client_secret.json
-OFFSETX_GMAIL_TOKEN=local_data/gmail_token.json
-OFFSETX_OWN_EMAIL=your-email@example.com
-```
-
-Then authorize locally:
-
-```powershell
-uv run python run_offsetx_outreach.py gmail-authorize
-```
-
-Gmail live send requires the exact confirmation `SEND LIVE EMAILS` in the UI or CLI.
-
-The current Gmail authorization is a local desktop OAuth flow. Do not upload a personal Gmail token to the free Render demo. A hosted Gmail connection requires a separate web OAuth callback and durable encrypted credential storage.
-
-## Tests
-
-```powershell
+```bash
+uv sync --extra dev --extra email --locked
+uv run ruff check --select E9,F63,F7,F82 .
 uv run pytest -q
+
 cd frontend
+npm ci
 npm test
 npm run build
 ```
 
-Release result:
+The repository has more than 1,400 Python tests plus more than 115 frontend tests. CI performs the locked install, critical Python static checks, CLI smoke tests, backend tests, frontend tests and the production frontend build.
 
-```text
-63 Python tests passed
-3 frontend tests passed
-production frontend build passed
-```
+Live Chromium, Docker sandbox and Postgres cases are environment-gated. Their skipped status does not mean the mocked/unit coverage replaces a real deployment test.
 
-## Apollo workflows
+## Security model
 
-Existing POI queue status:
+Important controls include:
 
-```powershell
-uv run python run_offsetx_apollo.py --queue-status
-```
+- Loopback-only default binding
+- Authentication required for non-loopback hosting
+- Encrypted local provider secrets and backups
+- Human approval before email sending, publishing and reviewed media release
+- Restricted discovery with robots, rate, redirect, size and SSRF controls
+- Formula-safe spreadsheet exports
+- Upload limits and temporary-file cleanup
+- Strict browser security headers
+- Append-only campaign, provider and browser traces
+- No AI access to received mail by default
 
-Existing POI dry run:
+Read [docs/SECURITY.md](docs/SECURITY.md) before connecting real accounts.
 
-```powershell
-uv run python run_offsetx_apollo.py `
-  --enrich-existing-pois `
-  --outdir output_existing_poi_enrichment `
-  --run-id dry_existing_pois_001 `
-  --credit-cap 10 `
-  --batch-size 5 `
-  --dry-run
-```
+For a security problem, do not open a public issue containing credentials, personal data or an exploit that puts users at risk.
 
-Apollo search dry run:
+## Storage and deployment
 
-```powershell
-uv run python run_offsetx_apollo.py `
-  --outdir output_dry_run `
-  --run-id search_dry_001 `
-  --target-count 250 `
-  --credit-cap 250 `
-  --dry-run
-```
+The default installation stores data locally using SQLite, JSON and local files.
 
-See `docs/EXISTING_POI_ENRICHMENT.md` for the full legacy workflow.
+The checked-in Render blueprint is a disposable demonstration configuration. Its `/tmp` data can disappear after a restart or redeploy. Do not put personal contacts, Gmail tokens or production credentials there.
+
+A production shared service still needs complete PostgreSQL migration, tenant isolation, object storage, durable background jobs, managed secrets, monitoring and tested recovery.
 
 ## Documentation
 
-- `docs/INTELLIGENCE_ARCHITECTURE.md`
-- `docs/LEAD_DISCOVERY.md`
-- `docs/SYSTEM_ARCHITECTURE_V06.md` (historical v0.6 decision record)
-- `docs/WEB_CRM.md`
-- `docs/TEMPLATE_INTELLIGENCE_CONTRACT.md`
-- `docs/SECURITY.md`
-- `docs/DEPLOYMENT.md`
-- `docs/TROUBLESHOOTING.md`
+Start here:
 
-## Important safety rule
+- [BUILD_STATE.md](BUILD_STATE.md) — current implementation record and known gaps
+- [AGENTS.md](AGENTS.md) — invariants and commands for contributors and coding agents
+- [AI module](docs/AI_MODULE.md)
+- [Security](docs/SECURITY.md)
+- [Lead discovery](docs/LEAD_DISCOVERY.md)
+- [Sales tracker](docs/SALES_TRACKER.md)
+- [Email delivery and deliverability controls](docs/architecture/EMAIL_DELIVERY.md)
+- [Image campaigns](docs/architecture/IMAGE_CAMPAIGNS.md)
+- [Content distribution](docs/architecture/DISTRIBUTION_CAMPAIGNS.md)
+- [Video editor](docs/architecture/VIDEO_EDITOR.md)
+- [Browser agent blueprint](docs/architecture/BROWSER_AGENT_BLUEPRINT.md)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
-Do not upload copied paid courses or private material to the expert library. Use owned notes, licensed material, permissioned transcripts or public material with clear provenance.
+Some architecture documents are historical decision records. `BUILD_STATE.md` is the source of truth for current implementation status.
+
+## Contributing
+
+Issues and focused pull requests are welcome. Before changing runtime behaviour, read `AGENTS.md` and the relevant section of `BUILD_STATE.md`. Preserve the central AI egress wall, campaign-kind gates and human approval boundaries.
+
+## Licence
+
+Copyright 2026 Kunal Wagh.
+
+Licensed under the [Apache License 2.0](LICENSE).

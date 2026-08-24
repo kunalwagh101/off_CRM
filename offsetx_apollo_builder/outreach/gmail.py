@@ -14,7 +14,7 @@ from email.message import EmailMessage
 from email.utils import make_msgid, parseaddr, parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import requests
 
@@ -223,6 +223,7 @@ def authorize_interactive(
 
 class GmailMailProvider:
     API_ROOT = "https://gmail.googleapis.com/gmail/v1/users/me"
+    provider_type = "gmail"
 
     def __init__(
         self,
@@ -284,10 +285,20 @@ class GmailMailProvider:
         in_reply_to: str = "",
         references: str = "",
         idempotency_key: str = "",
+        from_email: str = "",
+        from_name: str = "",
+        reply_to: str = "",
+        headers: Mapping[str, str] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> SendResult:
+        del tags
         message = EmailMessage()
         message["To"] = to_email
         message["Subject"] = subject
+        if from_email:
+            message["From"] = f"{from_name} <{from_email}>" if from_name else from_email
+        if reply_to:
+            message["Reply-To"] = reply_to
         if idempotency_key:
             digest = hashlib.sha256(idempotency_key.encode()).hexdigest()[:32]
             message["Message-ID"] = f"<offsetx-{digest}@offsetx.local>"
@@ -298,6 +309,13 @@ class GmailMailProvider:
             message["In-Reply-To"] = in_reply_to
         if references:
             message["References"] = references
+        for name, value in (headers or {}).items():
+            lowered = str(name).lower()
+            if lowered in {"to", "from", "subject", "reply-to", "message-id", "date"}:
+                raise GmailError(f"Email header cannot override {name}")
+            if "\n" in str(value) or "\r" in str(value):
+                raise GmailError("Email header contains invalid characters")
+            message[str(name)] = str(value)
         message.set_content(body)
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
         payload: dict[str, Any] = {"raw": raw}
@@ -383,6 +401,8 @@ class GmailMailProvider:
 class LocalOutboxProvider:
     """Safe local provider used before Gmail is enabled."""
 
+    provider_type = "local"
+
     def __init__(self, root: Path | str):
         self.root = Path(root)
         self.outbox = self.root / "outbox"
@@ -400,6 +420,11 @@ class LocalOutboxProvider:
         in_reply_to: str = "",
         references: str = "",
         idempotency_key: str = "",
+        from_email: str = "",
+        from_name: str = "",
+        reply_to: str = "",
+        headers: Mapping[str, str] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> SendResult:
         if idempotency_key:
             digest = hashlib.sha256(idempotency_key.encode()).hexdigest()
@@ -423,8 +448,13 @@ class LocalOutboxProvider:
             "internet_message_id": internet_message_id,
             "idempotency_key": idempotency_key,
             "to": to_email,
+            "from": from_email,
+            "from_name": from_name,
+            "reply_to": reply_to,
             "subject": subject,
             "body": body,
+            "headers": dict(headers or {}),
+            "tags": dict(tags or {}),
             "in_reply_to": in_reply_to,
             "references": references,
             "created_at": to_utc_iso(),

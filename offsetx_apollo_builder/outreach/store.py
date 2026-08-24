@@ -799,6 +799,7 @@ class OutreachStore:
                     generation_meta_json = ?, approved_at = NULL, send_error = '',
                     revision = revision + 1, updated_at = ?
                 WHERE id = ? AND sent_at IS NULL
+                  AND approval_status NOT IN ('queued', 'sending')
                 """,
                 (
                     draft.subject,
@@ -813,7 +814,7 @@ class OutreachStore:
                 ),
             )
             if cursor.rowcount != 1:
-                raise ValueError("A sent or missing draft cannot be edited")
+                raise ValueError("A sent, queued, or missing draft cannot be edited")
 
     def schedule_drafts(
         self,
@@ -831,6 +832,7 @@ class OutreachStore:
                 f"""
                 UPDATE drafts SET scheduled_at = ?, updated_at = ?
                 WHERE id IN ({placeholders}) AND sent_at IS NULL
+                  AND approval_status NOT IN ('queued', 'sending')
                   AND campaign_contact_id IN (
                       SELECT id FROM campaign_contacts WHERE campaign_id = ?
                   )
@@ -853,7 +855,11 @@ class OutreachStore:
     ) -> dict[str, int]:
         stage_list = list(dict.fromkeys(stages))
         id_list = list(dict.fromkeys(draft_ids))
-        where = ["cc.campaign_id = ?", "d.sent_at IS NULL"]
+        where = [
+            "cc.campaign_id = ?",
+            "d.sent_at IS NULL",
+            "d.approval_status NOT IN ('queued', 'sending')",
+        ]
         params: list[Any] = [campaign_id]
         selectors: list[str] = []
         if stage_list:
@@ -991,6 +997,8 @@ class OutreachStore:
         next_action_at: datetime | None,
         final_status: str,
         idempotency_key: str,
+        sent_subject: str | None = None,
+        sent_body: str | None = None,
     ) -> str:
         message_id = str(uuid.uuid4())
         sent_iso = to_utc_iso(sent_at)
@@ -1015,8 +1023,8 @@ class OutreachStore:
                     result.internet_message_id,
                     idempotency_key,
                     normalize_email(to_email),
-                    draft["subject"],
-                    draft["body"],
+                    draft["subject"] if sent_subject is None else sent_subject,
+                    draft["body"] if sent_body is None else sent_body,
                     sent_iso,
                     draft.get("variant_id", ""),
                     draft.get("template_id", ""),
@@ -1119,9 +1127,21 @@ class OutreachStore:
                         """
                         UPDATE drafts SET approval_status = 'cancelled_reply', updated_at = ?
                         WHERE campaign_contact_id = ? AND sent_at IS NULL
-                          AND approval_status IN ('pending', 'approved', 'send_failed_review')
+                          AND approval_status IN (
+                              'pending', 'approved', 'queued', 'send_failed_review'
+                          )
                         """,
                         (now, campaign_contact_id),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE email_send_jobs SET status = 'cancelled',
+                            lease_expires_at = NULL, last_error = 'reply_received',
+                            finished_at = ?, updated_at = ?
+                        WHERE campaign_contact_id = ?
+                          AND status IN ('queued', 'retry_wait')
+                        """,
+                        (now, now, campaign_contact_id),
                     )
                 updated.append(campaign_contact_id)
             except sqlite3.IntegrityError:

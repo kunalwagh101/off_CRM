@@ -9,6 +9,7 @@ import Contacts from "./pages/Contacts";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
+import Deliverability from "./pages/Deliverability";
 import SalesTracker from "./pages/SalesTracker";
 import Experiments from "./pages/Experiments";
 import ImageReview from "./pages/ImageReview";
@@ -30,6 +31,7 @@ const pages = {
   contacts: Contacts,
   drafts: Drafts,
   queue: Queue,
+  deliverability: Deliverability,
   sales: SalesTracker,
   experiments: Experiments,
   imagereview: ImageReview,
@@ -56,6 +58,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "contacts", label: "Contacts", icon: "◎" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },
   { page: "queue", label: "Send queue", icon: "➤" },
+  { page: "deliverability", label: "Deliverability", icon: "✓" },
   { page: "sales", label: "Sales tracker", icon: "↗", group: "Sales" },
   { page: "experiments", label: "Experiments", icon: "A/B" },
   { page: "imagereview", label: "Image review", icon: "▣", group: "Images" },

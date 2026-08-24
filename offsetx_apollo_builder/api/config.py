@@ -28,6 +28,8 @@ class AppSettings:
     gmail_client_secrets: Path | None = None
     gmail_token: Path | None = None
     own_email: str = ""
+    public_base_url: str = ""
+    unsubscribe_secret: str = ""
 
     @classmethod
     def from_env(cls, project_root: Path | str | None = None) -> "AppSettings":
@@ -56,6 +58,8 @@ class AppSettings:
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
             gmail_token=_resolved(gmail_token, root) if gmail_token else None,
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
+            public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
+            unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),
         )
         settings.validate()
         return settings
@@ -84,6 +88,8 @@ class AppSettings:
             raise ValueError("OFFSETX_MAX_UPLOAD_BYTES is too small")
         if not 1 <= self.session_hours <= 24:
             raise ValueError("OFFSETX_SESSION_HOURS must be between 1 and 24")
+        if self.unsubscribe_secret and len(self.unsubscribe_secret.encode("utf-8")) < 32:
+            raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
 
     @property
     def demo_login_enabled(self) -> bool:

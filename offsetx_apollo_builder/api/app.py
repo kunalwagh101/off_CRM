@@ -51,6 +51,12 @@ from ..outreach.automation import AutomationService
 from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
+from ..outreach.deliverability.events import SnsVerifier
+from ..outreach.deliverability.models import PermanentDeliveryError
+from ..outreach.deliverability.service import EmailDeliveryService
+from ..outreach.deliverability.ses import SesMailProvider
+from ..outreach.deliverability.store import DeliverabilityStore
+from ..outreach.deliverability.unsubscribe import UnsubscribeService
 from ..outreach.models import ProviderConfig, ROUTES, utc_now
 from ..outreach.ai_chat import AIChatService
 from ..outreach.notion import (
@@ -67,6 +73,7 @@ from ..ai import (
     NEVER_CACHE_TASK_TYPES,
     ResponseCache,
     checks_for,
+    default_evals_path,
     DataClass,
     DataPolicy,
     build_payload,
@@ -94,6 +101,7 @@ from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
+from .email_delivery import build_email_delivery_router
 from .schemas import (
     AutomationUpdate,
     BackupExport,
@@ -306,6 +314,39 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
         app.state.campaign_locks = CampaignLocks()
+        delivery_store = DeliverabilityStore(app.state.engine.store)
+        unsubscribe = UnsubscribeService.from_path(
+            delivery_store,
+            resolved.data_dir / "email_unsubscribe.key",
+            public_base_url=resolved.public_base_url,
+            configured_secret=resolved.unsubscribe_secret,
+        )
+
+        def delivery_provider(job: dict[str, Any], identity: dict[str, Any] | None) -> Any:
+            provider_type = str(job.get("provider_type", ""))
+            if provider_type == "local":
+                return LocalOutboxProvider(resolved.data_dir / "mail")
+            if provider_type == "ses":
+                if not identity:
+                    raise PermanentDeliveryError("Amazon SES requires a sending identity")
+                return SesMailProvider(
+                    region=str(identity["aws_region"]),
+                    configuration_set=str(identity["configuration_set"]),
+                )
+            if provider_type == "gmail":
+                raise PermanentDeliveryError(
+                    "Durable Gmail jobs are disabled. Use the confirmed Gmail send action for small outreach."
+                )
+            raise PermanentDeliveryError(f"Unknown email provider: {provider_type}")
+
+        app.state.email_delivery = EmailDeliveryService(
+            app.state.engine,
+            unsubscribe=unsubscribe,
+            provider_factory=delivery_provider,
+        )
+        app.state.engine.delivery_preflight = app.state.email_delivery.preflight
+        app.state.engine.unsubscribe_service = unsubscribe
+        app.state.sns_verifier = SnsVerifier()
         app.state.maintenance_lock = threading.Lock()
         app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
         app.state.ai_registry = ProviderRegistry()
@@ -412,7 +453,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "http://localhost:8766",
         ],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-off-CRM-Token"],
     )
 
@@ -424,9 +465,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             f"{API_PREFIX}/auth/login",
             f"{API_PREFIX}/auth/logout",
         }
+        public_prefixes = (
+            f"{API_PREFIX}/email/unsubscribe/",
+            f"{API_PREFIX}/email-delivery/events/ses/sns",
+        )
+        is_public = request.url.path in public_paths or request.url.path.startswith(
+            public_prefixes
+        )
         protected = (
             request.url.path.startswith("/api/")
-            and request.url.path not in public_paths
+            and not is_public
             and (bool(resolved.api_token) or session_auth.enabled)
         )
         if protected and not (valid_api_token(request) or session_identity(request)):
@@ -438,6 +486,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.exception_handler(KeyError)
     async def not_found(_: Request, exc: KeyError) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc).strip("'")})
+
+    app.include_router(build_email_delivery_router())
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
@@ -486,6 +536,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 "openai", "anthropic", "openai_compatible", "template_engine_http"
             ],
             "mail_modes": ["local", "gmail"],
+            "bulk_mail_modes": ["local", "ses"],
+            "live_bulk_confirmation": "QUEUE LIVE EMAILS",
             "live_send_confirmation": LIVE_SEND_CONFIRMATION,
         }
 
@@ -2505,7 +2557,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 # The rules come from the eval suite, so what production
                 # enforces is exactly what the harness measures.
                 suite_id = str(body.get("checks_suite", "")).strip()
-                checks = checks_for(suite_id, _evals_path()) if suite_id else ()
+                checks = checks_for(suite_id, default_evals_path()) if suite_id else ()
                 result = runner.run_verified(
                     egress,
                     settings,

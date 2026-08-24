@@ -5,7 +5,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 INITIAL = "initial"
 FOLLOWUP_1 = "followup1"
@@ -228,6 +228,11 @@ class MailProvider(Protocol):
         in_reply_to: str = "",
         references: str = "",
         idempotency_key: str = "",
+        from_email: str = "",
+        from_name: str = "",
+        reply_to: str = "",
+        headers: Mapping[str, str] | None = None,
+        tags: Mapping[str, str] | None = None,
     ) -> SendResult: ...
 
     def list_replies(self, *, since: datetime, own_email: str) -> list[IncomingMessage]: ...

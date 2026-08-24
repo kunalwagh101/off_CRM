@@ -81,7 +81,7 @@ export default function Queue() {
         eyebrow={activeCampaign?.name}
         title="Send queue"
         description="Reply sync runs first. Daily caps, working-day timing and atomic send claims are enforced in the backend."
-        actions={<><Badge tone={automation.data?.enabled ? "success" : "neutral"}>{automation.data?.enabled ? `Automation on · ${automation.data.mode}` : "Automation paused"}</Badge><Button tone="secondary" busy={busy === "sync"} onClick={syncReplies}>Sync local replies</Button><Button tone="secondary" busy={busy === "local"} onClick={() => run("local")}>Run local outbox</Button><Button onClick={() => setGmailOpen(true)}>Send with Gmail</Button></>}
+        actions={<><Badge tone={automation.data?.enabled ? "success" : "neutral"}>{automation.data?.enabled ? `Automation on · ${automation.data.mode}` : "Automation paused"}</Badge><Button tone="ghost" onClick={() => (window.location.hash = "deliverability")}>Bulk delivery</Button><Button tone="secondary" busy={busy === "sync"} onClick={syncReplies}>Sync local replies</Button><Button tone="secondary" busy={busy === "local"} onClick={() => run("local")}>Run local outbox</Button><Button onClick={() => setGmailOpen(true)}>Send with Gmail</Button></>}
       />
       <div className="stats-grid compact-stats">
         <StatCard label="Ready now" value={counts.due} detail="approved and due" accent="green" />

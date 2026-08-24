@@ -297,6 +297,25 @@ def test_run_with_nothing_connected_points_at_connectors(client):
     assert "Connectors" in response.json()["detail"]["message"]
 
 
+def test_verified_run_can_load_a_named_checks_suite(client):
+    """A named suite used to call an undefined ``_evals_path`` at runtime."""
+    response = client.post(
+        f"{API}/ai/run",
+        json={
+            "mode": "verified",
+            "instructions": "Write a short first-contact email.",
+            "checks_suite": "email_first_contact",
+        },
+    )
+    # Verified mode reports provider refusal inside its normal result envelope.
+    # Reaching that envelope proves the suite path resolved instead of crashing.
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "verified"
+    assert payload["branches"][0]["ok"] is False
+    assert "No AI provider is connected" in payload["branches"][0]["error"]
+
+
 # ── per-model connectors ────────────────────────────────────────────────────
 
 

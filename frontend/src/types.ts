@@ -149,6 +149,95 @@ export type QueueItem = {
   generation_meta?: Record<string, unknown>;
 };
 
+export type EmailIdentity = {
+  id: string;
+  name: string;
+  provider_type: "local" | "gmail" | "ses";
+  stream: "permission_marketing" | "targeted_outreach" | "transactional";
+  from_email: string;
+  reply_to: string;
+  aws_region: string;
+  configuration_set: string;
+  status: "active" | "paused" | "archived";
+  provider_verified: boolean;
+  spf_status: "pass" | "fail" | "unknown";
+  dkim_status: "pass" | "fail" | "unknown";
+  dmarc_status: "pass" | "fail" | "unknown";
+  alignment_status: "pass" | "fail" | "unknown";
+  last_checked_at?: string;
+};
+
+export type EmailCampaignSettings = {
+  campaign_id: string;
+  stream: EmailIdentity["stream"];
+  provider_type: EmailIdentity["provider_type"];
+  identity_id: string | null;
+  daily_limit: number;
+  frequency_cap_days: number;
+  frequency_cap_max: number;
+  require_unsubscribe: boolean;
+  auto_pause_enabled: boolean;
+  health_sample_size: number;
+  max_hard_bounce_rate: number;
+  max_complaint_rate: number;
+  paused_reason: string;
+  updated_at?: string;
+};
+
+export type EmailPreflight = {
+  campaign_id: string;
+  allowed: number;
+  blocked: number;
+  evaluated: number;
+  blocker_counts: Record<string, number>;
+  items: Array<{
+    campaign_contact_id: string;
+    draft_id: string;
+    email: string;
+    allowed: boolean;
+    blockers: Array<{ code: string; message: string; field: string }>;
+    warnings: Array<{ code: string; message: string; field: string }>;
+  }>;
+};
+
+export type EmailHealth = {
+  campaign_id: string;
+  accepted: number;
+  delivered: number;
+  hard_bounces: number;
+  complaints: number;
+  deferred: number;
+  hard_bounce_rate: number;
+  complaint_rate: number;
+  sample_required: number;
+  enough_data: boolean;
+  breached: string[];
+  status: "insufficient_data" | "healthy" | "review" | "paused";
+  paused_reason: string;
+};
+
+export type EmailJob = {
+  id: string;
+  campaign_id: string;
+  to_email: string;
+  full_name: string;
+  company: string;
+  provider_type: string;
+  stream: string;
+  status: string;
+  attempt_count: number;
+  last_error: string;
+  created_at: string;
+};
+
+export type EmailSuppression = {
+  email: string;
+  active: boolean;
+  reason: string;
+  source: string;
+  updated_at: string;
+};
+
 export type Paginated<T> = {
   items: T[];
   total: number;

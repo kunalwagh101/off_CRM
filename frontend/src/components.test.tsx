@@ -95,6 +95,19 @@ describe("v0.12 additions", () => {
     expect(html).toContain("Notion sync");
     expect(html).toContain("source of truth");
   });
+
+  it("deliverability keeps bulk sending behind visible safety controls", async () => {
+    const { default: Deliverability } = await import("./pages/Deliverability");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={{ ...context, activeCampaign: { id: "c1", name: "Launch", kind: "email" } as never }}>
+        <Deliverability />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Email deliverability");
+    expect(html).toContain("cannot guarantee inbox placement");
+    expect(html).toContain("Global suppression");
+    expect(html).toContain("Durable delivery jobs");
+  });
 });
 
 describe("the video section on the command centre", () => {

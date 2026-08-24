@@ -77,12 +77,13 @@ Dependencies are installed by the session-start hook in `.claude/hooks/`
 welcome — any tool can read this file).
 
 ```bash
-uv sync --extra dev          # python deps (includes scrapling; requirements.txt omits it)
-uv run pytest -q             # 264 tests, all passing
+uv sync --extra dev --extra email --locked # reproducible Python deps, including SES
+uv run ruff check --select E9,F63,F7,F82 .  # broken names and syntax
+uv run pytest -q             # 1,400+ tests
 uv run pytest tests/test_ai_egress_wall.py -v   # the 34 security cases
 
-cd frontend && npm install
-npm test                     # 6 tests
+cd frontend && npm ci
+npm test                     # 115 tests
 npm run build                # tsc -b && vite build
 ```
 

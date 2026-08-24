@@ -31,6 +31,7 @@ without waiting weeks for a campaign to conclude.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -57,6 +58,31 @@ _PREAMBLE_RE = re.compile(
 _PLACEHOLDER_RE = re.compile(r"\{\{[^}]*\}\}|\[[A-Z_][A-Z0-9_ ]{2,}\]|<[A-Z_]{3,}>|\bXXX+\b")
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+
+
+# Keep the editable config and the installed-package fallback in the same
+# order as the provider registry. A source checkout reads ``config/evals.yaml``;
+# a wheel or Docker install can still verify output when that source directory
+# is absent.
+_PACKAGE_DIR = Path(__file__).resolve().parent
+_SOURCE_ROOT = _PACKAGE_DIR.parents[1]
+PACKAGED_EVALS_PATH = _PACKAGE_DIR / "evals.yaml"
+SOURCE_EVALS_PATH = _SOURCE_ROOT / "config" / "evals.yaml"
+
+
+def default_evals_path() -> Path:
+    """Return the first configured, source, or packaged eval suite file."""
+    override = os.environ.get("OFFSETX_EVALS_CONFIG", "").strip()
+    if override:
+        return Path(override)
+    for candidate in (
+        Path.cwd() / "config" / "evals.yaml",
+        SOURCE_EVALS_PATH,
+        PACKAGED_EVALS_PATH,
+    ):
+        if candidate.exists():
+            return candidate
+    return PACKAGED_EVALS_PATH
 
 
 # ── check results ───────────────────────────────────────────────────────────

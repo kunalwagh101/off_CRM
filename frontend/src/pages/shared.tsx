@@ -28,8 +28,8 @@ export function Loadable({ loading, error }: { loading: boolean; error: string }
 }
 
 export function statusTone(status: string): string {
-  if (["active", "approved", "sent", "replied", "completed"].includes(status)) return "success";
-  if (["pending", "drafted", "waiting_followup", "new"].includes(status)) return "warning";
-  if (["send_failed_review", "stopped", "cancelled_reply"].includes(status)) return "danger";
+  if (["active", "approved", "sent", "accepted", "delivered", "replied", "completed"].includes(status)) return "success";
+  if (["pending", "drafted", "queued", "retry_wait", "deferred", "waiting_followup", "new"].includes(status)) return "warning";
+  if (["blocked", "failed", "delivery_unknown", "send_failed_review", "stopped", "cancelled_reply", "cancelled_policy"].includes(status)) return "danger";
   return "neutral";
 }

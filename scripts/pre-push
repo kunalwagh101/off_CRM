@@ -1,0 +1,12 @@
+#!/bin/sh
+# Refuse a push whose board does not match the repository.
+#
+# Install once:
+#     ln -sf ../../scripts/pre-push .git/hooks/pre-push
+#
+# A green verifier is the only acceptable basis for the sentence "this is done",
+# and the cheapest moment to find out otherwise is before the push rather than
+# in review.
+set -e
+echo "verify_board: checking the board against the repository…"
+python scripts/verify_board.py

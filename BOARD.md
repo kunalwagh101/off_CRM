@@ -1,0 +1,184 @@
+# Board
+
+**The single source of truth for what is happening.** Chat is not state — if it
+is not in this file, it did not happen.
+
+`scripts/verify_board.py` parses this file. One fixed-format line per item:
+
+```
+- <ID> · <title>
+```
+
+`DONE` items carry an indented evidence block. `BLOCKED` items carry an
+indented `blocked: <Q-nn or a named external dependency>`.
+
+**WIP limit: `IN_PROGRESS` ≤ 2.** Nothing is pulled while an item sits in
+`IN_PROGRESS` or `BLOCKED`.
+
+---
+
+## BACKLOG
+
+- S-02.02.01 · A goal becomes a bounded sequence of actions
+- S-02.02.02 · PLAN.md as the single source of truth
+- S-02.02.03 · Interrupt, steer, resume
+- S-02.02.04 · Safety countdowns before consequential actions
+- S-03.02.03 · Revoke and forget
+- S-04.01.01 · Companions: persisted agent profiles
+- S-04.01.02 · Skills: procedures fetched on demand
+- S-04.01.03 · Sub-agents for context isolation
+- S-04.01.04 · The five roles, wired to what already exists
+- S-05.01.01 · A crawler with a frontier, not a loop
+- S-05.01.02 · Extraction packs as declared data
+- S-05.01.03 · Take a competitor post apart and rebuild the shape
+- S-06.01.01 · Workspaces with their own keys and their own logins
+- S-06.01.02 · Three-level permissions
+- S-06.01.03 · Cost estimated before a run and ledgered after
+- S-06.01.04 · Routines that fire agent runs on a schedule or an event
+- S-06.01.05 · Deployment, monitoring and rollback
+- S-06.02.01 · No secret may enter a model prompt
+- S-06.02.02 · Every endpoint authorises and validates
+- S-06.02.03 · Cost and latency budgets per run
+- S-06.02.04 · Data deletion and subject access
+- S-06.02.05 · The UI is usable by keyboard and screen reader
+- S-07.01.01 · An MCP client
+- S-07.01.02 · Native OAuth integrations
+- S-07.01.03 · Meeting transcription with no bot in the call
+- S-07.01.04 · Reports and artifacts
+
+## READY
+
+*(Nothing. Every candidate for the next increment has an open question filed
+against it — see BLOCKED. That is the Definition of Ready doing its job rather
+than a gap.)*
+
+## IN_PROGRESS
+
+*(Empty. The next increment is the owner's pull, and it cannot be pulled until
+Q-01 and Q-02 are answered.)*
+
+## IN_REVIEW
+
+*(Empty.)*
+
+## BLOCKED
+
+- S-03.01.01 · A browser box: network yes, host filesystem never
+  blocked: Q-02 — the domain allow-list shape is undecided, and it changes whether this is one code path or two.
+- S-03.02.01 · Sign in to a platform once, inside the box
+  blocked: Q-03 — which platform is proven first changes what the first slice contains.
+- S-03.02.02 · A vault the model cannot read
+  blocked: Q-01 — where the master key comes from changes the storage design, not just a parameter.
+
+## DONE
+
+- S-01.01.01 · A timeline that cannot represent an invalid edit
+  tests: tests/test_video_timeline.py
+  command: python -m pytest tests/test_video_timeline.py -q
+  result: 49 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/timeline.py
+  commit: d96ea9d
+
+- S-01.01.02 · Two resolvers held to one answer by a fixture
+  tests: tests/test_video_mixdown.py
+  command: python -m pytest tests/test_video_mixdown.py -q
+  result: 29 passed (2026-08-25)
+  code: tests/fixtures/timeline_conformance.json
+  commit: d96ea9d
+
+- S-01.02.01 · Video, audio and footage in one exported file
+  tests: tests/test_video_engine.py
+  command: python -m pytest tests/test_video_engine.py -q
+  result: 46 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/mixdown.py
+  commit: d96ea9d
+
+- S-01.02.02 · Time remapping as one integral
+  tests: tests/test_video_retime.py
+  command: python -m pytest tests/test_video_retime.py -q
+  result: 34 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/presets.py
+  commit: d96ea9d
+
+- S-01.02.03 · 48 pixel primitives and a catalogue of looks
+  tests: tests/test_video_effects.py
+  command: python -m pytest tests/test_video_effects.py -q
+  result: 49 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/effects.py
+  commit: d96ea9d
+
+- S-01.03.01 · Material in, finished timeline out
+  tests: tests/test_video_assembly.py
+  command: python -m pytest tests/test_video_assembly.py -q
+  result: 94 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/assembly.py
+  commit: d96ea9d
+
+- S-01.03.02 · A topic in, a finished project out
+  tests: tests/test_video_director.py
+  command: python -m pytest tests/test_video_director.py -q
+  result: 31 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/director.py
+  commit: d96ea9d
+
+- S-01.04.01 · Push, ignore, edit
+  tests: tests/test_video_review.py
+  command: python -m pytest tests/test_video_review.py -q
+  result: 37 passed (2026-08-25)
+  code: offsetx_apollo_builder/video/engine.py
+  commit: d96ea9d
+
+- S-01.04.02 · The owner's posting cap, and advice about the rate
+  tests: tests/test_pacing_cap.py
+  command: python -m pytest tests/test_pacing_cap.py -q
+  result: 19 passed (2026-08-25)
+  code: offsetx_apollo_builder/distribution/pacing.py
+  commit: d96ea9d
+
+- S-02.01.01 · A hand-written DevTools client
+  tests: tests/test_browser_agent.py::test_a_command_the_browser_does_not_know_raises_rather_than_hangs
+  command: python -m pytest tests/test_browser_agent.py -q
+  result: 32 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/cdp.py
+  commit: d96ea9d
+
+- S-02.01.02 · The page as an accessibility outline with stable handles
+  tests: tests/test_browser_agent.py::test_a_snapshot_reads_in_document_order_and_not_cdps_order
+  command: python -m pytest tests/test_browser_agent.py -q
+  result: 32 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/perceive.py
+  commit: d96ea9d
+
+- S-02.01.03 · Ten verbs, real input, no arbitrary code
+  tests: tests/test_browser_agent.py::test_the_vocabulary_is_ten_verbs_and_none_of_them_runs_code
+  command: python -m pytest tests/test_browser_agent.py -q
+  result: 32 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/page.py
+  commit: d96ea9d
+
+- S-02.01.04 · Per-domain policy, enforced in code
+  tests: tests/test_browser_agent.py::test_the_machine_itself_is_never_reachable
+  command: python -m pytest tests/test_browser_agent.py -q
+  result: 32 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/policy.py
+  commit: d96ea9d
+
+- S-02.01.05 · An append-only work trace
+  tests: tests/test_browser_agent.py::test_a_trace_is_append_only_with_no_way_to_remove_a_step
+  command: python -m pytest tests/test_browser_agent.py -q
+  result: 32 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/trace.py
+  commit: d96ea9d
+
+- S-06.02.06 · The delivery process is verifiable by the owner
+  tests: tests/test_verify_board.py
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 27 passed (2026-08-25)
+  code: scripts/verify_board.py
+  commit: d96ea9d
+
+## DEFERRED
+
+- S-03.01.02 · The existing code box keeps its no-network guarantee
+  reason: The guarantee holds today and nothing in this increment touches it. It becomes real work only when the browser box is built beside it.
+  trigger: S-03.01.01 entering IN_PROGRESS.

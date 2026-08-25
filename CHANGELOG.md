@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Adopted an explicit delivery process: `PRODUCT_BACKLOG.md` (6 epics, 8
+  features, 33 stories, 56 requirements with zero orphans), `BOARD.md` as the
+  single source of truth with a WIP limit of 2, `OPEN_QUESTIONS.md`,
+  `DEFINITION_OF_DONE.md` and `TRACEABILITY.md`.
+- Added `scripts/verify_board.py` — a standard-library-only verifier that
+  re-runs every DONE item's own evidence command, fails on orphan requirements,
+  orphan stories, unresolvable evidence, WIP breaches, unescalated blocks and
+  stubs inside a finished slice. Wired into CI and into a `pre-push` hook.
+- Documented `docs/architecture/BROWSER_AGENT_BLUEPRINT.md`: how each Strawberry
+  capability maps onto this codebase, and why a Chromium fork is replaced by CDP
+  attach to the owner's own browser profile.
+
 - Added an email deliverability subsystem with isolated traffic streams,
   permission evidence, global suppression, one-click unsubscribe, domain-auth
   checks, durable send jobs, rate/backoff state, an Amazon SES adapter, signed

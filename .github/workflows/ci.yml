@@ -39,6 +39,13 @@ jobs:
           uv run offsetx-email-worker --help
       - name: Run Python tests
         run: uv run pytest -q
+      # The board is the source of truth for what is done. This is the check
+      # that makes that claim testable rather than trusted: it re-runs every
+      # DONE item's own evidence command and fails on an orphan requirement, a
+      # story missing from the board, or a stub inside a finished slice.
+      # Standard library only, so it needs no environment of its own.
+      - name: Verify the board against the repository
+        run: python scripts/verify_board.py
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci

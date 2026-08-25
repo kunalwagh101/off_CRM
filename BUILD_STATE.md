@@ -7,10 +7,16 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 Branch: `main`
-Tests: **1432 Python passed, 0 failed**, 8 environment-gated skips, 116 frontend
+Tests: **1449 Python passed, 0 failed**, 4 environment-gated skips, 116 frontend
 passed, frontend production build clean.
+
+The board rules live in §2a, and `python scripts/verify_board.py` checks them.
+Its first run found a real defect: `test_worker_defers_outside_send_window…`
+pinned an absolute date that had since passed, so the draft it queued was not
+yet due and the test failed on any day after it was written. Fixed by anchoring
+the test to tomorrow.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
@@ -186,6 +192,39 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 
 ---
 
+## 2a. How to read this file as a board
+
+This file is the board, and it has been one informally for a while: §3 is the
+done column, §4 is the backlog, §6 is what is blocked on an owner decision.
+What was missing was any way to tell a real "done" from a written one, so every
+entry in §3 now carries a machine-readable block:
+
+```
+> **BOARD** `D-03` · status `DONE`
+> tests: `tests/test_ai_egress_wall.py`
+> code: `offsetx_apollo_builder/ai/broker.py`, …
+> gap: only present when the status is not DONE
+```
+
+Three statuses, and the difference between them is the point:
+
+| status | means | rule |
+|---|---|---|
+| `DONE` | built and proven | must name at least one test, and that test must pass |
+| `PARTIAL` | built, with a named hole | `gap:` says exactly what is missing |
+| `IN_REVIEW` | built, nothing proves it | no test exists yet; not to be called finished |
+
+`python scripts/verify_board.py` re-derives all of this from the repository:
+it resolves every cited path, runs every cited test, attributes each failure
+back to the claim that leans on it, and exits non-zero if any DONE claim does
+not hold. CI runs it in `--no-run` mode, since the suites run anyway there.
+
+The rule that makes it worth keeping: **an entry cannot become `DONE` because
+someone wrote `DONE`.** If the test is missing, the honest status is
+`IN_REVIEW`, and the fix is to write the test, not to change the word.
+
+---
+
 ## 3. Done
 
 ### Protected bulk email delivery (beta, 2026-08-24)
@@ -213,6 +252,11 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       production frontend build. Live AWS/domain/mailbox-cohort validation is
       still explicitly required; see `docs/architecture/EMAIL_DELIVERY.md`.
 
+> **BOARD** `D-01` · status `PARTIAL`
+> tests: `tests/test_email_delivery.py`
+> code: `offsetx_apollo_builder/outreach/deliverability/service.py`, `offsetx_apollo_builder/outreach/deliverability/store.py`, `offsetx_apollo_builder/api/email_delivery.py`
+> gap: live AWS / domain / mailbox-cohort validation has not been run; beta until it has
+
 ### Open-source release hardening (2026-08-20)
 - [x] Replaced the stale public README with the current product boundary: CRM,
       public-page lead discovery, AI routing, image campaigns, video editing,
@@ -236,6 +280,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] Verified the full result: 1,416 Python tests, 115 frontend tests, frontend
       production build, CLI smoke tests, lock check, package compatibility and
       dependency audit all clean.
+
+> **BOARD** `D-02` · status `DONE`
+> tests: `tests/test_ai_registry_packaging.py`
+> code: `offsetx_apollo_builder/ai/evals.py`, `offsetx_apollo_builder/ai/registry.py`, `README.md`
 
 ### Security core (§5)
 - [x] Single egress gate. `create_provider` is reachable only from `ai/broker.py`,
@@ -262,6 +310,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] Credential isolation: Fernet, `0600`, per workspace, env fallback.
 - [x] §5.12 acceptance tests — 30 cases in `tests/test_ai_egress_wall.py`.
 
+> **BOARD** `D-03` · status `DONE`
+> tests: `tests/test_ai_egress_wall.py`
+> code: `offsetx_apollo_builder/ai/broker.py`, `offsetx_apollo_builder/ai/scanner.py`, `offsetx_apollo_builder/ai/tiers.py`, `offsetx_apollo_builder/ai/payload.py`
+
 ### Run modes (owner's design, 2026-07-25)
 - [x] **Simple** — one model, cheapest permitted. The everyday path.
 - [x] **Compare** — every permitted model answers at once, side by side. Each
@@ -275,6 +327,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       `internal` is clamped to what the caller already offered.
 - [x] Model strip in the AI screen: every connected AI, its trust badge, and a
       meter showing how close it is to its daily limit.
+
+> **BOARD** `D-04` · status `DONE`
+> tests: `tests/test_ai_modes.py`
+> code: `offsetx_apollo_builder/ai/modes.py`
 
 ### Per-model connectors (2026-07-26)
 - [x] A connector is a **key**, and a key reaches many models. One NVIDIA key
@@ -306,6 +362,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       the image itself is not written to the egress log, only the prompt and
       a count, since the log exists to show what *left*.
 
+> **BOARD** `D-05` · status `DONE`
+> tests: `tests/test_ai_model_selection.py`
+> code: `offsetx_apollo_builder/ai/registry.py`, `offsetx_apollo_builder/ai/discovery.py`
+
 ### Fixed in this round
 - [x] **The chosen model was ignored.** `candidates_for` resolved each provider
       with no model id, so every call fell back to `default_model` — and the
@@ -313,6 +373,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       model on NVIDIA was treated as tier B. Three call sites had the same gap
       (broker, compare, orchestrated planner); all now route per model, each
       with a regression test.
+
+> **BOARD** `D-06` · status `DONE`
+> tests: `tests/test_ai_model_selection.py::test_the_chosen_model_is_the_one_that_actually_runs`, `tests/test_ai_model_selection.py::test_the_tier_cap_reaches_the_broker_through_the_settings_path`
+> code: `offsetx_apollo_builder/ai/broker.py`
 
 ### Features
 - [x] §4B Connectors: own screen; Gmail moved out of Settings; every provider
@@ -324,6 +388,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] §4E local quota counting + usage display + same-tier failover.
 - [x] §4L: structured refusals surface as readable sentences with a next step,
       never a raw status code. Every empty state has an action.
+
+> **BOARD** `D-07` · status `DONE`
+> tests: `tests/test_ai_chat.py`, `tests/test_ai_api.py`, `frontend/src/components.test.tsx`
+> code: `offsetx_apollo_builder/outreach/ai_chat.py`, `offsetx_apollo_builder/api/app.py`, `frontend/src/components.tsx`
 
 ### Context layer (§4F/§4H) — built
 
@@ -354,6 +422,10 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 - [x] Memory screen in the UI: reply rates, weak flags, the rewrite awaiting
       approval, and jobs in progress.
 - [x] This is **not fine-tuning**. No data is shipped away to retrain anything.
+
+> **BOARD** `D-08` · status `DONE`
+> tests: `tests/test_ai_context.py`
+> code: `offsetx_apollo_builder/ai/context.py`
 
 ### Eval harness — built (2026-07-31)
 
@@ -394,6 +466,10 @@ known without measuring.
 **Honest limitation:** seven cases ship. That is a skeleton, not a suite. Thirty
 or more is the floor for trusting a close verdict, and the CLI warns on every
 `list`. The cases worth adding are ones from real work that disappointed you.
+
+> **BOARD** `D-09` · status `DONE`
+> tests: `tests/test_ai_evals.py`
+> code: `offsetx_apollo_builder/ai/evals.py`, `offsetx_apollo_builder/ai/scoreboard.py`
 
 ### Two-mode intake — built (2026-07-31)
 
@@ -440,6 +516,11 @@ a real CSV rather than trusting the field names. Regression-tested.
 work. Tests build a real PDF by hand rather than mocking extraction, so the
 genuine `pypdf` path is exercised without adding a test dependency.
 
+> **BOARD** `D-10` · status `PARTIAL`
+> tests: `tests/test_intake.py`
+> code: `offsetx_apollo_builder/intake.py`
+> gap: no UI screen; generate mode stops at the brief object and is not wired to discovery
+
 ### Response cache — built (2026-07-31)
 
 **Named honestly.** The literature's "semantic cache" and its 60-90% hit rates
@@ -475,6 +556,10 @@ question for the owner's numbers rather than a published average.
 - [x] 7-day TTL, 5,000-row cap with oldest-first eviction, manual purge and
       clear. A cache, not an archive; the egress log holds the record.
 - [x] Exact and near hits counted separately, since they carry different risk.
+
+> **BOARD** `D-11` · status `DONE`
+> tests: `tests/test_ai_cache.py`
+> code: `offsetx_apollo_builder/ai/cache.py`
 
 ### Traffic shifting — built (2026-07-31)
 
@@ -513,6 +598,10 @@ while allocating 80/20 — the sentence contradicted the numbers. Thompson does
 shift below the confidence bar; the text was simply false. It now describes the
 real split, with a parametrised regression test asserting the even-split wording
 only appears when the leader is under 65%.
+
+> **BOARD** `D-12` · status `DONE`
+> tests: `tests/test_ai_bandit.py`
+> code: `offsetx_apollo_builder/ai/bandit.py`
 
 ### Abstraction layer — built (2026-07-31)
 
@@ -554,6 +643,10 @@ every identifier already removed.
 
 Cost to quality is near zero: ordinary copy instructions pass through untouched,
 and where the rules do fire they leave the useful signal intact.
+
+> **BOARD** `D-13` · status `DONE`
+> tests: `tests/test_ai_abstraction.py`
+> code: `offsetx_apollo_builder/ai/abstraction.py`
 
 ### Tool registry — built (2026-07-31)
 
@@ -601,6 +694,11 @@ version are required, with a parametrised test over all four combinations.
 to a model or lets an orchestrated plan call a tool. Storage and isolation
 should be solid before anything automated can reach them.
 
+> **BOARD** `D-14` · status `PARTIAL`
+> tests: `tests/test_ai_tools.py`
+> code: `offsetx_apollo_builder/ai/tools.py`, `offsetx_apollo_builder/ai/tool_cli.py`
+> gap: no model-facing path (nothing hands the catalogue to a model) and no UI screen — both deliberate
+
 ### Sandbox isolation — built (2026-07-31), salvaged not written
 
 `agent/off-crm-v0-12-ai-studio` — an abandoned parallel design from 24 July —
@@ -641,6 +739,11 @@ with no `ai/` at all), the isolation layer was lifted into `ai/sandbox.py`.
 **Still unverified:** the flags themselves need a real Docker daemon. Everything
 around them is tested; run the live test on your machine to close that.
 
+> **BOARD** `D-15` · status `PARTIAL`
+> tests: `tests/test_ai_sandbox.py`
+> code: `offsetx_apollo_builder/ai/sandbox.py`
+> gap: container flags have never been run against a real daemon
+
 ### Verify loop — built (2026-07-31)
 
 Where the quality per credit actually comes from. Not models voting: a cheap
@@ -676,6 +779,10 @@ cost several times what input tokens do, so the checking half is the cheap half.
 - [x] Shipped as a fourth run mode, `verified`, so the eval harness can score
       it against the champion. The API dispatches it explicitly rather than
       letting it fall through to `simple`.
+
+> **BOARD** `D-16` · status `DONE`
+> tests: `tests/test_ai_verify.py`
+> code: `offsetx_apollo_builder/ai/verify.py`
 
 ### Recall over sent mail (RAG) — built
 
@@ -723,6 +830,10 @@ stack leaks in four places; each is closed by construction here.
 - [x] Past emails screen: search, and a preview that renders the **real**
       outbound payload rather than a description of it.
 
+> **BOARD** `D-17` · status `DONE`
+> tests: `tests/test_ai_recall.py`
+> code: `offsetx_apollo_builder/ai/recall.py`
+
 ### Orchestration audit (2026-07-31)
 
 Full design review in `docs/architecture/`. Two defects found and fixed; both
@@ -750,6 +861,10 @@ reproduced against the real code before changing anything.
 - [x] The Simple mode UI description claimed "cheapest" unconditionally. Now
       states the actual rule: cheapest for public work, most-trusted for person
       and campaign data.
+
+> **BOARD** `D-18` · status `DONE`
+> tests: `tests/test_ai_modes.py`
+> code: `offsetx_apollo_builder/ai/modes.py`
 
 ### Notebook export (§4G, 2026-08-10)
 - [x] `notebook.py` + `offsetx-notebook` (`targets`, `plan`, `export`).
@@ -793,6 +908,11 @@ reproduced against the real code before changing anything.
       lands the test points at the reader that needs checking.
 - [x] No model touches a bundle. An AST test fails the build if this module
       ever gains a route to a transport.
+
+> **BOARD** `D-19` · status `PARTIAL`
+> tests: `tests/test_notebook_export.py`
+> code: `offsetx_apollo_builder/notebook.py`, `offsetx_apollo_builder/notebook_cli.py`
+> gap: no API endpoint, no UI screen, no scheduled re-export; the zip-vs-key question is undecided
 
 ### Browser agent, Stage 1 — off_CRM gets hands (2026-08-18)
 - [x] **The blueprint first.** `docs/architecture/BROWSER_AGENT_BLUEPRINT.md`
@@ -849,6 +969,10 @@ reproduced against the real code before changing anything.
 - [x] 32 browser tests, 3 of them live. **1,415 Python tests**, 0 leaked
       processes.
 
+> **BOARD** `D-20` · status `DONE`
+> tests: `tests/test_browser_agent.py`
+> code: `offsetx_apollo_builder/browser/session.py`, `offsetx_apollo_builder/browser/policy.py`, `offsetx_apollo_builder/browser/perceive.py`, `offsetx_apollo_builder/browser/cdp.py`
+
 ### Stage 7a — the posting-rate control: your cap, the engine's advice (2026-08-18)
 - [x] **The owner's answer changed the design.** Asked for a daily posting
       ceiling, the owner said: *"it should be left up to the user, he will
@@ -897,6 +1021,10 @@ reproduced against the real code before changing anything.
       a Google Cloud project with the Data API enabled. Nothing else waits.
 - [x] 19 pacing-cap tests, 6 rewritten automation tests. **1,383 Python tests,
       115 frontend**, build clean.
+
+> **BOARD** `D-21` · status `DONE`
+> tests: `tests/test_pacing_cap.py`
+> code: `offsetx_apollo_builder/distribution/pacing.py`
 
 ### Stage 6 — the effect engine: 48 primitives, 124 looks (2026-08-18)
 - [x] **The largest part of an editor, made searchable.** CapCut's eight hundred
@@ -953,6 +1081,10 @@ reproduced against the real code before changing anything.
 - [x] 49 effect tests and 19 frontend tests. **1,358 Python tests, 115
       frontend**, build clean.
 
+> **BOARD** `D-22` · status `DONE`
+> tests: `tests/test_video_effects.py`, `frontend/src/video/effects.test.ts`
+> code: `offsetx_apollo_builder/video/effects.py`, `frontend/src/video/effects.ts`
+
 ### Stage 5e — the review queue: push, ignore, edit (2026-08-18)
 - [x] **The gate between a machine that makes videos alone and an audience.**
       Every assembled or directed project now lands in a queue by itself, and
@@ -1007,6 +1139,10 @@ reproduced against the real code before changing anything.
 - [x] 37 review tests and 1 assembly test. **1,309 Python tests, 96 frontend**,
       build clean.
 
+> **BOARD** `D-23` · status `DONE`
+> tests: `tests/test_video_review.py`
+> code: `offsetx_apollo_builder/video/store.py`, `offsetx_apollo_builder/video/director.py`
+
 ### Stage 5d — the director: a topic in, a finished project out (2026-08-16)
 - [x] **The model half.** `POST /campaigns/{id}/video-projects/direct` takes a
       topic and returns a stored, renderable project. The model chooses the
@@ -1048,6 +1184,10 @@ reproduced against the real code before changing anything.
       warnings**, one note about the music being shorter than the video.
 - [x] 31 director tests and 6 engine tests. **1,266 Python tests, 96 frontend**,
       build clean.
+
+> **BOARD** `D-24` · status `DONE`
+> tests: `tests/test_video_director.py`
+> code: `offsetx_apollo_builder/video/director.py`
 
 ### Stage 5c — the assembler: material in, finished timeline out (2026-08-16)
 - [x] **The line the whole editor was cut from.** `POST /campaigns/{id}/video-
@@ -1109,6 +1249,10 @@ reproduced against the real code before changing anything.
 - [x] 93 assembly tests and 5 engine tests in Python, 1 regression test in the
       browser. **1,229 Python tests, 96 frontend**, build clean.
 
+> **BOARD** `D-25` · status `DONE`
+> tests: `tests/test_video_assembly.py`
+> code: `offsetx_apollo_builder/video/assembly.py`, `offsetx_apollo_builder/video/recipes.py`
+
 ### Stage 5b — time remapping: curves, freeze, reverse (2026-08-16)
 - [x] **Three menu items, one integral.** Freeze frame, reverse and speed curves
       are all the same question — how a clip's offset maps to a position in its
@@ -1165,6 +1309,10 @@ reproduced against the real code before changing anything.
       spread there would prove nothing.
 - [x] 34 retime tests in Python, 11 in the browser, plus a regression test for
       the sampling bug. **1,130 Python tests, 95 frontend**, build clean.
+
+> **BOARD** `D-26` · status `DONE`
+> tests: `tests/test_video_retime.py`, `frontend/src/video/retime.test.ts`
+> code: `offsetx_apollo_builder/video/timeline.py`, `frontend/src/video/resolve.ts`
 
 ### Stage 5a — video on the canvas (2026-08-16)
 - [x] **Imported footage draws now**, in the preview and in the export. Until
@@ -1229,6 +1377,10 @@ reproduced against the real code before changing anything.
       unreadable import costs its own clip rather than the whole render.
 - [x] 18 demux tests + 18 footage tests in the browser, 1 fixture guard in
       Python. **1,094 Python tests, 83 frontend**, build clean.
+
+> **BOARD** `D-27` · status `DONE`
+> tests: `tests/test_video_gates.py`, `frontend/src/video/footage.test.ts`
+> code: `offsetx_apollo_builder/video/gates.py`, `frontend/src/video/footage.ts`
 
 ### Stage 4 — audio in the export (2026-08-16)
 - [x] **Every file this project produced before today was silent.** The timeline
@@ -1306,6 +1458,10 @@ reproduced against the real code before changing anything.
       in Python; 25 in the browser (11 mix conformance, 14 audio scheduling and
       OpusHead). **1,093 Python tests, 47 frontend**, build clean.
 
+> **BOARD** `D-28` · status `DONE`
+> tests: `tests/test_video_mixdown.py`, `frontend/src/video/mixdown.test.ts`, `frontend/src/video/audio.test.ts`
+> code: `offsetx_apollo_builder/video/mixdown.py`, `frontend/src/video/mixdown.ts`, `frontend/src/video/audio.ts`
+
 ### Stage 2 — transitions, animations, the preset registry (2026-08-14)
 - [x] `video/presets.py` + `frontend/src/video/transitions.ts`. **46 transitions
       over 9 families, 32 animations over 3, 12 text styles, 16 blend modes, 12
@@ -1339,6 +1495,10 @@ reproduced against the real code before changing anything.
       trim, and the scoreboard guard now checks **both** directions: nothing
       claims to be built that is not, and nothing that shipped loses its mark.
 
+> **BOARD** `D-29` · status `DONE`
+> tests: `tests/test_video_presets.py`
+> code: `offsetx_apollo_builder/video/presets.py`, `offsetx_apollo_builder/video/edits.py`
+
 ### Goal-driven pacing (2026-08-14)
 - [x] `distribution/pacing.py` — posting volume is adjustable **and the goal
       moves it**. `(target − measured views) ÷ views per post ÷ days left`, with
@@ -1364,6 +1524,10 @@ reproduced against the real code before changing anything.
 - [x] 26 pacing tests + 8 in the automation cycle, including a live HTTP run
       against a real goal and 20 real metric rows: holds at zero data, then
       raises to a ramped 1.25 against a measured requirement of 9.8.
+
+> **BOARD** `D-30` · status `DONE`
+> tests: `tests/test_pacing.py`
+> code: `offsetx_apollo_builder/distribution/pacing.py`
 
 ### Stage 1 — the content engine runs itself (2026-08-14)
 - [x] `distribution/automation.py` — `ContentAutomationService`. Sweep → plan →
@@ -1397,6 +1561,10 @@ reproduced against the real code before changing anything.
       the app's real factories. Plus a structural test that this module imports
       no transport.
 
+> **BOARD** `D-31` · status `DONE`
+> tests: `tests/test_content_automation.py`
+> code: `offsetx_apollo_builder/distribution/automation.py`
+
 ### Video projects on Postgres (2026-08-14)
 - [x] `VideoStore` is opened through `resolve_target`, the same seam the egress
       log uses: explicit target, then `OFFSETX_DATABASE_URL`, then the local
@@ -1417,6 +1585,10 @@ reproduced against the real code before changing anything.
 - [x] A structural test parses `api/app.py` and fails if `VideoStore` is ever
       handed a bare path again — that mistake shows up only as work quietly lost
       on the next restart.
+
+> **BOARD** `D-32` · status `DONE`
+> tests: `tests/test_video_postgres.py`
+> code: `offsetx_apollo_builder/video/store.py`
 
 ### Auto-captions (2026-08-14)
 - [x] `video/captions.py`, `broker.call_transcript`, `OpenAITranscriptionProvider`,
@@ -1474,6 +1646,10 @@ reproduced against the real code before changing anything.
   **Imported footage is audible but not drawable** — its sound captions fine, the
   picture is not painted, and the manifest says so and marks the project
   unrenderable rather than exporting a hole.
+
+> **BOARD** `D-33` · status `DONE`
+> tests: `tests/test_video_captions.py`
+> code: `offsetx_apollo_builder/video/captions.py`
 
 ### Video editor — timeline core and browser render (2026-08-14)
 - [x] `offsetx_apollo_builder/video/` + `frontend/src/video/` + the **Video
@@ -1539,6 +1715,10 @@ reproduced against the real code before changing anything.
   overlap, which the invariant forbids — it needs a real transition object);
   the export holds the whole file in memory.
 
+> **BOARD** `D-34` · status `DONE`
+> tests: `tests/test_video_timeline.py`, `tests/test_video_engine.py`, `frontend/src/video/resolve.test.ts`
+> code: `offsetx_apollo_builder/video/timeline.py`, `offsetx_apollo_builder/video/engine.py`, `frontend/src/video/resolve.ts`, `frontend/src/video/render.ts`
+
 ### Trend to post (2026-08-10)
 - [x] `distribution/pipeline.py` — the piece that joins the three campaign
       kinds. Everything it needed already existed; this is the wiring, and it is
@@ -1582,6 +1762,10 @@ reproduced against the real code before changing anything.
   positioning or from what performed before, though `generator_performance` and
   the context layer both hold material that could.
 
+> **BOARD** `D-35` · status `DONE`
+> tests: `tests/test_distribution.py`
+> code: `offsetx_apollo_builder/distribution/pipeline.py`
+
 ### Topic clustering across channels (2026-08-10)
 - [x] `distribution/topics.py`, surfaced at `GET /trends/topics` and inside the
       trends report. One channel running hot is a good week; several on one
@@ -1609,6 +1793,10 @@ reproduced against the real code before changing anything.
       key. The limitation is pinned by a named test so it is found here rather
       than by someone trusting the output.
 - [x] 14 new tests, all passing first run.
+
+> **BOARD** `D-36` · status `DONE`
+> tests: `tests/test_topics.py`
+> code: `offsetx_apollo_builder/distribution/topics.py`
 
 ### Trend detection on YouTube (2026-08-10)
 - [x] `distribution/youtube.py` + `distribution/trends.py`. Docs:
@@ -1660,6 +1848,10 @@ reproduced against the real code before changing anything.
 - Topic clustering across channels — "six competitors posted about the same
   thing today" is a stronger signal than any one of them, and is not computed.
 
+> **BOARD** `D-37` · status `DONE`
+> tests: `tests/test_trends.py`
+> code: `offsetx_apollo_builder/distribution/trends.py`, `offsetx_apollo_builder/distribution/youtube.py`
+
 ### Content distribution runner (2026-08-10)
 - [x] `distribution/` — the third campaign kind, and the one that composes the
       others. All three kinds now have runners. Docs:
@@ -1705,6 +1897,10 @@ reproduced against the real code before changing anything.
 - Competitor watching and trend detection: the `read` column is the groundwork,
   the collector is not written, and it must be built on what terms permit.
 - Automatic caption generation, scheduled publishing on a timer, and a UI.
+
+> **BOARD** `D-38` · status `DONE`
+> tests: `tests/test_distribution.py`
+> code: `offsetx_apollo_builder/distribution/platforms.py`, `offsetx_apollo_builder/distribution/publishers.py`
 
 ### Image campaign runner (2026-08-10)
 - [x] `imagery/` — the second campaign kind, and the first that produces
@@ -1762,6 +1958,10 @@ reproduced against the real code before changing anything.
   campaign, which has its own credentials and per-platform rules.
 - Layer three of the benchmark (views, watch time) needs distribution to exist.
 - Brief authoring in the UI, and prompt improvement between rounds.
+
+> **BOARD** `D-39` · status `DONE`
+> tests: `tests/test_imagery.py`
+> code: `offsetx_apollo_builder/imagery/engine.py`, `offsetx_apollo_builder/imagery/gates.py`
 
 ### Error classification (2026-08-10)
 - [x] `ai/failures.py` + wiring in `ai/broker.py`. Docs:
@@ -1824,6 +2024,10 @@ reproduced against the real code before changing anything.
       (tier B) and got one candidate. That was the **failover-never-crosses-a-
       tier rule working**; the test was wrong and now uses two US providers.
 
+> **BOARD** `D-40` · status `DONE`
+> tests: `tests/test_ai_failures.py`
+> code: `offsetx_apollo_builder/ai/failures.py`, `offsetx_apollo_builder/ai/errors.py`
+
 ### Response cache wired (2026-08-10)
 - [x] The gap the rebuild-guide audit found is closed: `ResponseCache` is now
       constructed in `api/app.py` and passed to `EgressBroker`. Before this it
@@ -1864,6 +2068,10 @@ reproduced against the real code before changing anything.
       written against "cache everything" and used `draft_email` throughout; it
       now uses a cacheable task type, and drafting has its own test that asserts
       the two-prospect payload collision and that nothing is stored or served.
+
+> **BOARD** `D-41` · status `DONE`
+> tests: `tests/test_ai_cache.py`
+> code: `offsetx_apollo_builder/api/app.py`, `offsetx_apollo_builder/ai/cache.py`
 
 ### Rebuild guide, §10 (2026-08-10)
 - [x] `docs/architecture/REBUILD_GUIDE.md`. Written **after** the system,
@@ -1910,6 +2118,11 @@ written from memory were wrong:
       rule the guide states. Writing the rule down is what exposed it. `db/`
       now has a table-agnostic `copy_table(table, columns, schema, key)`, and
       the egress-log wrapper lives in `ai/log.py` where its schema is defined.
+
+> **BOARD** `D-42` · status `IN_REVIEW`
+> tests: NONE
+> code: `docs/architecture/REBUILD_GUIDE.md`
+> gap: a document with nothing executable behind it — no check exists that it still matches the code
 
 ### Postgres backend, egress log first (2026-08-10)
 - [x] `offsetx_apollo_builder/db/` — ~250 lines. `open_database()` returns
@@ -1958,6 +2171,11 @@ written from memory were wrong:
       no `ai_egress.db` appears in the data directory, and the CRM keeps working
       on SQLite in the same process.
 
+> **BOARD** `D-43` · status `PARTIAL`
+> tests: `tests/test_db_backend.py`
+> code: `offsetx_apollo_builder/db/connection.py`, `offsetx_apollo_builder/db/translate.py`, `offsetx_apollo_builder/db/copy.py`
+> gap: only the egress log runs on both backends; five stores are SQLite-only, and there is no PG migration path, no FTS equivalent and no pooling
+
 ### Campaign kinds (2026-08-10)
 - [x] `campaigns` gained `kind TEXT NOT NULL DEFAULT 'email'`, schema v8.
       Registry in `offsetx_apollo_builder/campaigns.py` — **package root, not
@@ -2004,6 +2222,11 @@ written from memory were wrong:
       today would be an unvalidated blob with no writer. The column is additive
       and costs the same later; the validator is what has to come first.
 
+> **BOARD** `D-44` · status `PARTIAL`
+> tests: `tests/test_campaign_kinds.py`
+> code: `offsetx_apollo_builder/campaigns.py`
+> gap: no settings_json blob — deferred until a kind exists whose settings can be validated
+
 ### Code graph (§4K, 2026-08-10)
 - [x] `codegraph.py` + `offsetx-codegraph` (`policy`, `build`, `status`,
       `verify`, `ignore`). Docs: `docs/architecture/CODE_GRAPH.md`.
@@ -2039,6 +2262,11 @@ written from memory were wrong:
 - [x] `graphify-out/` gitignored — build artefact plus a 4.6 MB cache, rebuilt
       in seconds.
 
+> **BOARD** `D-45` · status `PARTIAL`
+> tests: `tests/test_codegraph.py`
+> code: `offsetx_apollo_builder/codegraph.py`, `offsetx_apollo_builder/codegraph_cli.py`
+> gap: no CI job, no rebuild on commit, and nothing inside off_CRM reads the graph
+
 ### Fixed defects found during the audit
 - [x] **AI chat leaked.** It passed the raw conversation to a provider with no
       policy applied, while its own docstring claimed the opposite. Chat now
@@ -2052,6 +2280,10 @@ written from memory were wrong:
       TypeScript and recommended DeepSeek for "bulk email generation".
 
 ---
+
+> **BOARD** `D-46` · status `DONE`
+> tests: `tests/test_ai_chat.py`
+> code: `offsetx_apollo_builder/outreach/ai_chat.py`
 
 ## 4. Not built yet
 

@@ -212,6 +212,38 @@ master prompt to bind them together:
 > Every "finally provide" deliverable in the role blocks above is a sprint artifact
 > governed by the delivery discipline preamble — boarded, evidenced, and verifiable.
 
+## Where the methodology actually is
+
+Fair challenge: the block never says "sprint ceremony" or "Kanban card". That is
+deliberate — every Scrum and Kanban practice is present, but as an artifact that can be
+checked rather than a ritual that can be performed. An agent can hold a retrospective
+with itself and learn nothing. It cannot fake a passing test.
+
+| Practice | Where it lives | What enforces it |
+|---|---|---|
+| Product backlog | §1 `PRODUCT_BACKLOG.md` | coverage table: zero orphan requirements |
+| Backlog refinement | §1 Definition of Ready | an item cannot enter READY while a question is open |
+| Kanban board | §2 `BOARD.md` | verifier parses it; chat is not state |
+| WIP limits | §2 `IN_PROGRESS <= 2` | no new work pulled while something is in flight |
+| Sprint goal / sprint backlog | §6 one goal, one vertical slice | increment is not "done" without a demo |
+| Definition of Done | §3 | verifier refuses DONE with no test |
+| Sprint review / demo | §6 `DEMO.md` | commands you paste yourself |
+| Retrospective | §6 | must name what was cut and what the estimate got wrong |
+| Daily standup | §7 session-open self-audit | drift between board and repo reported first |
+| Burndown / velocity | verifier column counts | recomputed from the repo, not typed in |
+| Change control | §6 | new requirement gets an ID, never absorbed silently |
+
+Two Scrum practices are deliberately dropped. **Story points as velocity forecasting**
+assumes a stable team whose throughput can be measured over many sprints; an agent has
+no such history, so a velocity number would be invented precision. **Sprint
+commitment** as a social contract does not survive a party that cannot be held to it —
+the evidence ledger replaces the promise with a check.
+
+The worked example is in this repository: `BUILD_STATE.md` §2a and
+`scripts/verify_board.py`. Its first real run found a test that had been passing on the
+day it was written and failing every day since — a false DONE that nobody had noticed
+across 52 commits.
+
 ## The load-bearing part
 
 Sections 5 and 7 are what actually change behaviour. Everything else is a process an

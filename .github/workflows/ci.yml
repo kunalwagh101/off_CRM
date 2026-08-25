@@ -26,6 +26,11 @@ jobs:
         run: uv sync --extra dev --extra email --locked
       - name: Catch broken Python names and syntax
         run: uv run ruff check --select E9,F63,F7,F82 .
+      # Structure only: the suites below already run the tests, so this checks
+      # what they cannot — that no "done" in BUILD_STATE.md is unboarded, points
+      # at a path that has moved, or claims completion with no test behind it.
+      - name: Check BUILD_STATE claims against the repository
+        run: uv run python scripts/verify_board.py --no-run
       - name: Smoke-test installed command-line entry points
         run: |
           uv run offsetx-apollo --help

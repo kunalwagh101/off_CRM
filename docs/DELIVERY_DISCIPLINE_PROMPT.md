@@ -36,6 +36,48 @@ Scrum (fixed-scope increments toward an MVP), Kanban (continuous flow, WIP-limit
 or a named hybrid. Justify it from the work, not from fashion.
 
 ────────────────────────────────────────────────────────
+0b. THE METHODOLOGY, MADE CONCRETE
+────────────────────────────────────────────────────────
+You are running Agile/Scrum/Kanban for real, and "for real" means every practice
+below produces an artifact I can inspect. A practice you performed but cannot show
+me the output of did not happen. This table is the contract:
+
+  PRACTICE               ARTIFACT YOU PRODUCE          WHAT PROVES IT HAPPENED
+  ---------------------  ----------------------------  --------------------------
+  Product backlog        PRODUCT_BACKLOG.md (§1)       zero orphan requirements
+                                                       in the coverage table
+  Backlog refinement     Definition of Ready (§3)      nothing enters READY with
+                                                       an open question against it
+  Kanban board           BOARD.md (§2)                 the verifier parses it;
+                                                       chat is never the state
+  WIP limits             IN_PROGRESS <= 2 (§2)         no item pulled while
+                                                       another is in flight
+  Sprint planning        one sprint goal, one          the increment is a vertical
+                         vertical slice (§6)           slice, not three layers
+  Definition of Done     DEFINITION_OF_DONE.md (§3)    verifier refuses DONE that
+                                                       names no passing test
+  Sprint review / demo   DEMO.md (§6)                  commands I paste myself
+                                                       and watch work
+  Retrospective          retro notes (§6)              names what was cut and what
+                                                       the estimate got wrong
+  Daily standup          session-open self-audit (§7)  drift between board and
+                                                       repo reported first thing
+  Burndown / velocity    verifier column counts (§5)   recomputed from the repo,
+                                                       never typed in by you
+  Change control         new ID + re-plan (§6)         no requirement absorbed
+                                                       silently mid-increment
+  Traceability           TRACEABILITY.md (§8)          every row completable
+
+Two Scrum practices are deliberately NOT in that table, and you should not perform
+them. Story points as velocity forecasting assumes a team with measured throughput
+over many sprints; you have no such history, so a velocity figure would be invented
+precision. Sprint commitment as a social promise means nothing from a party who
+cannot be held to it — the evidence ledger in §4 replaces the promise with a check.
+
+If you find yourself doing a ceremony that produces no artifact in this table, stop.
+It is theatre, and theatre is what lets unfinished work look finished.
+
+────────────────────────────────────────────────────────
 1. DECOMPOSITION — NOTHING IS ALLOWED TO BE IMPLICIT
 ────────────────────────────────────────────────────────
 Produce PRODUCT_BACKLOG.md with a strict, stable ID hierarchy:
@@ -214,30 +256,16 @@ master prompt to bind them together:
 
 ## Where the methodology actually is
 
-Fair challenge: the block never says "sprint ceremony" or "Kanban card". That is
-deliberate — every Scrum and Kanban practice is present, but as an artifact that can be
-checked rather than a ritual that can be performed. An agent can hold a retrospective
-with itself and learn nothing. It cannot fake a passing test.
+The mapping now lives inside the block itself, as §0b — every Scrum and Kanban
+practice paired with the artifact it must produce and the thing that proves it
+happened. It is stated as a contract rather than a description on purpose.
 
-| Practice | Where it lives | What enforces it |
-|---|---|---|
-| Product backlog | §1 `PRODUCT_BACKLOG.md` | coverage table: zero orphan requirements |
-| Backlog refinement | §1 Definition of Ready | an item cannot enter READY while a question is open |
-| Kanban board | §2 `BOARD.md` | verifier parses it; chat is not state |
-| WIP limits | §2 `IN_PROGRESS <= 2` | no new work pulled while something is in flight |
-| Sprint goal / sprint backlog | §6 one goal, one vertical slice | increment is not "done" without a demo |
-| Definition of Done | §3 | verifier refuses DONE with no test |
-| Sprint review / demo | §6 `DEMO.md` | commands you paste yourself |
-| Retrospective | §6 | must name what was cut and what the estimate got wrong |
-| Daily standup | §7 session-open self-audit | drift between board and repo reported first |
-| Burndown / velocity | verifier column counts | recomputed from the repo, not typed in |
-| Change control | §6 | new requirement gets an ID, never absorbed silently |
-
-Two Scrum practices are deliberately dropped. **Story points as velocity forecasting**
-assumes a stable team whose throughput can be measured over many sprints; an agent has
-no such history, so a velocity number would be invented precision. **Sprint
-commitment** as a social contract does not survive a party that cannot be held to it —
-the evidence ledger replaces the promise with a check.
+The reasoning behind that shape: ceremony is precisely the part of Agile an LLM
+performs well and means nothing by. An agent can hold a retrospective with itself and
+learn nothing, and it can write "sprint 3 complete" with identical confidence whether
+or not anything works. It cannot fake a passing test. So every practice is kept, but
+each one is redeemed for an artifact — and the two practices that have no honest
+artifact (velocity forecasting, sprint commitment) are dropped rather than mimed.
 
 The worked example is in this repository: `BUILD_STATE.md` §2a and
 `scripts/verify_board.py`. Its first real run found a test that had been passing on the

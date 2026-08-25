@@ -1,4 +1,5 @@
 {
+  "outputStyle": "Plain English",
   "hooks": {
     "SessionStart": [
       {

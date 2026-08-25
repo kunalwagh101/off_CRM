@@ -204,9 +204,15 @@ def check_wip(items: list[Item], report: Report) -> None:
 
 def check_blocked(items: list[Item], report: Report) -> None:
     """A blocked item with no escalation is a process violation, not a status."""
+    # Every declared question, answered or not: blocking on one that was
+    # answered is a stale board, and blocking on one that never existed is a
+    # fiction. Both are worth catching, and they are different failures.
     known = set()
+    answered = set()
     if QUESTIONS.exists():
-        known = set(re.findall(r"^###\s+(Q-\d+)", QUESTIONS.read_text(encoding="utf-8"), re.M))
+        text = QUESTIONS.read_text(encoding="utf-8")
+        known = set(re.findall(r"^###\s+(Q-\d+)", text, re.M))
+        answered = known - set(open_questions(QUESTIONS))
     for item in items:
         if item.column != "BLOCKED":
             continue
@@ -223,21 +229,48 @@ def check_blocked(items: list[Item], report: Report) -> None:
                     f"{item.identifier} is blocked on {question}, which is not in "
                     f"{QUESTIONS.name}."
                 )
+            elif question in answered:
+                report.fail(
+                    f"{item.identifier} is BLOCKED on {question}, which has been "
+                    "answered. Move it to READY."
+                )
+
+
+def open_questions(path: Path) -> dict[str, str]:
+    """Each question and its body, excluding the ones already decided.
+
+    A question that has been answered must stop blocking, or recording a
+    decision would be worse than deleting the question — and deleting it loses
+    why the work was ever held up.
+    """
+    if not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    blocks = re.split(r"(?m)^(###\s+Q-\d+\b[^\n]*)$", text)
+    found: dict[str, str] = {}
+    for index in range(1, len(blocks), 2):
+        heading = re.match(r"###\s+(Q-\d+)", blocks[index])
+        if not heading:
+            continue
+        body = blocks[index + 1] if index + 1 < len(blocks) else ""
+        if re.search(r"\*\*Status:\*\*\s*answered", body, re.I):
+            continue
+        found[heading.group(1)] = body
+    return found
 
 
 def check_ready(items: list[Item], report: Report) -> None:
-    """Definition of Ready: nothing enters READY with an open question against it."""
-    if not QUESTIONS.exists():
-        return
-    text = QUESTIONS.read_text(encoding="utf-8")
+    """Definition of Ready: nothing enters READY with an *open* question against it."""
+    still_open = open_questions(QUESTIONS)
     for item in items:
         if item.column != "READY":
             continue
-        if re.search(rf"\b{re.escape(item.identifier)}\b", text):
-            report.fail(
-                f"{item.identifier} is READY but has an open question filed against "
-                "it. An answer may change its shape."
-            )
+        for question, body in still_open.items():
+            if re.search(rf"\b{re.escape(item.identifier)}\b", body):
+                report.fail(
+                    f"{item.identifier} is READY but {question} is still open against "
+                    "it. An answer may change its shape."
+                )
 
 
 def check_deferred(items: list[Item], report: Report) -> None:

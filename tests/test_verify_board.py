@@ -301,7 +301,36 @@ def test_ready_with_an_open_question_against_it_fails(tmp_path):
     questions = "# Open questions\n\n### Q-01 — Something\n\nBlocks S-05.01.01.\n"
     result = run(build(tmp_path, board=board, backlog=backlog, questions=questions))
     assert result.returncode == 1
-    assert "has an open question filed against it" in result.stdout
+    assert "Q-01 is still open against it" in result.stdout
+
+
+def test_an_answered_question_stops_blocking_ready(tmp_path):
+    """S-06.02.07. Recording a decision is what unblocks the board. If an
+    answered question still blocked, the only way forward would be deleting the
+    question — and that loses why the work was ever held up."""
+    backlog = GOOD_BACKLOG.replace("## Coverage", "#### S-05.01.01 — Was unclear\n\n## Coverage") \
+        + "| R-02 | Formerly unclear thing | S-05.01.01 |\n"
+    board = GOOD_BOARD.replace("## READY\n", "## READY\n\n- S-05.01.01 · Was unclear\n")
+    questions = (
+        "# Open questions\n\n### Q-01 — Something\n\n"
+        "**Status:** answered · **Decision:** we chose option 3.\n\nBlocks S-05.01.01.\n"
+    )
+    result = run(build(tmp_path, board=board, backlog=backlog, questions=questions))
+    assert result.returncode == 0, result.stdout
+
+
+def test_blocked_on_a_question_that_was_already_answered_fails(tmp_path):
+    """The other direction: a board still citing a decided question is stale,
+    and stale is how work sits still while everyone believes it is waiting."""
+    backlog = GOOD_BACKLOG.replace("## Coverage", "#### S-03.01.01 — Stuck\n\n## Coverage") \
+        + "| R-02 | Stuck thing | S-03.01.01 |\n"
+    board = GOOD_BOARD.replace(
+        "## BLOCKED\n", "## BLOCKED\n\n- S-03.01.01 · Stuck\n  blocked: Q-01 — decided already\n"
+    )
+    questions = "# Open questions\n\n### Q-01 — Something\n\n**Status:** answered\n"
+    result = run(build(tmp_path, board=board, backlog=backlog, questions=questions))
+    assert result.returncode == 1
+    assert "has been answered" in result.stdout
 
 
 def test_deferred_without_a_reason_and_a_trigger_fails(tmp_path):

@@ -437,6 +437,16 @@ back, **so that** a bad release is a five-minute problem.
   every action is reachable and focus is visible.
 - **Dependencies:** none. **Size:** M. **Indicator:** accessibility audit findings.
 
+#### S-06.02.07 — An answered question stops blocking
+**As an** owner, **I want** a question I have decided to stop holding work back,
+**so that** recording a decision is what unblocks the board rather than deleting
+the question and losing why it was asked.
+- **Given** a question marked answered, **when** an item citing it enters READY,
+  **then** the verifier passes.
+- **Given** a question with no answer, **when** an item citing it enters READY,
+  **then** the verifier still fails.
+- **Dependencies:** S-06.02.06. **Size:** S. **Indicator:** decisions recorded vs questions deleted.
+
 #### S-06.02.06 — The delivery process is verifiable by the owner
 **As an** owner, **I want** a script that independently checks the board against
 the repository, **so that** "this is done" is a claim I can test rather than
@@ -511,6 +521,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-54 | Native OAuth integrations for the few worth doing | S-07.01.02 |
 | R-55 | Meeting transcription without a bot in the call | S-07.01.03 |
 | R-56 | Reports and artifacts: decks, sheets, PDF | S-07.01.04 |
+| R-57 | A recorded decision unblocks the board; a deleted question does not | S-06.02.07 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

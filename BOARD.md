@@ -48,9 +48,13 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 ## READY
 
-*(Nothing. Every candidate for the next increment has an open question filed
-against it — see BLOCKED. That is the Definition of Ready doing its job rather
-than a gap.)*
+*(Q-01, Q-02 and Q-03 were answered by the owner on 2026-08-25. The decisions
+are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
+the reasoning survives the unblocking.)*
+
+- S-03.01.01 · A browser box: network yes, host filesystem never
+- S-03.02.01 · Sign in to a platform once, inside the box
+- S-03.02.02 · A vault the model cannot read
 
 ## IN_PROGRESS
 
@@ -63,12 +67,7 @@ Q-01 and Q-02 are answered.)*
 
 ## BLOCKED
 
-- S-03.01.01 · A browser box: network yes, host filesystem never
-  blocked: Q-02 — the domain allow-list shape is undecided, and it changes whether this is one code path or two.
-- S-03.02.01 · Sign in to a platform once, inside the box
-  blocked: Q-03 — which platform is proven first changes what the first slice contains.
-- S-03.02.02 · A vault the model cannot read
-  blocked: Q-01 — where the master key comes from changes the storage design, not just a parameter.
+*(Nothing is blocked.)*
 
 ## DONE
 
@@ -170,10 +169,17 @@ Q-01 and Q-02 are answered.)*
   code: offsetx_apollo_builder/browser/trace.py
   commit: d96ea9d
 
+- S-06.02.07 · An answered question stops blocking
+  tests: tests/test_verify_board.py::test_an_answered_question_stops_blocking_ready
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 29 passed (2026-08-25)
+  code: scripts/verify_board.py
+  commit: 8b6876e
+
 - S-06.02.06 · The delivery process is verifiable by the owner
   tests: tests/test_verify_board.py
   command: python -m pytest tests/test_verify_board.py -q
-  result: 27 passed (2026-08-25)
+  result: 29 passed (2026-08-25)
   code: scripts/verify_board.py
   commit: d96ea9d
 

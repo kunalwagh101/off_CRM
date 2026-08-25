@@ -4,12 +4,16 @@ Ambiguities that could change the shape of a story. **No business rule has been
 invented to fill any of these.** Each carries the options, a recommended
 default, and what it costs if the default turns out to be wrong.
 
-An item on the board may not enter `READY` while an open question is filed
-against it. `scripts/verify_board.py` enforces that.
+An item on the board may not enter `READY` while an **open** question is filed
+against it. `scripts/verify_board.py` enforces that. A question marked
+`**Status:** answered` no longer blocks — the decision is recorded below it, so
+the reasoning survives even though the block is lifted.
 
 ---
 
 ### Q-01 — Where does the master key come from? *(blocks S-03.02.02)*
+
+**Status:** answered · **Decision:** Option 3 — OS keychain, with a passphrase fallback where no keychain exists. · **Decided by:** Owner, 2026-08-25, taking the recommended default.
 
 **Ambiguity.** The vault needs a key. Today `ai/workspace.py` keeps a Fernet key
 in a file beside the data it protects, which is fine for API keys and not fine
@@ -35,6 +39,8 @@ touches every stored session.
 
 ### Q-02 — What is on the browser box's domain allow-list, and who edits it? *(blocks S-03.01.01)*
 
+**Status:** answered · **Decision:** Option 3 — deny by default for unattended runs; allow-with-policy for attended ones. · **Decided by:** Owner, 2026-08-25, taking the recommended default.
+
 **Ambiguity.** "Network, but restricted" needs a list. A list too tight makes the
 agent useless on the open web; too loose and the box's network boundary means
 nothing.
@@ -54,6 +60,8 @@ rule decorative. Option 3's cost is two code paths.
 ---
 
 ### Q-03 — Which platform does the browser log into first? *(blocks S-03.02.01)*
+
+**Status:** answered · **Decision:** LinkedIn first. It is the platform with no usable CRM API, so the browser is necessary there rather than merely convenient. · **Decided by:** Owner, 2026-08-25, taking the recommended default.
 
 **Ambiguity.** Six platforms were named. Each has a different login shape (2FA,
 passkeys, device checks) and building all six at once means finishing none.

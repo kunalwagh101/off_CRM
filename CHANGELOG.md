@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added `STATE_OF_THE_PRODUCT.md`, `DEMO.md`, `CONTINUE.md` and `RETRO.md`,
+  completing the delivery-process artifact set. `DEMO.md` blocks are runnable
+  and were each executed before being written down.
+- Added F-01.05 (three stories, R-58 to R-60) for publishing to a real platform.
+  The backlog had no story for the adapter that actually posts content, which is
+  the reason the product exists — found on review and added under change control
+  rather than silently.
+- Added S-06.02.07: an answered question stops blocking READY, so recording a
+  decision unblocks the board instead of deleting the question.
+
 - Adopted an explicit delivery process: `PRODUCT_BACKLOG.md` (6 epics, 8
   features, 33 stories, 56 requirements with zero orphans), `BOARD.md` as the
   single source of truth with a WIP limit of 2, `OPEN_QUESTIONS.md`,

@@ -171,6 +171,45 @@ public than I chose.
   computed and **not** applied.
 - **Dependencies:** S-01.04.01. **Size:** M. **Indicator:** account restrictions (target: zero).
 
+### F-01.05 — Publishing to a real platform  *(E-01)*
+
+> **Found during review on 2026-08-25.** The product exists to put content in
+> front of an audience, and nothing in this backlog covered the adapter that
+> actually does it — the engine publishes to a local outbox only. Decomposing
+> from the conversation rather than from the product's purpose is how that
+> slipped through. New IDs rather than a silent addition.
+
+#### S-01.05.01 — Publish to YouTube through the official API
+**As a** content owner, **I want** an approved render uploaded to YouTube,
+**so that** the engine's output reaches an audience instead of a folder.
+- **Given** a pushed render, **when** a scheduled post comes due, **then** it is
+  uploaded via `videos.insert` and the returned video id is stored on the post.
+- **Given** an upload that fails, **when** the round completes, **then** the post
+  is marked failed with the API's own reason and nothing is silently retried.
+- **Given** the daily quota, **when** it would be exceeded, **then** the upload
+  is deferred rather than attempted and rejected.
+- **Dependencies:** S-01.04.02. **Size:** L. **Indicator:** posts published through an official API.
+
+#### S-01.05.02 — One adapter contract for the remaining platforms
+**As a** content owner, **I want** Instagram, Facebook, TikTok, LinkedIn and X
+behind the same interface as YouTube, **so that** a platform becoming available
+is a configuration change rather than a rewrite.
+- **Given** a platform whose app review has not passed, **when** a post targets
+  it, **then** it is refused at scheduling with what is still needed.
+- **Given** a platform that becomes available, **when** its adapter is enabled,
+  **then** no code outside that adapter changes.
+- **Dependencies:** S-01.05.01. **Size:** L. **Indicator:** platforms reachable per workspace.
+
+#### S-01.05.03 — Read real engagement back from the platform
+**As a** content owner, **I want** views and likes fetched from the platform
+itself, **so that** the pacing controller steers on measured reality rather than
+on numbers somebody typed.
+- **Given** a published post, **when** metrics are refreshed, **then** the
+  reading is stored as a snapshot and totals use the newest per post.
+- **Given** a platform with no metrics API, **when** a refresh runs, **then** it
+  reports that rather than reporting zero.
+- **Dependencies:** S-01.05.01. **Size:** M. **Indicator:** share of posts with measured engagement.
+
 ### F-02.01 — Driving a real browser  *(E-02)*
 
 #### S-02.01.01 — A hand-written DevTools client
@@ -522,6 +561,9 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-55 | Meeting transcription without a bot in the call | S-07.01.03 |
 | R-56 | Reports and artifacts: decks, sheets, PDF | S-07.01.04 |
 | R-57 | A recorded decision unblocks the board; a deleted question does not | S-06.02.07 |
+| R-58 | Approved renders are published to YouTube through its official API | S-01.05.01 |
+| R-59 | Instagram, Facebook, TikTok, LinkedIn and X behind one adapter contract | S-01.05.02 |
+| R-60 | Engagement is read back from the platform, not typed in | S-01.05.03 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

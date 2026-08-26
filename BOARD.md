@@ -67,7 +67,12 @@ Q-01 and Q-02 are answered.)*
 
 ## BLOCKED
 
-*(Nothing is blocked.)*
+- S-01.05.01 · Publish to YouTube through the official API
+  blocked: external — a Google Cloud project with YouTube Data API v3 enabled, and OAuth consent for the channel. Only the owner can create it.
+- S-01.05.02 · One adapter contract for the remaining platforms
+  blocked: external — Meta app review, TikTok content-posting audit, LinkedIn partner programme. Weeks of calendar time, and none of it is engineering.
+- S-01.05.03 · Read real engagement back from the platform
+  blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
 

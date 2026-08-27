@@ -3,13 +3,13 @@
 *Plain English. Every segment of off_CRM, what state it is in, and who has to do
 what next.*
 
-Generated against commit `32a2352`. The numbers below are recomputed by
-`python scripts/verify_board.py` — they are never typed in by hand, so this file
-cannot quietly drift from the truth.
+Verified from the repository board on 2026-08-27. Recompute the numbers with
+`python scripts/verify_board.py`; this summary records that output rather than
+claiming to update itself.
 
 ---
 
-## The six states, and what each one honestly means
+## The seven states, and what each one honestly means
 
 | | State | What it means | Board column |
 |---|---|---|---|
@@ -17,27 +17,30 @@ cannot quietly drift from the truth.
 | 🔬 | **RESEARCHED** | We know exactly how. The decision is made. No code yet | `READY` |
 | 📋 | **PLANNED** | Written down properly — who it is for, how we'd know it works | `BACKLOG` |
 | 🚧 | **BUILDING** | Being worked on right now. Never more than 2 at once | `IN_PROGRESS` |
+| 🧪 | **PROVING** | Code exists, but the complete evidence command has not passed here | `IN_REVIEW` |
 | 🔒 | **WAITING ON YOU** | The engineering is fine. Something outside the code is missing | `BLOCKED` |
 | ⏸️ | **PARKED** | Deliberately cut, with a written reason and what brings it back | `DEFERRED` |
 
-**Why six and not three.** "Not done" hides three completely different
+**Why seven and not three.** "Not done" hides several completely different
 situations: *we haven't decided how*, *we've decided and haven't built it*, and
-*we can't build it until you do something*. Those need different actions from
-different people, so they get different words.
+*we built it but have not proved it here*, and *we can't build it until you do
+something*. Those need different actions from different people, so they get
+different words.
 
 ---
 
 ## The scoreboard
 
 ```
-✅ DELIVERED        16 stories   ████████████████
+✅ DELIVERED        20 stories   ████████████████████
 🔬 RESEARCHED        3 stories   ███
 🔒 WAITING ON YOU    3 stories   ███
 📋 PLANNED          26 stories   ██████████████████████████
 🚧 BUILDING          0 stories
+🧪 PROVING           1 story     █
 ⏸️ PARKED            1 story     █
 
-60 requirements tracked · 0 orphans · 41% of acceptance criteria behind a test
+71 requirements tracked · 0 orphans · 44% of acceptance criteria behind a test
 ```
 
 ---
@@ -88,6 +91,28 @@ re-runs, so "it works" is checkable rather than something I said.
 |---|---|---|
 | A script that re-runs every "done" claim and catches lies | S-06.02.06 | 29 tests |
 | A decision you record unblocks work; deleting it doesn't | S-06.02.07 | 29 tests |
+
+## Protected bulk email — the safe core
+
+| What it does | Story | Proof |
+|---|---|---|
+| Permission, relationship and global suppression fail closed | S-08.01.01 | 3 focused tests |
+| Durable immutable jobs survive restarts without blind duplicate retries | S-08.01.02 | 6 focused tests |
+| Fresh domain authentication and an isolated SES lane | S-08.01.03 | 2 focused tests |
+| Signed feedback suppresses bad recipients and pauses unhealthy campaigns | S-08.01.04 | 3 focused tests |
+
+> This improves deliverability; it does not guarantee inbox placement. Real AWS,
+> DNS and mailbox-cohort testing are still required before removing the beta label.
+
+---
+
+# Part 1B — What is PROVING 🧪
+
+### 🧪 S-08.01.05 — Operators control delivery without hidden live sends
+The API, signed public unsubscribe and exact live-send confirmation pass their
+two Python tests. The Deliverability screen and its frontend test exist, but
+this clean environment cannot install one uncached npm dependency under the
+current network policy. It stays `IN_REVIEW` until that test is re-run.
 
 ---
 
@@ -228,8 +253,8 @@ python scripts/verify_board.py --skip-tests   # just the counts, 2 seconds
 # The short version
 
 **The hard engineering is largely done.** A real video editor, a real effects
-engine, a real safety layer between you and every AI provider, and real browser
-hands. That is the part that takes months.
+engine, a protected bulk-email core, a real safety layer between you and every
+AI provider, and real browser hands. That is the part that takes months.
 
 **What's left is mostly wiring** — the loop that makes the parts act on their
 own, and the vault that makes it safe to let them.

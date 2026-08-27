@@ -58,12 +58,15 @@ the reasoning survives the unblocking.)*
 
 ## IN_PROGRESS
 
-*(Empty. The next increment is the owner's pull, and it cannot be pulled until
-Q-01 and Q-02 are answered.)*
+*(Empty. WIP room is 2; the owner chooses the next story from READY.)*
 
 ## IN_REVIEW
 
-*(Empty.)*
+- S-08.01.05 · Operators control delivery without hidden live sends
+  tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
+  command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: pending — Python API controls pass; this clean environment cannot install the uncached frontend dependency needed to re-run the dashboard test (2026-08-27)
+  code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
 
 ## BLOCKED
 
@@ -186,6 +189,39 @@ Q-01 and Q-02 are answered.)*
   command: python -m pytest tests/test_verify_board.py -q
   result: 29 passed (2026-08-25)
   code: scripts/verify_board.py
+  commit: d96ea9d
+
+*Retrospective certification, 2026-08-27: the protected email implementation
+arrived in `d96ea9d` before it had backlog IDs. The entries below certify the
+current code and rerun evidence; they do not claim the earlier build followed
+the pull-before-code process.*
+
+- S-08.01.01 · Permission and suppression fail closed
+  tests: tests/test_email_delivery.py::test_permission_marketing_fails_closed_and_suppression_is_global, tests/test_email_delivery.py::test_direct_sender_checks_global_suppression_before_provider_call, tests/test_email_delivery.py::test_transactional_lane_requires_relationship_basis_not_marketing_consent
+  command: python -m pytest tests/test_email_delivery.py::test_permission_marketing_fails_closed_and_suppression_is_global tests/test_email_delivery.py::test_direct_sender_checks_global_suppression_before_provider_call tests/test_email_delivery.py::test_transactional_lane_requires_relationship_basis_not_marketing_consent -q
+  result: 3 passed (2026-08-27)
+  code: offsetx_apollo_builder/outreach/deliverability/preflight.py, offsetx_apollo_builder/outreach/deliverability/store.py
+  commit: d96ea9d
+
+- S-08.01.02 · Durable jobs survive crashes without duplicate sends
+  tests: tests/test_email_delivery.py::test_durable_local_job_is_snapshotted_claimed_once_and_recorded, tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried, tests/test_email_delivery.py::test_stale_claim_without_a_recorded_message_becomes_delivery_unknown, tests/test_email_delivery.py::test_job_cancellation_is_terminal_and_only_allowed_before_claim, tests/test_email_delivery.py::test_reply_cancels_an_already_queued_email_before_delivery, tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt
+  command: python -m pytest tests/test_email_delivery.py::test_durable_local_job_is_snapshotted_claimed_once_and_recorded tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried tests/test_email_delivery.py::test_stale_claim_without_a_recorded_message_becomes_delivery_unknown tests/test_email_delivery.py::test_job_cancellation_is_terminal_and_only_allowed_before_claim tests/test_email_delivery.py::test_reply_cancels_an_already_queued_email_before_delivery tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt -q
+  result: 6 passed (2026-08-27)
+  code: offsetx_apollo_builder/outreach/deliverability/service.py, offsetx_apollo_builder/outreach/deliverability/store.py
+  commit: d96ea9d
+
+- S-08.01.03 · Authenticated SES lanes carry bulk mail
+  tests: tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence, tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one_click_headers
+  command: python -m pytest tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one_click_headers -q
+  result: 2 passed (2026-08-27)
+  code: offsetx_apollo_builder/outreach/deliverability/domain_auth.py, offsetx_apollo_builder/outreach/deliverability/ses.py
+  commit: d96ea9d
+
+- S-08.01.04 · Provider feedback stops unhealthy sending
+  tests: tests/test_email_delivery.py::test_ses_feedback_is_idempotent_suppresses_and_auto_pauses, tests/test_email_delivery.py::test_sns_envelope_signature_is_verified_before_parsing, tests/test_email_delivery.py::test_public_feedback_paths_bypass_login_but_still_verify_their_tokens
+  command: python -m pytest tests/test_email_delivery.py::test_ses_feedback_is_idempotent_suppresses_and_auto_pauses tests/test_email_delivery.py::test_sns_envelope_signature_is_verified_before_parsing tests/test_email_delivery.py::test_public_feedback_paths_bypass_login_but_still_verify_their_tokens -q
+  result: 3 passed (2026-08-27)
+  code: offsetx_apollo_builder/outreach/deliverability/events.py, offsetx_apollo_builder/outreach/deliverability/service.py
   commit: d96ea9d
 
 ## DEFERRED

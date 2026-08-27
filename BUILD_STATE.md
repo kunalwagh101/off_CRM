@@ -7,10 +7,12 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-24
+Last updated: 2026-08-27
 Branch: `main`
-Tests: **1432 Python passed, 0 failed**, 8 environment-gated skips, 116 frontend
-passed, frontend production build clean.
+Tests: **1461 Python passed, 0 failed**, 8 environment-gated skips (2026-08-27).
+The latest frontend evidence remains 116 passed plus a clean production build
+from 2026-08-24; this clean checkout could not re-install one uncached npm
+package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
@@ -188,7 +190,7 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 
 ## 3. Done
 
-### Protected bulk email delivery (beta, 2026-08-24)
+### Protected bulk email delivery (beta, F-08.01, 2026-08-24)
 - [x] Added deterministic permission, relationship, global-suppression,
       frequency, send-window and unsubscribe preflight. AI is not part of any
       send-policy decision.
@@ -208,10 +210,12 @@ reason. Credentials, mailbox headers and internal field names are blocked at
       surface, exact `QUEUE LIVE EMAILS` confirmation and a Deliverability UI
       with loading/error/empty states, identity checks, permission evidence,
       suppression, job cancellation and health resume.
-- [x] Evidence: 16 focused delivery tests plus the complete 1,432-test Python
-      suite, 116 frontend tests, lock check, optional SES install, CLI smoke and
-      production frontend build. Live AWS/domain/mailbox-cohort validation is
-      still explicitly required; see `docs/architecture/EMAIL_DELIVERY.md`.
+- [x] Core evidence re-certified under S-08.01.01–04 on 2026-08-27: 16 focused
+      delivery tests and the complete 1,461-test Python suite pass. The latest
+      known frontend evidence remains 116 tests and a production build from the
+      implementation session; S-08.01.05 stays in review until its dashboard
+      test is re-run. Live AWS/domain/mailbox-cohort validation is still
+      explicitly required; see `docs/architecture/EMAIL_DELIVERY.md`.
 
 ### Open-source release hardening (2026-08-20)
 - [x] Replaced the stale public README with the current product boundary: CRM,

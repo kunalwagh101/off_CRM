@@ -21,3 +21,21 @@ orphan requirements I thought to write down.
 **What to change next time.** Decompose twice: once from what was asked, once
 from what the product is for. The second pass is what would have caught F-01.05
 before it needed a change-control entry.
+
+---
+
+## 2026-08-27 — Retrospective certification of protected email
+
+**What was cut.** Nothing was cut. S-08.01.05 remains `IN_REVIEW` because its
+Python controls pass but the clean environment cannot install an uncached npm
+dependency to re-run the existing dashboard test.
+
+**What the estimate got wrong.** The implementation in `d96ea9d` was much
+larger than its governance footprint: it shipped with no epic, feature, story or
+requirement IDs. The first focused rerun also exposed a date-bound fixture that
+worked on August 24 and failed after the calendar moved.
+
+**What to change next time.** Pull the story before coding, and make time-based
+tests relative to the run unless the test explicitly controls every stored
+timestamp. Add a verifier check that flags major shipped modules which appear in
+`BUILD_STATE.md` but have no story ID.

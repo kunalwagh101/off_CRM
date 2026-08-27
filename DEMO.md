@@ -8,7 +8,7 @@ Setup, once:
 
 ```bash
 git clone https://github.com/kunalwagh101/off_CRM.git && cd off_CRM
-pip install -r requirements.txt
+uv sync --locked --extra dev --extra email
 ```
 
 ---
@@ -192,16 +192,28 @@ local file and the cloud metadata address refused always.
 
 ---
 
-## 7. The whole test suite
+## 7. Protected email refuses unsafe sends and survives worker failures
+
+This is the complete deterministic delivery slice: permission, suppression,
+durable claims, ambiguous-send quarantine, domain authentication, SES MIME,
+signed feedback, health pause and exact live-send confirmation. It uses fakes;
+it does not send a real email.
+
+```bash
+uv run pytest tests/test_email_delivery.py -q
+```
+
+Expect `16 passed`. The test derives its send-window time from the day it runs,
+so it does not expire with the calendar.
+
+---
+
+## 8. The whole test suite
 
 ```bash
 python -m pytest tests/ -q
 cd frontend && npm ci && npm test && npm run build
 ```
 
-Expect ~1,435 Python tests and 115 frontend tests.
-
-**One known failure:** `tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt`.
-It arrived with commit `d96ea9d` from outside this workstream and has no backlog
-ID. Under change control it needs an ID before it needs a fix — recorded in
-`TRACEABILITY.md` rather than quietly repaired.
+Expect 1,400+ Python tests and 100+ frontend tests. The exact current counts are
+recorded in `BUILD_STATE.md`; the command's exit code is the authority.

@@ -13,13 +13,13 @@ Every ⬜ and ◐ has a backlog ID. If something here has no ID, it is not plann
 
 ## The one-paragraph version
 
-off_CRM is a machine that **finds** something worth saying, **makes** a video
-about it, **asks you** whether it is any good, and **posts** it — then watches
-what happened and does better next time. Today the *making* is finished, the
-*asking* is finished, the *posting* is finished, and the *finding* is
-half-built. What is missing is the thing that ties them together: an **agent**
-that can use a browser like a person, so the parts stop needing you to press
-each one in turn.
+off_CRM finds leads and ideas, makes content, asks you before publishing, and
+runs guarded outreach. Today the making and review paths are finished; local
+publishing works while real platform adapters wait on external access. The
+protected bulk-email core is built, with its dashboard awaiting one frontend
+proof run. What is still missing is the loop that ties the parts together: an
+**agent** that can use a browser like a person, so the parts stop needing you to
+press each one in turn.
 
 ---
 
@@ -139,7 +139,25 @@ This is the biggest finished piece. It is a real video editor.
 
 ---
 
-## 6. The Finder — what is happening out there
+## 6. The Courier — protected bulk email
+
+**Where:** `offsetx_apollo_builder/outreach/deliverability/`,
+`offsetx_apollo_builder/api/email_delivery.py`, and the Deliverability screen
+
+| Part | What it does | State |
+|---|---|---|
+| Policy preflight | Permission, relationship, suppression and frequency rules fail closed | ✅ S-08.01.01 |
+| Durable queue | Immutable jobs, one-worker claims, bounded retries and ambiguous-send quarantine | ✅ S-08.01.02 |
+| Domain + SES lane | Fresh SPF, DKIM, DMARC and alignment evidence before bulk mail | ✅ S-08.01.03 |
+| Feedback + health | Signed SNS events, bounce/complaint suppression and automatic pause | ✅ S-08.01.04 |
+| Operator control centre | API and UI for preflight, health and exact-confirmed live queueing | ◐ S-08.01.05 *(frontend proof pending)* |
+
+> It can manage high-volume sending safely. It cannot buy reputation or promise
+> the inbox; the sender still needs a domain, DNS records and a provider such as SES.
+
+---
+
+## 7. The Finder — what is happening out there
 
 **Where:** `discovery.py`, `research.py`, `dedupe.py`
 
@@ -155,7 +173,7 @@ This is the biggest finished piece. It is a real video editor.
 
 ---
 
-## 7. The Vault — your logins  ⬜ **none of this exists yet**
+## 8. The Vault — your logins  ⬜ **none of this exists yet**
 
 This is the next thing to build, and the decisions are now made:
 
@@ -172,7 +190,7 @@ This is the next thing to build, and the decisions are now made:
 
 ---
 
-## 8. The Foundations — storage, API, screens
+## 9. The Foundations — storage, API, screens
 
 | Part | What it does | State |
 |---|---|---|
@@ -187,11 +205,11 @@ This is the next thing to build, and the decisions are now made:
 
 ---
 
-## 9. The Rules — how we know any of this is true
+## 10. The Rules — how we know any of this is true
 
 | Part | What it does | State |
 |---|---|---|
-| `PRODUCT_BACKLOG.md` | 33 stories, 57 requirements, **zero orphans** | ✅ |
+| `PRODUCT_BACKLOG.md` | 54 stories, 71 requirements, **zero orphans** | ✅ |
 | `BOARD.md` | The only place status lives. Chat does not count | ✅ |
 | `DEFINITION_OF_DONE.md` | Six boxes. All of them, every time | ✅ |
 | `scripts/verify_board.py` | **Re-runs every "done" claim's test.** Catches lies, including mine | ✅ |
@@ -202,9 +220,11 @@ This is the next thing to build, and the decisions are now made:
 ## The honest scoreboard
 
 ```
-Built and tested        16 stories      41% of all acceptance criteria
+Built and tested        20 stories      44% of all acceptance criteria
+Built, proof pending     1 story        deliverability dashboard
 Ready to start           3 stories      the vault and the box
-Waiting in the backlog  25 stories
+Waiting in the backlog  26 stories
+Blocked externally       3 stories      platform access and reviews
 Deferred                 1 story        with a reason and a trigger
 ```
 
@@ -217,4 +237,4 @@ the vault that makes it safe to let them.
 
 1. **A Google Cloud project** with YouTube Data API v3 enabled → real uploads.
 2. **Meta / TikTok / LinkedIn app review** → real posting there. Weeks, not days.
-3. **Nothing else.** Everything in section 7 is now decided and buildable.
+3. **Nothing else.** Everything in section 8 is now decided and buildable.

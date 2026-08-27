@@ -72,6 +72,12 @@ measured data rather than a default.
 runs on its author's laptop under its author's supervision.
 **Leading indicator:** distinct workspaces in active weekly use.
 
+### E-07 — Permitted email reaches recipients without losing operational control
+**Value hypothesis:** a company can send permission-based email at useful volume
+without one crash, complaint or bad list damaging every future message.
+**Leading indicator:** accepted mail with low permanent-bounce and complaint rates,
+with zero sends to suppressed recipients.
+
 ---
 
 ## 2. Features and stories
@@ -564,6 +570,17 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-58 | Approved renders are published to YouTube through its official API | S-01.05.01 |
 | R-59 | Instagram, Facebook, TikTok, LinkedIn and X behind one adapter contract | S-01.05.02 |
 | R-60 | Engagement is read back from the platform, not typed in | S-01.05.03 |
+| R-61 | Permission marketing and transactional mail require the correct recorded basis | S-08.01.01 |
+| R-62 | Global suppression blocks every send path and cancels queued work | S-08.01.01 |
+| R-63 | Non-transactional mail has a signed one-click unsubscribe path | S-08.01.05 |
+| R-64 | Bulk mail is an immutable durable job claimed by only one worker | S-08.01.02 |
+| R-65 | Ambiguous delivery is quarantined and never retried automatically | S-08.01.02 |
+| R-66 | Replies, send windows, daily caps and rate state stop or defer before a provider call | S-08.01.02 |
+| R-67 | A bulk sending identity has fresh SPF, DKIM, DMARC, alignment and SES evidence | S-08.01.03 |
+| R-68 | SES receives raw MIME with the required stream, feedback and unsubscribe metadata | S-08.01.03 |
+| R-69 | Signed, idempotent provider feedback turns complaints and hard bounces into suppression | S-08.01.04 |
+| R-70 | Delivery health thresholds pause unsafe campaigns and require an explicit resume | S-08.01.04 |
+| R-71 | Operators can inspect preflight and health, and live SES queueing requires exact confirmation | S-08.01.05 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -596,6 +613,78 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** a run's findings, **when** a report is generated, **then** every
   claim in it links to a trace step.
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** reports produced per research run.
+
+### F-08.01 — Protected bulk email delivery  *(E-07)*
+
+*Retrospective change-control entry, 2026-08-27.* The implementation first
+arrived in `d96ea9d` without backlog IDs. These stories certify the current
+repository state; they do not pretend the original implementation followed the
+pull-before-code process.
+
+#### S-08.01.01 — Permission and suppression fail closed
+**As an** operator, **I want** permission and suppression decided before any
+provider call, **so that** scale cannot turn one bad record into unauthorised mail.
+- **Given** permission marketing without an active recorded grant, **when**
+  preflight runs, **then** the recipient is blocked before queueing.
+- **Given** an address that denied permission or is globally suppressed, **when**
+  either the direct or durable path tries to send, **then** it refuses and queued
+  work is cancelled.
+- **Given** a transactional lane, **when** its permission is checked, **then**
+  only a recorded customer, contract or service-request relationship passes.
+- **Dependencies:** none. **Size:** M. **Indicator:** provider calls to ineligible recipients.
+
+#### S-08.01.02 — Durable jobs survive crashes without duplicate sends
+**As an** operator, **I want** each bulk email to be durable and claimed once,
+**so that** a restart or second worker cannot silently send it twice.
+- **Given** an approved due draft, **when** it is queued, **then** an immutable
+  payload snapshot is stored and only one worker can claim it.
+- **Given** an ambiguous provider result or an expired claim without a recorded
+  message, **when** recovery runs, **then** the job becomes `delivery_unknown`
+  and is never retried automatically.
+- **Given** a reply, cancellation, closed send window, daily cap or lane delay,
+  **when** a worker reaches the job, **then** it is cancelled or deferred before
+  the provider call and no false provider attempt is consumed.
+- **Dependencies:** S-08.01.01. **Size:** L. **Indicator:** duplicate-send incidents.
+
+#### S-08.01.03 — Authenticated SES lanes carry bulk mail
+**As an** operator, **I want** each bulk stream tied to an authenticated SES
+identity, **so that** high volume uses evidence-backed infrastructure rather
+than a personal mailbox.
+- **Given** a sending identity, **when** it is assigned to a campaign, **then**
+  its provider and stream must match and bulk lanes use isolated subdomains.
+- **Given** a permission-marketing send, **when** authentication evidence is
+  missing, failing or older than seven days, **then** SPF, DKIM, DMARC,
+  alignment or SES verification blocks it.
+- **Given** an allowed SES job, **when** it is submitted, **then** raw MIME
+  carries the correct stream tags, feedback configuration and unsubscribe
+  headers where required.
+- **Dependencies:** S-08.01.01. **Size:** L. **Indicator:** authenticated accepted sends.
+
+#### S-08.01.04 — Provider feedback stops unhealthy sending
+**As an** operator, **I want** delivery feedback to change future eligibility,
+**so that** complaints and permanent bounces cannot be ignored.
+- **Given** an SNS envelope, **when** it reaches the public feedback endpoint,
+  **then** its certificate source, signature and expected topic are verified
+  before any database mutation.
+- **Given** a duplicate hard-bounce or complaint event, **when** it is processed,
+  **then** the event is idempotent and the recipient is globally suppressed once.
+- **Given** health metrics beyond configured thresholds, **when** feedback is
+  aggregated, **then** the campaign pauses automatically and only an explicit
+  resume clears the pause.
+- **Dependencies:** S-08.01.02, S-08.01.03. **Size:** L. **Indicator:** sends after a complaint.
+
+#### S-08.01.05 — Operators control delivery without hidden live sends
+**As an** operator, **I want** one visible control surface for preflight, health
+and queueing, **so that** a live bulk send cannot happen by accident.
+- **Given** an authenticated operator, **when** the delivery API or dashboard is
+  opened, **then** identities, settings, preflight, permissions, suppressions,
+  jobs and health are visible and editable through guarded actions.
+- **Given** a recipient using the public unsubscribe route, **when** the signed
+  token is valid, **then** the action works without login; an invalid token is refused.
+- **Given** a live SES queue request, **when** the exact confirmation phrase is
+  absent, **then** no job is created and the dashboard keeps the safety controls visible.
+- **Dependencies:** S-08.01.01, S-08.01.02, S-08.01.03, S-08.01.04. **Size:** M.
+  **Indicator:** live queue requests without explicit confirmation.
 
 ---
 

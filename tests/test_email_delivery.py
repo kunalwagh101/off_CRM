@@ -398,13 +398,15 @@ def test_worker_defers_outside_send_window_without_spending_a_provider_attempt(t
             {"send_window_start": "09:00", "send_window_end": "17:00"},
         )
         service = _service(engine, tmp_path)
-        queue_time = datetime(2026, 8, 24, 10, tzinfo=timezone.utc)
+        queue_time = (utc_now() + timedelta(days=1)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
         job_id = service.enqueue_campaign(campaign_id, now=queue_time)["queued"][0][
             "job_id"
         ]
         result = service.work_once(
             max_jobs=1,
-            now=datetime(2026, 8, 24, 18, tzinfo=timezone.utc),
+            now=queue_time.replace(hour=18),
         )
         assert result["retry_wait"] == 1
         deferred = service.store.get_job(job_id)

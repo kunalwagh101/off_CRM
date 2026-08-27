@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Registered the shipped protected-email work under E-07 / F-08.01 with five
+  vertical stories and R-61–R-71. Four core stories are DONE with rerunnable
+  evidence; the operator dashboard remains IN_REVIEW until its frontend test is
+  re-run in an environment with the locked npm dependencies.
+- Fixed the deliverability send-window test so its queue time is derived from
+  the run date instead of expiring after the hardcoded 2026-08-24 fixture.
 - Added `STATE_OF_THE_PRODUCT.md`, `DEMO.md`, `CONTINUE.md` and `RETRO.md`,
   completing the delivery-process artifact set. `DEMO.md` blocks are runnable
   and were each executed before being written down.
@@ -12,8 +18,8 @@
 - Added S-06.02.07: an answered question stops blocking READY, so recording a
   decision unblocks the board instead of deleting the question.
 
-- Adopted an explicit delivery process: `PRODUCT_BACKLOG.md` (6 epics, 8
-  features, 33 stories, 56 requirements with zero orphans), `BOARD.md` as the
+- Adopted an explicit delivery process: `PRODUCT_BACKLOG.md` (now 7 epics, 15
+  features, 54 stories, 71 requirements with zero orphans), `BOARD.md` as the
   single source of truth with a WIP limit of 2, `OPEN_QUESTIONS.md`,
   `DEFINITION_OF_DONE.md` and `TRACEABILITY.md`.
 - Added `scripts/verify_board.py` — a standard-library-only verifier that

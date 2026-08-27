@@ -33,14 +33,33 @@ the code exists and holds no stub).
 | R-15, R-40 | S-02.01.04 | 2 | `tests/test_browser_agent.py` | `browser/policy.py` |
 | R-16 | S-02.01.05 | 2 | `tests/test_browser_agent.py` | `browser/trace.py` |
 | R-52 | S-06.02.06 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
+| R-57 | S-06.02.07 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
+| R-61, R-62 | S-08.01.01 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/preflight.py`, `outreach/deliverability/store.py` |
+| R-64, R-65, R-66 | S-08.01.02 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/service.py`, `outreach/deliverability/store.py` |
+| R-67, R-68 | S-08.01.03 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/domain_auth.py`, `outreach/deliverability/ses.py` |
+| R-69, R-70 | S-08.01.04 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/events.py`, `outreach/deliverability/service.py` |
 
-## Blocked — the story exists, the answer does not
+## In review — built, but this session cannot complete the proof
 
-| Req | Story | Blocked on | What the answer changes |
+| Req | Story | Criteria | Current proof | Missing proof |
+|---|---|---|---|---|
+| R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Re-run `frontend/src/components.test.tsx`; npm dependency is not cached in this environment |
+
+## Ready — the decision exists, code does not
+
+| Req | Story | Decision recorded | What will be built |
 |---|---|---|---|
-| R-21, R-22, R-23 | S-03.01.01 | Q-02 | Whether the allow-list is one code path or two |
-| R-25, R-26, R-42 | S-03.02.01 | Q-03 | Which platform's login shape is proven first |
-| R-27, R-28, R-29 | S-03.02.02 | Q-01 | Where the master key comes from — a storage design, not a parameter |
+| R-21, R-22, R-23 | S-03.01.01 | Q-02 | Attended and unattended browser-box policy |
+| R-25, R-26, R-42 | S-03.02.01 | Q-03 | LinkedIn-first sign-in flow |
+| R-27, R-28, R-29 | S-03.02.02 | Q-01 | OS-keychain master key with passphrase fallback |
+
+## Blocked externally — engineering is waiting on access
+
+| Req | Story | Blocked on |
+|---|---|---|
+| R-58 | S-01.05.01 | Owner-created Google Cloud project, YouTube Data API v3 and channel OAuth consent |
+| R-59 | S-01.05.02 | Meta review, TikTok audit and LinkedIn partner access |
+| R-60 | S-01.05.03 | S-01.05.01 and its Google Cloud access |
 
 ## Planned — story and criteria written, nothing built
 
@@ -83,21 +102,21 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**56 requirements. 15 delivered with a complete chain. 3 blocked on an answer
-only you can give. 26 planned and not built. 1 deferred.**
+**71 requirements, zero orphans. 20 stories are DONE, 1 is IN_REVIEW, 3 are
+READY, 3 are externally BLOCKED, 26 are planned in BACKLOG and 1 is DEFERRED.**
 
-39% of the acceptance criteria in the backlog sit behind something `DONE`. That
+44% of the acceptance criteria in the backlog sit behind something `DONE`. That
 number is recomputed by the verifier from the repository every run, so it moves
 when the work moves and not when the summary is edited.
 
 ### Known gaps in the chain itself
 
-- **`tests/test_email_delivery.py` has one failing test** on `d96ea9d`, a commit
-  that arrived from outside this workstream. It has no backlog ID, which means
-  it is work that entered the repository without passing through this process.
-  It needs an ID before it needs a fix — that is the change-control rule, and
-  applying it to somebody else's commit is the only way it means anything.
-- **Frontend tests are not named in any evidence block.** The video work has 115
-  of them and they are real, but the board's evidence commands are Python-only.
-  Either the frontend command joins the evidence blocks or the coverage figure
-  is understating what is proven.
+- **The protected-email code arrived before its IDs.** F-08.01 and
+  S-08.01.01–05 are retrospective certification, not a claim that `d96ea9d`
+  followed pull-before-code change control.
+- **The core deliverability suite is now 16/16.** Its send-window test used a
+  fixed 2026-08-24 timestamp and failed as soon as the calendar moved; the
+  fixture now derives a future in-window time.
+- **S-08.01.05 remains IN_REVIEW.** Its two Python control tests pass, but this
+  clean checkout cannot install an uncached npm package under the current
+  network policy, so the dashboard test has not been re-run this session.

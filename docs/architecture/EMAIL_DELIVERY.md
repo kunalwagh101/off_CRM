@@ -1,6 +1,6 @@
 # Email delivery and deliverability controls
 
-Status: **beta**. The deterministic policy, local provider, queue, worker,
+Status: **beta**, tracked as F-08.01 / S-08.01.01–05. The deterministic policy, local provider, queue, worker,
 one-click unsubscribe, SES adapter and SES-event parser are covered by automated
 tests. A real AWS account, verified domain, SNS topic and mailbox-provider test
 cohort are still required before calling a deployment production-ready.

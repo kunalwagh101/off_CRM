@@ -391,6 +391,88 @@ a real Chromium.
 
 ---
 
+## Stage 3, first slice: the browser box  ·  `S-03.01.01`
+
+`browser/box.py` and `browser/guard.py`. Two files, because the two acceptance
+criteria are enforced in two different places and neither substitutes for the
+other:
+
+```
+   the box     stops the browser reaching  YOUR MACHINE
+   the guard   stops the browser reaching  THE WRONG SITE
+```
+
+### The box is composed, not written again
+
+`ai/sandbox.py` already builds a hardened container — read-only root, every
+capability dropped, no new privileges, runs as nobody, and the CRM's databases
+and keys **not mounted at all**. Every one of those is as right for a browser as
+for a code runner, so `box.py` composes `SandboxPolicy` rather than duplicating
+it. Two flag lists drift, and the one that drifts is the one that stops
+protecting anything.
+
+Exactly two things differ, and both are visible in the invocation:
+
+- **`--network=bridge`.** `SandboxPolicy.network` now defaults to `none`, so a
+  box that needs the network asks out loud and the code box cannot acquire it by
+  anyone forgetting. `validate_network` refuses `host` outright — it would put
+  the container on this machine's own network stack, which is the single thing
+  every other flag exists to prevent.
+- **A Docker named volume, not a bind mount.** The profile has to survive a
+  restart or you would sign in to LinkedIn every morning. A bind mount would put
+  your session cookies at a path on your disk, which is what the box exists to
+  avoid; a named volume has no host path to traverse. One per workspace, because
+  two people's cookies in one place is not a multi-user product.
+
+The DevTools port is published to `127.0.0.1` only. A DevTools port is remote
+control of a logged-in browser; Docker's default publish behaviour would make
+that remote control available to the whole network.
+
+### The guard enforces names, which Docker cannot
+
+`--network=bridge` filters by address and the rule is about *names*. The address
+behind a name changes hourly at any CDN. So the allow-list is enforced in the
+browser's own network stack, via the DevTools `Fetch` domain: every request
+pauses **before** Chrome dispatches it, the guard decides, and a refusal is
+`Fetch.failRequest` — the bytes never leave.
+
+Two modes, which is the owner's answer to **Q-02**:
+
+| Mode | Rule | Why |
+|---|---|---|
+| Unattended | Deny by default. Declared domains only. | A scheduled run follows links nobody read. |
+| Attended | Allow, with policy. | A person watching is itself a control. |
+
+**The allow-list narrows and can never widen.** `policy.py` is consulted first
+and its refusals are final, so putting `linkedin.com` on an unattended run's
+allow-list does *not* make LinkedIn reachable — that platform is attended-only
+for reasons that have nothing to do with this list. A config file cannot vote
+itself past a platform rule.
+
+`Page.start()` attaches a guard whether or not the caller asked for one. A
+boundary that depends on the caller remembering is not a boundary.
+
+### Three bugs, all found by running it
+
+- **A deadlock in the CDP client, and it was mine.** `_emit` awaited each
+  listener. A listener that answers an event by *sending a command* — which is
+  precisely what request interception is — then waited on a reply only the read
+  loop could deliver, while the read loop waited on the listener. The browser
+  and off_CRM sat looking at each other until the test timed out. Listeners are
+  scheduled now, never awaited, and the fix is in `cdp.py` because it is a
+  property of the connection rather than of one listener.
+- **A validator that validated its own prefix.** `volume_for` checked the
+  *prefixed* name, which always begins `offcrm-`, so the "must start with a
+  letter or digit" rule never once fired and a workspace id of `-leading-dash`
+  sailed through. The id is checked before the prefix is added now.
+- **A test that passed with the feature removed.** The allowed-path test
+  navigated to a `data:` URL and asserted the page rendered — but `data:` never
+  touches the network, so no interception happened and both counters sat at
+  zero. It asserts `allowed_count` now, which only moves if a request was
+  genuinely paused, decided and continued.
+
+---
+
 ## What this blueprint will not pretend
 
 - **A Chromium fork is not being built.** The CDP path gets the session, which is

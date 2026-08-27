@@ -90,6 +90,8 @@ class CDPConnection:
         default_factory=list
     )
     _reader: asyncio.Task | None = None
+    #: Listener coroutines currently in flight. See :meth:`_emit`.
+    _handlers: set = field(default_factory=set)
     _closed: bool = False
     #: Why the connection ended, so a failure downstream can say something
     #: better than "connection closed".
@@ -107,6 +109,9 @@ class CDPConnection:
         self._closed = True
         self.reason = self.reason or reason
         self._fail_pending(CDPClosed(self.reason))
+        for handler in list(self._handlers):
+            handler.cancel()
+        self._handlers.clear()
         if self._reader is not None:
             self._reader.cancel()
             try:
@@ -173,16 +178,33 @@ class CDPConnection:
             pending.future.set_result(frame.get("result") or {})
 
     async def _emit(self, frame: dict[str, Any]) -> None:
+        """Hand an event to every listener **without waiting for any of them.**
+
+        A coroutine listener is scheduled, never awaited here, and that is not a
+        performance choice — awaiting one deadlocks the connection. A listener
+        that answers an event by sending a command (which is the whole point of
+        request interception) waits on a reply that only this loop can deliver,
+        while this loop waits on the listener. Nothing moves again.
+
+        Found by `Fetch.requestPaused`: the guard paused a request, tried to
+        continue it, and the browser and off_CRM sat looking at each other until
+        the test timed out.
+        """
         method = str(frame.get("method") or "")
         params = frame.get("params") or {}
         session = str(frame.get("sessionId") or "")
         for listener in list(self._listeners):
             try:
                 result = listener(method, params, session)
-                if asyncio.iscoroutine(result):
-                    await result
             except Exception:  # noqa: BLE001 - one bad listener is not the others' problem
                 continue
+            if asyncio.iscoroutine(result):
+                task = asyncio.ensure_future(result)
+                # Held so the loop cannot garbage-collect a running task, and
+                # discarded on completion so the set does not grow for the life
+                # of the connection.
+                self._handlers.add(task)
+                task.add_done_callback(self._handlers.discard)
 
     def on_event(
         self, listener: Callable[[str, dict[str, Any], str], Awaitable[None] | None]

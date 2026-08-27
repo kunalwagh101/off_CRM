@@ -57,7 +57,7 @@ the reasoning survives the unblocking.)*
 
 ## IN_PROGRESS
 
-- S-03.01.01 · A browser box: network yes, host filesystem never
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -176,6 +176,20 @@ the reasoning survives the unblocking.)*
   code: offsetx_apollo_builder/browser/trace.py
   commit: d96ea9d
 
+- S-03.01.01 · A browser box: network yes, host filesystem never
+  tests: tests/test_browser_box.py::test_the_only_mount_is_a_docker_volume_and_not_a_path_on_your_disk, tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain
+  command: python -m pytest tests/test_browser_box.py -q
+  result: 30 passed (2026-08-25)
+  code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py
+  commit: 0be650d
+
+- S-03.01.02 · The existing code box keeps its no-network guarantee
+  tests: tests/test_browser_box.py::test_the_box_asks_for_the_network_and_the_code_box_still_cannot_have_it, tests/test_browser_box.py::test_host_networking_cannot_be_asked_for_at_all
+  command: python -m pytest tests/test_ai_sandbox.py tests/test_browser_box.py -q
+  result: 72 passed, 1 skipped (2026-08-25)
+  code: offsetx_apollo_builder/ai/sandbox.py
+  commit: 0be650d
+
 - S-06.02.07 · An answered question stops blocking
   tests: tests/test_verify_board.py::test_an_answered_question_stops_blocking_ready
   command: python -m pytest tests/test_verify_board.py -q
@@ -225,6 +239,4 @@ the pull-before-code process.*
 
 ## DEFERRED
 
-- S-03.01.02 · The existing code box keeps its no-network guarantee
-  reason: The guarantee holds today and nothing in this increment touches it. It becomes real work only when the browser box is built beside it.
-  trigger: S-03.01.01 entering IN_PROGRESS.
+*(Nothing is deferred. S-03.01.02's trigger fired when S-03.01.01 was pulled.)*

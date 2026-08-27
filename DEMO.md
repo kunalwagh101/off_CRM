@@ -209,6 +209,80 @@ so it does not expire with the calendar.
 ---
 
 ## 8. The whole test suite
+## 7. The browser box: what it mounts, and what it refuses
+
+The container the browser runs in. Print the exact `docker run` off_CRM would
+issue, and look for a path from your own machine in it:
+
+```bash
+python - <<'EOF'
+from offsetx_apollo_builder.browser.box import BrowserBox
+import os
+
+command = BrowserBox(workspace_id="local").command()
+print(" ".join(command))
+print()
+joined = " ".join(command)
+mounts = [command[i + 1] for i, part in enumerate(command) if part == "-v"]
+print("mounted       :", mounts)
+print("your home dir :", "PRESENT — a bug" if os.path.expanduser("~") in joined else "absent")
+print("the CRM store :", "PRESENT — a bug" if "store" in joined else "absent")
+EOF
+```
+
+Expect one mount — `offcrm-browser-local:/profile`, a Docker volume rather than
+a path on your disk — and both checks reading `absent`.
+
+Now the allow-list, decided per request:
+
+```bash
+python - <<'EOF'
+from offsetx_apollo_builder.browser.guard import RequestGuard
+
+unattended = RequestGuard(allowed_hosts=frozenset({"example.com"}), unattended=True)
+attended = RequestGuard(unattended=False)
+
+for url in ("https://example.com/page", "https://www.example.com/page",
+            "https://example.com.evil.test/steal", "https://anything.test/page",
+            "https://www.linkedin.com/feed/", "http://169.254.169.254/",
+            "data:image/png;base64,AAAA"):
+    u = "allow " if unattended.verdict(url).allowed else "REFUSE"
+    a = "allow " if attended.verdict(url).allowed else "REFUSE"
+    print(f"{url[:38]:<40} unattended: {u}   attended: {a}")
+EOF
+```
+
+Real output:
+
+```
+https://example.com/page                 unattended: allow    attended: allow
+https://www.example.com/page             unattended: allow    attended: allow
+https://example.com.evil.test/steal      unattended: REFUSE   attended: allow
+https://anything.test/page               unattended: REFUSE   attended: allow
+https://www.linkedin.com/feed/           unattended: REFUSE   attended: allow
+http://169.254.169.254/                  unattended: REFUSE   attended: REFUSE
+data:image/png;base64,AAAA               unattended: allow    attended: allow
+```
+
+Two rows are worth pausing on. `example.com.evil.test` is refused: it ends with
+neither `example.com` nor `.example.com`, and a naive substring check would let
+it straight through. And LinkedIn is refused when unattended **even though a
+platform rule, not the list, is what refuses it** — the list can only narrow.
+
+To watch a real browser refuse a real request:
+
+```bash
+python -m pytest tests/test_browser_box.py -q
+```
+
+Expect `30 passed`. Four of those launch Chromium, attach the guard, have a page
+call `fetch()` at an undeclared domain, and assert the request was **paused and
+refused** — not merely that it failed, which a request to a domain that does not
+resolve would do anyway.
+
+---
+
+## 7. The whole test suite
 
 ```bash
 python -m pytest tests/ -q
@@ -217,3 +291,9 @@ cd frontend && npm ci && npm test && npm run build
 
 Expect 1,400+ Python tests and 100+ frontend tests. The exact current counts are
 recorded in `BUILD_STATE.md`; the command's exit code is the authority.
+Expect ~1,490 Python tests and 115 frontend tests.
+
+**One known failure:** `tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt`.
+It arrived with commit `d96ea9d` from outside this workstream and has no backlog
+ID. Under change control it needs an ID before it needs a fix — recorded in
+`TRACEABILITY.md` rather than quietly repaired.

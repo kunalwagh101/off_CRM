@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .cdp import CDPConnection, CDPTimeout
+from .guard import RequestGuard
 from .perceive import Snapshot, capture
 from .policy import DomainRule, Refused, check_action, check_navigation, rule_for
 
@@ -107,9 +108,23 @@ class Page:
     _snapshot: Snapshot | None = None
     url: str = ""
 
+    #: Enforces the allow-list, per request, before Chrome dispatches anything.
+    #: Attached by :meth:`start` — a tab with no guard is a tab that can reach
+    #: anywhere, and defaulting to that would make the box's network boundary
+    #: depend on the caller remembering.
+    guard: RequestGuard | None = None
+    #: Reachable when unattended. Ignored when a person is watching, because
+    #: then `policy.py` alone decides.
+    allowed_hosts: frozenset[str] = field(default_factory=frozenset)
+
     async def start(self) -> None:
         for domain in ("Page", "Runtime", "DOM", "Network"):
             await self.connection.send(f"{domain}.enable", session_id=self.session_id)
+        if self.guard is None:
+            self.guard = RequestGuard(
+                allowed_hosts=self.allowed_hosts, unattended=self.unattended
+            )
+        await self.guard.attach(self.connection, self.session_id)
 
     # ── pacing ──────────────────────────────────────────────────────────────
 

@@ -39,3 +39,27 @@ worked on August 24 and failed after the calendar moved.
 tests relative to the run unless the test explicitly controls every stored
 timestamp. Add a verifier check that flags major shipped modules which appear in
 `BUILD_STATE.md` but have no story ID.
+## 2026-08-25 — S-03.01.01, the browser box
+
+**What was cut.** Nothing from the story. One thing was deliberately *not*
+built: a proxy inside the box to enforce the allow-list at the socket rather
+than in the browser. The box runs one process, that process is Chrome, and
+`--cap-drop=ALL` means nothing in it can raw-socket around Chrome's own network
+stack — so a proxy would be a large architectural addition solving a problem the
+existing architecture already solves. Written into the blueprint rather than
+left as an unexplained absence.
+
+**What the estimate got wrong.** I sized this as container work and half of it
+was concurrency work. The CDP client deadlocked the moment a listener answered
+an event with a command — which is exactly what request interception is — and
+finding it took longer than writing the feature, because it presented as a test
+that *hung* rather than a test that failed. The lesson is narrower than "async is
+hard": an event loop that awaits its own listeners cannot serve a listener that
+needs the loop.
+
+**What to change next time.** Two of the three bugs were in things I had already
+written and believed. A validator checked its own prefix, so its first rule
+never fired. An allowed-path test passed with the feature deleted, because
+`data:` URLs never touch the network. Both would have been caught by asking, of
+each test, *what would make this pass if the feature were removed?* — a question
+worth asking before the test is written down, not after.

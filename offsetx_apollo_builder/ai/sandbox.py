@@ -114,6 +114,22 @@ class SandboxWorkspace:
         self.work.mkdir(parents=True, exist_ok=True)
         return self
 
+    #: Where the container starts. A separate attribute so a box with a
+    #: different shape can say so without touching the flag list.
+    workdir: str = "/work"
+
+    def mounts(self) -> list[str]:
+        """The ``-v`` arguments, and only these.
+
+        ``store`` is absent by construction rather than by being read-only: a
+        mount that exists can be reached, and the encrypted keys and the egress
+        log are not things a container should be able to reach at all.
+        """
+        return [
+            "-v", f"{self.inbox}:/inbox:ro",
+            "-v", f"{self.work}:/work:rw",
+        ]
+
     def usage(self) -> int:
         return workspace_usage(self.work)
 
@@ -249,6 +265,28 @@ def validate_image(value: str) -> str:
     return image
 
 
+#: Network modes a box may ask for. ``host`` is absent deliberately — it would
+#: put the container on the machine's own network stack, which is the one thing
+#: every other flag here exists to prevent.
+NETWORK_MODES = ("none", "bridge")
+
+
+def validate_network(value: str) -> str:
+    """Refuse a network mode nobody declared.
+
+    A string reaching ``docker run`` unchecked is an argument-injection hole:
+    ``--network=none --privileged`` is one field away otherwise.
+    """
+    mode = str(value or "").strip().lower()
+    if mode not in NETWORK_MODES:
+        raise PolicyViolation(
+            f"{value!r} is not a network mode a sandbox may use. Allowed: "
+            f"{', '.join(NETWORK_MODES)}. 'host' is deliberately absent — it "
+            "would put the container on this machine's own network."
+        )
+    return mode
+
+
 def validate_command(command: Sequence[str]) -> list[str]:
     """Bounded, null-free arguments."""
     parts = [str(part) for part in command]
@@ -299,6 +337,10 @@ class SandboxPolicy:
     """
 
     allowed_hosts: frozenset[str] = field(default_factory=frozenset)
+    #: Docker's network mode. **Defaults to ``none``**, so a box that needs the
+    #: network has to say so out loud and a box that does not cannot acquire it
+    #: by accident. `tests/test_ai_sandbox.py` fails if this default moves.
+    network: str = "none"
     memory: str = DEFAULT_MEMORY
     cpus: str = DEFAULT_CPUS
     pids_limit: int = DEFAULT_PIDS
@@ -359,7 +401,7 @@ class SandboxPolicy:
             "run",
             "--rm",
             "--pull=never",
-            "--network=none",
+            f"--network={validate_network(self.network)}",
             "--read-only",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
@@ -371,12 +413,9 @@ class SandboxPolicy:
             f"--cpus={self.cpus}",
             "--tmpfs",
             f"/tmp:rw,noexec,nosuid,size={self.tmpfs_size}",
-            "-v",
-            f"{workspace.inbox}:/inbox:ro",
-            "-v",
-            f"{workspace.work}:/work:rw",
+            *workspace.mounts(),
             "-w",
-            "/work",
+            workspace.workdir,
             image,
             *parts,
         ]
@@ -387,7 +426,7 @@ class SandboxPolicy:
         return {
             "available": available,
             "blocked_reason": reason,
-            "network": "none",
+            "network": self.network,
             "writable_paths": ["/work"],
             "readonly_paths": ["/inbox"],
             "unmounted": ["store (databases, keys, logs)"],

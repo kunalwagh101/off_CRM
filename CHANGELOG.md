@@ -8,6 +8,23 @@
   re-run in an environment with the locked npm dependencies.
 - Fixed the deliverability send-window test so its queue time is derived from
   the run date instead of expiring after the hardcoded 2026-08-24 fixture.
+- Added the browser box (`S-03.01.01`): `browser/box.py` composes the existing
+  hardened `SandboxPolicy` with the network on and a Docker named volume for the
+  browser profile, so no host path is mounted and the CRM databases and keys are
+  absent from the container's filesystem entirely. The DevTools port is
+  published to loopback only.
+- Added `browser/guard.py`: the domain allow-list, enforced per request through
+  the DevTools `Fetch` domain before Chrome dispatches anything. Deny-by-default
+  when unattended, allow-with-policy when attended, and the list can only narrow
+  — never widen past `browser/policy.py`. Attached automatically by
+  `Page.start()`.
+- `SandboxPolicy` gains a `network` field defaulting to `none`, and
+  `validate_network` refuses anything but `none` and `bridge`. The workspace now
+  supplies its own mounts, so two differently-shaped boxes share one flag list.
+- Fixed a deadlock in the CDP client: event listeners were awaited by the read
+  loop, so a listener that answered an event with a command waited on a reply
+  only that loop could deliver. Listeners are scheduled now.
+
 - Added `STATE_OF_THE_PRODUCT.md`, `DEMO.md`, `CONTINUE.md` and `RETRO.md`,
   completing the delivery-process artifact set. `DEMO.md` blocks are runnable
   and were each executed before being written down.

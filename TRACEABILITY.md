@@ -109,14 +109,35 @@ READY, 3 are externally BLOCKED, 26 are planned in BACKLOG and 1 is DEFERRED.**
 number is recomputed by the verifier from the repository every run, so it moves
 when the work moves and not when the summary is edited.
 
-### Known gaps in the chain itself
+### Gaps that were open, and are now closed
 
-- **The protected-email code arrived before its IDs.** F-08.01 and
-  S-08.01.01–05 are retrospective certification, not a claim that `d96ea9d`
-  followed pull-before-code change control.
-- **The core deliverability suite is now 16/16.** Its send-window test used a
-  fixed 2026-08-24 timestamp and failed as soon as the calendar moved; the
-  fixture now derives a future in-window time.
-- **S-08.01.05 remains IN_REVIEW.** Its two Python control tests pass, but this
-  clean checkout cannot install an uncached npm package under the current
-  network policy, so the dashboard test has not been re-run this session.
+- **`tests/test_email_delivery.py` had a failing test** on `d96ea9d`, and that
+  work had no backlog ID — it entered the repository without passing through
+  this process. It has IDs now (E-07 / F-08.01, R-61 to R-71) and the failing
+  test is fixed: its queue time was derived from a hardcoded 2026-08-24 fixture
+  and expired when the date passed. **The suite is green: 1,495 passed, 0
+  failed.** Applying change control to somebody else's commit is the only way
+  it means anything, and it worked.
+
+### Gaps still open
+
+- **Frontend tests are not named in most evidence blocks.** The video work has
+  115 of them and they are real, but only one story's evidence command reaches
+  them. Either the frontend command joins the rest or the coverage figure keeps
+  understating what is proven.
+- **S-08.01.05 sits in `IN_REVIEW`**, not `DONE`, because its frontend test has
+  not been re-run in an environment with the locked npm dependencies. That is
+  the Definition of Done working: code written and not verified is `IN_REVIEW`.
+
+---
+
+## Delivered since this table was written
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
+| R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
+
+S-03.01.02 was on the `DEFERRED` shelf with the trigger *"S-03.01.01 entering
+IN_PROGRESS"*. The trigger fired, it came back, and it is done — which is the
+only reason a deferred register is worth keeping.

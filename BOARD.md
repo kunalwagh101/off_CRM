@@ -52,13 +52,12 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-- S-03.01.01 · A browser box: network yes, host filesystem never
 - S-03.02.01 · Sign in to a platform once, inside the box
 - S-03.02.02 · A vault the model cannot read
 
 ## IN_PROGRESS
 
-*(Empty. WIP room is 2; the owner chooses the next story from READY.)*
+- S-03.01.01 · A browser box: network yes, host filesystem never
 
 ## IN_REVIEW
 

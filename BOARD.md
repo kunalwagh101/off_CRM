@@ -52,12 +52,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-- S-03.02.01 · Sign in to a platform once, inside the box
 - S-03.02.02 · A vault the model cannot read
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-03.02.01 · Sign in to a platform once, inside the box
 
 ## IN_REVIEW
 

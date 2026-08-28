@@ -160,12 +160,14 @@ Start with STEP 1 now.
 Paste the block above, then add one of these:
 
 ```
-Pull S-03.01.01 — the browser box. It is the foundation the login and the
-vault both stand on.
+Pull S-03.02.02 — the vault. Q-01 is answered: OS keychain, passphrase fallback.
+It is the only READY story, and S-03.02.01 just made it the obvious next one:
+the login now works and nothing yet protects what it leaves behind.
 ```
 
 ```
-Pull S-03.02.02 — the vault. Q-01 is answered: OS keychain, passphrase fallback.
+Pull S-02.02.01 — the run loop. Everything in `browser/` is a hand the agent
+does not yet know how to use on its own.
 ```
 
 ```

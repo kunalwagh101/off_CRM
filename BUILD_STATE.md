@@ -7,9 +7,9 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 Branch: `main`
-Tests: **1461 Python passed, 0 failed**, 8 environment-gated skips (2026-08-27).
+Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm
 package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.

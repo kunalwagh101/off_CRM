@@ -29,16 +29,20 @@ import asyncio
 import json
 import os
 import shutil
+import socket
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from offsetx_apollo_builder.browser import cdp, perceive, policy
-from offsetx_apollo_builder.browser.page import ACTIONS, Page
+from offsetx_apollo_builder.browser.page import ACTIONS, ActionRefused, Page
 from offsetx_apollo_builder.browser.session import (
     BrowserUnavailable,
     find_browser,
+    clear_stale_lock,
     profile_is_locked,
 )
 from offsetx_apollo_builder.browser.trace import Step, Trace
@@ -323,13 +327,61 @@ def test_a_missing_browser_is_refused_with_something_to_do():
         find_browser("/no/such/browser")
 
 
+def _lock(profile_dir, holder: str) -> None:
+    """Write a lock the shape Chrome writes: a symlink whose target is the
+    record. There is no file to read — the target `hostname-pid` is the data."""
+    os.symlink(holder, profile_dir / "SingletonLock")
+
+
 def test_a_profile_another_browser_has_open_is_detected(tmp_path):
     """Launching a second process against it does not fail loudly — Chrome hands
     off to the running one and exits, and off_CRM would wait forever for a port
     that never opens."""
     assert profile_is_locked(tmp_path) is False
-    (tmp_path / "SingletonLock").write_text("")
+    _lock(tmp_path, f"{socket.gethostname()}-{os.getpid()}")
     assert profile_is_locked(tmp_path) is True
+
+
+def test_a_lock_left_behind_by_a_browser_that_died_is_not_a_lock(tmp_path):
+    """The bug with teeth. A browser stopped by a signal leaves the symlink,
+    nothing ever removes it, and counting it as a lock would refuse a profile
+    nobody holds — for good. In the box that is the login persisting in the
+    volume and becoming unreachable on the next restart."""
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+
+    _lock(tmp_path, f"{socket.gethostname()}-{dead.pid}")
+    assert profile_is_locked(tmp_path) is False
+
+
+def test_a_lock_from_another_host_with_nothing_listening_is_not_a_lock(tmp_path):
+    """Every restart of the box. A container's hostname is its id, so the pid in
+    the lock is meaningless here and the socket is the only real question — and
+    the socket the old container listened on went with it."""
+    _lock(tmp_path, "some-other-container-1")
+    os.symlink(str(tmp_path / "nothing-is-listening-here"), tmp_path / "SingletonSocket")
+    assert profile_is_locked(tmp_path) is False
+
+
+def test_clearing_a_stale_lock_removes_it_and_refuses_while_it_is_held(tmp_path):
+    """A predicate that deletes is how a caller deletes something by asking, so
+    the two are separate — and the deleting one will not act on a live lock."""
+    _lock(tmp_path, f"{socket.gethostname()}-{os.getpid()}")
+    assert clear_stale_lock(tmp_path) == []
+    assert os.path.lexists(tmp_path / "SingletonLock")
+
+    (tmp_path / "SingletonLock").unlink()
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    _lock(tmp_path, f"{socket.gethostname()}-{dead.pid}")
+    os.symlink("/no/such/socket", tmp_path / "SingletonCookie")
+
+    # The cookie jar is a file called `Cookies`, and nothing here touches it.
+    (tmp_path / "Cookies").write_bytes(b"the logins")
+
+    assert sorted(clear_stale_lock(tmp_path)) == ["SingletonCookie", "SingletonLock"]
+    assert not os.path.lexists(tmp_path / "SingletonLock")
+    assert (tmp_path / "Cookies").read_bytes() == b"the logins"
 
 
 # ── against a real browser ──────────────────────────────────────────────────
@@ -414,6 +466,9 @@ def test_a_real_browser_is_driven_end_to_end():
         shot = await page.screenshot()
         assert shot.screenshot[:8] == b"\x89PNG\r\n\x1a\n"
 
+        # A number the *current* snapshot never issued, as opposed to one a
+        # previous snapshot did — the two refusals are different and both real.
+        await page.snapshot()
         with pytest.raises(LookupError):
             await page.click(9999)
         return True
@@ -447,6 +502,11 @@ def test_a_dropdown_is_chosen_by_its_visible_label():
         # The change event fired, which is the half a value assignment skips.
         assert "picked de" in (await page.read()).text
 
+        # Choosing changed the page, so the old handle is spent and the agent
+        # looks again before acting again.
+        snapshot = await page.snapshot()
+        dropdown = next(node for node in snapshot.actions
+                        if node.role in ("combobox", "listbox", "menuitem"))
         with pytest.raises(Exception, match="not one of that dropdown"):
             await page.select(dropdown.handle, "Atlantis")
         return True
@@ -483,3 +543,43 @@ def test_the_policy_is_enforced_against_the_live_browser_too():
         return True
 
     assert asyncio.run(_drive(work))
+
+
+@needs_browser
+def test_a_handle_from_before_the_page_changed_is_refused():
+    """The dangerous version of a stale handle, and the reason `_resolve` will
+    not re-capture on its own.
+
+    Handles are assigned in document order, so a page that gains one node
+    renumbers everything after it. A handle taken before an action then resolves
+    against a tree taken after it and points at a *different element* — not at
+    nothing. The click succeeds, reports success, and hit the wrong thing.
+
+    Found by typing into a password field: Chrome adds a "reveal password"
+    control the moment one has content."""
+
+    async def work(page: Page):
+        await page.goto(
+            "data:text/html,<button id=a>Alpha</button>"
+            "<button id=b onclick=\"document.body.insertAdjacentHTML("
+            "'afterbegin','<button>Inserted</button>')\">Beta</button>"
+        )
+        snapshot = await page.snapshot()
+        beta = next(node for node in snapshot.actions if node.name == "Beta")
+        alpha = next(node for node in snapshot.actions if node.name == "Alpha")
+
+        # Beta inserts a node at the top, so every handle shifts.
+        await page.click(beta.handle, confirmed=True)
+
+        with pytest.raises(ActionRefused, match="page changed"):
+            await page.click(alpha.handle, confirmed=True)
+
+        # And the caller's correct move — look again — works.
+        fresh = await page.snapshot()
+        alpha_again = next(node for node in fresh.actions if node.name == "Alpha")
+        result = await page.click(alpha_again.handle, confirmed=True)
+        return result.ok, alpha.handle, alpha_again.handle
+
+    ok, before, after = asyncio.run(_drive(work))
+    assert ok is True
+    assert before != after, "the handles should have shifted, or this proves nothing"

@@ -56,7 +56,7 @@ the reasoning survives the unblocking.)*
 
 ## IN_PROGRESS
 
-- S-03.02.01 · Sign in to a platform once, inside the box
+*(Empty. S-03.02.02 is next.)*
 
 ## IN_REVIEW
 
@@ -181,6 +181,13 @@ the reasoning survives the unblocking.)*
   result: 30 passed (2026-08-25)
   code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py
   commit: 0be650d
+
+- S-03.02.01 · Sign in to a platform once, inside the box
+  tests: tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards, tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted, tests/test_browser_signin.py::test_no_function_in_the_sign_in_path_accepts_a_credential, tests/test_browser_agent.py::test_a_lock_left_behind_by_a_browser_that_died_is_not_a_lock, tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+  command: python -m pytest tests/test_browser_signin.py tests/test_browser_agent.py tests/test_browser_box.py -q
+  result: 87 passed (2026-08-28)
+  code: offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/signin.py, offsetx_apollo_builder/browser/session.py, offsetx_apollo_builder/browser/page.py
+  commit: 9bd1ee7
 
 - S-03.01.02 · The existing code box keeps its no-network guarantee
   tests: tests/test_browser_box.py::test_the_box_asks_for_the_network_and_the_code_box_still_cannot_have_it, tests/test_browser_box.py::test_host_networking_cannot_be_asked_for_at_all

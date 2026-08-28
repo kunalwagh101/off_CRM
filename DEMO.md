@@ -208,8 +208,7 @@ so it does not expire with the calendar.
 
 ---
 
-## 8. The whole test suite
-## 7. The browser box: what it mounts, and what it refuses
+## 8. The browser box: what it mounts, and what it refuses
 
 The container the browser runs in. Print the exact `docker run` off_CRM would
 issue, and look for a path from your own machine in it:
@@ -282,18 +281,98 @@ resolve would do anyway.
 
 ---
 
-## 7. The whole test suite
+## 9. Sign in to a platform, and go looking for the password
+
+The login belongs to the person, not to off_CRM. off_CRM opens the page, waits,
+and reads back **whether it worked** — nothing else crosses.
+
+The first half of that is a claim about signatures, and it is checked by reading
+them rather than by trusting a review:
+
+```bash
+python - <<'EOF'
+import inspect
+from offsetx_apollo_builder.browser import identity, signin
+
+for module in (identity, signin):
+    for name, function in vars(module).items():
+        if name.startswith("_") or not inspect.isfunction(function):
+            continue
+        if function.__module__ != module.__name__:
+            continue  # imported, not declared here
+        parameters = list(inspect.signature(function).parameters)
+        print(f"{module.__name__.split('.')[-1]}.{name}({', '.join(parameters)})")
+EOF
+```
+
+Real output:
+
+```
+identity.platform(platform_id)
+identity.read_state(snapshot, target)
+identity.catalogue(store, workspace_id)
+signin.check(page, target)
+signin.open_login(page, target)
+signin.wait_for_sign_in(page, target, timeout, poll_seconds, on_poll)
+signin.connect(page, target, store, workspace_id, timeout, on_poll)
+signin.verify(page, target, store, workspace_id)
+```
+
+There is no `password`, no `username`, no `token`, no `secret` and no
+`credential` in any of them, and `tests/test_browser_signin.py` fails the build
+if one ever appears.
+
+Where you stand on every platform, in one call:
+
+```bash
+python - <<'EOF'
+from pathlib import Path
+from offsetx_apollo_builder.browser.identity import ConnectionStore, catalogue
+
+store = ConnectionStore(Path("/tmp/offcrm-demo-connections"))
+answer = catalogue(store, "local")
+print("stores_no_credentials:", answer["stores_no_credentials"])
+for row in answer["platforms"]:
+    print(f"{row['label']:<12} {row['state']:<14} {row['login_url']}")
+EOF
+```
+
+Real output, on a machine that has signed into nothing yet:
+
+```
+stores_no_credentials: True
+Facebook     unknown        https://www.facebook.com/login/
+Instagram    unknown        https://www.instagram.com/accounts/login/
+LinkedIn     unknown        https://www.linkedin.com/login
+TikTok       unknown        https://www.tiktok.com/login
+X            unknown        https://x.com/i/flow/login
+YouTube      unknown        https://accounts.google.com/ServiceLogin?service=youtube
+```
+
+`unknown` is a real answer and not a default — off_CRM has not looked at a page,
+so it does not claim to know. It never guesses `disconnected`.
+
+Then the live proof, which needs Chromium:
+
+```bash
+python -m pytest tests/test_browser_signin.py -q
+```
+
+Expect `21 passed`. Two of them are the acceptance criteria themselves. One
+drives a real browser to a login page served from the test file, types a
+password into it with real key events, watches the page flip to signed-in — and
+then reads **every byte off_CRM wrote** and fails if the password is in any of
+them. The other plants a cookie with an expiry, kills the browser, starts
+another one against the same profile, and asks for the cookie back.
+
+---
+
+## 10. The whole test suite
 
 ```bash
 python -m pytest tests/ -q
 cd frontend && npm ci && npm test && npm run build
 ```
 
-Expect 1,400+ Python tests and 100+ frontend tests. The exact current counts are
+Expect ~1,520 Python tests and 115 frontend tests. The exact current counts are
 recorded in `BUILD_STATE.md`; the command's exit code is the authority.
-Expect ~1,490 Python tests and 115 frontend tests.
-
-**One known failure:** `tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt`.
-It arrived with commit `d96ea9d` from outside this workstream and has no backlog
-ID. Under change control it needs an ID before it needs a fix — recorded in
-`TRACEABILITY.md` rather than quietly repaired.

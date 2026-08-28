@@ -102,10 +102,10 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 20 stories are DONE, 1 is IN_REVIEW, 3 are
-READY, 3 are externally BLOCKED, 26 are planned in BACKLOG and 1 is DEFERRED.**
+**71 requirements, zero orphans. 23 stories are DONE, 1 is IN_REVIEW, 1 is
+READY, 3 are externally BLOCKED and 26 are planned in BACKLOG.**
 
-44% of the acceptance criteria in the backlog sit behind something `DONE`. That
+49% of the acceptance criteria in the backlog sit behind something `DONE`. That
 number is recomputed by the verifier from the repository every run, so it moves
 when the work moves and not when the summary is edited.
 
@@ -118,6 +118,28 @@ when the work moves and not when the summary is edited.
   and expired when the date passed. **The suite is green: 1,495 passed, 0
   failed.** Applying change control to somebody else's commit is the only way
   it means anything, and it worked.
+
+### Two defects in already-`DONE` code, found by building on it
+
+Both were fixed inside `S-03.02.01` rather than given new IDs, because neither
+adds capability — they are the slice's own acceptance criteria failing in code
+the slice depends on. Change control is about scope, not about bugs.
+
+- **`profile_is_locked` counted a lock rather than reading it.** A browser
+  stopped by a signal leaves `SingletonLock` behind and nothing ever removes it,
+  so off_CRM refused a profile nobody held — permanently. That is AC1 of this
+  story failing exactly where it matters: the login persists in the volume and
+  becomes *unreachable* on the next restart of the box. The lock is now
+  interrogated (`hostname-pid`, then the singleton socket when the host differs)
+  and a proven-stale one is cleared before launch.
+- **`BrowserSession.close` killed the browser instead of closing it.** Chrome
+  batches writes to the cookie jar and flushes on shutdown, so the login that
+  had just been completed could be lost. `Browser.close` is sent first; the
+  signal is the fallback.
+
+Neither was visible from a unit test. Both appeared the moment a real browser
+was stopped and started again — which is why AC1 is tested by doing that, and
+not by arguing that the volume outlives the container.
 
 ### Gaps still open
 
@@ -137,6 +159,7 @@ when the work moves and not when the summary is edited.
 |---|---|---|---|---|
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
+| R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 
 S-03.01.02 was on the `DEFERRED` shelf with the trigger *"S-03.01.01 entering
 IN_PROGRESS"*. The trigger fired, it came back, and it is done — which is the

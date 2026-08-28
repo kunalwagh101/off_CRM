@@ -63,3 +63,34 @@ never fired. An allowed-path test passed with the feature deleted, because
 `data:` URLs never touch the network. Both would have been caught by asking, of
 each test, *what would make this pass if the feature were removed?* — a question
 worth asking before the test is written down, not after.
+
+---
+
+## 2026-08-28 — S-03.02.01, signing in inside the box
+
+**What was cut.** Nothing. One thing was deliberately *not* built: any code that
+handles a credential. Storing a password encrypted, filling a login form,
+holding one "just for the moment" — all rejected, and the story is shaped so the
+person types it into the browser themselves. That is not a shortcut; it is the
+only version of this feature where a compromise of off_CRM cannot yield a
+password, because there is no password to yield.
+
+**What the estimate got wrong.** I sized this as "drive a browser to a login
+page and watch it change", and the driving part was the easy half. Two of the
+three real defects were in code that was already `DONE` and that I had watched
+pass its own tests. `profile_is_locked` counted a lock file rather than reading
+it — so a browser stopped by a signal made the profile unopenable *forever*,
+which is this story's first acceptance criterion failing in the most expensive
+possible way: the login is safely persisted and permanently unreachable. And
+`close(quit_browser=True)` killed the browser instead of closing it, so Chrome
+never flushed the cookie jar and the login that had just succeeded was gone.
+
+**What to change next time.** Last retro's lesson was *ask of each test what
+would make it pass if the feature were removed*. This one is its twin: **ask of
+each acceptance criterion whether it is tested or argued.** The first draft of
+`tests/test_browser_signin.py` opened by explaining that persistence "is a
+property of the box rather than of any code here" — a true sentence, a
+reasonable sentence, and not a test. Both defects lived in the gap that sentence
+covered, and both appeared within a minute of actually stopping a browser and
+starting it again. A criterion defended by an argument is a criterion nobody has
+checked.

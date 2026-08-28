@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Added signing in to a platform inside the box (`S-03.02.01`).
+  `browser/identity.py` declares the six platforms — LinkedIn, Instagram,
+  Facebook, YouTube, X, TikTok — as the signals that mean signed-in and
+  signed-out, and records per workspace which are connected. `browser/signin.py`
+  opens the login page, waits, and reads back *whether it worked*. **No function
+  in either module takes a password, a username or a token, and a test reads
+  every public signature and fails the build if one ever does.** The person
+  types their password into the browser; nothing about it crosses back.
+- Refused a stale element handle instead of silently re-numbering against a
+  newer page. `Page._resolve` used to re-capture when the cached snapshot had
+  been dropped, so a handle taken *before* an action resolved against the tree
+  *after* it — pointing at a different element rather than at nothing, and the
+  action reported success. Found by typing into a password field: Chrome adds a
+  "reveal password" control once one has content and every later handle shifts.
+  `Page.snapshot()` no longer has a "use the cached one" flag, because that flag
+  was the bug.
+- Fixed `profile_is_locked` treating a leftover lock file as a running browser.
+  A browser stopped by a signal leaves `SingletonLock` behind and nothing
+  removes it, so a profile nobody held was refused for good — in the box, a
+  login that persisted in the volume and became unreachable on the next restart.
+  The lock records `hostname-pid` and is now interrogated: the pid on this host,
+  the singleton socket when the hostname is a container id that no longer
+  exists. `clear_stale_lock` removes a proven-dead lock before launch and
+  touches nothing else.
+- `BrowserSession.close(quit_browser=True)` sends `Browser.close` before it
+  signals. Chrome batches cookie-jar writes and flushes them on shutdown, so
+  killing the browser could lose the login that had just been completed.
+
 - Registered the shipped protected-email work under E-07 / F-08.01 with five
   vertical stories and R-61–R-71. Four core stories are DONE with rerunnable
   evidence; the operator dashboard remains IN_REVIEW until its frontend test is

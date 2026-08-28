@@ -45,6 +45,12 @@ def _atomic_json(path: Path, payload: Any) -> None:
     os.replace(temporary, path)
 
 
+#: The public name. Every store in off_CRM that keeps a JSON document needs
+#: exactly this — write beside the target, then rename — and a second copy of it
+#: is a second place for the "write then crash" bug to be fixed only once.
+atomic_json = _atomic_json
+
+
 class WorkspaceAISettingsStore:
     """Reads and writes one JSON document per install, keyed by workspace."""
 

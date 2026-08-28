@@ -55,7 +55,7 @@ model see this data*, and *what actually left the machine*.
 
 ## 2. The Hands — using a browser like a person
 
-**Where:** `offsetx_apollo_builder/browser/` · 7 files, ~2,000 lines
+**Where:** `offsetx_apollo_builder/browser/` · 10 files, ~3,000 lines
 
 Built last week. This is what lets off_CRM reach anything that has no API —
 which is most of the useful web.
@@ -68,6 +68,10 @@ which is most of the useful web.
 | `page.py` | **Ten verbs.** Click, type, scroll, read… and no way to run code | ✅ |
 | `policy.py` | Per-site speed limits, and which sites a robot may never visit alone | ✅ |
 | `trace.py` | Writes down every single action. Cannot be edited or deleted | ✅ |
+| `box.py` | The container it all runs in. Network yes, your files never | ✅ |
+| `guard.py` | Refuses a request to an undeclared domain before Chrome sends it | ✅ |
+| `identity.py` | The six platforms, and where this workspace stands with each | ✅ |
+| `signin.py` | Opens the login page, waits for **you**, reads back only whether it worked | ✅ |
 | **The run loop** | Goal in → look, think, act, repeat → done | ⬜ S-02.02.01 |
 | **PLAN.md** | The agent's to-do list, as a file you can edit mid-run to steer it | ⬜ S-02.02.02 |
 | **Stop & resume** | Cut in halfway; carry on later from where it stopped | ⬜ S-02.02.03 |

@@ -42,6 +42,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -196,18 +197,126 @@ def probe(port: int, *, timeout: float = 1.0) -> dict[str, Any] | None:
         return None
 
 
+#: The singleton files Chrome leaves in a profile while it has it open. They
+#: are what makes a second launch hand off to the first instead of failing.
+SINGLETON_FILES = ("SingletonLock", "SingletonSocket", "SingletonCookie")
+
+
+def _lock_holder(profile_dir: Path) -> tuple[str, int] | None:
+    """Who Chrome says is holding the profile: `hostname-pid`, or nothing.
+
+    `SingletonLock` is a symlink and its *target* is the record — there is no
+    file to read, so this reads the link.
+    """
+    try:
+        target = os.readlink(profile_dir / "SingletonLock")
+    except OSError:
+        return None
+    host, _, pid = str(target).rpartition("-")
+    if not host or not pid.isdigit():
+        return None
+    return host, int(pid)
+
+
+def _process_is_alive(pid: int) -> bool:
+    """Signal 0: asks the kernel whether a pid exists without touching it."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # It exists; it just belongs to somebody else.
+    except OSError:
+        return True  # Unsure, so assume in use.
+    return True
+
+
+def _singleton_socket_answers(profile_dir: Path, timeout: float = 0.5) -> bool:
+    """Whether anything is still listening on the profile's singleton socket.
+
+    This is the only test available when the lock names a *different* host,
+    which is the normal case for the box: the container's hostname changes
+    every restart, so the pid in the lock means nothing here. The socket the
+    old container was listening on is gone with it, and the connection fails.
+    """
+    try:
+        target = os.readlink(profile_dir / "SingletonSocket")
+    except OSError:
+        return False
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection.settimeout(timeout)
+    try:
+        connection.connect(str(target))
+    except OSError:
+        return False
+    finally:
+        connection.close()
+    return True
+
+
 def profile_is_locked(profile_dir: Path) -> bool:
-    """Whether a browser already has this profile open.
+    """Whether a browser **that is still running** has this profile open.
 
     Chrome writes a `SingletonLock` while a profile is in use. Launching a
     second process against it does not fail loudly — it hands off to the running
     one and exits, and off_CRM would then wait forever for a port that never
     opens. Detecting it here turns a hang into a sentence.
+
+    But the existence of the lock is not the question, and treating it as the
+    question is a bug with teeth: a browser stopped by a signal leaves the
+    symlink behind, and off_CRM would then refuse to open a profile nobody
+    holds — permanently, because nothing ever removes it. In the box that is
+    the story's whole point failing: the login persists in the volume and
+    becomes unreachable on the next restart.
+
+    So the lock is *interrogated* rather than counted. It records `hostname-pid`.
+    On this host that pid is asked whether it exists; from another host — every
+    restart of a container, whose hostname is its id — the singleton socket is
+    asked whether anything still answers.
     """
-    for name in ("SingletonLock", "SingletonSocket", "lockfile"):
-        if (profile_dir / name).exists():
-            return True
-    return False
+    profile_dir = Path(profile_dir)
+    # Firefox-style, and no liveness information in it at all. Rare enough to
+    # stay conservative about.
+    if (profile_dir / "lockfile").exists():
+        return True
+    holder = _lock_holder(profile_dir)
+    if holder is None:
+        # `lexists`, not `exists`: these are symlinks and their targets are
+        # routinely gone, which is the whole point of asking.
+        return (os.path.lexists(profile_dir / "SingletonSocket")
+                and _singleton_socket_answers(profile_dir))
+    host, pid = holder
+    if host == socket.gethostname():
+        return _process_is_alive(pid)
+    return _singleton_socket_answers(profile_dir)
+
+
+def clear_stale_lock(profile_dir: Path) -> list[str]:
+    """Remove singleton files left by a browser that is gone, and say which.
+
+    Separate from `profile_is_locked` on purpose: that one answers a question
+    and this one changes the profile, and a predicate that deletes things is how
+    a caller ends up deleting something by asking.
+
+    It refuses to act while the profile is held, so the ordinary "your browser
+    is open" case cannot reach it. What it removes is only ever a symlink whose
+    owner has been shown not to exist, and never anything with a login in it —
+    the cookie jar is `Cookies`, an SQLite file this does not touch.
+    """
+    profile_dir = Path(profile_dir)
+    if profile_is_locked(profile_dir):
+        return []
+    removed = []
+    for name in SINGLETON_FILES:
+        path = profile_dir / name
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        removed.append(name)
+    return removed
 
 
 def _stop_tree(process: subprocess.Popen) -> None:
@@ -342,9 +451,25 @@ class BrowserSession:
         ``quit_browser`` only ever applies to a browser off_CRM started. Closing
         one the owner was working in would throw away their tabs, and no agent
         run is worth that.
+
+        The browser is asked to quit before it is signalled. That order matters
+        for exactly the thing this whole feature rests on: Chrome batches writes
+        to the cookie jar and flushes them on shutdown, so a browser that is
+        killed rather than closed can lose the login that was just completed.
+        `Browser.close` is the shutdown; `_stop_tree` is the fallback for a
+        browser that will not take it.
         """
+        if quit_browser and self.process is not None:
+            try:
+                await asyncio.wait_for(self.connection.send("Browser.close"), timeout=5.0)
+            except Exception:  # noqa: BLE001 - a browser already going down is fine
+                pass
         await self.connection.close()
         if quit_browser and self.process is not None:
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
             _stop_tree(self.process)
 
 
@@ -392,6 +517,11 @@ async def open_session(
             "profile with none of your logins in it. Close that browser and try "
             "again — off_CRM will reopen it with the same tabs it had."
         )
+    # Nobody holds it, so anything singleton-shaped still lying there was left
+    # by a browser that is gone. Chrome does break such a lock itself, but not
+    # reliably when the hostname in it is not this one — which is every restart
+    # of the box. Left alone, the profile's logins would be unreachable.
+    clear_stale_lock(directory)
 
     # Something is on the port and it did not answer the DevTools handshake, so
     # it is not a browser. Launching against it would fail with a message about

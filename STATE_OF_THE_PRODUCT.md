@@ -32,15 +32,15 @@ different words.
 ## The scoreboard
 
 ```
-✅ DELIVERED        20 stories   ████████████████████
-🔬 RESEARCHED        3 stories   ███
+✅ DELIVERED        23 stories   ███████████████████████
+🔬 RESEARCHED        1 story     █
 🔒 WAITING ON YOU    3 stories   ███
 📋 PLANNED          26 stories   ██████████████████████████
 🚧 BUILDING          0 stories
 🧪 PROVING           1 story     █
-⏸️ PARKED            1 story     █
+⏸️ PARKED            0 stories
 
-71 requirements tracked · 0 orphans · 44% of acceptance criteria behind a test
+71 requirements tracked · 0 orphans · 49% of acceptance criteria behind a test
 ```
 
 ---
@@ -85,6 +85,22 @@ re-runs, so "it works" is checkable rather than something I said.
 | Speed limits and no-go zones, enforced | S-02.01.04 | 32 tests |
 | Writes down every action, un-editably | S-02.01.05 | 32 tests |
 
+## The box, and getting logged in
+
+| What it does | Story | Proof |
+|---|---|---|
+| A container with internet and **no path to your files. Not one** | S-03.01.01 | 30 tests |
+| The old code box still cannot have the network at all | S-03.01.02 | 72 tests |
+| **Sign in once, inside the box** — and your password is stored nowhere | S-03.02.01 | 21 tests |
+
+> **What "stored nowhere" means, exactly:** not encrypted, not hashed, not held
+> for a second. No function in the sign-in code will even *accept* a password —
+> a test reads every signature and fails the build if one ever does. You type it
+> into the browser yourself, and the only thing that comes back is *yes, that
+> worked*. Two of those tests are the promise itself: one types a password into
+> a test login page and then searches **every byte off_CRM wrote** for it; the
+> other kills the browser and restarts it to prove the login survives.
+
 ## The honesty machinery
 
 | What it does | Story | Proof |
@@ -118,17 +134,8 @@ current network policy. It stays `IN_REVIEW` until that test is re-run.
 
 # Part 2 — RESEARCHED 🔬 (decided, not built)
 
-**Three things. You approved the decisions on 2026-08-25.** No unknowns left —
-someone can start these tomorrow.
-
-### 🔬 S-03.01.01 — The safe box for the browser
-A container with internet but **no path to your files**. Not one.
-**Decided (Q-02):** locked down when running alone, more open when you're watching.
-
-### 🔬 S-03.02.01 — Logging into a platform
-You sign in **once, inside the box**. Your password is never stored — not
-encrypted, not hashed, **not at all**. You type it yourself.
-**Decided (Q-03):** LinkedIn first, because it's the one with no usable API.
+**One thing left. You approved all three decisions on 2026-08-25** — the other
+two are now built and have moved up to Part 1.
 
 ### 🔬 S-03.02.02 — The vault
 Session keys encrypted, **one key per account**, so one leak isn't all of them.

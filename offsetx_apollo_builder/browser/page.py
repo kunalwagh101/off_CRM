@@ -161,22 +161,47 @@ class Page:
 
     # ── seeing ──────────────────────────────────────────────────────────────
 
-    async def snapshot(self, *, refresh: bool = True) -> Snapshot:
-        """What is on the page, with a handle on everything actionable."""
-        if refresh or self._snapshot is None:
-            self._snapshot = await capture(self.connection, self.session_id)
-            self.url = self._snapshot.url
+    async def snapshot(self) -> Snapshot:
+        """What is on the page, with a handle on everything actionable.
+
+        Always a fresh capture. There is no "give me the cached one" flag,
+        because that flag was the bug: it captured silently when the cache had
+        been dropped, which is exactly the case `_current` exists to refuse.
+        """
+        self._snapshot = await capture(self.connection, self.session_id)
+        self.url = self._snapshot.url
+        return self._snapshot
+
+    def _current(self, handle: int) -> Snapshot:
+        """The snapshot a handle was numbered against — never a fresh one.
+
+        Handles are assigned in document order, so a page that gained or lost
+        one node renumbers everything after it. Every action that changes the
+        page therefore drops the cached snapshot, and this refuses rather than
+        quietly capturing a new one.
+
+        That distinction is the whole guard. Re-capturing here would resolve a
+        handle taken *before* an action against a tree taken *after* it —
+        pointing at a **different element** rather than at nothing, so the
+        action succeeds and reports success while hitting the wrong thing.
+        Found by typing into a password field: Chrome adds a "reveal password"
+        control the moment one has content, and every handle after it shifted
+        by one.
+
+        So an action after the page changed is refused and the caller looks
+        again. That is also how an agent should behave: perceive, act, perceive.
+        """
+        if self._snapshot is None:
+            raise ActionRefused(
+                f"The page changed since element {handle} was numbered, so that "
+                "number now means something else. Take a fresh snapshot and use "
+                "the handle from it."
+            )
         return self._snapshot
 
     async def _resolve(self, handle: int) -> int:
-        """Turn a snapshot handle into a live DOM node.
-
-        Refused rather than guessed when the handle is unknown. An agent that
-        clicked "whatever is at position 12 now" after the page moved is how the
-        wrong record gets deleted.
-        """
-        snapshot = await self.snapshot(refresh=False)
-        node = snapshot.find(int(handle))
+        """Turn a snapshot handle into a live DOM node, or refuse."""
+        node = self._current(handle).find(int(handle))
         if not node.backend_id:
             raise ActionRefused(
                 f"Element {handle} ({node.role} {node.name!r}) has no position on "
@@ -235,8 +260,7 @@ class Page:
         silent — the click "works" and nothing happens.
         """
         started = time.monotonic()
-        snapshot = await self.snapshot(refresh=False)
-        node = snapshot.find(int(handle))
+        node = self._current(handle).find(int(handle))
         rule, needs = check_action(_intent(node.role, node.name), self.url,
                                    unattended=self.unattended)
         if needs and not confirmed:

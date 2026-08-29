@@ -363,6 +363,24 @@ def test_a_lock_from_another_host_with_nothing_listening_is_not_a_lock(tmp_path)
     assert profile_is_locked(tmp_path) is False
 
 
+def test_a_socket_we_are_forbidden_to_probe_stays_locked(tmp_path, monkeypatch):
+    """Unknown is not stale. Removing a possibly-live lock lets two browsers
+    write the same cookie database, which is worse than refusing to start."""
+    _lock(tmp_path, "some-other-container-1")
+    target = tmp_path / "still-present.sock"
+    target.touch()
+    os.symlink(str(target), tmp_path / "SingletonSocket")
+
+    def refused_socket(*_args, **_kwargs):
+        raise PermissionError("AF_UNIX is denied by this host")
+
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.browser.session.socket.socket",
+        refused_socket,
+    )
+    assert profile_is_locked(tmp_path) is True
+
+
 def test_clearing_a_stale_lock_removes_it_and_refuses_while_it_is_held(tmp_path):
     """A predicate that deletes is how a caller deletes something by asking, so
     the two are separate — and the deleting one will not act on a live lock."""

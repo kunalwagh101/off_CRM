@@ -26,6 +26,10 @@
   the singleton socket when the hostname is a container id that no longer
   exists. `clear_stale_lock` removes a proven-dead lock before launch and
   touches nothing else.
+- Made that stale-lock probe work on hardened hosts that deny AF_UNIX socket
+  creation. A missing socket path is now proven stale without opening a socket;
+  if the path exists but the host forbids the liveness probe, the profile stays
+  locked rather than risking two browsers writing the same cookie database.
 - `BrowserSession.close(quit_browser=True)` sends `Browser.close` before it
   signals. Chrome batches cookie-jar writes and flushes them on shutdown, so
   killing the browser could lose the login that had just been completed.

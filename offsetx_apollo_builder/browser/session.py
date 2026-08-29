@@ -245,7 +245,18 @@ def _singleton_socket_answers(profile_dir: Path, timeout: float = 0.5) -> bool:
         target = os.readlink(profile_dir / "SingletonSocket")
     except OSError:
         return False
-    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    # Chrome's link points at the real Unix socket.  When that path is already
+    # gone there is nothing to probe, and trying to allocate a socket first is
+    # both needless and wrong on hosts whose security policy denies AF_UNIX.
+    if not os.path.exists(target):
+        return False
+    try:
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    except OSError:
+        # The path still exists but the host would not let us ask whether it is
+        # live.  Deleting the lock on an unknown answer risks two Chromiums
+        # writing one profile, so uncertainty is a lock, not permission.
+        return True
     connection.settimeout(timeout)
     try:
         connection.connect(str(target))

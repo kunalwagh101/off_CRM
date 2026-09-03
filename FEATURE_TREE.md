@@ -483,7 +483,7 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-8.5 | `trace.py` — append-only, no way to remove a step | 36 | S-02.01.05 ✅ |
 | P-8.6 | `session.py` — attach to a real browser; stale-lock recovery | 36 | — |
 | P-8.7 | `identity.py` + `signin.py` — six platforms; **no function accepts a password** | 21 | S-03.02.01 ✅ |
-| P-8.8 | **The vault** — one key per account, OS keychain | — | ⬜ S-03.02.02 **READY** |
+| P-8.8 | **The vault** — one key per account, OS keychain | — | 🚧 S-03.02.02 **IN PROGRESS** |
 | P-8.9 | **Revoke and forget** | — | ⬜ S-03.02.03 |
 | P-8.10 | **The run loop** — goal → bounded sequence of actions | — | ⬜ S-02.02.01 |
 | P-8.11 | **PLAN.md as memory** | — | ⬜ S-02.02.02 |
@@ -734,7 +734,7 @@ and it is what a senior reviewer would insist on before anything else ships.
 
 | # | Capability | Why |
 |---|---|---|
-| 5 | `P-8.8` — the vault (`S-03.02.02`, **READY** now) | The login works; nothing yet protects what it leaves behind. |
+| 5 | `P-8.8` — the vault (`S-03.02.02`, **already IN_PROGRESS** since 2026-08-29) | The login works; nothing yet protects what it leaves behind. Wave 1 now runs alongside it rather than before it. |
 | 6 | `P-8.10` — the run loop (`S-02.02.01`) | The highest-leverage unbuilt thing. Hands exist; will does not. |
 | 7 | `P-8.11`–`P-8.13` — PLAN.md, interrupt/resume, countdowns | These make the loop *safe* to leave alone. Shipping 6 without them is not defensible. |
 

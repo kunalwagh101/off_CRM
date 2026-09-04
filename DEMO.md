@@ -16,10 +16,11 @@ uv sync --locked --extra dev --extra email
 ## 1. Check that everything claimed as done actually is
 
 The most important one. This re-runs every test behind every `DONE` item on the
-board and refuses the claim if any of them fails.
+board and refuses the claim if any of them fails. Run it inside the same locked
+Python environment as the evidence commands it launches.
 
 ```bash
-python scripts/verify_board.py
+uv run python scripts/verify_board.py
 ```
 
 Expect: a board summary, then `OK — the board matches the repository.`
@@ -28,7 +29,7 @@ Now break it on purpose and watch it catch you:
 
 ```bash
 sed -i.bak 's|code: offsetx_apollo_builder/video/effects.py|code: offsetx_apollo_builder/video/imaginary.py|' BOARD.md
-python scripts/verify_board.py ; echo "exit code: $?"
+uv run python scripts/verify_board.py ; echo "exit code: $?"
 mv BOARD.md.bak BOARD.md
 ```
 
@@ -305,7 +306,7 @@ for module in (identity, signin):
 EOF
 ```
 
-Real output:
+Current output includes:
 
 ```
 identity.platform(platform_id)
@@ -314,13 +315,15 @@ identity.catalogue(store, workspace_id)
 signin.check(page, target)
 signin.open_login(page, target)
 signin.wait_for_sign_in(page, target, timeout, poll_seconds, on_poll)
-signin.connect(page, target, store, workspace_id, timeout, on_poll)
+signin.connect(page, target, store, workspace_id, vault, timeout, on_poll)
 signin.verify(page, target, store, workspace_id)
 ```
 
 There is no `password`, no `username`, no `token`, no `secret` and no
-`credential` in any of them, and `tests/test_browser_signin.py` fails the build
-if one ever appears.
+`credential` in any of them. `vault` is a required trusted storage object, not
+credential material; the connection cannot be marked green without it.
+`tests/test_browser_signin.py` and `tests/test_browser_vault_wiring.py` fail the
+build if these boundaries regress.
 
 Where you stand on every platform, in one call:
 
@@ -367,12 +370,39 @@ another one against the same profile, and asks for the cookie back.
 
 ---
 
-## 10. The whole test suite
+## 10. The vault: one account key each, no secret in a model prompt
+
+This is the acceptance proof for `S-03.02.02`. It does not contact a real
+platform or AI provider. It proves the storage/key boundary, trusted CDP
+capture/restore wiring, tamper refusal, and the shared AI scanner's refusal of
+cookies, tokens and passwords even under `full` policy.
 
 ```bash
-python -m pytest tests/ -q
+uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
+```
+
+Expect `15 passed`.
+
+For the regression boundary around the two systems this slice touches:
+
+```bash
+uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py tests/test_browser_signin.py tests/test_ai_egress_wall.py -q
+```
+
+Inspect the implementation contract itself in `docs/VAULT.md`. The important
+shape is: Chrome session → trusted capture → per-account encryption → wrapped
+account key → metadata-only result. Restore follows the reverse path straight
+back into Chrome. Neither path is available to a model.
+
+---
+
+## 11. The whole test suite
+
+```bash
+uv run pytest tests/ -q
 cd frontend && npm ci && npm test && npm run build
 ```
 
-Expect ~1,520 Python tests and 115 frontend tests. The exact current counts are
-recorded in `BUILD_STATE.md`; the command's exit code is the authority.
+The Python release gate for this increment produced `1536 passed, 4 skipped` on
+2026-09-04. Exact counts continue to come from the command, not from this prose;
+the command's exit code is the authority.

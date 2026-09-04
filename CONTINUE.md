@@ -8,27 +8,30 @@ It works because the state lives in the repository, not in a conversation. The
 prompt just tells the AI where to look and what the rules are.
 
 **How to use it:** copy everything between the two `-----` lines. Optionally add
-one line at the end saying which story to pull. If you don't, it will tell you
-what's available and wait.
+one line at the end saying which story to refine or pull. If you don't, it will
+tell you what's available and wait.
 
 ---
 
 ```
 -----------------------------------------------------------------------------
 You are joining an in-flight project. State lives in the repository, never in
-chat. Read these five files before doing anything else:
+chat. Read these files before doing anything else:
 
   BOARD.md                 the only source of truth for status
   PRODUCT_BACKLOG.md       every epic, feature, story, acceptance criteria
   OPEN_QUESTIONS.md        decisions made, and questions still open
   DEFINITION_OF_DONE.md    the two gates: Ready, and Done
-  STATE_OF_THE_PRODUCT.md  plain-English summary of where everything stands
+  TRACEABILITY.md          requirement -> story -> test -> code
+  STATE_OF_THE_PRODUCT.md  plain-English summary, useful context but board wins
 
 Repository: https://github.com/kunalwagh101/off_CRM   (branch: main)
 Deep context, only if you need it:
   docs/architecture/BROWSER_AGENT_BLUEPRINT.md   the agent plan, 8 stages
+  docs/VAULT.md                                  browser-session custody contract
   docs/architecture/VIDEO_EDITOR.md              the editor, and why it is built that way
   SYSTEM_MAP.md                                  every component and its state
+  FEATURE_TREE.md                                repo-first product decomposition
   ~/.claude/rules/ponytail.md                    how code gets written here
 
 === METHODOLOGY ===
@@ -42,7 +45,7 @@ for X".
 
 === STEP 1 — STANDUP (do this first, every session) ===
 
-Run:  python scripts/verify_board.py
+Run:  uv run python scripts/verify_board.py
 
 Then report, before anything else:
   - counts per column, straight from that output
@@ -53,16 +56,18 @@ If the verifier is red, fixing that is the whole job until it is green. A red
 verifier means the board is lying, and everything built on top of a lying board
 is guesswork.
 
-=== STEP 2 — PULL ONE ITEM ===
+=== STEP 2 — REFINE OR PULL ONE ITEM ===
 
   - IN_PROGRESS must have room (limit 2). If it is full, finish or escalate.
   - Pull only from READY. Never from BACKLOG directly — an item in BACKLOG has
     not passed the Definition of Ready.
+  - If READY is empty, refine the agreed next candidate against the Definition
+    of Ready first; moving BACKLOG -> READY is its own inspectable state change.
   - Never pull something BLOCKED. Blocked means someone else owes something.
-  - Move it to IN_PROGRESS in BOARD.md and commit that move before writing code.
+  - Move READY -> IN_PROGRESS in BOARD.md and commit that move before code.
 
-If READY is empty, say so and stop. Do not invent work. Report what is blocked
-and what it is blocked on.
+If there is no agreed next candidate and READY is empty, say so and stop. Do not
+invent work.
 
 === STEP 3 — BUILD IT (Ponytail rules) ===
 
@@ -89,6 +94,8 @@ Architectural rules this codebase already enforces, which you must not break:
   - A model names an existing tool. It can never describe a new one.
   - The browser agent has ten verbs and no way to run code. Do not add an
     "evaluate" verb, ever.
+  - Browser-session vault capture/restore is trusted host orchestration and is
+    never exposed as a model tool.
   - Nothing publishes without a human verdict.
   - Secrets never enter a prompt.
 
@@ -106,7 +113,7 @@ Then add the evidence block under the item in BOARD.md:
 
   - S-0X.0Y.0Z · Title
     tests: tests/test_thing.py::test_specific_behaviour
-    command: python -m pytest tests/test_thing.py -q
+    command: uv run pytest tests/test_thing.py -q
     result: N passed (YYYY-MM-DD)
     code: offsetx_apollo_builder/module/file.py
     commit: <sha>
@@ -116,11 +123,12 @@ for "I am fairly sure it works".
 
 === STEP 5 — CLOSE ===
 
-  1. python scripts/verify_board.py    (must be green)
+  1. uv run python scripts/verify_board.py    (must be green)
   2. Update CHANGELOG.md
   3. Add a runnable block to DEMO.md — a command the owner pastes and watches
-  4. Commit, then push to main
-  5. Retro, three lines: what was cut, what the estimate got wrong, what to
+  4. Update TRACEABILITY.md and any repo-first feature map affected by the slice
+  5. Commit, then push to main
+  6. Retro, three lines: what was cut, what the estimate got wrong, what to
      change next time. Append it to RETRO.md.
 
 === CHANGE CONTROL ===
@@ -155,20 +163,29 @@ Start with STEP 1 now.
 
 ---
 
-## Optional: add one line to point it at a specific story
+## Optional: point it at the next candidate
 
-Paste the block above, then add one of these:
+`S-03.02.02 — the vault` is delivered. The board currently has no READY story,
+so do not silently pull from BACKLOG.
 
-```
-Pull S-03.02.02 — the vault. Q-01 is answered: OS keychain, passphrase fallback.
-It is the only READY story, and S-03.02.01 just made it the obvious next one:
-the login now works and nothing yet protects what it leaves behind.
-```
+The dependency-contiguous next candidate is:
 
 ```
-Pull S-02.02.01 — the run loop. Everything in `browser/` is a hand the agent
-does not yet know how to use on its own.
+Refine S-03.02.03 — Revoke and forget — against the Definition of Ready. Its
+upstream S-03.02.02 vault dependency is now delivered. If all acceptance
+criteria, contracts and questions are resolved, move it BACKLOG -> READY and
+commit that state change before pulling it.
 ```
+
+The next high-leverage autonomy candidate after the session lifecycle is:
+
+```
+Refine S-02.02.01 — the bounded run loop. Everything in browser/ is a hand the
+agent does not yet know how to use on its own. Do not pull it until its Ready
+gate passes.
+```
+
+Or only inspect state:
 
 ```
 Don't pull anything. Just run the standup and tell me where we are.

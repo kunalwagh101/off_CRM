@@ -43,7 +43,7 @@ class Connection:
         self.calls.append((method, params))
         if method == self.fail_on:
             raise RuntimeError("simulated DevTools refusal")
-        if method in {"Storage.deleteCookies", "Storage.clearDataForOrigin"}:
+        if method == "Storage.clearDataForOrigin":
             return {}
         raise AssertionError(f"unexpected CDP method {method}")
 
@@ -98,11 +98,16 @@ def test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces(tmp_
     with pytest.raises(VaultLocked, match="No vaulted session exists"):
         vault.unseal("local", "linkedin")
 
-    methods = [method for method, _ in page.connection.calls]
-    assert methods.count("Storage.deleteCookies") == 1
-    assert methods.count("Storage.clearDataForOrigin") == 1
-    deleted = next(params for method, params in page.connection.calls if method == "Storage.deleteCookies")
-    assert deleted == {"name": "li_at", "domain": ".linkedin.com", "path": "/"}
+    assert page.connection.calls == [
+        (
+            "Storage.clearDataForOrigin",
+            {"origin": "https://linkedin.com", "storageTypes": "all"},
+        ),
+        (
+            "Storage.clearDataForOrigin",
+            {"origin": "https://www.linkedin.com", "storageTypes": "all"},
+        ),
+    ]
 
     rows = [step.to_dict() for step in trace.read()]
     assert rows[-1]["kind"] == "revoke"
@@ -115,7 +120,7 @@ def test_browser_failure_retains_encrypted_vault_and_connected_record_for_retry(
     store = ConnectionStore(tmp_path)
     _connected(store)
     _seed(vault)
-    page = Page(fail_on="Storage.deleteCookies")
+    page = Page(fail_on="Storage.clearDataForOrigin")
     trace = Trace.open(tmp_path / "traces", run_id="revoke-failure")
 
     with pytest.raises(RevokeError, match="encrypted vault was retained"):

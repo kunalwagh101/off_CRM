@@ -79,8 +79,8 @@ the reasoning survives the unblocking.)*
 
 - S-03.02.02 · A vault the model cannot read
   tests: tests/test_browser_vault.py::test_cookie_token_and_password_fields_are_blocked_even_at_full_policy, tests/test_browser_vault.py::test_two_platforms_use_different_account_keys_and_plaintext_is_absent, tests/test_browser_vault.py::test_passphrase_derives_master_key_and_no_raw_key_file_is_written, tests/test_browser_vault_wiring.py::test_connected_state_is_vaulted_before_it_is_recorded, tests/test_browser_vault_wiring.py::test_vault_failure_refuses_the_connection_and_writes_no_green_state
-  command: uv run pytest -q
-  result: 1536 passed, 4 skipped (2026-09-04)
+  command: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
+  result: 15 passed (2026-09-04)
   code: offsetx_apollo_builder/browser/vault.py, offsetx_apollo_builder/browser/signin.py, offsetx_apollo_builder/ai/scanner.py
   commit: 008d4928ae8048d85a804b628d9e76f0ee1c8c77
 

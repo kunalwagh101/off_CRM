@@ -484,13 +484,13 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-8.6 | `session.py` — attach to a real browser; stale-lock recovery | 36 | — |
 | P-8.7 | `identity.py` + `signin.py` — six platforms; **no function accepts a password** | 21 | S-03.02.01 ✅ |
 | P-8.8 | **The vault** — per-account key, OS keychain / passphrase fallback | 15 focused | S-03.02.02 ✅ |
-| P-8.9 | **Revoke and forget** | — | ⬜ S-03.02.03 |
+| P-8.9 | **Revoke and forget** — clear vaulted cookies, destroy account envelope, trace the act | 6 focused incl. live Chromium | S-03.02.03 ✅ |
 | P-8.10 | **The run loop** — goal → bounded sequence of actions | — | ⬜ S-02.02.01 |
 | P-8.11 | **PLAN.md as memory** | — | ⬜ S-02.02.02 |
 | P-8.12 | **Interrupt, steer, resume** | — | ⬜ S-02.02.03 |
 | P-8.13 | **Safety countdowns** | — | ⬜ S-02.02.04 |
 
-**The honest summary:** off_CRM has safe browser hands and protected session custody, but still no will. Every individual motion works and is tested against a real Chromium. Nothing yet decides which motion to make. `P-8.10` remains the highest-leverage unbuilt autonomy feature, while `P-8.9` is the dependency-contiguous next security slice that closes the session lifecycle.
+**The honest summary:** off_CRM now has safe browser hands and a complete managed session lifecycle: attended login → protected per-account vault → destructive revoke/forget. It still has no will. Every individual motion works, but nothing yet decides which motion to make from a goal. `P-8.10` is now the next dependency-contiguous autonomy feature and remains the highest-leverage unbuilt thing in this pillar.
 
 ---
 
@@ -732,8 +732,8 @@ and it is what a senior reviewer would insist on before anything else ships.
 | # | Capability | Why |
 |---|---|---|
 | 5 | `P-8.8` — the vault (`S-03.02.02`) — **DONE 2026-09-04** | The login now has protected per-account session custody, an OS-backed/passphrase master boundary, and fail-closed prompt/connection gates. |
-| 6 | `P-8.9` — revoke and forget (`S-03.02.03`) | Closes the session lifecycle before broader autonomy: disconnect must permanently remove the stored session material the vault now owns. |
-| 7 | `P-8.10` — the run loop (`S-02.02.01`) | The highest-leverage unbuilt autonomy feature. Hands exist; will does not. |
+| 6 | `P-8.9` — revoke and forget (`S-03.02.03`) — **DONE 2026-09-04** | The managed session lifecycle is now closed: real Chromium loses the vaulted session cookie before the account envelope and public connection record are destroyed. |
+| 7 | `P-8.10` — the run loop (`S-02.02.01`) | **Next autonomy slice.** Hands and a safe credential lifecycle exist; will does not. |
 | 8 | `P-8.11`–`P-8.13` — PLAN.md, interrupt/resume, countdowns | These make the loop *safe* to leave alone. Shipping the run loop without them is not defensible. |
 
 ### Wave 3 — reach the world

@@ -23,7 +23,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
 - S-02.02.04 · Safety countdowns before consequential actions
-- S-03.02.03 · Revoke and forget
 - S-04.01.01 · Companions: persisted agent profiles
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation
@@ -52,7 +51,7 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-*(Empty. No new story is pulled automatically after S-03.02.02; refinement is a separate state change.)*
+- S-03.02.03 · Revoke and forget
 
 ## IN_PROGRESS
 

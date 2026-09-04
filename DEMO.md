@@ -396,13 +396,35 @@ back into Chrome. Neither path is available to a model.
 
 ---
 
-## 11. The whole test suite
+## 11. Revoke and forget: prove the session is really gone
+
+This is the acceptance and live-browser proof for `S-03.02.03`.
+
+```bash
+uv run pytest tests/test_browser_revoke.py -q
+```
+
+The suite covers the success path, browser-deletion failure, cross-platform
+material refusal, missing-vault refusal, and refusal to operate without an
+attached page target. Its live test starts real Chromium, plants a persistent
+session cookie, proves Chromium has it, disconnects the platform through the
+attached page CDP session, and then asks Chromium whether the cookie survived.
+It also proves the per-account vault can no longer decrypt and the append-only
+trace contains the revocation but not the cookie value.
+
+If the browser is not installed locally, the live test skips; CI is the recorded
+Gate 2 environment for this increment and ran the live Chromium assertion.
+
+---
+
+## 12. The whole test suite
 
 ```bash
 uv run pytest tests/ -q
 cd frontend && npm ci && npm test && npm run build
 ```
 
-The Python release gate for this increment produced `1536 passed, 4 skipped` on
-2026-09-04. Exact counts continue to come from the command, not from this prose;
-the command's exit code is the authority.
+The implementation release gate for `S-03.02.03` produced `1542 passed, 4 skipped`
+for Python and `116 passed` for the frontend on 2026-09-04 UTC; the production
+frontend build also passed. Exact counts continue to come from the command, not
+from this prose; the command's exit code is the authority.

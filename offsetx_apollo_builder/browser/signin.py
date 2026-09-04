@@ -1,7 +1,9 @@
 """Signing in, with off_CRM out of the way.
 
-`S-03.02.01`, the flow. `identity.py` knows *which* platforms exist and how to
-tell whether you are signed in; this is what happens in between.
+`S-03.02.01` owns the attended sign-in flow; `S-03.02.02` adds the vault step
+that makes a successful session safe to retain. `identity.py` knows *which*
+platforms exist and how to tell whether you are signed in; this is what happens
+in between.
 
 ---
 
@@ -10,19 +12,25 @@ tell whether you are signed in; this is what happens in between.
     off_CRM   opens the platform's own login page inside the box
     you       type your password, with your own fingers
     off_CRM   watches the page until a signed-in signal appears
+    vault     copies only that platform's session cookies into encrypted storage
     off_CRM   writes down "linkedin: connected"
 
-There is no step where a credential passes through off_CRM, because there is no
-step where off_CRM types. `page.type()` exists and is deliberately **not used
+The order of the last two steps is deliberate. A connection is never recorded
+as connected until the vault has protected the session material. If vaulting
+fails, the flow fails closed and tells the owner; it does not paint a green
+connection badge over an unprotected session.
+
+There is no step where a credential passes through a model, because there is no
+step where a model types. `page.type()` exists and is deliberately **not used
 here** — the agent's ten verbs are for the agent, and an agent that could fill a
 password field is an agent that could be talked into filling it somewhere else.
 
 **Your keystrokes reach the browser without being read.** The person types into
-a live view of the box — see `live.py` — and those events are forwarded
-unopened: not logged, not stored, not inspected, not put in the trace. The trace
-records *that you typed*, never what. That is a weaker claim than "off_CRM never
-touches the bytes", and it is the true one: they cross a loopback socket in this
-process. Saying so is better than implying a wall that is not there.
+a live view of the box and those events are forwarded unopened: not logged, not
+stored, not inspected, not put in the trace. The trace records *that you typed*,
+never what. That is a weaker claim than "off_CRM never touches the bytes", and
+it is the true one: they cross a loopback socket in this process. Saying so is
+better than implying a wall that is not there.
 
 **Waiting is bounded and observed.** A sign-in involves a password manager, a
 2FA code, a device check, sometimes a phone. So the wait is generous — minutes,
@@ -35,7 +43,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .identity import (
@@ -48,6 +56,7 @@ from .identity import (
 )
 from .page import Page
 from .policy import Refused
+from .vault import SessionVault, VaultError
 
 #: How long a sign-in may take before off_CRM stops watching. Long, because a
 #: password manager plus a 2FA code plus a device check is genuinely minutes,
@@ -60,7 +69,7 @@ POLL_SECONDS = 2.0
 
 
 class SignInRefused(RuntimeError):
-    """The sign-in could not start, and the message says what to do."""
+    """The sign-in could not safely complete, and the message says what to do."""
 
 
 @dataclass
@@ -178,30 +187,46 @@ async def connect(
     store: ConnectionStore,
     workspace_id: str,
     *,
+    vault: SessionVault,
     timeout: float = DEFAULT_TIMEOUT,
     on_poll: Any = None,
 ) -> Connection:
-    """The whole flow: open the login page, wait for the person, write it down.
+    """Sign in, vault the session, then record the public connection state.
 
-    The only thing written is a sentence saying it worked. Look for a parameter
-    that could carry a password — there is not one, and
-    `test_no_function_here_accepts_a_credential` fails the build if one appears.
+    `vault` is required rather than optional. An optional security boundary is a
+    bypass waiting for a caller to forget one keyword. The vault itself is host
+    orchestration and is never exposed as an agent tool.
     """
     resolved = target if isinstance(target, Platform) else lookup_platform(target)
-    await open_login(page, resolved)
-    attempt = await wait_for_sign_in(
-        page, resolved, timeout=timeout, on_poll=on_poll
-    )
-    return store.record(workspace_id, attempt.reading or Reading("unknown"), resolved)
+    first = await open_login(page, resolved)
+    if first.connected:
+        reading = first
+    else:
+        attempt = await wait_for_sign_in(
+            page, resolved, timeout=timeout, on_poll=on_poll
+        )
+        reading = attempt.reading or Reading("unknown")
+
+    if reading.connected:
+        try:
+            await vault.capture(page, resolved, workspace_id)
+        except VaultError as exc:
+            raise SignInRefused(
+                f"Signed in to {resolved.label}, but off_CRM could not protect the "
+                f"session in the vault: {exc}. The connection was not recorded."
+            ) from exc
+
+    return store.record(workspace_id, reading, resolved)
 
 
 async def verify(
     page: Page, target: Platform | str, store: ConnectionStore, workspace_id: str
 ) -> Connection:
-    """Re-check a platform and update the record.
+    """Re-check a platform and update the public record.
 
     Separate from `connect` because it is safe to run unattended: it opens a
-    page the person is already signed in to and reads it. No keyboard needed.
+    page the person is already signed in to and reads it. No credential is read
+    or returned by this path.
     """
     resolved = target if isinstance(target, Platform) else lookup_platform(target)
     return store.record(workspace_id, await check(page, resolved), resolved)

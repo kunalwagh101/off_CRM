@@ -33,6 +33,7 @@ the code exists and holds no stub).
 | R-15, R-40 | S-02.01.04 | 2 | `tests/test_browser_agent.py` | `browser/policy.py` |
 | R-16 | S-02.01.05 | 2 | `tests/test_browser_agent.py` | `browser/trace.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
+| R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
 | R-52 | S-06.02.06 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-57 | S-06.02.07 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-61, R-62 | S-08.01.01 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/preflight.py`, `outreach/deliverability/store.py` |
@@ -44,7 +45,7 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
-| R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Re-run `frontend/src/components.test.tsx`; npm dependency is not cached in this environment |
+| R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
@@ -66,7 +67,6 @@ the code exists and holds no stub).
 | R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
 | R-20 | S-02.02.04 | 1 | — | — |
-| R-30 | S-03.02.03 | 1 | — | — |
 | R-31, R-35 | S-04.01.01 | 1 | — | — |
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
@@ -97,8 +97,8 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 24 stories are DONE, 1 is IN_REVIEW, 0 are
-READY, 3 are externally BLOCKED and 26 are planned in BACKLOG.**
+**71 requirements, zero orphans. 25 stories are DONE, 1 is IN_REVIEW, 0 are
+READY, 3 are externally BLOCKED and 25 are planned in BACKLOG.**
 
 The board verifier recomputes the authoritative counts and acceptance coverage
 from the repository. The prose here is a readable snapshot, not a substitute
@@ -117,6 +117,12 @@ for `uv run python scripts/verify_board.py`.
   with an explicit scrypt passphrase fallback, and sign-in refuses to record a
   green connection until vault capture succeeds. Generic cookie/token/password
   shapes are also refused by the shared AI egress scanner even at `full` policy.
+- **S-03.02.03 closes the browser-session exit path.** Disconnect requires an
+  attached page target, deletes the exact vaulted cookies from real Chromium,
+  destroys that account's encrypted vault envelope, forgets the public
+  connection record, and writes the action—not the secret—to the append-only
+  trace. Browser deletion failure keeps the encrypted vault and green record so
+  the owner can retry instead of seeing a false disconnected state.
 
 ### Two defects in already-`DONE` code, found by building on it
 
@@ -137,8 +143,9 @@ the slice depends on. Change control is about scope, not about bugs.
 
 - **Frontend tests are not named in most evidence blocks.** The video work has
   real frontend coverage, but most story evidence commands do not reach it.
-- **S-08.01.05 sits in `IN_REVIEW`** until its complete frontend evidence is
-  promoted under the current Definition of Done.
+- **S-08.01.05 remains `IN_REVIEW`** until its now-green frontend evidence is
+  promoted through that story's own acceptance/evidence update; this increment
+  does not silently absorb an unrelated board transition.
 - **S-06.02.01 remains planned.** S-03.02.02 directly proves browser credential
   shapes cannot enter a provider payload, but the broader adversarial
   no-secret-in-any-prompt suite remains its own story and is not silently
@@ -154,3 +161,4 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
+| R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |

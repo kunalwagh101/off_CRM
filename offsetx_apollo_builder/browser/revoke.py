@@ -47,19 +47,23 @@ def _origin(url: str) -> str:
     return f"{parsed.scheme}://{parsed.hostname}{port}"
 
 
-def _delete_cookie_params(cookie: dict[str, Any]) -> dict[str, Any]:
-    name = str(cookie.get("name") or "")
-    domain = str(cookie.get("domain") or "")
-    if not name or not domain:
-        raise RevokeError("The vaulted session contains a cookie that cannot be revoked safely.")
-    params: dict[str, Any] = {
-        "name": name,
-        "domain": domain,
-        "path": str(cookie.get("path") or "/"),
-    }
-    if cookie.get("partitionKey") is not None:
-        params["partitionKey"] = cookie["partitionKey"]
-    return params
+def _session_origins(target: Platform, cookies: list[dict[str, Any]]) -> tuple[str, ...]:
+    """Every declared platform/cookie origin that can hold this login.
+
+    Chromium's browser-level Storage domain exposes `clearDataForOrigin`, not a
+    `deleteCookies` method. Clearing the unique origins is both supported by the
+    real browser and broader than deleting only the cookie rows: local/session
+    storage associated with the declared login origins is removed too.
+    """
+    declared = {_origin(target.home_url), _origin(target.login_url)}
+    schemes = {urlparse(origin).scheme for origin in declared}
+    for cookie in cookies:
+        domain = str(cookie.get("domain") or "").strip().lower().lstrip(".")
+        if not domain:
+            raise RevokeError("The vaulted session contains a cookie with no domain.")
+        for scheme in schemes:
+            declared.add(f"{scheme}://{domain}")
+    return tuple(sorted(declared))
 
 
 async def disconnect(
@@ -101,18 +105,18 @@ async def disconnect(
             )
         cookies.append(item)
 
+    origins = _session_origins(resolved, cookies)
+
     # Record the request before destructive work. If the process dies halfway,
     # the append-only trace says that revocation was attempted rather than
     # leaving an unexplained change to a logged-in account.
     trace.append(Step(kind="revoke", detail=f"Disconnect requested for {resolved.label}.", ok=True))
 
     try:
-        for cookie in cookies:
-            await page.connection.send("Storage.deleteCookies", _delete_cookie_params(cookie))
-        for url in {resolved.home_url, resolved.login_url}:
+        for origin in origins:
             await page.connection.send(
                 "Storage.clearDataForOrigin",
-                {"origin": _origin(url), "storageTypes": "all"},
+                {"origin": origin, "storageTypes": "all"},
             )
     except Exception as exc:
         trace.append(

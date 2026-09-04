@@ -52,11 +52,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-*(Empty. S-03.02.02 is in progress.)*
+*(Empty. No new story is pulled automatically after S-03.02.02; refinement is a separate state change.)*
 
 ## IN_PROGRESS
 
-- S-03.02.02 · A vault the model cannot read
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -76,6 +76,13 @@ the reasoning survives the unblocking.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-03.02.02 · A vault the model cannot read
+  tests: tests/test_browser_vault.py::test_cookie_token_and_password_fields_are_blocked_even_at_full_policy, tests/test_browser_vault.py::test_two_platforms_use_different_account_keys_and_plaintext_is_absent, tests/test_browser_vault.py::test_passphrase_derives_master_key_and_no_raw_key_file_is_written, tests/test_browser_vault_wiring.py::test_connected_state_is_vaulted_before_it_is_recorded, tests/test_browser_vault_wiring.py::test_vault_failure_refuses_the_connection_and_writes_no_green_state
+  command: uv run pytest -q
+  result: 1536 passed, 4 skipped (2026-09-04)
+  code: offsetx_apollo_builder/browser/vault.py, offsetx_apollo_builder/browser/signin.py, offsetx_apollo_builder/ai/scanner.py
+  commit: 008d4928ae8048d85a804b628d9e76f0ee1c8c77
 
 - S-01.01.01 · A timeline that cannot represent an invalid edit
   tests: tests/test_video_timeline.py

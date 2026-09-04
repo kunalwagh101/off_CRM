@@ -37,6 +37,8 @@ jobs:
           uv run offsetx-db --help
           uv run offsetx-codegraph --help
           uv run offsetx-email-worker --help
+      - name: Run Vault acceptance evidence
+        run: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
       - name: Run Python tests
         run: uv run pytest -q
       # The board verifier is standard-library-only, but the evidence commands

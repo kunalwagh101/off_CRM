@@ -2,11 +2,24 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import time
 
 import pytest
 
-from offsetx_apollo_builder.browser.identity import ConnectionStore, Reading, platform
+from offsetx_apollo_builder.browser.identity import (
+    ConnectionStore,
+    Platform,
+    Reading,
+    platform,
+)
 from offsetx_apollo_builder.browser.revoke import RevokeError, disconnect
+from offsetx_apollo_builder.browser.session import (
+    BrowserUnavailable,
+    find_browser,
+    free_port,
+    open_session,
+)
 from offsetx_apollo_builder.browser.trace import Trace
 from offsetx_apollo_builder.browser.vault import SessionVault, VaultLocked
 
@@ -147,3 +160,77 @@ def test_disconnect_refuses_when_no_vaulted_session_exists(tmp_path, vault):
     assert page.connection.calls == []
     assert store.get("local", "linkedin").state == "connected"
     assert trace.steps == []
+
+
+def _browser() -> str:
+    try:
+        return find_browser()
+    except BrowserUnavailable:
+        return ""
+
+
+needs_browser = pytest.mark.skipif(
+    not _browser(), reason="no Chrome, Edge, Brave or Chromium on this machine"
+)
+
+LIVE_TARGET = Platform(
+    id="linkedin",
+    label="Test platform",
+    login_url="https://persistence.test/login",
+    home_url="https://persistence.test/",
+    signed_in=("signed in",),
+    signed_out=("sign in",),
+)
+
+
+@needs_browser
+def test_real_browser_session_cookie_is_gone_after_disconnect(tmp_path, vault):
+    """Gate 2: ask Chromium itself whether a revoked login survived."""
+    profile = str(tmp_path / "profile")
+    os.makedirs(profile, exist_ok=True)
+    flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+    store = ConnectionStore(tmp_path)
+    store.record("local", Reading("connected", "test login"), LIVE_TARGET)
+    trace = Trace.open(tmp_path / "traces", run_id="revoke-live")
+    secret = "live-browser-session-secret"
+    cookie = {
+        "name": "session_token",
+        "value": secret,
+        "domain": "persistence.test",
+        "path": "/",
+        "expires": time.time() + 86_400,
+        "secure": True,
+    }
+    vault.seal("local", LIVE_TARGET.id, {"cookies": [cookie]})
+
+    async def work():
+        session = await open_session(
+            profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
+        )
+        try:
+            await session.connection.send("Storage.setCookies", {"cookies": [cookie]})
+            before = await session.connection.send("Storage.getCookies", {})
+            assert any(
+                item.get("name") == "session_token" and item.get("value") == secret
+                for item in before.get("cookies", [])
+            ), "the test never planted the session, so revocation would prove nothing"
+
+            page = type("BrowserPage", (), {"connection": session.connection})()
+            result = await disconnect(page, LIVE_TARGET, store, vault, trace, "local")
+            after = await session.connection.send("Storage.getCookies", {})
+            return result, after
+        finally:
+            await session.close(quit_browser=True)
+
+    result, after = asyncio.run(work())
+
+    assert result.vault_destroyed is True
+    assert not any(
+        item.get("name") == "session_token" and item.get("domain") == "persistence.test"
+        for item in after.get("cookies", [])
+    ), "Chromium still has the revoked session cookie"
+    with pytest.raises(VaultLocked, match="No vaulted session exists"):
+        vault.unseal("local", LIVE_TARGET.id)
+    assert store.get("local", LIVE_TARGET.id).state == "unknown"
+    assert trace.steps[-1].ok is True
+    assert secret not in trace.path.read_text(encoding="utf-8")

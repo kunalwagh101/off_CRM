@@ -39,18 +39,19 @@ class Connection:
         self.calls = []
         self.fail_on = fail_on
 
-    async def send(self, method, params=None, **kwargs):
-        self.calls.append((method, params))
+    async def send(self, method, params=None, *, session_id="", **kwargs):
+        self.calls.append((method, params, session_id))
         if method == self.fail_on:
             raise RuntimeError("simulated DevTools refusal")
-        if method == "Storage.clearDataForOrigin":
+        if method == "Network.deleteCookies":
             return {}
         raise AssertionError(f"unexpected CDP method {method}")
 
 
 class Page:
-    def __init__(self, *, fail_on: str = ""):
+    def __init__(self, *, fail_on: str = "", session_id: str = "page-session"):
         self.connection = Connection(fail_on=fail_on)
+        self.session_id = session_id
 
 
 def _connected(store, workspace_id="local"):
@@ -87,9 +88,7 @@ def test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces(tmp_
     page = Page()
     trace = Trace.open(tmp_path / "traces", run_id="revoke-success")
 
-    result = asyncio.run(
-        disconnect(page, "linkedin", store, vault, trace, "local")
-    )
+    result = asyncio.run(disconnect(page, "linkedin", store, vault, trace, "local"))
 
     assert result.platform_id == "linkedin"
     assert result.cookies_removed == 1
@@ -100,13 +99,10 @@ def test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces(tmp_
 
     assert page.connection.calls == [
         (
-            "Storage.clearDataForOrigin",
-            {"origin": "https://linkedin.com", "storageTypes": "all"},
-        ),
-        (
-            "Storage.clearDataForOrigin",
-            {"origin": "https://www.linkedin.com", "storageTypes": "all"},
-        ),
+            "Network.deleteCookies",
+            {"name": "li_at", "domain": ".linkedin.com", "path": "/"},
+            "page-session",
+        )
     ]
 
     rows = [step.to_dict() for step in trace.read()]
@@ -120,7 +116,7 @@ def test_browser_failure_retains_encrypted_vault_and_connected_record_for_retry(
     store = ConnectionStore(tmp_path)
     _connected(store)
     _seed(vault)
-    page = Page(fail_on="Storage.clearDataForOrigin")
+    page = Page(fail_on="Network.deleteCookies")
     trace = Trace.open(tmp_path / "traces", run_id="revoke-failure")
 
     with pytest.raises(RevokeError, match="encrypted vault was retained"):
@@ -164,6 +160,22 @@ def test_disconnect_refuses_when_no_vaulted_session_exists(tmp_path, vault):
 
     assert page.connection.calls == []
     assert store.get("local", "linkedin").state == "connected"
+    assert trace.steps == []
+
+
+def test_disconnect_requires_an_attached_page_before_touching_state(tmp_path, vault):
+    store = ConnectionStore(tmp_path)
+    _connected(store)
+    _seed(vault)
+    page = Page(session_id="")
+    trace = Trace.open(tmp_path / "traces", run_id="revoke-no-target")
+
+    with pytest.raises(RevokeError, match="attached browser page"):
+        asyncio.run(disconnect(page, "linkedin", store, vault, trace, "local"))
+
+    assert page.connection.calls == []
+    assert store.get("local", "linkedin").state == "connected"
+    assert vault.inspect("local", "linkedin").platform_id == "linkedin"
     assert trace.steps == []
 
 
@@ -213,6 +225,14 @@ def test_real_browser_session_cookie_is_gone_after_disconnect(tmp_path, vault):
             profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
         )
         try:
+            targets = await session.targets()
+            if targets:
+                target_id = str(targets[0]["targetId"])
+                page_session_id = await session.attach(target_id)
+            else:
+                target_id, page_session_id = await session.new_tab()
+            await session.connection.send("Network.enable", session_id=page_session_id)
+
             await session.connection.send("Storage.setCookies", {"cookies": [cookie]})
             before = await session.connection.send("Storage.getCookies", {})
             assert any(
@@ -220,7 +240,11 @@ def test_real_browser_session_cookie_is_gone_after_disconnect(tmp_path, vault):
                 for item in before.get("cookies", [])
             ), "the test never planted the session, so revocation would prove nothing"
 
-            page = type("BrowserPage", (), {"connection": session.connection})()
+            page = type(
+                "BrowserPage",
+                (),
+                {"connection": session.connection, "session_id": page_session_id},
+            )()
             result = await disconnect(page, LIVE_TARGET, store, vault, trace, "local")
             after = await session.connection.send("Storage.getCookies", {})
             return result, after

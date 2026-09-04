@@ -6,7 +6,9 @@
 #
 # A green verifier is the only acceptable basis for the sentence "this is done",
 # and the cheapest moment to find out otherwise is before the push rather than
-# in review.
+# in review. The verifier itself is standard-library-only, but the evidence
+# commands it launches use the project's test dependencies, so keep its child
+# processes inside the locked uv environment as well.
 set -e
 echo "verify_board: checking the board against the repository…"
-python scripts/verify_board.py
+uv run python scripts/verify_board.py

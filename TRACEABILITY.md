@@ -32,6 +32,7 @@ the code exists and holds no stub).
 | R-14 | S-02.01.03 | 2 | `tests/test_browser_agent.py` | `browser/page.py` |
 | R-15, R-40 | S-02.01.04 | 2 | `tests/test_browser_agent.py` | `browser/policy.py` |
 | R-16 | S-02.01.05 | 2 | `tests/test_browser_agent.py` | `browser/trace.py` |
+| R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-52 | S-06.02.06 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-57 | S-06.02.07 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-61, R-62 | S-08.01.01 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/preflight.py`, `outreach/deliverability/store.py` |
@@ -45,13 +46,9 @@ the code exists and holds no stub).
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Re-run `frontend/src/components.test.tsx`; npm dependency is not cached in this environment |
 
-## Ready — the decision exists, code does not
+## Ready — decision and dependencies resolved, not yet pulled
 
-| Req | Story | Decision recorded | What will be built |
-|---|---|---|---|
-| R-21, R-22, R-23 | S-03.01.01 | Q-02 | Attended and unattended browser-box policy |
-| R-25, R-26, R-42 | S-03.02.01 | Q-03 | LinkedIn-first sign-in flow |
-| R-27, R-28, R-29 | S-03.02.02 | Q-01 | OS-keychain master key with passphrase fallback |
+*(Empty. No story is promoted automatically just because another story finished.)*
 
 ## Blocked externally — engineering is waiting on access
 
@@ -94,20 +91,18 @@ the code exists and holds no stub).
 
 ## Deferred — cut, with the trigger to bring it back
 
-| Req | Story | Reason | Trigger |
-|---|---|---|---|
-| R-24 | S-03.01.02 | The no-network guarantee holds today and nothing in this increment touches it | S-03.01.01 entering IN_PROGRESS |
+*(Empty. The former S-03.01.02 trigger fired and that story is delivered.)*
 
 ---
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 23 stories are DONE, 1 is IN_REVIEW, 1 is
+**71 requirements, zero orphans. 24 stories are DONE, 1 is IN_REVIEW, 0 are
 READY, 3 are externally BLOCKED and 26 are planned in BACKLOG.**
 
-49% of the acceptance criteria in the backlog sit behind something `DONE`. That
-number is recomputed by the verifier from the repository every run, so it moves
-when the work moves and not when the summary is edited.
+The board verifier recomputes the authoritative counts and acceptance coverage
+from the repository. The prose here is a readable snapshot, not a substitute
+for `uv run python scripts/verify_board.py`.
 
 ### Gaps that were open, and are now closed
 
@@ -115,9 +110,13 @@ when the work moves and not when the summary is edited.
   work had no backlog ID — it entered the repository without passing through
   this process. It has IDs now (E-07 / F-08.01, R-61 to R-71) and the failing
   test is fixed: its queue time was derived from a hardcoded 2026-08-24 fixture
-  and expired when the date passed. **The suite is green: 1,495 passed, 0
-  failed.** Applying change control to somebody else's commit is the only way
-  it means anything, and it worked.
+  and expired when the date passed.
+- **S-03.02.02 closed the browser-session custody gap.** The browser can retain
+  an attended login, but off_CRM now keeps its managed copy under a different
+  random key per workspace/platform account. The master source is OS-backed,
+  with an explicit scrypt passphrase fallback, and sign-in refuses to record a
+  green connection until vault capture succeeds. Generic cookie/token/password
+  shapes are also refused by the shared AI egress scanner even at `full` policy.
 
 ### Two defects in already-`DONE` code, found by building on it
 
@@ -127,40 +126,31 @@ the slice depends on. Change control is about scope, not about bugs.
 
 - **`profile_is_locked` counted a lock rather than reading it.** A browser
   stopped by a signal leaves `SingletonLock` behind and nothing ever removes it,
-  so off_CRM refused a profile nobody held — permanently. That is AC1 of this
-  story failing exactly where it matters: the login persists in the volume and
-  becomes *unreachable* on the next restart of the box. The lock is now
-  interrogated (`hostname-pid`, then the singleton socket when the host differs)
-  and a proven-stale one is cleared before launch.
+  so off_CRM refused a profile nobody held — permanently. The lock is now
+  interrogated and a proven-stale one is cleared before launch.
 - **`BrowserSession.close` killed the browser instead of closing it.** Chrome
   batches writes to the cookie jar and flushes on shutdown, so the login that
   had just been completed could be lost. `Browser.close` is sent first; the
   signal is the fallback.
 
-Neither was visible from a unit test. Both appeared the moment a real browser
-was stopped and started again — which is why AC1 is tested by doing that, and
-not by arguing that the volume outlives the container.
-
 ### Gaps still open
 
 - **Frontend tests are not named in most evidence blocks.** The video work has
-  115 of them and they are real, but only one story's evidence command reaches
-  them. Either the frontend command joins the rest or the coverage figure keeps
-  understating what is proven.
-- **S-08.01.05 sits in `IN_REVIEW`**, not `DONE`, because its frontend test has
-  not been re-run in an environment with the locked npm dependencies. That is
-  the Definition of Done working: code written and not verified is `IN_REVIEW`.
+  real frontend coverage, but most story evidence commands do not reach it.
+- **S-08.01.05 sits in `IN_REVIEW`** until its complete frontend evidence is
+  promoted under the current Definition of Done.
+- **S-06.02.01 remains planned.** S-03.02.02 directly proves browser credential
+  shapes cannot enter a provider payload, but the broader adversarial
+  no-secret-in-any-prompt suite remains its own story and is not silently
+  claimed here.
 
 ---
 
-## Delivered since this table was written
+## Delivered since the original table was written
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
-
-S-03.01.02 was on the `DEFERRED` shelf with the trigger *"S-03.01.01 entering
-IN_PROGRESS"*. The trigger fired, it came back, and it is done — which is the
-only reason a deferred register is worth keeping.
+| R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |

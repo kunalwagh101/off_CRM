@@ -87,7 +87,7 @@ def test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces(tmp_
 
     methods = [method for method, _ in page.connection.calls]
     assert methods.count("Storage.deleteCookies") == 1
-    assert methods.count("Storage.clearDataForOrigin") == 2
+    assert methods.count("Storage.clearDataForOrigin") == 1
     deleted = next(params for method, params in page.connection.calls if method == "Storage.deleteCookies")
     assert deleted == {"name": "li_at", "domain": ".linkedin.com", "path": "/"}
 

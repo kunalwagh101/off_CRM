@@ -34,6 +34,32 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("connection_string", re.compile(r"\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis)://\S+")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
+    ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
+    ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
+    ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+)
+
+#: Browser and OAuth credentials can be opaque and have no recognisable value
+#: shape at all. A credential-shaped field name is therefore itself enough to
+#: refuse the payload. These stay forbidden even at FULL policy.
+_SECRET_FIELD_NAMES: frozenset[str] = frozenset(
+    {
+        "authorization",
+        "cookie",
+        "cookies",
+        "credential",
+        "credentials",
+        "id_token",
+        "password",
+        "passwd",
+        "passphrase",
+        "session",
+        "session_id",
+        "session_token",
+        "token",
+        "access_token",
+        "refresh_token",
+    }
 )
 
 #: Markers that mean the text came out of a mailbox rather than out of a
@@ -171,6 +197,18 @@ def scan_payload(
     # precisely when it holds a pasted email.
     for location, node_kind, value in _walk(payload):
         text = str(value)
+
+        if node_kind == "key" and text.lower() in _SECRET_FIELD_NAMES:
+            report.findings.append(
+                ScanFinding(
+                    kind="credential",
+                    detail=(
+                        f"Field {text!r} is credential-shaped. Cookies, tokens and "
+                        "passwords never leave off_CRM, even at full policy."
+                    ),
+                    location=location,
+                )
+            )
 
         # ── credentials — blocked at every policy level, no exceptions ──────
         for kind, pattern in _CREDENTIAL_PATTERNS:

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
 
 from .identity import ConnectionStore, Platform, platform as lookup_platform
 from .trace import Step, Trace
@@ -36,34 +35,20 @@ class Revocation:
         }
 
 
-def _origin(url: str) -> str:
-    parsed = urlparse(str(url or ""))
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise RevokeError(f"Cannot clear browser storage for invalid platform URL {url!r}.")
-    default = (parsed.scheme == "https" and parsed.port in {None, 443}) or (
-        parsed.scheme == "http" and parsed.port in {None, 80}
-    )
-    port = "" if default else f":{parsed.port}"
-    return f"{parsed.scheme}://{parsed.hostname}{port}"
-
-
-def _session_origins(target: Platform, cookies: list[dict[str, Any]]) -> tuple[str, ...]:
-    """Every declared platform/cookie origin that can hold this login.
-
-    Chromium's browser-level Storage domain exposes `clearDataForOrigin`, not a
-    `deleteCookies` method. Clearing the unique origins is both supported by the
-    real browser and broader than deleting only the cookie rows: local/session
-    storage associated with the declared login origins is removed too.
-    """
-    declared = {_origin(target.home_url), _origin(target.login_url)}
-    schemes = {urlparse(origin).scheme for origin in declared}
-    for cookie in cookies:
-        domain = str(cookie.get("domain") or "").strip().lower().lstrip(".")
-        if not domain:
-            raise RevokeError("The vaulted session contains a cookie with no domain.")
-        for scheme in schemes:
-            declared.add(f"{scheme}://{domain}")
-    return tuple(sorted(declared))
+def _delete_cookie_params(cookie: dict[str, Any]) -> dict[str, Any]:
+    """Build Network.deleteCookies params from a fixed allow-list."""
+    name = str(cookie.get("name") or "")
+    domain = str(cookie.get("domain") or "")
+    if not name or not domain:
+        raise RevokeError("The vaulted session contains a cookie that cannot be revoked safely.")
+    params: dict[str, Any] = {
+        "name": name,
+        "domain": domain,
+        "path": str(cookie.get("path") or "/"),
+    }
+    if cookie.get("partitionKey") is not None:
+        params["partitionKey"] = cookie["partitionKey"]
+    return params
 
 
 async def disconnect(
@@ -74,15 +59,22 @@ async def disconnect(
     trace: Trace,
     workspace_id: str,
 ) -> Revocation:
-    """Clear Chrome, destroy the wrapped account key, forget the public record.
+    """Delete Chrome cookies, destroy the account vault, forget the connection.
 
-    Ordering is intentional. Chrome is cleared first while the vault still
+    Ordering is intentional. The browser is cleared first while the vault still
     contains enough encrypted material to retry if DevTools refuses. Only after
     every browser deletion succeeds is the account envelope unlinked; deleting
     that envelope is cryptographic erasure because its per-account key exists
     nowhere else except wrapped inside the same file.
     """
     resolved = target if isinstance(target, Platform) else lookup_platform(target)
+    session_id = str(getattr(page, "session_id", "") or "")
+    if not session_id:
+        raise RevokeError(
+            "Disconnect requires an attached browser page. Refusing to send a "
+            "cookie-deletion command at browser scope where Chrome cannot bind it "
+            "to the logged-in target."
+        )
 
     try:
         material = vault.unseal(workspace_id, resolved.id)
@@ -105,18 +97,17 @@ async def disconnect(
             )
         cookies.append(item)
 
-    origins = _session_origins(resolved, cookies)
-
     # Record the request before destructive work. If the process dies halfway,
     # the append-only trace says that revocation was attempted rather than
     # leaving an unexplained change to a logged-in account.
     trace.append(Step(kind="revoke", detail=f"Disconnect requested for {resolved.label}.", ok=True))
 
     try:
-        for origin in origins:
+        for cookie in cookies:
             await page.connection.send(
-                "Storage.clearDataForOrigin",
-                {"origin": origin, "storageTypes": "all"},
+                "Network.deleteCookies",
+                _delete_cookie_params(cookie),
+                session_id=session_id,
             )
     except Exception as exc:
         trace.append(
@@ -139,7 +130,7 @@ async def disconnect(
         ) from exc
     except OSError as exc:
         raise RevokeError(
-            f"Browser storage was cleared, but off_CRM could not destroy {resolved.label}'s encrypted vault envelope: {exc}"
+            f"Browser cookies were cleared, but off_CRM could not destroy {resolved.label}'s encrypted vault envelope: {exc}"
         ) from exc
 
     if envelope.exists():
@@ -150,7 +141,7 @@ async def disconnect(
         Step(
             kind="revoke",
             detail=(
-                f"Disconnected {resolved.label}: browser storage cleared, "
+                f"Disconnected {resolved.label}: browser session cookies cleared, "
                 "per-account vault envelope destroyed, connection record forgotten."
             ),
             ok=True,

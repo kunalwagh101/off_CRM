@@ -483,17 +483,14 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-8.5 | `trace.py` — append-only, no way to remove a step | 36 | S-02.01.05 ✅ |
 | P-8.6 | `session.py` — attach to a real browser; stale-lock recovery | 36 | — |
 | P-8.7 | `identity.py` + `signin.py` — six platforms; **no function accepts a password** | 21 | S-03.02.01 ✅ |
-| P-8.8 | **The vault** — one key per account, OS keychain | — | 🚧 S-03.02.02 **IN PROGRESS** |
+| P-8.8 | **The vault** — per-account key, OS keychain / passphrase fallback | 15 focused | S-03.02.02 ✅ |
 | P-8.9 | **Revoke and forget** | — | ⬜ S-03.02.03 |
 | P-8.10 | **The run loop** — goal → bounded sequence of actions | — | ⬜ S-02.02.01 |
 | P-8.11 | **PLAN.md as memory** | — | ⬜ S-02.02.02 |
 | P-8.12 | **Interrupt, steer, resume** | — | ⬜ S-02.02.03 |
 | P-8.13 | **Safety countdowns** | — | ⬜ S-02.02.04 |
 
-**The honest summary:** off_CRM has hands and no will. Every individual motion
-works and is tested against a real Chromium. Nothing yet decides which motion to
-make. `P-8.10` is the missing piece, and it is the highest-leverage unbuilt thing
-in the product.
+**The honest summary:** off_CRM has safe browser hands and protected session custody, but still no will. Every individual motion works and is tested against a real Chromium. Nothing yet decides which motion to make. `P-8.10` remains the highest-leverage unbuilt autonomy feature, while `P-8.9` is the dependency-contiguous next security slice that closes the session lifecycle.
 
 ---
 
@@ -734,17 +731,18 @@ and it is what a senior reviewer would insist on before anything else ships.
 
 | # | Capability | Why |
 |---|---|---|
-| 5 | `P-8.8` — the vault (`S-03.02.02`, **already IN_PROGRESS** since 2026-08-29) | The login works; nothing yet protects what it leaves behind. Wave 1 now runs alongside it rather than before it. |
-| 6 | `P-8.10` — the run loop (`S-02.02.01`) | The highest-leverage unbuilt thing. Hands exist; will does not. |
-| 7 | `P-8.11`–`P-8.13` — PLAN.md, interrupt/resume, countdowns | These make the loop *safe* to leave alone. Shipping 6 without them is not defensible. |
+| 5 | `P-8.8` — the vault (`S-03.02.02`) — **DONE 2026-09-04** | The login now has protected per-account session custody, an OS-backed/passphrase master boundary, and fail-closed prompt/connection gates. |
+| 6 | `P-8.9` — revoke and forget (`S-03.02.03`) | Closes the session lifecycle before broader autonomy: disconnect must permanently remove the stored session material the vault now owns. |
+| 7 | `P-8.10` — the run loop (`S-02.02.01`) | The highest-leverage unbuilt autonomy feature. Hands exist; will does not. |
+| 8 | `P-8.11`–`P-8.13` — PLAN.md, interrupt/resume, countdowns | These make the loop *safe* to leave alone. Shipping the run loop without them is not defensible. |
 
 ### Wave 3 — reach the world
 
 | # | Capability | Why |
 |---|---|---|
-| 8 | `P-7.9` — real YouTube upload | **Ten minutes of your time unblocks it.** It is the fastest path from "makes content" to "posted content". |
-| 9 | `P-4.6`–`P-4.8` — crawler, extraction packs, teardown | Feeds `P-7` with what is actually working out there. |
-| 10 | `P-7.10` — the remaining platform adapters | Blocked on app reviews. Start the paperwork in parallel with wave 1. |
+| 9 | `P-7.9` — real YouTube upload | **Ten minutes of your time unblocks it.** It is the fastest path from "makes content" to "posted content". |
+| 10 | `P-4.6`–`P-4.8` — crawler, extraction packs, teardown | Feeds `P-7` with what is actually working out there. |
+| 11 | `P-7.10` — the remaining platform adapters | Blocked on app reviews. Start the paperwork in parallel with wave 1. |
 
 ### Wave 4 — a team can use it
 

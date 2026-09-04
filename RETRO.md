@@ -94,3 +94,13 @@ reasonable sentence, and not a test. Both defects lived in the gap that sentence
 covered, and both appeared within a minute of actually stopping a browser and
 starting it again. A criterion defended by an argument is a criterion nobody has
 checked.
+
+---
+
+## 2026-09-04 — S-03.02.02, the browser session vault
+
+**What was cut.** Nothing from the story. `S-03.02.03` still owns destructive disconnect and key/session deletion; absorbing revocation into this increment would have violated change control. The model-facing browser vocabulary also stayed at ten verbs: vault capture/restore is trusted host orchestration, never an agent tool.
+
+**What the estimate got wrong.** The encryption was not the expensive part. The existing sign-in path could report `connected` before any vault existed, and the shared egress scanner recognised vendor API-key shapes but not opaque cookies/password/token fields. The first CI proof then exposed a separate process defect: `verify_board.py` was started with the runner's bare Python, so every historical `python -m pytest` evidence command failed despite the full suite passing inside `uv`.
+
+**What to change next time.** For a security slice, test the entire custody chain rather than the cryptographic primitive: source → capture → encryption → record state → restore → egress refusal. Also run the verifier inside the same locked environment as the release tests; a lie detector that replays evidence under a different interpreter is measuring the environment mismatch, not the product.

@@ -51,11 +51,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-- S-03.02.03 · Revoke and forget
+*(Empty. S-03.02.03 is in progress.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-03.02.03 · Revoke and forget
 
 ## IN_REVIEW
 

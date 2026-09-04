@@ -104,3 +104,13 @@ checked.
 **What the estimate got wrong.** The encryption was not the expensive part. The existing sign-in path could report `connected` before any vault existed, and the shared egress scanner recognised vendor API-key shapes but not opaque cookies/password/token fields. The first CI proof then exposed a separate process defect: `verify_board.py` was started with the runner's bare Python, so every historical `python -m pytest` evidence command failed despite the full suite passing inside `uv`.
 
 **What to change next time.** For a security slice, test the entire custody chain rather than the cryptographic primitive: source → capture → encryption → record state → restore → egress refusal. Also run the verifier inside the same locked environment as the release tests; a lie detector that replays evidence under a different interpreter is measuring the environment mismatch, not the product.
+
+---
+
+## 2026-09-04 — S-03.02.03, revoke and forget
+
+**What was cut.** Nothing from the acceptance criterion. The story deletes the browser session material off_CRM actually owns: vaulted cookies plus the per-account vault envelope and public connection record. Server-side sessions on other devices, password rotation, account deletion, unrelated site storage and general subject-access deletion remain outside this story rather than being silently absorbed.
+
+**What the estimate got wrong.** "Delete the encrypted file" was not enough. A reusable cookie could still be alive inside Chromium, so the browser had to be cleared before the vault could be destroyed. The first two live proofs caught exactly the defects unit tests missed: `Storage.deleteCookies` does not exist at browser scope, and broad `Storage.clearDataForOrigin` was the wrong boundary. The working path is the narrower one the architecture already supports: `Network.deleteCookies` on an attached page CDP session.
+
+**What to change next time.** For destructive lifecycle work, prove absence against the real runtime, not just deletion from our database. Plant the thing, verify it exists, revoke it, then ask the runtime whether it survived. Also make failure ordering explicit before implementation: never destroy the retry material or show a green disconnected state until the external/runtime deletion has actually succeeded.

@@ -116,6 +116,8 @@ class RunPlan:
                 os.chmod(temporary, 0o600)
             except OSError:
                 pass
+            # Replace the directory entry itself. If somebody planted a symlink
+            # at PLAN.md, os.replace replaces that link rather than following it.
             os.replace(temporary, self.path)
             try:
                 os.chmod(self.path, 0o600)
@@ -149,6 +151,18 @@ class RunPlan:
             raise
 
     def _read_bytes(self) -> bytes:
+        # lstat checks the directory entry itself rather than following it. It
+        # is required on platforms without O_NOFOLLOW (notably Windows).
+        try:
+            path_information = os.lstat(self.path)
+        except FileNotFoundError as exc:
+            raise PlanError("PLAN.md is missing from this run.") from exc
+        except OSError as exc:
+            raise PlanError("PLAN.md cannot be inspected safely.") from exc
+        if stat.S_ISLNK(path_information.st_mode) or not stat.S_ISREG(path_information.st_mode):
+            raise PlanError("PLAN.md must be a regular file inside the run directory.")
+        _validate_size(path_information.st_size)
+
         flags = os.O_RDONLY
         no_follow = getattr(os, "O_NOFOLLOW", 0)
         if no_follow:

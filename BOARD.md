@@ -50,11 +50,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-- S-02.02.01 · A goal becomes a bounded sequence of actions
+*(Empty.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-02.02.01 · A goal becomes a bounded sequence of actions
 
 ## IN_REVIEW
 

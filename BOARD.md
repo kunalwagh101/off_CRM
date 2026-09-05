@@ -51,11 +51,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
 the reasoning survives the unblocking.)*
 
-*(Empty. S-03.02.03 is in progress.)*
+*(Empty.)*
 
 ## IN_PROGRESS
 
-- S-03.02.03 · Revoke and forget
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -75,6 +75,13 @@ the reasoning survives the unblocking.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-03.02.03 · Revoke and forget
+  tests: tests/test_browser_revoke.py::test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces, tests/test_browser_revoke.py::test_browser_failure_retains_encrypted_vault_and_connected_record_for_retry, tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect
+  command: uv run pytest tests/test_browser_revoke.py -q
+  result: 6 passed (2026-09-04)
+  code: offsetx_apollo_builder/browser/revoke.py, offsetx_apollo_builder/browser/vault.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/trace.py
+  commit: 5090be48801b2a776d89e5a05da7de3204a559aa
 
 - S-03.02.02 · A vault the model cannot read
   tests: tests/test_browser_vault.py::test_cookie_token_and_password_fields_are_blocked_even_at_full_policy, tests/test_browser_vault.py::test_two_platforms_use_different_account_keys_and_plaintext_is_absent, tests/test_browser_vault.py::test_passphrase_derives_master_key_and_no_raw_key_file_is_written, tests/test_browser_vault_wiring.py::test_connected_state_is_vaulted_before_it_is_recorded, tests/test_browser_vault_wiring.py::test_vault_failure_refuses_the_connection_and_writes_no_green_state

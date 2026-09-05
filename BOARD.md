@@ -19,7 +19,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 ## BACKLOG
 
-- S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
 - S-02.02.04 · Safety countdowns before consequential actions
 - S-04.01.01 · Companions: persisted agent profiles
@@ -50,7 +49,7 @@ indented `blocked: <Q-nn or a named external dependency>`.
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-*(Empty.)*
+- S-02.02.02 · PLAN.md as the single source of truth
 
 ## IN_PROGRESS
 

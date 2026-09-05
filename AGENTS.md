@@ -19,6 +19,38 @@ project. The work is here.
 
 ---
 
+## Production contract — standing owner instruction (2026-09-05)
+
+off_CRM is a production application for real users. Apply this requirement to
+every plan, architecture decision, prompt, implementation, test, deployment,
+data flow and user experience. The owner must not need to repeat it.
+
+- Build real capabilities with validated inputs, permission checks, protected
+  secrets and accurate user-visible results. No demo-only shortcuts, fake
+  success states, placeholder runtime logic or mock integrations presented as
+  working features. Test doubles belong in tests and do not prove a live
+  integration.
+- Protect customer data and audit records across process crashes, restarts and
+  deployments. Verify persistence, backup and restoration for the storage the
+  feature uses. Temporary storage is only for disposable work.
+- Cover the relevant failure, concurrency and recovery paths. Bound retries,
+  time and spend where applicable; an uncertain external action must not be
+  repeated automatically. Preserve human approval for consequential actions.
+- Include actionable errors, secret-safe logs, health checks and a tested
+  rollback appropriate to the change. Record unresolved release blockers.
+- A feature is complete only when its real supported user path is wired and
+  the applicable Definition of Done evidence passes. Distinguish implemented,
+  verified, merged and deployed; passing isolated tests is not a release claim.
+- Use the simplest maintainable design that meets actual user, data and
+  deployment needs. Production quality does not require unnecessary services
+  or abstractions.
+
+This instruction supersedes historical demo assumptions in this repository.
+Legacy filenames or service names do not permit weaker release standards.
+Read `DEFINITION_OF_DONE.md` for the evidence required before calling work done.
+
+---
+
 ## Read this before reading code
 
 **`BUILD_STATE.md` is the working record.** It is kept current deliberately so a
@@ -95,12 +127,15 @@ with a misleading "Scrapling is not installed".
 
 ## Storage
 
-SQLite, behind a boundary in `outreach/store.py`. Postgres is a swap, not a
-rewrite, and is not needed until this is a shared multi-user server.
+SQLite is used by the CRM store. The Postgres boundary covers selected stores;
+it is not a completed migration of the whole application. Choose storage from
+the actual deployment, concurrency, isolation and recovery requirements.
 
-On Render, `OFFSETX_DATA_DIR` points at `/tmp`, which is wiped on restart — so
-the encrypted key file does not survive and the egress log resets. Provider keys
-come from `OFFSETX_AI_<PROVIDER>_KEY` environment variables there instead.
+The current `render.yaml` points `OFFSETX_DATA_DIR` and `OFFSETX_OUTREACH_DB`
+at `/tmp/offsetx/local_data`. That configuration can lose CRM data, encrypted
+keys and audit records on restart. It is a production release blocker until
+the affected stores use durable storage and restart/restore checks pass.
+Environment-provided AI keys do not make CRM data or audit records durable.
 
 ---
 

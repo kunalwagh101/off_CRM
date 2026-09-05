@@ -3,6 +3,10 @@
 Two gates. `scripts/verify_board.py` enforces what can be enforced mechanically;
 the rest is a checklist that a human reviewer applies. Nothing here is advisory.
 
+The standing production contract in `AGENTS.md` applies to every item. These
+gates establish evidence for the capability being changed; they do not certify
+the whole deployment. Existing production blockers must remain visible.
+
 ---
 
 ## Definition of Ready — to enter `READY`
@@ -20,6 +24,9 @@ An item may be pulled only when **all** of these hold:
       work would be redone.
 - [ ] It is a vertical slice. If it delivers a layer rather than a capability,
       it is not ready; it is a task inside something else.
+- [ ] The real user path, data ownership, deployment requirements and relevant
+      failure/recovery cases are named. Any external access or integration
+      needed for that path is available, or its blocker is recorded.
 
 ---
 
@@ -38,6 +45,20 @@ Every box, every time. This is a claim about the repository, not about intent.
       paths are covered** — including the failing cases, not only the happy one.
 - [ ] **Docs and CHANGELOG updated.** If state changed, the migration and its
       rollback are written down and the rollback has been executed once.
+- [ ] **The supported user path works end to end** through the real application
+      entry point. Test-only entry points and simulated provider success do
+      not establish that a customer can use the feature. Record which real
+      integrations were exercised and which remain unverified.
+- [ ] **Changed durable state survives the relevant restart and failure cases.**
+      For persistence changes, verify backup/restoration and migration recovery.
+      For external effects, prove retry/duplicate protection and explicit
+      handling of uncertain outcomes.
+- [ ] **Operational evidence fits the change.** Relevant logs protect secrets,
+      failures give an actionable next step, and affected health checks,
+      time/spend bounds and rollback procedures are verified.
+- [ ] **Release status is explicit.** Record remaining production blockers and
+      distinguish code completion from merge and deployment. A known blocker
+      cannot be waived because a walkthrough succeeds.
 - [ ] **Board updated and `scripts/verify_board.py` passes.**
 
 **A story that has code but no run test is `IN_REVIEW`, not `DONE`.** There is

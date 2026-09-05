@@ -7,7 +7,12 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
+Production requirement clarified: 2026-09-05. The standing contract is in
+`AGENTS.md`; it applies to every future change and supersedes historical demo
+assumptions. Test results below retain their original dates. Current delivery
+status comes from `BOARD.md` at the branch/commit being inspected.
+
+Last implementation summary update: 2026-08-28
 Branch: `main`
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
 The latest frontend evidence remains 116 passed plus a clean production build
@@ -2131,9 +2136,13 @@ Listed honestly. Nothing below is silently assumed done.
      on Render, which is wiped on every restart, so the encrypted key file
      will not survive. The env fallback is why keys still work there.
    - **The egress log lives in the same disposable `/tmp` directory.** It is
-     the audit trail, and on Render it resets on every restart. Fine for a
-     demo; a real shared deployment needs a Render disk or Postgres.
-5. **Postgres** — needed before "millions of users"; say when.
+     the audit trail, and on Render it resets on every restart. This is a
+     production release blocker. The current `render.yaml` also puts the CRM
+     database there. Each affected store needs durable storage and verified
+     restart, backup and restoration behaviour before serving production data.
+5. **Storage topology** — choose it from the actual deployment, isolation,
+   concurrency and recovery requirements. The Postgres work above covers
+   selected stores; it is not a completed CRM migration.
 
 ---
 

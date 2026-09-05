@@ -32,6 +32,7 @@ the code exists and holds no stub).
 | R-14 | S-02.01.03 | 2 | `tests/test_browser_agent.py` | `browser/page.py` |
 | R-15, R-40 | S-02.01.04 | 2 | `tests/test_browser_agent.py` | `browser/policy.py` |
 | R-16 | S-02.01.05 | 2 | `tests/test_browser_agent.py` | `browser/trace.py` |
+| R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
 | R-52 | S-06.02.06 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
@@ -63,7 +64,6 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-17 | S-02.02.01 | 2 | — | — |
 | R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
 | R-20 | S-02.02.04 | 1 | — | — |
@@ -97,8 +97,8 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 25 stories are DONE, 1 is IN_REVIEW, 0 are
-READY, 3 are externally BLOCKED and 25 are planned in BACKLOG.**
+**71 requirements, zero orphans. 26 stories are DONE, 1 is IN_REVIEW, 0 are
+READY, 3 are externally BLOCKED and 24 are planned in BACKLOG.**
 
 The board verifier recomputes the authoritative counts and acceptance coverage
 from the repository. The prose here is a readable snapshot, not a substitute
@@ -106,6 +106,12 @@ for `uv run python scripts/verify_board.py`.
 
 ### Gaps that were open, and are now closed
 
+- **S-02.02.01 closes the browser autonomy gap.** The browser already had safe
+  perception, a closed ten-verb action vocabulary and an append-only trace, but
+  nothing could turn an owner goal into repeated decisions and actions. The new
+  bounded run loop does that through the existing egress broker, refuses lower-
+  trust planning, treats page content as untrusted input, stops at consequential
+  human gates and records provider/model plus estimated usage in the trace.
 - **`tests/test_email_delivery.py` had a failing test** on `d96ea9d`, and that
   work had no backlog ID — it entered the repository without passing through
   this process. It has IDs now (E-07 / F-08.01, R-61 to R-71) and the failing
@@ -157,6 +163,7 @@ the slice depends on. Change control is about scope, not about bugs.
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
+| R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |

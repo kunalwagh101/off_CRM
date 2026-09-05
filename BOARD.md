@@ -19,7 +19,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 ## BACKLOG
 
-- S-02.02.01 · A goal becomes a bounded sequence of actions
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
 - S-02.02.04 · Safety countdowns before consequential actions
@@ -47,9 +46,9 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 ## READY
 
-*(Q-01, Q-02 and Q-03 were answered by the owner on 2026-08-25. The decisions
-are recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so
-the reasoning survives the unblocking.)*
+*(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
+recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
+reasoning survives the unblocking.)*
 
 *(Empty.)*
 
@@ -75,6 +74,13 @@ the reasoning survives the unblocking.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-02.02.01 · A goal becomes a bounded sequence of actions
+  tests: tests/test_agent_run.py::test_goal_stops_at_step_budget_and_reports_progress, tests/test_agent_run.py::test_every_decision_uses_broker_and_trace_records_provider_model_and_cost
+  command: uv run pytest tests/test_agent_run.py -q
+  result: 7 passed (2026-09-05)
+  code: offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py
+  commit: 08eb2cd46e24f791a44a4aceca4f1e6272f803b0
 
 - S-03.02.03 · Revoke and forget
   tests: tests/test_browser_revoke.py::test_disconnect_destroys_vault_clears_browser_forgets_record_and_traces, tests/test_browser_revoke.py::test_browser_failure_retains_encrypted_vault_and_connected_record_for_retry, tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect

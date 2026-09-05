@@ -120,6 +120,8 @@ option 2 and it is additive.
 
 ### Q-06 — Which model provider is assumed present? *(affects S-02.02.01)*
 
+**Status:** answered · **Decision:** Require a Tier A/B planning model and fail closed before the run starts if none is connected. No lower-trust planner is used as a fallback. · **Decided by:** Owner, 2026-09-05, proceeding with S-02.02.01 under the production-grade default and the documented recommended safe option.
+
 **Ambiguity.** The agent loop needs a model. Today no provider is connected in
 this workspace, and the tier rules mean a run's capability depends on which one is.
 

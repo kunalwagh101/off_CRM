@@ -114,3 +114,13 @@ checked.
 **What the estimate got wrong.** "Delete the encrypted file" was not enough. A reusable cookie could still be alive inside Chromium, so the browser had to be cleared before the vault could be destroyed. The first two live proofs caught exactly the defects unit tests missed: `Storage.deleteCookies` does not exist at browser scope, and broad `Storage.clearDataForOrigin` was the wrong boundary. The working path is the narrower one the architecture already supports: `Network.deleteCookies` on an attached page CDP session.
 
 **What to change next time.** For destructive lifecycle work, prove absence against the real runtime, not just deletion from our database. Plant the thing, verify it exists, revoke it, then ask the runtime whether it survived. Also make failure ordering explicit before implementation: never destroy the retry material or show a green disconnected state until the external/runtime deletion has actually succeeded.
+
+---
+
+## 2026-09-05 — S-02.02.01, bounded Run Loop
+
+**What was cut.** PLAN.md, steering/resume and countdown continuation stayed in their own stories. This slice stops at the existing human confirmation gate and does not self-approve consequential actions.
+
+**What the estimate got wrong.** The loop itself was small; the important work was classifying browser state correctly. Treating a logged-in page as public would have let private CRM/dashboard text reach a lower-trust model, so decision context defaults to `INTERNAL` and planning fails closed without an approved Tier A/B model.
+
+**What to change next time.** Define the data class and trust floor before designing any autonomous loop. For agent work, the dangerous boundary is not only which action can run; it is also which page content is allowed to leave the machine while deciding that action.

@@ -428,3 +428,20 @@ The implementation release gate for `S-03.02.03` produced `1542 passed, 4 skippe
 for Python and `116 passed` for the frontend on 2026-09-04 UTC; the production
 frontend build also passed. Exact counts continue to come from the command, not
 from this prose; the command's exit code is the authority.
+
+---
+
+## 13. Production Run Loop: bounded decisions, broker-only AI, human gates
+
+This is the deterministic production acceptance proof for `S-02.02.01`. It
+uses controlled page and broker doubles so it can assert the security boundaries
+without contacting a real provider or changing a real CRM account.
+
+```bash
+uv run pytest tests/test_agent_run.py -q
+```
+
+Expect `7 passed`. The suite proves the hard step budget, broker-only model
+decisions, provider/model/cost trace records, Tier A/B planner floor, rejection
+of invented actions and undeclared arguments, prompt-injection framing, and that
+a consequential browser action stops for a human rather than self-confirming.

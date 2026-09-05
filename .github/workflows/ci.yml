@@ -41,6 +41,8 @@ jobs:
         run: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
       - name: Run Revoke and Forget acceptance evidence
         run: uv run pytest tests/test_browser_revoke.py -q
+      - name: Run bounded Run Loop acceptance evidence
+        run: uv run pytest tests/test_agent_run.py -q
       - name: Run Python tests
         run: uv run pytest -q
       # The board verifier is standard-library-only, but the evidence commands

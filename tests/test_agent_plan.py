@@ -124,16 +124,16 @@ def test_owner_edit_is_the_plan_seen_by_the_very_next_model_decision(tmp_path):
     broker = _Broker(
         [
             '{"state":"act","action":"click","args":{"handle":1},"reason":"continue"}',
-            '{"state":"done","reason":"owner narrowed the work","result":"stopped at ten"}',
+            '{"state":"done","reason":"owner changed the goal","result":"stopped"}',
         ]
     )
     trace = Trace.open(tmp_path)
     plan = RunPlan(trace.directory)
     edited = (
-        "# Goal\n\nReview leads.\n\n"
+        "# Goal\n\nStop the research now.\n\n"
         "## Checklist\n\n"
-        "- [x] Review the first ten leads.\n"
-        "- [ ] STOP NOW. Do not review lead eleven.\n"
+        "- [x] Enough evidence is collected.\n"
+        "- [ ] Do not open another lead.\n"
     )
 
     def owner_saves_plan():
@@ -152,15 +152,19 @@ def test_owner_edit_is_the_plan_seen_by_the_very_next_model_decision(tmp_path):
     assert len(broker.calls) == 2
     first = broker.calls[0]["request"].instructions
     second = broker.calls[1]["request"].instructions
-    assert "STOP NOW. Do not review lead eleven." not in first
-    assert "STOP NOW. Do not review lead eleven." in second
+    assert "Review leads" in first
+    assert "Stop the research now." not in first
+    assert "Stop the research now." in second
+    # The original run-start goal is no longer a competing live instruction.
+    assert "Review leads" not in second
+    assert "OWNER GOAL" not in second
     assert second.index("OWNER PLAN") < second.index("CURRENT PAGE")
     assert any(
         step.kind == "plan_seen" and "owner edit observed" in step.detail
         for step in trace.steps
     )
     # Trace records the version, not the potentially sensitive owner-authored plan.
-    assert all("Do not review lead eleven" not in step.detail for step in trace.steps)
+    assert all("Stop the research now" not in step.detail for step in trace.steps)
 
 
 def test_plan_checklist_is_readable_for_a_ui_without_a_second_state_store(tmp_path):

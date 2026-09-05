@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
 
-from offsetx_apollo_builder.agent.run import AgentRun, Decision, RunRefused
+from offsetx_apollo_builder.agent.run import (
+    AgentRun,
+    Decision,
+    RunRefused,
+    _validate_start,
+)
 from offsetx_apollo_builder.ai.broker import WorkspaceEgressSettings
 from offsetx_apollo_builder.ai.tiers import DataClass, TrustTier
 from offsetx_apollo_builder.browser.page import ActionResult
@@ -107,8 +113,7 @@ class _Page:
         )
 
 
-@pytest.mark.asyncio
-async def test_goal_stops_at_step_budget_and_reports_progress(tmp_path):
+def test_goal_stops_at_step_budget_and_reports_progress(tmp_path):
     broker = _Broker(
         [
             '{"state":"act","action":"click","args":{"handle":1},"reason":"next"}',
@@ -124,7 +129,7 @@ async def test_goal_stops_at_step_budget_and_reports_progress(tmp_path):
         trace=trace,
     )
 
-    outcome = await run.run("Review the next leads", step_budget=2)
+    outcome = asyncio.run(run.run("Review the next leads", step_budget=2))
 
     assert outcome.status == "budget_exhausted"
     assert outcome.decisions == 2
@@ -135,8 +140,7 @@ async def test_goal_stops_at_step_budget_and_reports_progress(tmp_path):
     assert trace.steps[-1].kind == "budget_exhausted"
 
 
-@pytest.mark.asyncio
-async def test_every_decision_uses_broker_and_trace_records_provider_model_and_cost(tmp_path):
+def test_every_decision_uses_broker_and_trace_records_provider_model_and_cost(tmp_path):
     broker = _Broker(
         ['{"state":"done","reason":"the target record is visible","result":"Found it"}']
     )
@@ -148,7 +152,7 @@ async def test_every_decision_uses_broker_and_trace_records_provider_model_and_c
         trace=trace,
     )
 
-    outcome = await run.run("Find the target record", step_budget=3)
+    outcome = asyncio.run(run.run("Find the target record", step_budget=3))
 
     assert outcome.status == "completed"
     assert len(broker.calls) == 1
@@ -164,8 +168,7 @@ async def test_every_decision_uses_broker_and_trace_records_provider_model_and_c
     assert trace.summary()["estimated_cost_usd"] == pytest.approx(decision.estimated_cost_usd)
 
 
-@pytest.mark.asyncio
-async def test_consequential_action_stops_for_human_and_is_never_self_confirmed(tmp_path):
+def test_consequential_action_stops_for_human_and_is_never_self_confirmed(tmp_path):
     broker = _Broker(
         ['{"state":"act","action":"click","args":{"handle":1},"reason":"send it"}']
     )
@@ -177,7 +180,7 @@ async def test_consequential_action_stops_for_human_and_is_never_self_confirmed(
         trace=Trace.open(tmp_path),
     )
 
-    outcome = await run.run("Send the approved item", step_budget=4)
+    outcome = asyncio.run(run.run("Send the approved item", step_budget=4))
 
     assert outcome.status == "needs_confirmation"
     assert page.actions == [("click", 1, False)]
@@ -185,8 +188,7 @@ async def test_consequential_action_stops_for_human_and_is_never_self_confirmed(
     assert run.trace.steps[-1].kind == "human_gate"
 
 
-@pytest.mark.asyncio
-async def test_lower_trust_planner_is_refused_before_page_or_model_call(tmp_path):
+def test_lower_trust_planner_is_refused_before_page_or_model_call(tmp_path):
     broker = _Broker([], tier=TrustTier.C)
     page = _Page()
     run = AgentRun(
@@ -198,7 +200,7 @@ async def test_lower_trust_planner_is_refused_before_page_or_model_call(tmp_path
     )
 
     with pytest.raises(RunRefused, match="Tier A or Tier B"):
-        await run.run("Open the public page", step_budget=2)
+        asyncio.run(run.run("Open the public page", step_budget=2))
 
     assert broker.calls == []
     assert page.actions == []
@@ -216,26 +218,16 @@ def test_model_cannot_invent_action_or_smuggle_undeclared_arguments():
         )
 
 
-def test_run_budget_and_goal_are_validated_before_any_work(tmp_path):
-    run = AgentRun(
-        broker=_Broker([]),
-        settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
-        page=_Page(),
-        trace=Trace.open(tmp_path),
-    )
-
+def test_run_budget_and_goal_are_validated_before_any_work():
     with pytest.raises(RunRefused, match="non-empty goal"):
-        run._choose_planner("") if False else __import__(
-            "offsetx_apollo_builder.agent.run", fromlist=["_validate_start"]
-        )._validate_start("", 1)
+        _validate_start("", 1)
     with pytest.raises(RunRefused, match="between 1 and 50"):
-        __import__("offsetx_apollo_builder.agent.run", fromlist=["_validate_start"])._validate_start(
-            "goal", 51
-        )
+        _validate_start("goal", 51)
+    with pytest.raises(RunRefused, match="integer"):
+        _validate_start("goal", True)
 
 
-@pytest.mark.asyncio
-async def test_page_text_is_framed_as_untrusted_and_read_result_stays_local_context(tmp_path):
+def test_page_text_is_framed_as_untrusted_and_read_result_stays_local_context(tmp_path):
     broker = _Broker(
         [
             '{"state":"act","action":"read","args":{},"reason":"inspect"}',
@@ -250,7 +242,7 @@ async def test_page_text_is_framed_as_untrusted_and_read_result_stays_local_cont
         trace=Trace.open(tmp_path),
     )
 
-    await run.run("Inspect this record", step_budget=2)
+    asyncio.run(run.run("Inspect this record", step_budget=2))
 
     first = broker.calls[0]
     second = broker.calls[1]

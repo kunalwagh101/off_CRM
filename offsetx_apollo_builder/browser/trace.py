@@ -54,11 +54,14 @@ class Step:
     url: str = ""
     ok: bool = True
     took_ms: int = 0
-    #: Set for a model call, so a run's cost is the sum of its trace.
+    #: Set for a model call. Provider adapters do not all expose billing usage,
+    #: so the run loop marks its token/cost values as estimates rather than
+    #: pretending they are an invoice.
     provider_id: str = ""
     model_id: str = ""
     tokens_in: int = 0
     tokens_out: int = 0
+    estimated_cost_usd: float | None = None
     #: Filename of a screenshot beside the log, when there is one.
     screenshot: str = ""
     at: str = field(default_factory=_now)
@@ -78,6 +81,10 @@ class Step:
         ):
             if number:
                 item[key] = int(number)
+        # Zero is meaningful for free/self-hosted models, so unlike the integer
+        # counters this is included whenever the caller supplied an estimate.
+        if self.estimated_cost_usd is not None:
+            item["estimated_cost_usd"] = round(max(0.0, float(self.estimated_cost_usd)), 10)
         return item
 
 
@@ -147,6 +154,7 @@ class Trace:
                 # it is still good, and stopping here is better than refusing
                 # to read a trace because its final byte is missing.
                 break
+            cost = raw.get("estimated_cost_usd")
             yield Step(
                 kind=str(raw.get("kind") or ""),
                 detail=str(raw.get("detail") or ""),
@@ -157,12 +165,18 @@ class Trace:
                 model_id=str(raw.get("model_id") or ""),
                 tokens_in=int(raw.get("tokens_in") or 0),
                 tokens_out=int(raw.get("tokens_out") or 0),
+                estimated_cost_usd=float(cost) if cost is not None else None,
                 screenshot=str(raw.get("screenshot") or ""),
                 at=str(raw.get("at") or ""),
             )
 
     def summary(self) -> dict[str, Any]:
         """What this run cost and how far it got."""
+        estimates = [
+            step.estimated_cost_usd
+            for step in self.steps
+            if step.estimated_cost_usd is not None
+        ]
         return {
             "run_id": self.run_id,
             "steps": len(self.steps),
@@ -170,6 +184,7 @@ class Trace:
             "took_ms": sum(step.took_ms for step in self.steps),
             "tokens_in": sum(step.tokens_in for step in self.steps),
             "tokens_out": sum(step.tokens_out for step in self.steps),
+            "estimated_cost_usd": round(sum(estimates), 10) if estimates else 0.0,
             "models": sorted({step.model_id for step in self.steps if step.model_id}),
             "started_at": self.steps[0].at if self.steps else "",
             "ended_at": self.steps[-1].at if self.steps else "",

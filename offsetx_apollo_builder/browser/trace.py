@@ -59,6 +59,9 @@ class Step:
     model_id: str = ""
     tokens_in: int = 0
     tokens_out: int = 0
+    #: Estimated because not every provider exposes authoritative usage in the
+    #: generation response. Exact provider-ledger reconciliation is S-06.01.03.
+    estimated_cost_usd: float = 0.0
     #: Filename of a screenshot beside the log, when there is one.
     screenshot: str = ""
     at: str = field(default_factory=_now)
@@ -78,6 +81,8 @@ class Step:
         ):
             if number:
                 item[key] = int(number)
+        if self.estimated_cost_usd:
+            item["estimated_cost_usd"] = round(float(self.estimated_cost_usd), 8)
         return item
 
 
@@ -157,6 +162,7 @@ class Trace:
                 model_id=str(raw.get("model_id") or ""),
                 tokens_in=int(raw.get("tokens_in") or 0),
                 tokens_out=int(raw.get("tokens_out") or 0),
+                estimated_cost_usd=float(raw.get("estimated_cost_usd") or 0.0),
                 screenshot=str(raw.get("screenshot") or ""),
                 at=str(raw.get("at") or ""),
             )
@@ -170,6 +176,9 @@ class Trace:
             "took_ms": sum(step.took_ms for step in self.steps),
             "tokens_in": sum(step.tokens_in for step in self.steps),
             "tokens_out": sum(step.tokens_out for step in self.steps),
+            "estimated_cost_usd": round(
+                sum(step.estimated_cost_usd for step in self.steps), 8
+            ),
             "models": sorted({step.model_id for step in self.steps if step.model_id}),
             "started_at": self.steps[0].at if self.steps else "",
             "ended_at": self.steps[-1].at if self.steps else "",

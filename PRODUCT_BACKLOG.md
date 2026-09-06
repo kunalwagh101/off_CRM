@@ -78,6 +78,28 @@ without one crash, complaint or bad list damaging every future message.
 **Leading indicator:** accepted mail with low permanent-bounce and complaint rates,
 with zero sends to suppressed recipients.
 
+### E-11 — The agent browses the open web alone and comes back with facts you can trust
+**Owner:** the product. **Value hypothesis:** every other capability in off_CRM
+is limited by what somebody typed into it. An agent that can go and *find out*
+removes that ceiling — and the thing that makes it worth having is not that it
+browses, it is that what it returns can be **checked**. An autonomous agent
+whose output cannot be audited is a rumour generator.
+**Leading indicator:** facts returned per run that survive their own provenance
+check, and runs completed without a human touching the browser.
+
+**Why this is a new epic rather than more of E-02.** E-02 delivered the hands
+and the loop, and both are shipped and tested. What is missing is everything
+between "it can click" and "you can leave it running": recovery, stall
+detection, a money ceiling, structured answers, provenance, and knowing when to
+stop and ask. Those are not refinements of the loop — they are the difference
+between a demo and a system, and they carry their own risk, so they carry their
+own IDs.
+
+*(Note on numbering: E-08, E-09 and E-10 were proposed in `FEATURE_TREE.md` to
+govern the pre-process CRM code and have **not been approved by the owner**.
+They are deliberately skipped here so the numbers cannot collide whichever way
+that decision goes.)*
+
 ---
 
 ## 2. Features and stories
@@ -571,6 +593,21 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-73 | Each account has its own action budget, enforced before the action | S-03.02.04 |
 | R-74 | Observing costs no budget; only touching the platform does | S-03.02.04 |
 | R-75 | A new platform is a declared row, not a code change | S-03.02.05 |
+| R-76 | A failed action is recovered from, and repeated failure stops the run | S-11.01.01 |
+| R-77 | A looping or stalled run is detected and stopped | S-11.01.02 |
+| R-78 | A run resumes after the process dies, with its facts intact | S-11.01.03 |
+| R-79 | A run has a spend ceiling and a pre-run estimate | S-11.01.04 |
+| R-80 | A run returns records against a declared schema, not prose | S-11.02.01 |
+| R-81 | Every returned fact carries URL, time, step and screenshot | S-11.02.02 |
+| R-82 | A claim the cited page does not support is dropped, not returned | S-11.02.03 |
+| R-83 | A page is never fetched twice in one run | S-11.02.04 |
+| R-84 | A CAPTCHA, login wall or 2FA pauses the run and asks the owner | S-11.03.01 |
+| R-85 | Prompt injection in page text is detected and recorded | S-11.03.02 |
+| R-86 | Every run produces an auditable claim-to-evidence report | S-11.04.01 |
+| R-87 | A run's progress is visible while it runs | S-11.04.02 |
+| R-88 | Concurrent runs share pace and account budget, not multiply them | S-11.05.01 |
+| R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
+| R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-31 | Companions: persisted agent profiles | S-04.01.01 |
 | R-32 | Skills: procedures separate from memory facts | S-04.01.02 |
 | R-33 | Sub-agents for context isolation | S-04.01.03 |
@@ -716,6 +753,223 @@ and queueing, **so that** a live bulk send cannot happen by accident.
   absent, **then** no job is created and the dashboard keeps the safety controls visible.
 - **Dependencies:** S-08.01.01, S-08.01.02, S-08.01.03, S-08.01.04. **Size:** M.
   **Indicator:** live queue requests without explicit confirmation.
+
+---
+
+### F-11.01 — The run survives contact with the real web  *(E-11)*
+
+Real pages 500, rate-limit, redirect to a consent wall and move the button. A
+loop that stops at the first of those is a demo.
+
+#### S-11.01.01 — A failed action is recovered from, not repeated
+**As an** owner, **I want** the agent to try a different approach when an action
+fails, **so that** one stale handle does not end a twenty-minute run.
+- **Given** an action that raises `ActionRefused`, **when** it fails, **then**
+  the agent re-perceives and is told what failed and why, and the same
+  action with the same arguments is never retried more than once.
+- **Given** three consecutive failed actions, **when** the third fails, **then**
+  the run stops with `status=stuck` rather than continuing to burn budget.
+- **Given** a transient failure (navigation timeout, 5xx), **when** it happens,
+  **then** it is retried with backoff and the retry is recorded in the trace as
+  a retry, not as a fresh attempt.
+- **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** runs ending `stuck`
+  vs `done`.
+
+#### S-11.01.02 — A run that stops making progress is stopped
+**As an** owner, **I want** a run that is going in circles to be caught,
+**so that** a step budget is not spent on the same two pages forty times.
+- **Given** the agent returns to a URL it has already acted on twice with no new
+  facts recorded, **when** the third visit is decided, **then** the run stops
+  with `status=looping` and the trace names the cycle.
+- **Given** ten consecutive steps that record no new fact and no new URL,
+  **when** the tenth completes, **then** the run stops with `status=stalled`.
+- **Given** a run that is progressing, **when** these checks run, **then** they
+  never stop it — a false positive here is worse than a wasted step.
+- **Dependencies:** S-11.01.01. **Size:** M. **Indicator:** steps per fact returned.
+
+#### S-11.01.03 — A run survives the process dying
+**As an** owner, **I want** a killed run to resume where it stopped,
+**so that** a deploy or a crash does not throw away forty steps of work.
+- **Given** a run interrupted at step N, **when** it is resumed, **then** it
+  continues from step N+1 with the facts already gathered intact.
+- **Given** a resumed run, **when** it finishes, **then** the trace is one
+  continuous record, not two, and the resume point is marked in it.
+- **Dependencies:** S-02.02.01, S-02.01.05. **Size:** M. **Indicator:** runs
+  resumed vs restarted.
+
+#### S-11.01.04 — A run has a money ceiling, not only a step ceiling
+**As an** owner, **I want** to cap what a run may spend before it starts,
+**so that** an agent left running overnight cannot cost more than I agreed.
+- **Given** a run with a spend ceiling, **when** the next decision would cross
+  it, **then** the decision is not made and the run stops with `status=over_budget`.
+- **Given** a run, **when** it is planned, **then** an estimate is produced
+  before the first step and the owner sees it.
+- **Given** a finished run, **when** it is inspected, **then** actual spend per
+  step is in the trace, not a total nobody can decompose.
+- **Dependencies:** S-02.02.01, S-06.01.03. **Size:** M. **Indicator:** runs
+  stopped by ceiling; estimate vs actual error.
+
+### F-11.02 — What it brings back is data, not prose  *(E-11)*
+
+**This is the centre of the epic.** `S-02.02.01` returns `result: str` — a
+sentence. A sentence cannot be put in a CRM, checked, or diffed against the next
+run. Everything here exists to replace that string with something a machine and
+a person can both audit.
+
+#### S-11.02.01 — A run declares the shape of its answer and is held to it
+**As an** owner, **I want** to say what fields I want back, **so that** a run
+returns records rather than a paragraph I have to re-read.
+- **Given** a goal with a declared field schema, **when** the run finishes,
+  **then** the result validates against that schema or the run reports
+  `status=incomplete` naming the fields it could not fill.
+- **Given** a model that returns a field not in the schema, **when** the result
+  is assembled, **then** the extra field is dropped and the drop is recorded.
+- **Given** no schema, **when** a run finishes, **then** it still returns the
+  free-text result `S-02.02.01` returns today — the old behaviour is not removed.
+- **Dependencies:** S-02.02.01. **Size:** L. **Indicator:** runs returning a
+  valid record vs prose.
+
+#### S-11.02.02 — Every fact carries where it came from
+**As an** owner, **I want** each returned field to name its source,
+**so that** I can check a claim without re-running anything.
+- **Given** a returned field, **when** it is inspected, **then** it carries the
+  URL, the UTC timestamp, the trace step id and the screenshot filename of the
+  page it was read from.
+- **Given** a field with no source, **when** the result is assembled, **then**
+  it is refused rather than returned unsourced.
+- **Dependencies:** S-11.02.01, S-02.01.05. **Size:** M. **Indicator:** share of
+  returned fields with resolvable provenance — target 100%.
+
+#### S-11.02.03 — A claim the page does not support is refused
+**As an** owner, **I want** a fact checked against the page it allegedly came
+from, **so that** a confident model cannot invent a phone number.
+- **Given** a returned field, **when** it is verified, **then** its value must
+  appear in the captured text of the cited page, normalised for whitespace and
+  case, or the field is dropped and the drop is reported.
+- **Given** a field that is a legitimate derivation (a count, a summary),
+  **when** it is returned, **then** it is labelled `derived` and its inputs are
+  each individually sourced.
+- **Given** a page whose text was truncated by `MAX_READ_CHARS`, **when** a
+  claim cannot be found in it, **then** the failure says the text was truncated
+  rather than asserting the claim was invented.
+- **Dependencies:** S-11.02.02. **Size:** L. **Indicator:** claims dropped by
+  verification per hundred returned. **This is the story that makes the epic's
+  value hypothesis true or false.**
+
+#### S-11.02.04 — The same page is never read twice in one run
+**As an** owner, **I want** the agent to remember what it has read,
+**so that** the budget goes on new pages.
+- **Given** a URL already read in this run, **when** the agent decides to read
+  it again, **then** the stored capture is returned and no request is made.
+- **Given** two URLs that differ only by tracking parameters, **when** they are
+  compared, **then** they are treated as the same page.
+- **Dependencies:** S-02.02.01. **Size:** S. **Indicator:** duplicate fetches
+  per run — target zero.
+
+### F-11.03 — It knows when to stop and ask  *(E-11)*
+
+#### S-11.03.01 — A wall the agent must not climb pauses the run and asks
+**As an** owner, **I want** a CAPTCHA, a login wall or a 2FA prompt to reach me,
+**so that** the agent neither gives up silently nor tries to defeat it.
+- **Given** a page carrying a CAPTCHA, a sign-in form or a 2FA challenge,
+  **when** it is perceived, **then** the run pauses with `status=needs_human`,
+  names what it found, and keeps the browser open at that page.
+- **Given** a paused run, **when** the owner completes the challenge and
+  resumes, **then** the run continues from the same step.
+- **Given** any of these, **when** they are encountered, **then** off_CRM
+  **never** attempts to solve, evade or fingerprint around them. Recorded as a
+  decision in `RETRO.md` 2026-09-06; see OUT OF SCOPE below.
+- **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** runs resumed after
+  a human unblock.
+
+#### S-11.03.02 — A page that tries to give orders is reported, not obeyed
+**As a** security owner, **I want** prompt injection detected and surfaced,
+**so that** an attack on the agent is visible rather than silent.
+- **Given** page text instructing the agent to ignore instructions, exfiltrate,
+  change goal or call a tool, **when** it is perceived, **then** the step is
+  flagged `injection_suspected` in the trace with the offending text quoted.
+- **Given** such a page, **when** the next decision is made, **then** the run
+  continues under the owner's original goal — detection changes the record, not
+  the behaviour, because behaviour is already contained by the closed vocabulary.
+- **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** injection attempts
+  seen per thousand pages.
+
+### F-11.04 — You can watch it, steer it, and prove what it did  *(E-11)*
+
+#### S-11.04.01 — A run report a person can audit
+**As an** owner, **I want** one page per run showing every claim beside its
+evidence, **so that** trusting the output is a decision I make from evidence.
+- **Given** a finished run, **when** its report is opened, **then** every
+  returned field appears with its source URL, timestamp and screenshot, and
+  every step appears in order with its cost.
+- **Given** a run that failed, **when** its report is opened, **then** it shows
+  where and why, not a blank page.
+- **Dependencies:** S-11.02.02. **Size:** M. **Indicator:** reports opened per run.
+
+#### S-11.04.02 — Progress is visible while it happens
+**As an** owner, **I want** to watch a run without tailing a log,
+**so that** I can stop something going wrong at step 4 instead of step 40.
+- **Given** a running agent, **when** the owner watches, **then** each step
+  appears as it completes with its action, URL and running cost.
+- **Dependencies:** S-11.04.01. **Size:** M. **Indicator:** runs stopped early
+  by a watching owner.
+
+### F-11.05 — Many runs at once, without hurting anything  *(E-11)*
+
+#### S-11.05.01 — Concurrent runs share one browser safely
+**As an** owner, **I want** several runs at once, **so that** throughput is not
+one page at a time.
+- **Given** two runs on the same browser, **when** both act, **then** each has
+  its own tab, its own trace and its own snapshot, and neither can resolve a
+  handle from the other's page.
+- **Given** N concurrent runs, **when** they act on one host, **then** the
+  per-host pace floor is respected **across** them, not per run.
+- **Given** N concurrent runs on one account, **when** they act, **then** they
+  draw on one budget, not N.
+- **Dependencies:** S-03.02.04. **Size:** L. **Indicator:** concurrent runs
+  without a pace violation.
+
+#### S-11.05.02 — Re-running does not duplicate what it already did
+**As an** owner, **I want** a resumed or repeated run to be safe,
+**so that** a retry cannot send the same message twice.
+- **Given** a consequential action already recorded in the trace, **when** a
+  resumed run reaches the same step, **then** it is not performed again.
+- **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** duplicate side
+  effects — target zero.
+
+### F-11.06 — Process corrections  *(E-06)*
+
+#### S-06.02.08 — One runner for every evidence command
+**As an** owner, **I want** every evidence command to use the same test runner,
+**so that** a red board means broken code and never a stale environment.
+- **Given** the board, **when** every DONE evidence command is read, **then**
+  they all invoke the same runner.
+- **Given** a clean checkout, **when** the documented setup is run and the
+  verifier follows, **then** it passes without a second, undocumented step.
+- **Dependencies:** none. **Size:** S. **Indicator:** verifier failures caused
+  by environment rather than code — target zero.
+- **Why:** on 2026-09-06 the board went red because some evidence used
+  `uv run pytest` against an unsynced venv while the rest used `python -m
+  pytest`. It looked exactly like a code defect for several minutes. A lie
+  detector that can cry wolf gets ignored.
+
+---
+
+## 3b. Amendments to shipped definitions
+
+Nothing below is edited in place. A shipped story is a record of what was
+built and verified, and rewriting it would make the evidence block describe
+something that never happened. These are **superseding notes**, and each names
+the story that carries the new work.
+
+| Shipped | Still true | Superseded by | What changed and why |
+|---|---|---|---|
+| `S-02.02.01` — a goal becomes a bounded sequence of actions | yes, as built | `S-11.02.01` | Its `result` is a free-text string. That was correct for a first bounded loop and is wrong for a system whose output feeds a CRM. The string is **kept** as the no-schema fallback; the record is added beside it. |
+| `S-02.02.01` | yes | `S-11.01.01`, `S-11.01.02`, `S-11.01.04` | The loop stops on a step budget and on nothing else. Production needs it to stop on failure, on looping, on stalling and on money. |
+| `S-02.01.05` — an append-only work trace | yes | `S-11.02.02` | The trace already holds URL, timestamp and screenshot per step. Nothing yet **binds a returned fact to a step**, so provenance is available and unclaimed. |
+| `S-02.01.03` — ten verbs, real input, no arbitrary code | yes, unchanged | — | Explicitly **not** superseded. The closed vocabulary is what makes an autonomous loop safe, and E-11 adds nothing to it. |
+| `S-05.01.01` — a crawler with a frontier | unchanged | — | Retargeted in framing only: it is the always-on half that *feeds* E-11, not a competing path to the web. No criteria change. |
+| `S-03.02.04` — accounts and budgets | yes | `S-11.05.01` | Budgets are per account and correct for one run at a time. Concurrency makes N runs draw N budgets unless the ledger is shared, which is what `S-11.05.01` fixes. |
 
 ---
 

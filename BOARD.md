@@ -19,6 +19,17 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 ## BACKLOG
 
+*(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
+
+- S-11.02.02 · Every fact carries where it came from
+- S-11.02.03 · A claim the page does not support is refused
+- S-11.01.02 · A run that stops making progress is stopped
+- S-11.01.04 · A run has a money ceiling, not only a step ceiling
+- S-11.03.01 · A wall the agent must not climb pauses the run and asks
+- S-11.04.01 · A run report a person can audit
+- S-11.04.02 · Progress is visible while it happens
+- S-11.05.02 · Re-running does not duplicate what it already did
+
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
 - S-02.02.04 · Safety countdowns before consequential actions
@@ -51,6 +62,19 @@ recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
 - S-03.02.05 · A platform is a row, not a code change
+
+*(E-11 — the autonomous browsing epic. Only the stories whose upstream
+dependencies are already DONE are READY; the rest wait in BACKLOG, because the
+Definition of Ready is not a formality and an item whose shape can still change
+is an item that gets built twice. S-11.02.01 is the spine.)*
+
+- S-11.02.01 · A run declares the shape of its answer and is held to it
+- S-11.02.04 · The same page is never read twice in one run
+- S-11.01.01 · A failed action is recovered from, not repeated
+- S-11.01.03 · A run survives the process dying
+- S-11.03.02 · A page that tries to give orders is reported, not obeyed
+- S-11.05.01 · Concurrent runs share one browser safely
+- S-06.02.08 · One runner for every evidence command
 
 ## IN_PROGRESS
 

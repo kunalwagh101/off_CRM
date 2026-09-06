@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Specified **E-11 — the agent browses the open web alone and comes back with
+  facts you can trust**: 6 features, 15 stories, R-76 to R-90.
+  `docs/architecture/AUTONOMOUS_BROWSING.md` is the build manual and
+  `docs/architecture/E11_HANDOFF_PROMPT.md` is the self-contained prompt for
+  continuing it in a fresh session.
+- The epic exists because `agent/run.py` returns `result: str`. A sentence
+  cannot be validated, diffed, sourced field by field, or written to a CRM. The
+  three stories that carry the epic replace it: a declared schema
+  (`S-11.02.01`), provenance bound to every fact (`S-11.02.02`), and a claim the
+  cited page does not support being dropped rather than returned
+  (`S-11.02.03`).
+- Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
+  Shipped stories are **not** edited in place — an evidence block that describes
+  something which never happened is worse than no record — so each amendment
+  names the story that carries the new work instead.
+- Added `S-06.02.08`: every evidence command should use one test runner. On
+  2026-09-06 the board went red because some evidence used `uv run pytest`
+  against an unsynced venv while the rest used `python -m pytest`, and it looked
+  exactly like a code defect. A lie detector that cries wolf gets ignored.
+
 - Added several accounts per platform, each with its own budget (`S-03.02.04`).
   An account is `linkedin:work`; the default account is named after the platform,
   so every connection record written before accounts existed keeps working with

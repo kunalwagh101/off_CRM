@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Added several accounts per platform, each with its own budget (`S-03.02.04`).
+  An account is `linkedin:work`; the default account is named after the platform,
+  so every connection record written before accounts existed keeps working with
+  no migration step. `browser/budget.py` holds a per-account ceiling for the hour
+  and the day, checked **before** the action and recorded after it, and the
+  refusal says when the budget returns. The problem being solved is not rate
+  limiting — a platform that decides you are a script closes the account rather
+  than answering 429 — so the defaults sit below the observed thresholds and
+  nothing raises them by itself.
+- **Looking is free.** `read`, `screenshot` and `wait_for` cost no budget.
+  Charging for observation pushes an agent towards acting without looking first,
+  which is the behaviour that gets an account noticed.
+- Fixed `press` skipping the pace gate entirely. It was the one interaction that
+  never met the per-host floor, so Enter could be sent at machine speed on a host
+  slowed everywhere else. Found while wiring budgets: the list of verbs that
+  spend was not the list of verbs that were paced. `back` is now paced too.
+- `signin.connect` and `signin.verify` take an `account` label, so a second
+  account is reachable and not merely representable. No function in that path
+  accepts a credential, and the test that reads every signature still holds.
+
 - Added the bounded browser Run Loop (`S-02.02.01`). A run now accepts an owner goal plus a hard decision budget, repeatedly perceives the current page, sends each decision through the existing AI egress broker, validates the model response against the browser's fixed ten-verb action vocabulary, executes at most one browser action, and appends both decisions and actions to the existing audit trace. Logged-in page state defaults to `INTERNAL` data, planning requires a Tier A/B model and fails closed otherwise, page text is explicitly framed as untrusted data to resist prompt injection, and consequential actions stop at the existing human-confirmation boundary rather than self-approving. The trace records provider/model, token estimates and estimated model cost; exact provider-ledger reconciliation remains `S-06.01.03`.
 - Added revoke-and-forget for browser platform sessions (`S-03.02.03`). Disconnect now validates that vaulted material belongs to the target platform, clears the platform's cookies and origin storage from Chromium, destroys the per-account vault envelope containing the wrapped account key, removes the public connection record, and appends the attempt/result to the existing append-only browser trace without logging any session value. Browser deletion failures fail safe: the encrypted vault and connection record are retained for retry rather than showing a false disconnected state. A real-Chromium acceptance test plants a persistent auth cookie and proves it is gone after revocation.
 - Added the browser session vault (`S-03.02.02`). Successful platform logins are now captured into authenticated encrypted storage before the connection can be recorded as connected. Each workspace/platform account gets its own random data-encryption key; that key is wrapped by a master sourced from Windows DPAPI, macOS Keychain or Linux Secret Service, with an explicit scrypt passphrase fallback when an OS credential store is unavailable. The raw master key and passphrase are never stored beside vault data. Vault capture/restore returns metadata only and remains trusted host orchestration, not a browser-agent verb or model tool. The shared AI egress scanner now also refuses generic cookie/token/password fields and credential-shaped free text even under `full` provider policy. CI and the pre-push hook now run the board verifier inside the locked `uv` environment so its evidence subprocesses resolve the same tested Python environment.

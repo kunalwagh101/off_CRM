@@ -188,6 +188,7 @@ async def connect(
     workspace_id: str,
     *,
     vault: SessionVault,
+    account: str = "",
     timeout: float = DEFAULT_TIMEOUT,
     on_poll: Any = None,
 ) -> Connection:
@@ -216,11 +217,12 @@ async def connect(
                 f"session in the vault: {exc}. The connection was not recorded."
             ) from exc
 
-    return store.record(workspace_id, reading, resolved)
+    return store.record(workspace_id, reading, resolved, account=account)
 
 
 async def verify(
-    page: Page, target: Platform | str, store: ConnectionStore, workspace_id: str
+    page: Page, target: Platform | str, store: ConnectionStore, workspace_id: str,
+    *, account: str = "",
 ) -> Connection:
     """Re-check a platform and update the public record.
 
@@ -229,4 +231,5 @@ async def verify(
     or returned by this path.
     """
     resolved = target if isinstance(target, Platform) else lookup_platform(target)
-    return store.record(workspace_id, await check(page, resolved), resolved)
+    return store.record(workspace_id, await check(page, resolved), resolved,
+                        account=account)

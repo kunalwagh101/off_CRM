@@ -124,3 +124,38 @@ checked.
 **What the estimate got wrong.** The loop itself was small; the important work was classifying browser state correctly. Treating a logged-in page as public would have let private CRM/dashboard text reach a lower-trust model, so decision context defaults to `INTERNAL` and planning fails closed without an approved Tier A/B model.
 
 **What to change next time.** Define the data class and trust floor before designing any autonomous loop. For agent work, the dangerous boundary is not only which action can run; it is also which page content is allowed to leave the machine while deciding that action.
+---
+
+## 2026-09-06 — S-03.02.04, several accounts and their budgets
+
+**What was cut.** One thing was refused rather than cut: the owner asked for the
+agent to understand Cloudflare "and bypass it". Fingerprint spoofing,
+CAPTCHA-solving, TLS forgery and headless-detection evasion are not built and
+will not be, and the reason is not squeamishness — it is that the enforcement on
+these platforms is *account termination*, not a rate-limit response, so the
+thing being risked is the asset the owner spent months building. The legitimate
+version already exists and is most of what was actually wanted: a real Chrome
+with the owner's real profile and real OS-level input events does not get
+challenged, because it is not a bot. The codebase already held that position —
+`test_crawl4ai_adapter_hard_disables_evasive_browser_features` — and it now has
+a second reason to.
+
+Scope was also split rather than absorbed. "Many accounts with their limits
+understood" and "add any of a hundred platforms" are two stories, and running
+them as one is how an increment triples. `S-03.02.05` waits in READY.
+
+**What the estimate got wrong.** I sized this as a storage change — a key with an
+account in it — and the storage was the easy third. The real work was deciding
+*which verbs spend*, and that question exposed a defect: `press` had never gone
+through the pace gate at all, so Enter could be sent at machine speed on a host
+that was slowed for every other action. The list of verbs that act and the list
+of verbs that were paced had quietly diverged, and nothing would have noticed
+until an account was gone.
+
+**What to change next time.** The last two retros were about tests that would
+pass with the feature removed, and criteria defended by argument rather than
+checked. This one is their sibling: **when a rule applies to a set, test that the
+set is complete, not that the rule works.** `test_every_costed_action_is_a_real_verb`
+and the assertion that every acting verb is charged are worth more than any
+individual budget test, because the failure mode here was never a wrong rule —
+it was a correct rule applied to nine of ten things.

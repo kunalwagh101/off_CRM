@@ -166,6 +166,7 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
+| R-72, R-73, R-74 | S-03.02.04 | 3 | `tests/test_browser_budget.py` | `browser/budget.py`, `browser/identity.py`, `browser/page.py` |
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |

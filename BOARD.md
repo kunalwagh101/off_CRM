@@ -54,7 +54,7 @@ reasoning survives the unblocking.)*
 
 ## IN_PROGRESS
 
-- S-03.02.04 · Several accounts per platform, each with its own budget
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -200,6 +200,13 @@ reasoning survives the unblocking.)*
   result: 30 passed (2026-08-25)
   code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py
   commit: 0be650d
+
+- S-03.02.04 · Several accounts per platform, each with its own budget
+  tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_a_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
+  command: python -m pytest tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_signin.py -q
+  result: 81 passed (2026-09-06)
+  code: offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/signin.py
+  commit: fd5ad0b
 
 - S-03.02.01 · Sign in to a platform once, inside the box
   tests: tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards, tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted, tests/test_browser_signin.py::test_no_function_in_the_sign_in_path_accepts_a_credential, tests/test_browser_agent.py::test_a_lock_left_behind_by_a_browser_that_died_is_not_a_lock, tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused

@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .cdp import CDPConnection, CDPTimeout
+from .budget import COSTED_ACTIONS, Budget, BudgetLedger
 from .guard import RequestGuard
 from .perceive import Snapshot, capture
 from .policy import DomainRule, Refused, check_action, check_navigation, rule_for
@@ -117,6 +118,14 @@ class Page:
     #: then `policy.py` alone decides.
     allowed_hosts: frozenset[str] = field(default_factory=frozenset)
 
+    #: The account this tab is acting as, and what it has left.  `S-03.02.04`
+    #: Both or neither: an account with no ledger cannot be counted, and a
+    #: ledger with no account does not know whose budget to spend. Absent means
+    #: an unattributed tab — no account is at risk, so nothing is charged.
+    ledger: "BudgetLedger | None" = None
+    account: str = ""
+    budget: "Budget | None" = None
+
     async def start(self) -> None:
         for domain in ("Page", "Runtime", "DOM", "Network"):
             await self.connection.send(f"{domain}.enable", session_id=self.session_id)
@@ -128,22 +137,56 @@ class Page:
 
     # ── pacing ──────────────────────────────────────────────────────────────
 
-    async def _pace(self, rule: DomainRule, host: str) -> None:
-        """Meet the per-host floor before acting.
+    def _spend(self, action: str) -> None:
+        """Charge one action to this tab's account, or refuse.  `S-03.02.04`
+
+        **Pace and budget answer different questions.** Pace is *how fast* — a
+        floor between actions, so the rhythm is human. Budget is *how much* — a
+        ceiling per hour and per day, because a human at reading pace for eleven
+        hours is still not a human, and that is what gets an account closed
+        rather than rate-limited.
+
+        Checked before the action and recorded after it, so an action refused
+        further down the method never spends anything. Only the verbs in
+        `COSTED_ACTIONS` are charged: `read`, `screenshot` and `wait_for`
+        observe what is already on the screen, and charging for looking pushes
+        an agent towards acting blind to save budget.
+        """
+        if self.ledger is None or not self.account or action not in COSTED_ACTIONS:
+            return
+        budget = self.budget or Budget.for_platform(str(self.account).split(":", 1)[0])
+        allowed, reason = self.ledger.check(self.account, budget)
+        if not allowed:
+            raise ActionRefused(reason)
+
+    async def _pace(self, rule: DomainRule, host: str, action: str = "") -> None:
+        """Meet the per-host floor before acting, and stay inside the budget.
 
         Enforced rather than requested. On a site being driven through your own
         session the thing that gets an account restricted is rhythm — thirty
         actions a minute is not something a person does, and a limit that lives
         in a prompt is a suggestion the model may reasonably decide to ignore.
         """
+        if action:
+            self._spend(action)
         floor = float(rule.min_seconds_between_actions or 0.0)
-        if floor <= 0:
-            return
-        last = self._last_action_at.get(host, 0.0)
-        wait = floor - (time.monotonic() - last)
-        if wait > 0:
-            await asyncio.sleep(wait)
+        if floor > 0:
+            last = self._last_action_at.get(host, 0.0)
+            wait = floor - (time.monotonic() - last)
+            if wait > 0:
+                await asyncio.sleep(wait)
         self._last_action_at[host] = time.monotonic()
+
+    def _charge(self, action: str) -> None:
+        """Record an action that actually happened.
+
+        After, not before. An action that raised on the way down — a stale
+        handle, an element with no shape — never reached the site, and a budget
+        that counts attempts rather than actions would drain on a page the agent
+        could not use.
+        """
+        if self.ledger is not None and self.account and action in COSTED_ACTIONS:
+            self.ledger.record(self.account)
 
     async def _settle(self, timeout: float = SETTLE_SECONDS) -> None:
         """Wait for the page to stop changing, or give up quietly.
@@ -241,11 +284,12 @@ class Page:
     async def goto(self, url: str) -> ActionResult:
         started = time.monotonic()
         rule = check_navigation(url, unattended=self.unattended)
-        await self._pace(rule, rule.suffix)
+        await self._pace(rule, rule.suffix, "goto")
         await self.connection.send("Page.navigate", {"url": url}, session_id=self.session_id)
         await self._settle()
         self._snapshot = None
         snapshot = await self.snapshot()
+        self._charge("goto")
         return ActionResult(
             action="goto", ok=True, url=snapshot.url,
             detail=f"opened {snapshot.title or snapshot.url}",
@@ -264,12 +308,15 @@ class Page:
         rule, needs = check_action(_intent(node.role, node.name), self.url,
                                    unattended=self.unattended)
         if needs and not confirmed:
+            # No charge: this is a refusal asking for confirmation, and nothing
+            # was sent to the site. Charging here would let a countdown the
+            # owner cancels still eat the account's budget.
             return ActionResult(
                 action="click", ok=False, needs_confirmation=True, url=self.url,
                 detail=f"clicking {node.name or node.role!r} sends or changes "
                        "something. Confirm it first.",
             )
-        await self._pace(rule, rule.suffix)
+        await self._pace(rule, rule.suffix, "click")
         backend_id = await self._resolve(handle)
         await self._scroll_into_view(backend_id)
         x, y = await self._box(backend_id)
@@ -287,6 +334,7 @@ class Page:
             )
         await self._settle(timeout=1.5)
         self._snapshot = None
+        self._charge("click")
         return ActionResult(
             action="click", ok=True, url=self.url,
             detail=f"clicked {node.role} {node.name!r}".rstrip(),
@@ -302,7 +350,7 @@ class Page:
         """
         started = time.monotonic()
         rule = rule_for(self.url)
-        await self._pace(rule, rule.suffix)
+        await self._pace(rule, rule.suffix, "type")
         backend_id = await self._resolve(handle)
         await self._scroll_into_view(backend_id)
         await self.connection.send(
@@ -331,6 +379,7 @@ class Page:
                 session_id=self.session_id,
             )
         self._snapshot = None
+        self._charge("type")
         return ActionResult(
             action="type", ok=True, url=self.url,
             detail=f"typed {len(str(text))} character(s)",
@@ -351,7 +400,7 @@ class Page:
         """
         started = time.monotonic()
         rule = rule_for(self.url)
-        await self._pace(rule, rule.suffix)
+        await self._pace(rule, rule.suffix, "select")
         backend_id = await self._resolve(handle)
         resolved = await self.connection.send(
             "DOM.resolveNode", {"backendNodeId": backend_id}, session_id=self.session_id
@@ -398,6 +447,7 @@ class Page:
                 + answer[len("no-option:"):]
             )
         self._snapshot = None
+        self._charge("select")
         return ActionResult(
             action="select", ok=True, url=self.url,
             detail=f"chose {answer[len('ok:'):]!r}",
@@ -418,6 +468,11 @@ class Page:
                 f"{name!r} is not a key the agent may press. Known: "
                 + ", ".join(sorted(codes))
             )
+        # `press` was previously the one interaction that skipped the pace gate,
+        # so Enter could be sent at machine speed on a host slowed everywhere
+        # else. Found while wiring budgets: the list of verbs that spend was not
+        # the list of verbs that were paced.
+        await self._pace(rule_for(self.url), rule_for(self.url).suffix, "press")
         for kind in ("keyDown", "keyUp"):
             await self.connection.send(
                 "Input.dispatchKeyEvent",
@@ -427,6 +482,7 @@ class Page:
             )
         await self._settle(timeout=1.5)
         self._snapshot = None
+        self._charge("press")
         return ActionResult(
             action="press", ok=True, url=self.url, detail=f"pressed {name}",
             took_ms=int((time.monotonic() - started) * 1000),
@@ -436,7 +492,7 @@ class Page:
         """A wheel, not a scrollTop assignment — infinite feeds listen for it."""
         started = time.monotonic()
         rule = rule_for(self.url)
-        await self._pace(rule, rule.suffix)
+        await self._pace(rule, rule.suffix, "scroll")
         await self.connection.send(
             "Input.dispatchMouseEvent",
             {"type": "mouseWheel", "x": 400, "y": 400,
@@ -445,6 +501,7 @@ class Page:
         )
         await asyncio.sleep(0.4)
         self._snapshot = None
+        self._charge("scroll")
         return ActionResult(
             action="scroll", ok=True, url=self.url,
             detail=f"scrolled {'down' if down > 0 else 'up'}",
@@ -490,6 +547,7 @@ class Page:
         entries = history.get("entries") or []
         if index <= 0 or not entries:
             raise ActionRefused("There is nothing to go back to.")
+        await self._pace(rule_for(self.url), rule_for(self.url).suffix, "back")
         await self.connection.send(
             "Page.navigateToHistoryEntry", {"entryId": entries[index - 1]["id"]},
             session_id=self.session_id,
@@ -497,6 +555,7 @@ class Page:
         await self._settle()
         self._snapshot = None
         snapshot = await self.snapshot()
+        self._charge("back")
         return ActionResult(
             action="back", ok=True, url=snapshot.url, detail="went back",
             took_ms=int((time.monotonic() - started) * 1000),

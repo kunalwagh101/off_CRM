@@ -52,6 +52,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..ai.workspace import atomic_json
+from .budget import Budget, BudgetLedger
 from .perceive import Snapshot
 
 #: Never stored, never accepted as an argument, never logged. The test
@@ -249,20 +250,51 @@ def read_state(snapshot: Snapshot, target: Platform) -> Reading:
 # ── what is written down ────────────────────────────────────────────────────
 
 
+def _suffix(platform: str, key: str) -> str:
+    """The account label back out of a key. `linkedin:work` -> `work`."""
+    return key.split(":", 1)[1] if ":" in key else ""
+
+
+def account_id(platform_id: str, account: str = "") -> str:
+    """The key one account is filed under.  `S-03.02.04`
+
+    The **default account for a platform is named after the platform**, so
+    `linkedin` and `linkedin` are the same account and every record written
+    before accounts existed keeps working with no migration step. A second
+    account is `linkedin:work`, a third `linkedin:personal`.
+
+    The owner picks the suffix, because only they know which is which, and it is
+    normalised rather than validated away — a name with a colon in it would
+    otherwise collide with another account.
+    """
+    platform = str(platform_id).strip().lower()
+    label = str(account or "").strip().lower().replace(":", "-")
+    label = "".join(ch for ch in label if ch.isalnum() or ch in "-_")[:40]
+    return f"{platform}:{label}" if label and label != platform else platform
+
+
 @dataclass
 class Connection:
-    """A record that a platform is signed in. **Holds no secret.**"""
+    """A record that one account is signed in. **Holds no secret.**"""
 
     platform: str
+    #: Which account on that platform. Defaults to the platform id, so a
+    #: single-account setup reads exactly as it did before accounts existed.
+    account: str = ""
     state: str = "unknown"
     checked_at: str = ""
     evidence: str = ""
     #: Optional, and only ever a public display name the page itself shows.
     handle: str = ""
 
+    def __post_init__(self) -> None:
+        if not self.account:
+            self.account = self.platform
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "platform": self.platform,
+            "account": self.account,
             "state": self.state,
             "checked_at": self.checked_at,
             "evidence": self.evidence,
@@ -296,38 +328,45 @@ class ConnectionStore:
             return {}
 
     def record(self, workspace_id: str, reading: Reading, target: Platform,
-               *, handle: str = "") -> Connection:
+               *, handle: str = "", account: str = "") -> Connection:
         """Write down what was observed. The only writer here.
 
         Takes a `Reading` rather than fields, so there is no signature on this
-        class that a credential could be passed to even by mistake.
+        class that a credential could be passed to even by mistake. `account`
+        is a label the owner chose, never anything the platform returned.
         """
+        key = account_id(target.id, account)
         connection = Connection(
             platform=target.id,
+            account=key,
             state=reading.state,
             checked_at=_now(),
             evidence=reading.evidence,
             handle=str(handle or "")[:120],
         )
         document = self._document()
-        document.setdefault(str(workspace_id), {})[target.id] = connection.to_dict()
+        document.setdefault(str(workspace_id), {})[key] = connection.to_dict()
         atomic_json(self.path, document)
         return connection
 
-    def get(self, workspace_id: str, platform_id: str) -> Connection:
-        raw = self._document().get(str(workspace_id), {}).get(str(platform_id))
+    def get(self, workspace_id: str, platform_id: str, account: str = "") -> Connection:
+        key = account_id(platform_id, account)
+        raw = self._document().get(str(workspace_id), {}).get(key)
         if not isinstance(raw, dict):
-            return Connection(platform=str(platform_id))
+            return Connection(platform=str(platform_id).lower(), account=key)
         return Connection(
             platform=str(raw.get("platform") or platform_id),
+            # Records written before accounts existed have no `account` field;
+            # their key *is* the platform, which is what `account_id` returns.
+            account=str(raw.get("account") or key),
             state=str(raw.get("state") or "unknown"),
             checked_at=str(raw.get("checked_at") or ""),
             evidence=str(raw.get("evidence") or ""),
             handle=str(raw.get("handle") or ""),
         )
 
-    def forget(self, workspace_id: str, platform_id: str) -> None:
-        """Drop the record.
+    def forget(self, workspace_id: str, platform_id: str, account: str = "") -> None:
+        """Drop the record for one account.
 
         Note what this does **not** do: it does not sign you out. The session
         lives in the browser's own volume, and removing that is the box's job —
@@ -335,19 +374,75 @@ class ConnectionStore:
         a screen that says disconnected.
         """
         document = self._document()
-        document.get(str(workspace_id), {}).pop(str(platform_id), None)
+        document.get(str(workspace_id), {}).pop(account_id(platform_id, account), None)
         atomic_json(self.path, document)
 
+    def accounts(self, workspace_id: str, platform_id: str) -> list[Connection]:
+        """Every account connected on one platform, default first."""
+        platform = str(platform_id).strip().lower()
+        keys = [
+            key for key in self._document().get(str(workspace_id), {})
+            if key == platform or key.startswith(f"{platform}:")
+        ]
+        return [self.get(workspace_id, platform, _suffix(platform, key))
+                for key in sorted(keys)]
+
     def all(self, workspace_id: str) -> list[Connection]:
-        return [self.get(workspace_id, key) for key in sorted(PLATFORMS)]
+        """Every account in the workspace, plus every platform with none.
+
+        The built-in platforms always appear even when nothing is connected,
+        because a catalogue that hides what you have *not* done is a catalogue
+        that cannot be used to decide what to do next.
+        """
+        found: list[Connection] = []
+        seen: set[str] = set()
+        for platform in sorted(PLATFORMS):
+            connected = self.accounts(workspace_id, platform)
+            if connected:
+                found.extend(connected)
+                seen.update(row.account for row in connected)
+            else:
+                found.append(self.get(workspace_id, platform))
+        # Accounts on platforms that are no longer declared still belong to the
+        # owner and must not vanish from their own record.
+        for key in sorted(self._document().get(str(workspace_id), {})):
+            if key in seen or key.split(":", 1)[0] in PLATFORMS:
+                continue
+            raw = self._document()[str(workspace_id)][key]
+            if isinstance(raw, dict):
+                found.append(Connection(
+                    platform=str(raw.get("platform") or key.split(":", 1)[0]),
+                    account=key,
+                    state=str(raw.get("state") or "unknown"),
+                    checked_at=str(raw.get("checked_at") or ""),
+                    evidence=str(raw.get("evidence") or ""),
+                    handle=str(raw.get("handle") or ""),
+                ))
+        return found
 
 
-def catalogue(store: ConnectionStore, workspace_id: str) -> dict[str, Any]:
-    """Every platform, and where this workspace stands with it."""
+def catalogue(store: ConnectionStore, workspace_id: str,
+              ledger: "BudgetLedger | None" = None) -> dict[str, Any]:
+    """Every account, where this workspace stands with it, and what is left.
+
+    `ledger` is optional so a screen that only wants connection state does not
+    have to construct one — but when it is given, each row carries how much of
+    that account's budget is spent. That is the answer to "what are this
+    account's limits", and it belongs next to the account rather than in a
+    separate call a caller can forget to make.
+    """
+    rows = []
+    for connection in store.all(workspace_id):
+        declared = PLATFORMS.get(connection.platform)
+        row = {**(declared.to_dict() if declared else {"id": connection.platform,
+                                                       "label": connection.platform}),
+               **connection.to_dict()}
+        if ledger is not None:
+            budget = Budget.for_platform(connection.platform)
+            row["budget"] = ledger.remaining(connection.account, budget)
+        rows.append(row)
     return {
-        "platforms": [
-            {**PLATFORMS[connection.platform].to_dict(), **connection.to_dict()}
-            for connection in store.all(workspace_id)
-        ],
+        "platforms": rows,
+        "accounts": len(rows),
         "stores_no_credentials": True,
     }

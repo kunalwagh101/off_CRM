@@ -65,10 +65,9 @@ reasoning survives the unblocking.)*
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
-is an item that gets built twice. S-11.02.01 is DONE, so provenance is now
-ready to build on its structured result shape.)*
+is an item that gets built twice. S-11.02.01 is DONE; provenance has now been
+pulled, and the remaining independent E-11 stories below stay READY.)*
 
-- S-11.02.02 · Every fact carries where it came from
 - S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
@@ -78,7 +77,7 @@ ready to build on its structured result shape.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.02.02 · Every fact carries where it came from
 
 ## IN_REVIEW
 

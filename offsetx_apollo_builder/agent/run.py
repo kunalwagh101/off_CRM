@@ -9,6 +9,8 @@ The important work is in the boundaries around that loop:
 * page content is framed as untrusted data, never as instructions;
 * consequential clicks are never auto-confirmed by this story;
 * every decision and action is appended to the existing audit trace;
+* successful reads are stored privately with the trace and a page already read
+  in this run is served from that capture instead of asking the browser again;
 * when the caller declares a result schema, plain code — not the model — decides
   which returned fields survive;
 * a structured field survives only when its source resolves to a page read that
@@ -33,6 +35,7 @@ from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass, TrustTier
 from ..browser.page import ACTIONS, ActionResult, Page
 from ..browser.trace import Step, Trace
+from .read_cache import CONTENT_MUTATING_ACTIONS, NAVIGATION_ACTIONS, canonical_page_url
 from .result import Finding, Provenance, ResultSchema, SourcedRecordValidation, coerce_result_schema
 from .verify import (
     DERIVED_UNVERIFIED,
@@ -240,6 +243,11 @@ class AgentRun:
         observation = ""
         collected: dict[str, Finding] = {}
         verification_failures: dict[str, str] = {}
+        # S-11.02.04 is intentionally run-scoped. Browser Page objects may be
+        # reused by later work; evidence from one run must not silently become
+        # evidence in another. Each value points at the original trace step so a
+        # structured result keeps one immutable provenance source.
+        read_cache: dict[str, tuple[ActionResult, Step]] = {}
 
         for index in range(budget):
             snapshot = await self.page.snapshot()
@@ -345,6 +353,32 @@ class AgentRun:
                     actions=actions,
                 )
 
+            page_key = canonical_page_url(snapshot.url)
+            if decision.action == "read" and page_key:
+                cached = read_cache.get(page_key)
+                if cached is not None:
+                    cached_result, cached_step = cached
+                    self.trace.append(
+                        Step(
+                            kind="read_cache_hit",
+                            detail=(
+                                f"source_step_id={cached_step.step_id}; "
+                                "stored capture reused; no browser read issued"
+                            ),
+                            url=snapshot.url,
+                        )
+                    )
+                    evidence_step = (
+                        cached_step
+                        if cached_step.capture and cached_step.screenshot
+                        else None
+                    )
+                    observation = _observation(
+                        cached_result,
+                        evidence_step=evidence_step,
+                    )
+                    continue
+
             try:
                 action_result = await _execute(self.page, decision)
             except Exception as exc:  # browser policy and stale handles are recoverable observations
@@ -388,22 +422,41 @@ class AgentRun:
                     findings=collected,
                 )
 
+            # A cache that survives a document mutation is worse than no cache:
+            # it makes the agent confidently reason over stale evidence. Clear
+            # only the affected page identity. Navigation invalidates the loaded
+            # destination; in-place interactions invalidate both the before and
+            # after identity in case a click also changed the URL.
+            if action_result.ok:
+                result_key = canonical_page_url(action_result.url or snapshot.url)
+                if action_result.action in CONTENT_MUTATING_ACTIONS:
+                    if page_key:
+                        read_cache.pop(page_key, None)
+                    if result_key:
+                        read_cache.pop(result_key, None)
+                elif action_result.action in NAVIGATION_ACTIONS and result_key:
+                    read_cache.pop(result_key, None)
+
             actions += 1
             screenshot = action_result.screenshot
             captured_text = ""
             evidence_error = ""
-            if schema is not None and action_result.action == "read" and action_result.ok:
+            if action_result.action == "read" and action_result.ok:
+                # S-11.02.04 needs the read to exist independently of whether
+                # the caller requested structured findings. The text still lives
+                # in a private sidecar, never inside trace.jsonl.
                 captured_text = str(action_result.text or "")
-                try:
-                    shot = await self.page.screenshot()
-                    screenshot = shot.screenshot
-                    if not screenshot:
-                        evidence_error = "off_CRM could not capture a screenshot for this page read."
-                except Exception as exc:
-                    evidence_error = (
-                        "off_CRM could not capture a screenshot for this page read: "
-                        + str(exc)[:500]
-                    )
+                if schema is not None:
+                    try:
+                        shot = await self.page.screenshot()
+                        screenshot = shot.screenshot
+                        if not screenshot:
+                            evidence_error = "off_CRM could not capture a screenshot for this page read."
+                    except Exception as exc:
+                        evidence_error = (
+                            "off_CRM could not capture a screenshot for this page read: "
+                            + str(exc)[:500]
+                        )
 
             action_step = self.trace.append(
                 Step(
@@ -430,6 +483,10 @@ class AgentRun:
                 if action_step.capture and action_step.screenshot and not evidence_error
                 else None
             )
+            if action_result.action == "read" and action_result.ok:
+                read_key = canonical_page_url(action_result.url or snapshot.url)
+                if read_key:
+                    read_cache[read_key] = (action_result, action_step)
             observation = _observation(
                 action_result,
                 evidence_step=evidence_step,

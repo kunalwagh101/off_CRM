@@ -22,6 +22,15 @@
   the production loop. Returned values are not copied into the decision trace
   before provenance exists; provenance remains `S-11.02.02` and claim
   verification remains `S-11.02.03`.
+- Delivered `S-11.02.02`, binding every returned structured fact to evidence
+  captured by off_CRM itself. Trace steps now have stable ids; read evidence is
+  stored privately beside the append-only trace with a screenshot, and model
+  output may name only a source step id plus its quote. URL, UTC capture time and
+  screenshot filename are resolved from the host-owned trace rather than trusted
+  from model text. An unresolvable source is refused, and facts saved on an
+  earlier page survive later navigation through their immutable provenance. The
+  public `record` remains a simple field-to-value mapping for CRM consumers;
+  mechanical claim verification remains `S-11.02.03`.
 - Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
   Shipped stories are **not** edited in place — an evidence block that describes
   something which never happened is worse than no record — so each amendment

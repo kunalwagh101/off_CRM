@@ -45,6 +45,8 @@ jobs:
         run: uv run pytest tests/test_agent_run.py -q
       - name: Run structured Run Result acceptance evidence
         run: uv run pytest tests/test_agent_structured_result.py -q
+      - name: Run provenance acceptance evidence
+        run: uv run pytest tests/test_agent_provenance.py -q
       - name: Run Python tests
         run: uv run pytest -q
       # The board verifier is standard-library-only, but the evidence commands

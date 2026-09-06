@@ -179,3 +179,23 @@ make the caller own the output shape and validate after generation in plain code
 Also prove the live path: the real-Chromium test checks the correct boundary —
 browser observation → model decision → deterministic record — rather than only
 a validator in isolation.
+
+---
+
+## 2026-09-06 — S-11.02.02, source-bound browser findings
+
+**What was cut.** Mechanical claim verification stayed entirely in
+`S-11.02.03`. Provenance answers *where did this value come from?*; it does not
+claim that the cited page actually contains or supports the value.
+
+**What the estimate got wrong.** The trace already had most provenance fields,
+but they were not yet addressable: steps had no stable id, normal reads did not
+carry screenshots, and the read text itself was only passed forward to the model
+rather than retained as host-owned evidence. Binding facts therefore required
+fixing the evidence boundary, not merely wrapping the old record in metadata.
+
+**What to change next time.** When a model cites evidence, let it name only the
+smallest host-owned locator. Here that is a stable trace step id. Resolve URL,
+time and screenshot from our own append-only record instead of accepting those
+fields from model output. Also save a sourced fact before navigating away; model
+memory is not a provenance store.

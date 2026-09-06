@@ -68,7 +68,6 @@ dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 is the spine.)*
 
-- S-11.02.01 · A run declares the shape of its answer and is held to it
 - S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
@@ -78,7 +77,7 @@ is an item that gets built twice. S-11.02.01 is the spine.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.02.01 · A run declares the shape of its answer and is held to it
 
 ## IN_REVIEW
 
@@ -226,7 +225,7 @@ is an item that gets built twice. S-11.02.01 is the spine.)*
   commit: 0be650d
 
 - S-03.02.04 · Several accounts per platform, each with its own budget
-  tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_a_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
+  tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
   command: python -m pytest tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_signin.py -q
   result: 81 passed (2026-09-06)
   code: offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/signin.py

@@ -64,10 +64,9 @@ reasoning survives the unblocking.)*
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
-is an item that gets built twice. S-11.02.01 and S-11.02.02 are DONE, so claim
-verification can now build on structured, source-bound findings.)*
+is an item that gets built twice. S-11.02.01 and S-11.02.02 are DONE; claim
+verification is now pulled and the remaining independent stories stay READY.)*
 
-- S-11.02.03 · A claim the page does not support is refused
 - S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
@@ -77,7 +76,7 @@ verification can now build on structured, source-bound findings.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.02.03 · A claim the page does not support is refused
 
 ## IN_REVIEW
 

@@ -231,14 +231,17 @@ class Trace:
         """Read the private page-text artefact attached to one evidence step."""
         if not step.capture:
             return ""
-        path = self.directory / step.capture
-        try:
-            path.relative_to(self.directory)
-        except ValueError as exc:
-            raise TraceIntegrityError("Trace capture escaped the run directory.") from exc
+        path = self._artifact_path(step.capture)
         if not path.is_file():
             return ""
         return path.read_text(encoding="utf-8")
+
+    def _artifact_path(self, filename: str) -> Path:
+        """Resolve a host-created evidence filename without accepting a path."""
+        name = str(filename or "")
+        if not name or Path(name).name != name:
+            raise TraceIntegrityError("Trace evidence filename is not local to the run directory.")
+        return self.directory / name
 
     def _assert_unique_ids(self) -> None:
         ids = [step.step_id for step in self.steps]

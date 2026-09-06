@@ -35,12 +35,17 @@ the code exists and holds no stub).
 | R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
+| R-72, R-73, R-74 | S-03.02.04 | 3 | `tests/test_browser_budget.py` | `browser/budget.py`, `browser/identity.py`, `browser/page.py`, `browser/signin.py` |
 | R-52 | S-06.02.06 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-57 | S-06.02.07 | 2 | `tests/test_verify_board.py` | `scripts/verify_board.py` |
 | R-61, R-62 | S-08.01.01 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/preflight.py`, `outreach/deliverability/store.py` |
 | R-64, R-65, R-66 | S-08.01.02 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/service.py`, `outreach/deliverability/store.py` |
 | R-67, R-68 | S-08.01.03 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/domain_auth.py`, `outreach/deliverability/ses.py` |
 | R-69, R-70 | S-08.01.04 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/events.py`, `outreach/deliverability/service.py` |
+| R-80 | S-11.02.01 | 3 | `tests/test_agent_structured_result.py` | `agent/result.py`, `agent/run.py` |
+| R-81 | S-11.02.02 | 2 | `tests/test_agent_provenance.py` | `agent/result.py`, `agent/run.py`, `browser/trace.py` |
+| R-82 | S-11.02.03 | 3 | `tests/test_agent_claim_verification.py` | `agent/verify.py`, `agent/result.py`, `agent/run.py` |
+| R-83 | S-11.02.04 | 2 | `tests/test_agent_page_read_cache.py` | `agent/read_cache.py`, `agent/run.py` |
 
 ## In review — built, but this session cannot complete the proof
 
@@ -50,7 +55,14 @@ the code exists and holds no stub).
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
-*(Empty. No story is promoted automatically just because another story finished.)*
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-75 | S-03.02.05 | 2 | — | — |
+| R-76 | S-11.01.01 | 3 | — | — |
+| R-78 | S-11.01.03 | 2 | — | — |
+| R-85 | S-11.03.02 | 2 | — | — |
+| R-88 | S-11.05.01 | 3 | — | — |
+| R-90 | S-06.02.08 | 2 | — | — |
 
 ## Blocked externally — engineering is waiting on access
 
@@ -88,6 +100,12 @@ the code exists and holds no stub).
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-55 | S-07.01.03 | 1 | — | — |
 | R-56 | S-07.01.04 | 1 | — | — |
+| R-77 | S-11.01.02 | 3 | — | — |
+| R-79 | S-11.01.04 | 3 | — | — |
+| R-84 | S-11.03.01 | 2 | — | — |
+| R-86 | S-11.04.01 | 3 | — | — |
+| R-87 | S-11.04.02 | 2 | — | — |
+| R-89 | S-11.05.02 | 2 | — | — |
 
 ## Deferred — cut, with the trigger to bring it back
 
@@ -97,58 +115,39 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 26 stories are DONE, 1 is IN_REVIEW, 0 are
-READY, 3 are externally BLOCKED and 24 are planned in BACKLOG.**
-
-The board verifier recomputes the authoritative counts and acceptance coverage
-from the repository. The prose here is a readable snapshot, not a substitute
-for `uv run python scripts/verify_board.py`.
+The readable table now includes the later R-72–R-90 additions instead of
+stopping at the original 71-requirement snapshot. `scripts/verify_board.py`
+remains authoritative for the live counts, orphan detection, acceptance coverage
+and rerunnable DONE evidence; those counts are intentionally not duplicated here
+because they change every increment.
 
 ### Gaps that were open, and are now closed
 
 - **S-02.02.01 closes the browser autonomy gap.** The browser already had safe
   perception, a closed ten-verb action vocabulary and an append-only trace, but
-  nothing could turn an owner goal into repeated decisions and actions. The new
+  nothing could turn an owner goal into repeated decisions and actions. The
   bounded run loop does that through the existing egress broker, refuses lower-
   trust planning, treats page content as untrusted input, stops at consequential
   human gates and records provider/model plus estimated usage in the trace.
-- **`tests/test_email_delivery.py` had a failing test** on `d96ea9d`, and that
-  work had no backlog ID — it entered the repository without passing through
-  this process. It has IDs now (E-07 / F-08.01, R-61 to R-71) and the failing
-  test is fixed: its queue time was derived from a hardcoded 2026-08-24 fixture
-  and expired when the date passed.
 - **S-03.02.02 closed the browser-session custody gap.** The browser can retain
-  an attended login, but off_CRM now keeps its managed copy under a different
-  random key per workspace/platform account. The master source is OS-backed,
-  with an explicit scrypt passphrase fallback, and sign-in refuses to record a
-  green connection until vault capture succeeds. Generic cookie/token/password
-  shapes are also refused by the shared AI egress scanner even at `full` policy.
-- **S-03.02.03 closes the browser-session exit path.** Disconnect requires an
-  attached page target, deletes the exact vaulted cookies from real Chromium,
-  destroys that account's encrypted vault envelope, forgets the public
-  connection record, and writes the action—not the secret—to the append-only
-  trace. Browser deletion failure keeps the encrypted vault and green record so
-  the owner can retry instead of seeing a false disconnected state.
-
-### Two defects in already-`DONE` code, found by building on it
-
-Both were fixed inside `S-03.02.01` rather than given new IDs, because neither
-adds capability — they are the slice's own acceptance criteria failing in code
-the slice depends on. Change control is about scope, not about bugs.
-
-- **`profile_is_locked` counted a lock rather than reading it.** A browser
-  stopped by a signal leaves `SingletonLock` behind and nothing ever removes it,
-  so off_CRM refused a profile nobody held — permanently. The lock is now
-  interrogated and a proven-stale one is cleared before launch.
-- **`BrowserSession.close` killed the browser instead of closing it.** Chrome
-  batches writes to the cookie jar and flushes on shutdown, so the login that
-  had just been completed could be lost. `Browser.close` is sent first; the
-  signal is the fallback.
+  an attended login, but off_CRM keeps its managed copy under a different random
+  key per workspace/platform account. The master source is OS-backed, with an
+  explicit scrypt passphrase fallback, and sign-in refuses to record a green
+  connection until vault capture succeeds. Generic cookie/token/password shapes
+  are refused by the shared AI egress scanner even at `full` policy.
+- **S-03.02.03 closes the browser-session exit path.** Disconnect deletes the
+  exact vaulted cookies from real Chromium, destroys that account's encrypted
+  vault envelope, forgets the public connection record, and writes the action —
+  not the secret — to the append-only trace. Browser deletion failure keeps the
+  encrypted vault and green record so the owner can retry instead of seeing a
+  false disconnected state.
+- **S-11.02.01 through S-11.02.04 close the first data-trust chain.** A caller
+  declares the result shape; every fact points to host-owned provenance; observed
+  claims are checked against the cited capture; and a page already captured in
+  the same run is reused without manufacturing a second source or browser read.
 
 ### Gaps still open
 
-- **Frontend tests are not named in most evidence blocks.** The video work has
-  real frontend coverage, but most story evidence commands do not reach it.
 - **S-08.01.05 remains `IN_REVIEW`** until its now-green frontend evidence is
   promoted through that story's own acceptance/evidence update; this increment
   does not silently absorb an unrelated board transition.
@@ -156,17 +155,8 @@ the slice depends on. Change control is about scope, not about bugs.
   shapes cannot enter a provider payload, but the broader adversarial
   no-secret-in-any-prompt suite remains its own story and is not silently
   claimed here.
-
----
-
-## Delivered since the original table was written
-
-| Req | Story | Criteria | Test | Code |
-|---|---|---|---|---|
-| R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
-| R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
-| R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |
-| R-72, R-73, R-74 | S-03.02.04 | 3 | `tests/test_browser_budget.py` | `browser/budget.py`, `browser/identity.py`, `browser/page.py` |
-| R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
-| R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
-| R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
+- **Agent evidence is durable but not yet a cross-run relational query store.**
+  Per-run JSONL/text/screenshot artifacts are deliberately optimized for audit,
+  provenance and resume. Indexing verified findings and evidence metadata into a
+  workspace-scoped relational store should be a separate persistence slice so
+  queryability does not weaken the immutable evidence boundary.

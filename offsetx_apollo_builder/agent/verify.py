@@ -119,15 +119,17 @@ def verify_finding(
 
     ``available_findings`` contains only findings that have already survived
     source binding and verification. A derived finding may therefore depend on
-    them without trusting the model's statement that its inputs were valid.
-    Derived arithmetic/summary semantics are deliberately not guessed here: the
-    result remains labelled ``derived`` and is accepted only when every declared
-    input is already a verified finding.
+    verified observed inputs without trusting the model's statement that its
+    inputs were valid. Derived arithmetic/summary semantics are deliberately not
+    guessed here: the result remains labelled ``derived`` and is accepted only
+    when every declared input is an already verified observed finding.
     """
     if finding.kind == "derived":
         if not finding.inputs or finding.field in finding.inputs:
             return DERIVED_UNVERIFIED
         if any(name not in available_findings for name in finding.inputs):
+            return DERIVED_UNVERIFIED
+        if any(available_findings[name].kind != "observed" for name in finding.inputs):
             return DERIVED_UNVERIFIED
         return SUPPORTED
 

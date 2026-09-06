@@ -16,6 +16,10 @@ replaying it into the context and continuing from the end.
 serving both means the thing you watch and the thing you audit cannot disagree,
 which they always eventually do when they are two systems.
 
+**Provenance.** Every step has a stable id within the run. A returned finding
+may name that id, and off_CRM resolves the URL, capture time and screenshot from
+the trace itself rather than trusting a model to repeat them correctly.
+
 ---
 
 **JSON Lines, not a database table.** A trace is written once and read in order;
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -39,10 +44,19 @@ from typing import Any, Iterator
 #: and the trace is meant to stay readable; the full text lives in the step's
 #: own artefact when it is needed.
 MAX_DETAIL_CHARS = 4_000
+_STEP_ID = re.compile(r"^step-[0-9]{6}$")
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _id_for(index: int) -> str:
+    return f"step-{index:06d}"
+
+
+class TraceIntegrityError(ValueError):
+    """The on-disk trace cannot be addressed safely by stable step id."""
 
 
 @dataclass
@@ -54,6 +68,8 @@ class Step:
     url: str = ""
     ok: bool = True
     took_ms: int = 0
+    #: Stable within one run. Assigned by :meth:`Trace.append` when omitted.
+    step_id: str = ""
     #: Set for a model call, so a run's cost is the sum of its trace.
     provider_id: str = ""
     model_id: str = ""
@@ -68,6 +84,8 @@ class Step:
 
     def to_dict(self) -> dict[str, Any]:
         item = {"at": self.at, "kind": self.kind, "ok": self.ok}
+        if self.step_id:
+            item["step_id"] = self.step_id
         for key, value in (
             ("detail", self.detail[:MAX_DETAIL_CHARS]), ("url", self.url),
             ("provider_id", self.provider_id), ("model_id", self.model_id),
@@ -113,6 +131,7 @@ class Trace:
             pass
         trace = cls(run_id=identifier, directory=directory)
         trace.steps = list(trace.read())
+        trace._assert_unique_ids()
         return trace
 
     @property
@@ -121,8 +140,16 @@ class Trace:
 
     def append(self, step: Step, *, screenshot: bytes = b"") -> Step:
         """Record one step. The only way anything enters a trace."""
+        index = len(self.steps)
+        if not step.step_id:
+            step.step_id = _id_for(index)
+        elif not _STEP_ID.fullmatch(step.step_id):
+            raise TraceIntegrityError(f"Invalid trace step id {step.step_id!r}.")
+        if any(existing.step_id == step.step_id for existing in self.steps):
+            raise TraceIntegrityError(f"Duplicate trace step id {step.step_id!r}.")
+
         if screenshot:
-            name = f"{len(self.steps):04d}.png"
+            name = f"{index:04d}.png"
             shot = self.directory / name
             shot.write_bytes(screenshot)
             try:
@@ -139,10 +166,15 @@ class Trace:
         return step
 
     def read(self) -> Iterator[Step]:
-        """Replay the trace from disk. What resuming is built on."""
+        """Replay the trace from disk. What resuming is built on.
+
+        Old traces predate stable ids. Their immutable line number is used as
+        the id, so reopening the same legacy trace synthesises the same ids every
+        time without rewriting history.
+        """
         if not self.path.exists():
             return
-        for line in self.path.read_text(encoding="utf-8").splitlines():
+        for index, line in enumerate(self.path.read_text(encoding="utf-8").splitlines()):
             if not line.strip():
                 continue
             try:
@@ -152,12 +184,16 @@ class Trace:
                 # it is still good, and stopping here is better than refusing
                 # to read a trace because its final byte is missing.
                 break
+            step_id = str(raw.get("step_id") or _id_for(index))
+            if not _STEP_ID.fullmatch(step_id):
+                raise TraceIntegrityError(f"Invalid trace step id {step_id!r} at line {index + 1}.")
             yield Step(
                 kind=str(raw.get("kind") or ""),
                 detail=str(raw.get("detail") or ""),
                 url=str(raw.get("url") or ""),
                 ok=bool(raw.get("ok", True)),
                 took_ms=int(raw.get("took_ms") or 0),
+                step_id=step_id,
                 provider_id=str(raw.get("provider_id") or ""),
                 model_id=str(raw.get("model_id") or ""),
                 tokens_in=int(raw.get("tokens_in") or 0),
@@ -166,6 +202,21 @@ class Trace:
                 screenshot=str(raw.get("screenshot") or ""),
                 at=str(raw.get("at") or ""),
             )
+
+    def resolve(self, step_id: str) -> Step | None:
+        """Return the exact step named by provenance, never a fuzzy match."""
+        target = str(step_id or "").strip()
+        if not _STEP_ID.fullmatch(target):
+            return None
+        for step in self.steps:
+            if step.step_id == target:
+                return step
+        return None
+
+    def _assert_unique_ids(self) -> None:
+        ids = [step.step_id for step in self.steps]
+        if len(ids) != len(set(ids)):
+            raise TraceIntegrityError("Trace contains duplicate step ids.")
 
     def summary(self) -> dict[str, Any]:
         """What this run cost and how far it got."""
@@ -189,7 +240,9 @@ class Trace:
         lines = []
         for index, step in enumerate(self.steps[:limit]):
             mark = " " if step.ok else "!"
-            lines.append(f"{mark}{index:3d}  {step.kind:<12} {step.detail}".rstrip())
+            lines.append(
+                f"{mark}{index:3d}  {step.step_id:<11} {step.kind:<12} {step.detail}".rstrip()
+            )
         if len(self.steps) > limit:
             lines.append(f"… {len(self.steps) - limit} more steps")
         return "\n".join(lines)

@@ -1,15 +1,9 @@
 """Caller-owned result schemas and source-bound findings for browser runs.
 
-S-11.02.01 made the caller own the output fields. S-11.02.02 makes every value
+S-11.02.01 made the caller own the output fields. S-11.02.02 made every value
 that survives that schema point back to evidence captured by off_CRM itself.
-The model may name a trace step and quote text; it may not invent the URL,
-timestamp or screenshot metadata. Those are resolved from the append-only trace
-in deterministic code.
-
-Claim verification is intentionally still separate. S-11.02.03 will check that
-an observed value is actually present in the captured text. This module only
-answers the prior question: *where did the model say this came from, and does
-that source really exist in this run?*
+S-11.02.03 adds the next fail-closed boundary: a source-bound candidate is still
+not a returned fact until deterministic verification accepts it.
 """
 
 from __future__ import annotations
@@ -23,9 +17,25 @@ MAX_SCHEMA_FIELDS = 64
 MAX_FIELD_NAME_CHARS = 100
 MAX_FIELD_VALUE_CHARS = 20_000
 MAX_QUOTE_CHARS = 4_000
+MAX_DERIVED_INPUTS = 64
 _FIELD_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
-_FINDING_KEYS = frozenset({"value", "source_step_id", "quote", "kind", "confidence"})
+_FINDING_KEYS = frozenset(
+    {"value", "source_step_id", "quote", "kind", "confidence", "inputs"}
+)
 _FINDING_KINDS = frozenset({"observed", "derived"})
+
+VERIFY_SUPPORTED = "supported"
+VERIFY_UNSUPPORTED = "unsupported"
+VERIFY_TRUNCATED = "truncated"
+VERIFY_DERIVED_UNVERIFIED = "derived_unverified"
+_VERIFY_STATES = frozenset(
+    {
+        VERIFY_SUPPORTED,
+        VERIFY_UNSUPPORTED,
+        VERIFY_TRUNCATED,
+        VERIFY_DERIVED_UNVERIFIED,
+    }
+)
 
 
 class ResultSchemaError(ValueError):
@@ -54,22 +64,31 @@ class Provenance:
 
 @dataclass(frozen=True, slots=True)
 class Finding:
-    """One schema field whose value is bound to resolvable evidence."""
+    """One schema field whose value is bound to resolvable evidence.
+
+    ``inputs`` names already-verified fields used by a derived finding.  A
+    derived value is never allowed to cite an opaque calculation or an unsourced
+    intermediate value.
+    """
 
     field: str
     value: str
     source: Provenance
     kind: str = "observed"
     confidence: float = 0.0
+    inputs: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        item: dict[str, Any] = {
             "field": self.field,
             "value": self.value,
             "kind": self.kind,
             "source": self.source.to_dict(),
             "confidence": self.confidence,
         }
+        if self.inputs:
+            item["inputs"] = list(self.inputs)
+        return item
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,13 +108,16 @@ class RecordValidation:
 
 @dataclass(frozen=True, slots=True)
 class SourcedRecordValidation:
-    """A schema-checked record after every surviving field has a real source."""
+    """A schema-checked record after source binding and claim verification."""
 
     record: dict[str, str]
     findings: dict[str, Finding]
     unfilled_fields: tuple[str, ...] = ()
     invalid_fields: tuple[str, ...] = ()
     unsourced_fields: tuple[str, ...] = ()
+    unsupported_fields: tuple[str, ...] = ()
+    truncated_fields: tuple[str, ...] = ()
+    derived_unverified_fields: tuple[str, ...] = ()
     dropped_fields: tuple[str, ...] = ()
     malformed: bool = False
 
@@ -105,6 +127,7 @@ class SourcedRecordValidation:
 
 
 SourceResolver = Callable[[str, str], Provenance | None]
+FindingVerifier = Callable[[Finding, Mapping[str, Finding]], str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,9 +135,8 @@ class ResultSchema:
     """A closed, ordered set of required string fields.
 
     ``RunOutcome.record`` remains a simple ``field -> value`` mapping for CRM
-    callers, but schema runs now build that mapping only from source-bound
-    :class:`Finding` objects. The compatibility view is therefore convenient,
-    not a second unsourced truth store.
+    callers, but schema runs build that mapping only from findings that survive
+    source binding and, when supplied, deterministic claim verification.
     """
 
     fields: tuple[str, ...]
@@ -167,17 +189,16 @@ class ResultSchema:
             "Each field value must be an object with value, source_step_id, quote, kind and "
             "confidence. source_step_id must be one of the SOURCE EVIDENCE step ids off_CRM "
             "showed you after a read. kind is observed or derived. confidence is 0 to 1 and is "
-            "recorded only; it never makes an unsourced field valid. If a field was not found, "
-            "omit it rather than guessing or inventing a value. You may attach record fields to "
-            "an act decision to save sourced facts before navigating away."
+            "recorded only; it never makes an unsourced or unsupported field valid. "
+            "For kind=derived, include inputs as a non-empty list of declared field names that "
+            "were individually observed and sourced first. For kind=observed, omit inputs. "
+            "If a field was not found, omit it rather than guessing or inventing a value. "
+            "You may attach record fields to an act decision to save verified facts before "
+            "navigating away."
         )
 
     def validate(self, raw: object) -> RecordValidation:
-        """Legacy flat-record validator retained for compatibility tests/tools.
-
-        Production schema runs use :meth:`validate_sourced`. Keeping this method
-        avoids turning a source-binding story into an unrelated API removal.
-        """
+        """Legacy flat-record validator retained for compatibility tests/tools."""
         if not isinstance(raw, Mapping):
             return RecordValidation(
                 record={},
@@ -214,12 +235,15 @@ class ResultSchema:
         raw: object,
         *,
         resolve_source: SourceResolver,
+        verify_finding: FindingVerifier | None = None,
+        available_findings: Mapping[str, Finding] | None = None,
     ) -> SourcedRecordValidation:
-        """Allow only declared fields whose source resolves inside this run.
+        """Allow only declared fields whose source resolves and whose claim verifies.
 
         The model supplies only a trace step id and a quote. URL, timestamp and
-        screenshot are resolved by ``resolve_source`` from off_CRM's append-only
-        trace. A missing, malformed or unresolvable source never becomes a fact.
+        screenshot are resolved from off_CRM's append-only trace. Verification,
+        when supplied, is deterministic host code. A missing, malformed,
+        unresolvable or unsupported source never becomes a returned fact.
         """
         if raw is None:
             return SourcedRecordValidation(record={}, findings={})
@@ -233,8 +257,7 @@ class ResultSchema:
 
         allowed = set(self.fields)
         dropped = tuple(sorted(str(key) for key in raw if key not in allowed))
-        record: dict[str, str] = {}
-        findings: dict[str, Finding] = {}
+        candidates: dict[str, Finding] = {}
         invalid: list[str] = []
         unsourced: list[str] = []
 
@@ -268,20 +291,57 @@ class ResultSchema:
                 invalid.append(field)
                 continue
 
+            inputs = _inputs(item.get("inputs"), kind=kind)
+            if inputs is None:
+                invalid.append(field)
+                continue
+
             source = resolve_source(step_id.strip(), quote)
             if source is None:
                 unsourced.append(field)
                 continue
 
-            finding = Finding(
+            candidates[field] = Finding(
                 field=field,
                 value=value,
                 kind=kind,
                 source=source,
                 confidence=confidence,
+                inputs=inputs,
             )
-            findings[field] = finding
-            record[field] = value
+
+        record: dict[str, str] = {}
+        findings: dict[str, Finding] = {}
+        unsupported: list[str] = []
+        truncated: list[str] = []
+        derived_unverified: list[str] = []
+        verified_context: dict[str, Finding] = dict(available_findings or {})
+
+        # Observed candidates are checked first so a derived field in the same
+        # model decision can depend on them without trusting output order.
+        ordered = [
+            *(field for field in self.fields if candidates.get(field) and candidates[field].kind == "observed"),
+            *(field for field in self.fields if candidates.get(field) and candidates[field].kind == "derived"),
+        ]
+        for field in ordered:
+            finding = candidates[field]
+            state = (
+                verify_finding(finding, verified_context)
+                if verify_finding is not None
+                else VERIFY_SUPPORTED
+            )
+            if state not in _VERIFY_STATES:
+                state = VERIFY_UNSUPPORTED
+            if state == VERIFY_SUPPORTED:
+                findings[field] = finding
+                record[field] = finding.value
+                verified_context[field] = finding
+            elif state == VERIFY_TRUNCATED:
+                truncated.append(field)
+            elif state == VERIFY_DERIVED_UNVERIFIED:
+                derived_unverified.append(field)
+            else:
+                unsupported.append(field)
 
         unfilled = tuple(field for field in self.fields if field not in findings)
         return SourcedRecordValidation(
@@ -290,6 +350,11 @@ class ResultSchema:
             unfilled_fields=unfilled,
             invalid_fields=tuple(field for field in self.fields if field in invalid),
             unsourced_fields=tuple(field for field in self.fields if field in unsourced),
+            unsupported_fields=tuple(field for field in self.fields if field in unsupported),
+            truncated_fields=tuple(field for field in self.fields if field in truncated),
+            derived_unverified_fields=tuple(
+                field for field in self.fields if field in derived_unverified
+            ),
             dropped_fields=dropped,
         )
 
@@ -308,6 +373,28 @@ def _confidence(value: object) -> float | None:
     if number < 0 or number > 1:
         return None
     return number
+
+
+def _inputs(value: object, *, kind: str) -> tuple[str, ...] | None:
+    if kind == "observed":
+        if value in (None, (), []):
+            return ()
+        return None
+    if not isinstance(value, (list, tuple)) or isinstance(value, (str, bytes)):
+        return None
+    if not value or len(value) > MAX_DERIVED_INPUTS:
+        return None
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            return None
+        name = item.strip()
+        if not name or not _FIELD_NAME.fullmatch(name) or name in seen:
+            return None
+        seen.add(name)
+        cleaned.append(name)
+    return tuple(cleaned)
 
 
 def coerce_result_schema(value: ResultSchema | Iterable[str] | None) -> ResultSchema | None:

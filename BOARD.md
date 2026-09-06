@@ -64,10 +64,9 @@ reasoning survives the unblocking.)*
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
-is an item that gets built twice. S-11.02.01 and S-11.02.02 are DONE, so claim
-verification can now build on structured, source-bound findings.)*
+is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
+remaining independent stories below stay READY.)*
 
-- S-11.02.03 · A claim the page does not support is refused
 - S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
@@ -97,6 +96,13 @@ verification can now build on structured, source-bound findings.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.02.03 · A claim the page does not support is refused
+  tests: tests/test_agent_claim_verification.py::test_number_inside_a_larger_number_is_refused_even_at_high_confidence, tests/test_agent_claim_verification.py::test_derived_finding_is_allowed_only_from_individually_verified_inputs, tests/test_agent_claim_verification.py::test_missing_support_in_a_truncated_capture_is_reported_as_inconclusive, tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number
+  command: uv run pytest tests/test_agent_claim_verification.py -q
+  result: 8 passed (2026-09-06)
+  code: offsetx_apollo_builder/agent/verify.py, offsetx_apollo_builder/agent/result.py, offsetx_apollo_builder/agent/run.py
+  commit: ebd2556add2251e6663e24f6b7f66f0aa1b017f2
 
 - S-11.02.02 · Every fact carries where it came from
   tests: tests/test_agent_provenance.py::test_returned_finding_resolves_url_time_step_and_screenshot_from_trace, tests/test_agent_provenance.py::test_an_unresolvable_source_is_refused_instead_of_returned, tests/test_agent_provenance.py::test_a_sourced_fact_survives_navigation_without_relying_on_model_memory, tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence

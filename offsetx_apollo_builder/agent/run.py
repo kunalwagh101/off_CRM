@@ -12,7 +12,9 @@ The important work is in the boundaries around that loop:
 * when the caller declares a result schema, plain code — not the model — decides
   which returned fields survive;
 * a structured field survives only when its source resolves to a page read that
-  off_CRM captured with text, UTC time, URL and screenshot.
+  off_CRM captured with text, UTC time, URL and screenshot;
+* an observed claim then survives only when deterministic host code finds its
+  value and supporting quote in that captured text.
 
 PLAN.md, steering/resume and countdown continuation are separate backlog stories.
 They are intentionally not smuggled into this slice.
@@ -32,6 +34,13 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.page import ACTIONS, ActionResult, Page
 from ..browser.trace import Step, Trace
 from .result import Finding, Provenance, ResultSchema, SourcedRecordValidation, coerce_result_schema
+from .verify import (
+    DERIVED_UNVERIFIED,
+    SUPPORTED,
+    TRUNCATED,
+    UNSUPPORTED,
+    verify_finding,
+)
 
 MAX_RUN_STEPS = 50
 MAX_GOAL_CHARS = 4_000
@@ -64,6 +73,12 @@ Rules:
   not add fields. Omit a required field you could not find rather than guessing.
 - A structured field MUST cite a SOURCE EVIDENCE step id that off_CRM supplied
   after a successful read. Never invent a step id, URL, timestamp or screenshot.
+- For an observed field, transcribe a value and quote that actually appear on the
+  cited page. off_CRM checks both against its own capture; confidence cannot
+  override a failed check.
+- For a derived field, include inputs naming declared fields that were already
+  individually observed, sourced and verified. Never hide an unsourced input in
+  a derived result.
 - Read a page before returning facts from it. off_CRM records the read and gives
   the next decision its source step id. A sourced record may be attached to an
   act decision so a fact is saved before navigating away.
@@ -146,6 +161,9 @@ class RunOutcome:
     unfilled_fields: tuple[str, ...] = ()
     invalid_fields: tuple[str, ...] = ()
     unsourced_fields: tuple[str, ...] = ()
+    unsupported_fields: tuple[str, ...] = ()
+    truncated_fields: tuple[str, ...] = ()
+    derived_unverified_fields: tuple[str, ...] = ()
     dropped_fields: tuple[str, ...] = ()
     trace_summary: dict[str, Any] = field(default_factory=dict)
 
@@ -165,6 +183,9 @@ class RunOutcome:
             "unfilled_fields": list(self.unfilled_fields),
             "invalid_fields": list(self.invalid_fields),
             "unsourced_fields": list(self.unsourced_fields),
+            "unsupported_fields": list(self.unsupported_fields),
+            "truncated_fields": list(self.truncated_fields),
+            "derived_unverified_fields": list(self.derived_unverified_fields),
             "dropped_fields": list(self.dropped_fields),
             "trace_summary": self.trace_summary,
         }
@@ -218,6 +239,7 @@ class AgentRun:
         actions = 0
         observation = ""
         collected: dict[str, Finding] = {}
+        verification_failures: dict[str, str] = {}
 
         for index in range(budget):
             snapshot = await self.page.snapshot()
@@ -287,7 +309,9 @@ class AgentRun:
                     schema=schema,
                     raw=decision.record,
                     snapshot_url=snapshot.url,
+                    collected=collected,
                 )
+                _remember_verification_failures(verification_failures, validation)
                 self._merge_findings(collected, validation.findings, snapshot.url)
 
             if decision.state == "done":
@@ -313,6 +337,7 @@ class AgentRun:
                     decision=decision,
                     final_validation=validation,
                     collected=collected,
+                    verification_failures=verification_failures,
                     snapshot_url=snapshot.url,
                     goal=cleaned_goal,
                     budget=budget,
@@ -435,8 +460,14 @@ class AgentRun:
         schema: ResultSchema,
         raw: object,
         snapshot_url: str,
+        collected: Mapping[str, Finding],
     ) -> SourcedRecordValidation:
-        validation = schema.validate_sourced(raw, resolve_source=self._resolve_source)
+        validation = schema.validate_sourced(
+            raw,
+            resolve_source=self._resolve_source,
+            verify_finding=self._verify_finding,
+            available_findings=collected,
+        )
 
         for field_name in validation.dropped_fields:
             self.trace.append(
@@ -461,6 +492,42 @@ class AgentRun:
                 Step(
                     kind="result_field_unsourced",
                     detail=f"field={field_name!r}; source did not resolve to captured read evidence",
+                    url=snapshot_url,
+                    ok=False,
+                )
+            )
+        for field_name in validation.unsupported_fields:
+            self.trace.append(
+                Step(
+                    kind="result_field_unsupported",
+                    detail=(
+                        f"field={field_name!r}; value or supporting quote was not present "
+                        "in the cited captured page text"
+                    ),
+                    url=snapshot_url,
+                    ok=False,
+                )
+            )
+        for field_name in validation.truncated_fields:
+            self.trace.append(
+                Step(
+                    kind="result_field_unverified_truncated",
+                    detail=(
+                        f"field={field_name!r}; support was not found and the cited page "
+                        "capture was truncated"
+                    ),
+                    url=snapshot_url,
+                    ok=False,
+                )
+            )
+        for field_name in validation.derived_unverified_fields:
+            self.trace.append(
+                Step(
+                    kind="result_field_derived_unverified",
+                    detail=(
+                        f"field={field_name!r}; derived inputs were not all previously "
+                        "verified source-bound findings"
+                    ),
                     url=snapshot_url,
                     ok=False,
                 )
@@ -498,6 +565,32 @@ class AgentRun:
             quote=quote,
         )
 
+    def _verify_finding(
+        self,
+        finding: Finding,
+        available_findings: Mapping[str, Finding],
+    ) -> str:
+        """Verify one candidate against host-owned evidence, never model confidence."""
+        step = self.trace.resolve(finding.source.step_id)
+        if step is None:
+            return UNSUPPORTED
+        try:
+            captured = self.trace.captured_text(step)
+        except (OSError, UnicodeError, ValueError):
+            return UNSUPPORTED
+        if not captured:
+            return UNSUPPORTED
+        truncated = step.detail.rstrip().endswith("(cut)") or captured.rstrip().endswith("… (cut)")
+        state = verify_finding(
+            finding,
+            captured_text=captured,
+            capture_truncated=truncated,
+            available_findings=available_findings,
+        )
+        if state in {SUPPORTED, UNSUPPORTED, TRUNCATED, DERIVED_UNVERIFIED}:
+            return state
+        return UNSUPPORTED
+
     def _merge_findings(
         self,
         collected: dict[str, Finding],
@@ -526,13 +619,14 @@ class AgentRun:
         decision: Decision,
         final_validation: SourcedRecordValidation | None,
         collected: Mapping[str, Finding],
+        verification_failures: Mapping[str, str],
         snapshot_url: str,
         goal: str,
         budget: int,
         decisions: int,
         actions: int,
     ) -> RunOutcome:
-        """Return only source-bound fields, preserving ``record`` as a projection."""
+        """Return only verified source-bound fields, preserving ``record`` as a projection."""
         ordered_findings = {
             field: collected[field] for field in schema.fields if field in collected
         }
@@ -543,12 +637,21 @@ class AgentRun:
         final_unsourced = final_validation.unsourced_fields if final_validation else ()
         final_dropped = final_validation.dropped_fields if final_validation else ()
         malformed = bool(final_validation and final_validation.malformed)
+        unsupported = tuple(
+            field for field in missing if verification_failures.get(field) == UNSUPPORTED
+        )
+        truncated = tuple(
+            field for field in missing if verification_failures.get(field) == TRUNCATED
+        )
+        derived_unverified = tuple(
+            field for field in missing if verification_failures.get(field) == DERIVED_UNVERIFIED
+        )
 
         if not missing:
             self.trace.append(
                 Step(
                     kind="completed",
-                    detail=decision.reason or "goal completed with source-bound findings",
+                    detail=decision.reason or "goal completed with verified source-bound findings",
                     url=snapshot_url,
                 )
             )
@@ -558,7 +661,7 @@ class AgentRun:
                 budget,
                 decisions,
                 actions,
-                decision.reason or "Goal completed with source-bound findings.",
+                decision.reason or "Goal completed with verified source-bound findings.",
                 decision.result,
                 schema=schema,
                 record=record,
@@ -567,7 +670,21 @@ class AgentRun:
             )
 
         names = ", ".join(missing)
-        message = f"Run could not fill required sourced result field(s): {names}."
+        message = f"Run could not fill required verified result field(s): {names}."
+        if unsupported:
+            message += " Unsupported by the cited captured page: " + ", ".join(unsupported) + "."
+        if truncated:
+            message += (
+                " Captured page text was truncated for: "
+                + ", ".join(truncated)
+                + "; absence in the capture is not treated as invention."
+            )
+        if derived_unverified:
+            message += (
+                " Derived fields lacked individually verified inputs: "
+                + ", ".join(derived_unverified)
+                + "."
+            )
         if malformed:
             message += " The model did not return a record object."
         self.trace.append(
@@ -587,6 +704,9 @@ class AgentRun:
             unfilled_fields=missing,
             invalid_fields=tuple(field for field in final_invalid if field in missing),
             unsourced_fields=tuple(field for field in final_unsourced if field in missing),
+            unsupported_fields=unsupported,
+            truncated_fields=truncated,
+            derived_unverified_fields=derived_unverified,
             dropped_fields=final_dropped,
         )
 
@@ -645,6 +765,9 @@ class AgentRun:
         unfilled_fields: tuple[str, ...] = (),
         invalid_fields: tuple[str, ...] = (),
         unsourced_fields: tuple[str, ...] = (),
+        unsupported_fields: tuple[str, ...] = (),
+        truncated_fields: tuple[str, ...] = (),
+        derived_unverified_fields: tuple[str, ...] = (),
         dropped_fields: tuple[str, ...] = (),
     ) -> RunOutcome:
         return RunOutcome(
@@ -662,9 +785,26 @@ class AgentRun:
             unfilled_fields=unfilled_fields,
             invalid_fields=invalid_fields,
             unsourced_fields=unsourced_fields,
+            unsupported_fields=unsupported_fields,
+            truncated_fields=truncated_fields,
+            derived_unverified_fields=derived_unverified_fields,
             dropped_fields=dropped_fields,
             trace_summary=self.trace.summary(),
         )
+
+
+def _remember_verification_failures(
+    state: dict[str, str],
+    validation: SourcedRecordValidation,
+) -> None:
+    for field_name in validation.unsupported_fields:
+        state[field_name] = UNSUPPORTED
+    for field_name in validation.truncated_fields:
+        state[field_name] = TRUNCATED
+    for field_name in validation.derived_unverified_fields:
+        state[field_name] = DERIVED_UNVERIFIED
+    for field_name in validation.findings:
+        state.pop(field_name, None)
 
 
 def _validate_start(goal: str, step_budget: int) -> tuple[str, int]:

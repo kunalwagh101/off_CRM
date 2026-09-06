@@ -31,6 +31,19 @@
   earlier page survive later navigation through their immutable provenance. The
   public `record` remains a simple field-to-value mapping for CRM consumers;
   mechanical claim verification remains `S-11.02.03`.
+- Delivered `S-11.02.03`, deterministic claim verification for source-bound
+  browser findings. An observed value is returned only when its cited quote is
+  present in off_CRM's host-owned capture and that quote itself supports the
+  value after conservative Unicode, case and whitespace normalisation. Token
+  boundaries and word order stay meaningful, so `42` does not match `420`, and
+  immediate negation is not erased. Model confidence cannot override a failed
+  check. Unsupported fields are dropped and traced; a missing span in a capture
+  marked as cut is reported as inconclusive truncation rather than hallucination.
+  Derived findings remain visibly `derived` and are accepted only when every
+  declared input is already a verified observed finding; this story deliberately
+  does not invent a universal arithmetic or summarisation language. The dedicated
+  acceptance suite includes a real-Chromium page where a plausible confidence-1
+  wrong number is refused.
 - Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
   Shipped stories are **not** edited in place — an evidence block that describes
   something which never happened is worse than no record — so each amendment
@@ -117,7 +130,6 @@
 - Fixed a deadlock in the CDP client: event listeners were awaited by the read
   loop, so a listener that answered an event with a command waited on a reply
   only that loop could deliver. Listeners are scheduled now.
-
 - Added `STATE_OF_THE_PRODUCT.md`, `DEMO.md`, `CONTINUE.md` and `RETRO.md`,
   completing the delivery-process artifact set. `DEMO.md` blocks are runnable
   and were each executed before being written down.

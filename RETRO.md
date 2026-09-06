@@ -199,3 +199,27 @@ smallest host-owned locator. Here that is a stable trace step id. Resolve URL,
 time and screenshot from our own append-only record instead of accepting those
 fields from model output. Also save a sourced fact before navigating away; model
 memory is not a provenance store.
+
+---
+
+## 2026-09-06 — S-11.02.03, deterministic claim verification
+
+**What was cut.** Nothing from the acceptance criteria. One larger idea was
+explicitly not absorbed: a universal arithmetic or summarisation language for
+recomputing every possible derived result. A derived finding stays visibly
+labelled `derived` and may survive only when every declared input is already a
+verified observed finding; the derivation itself is not misrepresented as a
+verbatim page fact.
+
+**What the estimate got wrong.** Provenance closed only half the trust gap. A
+model could cite the correct page and still return the wrong value. The first
+obvious matcher was also unsafe in exactly the way production data fails: a
+substring check accepts `42` inside `420`, and a word-presence check can accept
+`profitable` from `not profitable`. The hard part was defining what
+normalisation is harmless without quietly changing the claim.
+
+**What to change next time.** Adversarial tests for model-produced data should
+use *almost true* values, not only invented sources: adjacent digits, negation,
+unrelated quotes and truncated captures. Confidence is never evidence. Verify
+against host-owned material after generation, fail closed when support is not
+there, and distinguish "not in the bounded capture" from "proved false".

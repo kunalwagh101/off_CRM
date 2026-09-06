@@ -67,7 +67,6 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
@@ -76,7 +75,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.02.04 · The same page is never read twice in one run
 
 ## IN_REVIEW
 

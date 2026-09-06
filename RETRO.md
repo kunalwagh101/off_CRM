@@ -223,3 +223,13 @@ use *almost true* values, not only invented sources: adjacent digits, negation,
 unrelated quotes and truncated captures. Confidence is never evidence. Verify
 against host-owned material after generation, fail closed when support is not
 there, and distinguish "not in the bounded capture" from "proved false".
+
+---
+
+## 2026-09-06 — S-11.02.04, run-scoped page-read cache
+
+**What was cut.** Cross-run relational indexing was deliberately not absorbed into a read-deduplication story. The durable evidence remains the append-only trace and its private text/screenshot sidecars; rebuilding the cache after a process death remains owned by `S-11.01.03`. This slice only guarantees reuse inside one live logical run.
+
+**What the estimate got wrong.** URL canonicalisation was the easy half. On a modern application the same URL can represent new content after a click, scroll, form edit, wait or navigation reload. A naive `url -> text` dictionary would meet the duplicate-read metric while quietly feeding stale evidence back to the model. The production problem was therefore identity *and invalidation*, not only memoisation.
+
+**What to change next time.** Every cache needs an explicit scope, identity rule and invalidation rule before it gets an implementation. Optimisation cannot be allowed to weaken provenance: a hit must point back to the original host-owned evidence, not create a second synthetic source. And if a browser action can plausibly change what the URL represents, correctness wins over cache hit rate.

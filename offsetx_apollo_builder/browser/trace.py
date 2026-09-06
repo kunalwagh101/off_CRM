@@ -18,15 +18,17 @@ which they always eventually do when they are two systems.
 
 **Provenance.** Every step has a stable id within the run. A returned finding
 may name that id, and off_CRM resolves the URL, capture time and screenshot from
-the trace itself rather than trusting a model to repeat them correctly.
+the trace itself rather than trusting a model to repeat them correctly. Page
+text used as evidence is stored beside the log as a private text artefact; it is
+not copied into the JSONL detail field.
 
 ---
 
 **JSON Lines, not a database table.** A trace is written once and read in order;
 that is exactly what a log file is good at, and it means a run's record is a
-file the owner can open, grep, keep or delete without a query. Screenshots go
-beside it as files, referenced by name, because a base64 PNG per step turns a
-readable log into an unreadable one.
+file the owner can open, grep, keep or delete without a query. Screenshots and
+captured page text go beside it as files, referenced by name, because embedding
+them in each JSON line turns a readable log into an unreadable one.
 """
 
 from __future__ import annotations
@@ -78,8 +80,9 @@ class Step:
     #: Estimated because not every provider exposes authoritative usage in the
     #: generation response. Exact provider-ledger reconciliation is S-06.01.03.
     estimated_cost_usd: float = 0.0
-    #: Filename of a screenshot beside the log, when there is one.
+    #: Filenames beside the JSONL. Neither content is embedded in the log.
     screenshot: str = ""
+    capture: str = ""
     at: str = field(default_factory=_now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,7 +92,7 @@ class Step:
         for key, value in (
             ("detail", self.detail[:MAX_DETAIL_CHARS]), ("url", self.url),
             ("provider_id", self.provider_id), ("model_id", self.model_id),
-            ("screenshot", self.screenshot),
+            ("screenshot", self.screenshot), ("capture", self.capture),
         ):
             if value:
                 item[key] = value
@@ -138,7 +141,13 @@ class Trace:
     def path(self) -> Path:
         return self.directory / "trace.jsonl"
 
-    def append(self, step: Step, *, screenshot: bytes = b"") -> Step:
+    def append(
+        self,
+        step: Step,
+        *,
+        screenshot: bytes = b"",
+        captured_text: str = "",
+    ) -> Step:
         """Record one step. The only way anything enters a trace."""
         index = len(self.steps)
         if not step.step_id:
@@ -152,11 +161,15 @@ class Trace:
             name = f"{index:04d}.png"
             shot = self.directory / name
             shot.write_bytes(screenshot)
-            try:
-                os.chmod(shot, 0o600)
-            except OSError:
-                pass
+            _private(shot)
             step.screenshot = name
+        if captured_text:
+            name = f"{index:04d}.txt"
+            capture = self.directory / name
+            capture.write_text(str(captured_text), encoding="utf-8")
+            _private(capture)
+            step.capture = name
+
         # Append mode, opened per write. Slower than holding a handle, and it
         # means a crashed process leaves a complete trace up to the last step
         # rather than a buffer nobody flushed.
@@ -200,6 +213,7 @@ class Trace:
                 tokens_out=int(raw.get("tokens_out") or 0),
                 estimated_cost_usd=float(raw.get("estimated_cost_usd") or 0.0),
                 screenshot=str(raw.get("screenshot") or ""),
+                capture=str(raw.get("capture") or ""),
                 at=str(raw.get("at") or ""),
             )
 
@@ -212,6 +226,19 @@ class Trace:
             if step.step_id == target:
                 return step
         return None
+
+    def captured_text(self, step: Step) -> str:
+        """Read the private page-text artefact attached to one evidence step."""
+        if not step.capture:
+            return ""
+        path = self.directory / step.capture
+        try:
+            path.relative_to(self.directory)
+        except ValueError as exc:
+            raise TraceIntegrityError("Trace capture escaped the run directory.") from exc
+        if not path.is_file():
+            return ""
+        return path.read_text(encoding="utf-8")
 
     def _assert_unique_ids(self) -> None:
         ids = [step.step_id for step in self.steps]
@@ -246,3 +273,10 @@ class Trace:
         if len(self.steps) > limit:
             lines.append(f"… {len(self.steps) - limit} more steps")
         return "\n".join(lines)
+
+
+def _private(path: Path) -> None:
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass

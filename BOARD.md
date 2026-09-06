@@ -50,11 +50,11 @@ indented `blocked: <Q-nn or a named external dependency>`.
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-*(Empty.)*
+- S-03.02.05 · A platform is a row, not a code change
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-03.02.04 · Several accounts per platform, each with its own budget
 
 ## IN_REVIEW
 

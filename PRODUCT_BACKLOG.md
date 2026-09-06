@@ -338,6 +338,33 @@ unreachable from any prompt, **so that** one compromise is not all of them.
   from a passphrase or OS keychain and is not a file beside the data.
 - **Dependencies:** S-03.02.01. **Size:** L. **Indicator:** secrets in prompts (target: zero).
 
+#### S-03.02.04 — Several accounts per platform, each with its own budget
+**As an** owner, **I want** to connect more than one account on a platform and
+have off_CRM know each one's limits, **so that** running ten accounts does not
+get ten accounts banned.
+- **Given** two accounts on one platform, **when** both are connected, **then**
+  each has its own record and its own action budget, and spending one does not
+  spend the other.
+- **Given** an account that has reached its daily budget, **when** the agent
+  attempts an action that touches the platform, **then** the action is refused
+  and the refusal says when the budget resets.
+- **Given** an action that only observes (`read`, `screenshot`, `wait_for`),
+  **when** it runs, **then** it costs no budget — looking is not acting.
+- **Dependencies:** S-03.02.01. **Size:** M. **Indicator:** accounts connected
+  per workspace without a suspension.
+
+#### S-03.02.05 — A platform is a row, not a code change
+**As an** owner, **I want** to add Reddit, or any of a hundred other sites, by
+declaring it, **so that** coverage is not limited to the six platforms somebody
+hardcoded.
+- **Given** a declared platform with its sign-in signals and pace, **when** it is
+  added to the registry, **then** sign-in, connection state and budget all work
+  with no code change.
+- **Given** a declared platform missing a required field, **when** it is loaded,
+  **then** it is refused by name at load time rather than failing mid-run.
+- **Dependencies:** S-03.02.04. **Size:** M. **Indicator:** platforms in use
+  beyond the built-in six.
+
 #### S-03.02.03 — Revoke and forget
 **As an** owner, **I want** to disconnect a platform and have its material
 destroyed, **so that** leaving is as easy as joining.
@@ -540,6 +567,10 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-28 | The master key derives from a passphrase or keychain | S-03.02.02 |
 | R-29 | No model ever sees a credential | S-03.02.02, S-06.02.01 |
 | R-30 | Disconnecting a platform destroys its session | S-03.02.03 |
+| R-72 | Several accounts on one platform, each independently recorded | S-03.02.04 |
+| R-73 | Each account has its own action budget, enforced before the action | S-03.02.04 |
+| R-74 | Observing costs no budget; only touching the platform does | S-03.02.04 |
+| R-75 | A new platform is a declared row, not a code change | S-03.02.05 |
 | R-31 | Companions: persisted agent profiles | S-04.01.01 |
 | R-32 | Skills: procedures separate from memory facts | S-04.01.02 |
 | R-33 | Sub-agents for context isolation | S-04.01.03 |

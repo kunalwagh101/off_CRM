@@ -2,10 +2,10 @@
 
 S-11.02.01 changes one boundary and deliberately stops there: the owner names
 which fields a run must return, the model fills those fields, and off_CRM
-validates the result in plain code.  The model never gets to widen its own
-output contract.
+validates the result in plain code. The model never gets to widen its own output
+contract.
 
-This module does *not* attach provenance yet.  S-11.02.02 owns that next step.
+This module does *not* attach provenance yet. S-11.02.02 owns that next step.
 Keeping schema validation independent means provenance can wrap a validated
 field without re-opening which field names are allowed.
 """
@@ -32,34 +32,14 @@ class RecordValidation:
     """The deterministic result of applying one schema to a model record."""
 
     record: dict[str, str]
-    missing_fields: tuple[str, ...] = ()
+    unfilled_fields: tuple[str, ...] = ()
     invalid_fields: tuple[str, ...] = ()
     dropped_fields: tuple[str, ...] = ()
     malformed: bool = False
 
     @property
-    def unfilled_fields(self) -> tuple[str, ...]:
-        """Required fields the run did not produce as usable string values."""
-        unfilled = set(self.missing_fields) | set(self.invalid_fields)
-        return tuple(field for field in self.record_schema_order if field in unfilled)
-
-    @property
-    def record_schema_order(self) -> tuple[str, ...]:
-        """Stable order for diagnostics without storing a second schema object.
-
-        Valid fields keep insertion order, and missing/invalid tuples were built
-        in schema order.  Joining them this way is deterministic for logs and
-        API responses.
-        """
-        ordered: list[str] = list(self.record)
-        for field in (*self.missing_fields, *self.invalid_fields):
-            if field not in ordered:
-                ordered.append(field)
-        return tuple(ordered)
-
-    @property
     def complete(self) -> bool:
-        return not self.malformed and not self.missing_fields and not self.invalid_fields
+        return not self.malformed and not self.unfilled_fields
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +47,7 @@ class ResultSchema:
     """A closed, ordered set of required string fields.
 
     The final E-11 ``Finding.value`` contract is a string, so this first story
-    does not invent a second type system.  A field the model cannot fill is
+    does not invent a second type system. A field the model cannot fill is
     omitted and makes the run incomplete; a non-string value is not silently
     coerced because coercion can change the fact being recorded.
     """
@@ -127,31 +107,33 @@ class ResultSchema:
         """Apply the caller's allowlist and report every mismatch.
 
         Extra fields are dropped. Missing, empty, over-sized or non-string
-        values never become facts.  No model call is involved in this decision.
+        values never become facts. No model call is involved in this decision.
         """
         if not isinstance(raw, Mapping):
             return RecordValidation(
                 record={},
-                missing_fields=self.fields,
+                unfilled_fields=self.fields,
                 malformed=raw is not None,
             )
 
         allowed = set(self.fields)
         dropped = tuple(sorted(str(key) for key in raw if key not in allowed))
         record: dict[str, str] = {}
-        missing: list[str] = []
+        unfilled: list[str] = []
         invalid: list[str] = []
 
         for field in self.fields:
             if field not in raw:
-                missing.append(field)
+                unfilled.append(field)
                 continue
             value: Any = raw[field]
             if not isinstance(value, str) or not value.strip():
                 invalid.append(field)
+                unfilled.append(field)
                 continue
             if len(value) > MAX_FIELD_VALUE_CHARS:
                 invalid.append(field)
+                unfilled.append(field)
                 continue
             # Preserve the value byte-for-byte. S-11.02.03 will normalise only
             # for comparison; the returned value itself remains what the model
@@ -160,7 +142,7 @@ class ResultSchema:
 
         return RecordValidation(
             record=record,
-            missing_fields=tuple(missing),
+            unfilled_fields=tuple(unfilled),
             invalid_fields=tuple(invalid),
             dropped_fields=dropped,
         )

@@ -13,6 +13,15 @@
   (`S-11.02.01`), provenance bound to every fact (`S-11.02.02`), and a claim the
   cited page does not support being dropped rather than returned
   (`S-11.02.03`).
+- Delivered `S-11.02.01`, the structured-result spine for autonomous browsing.
+  A run may now declare a closed list of required fields; off_CRM validates the
+  model's `record` in deterministic code, drops and audits undeclared fields,
+  reports `status=incomplete` with unfilled fields instead of guessing, and
+  preserves the original free-text result when no schema is supplied. The
+  acceptance suite includes a real-Chromium run that reads a local page through
+  the production loop. Returned values are not copied into the decision trace
+  before provenance exists; provenance remains `S-11.02.02` and claim
+  verification remains `S-11.02.03`.
 - Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
   Shipped stories are **not** edited in place — an evidence block that describes
   something which never happened is worse than no record — so each amendment

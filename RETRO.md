@@ -159,3 +159,23 @@ set is complete, not that the rule works.** `test_every_costed_action_is_a_real_
 and the assertion that every acting verb is charged are worth more than any
 individual budget test, because the failure mode here was never a wrong rule —
 it was a correct rule applied to nine of ten things.
+
+---
+
+## 2026-09-06 — S-11.02.01, structured autonomous run results
+
+**What was cut.** Provenance and claim verification stayed in `S-11.02.02` and
+`S-11.02.03`. This story defines only which fields are allowed to exist and
+whether the run filled them; it does not pretend a schema makes a fact true.
+
+**What the estimate got wrong.** The return-type change did not need a general
+JSON-Schema engine. The E-11 contract eventually stores `Finding.value` as a
+string, so a closed ordered set of required string fields was enough. A broader
+type system here would have created an abstraction the next provenance story
+would immediately have to work around.
+
+**What to change next time.** For model-produced data that will enter the CRM,
+make the caller own the output shape and validate after generation in plain code.
+Also prove the live path: the real-Chromium test checks the correct boundary —
+browser observation → model decision → deterministic record — rather than only
+a validator in isolation.

@@ -21,7 +21,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-11.02.02 · Every fact carries where it came from
 - S-11.02.03 · A claim the page does not support is refused
 - S-11.01.02 · A run that stops making progress is stopped
 - S-11.01.04 · A run has a money ceiling, not only a step ceiling
@@ -66,8 +65,10 @@ reasoning survives the unblocking.)*
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
-is an item that gets built twice. S-11.02.01 is the spine.)*
+is an item that gets built twice. S-11.02.01 is DONE, so provenance is now
+ready to build on its structured result shape.)*
 
+- S-11.02.02 · Every fact carries where it came from
 - S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
@@ -77,7 +78,7 @@ is an item that gets built twice. S-11.02.01 is the spine.)*
 
 ## IN_PROGRESS
 
-- S-11.02.01 · A run declares the shape of its answer and is held to it
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -97,6 +98,13 @@ is an item that gets built twice. S-11.02.01 is the spine.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.02.01 · A run declares the shape of its answer and is held to it
+  tests: tests/test_agent_structured_result.py::test_declared_schema_returns_a_valid_record_not_prose, tests/test_agent_structured_result.py::test_missing_required_field_makes_the_run_incomplete_and_names_it, tests/test_agent_structured_result.py::test_model_field_outside_schema_is_dropped_and_the_drop_is_recorded, tests/test_agent_structured_result.py::test_no_schema_keeps_the_existing_free_text_result_contract, tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+  command: uv run pytest tests/test_agent_structured_result.py -q
+  result: 7 passed (2026-09-06)
+  code: offsetx_apollo_builder/agent/result.py, offsetx_apollo_builder/agent/run.py
+  commit: 4ffef3de8cd2f5e681e4d49d39cb6ae154e02dc0
 
 - S-02.02.01 · A goal becomes a bounded sequence of actions
   tests: tests/test_agent_run.py::test_goal_stops_at_step_budget_and_reports_progress, tests/test_agent_run.py::test_every_decision_uses_broker_and_trace_records_provider_model_and_cost

@@ -7,7 +7,10 @@ Application defects should fail the checks and be recorded, not worked around.
 The workflow provisions a disposable PostgreSQL 16 service, requires an actual
 Docker daemon and installed Chrome, and runs all existing tests with their live
 integration settings. It then exercises all 18 frontend screens, campaign
-creation/pause/persistence, CSV import/persistence, and login/refresh/logout.
+creation/pause/persistence, correct active campaign selection, CSV import into
+an explicitly selected campaign, login/refresh/logout, and a real WebM export
+through the editor and server render gates. Export is also checked in a fresh
+workspace so a shared-workspace failure cannot hide codec acceptance results.
 The extra browser test dependency is pinned to Playwright 1.61.0. Chrome's own
 sandbox stays enabled; the runner must be an ordinary user.
 
@@ -18,6 +21,10 @@ container. A container launch failure cannot count as successful isolation.
 The Python image's immutable digest is resolved before use and saved alongside
 actual PostgreSQL, Docker, Python and Chrome versions. No image is pulled by the
 application sandbox itself.
+
+A real browser also checks the approval boundary for a synthetic form whose
+Enter handler calls requestSubmit. Its submit handler only changes local page
+text; it sends no message and never contacts an external service.
 
 Run the workflow on the audit branch. Missing infrastructure, skipped tests,
 missing reports and failed assertions all fail the job. XML results, runtime

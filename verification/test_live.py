@@ -158,7 +158,7 @@ def test_enter_on_a_real_form_requires_confirmation(tmp_path):
 
 
 @contextmanager
-def app_server(directory, *, login=False):
+def app_server(directory, *, login=False, evidence_name=None):
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
@@ -196,7 +196,8 @@ def app_server(directory, *, login=False):
             process.kill()
             process.wait()
         log.close()
-        (EVIDENCE / ("login-server.log" if login else "frontend-server.log")).write_text(
+        log_name = evidence_name or ("login-server.log" if login else "frontend-server.log")
+        (EVIDENCE / log_name).write_text(
             (directory / "server.log").read_text())
 
 
@@ -305,7 +306,7 @@ def test_contacts_import_and_search_work_in_the_browser(page, app):
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
 
 
-def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
+def export_video(page, app):
     name = "Synthetic video " + secrets.token_hex(3)
     create_campaign(page, app, name, kind="image")
     page.get_by_role("combobox", name="Active campaign", exact=True).select_option(label=name)
@@ -320,6 +321,18 @@ def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
     response = completed.value
     assert response.status == 201, response.text()
     assert response.json()["passed"] is True, response.json()
+    (EVIDENCE / "video-export-result.json").write_text(json.dumps(response.json(), indent=2))
+
+
+def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
+    export_video(page, app)
+
+
+def test_video_export_in_a_fresh_workspace(page, tmp_path):
+    # Separate codec acceptance from the shared-workspace customer journey.
+    # Both retain their errors; a success here cannot erase a failure above.
+    with app_server(tmp_path, evidence_name="video-export-server.log") as (url, _):
+        export_video(page, url)
 
 
 def test_new_campaign_remains_the_active_campaign(page, app):

@@ -49,6 +49,10 @@ jobs:
         run: |
           uv sync --extra dev --extra email --extra postgres --locked
           uv pip install playwright==1.61.0
+      - name: Install independent media decoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Build the real frontend
         working-directory: frontend
         run: |

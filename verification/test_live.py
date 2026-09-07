@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -253,6 +254,15 @@ def test_every_frontend_screen_renders(page, app, route):
     assert page.locator("main").inner_text().strip()
 
 
+def test_connectors_can_load_its_gmail_status(page, app):
+    with page.expect_response(lambda response: response.url.endswith("/status")) as loaded:
+        page.goto(app + "/#connectors")
+    response = loaded.value
+    assert response.status == 200, {
+        "url": response.url, "status": response.status, "body": response.text()}
+    assert "gmail_configured" in response.json(), response.json()
+
+
 def create_campaign(page, app, name, kind="email"):
     page.goto(app + "/#campaigns")
     page.get_by_role("button", name="Create campaign", exact=True).first.click()
@@ -320,8 +330,29 @@ def export_video(page, app):
         export.click()
     response = completed.value
     assert response.status == 201, response.text()
-    assert response.json()["passed"] is True, response.json()
-    (EVIDENCE / "video-export-result.json").write_text(json.dumps(response.json(), indent=2))
+    result = response.json()
+    render_id = result["render_id"]
+    (EVIDENCE / f"video-export-{render_id}.json").write_text(json.dumps(result, indent=2))
+    # Preserve failed exports too, and independently count decoded frames.
+    # The application's header probe alone cannot establish a playable file.
+    stored = requests.get(app + f"/api/v1/video-renders/{render_id}/file", timeout=10)
+    assert stored.status_code == 200, stored.text
+    media = EVIDENCE / f"video-export-{render_id}.webm"
+    media.write_bytes(stored.content)
+    ffprobe = shutil.which("ffprobe")
+    assert ffprobe, "Install FFmpeg/ffprobe to verify the actual encoded frames"
+    decoded = run([ffprobe, "-v", "error", "-count_frames", "-select_streams", "v:0",
+        "-show_entries", "stream=codec_name,width,height,nb_read_frames:format=duration",
+        "-of", "json", str(media)])
+    (EVIDENCE / f"video-decoded-{render_id}.json").write_text(json.dumps({
+        "returncode": decoded.returncode, "stdout": decoded.stdout,
+        "stderr": decoded.stderr, "version": run([ffprobe, "-version"]).stdout.splitlines()[0],
+    }, indent=2))
+    assert decoded.returncode == 0, decoded.stderr
+    stream = json.loads(decoded.stdout)["streams"][0]
+    assert int(stream["nb_read_frames"]) == 60, stream
+    assert (stream["width"], stream["height"]) == (1080, 1920), stream
+    assert result["passed"] is True, result
 
 
 def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):

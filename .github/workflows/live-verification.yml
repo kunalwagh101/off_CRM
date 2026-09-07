@@ -1,0 +1,95 @@
+name: Production integration verification
+
+on:
+  push:
+    branches: [agent/live-integration-audit-20260907]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-verification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-integrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: offcrm_test
+          POSTGRES_PASSWORD: isolated-ci-only
+          POSTGRES_DB: offcrm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U offcrm_test -d offcrm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Disposable service only: the backend tests intentionally drop tables.
+      OFF_CRM_TEST_POSTGRES_URL: postgresql://offcrm_test:isolated-ci-only@127.0.0.1:5432/offcrm_test
+      OFF_CRM_LIVE_EVIDENCE: ${{ github.workspace }}/verification-evidence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked application and integration dependencies
+        run: |
+          uv sync --extra dev --extra email --extra postgres --locked
+          uv pip install playwright==1.61.0
+      - name: Build the real frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Require real services and record their versions
+        run: |
+          mkdir -p verification-evidence
+          docker pull python:3.12-slim
+          uv run --no-sync python verification/preflight.py
+      - name: Run every existing test with live integrations enabled
+        run: uv run --no-sync pytest tests -q -ra --junitxml=verification-evidence/existing.xml
+      - name: Exercise frontend workflows and container boundaries
+        if: ${{ !cancelled() }}
+        run: uv run --no-sync pytest verification/test_live.py -q -ra --junitxml=verification-evidence/acceptance.xml
+      - name: Reject skipped or missing verification evidence
+        if: ${{ !cancelled() }}
+        run: |
+          uv run --no-sync python - <<'PY'
+          import json
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          results = {}
+          for name in ("existing", "acceptance"):
+              root = ET.parse(Path("verification-evidence") / f"{name}.xml").getroot()
+              cases = root.findall(".//testcase")
+              results[name] = {
+                  "tests": len(cases),
+                  "failures": len(root.findall(".//failure")),
+                  "errors": len(root.findall(".//error")),
+                  "skipped": len(root.findall(".//skipped")),
+              }
+          print(json.dumps(results, indent=2))
+          Path("verification-evidence/summary.json").write_text(json.dumps(results, indent=2))
+          assert all(r["tests"] > 0 and not any(r[k] for k in ("failures", "errors", "skipped")) for r in results.values()), results
+          PY
+      - name: Preserve evidence even when a test fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verification-${{ github.sha }}
+          path: verification-evidence/
+          if-no-files-found: error
+          retention-days: 30

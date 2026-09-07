@@ -4,6 +4,7 @@ Run explicitly. There are no environment skips: missing infrastructure fails.
 No provider credentials, customer contacts or production database are used.
 """
 from contextlib import contextmanager
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import quote
 
 import pytest
 import requests
@@ -122,6 +124,36 @@ def test_sandbox_network_is_denied_with_a_working_positive_control(workspace):
         run(["docker", "rm", "--force", name])
 
 
+def test_enter_on_a_real_form_requires_confirmation(tmp_path):
+    from offsetx_apollo_builder.browser.page import Page
+    from offsetx_apollo_builder.browser.session import free_port, open_session
+
+    async def check():
+        session = await open_session(profile_dir=str(tmp_path / "profile"),
+            port=free_port(), headless=True)
+        try:
+            _, sid = await session.new_tab()
+            page = Page(connection=session.connection, session_id=sid)
+            await page.start()
+            html = (
+                '<form onsubmit="event.preventDefault(); document.getElementById(\'result\').textContent=\'SUBMITTED\'">'
+                '<label>Message<input type="text" name="message"></label>'
+                '<button type="submit">Send message</button></form><p id="result">UNSENT</p>'
+            )
+            await page.goto("data:text/html," + quote(html))
+            snapshot = await page.snapshot()
+            field = next(node for node in snapshot.actions if node.name == "Message")
+            await page.type(field.handle, "synthetic message")
+            result = await page.press("Enter")
+            visible = (await page.read()).text
+            assert result.needs_confirmation and "SUBMITTED" not in visible, {
+                "needs_confirmation": result.needs_confirmation, "visible_result": visible}
+        finally:
+            await session.close(quit_browser=True)
+
+    asyncio.run(check())
+
+
 @contextmanager
 def app_server(directory, *, login=False):
     with socket.socket() as listener:
@@ -145,7 +177,7 @@ def app_server(directory, *, login=False):
         for _ in range(100):
             assert process.poll() is None, "Test app exited; inspect server.log"
             try:
-                if requests.get(url + "/api/health", timeout=1).status_code == 200:
+                if requests.get(url + "/health/ready", timeout=1).status_code == 200:
                     break
             except requests.RequestException:
                 pass
@@ -161,6 +193,8 @@ def app_server(directory, *, login=False):
             process.kill()
             process.wait()
         log.close()
+        (EVIDENCE / ("login-server.log" if login else "frontend-server.log")).write_text(
+            (directory / "server.log").read_text())
 
 
 @pytest.fixture(scope="module")
@@ -212,11 +246,12 @@ def test_every_frontend_screen_renders(page, app, route):
     assert page.locator("main").inner_text().strip()
 
 
-def create_campaign(page, app, name):
+def create_campaign(page, app, name, kind="email"):
     page.goto(app + "/#campaigns")
     page.get_by_role("button", name="Create campaign", exact=True).first.click()
     dialog = page.get_by_role("dialog")
     dialog.get_by_label("Campaign name", exact=True).fill(name)
+    dialog.get_by_label("Kind", exact=True).select_option(kind)
     dialog.get_by_role("button", name="Create campaign", exact=True).click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_role("heading", name=name, exact=True)).to_be_visible()
@@ -248,6 +283,27 @@ def test_contacts_import_and_search_work_in_the_browser(page, app):
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
     page.reload()
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
+    page.get_by_label("Search contacts", exact=True).fill("no-matching-record")
+    page.get_by_role("button", name="Search", exact=True).click()
+    expect(page.get_by_text("Audit Contact", exact=True)).not_to_be_visible()
+    page.get_by_label("Search contacts", exact=True).fill("Audit Contact")
+    page.get_by_role("button", name="Search", exact=True).click()
+    expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
+
+
+def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
+    create_campaign(page, app, "Synthetic video " + secrets.token_hex(3), kind="image")
+    page.goto(app + "/#videoeditor")
+    page.get_by_role("button", name="Empty project", exact=True).click()
+    page.get_by_role("button", name="Colour", exact=True).click()
+    export = page.get_by_role("button", name="Export", exact=True)
+    expect(export).to_be_enabled()
+    with page.expect_response(lambda response: "/renders" in response.url and
+            response.request.method == "POST", timeout=90000) as completed:
+        export.click()
+    response = completed.value
+    assert response.status == 201, response.text()
+    assert response.json()["passed"] is True, response.json()
 
 
 def test_login_refresh_and_logout_work_in_the_browser(page, tmp_path):

@@ -211,16 +211,35 @@ def _sqlite_probe(path: Path) -> None:
         connection.close()
 
 
-def _runtime_health(state: Any, settings: Any) -> list[str]:
+def _runtime_health(
+    state: Any,
+    settings: Any,
+    *,
+    include_maintenance: bool = True,
+) -> list[str]:
     failures: list[str] = []
     gate = getattr(state, "recovery_gate", None)
-    if gate is not None and gate.maintenance:
+    if include_maintenance and gate is not None and gate.maintenance:
         failures.append("maintenance")
 
     try:
         state.engine.store.connection.execute("SELECT 1").fetchone()
     except Exception as exc:
         failures.append(f"outreach_db:{type(exc).__name__}")
+
+    # The audit caught a restore where these services still pointed to the old,
+    # closed store. Treat that as not-ready even if the replacement database
+    # itself answers SELECT 1.
+    engine_store = getattr(getattr(state, "engine", None), "store", None)
+    if getattr(getattr(state, "sales", None), "store", None) is not engine_store:
+        failures.append("sales_store:stale")
+    if getattr(getattr(state, "ai_chat", None), "store", None) is not engine_store:
+        failures.append("ai_chat_store:stale")
+    delivery = getattr(state, "email_delivery", None)
+    if getattr(delivery, "engine", None) is not getattr(state, "engine", None):
+        failures.append("email_delivery_engine:stale")
+    if getattr(getattr(delivery, "store", None), "outreach", None) is not engine_store:
+        failures.append("email_delivery_store:stale")
 
     # Read/write the durable root, not merely SELECT 1 from one database. A
     # mounted disk that vanished or became read-only must make readiness red.
@@ -377,7 +396,11 @@ def harden_create_app(original_create_app: Callable[..., Any]) -> Callable[..., 
                     max_bytes=resolved.backup_max_bytes,
                 )
                 _rebind_runtime(state, resolved, previous=previous)
-                failures = _runtime_health(state, resolved)
+                failures = _runtime_health(
+                    state,
+                    resolved,
+                    include_maintenance=False,
+                )
                 if failures:
                     raise RuntimeError("Restored runtime is unhealthy: " + ", ".join(failures))
                 await automation.start()

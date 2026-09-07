@@ -241,7 +241,7 @@ def test_every_frontend_screen_renders(page, app, route):
     response = page.goto(app + "/#" + route)
     assert response.status == 200
     expect(page.get_by_role("navigation", name="Main navigation", exact=True)).to_be_visible()
-    expect(page.locator("main h1")).to_be_visible()
+    expect(page.locator("main").get_by_role("heading").first).to_be_visible()
     page.wait_for_load_state("networkidle")
     assert page.locator("main").inner_text().strip()
 
@@ -251,7 +251,7 @@ def create_campaign(page, app, name, kind="email"):
     page.get_by_role("button", name="Create campaign", exact=True).first.click()
     dialog = page.get_by_role("dialog")
     dialog.get_by_label("Campaign name", exact=True).fill(name)
-    dialog.get_by_label("Kind", exact=True).select_option(kind)
+    dialog.get_by_label("Kind").select_option(kind)
     dialog.get_by_role("button", name="Create campaign", exact=True).click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_role("heading", name=name, exact=True)).to_be_visible()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,6 +9,18 @@ from pathlib import Path
 def _resolved(value: str | Path, root: Path) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (root / path).resolve()
+
+
+def _enabled(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 @dataclass(slots=True)
@@ -25,6 +38,8 @@ class AppSettings:
     session_secret: str = ""
     session_hours: int = 8
     max_upload_bytes: int = 10 * 1024 * 1024
+    backup_max_bytes: int = 512 * 1024 * 1024
+    production: bool = False
     gmail_client_secrets: Path | None = None
     gmail_token: Path | None = None
     own_email: str = ""
@@ -55,6 +70,10 @@ class AppSettings:
             max_upload_bytes=int(
                 os.getenv("OFFSETX_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))
             ),
+            backup_max_bytes=int(
+                os.getenv("OFFSETX_BACKUP_MAX_BYTES", str(512 * 1024 * 1024))
+            ),
+            production=_enabled(os.getenv("OFFSETX_PRODUCTION", "")),
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
             gmail_token=_resolved(gmail_token, root) if gmail_token else None,
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
@@ -86,10 +105,23 @@ class AppSettings:
             raise ValueError("OFFSETX_WEB_PORT must be between 1 and 65535")
         if self.max_upload_bytes < 1024:
             raise ValueError("OFFSETX_MAX_UPLOAD_BYTES is too small")
+        if self.backup_max_bytes < 1024 * 1024:
+            raise ValueError("OFFSETX_BACKUP_MAX_BYTES must be at least 1 MiB")
         if not 1 <= self.session_hours <= 24:
             raise ValueError("OFFSETX_SESSION_HOURS must be between 1 and 24")
         if self.unsubscribe_secret and len(self.unsubscribe_secret.encode("utf-8")) < 32:
             raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
+
+        if self.production:
+            temporary_root = Path(tempfile.gettempdir()).resolve()
+            if _inside(self.data_dir, temporary_root):
+                raise ValueError(
+                    "Production OFFSETX_DATA_DIR cannot live under the operating-system temporary directory"
+                )
+            if not _inside(self.database_path, self.data_dir):
+                raise ValueError(
+                    "Production OFFSETX_OUTREACH_DB must live under OFFSETX_DATA_DIR so one durable root owns local state"
+                )
 
     @property
     def demo_login_enabled(self) -> bool:

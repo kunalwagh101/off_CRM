@@ -136,7 +136,10 @@ def test_enter_on_a_real_form_requires_confirmation(tmp_path):
             page = Page(connection=session.connection, session_id=sid)
             await page.start()
             html = (
-                '<form onsubmit="event.preventDefault(); document.getElementById(\'result\').textContent=\'SUBMITTED\'">'
+                # Chat/composer forms commonly submit from an Enter keydown
+                # handler. This is a synthetic local action, never a message.
+                '<form onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.requestSubmit()}" '
+                'onsubmit="event.preventDefault(); document.getElementById(\'result\').textContent=\'SUBMITTED\'">'
                 '<label>Message<input type="text" name="message"></label>'
                 '<button type="submit">Send message</button></form><p id="result">UNSENT</p>'
             )
@@ -241,7 +244,10 @@ def test_every_frontend_screen_renders(page, app, route):
     response = page.goto(app + "/#" + route)
     assert response.status == 200
     expect(page.get_by_role("navigation", name="Main navigation", exact=True)).to_be_visible()
-    expect(page.locator("main").get_by_role("heading").first).to_be_visible()
+    if route in {"imagereview", "videoeditor"}:
+        expect(page.locator("main").get_by_text("Pick a campaign", exact=True)).to_be_visible()
+    else:
+        expect(page.locator("main").get_by_role("heading").first).to_be_visible()
     page.wait_for_load_state("networkidle")
     assert page.locator("main").inner_text().strip()
 
@@ -271,6 +277,11 @@ def test_campaign_create_pause_and_reload_persist(page, app):
 def test_contacts_import_and_search_work_in_the_browser(page, app):
     name = "Synthetic contact import " + secrets.token_hex(3)
     create_campaign(page, app, name)
+    # Verify import into the explicitly selected campaign. Automatic selection
+    # after creation has its own regression below, so it cannot hide a failure.
+    selected = page.get_by_role("combobox", name="Active campaign", exact=True)
+    selected.select_option(label=name)
+    campaign_id = selected.input_value()
     page.goto(app + "/#contacts")
     page.get_by_role("button", name="Import CSV / Excel", exact=True).click()
     dialog = page.get_by_role("dialog")
@@ -281,6 +292,9 @@ def test_contacts_import_and_search_work_in_the_browser(page, app):
     dialog.get_by_role("button", name="Import contacts", exact=True).click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
+    records = requests.get(app + f"/api/v1/campaigns/{campaign_id}/contacts", timeout=10)
+    assert records.status_code == 200
+    assert any(row["full_name"] == "Audit Contact" for row in records.json()["items"])
     page.reload()
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
     page.get_by_label("Search contacts", exact=True).fill("no-matching-record")
@@ -292,7 +306,9 @@ def test_contacts_import_and_search_work_in_the_browser(page, app):
 
 
 def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
-    create_campaign(page, app, "Synthetic video " + secrets.token_hex(3), kind="image")
+    name = "Synthetic video " + secrets.token_hex(3)
+    create_campaign(page, app, name, kind="image")
+    page.get_by_role("combobox", name="Active campaign", exact=True).select_option(label=name)
     page.goto(app + "/#videoeditor")
     page.get_by_role("button", name="Empty project", exact=True).click()
     page.get_by_role("button", name="Colour", exact=True).click()
@@ -304,6 +320,15 @@ def test_video_editor_exports_a_real_webm_and_passes_server_gates(page, app):
     response = completed.value
     assert response.status == 201, response.text()
     assert response.json()["passed"] is True, response.json()
+
+
+def test_new_campaign_remains_the_active_campaign(page, app):
+    name = "New active campaign " + secrets.token_hex(3)
+    create_campaign(page, app, name)
+    selected = page.get_by_role("combobox", name="Active campaign", exact=True)
+    expect(selected.locator("option:checked")).to_have_text(name)
+    page.reload()
+    expect(selected.locator("option:checked")).to_have_text(name)
 
 
 def test_login_refresh_and_logout_work_in_the_browser(page, tmp_path):

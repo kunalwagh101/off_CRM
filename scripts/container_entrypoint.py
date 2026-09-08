@@ -12,10 +12,10 @@ def main():
         # permissions are preserved; the application creates children at 0700.
         root.mkdir(parents=True, exist_ok=True)
         os.chown(root, 10001, 10001)
-        os.chmod(root, 0o700)
         os.setgroups([])
         os.setgid(10001)
         os.setuid(10001)
+    os.chmod(root, 0o700)
     os.umask(0o077)
     import sys
     os.execvp(sys.argv[1], sys.argv[1:])

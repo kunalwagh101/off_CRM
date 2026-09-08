@@ -3,6 +3,7 @@ WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+COPY tests/fixtures/timeline_conformance.json /build/tests/fixtures/timeline_conformance.json
 RUN npm run build
 
 FROM python:3.12-slim AS runtime

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import os
 import sqlite3
@@ -284,6 +285,13 @@ def _runtime_health(state, settings, *, include_maintenance=True):
     delivery = state.email_delivery
     if delivery.engine is not state.engine or delivery.store.outreach is not engine_store:
         failures.append("email_delivery:stale")
+    if not settings.unsubscribe_secret:
+        try:
+            key = (settings.data_dir / "email_unsubscribe.key").read_bytes()
+            if not hmac.compare_digest(key, state.engine.unsubscribe_service.secret):
+                raise ValueError("Local signing key differs from the active service")
+        except (OSError, ValueError) as exc:
+            failures.append(f"unsubscribe_key:{type(exc).__name__}")
     for path in (settings.data_dir, settings.export_dir, state.image_store.assets_dir,
                  state.video_store.renders_dir, state.distribution_store.outbox_dir):
         try:

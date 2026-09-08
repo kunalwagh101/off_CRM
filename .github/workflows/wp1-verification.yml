@@ -81,3 +81,14 @@ jobs:
           path: verification-evidence/
           if-no-files-found: error
           retention-days: 30
+  windows-workspace-locks:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: uv sync --extra dev --locked
+      - run: uv run --no-sync pytest tests/test_workspace_lock.py -q

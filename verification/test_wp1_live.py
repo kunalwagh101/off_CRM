@@ -19,16 +19,21 @@ def test_browser_can_download_and_restore_the_complete_workspace(page, tmp_path)
         original = requests.post(url + '/api/v1/campaigns', json={'name': 'Retained customer campaign'}, timeout=10).json()['id']
         page.goto(url + '/#settings')
         panel = page.locator('section').filter(has=page.get_by_role('heading', name='Encrypted backup', exact=True))
-        panel.get_by_label('Backup passphrase', exact=True).first.fill(PASSPHRASE)
+        export_form = panel.locator('form').filter(has=page.get_by_role('button', name='Create encrypted backup', exact=True))
+        restore_form = panel.locator('form').filter(has=page.get_by_role('button', name='Restore backup', exact=True))
+        # The export field's accessible label includes its minimum-length hint.
+        # Scope to the actual form so an exact label cannot select restore instead.
+        export_form.get_by_label('Backup passphrase').fill(PASSPHRASE)
+        expect(export_form.get_by_label('Backup passphrase')).to_have_value(PASSPHRASE)
         with page.expect_download() as event:
             panel.get_by_role('button', name='Create encrypted backup', exact=True).click()
         archive = EVIDENCE / 'wp1-browser.oxbackup'
         event.value.save_as(archive)
         expect(page.get_by_text('Encrypted workspace backup created', exact=True)).to_be_visible()
-        expect(panel.get_by_label('Backup passphrase', exact=True).first).to_have_value('')
+        expect(export_form.get_by_label('Backup passphrase')).to_have_value('')
         requests.post(url + '/api/v1/campaigns', json={'name': 'After backup'}, timeout=10).raise_for_status()
-        panel.get_by_label('Backup file', exact=True).set_input_files(str(archive))
-        panel.get_by_label('Backup passphrase', exact=True).last.fill(PASSPHRASE)
+        restore_form.get_by_label('Backup file', exact=True).set_input_files(str(archive))
+        restore_form.get_by_label('Backup passphrase', exact=True).fill(PASSPHRASE)
         page.on('dialog', lambda dialog: dialog.accept())
         with page.expect_response(lambda response: response.url.endswith('/backups/restore') and response.request.method == 'POST') as restoration:
             panel.get_by_role('button', name='Restore backup', exact=True).click()

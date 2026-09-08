@@ -126,7 +126,7 @@ and before/after the commit record. Do not delete or hand-edit it.
 
 For an ordinary restart, retain the disk/volume and replace only the application
 container. `/health/ready` verifies the mounted root, writable durable directories,
-required databases and current service bindings. `/health/live` answers whether
+required databases, the local signing key and current service bindings. `/health/live` answers whether
 the process is running. It intentionally stays available during recovery.
 
 Before upgrading an existing installation, export a recovery copy and record the
@@ -158,3 +158,9 @@ by their original audit findings; WP1 does not weaken those assertions or claim
 to close them. This story closes only A01, A02, A03, A04 and A17 once its final
 acceptance run passes. Production account/deployment verification remains separate
 from the disposable, real-service acceptance environment.
+
+Native Windows development uses shared/exclusive byte-range leases through
+[LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex)
+so normal dashboard requests may overlap. The WP1 workflow checks cross-process
+lease exclusion and release on Windows as well as Linux; the production-container
+acceptance environment remains Linux.

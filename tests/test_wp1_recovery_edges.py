@@ -378,3 +378,16 @@ def test_other_thread_cannot_finish_the_owned_transaction(tmp_path, operation):
             for future in futures:
                 future.result(timeout=5)
         assert store.connection.execute("SELECT value FROM probe WHERE value='owned'").fetchone()[0] == 'owned'
+
+
+def test_readiness_rejects_missing_or_changed_local_signing_key(tmp_path):
+    settings = _settings(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        key = settings.data_dir / 'email_unsubscribe.key'
+        original = key.read_bytes()
+        key.unlink()
+        assert client.get('/health/ready').status_code == 503
+        key.write_bytes(b'changed-signing-key-that-breaks-existing-links')
+        assert client.get('/health/ready').status_code == 503
+        key.write_bytes(original)
+        assert client.get('/health/ready').status_code == 200

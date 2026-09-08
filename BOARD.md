@@ -76,7 +76,10 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-06.02.09 · Every database write goes through one guard
+  scope: A02, delivered and verified within Audit WP1.
+- S-06.02.10 · Durable customer state and safe recovery (Audit WP1)
+  scope: A01, A02, A03, A04, A17; continues draft PR #13 on current main.
 
 ## IN_REVIEW
 

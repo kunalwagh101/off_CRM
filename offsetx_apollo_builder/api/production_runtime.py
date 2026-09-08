@@ -1,18 +1,14 @@
-"""Production reliability retrofit for the FastAPI application.
-
-This module owns the audit-WP1 boundaries that cut across several existing
-services: maintenance draining, complete restore/rebind and truthful readiness.
-It wraps the existing ``create_app`` rather than duplicating the application.
-"""
+"""Workspace maintenance, request draining and recoverable service lifecycle."""
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sqlite3
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
@@ -22,16 +18,11 @@ from ..ai.context import ContextLayer
 from ..ai.recall import SentMailIndex
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..db import resolve_target as resolve_database_target
+from ..db.connection import is_postgres_url
 from ..distribution.store import DistributionStore
 from ..imagery.store import ImageStore
 from ..outreach.ai_chat import AIChatService
-from ..outreach.backup import (
-    create_encrypted_backup,
-    discard_restore_safety,
-    restore_encrypted_backup,
-    rollback_restored_backup,
-    validate_encrypted_backup,
-)
+from ..outreach.backup import create_encrypted_backup, discard_restore_safety, restore_encrypted_backup, rollback_restored_backup, validate_encrypted_backup
 from ..outreach.deliverability.service import EmailDeliveryService
 from ..outreach.deliverability.store import DeliverabilityStore
 from ..outreach.deliverability.unsubscribe import UnsubscribeService
@@ -39,58 +30,103 @@ from ..outreach.engine import OutreachEngine
 from ..outreach.notion import NotionSettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore
 from ..outreach.sales import SalesTracker
+from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 from ..video.store import VideoStore
 from .schemas import BackupExport
 
-
 API_PREFIX = "/api/v1"
-_CHUNK = 1024 * 1024
+LOG = logging.getLogger(__name__)
 
 
 class RecoveryGate:
-    """Drain active requests and reject new work during a workspace swap."""
-
-    def __init__(self) -> None:
+    def __init__(self):
         self._condition = asyncio.Condition()
         self._active = 0
         self.maintenance = False
+        self.failed = False
+        self.operation = asyncio.Lock()
 
-    async def enter_request(self) -> bool:
+    async def enter_request(self):
         async with self._condition:
-            if self.maintenance:
+            if self.maintenance or self.failed:
                 return False
             self._active += 1
             return True
 
-    async def leave_request(self) -> None:
+    async def leave_request(self):
         async with self._condition:
-            self._active = max(0, self._active - 1)
+            self._active -= 1
             self._condition.notify_all()
 
-    async def begin_maintenance(self) -> None:
+    async def begin_maintenance(self):
         async with self._condition:
-            if self.maintenance:
-                raise RuntimeError("Maintenance is already running")
+            if self.maintenance or self.failed:
+                raise RuntimeError("Workspace recovery is already active; inspect readiness before retrying")
             self.maintenance = True
-            while self._active:
-                await self._condition.wait()
+            try:
+                async with asyncio.timeout(60):
+                    while self._active:
+                        await self._condition.wait()
+            except BaseException:
+                self.maintenance = False
+                raise
 
-    async def end_maintenance(self) -> None:
+    async def end_maintenance(self):
         async with self._condition:
-            self.maintenance = False
+            if not self.failed:
+                self.maintenance = False
             self._condition.notify_all()
 
 
-def _remove_route(app: Any, path: str, method: str) -> None:
-    method = method.upper()
-    app.router.routes[:] = [
-        route
-        for route in app.router.routes
-        if not (
-            getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
-        )
-    ]
+class RecoveryMiddleware:
+    """Count full ASGI lifetimes, including streamed bodies and background tasks."""
+    def __init__(self, app, settings):
+        self.app, self.settings = app, settings
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        state, path = scope["app"].state, scope["path"]
+        gate = getattr(state, "recovery_gate", None)
+        if path == f"{API_PREFIX}/backups/restore":
+            # Bound the multipart body before Starlette can spool it to disk.
+            total, limit = 0, self.settings.backup_max_bytes + 64 * 1024
+            oversized = False
+            original_receive, original_send = receive, send
+            async def bounded_send(message):
+                if oversized:
+                    if message["type"] == "http.response.start":
+                        response = JSONResponse({"detail": "Backup exceeds the configured recovery upload limit"}, status_code=413)
+                        await response(scope, original_receive, original_send)
+                    return
+                await original_send(message)
+            send = bounded_send
+            async def bounded_receive():
+                nonlocal total, oversized
+                message = await original_receive()
+                total += len(message.get("body", b""))
+                if total > limit:
+                    oversized = True
+                    from starlette.formparsers import MultiPartException
+                    raise MultiPartException("Backup exceeds the configured recovery upload limit")
+                return message
+            receive = bounded_receive
+        exempt = path in {"/health/live", "/health/ready", f"{API_PREFIX}/backups/restore", f"{API_PREFIX}/backups/export"}
+        if gate is None or exempt:
+            return await self.app(scope, receive, send)
+        if not await gate.enter_request():
+            return await JSONResponse({"detail": "Workspace maintenance is in progress. Retry after readiness returns."}, status_code=503, headers={"Retry-After": "5"})(scope, receive, send)
+        try:
+            try:
+                lease = WorkspaceLock(self.settings.data_dir).__enter__()
+            except WorkspaceBusy:
+                return await JSONResponse({"detail": "Workspace recovery is in progress. Retry shortly."}, status_code=503)(scope, receive, send)
+            try:
+                return await self.app(scope, receive, send)
+            finally:
+                lease.__exit__()
+        finally:
+            await gate.leave_request()
 
 
 def _close(object_: Any) -> None:
@@ -102,6 +138,7 @@ def _close(object_: Any) -> None:
 def _close_runtime(state: Any) -> None:
     # Order: stop users of the outreach store before closing the store itself.
     for name in (
+        "ai_cache",
         "ai_egress_log",
         "image_store",
         "distribution_store",
@@ -117,6 +154,7 @@ def _close_runtime(state: Any) -> None:
 
 def _rebind_runtime(state: Any, settings: Any, *, previous: dict[str, Any]) -> None:
     """Recreate every live object whose durable backing may have been replaced."""
+    settings.prepare()
     state.ai_context = ContextLayer(settings.data_dir / "ai_context.db")
     state.ai_recall = SentMailIndex(settings.data_dir / "ai_recall.db")
     state.engine = OutreachEngine(
@@ -139,7 +177,7 @@ def _rebind_runtime(state: Any, settings: Any, *, previous: dict[str, Any]) -> N
         state.engine,
         unsubscribe=unsubscribe,
         domain_checker=getattr(old_delivery, "domain_checker", None),
-        provider_factory=getattr(old_delivery, "provider_factory", None),
+        provider_factory=getattr(old_delivery, "provider_factory", None) or state.delivery_provider_factory,
     )
     state.engine.delivery_preflight = state.email_delivery.preflight
     state.engine.unsubscribe_service = unsubscribe
@@ -157,7 +195,7 @@ def _rebind_runtime(state: Any, settings: Any, *, previous: dict[str, Any]) -> N
     old_broker = previous.get("ai_broker")
     state.ai_broker = EgressBroker(
         registry=state.ai_registry,
-        credential_resolver=getattr(old_broker, "credential_resolver", lambda _provider: ""),
+        credential_resolver=state.ai_workspaces.credential_resolver("local"),
         quota=state.ai_quota,
         logger=state.ai_egress_log.record,
         cache=state.ai_cache,
@@ -193,7 +231,8 @@ def _snapshot_runtime(state: Any) -> dict[str, Any]:
             "ai_broker",
             "ai_context",
             "ai_recall",
-            "ai_egress_log",
+            "ai_cache",
+        "ai_egress_log",
             "image_store",
             "distribution_store",
             "video_store",
@@ -202,250 +241,196 @@ def _snapshot_runtime(state: Any) -> dict[str, Any]:
 
 
 def _sqlite_probe(path: Path) -> None:
-    if not path.exists():
-        return
-    connection = sqlite3.connect(f"file:{path}?mode=rw", uri=True, timeout=1)
+    if not path.is_file():
+        raise OSError("Required database is missing")
+    connection = sqlite3.connect(path.as_uri() + "?mode=rw", uri=True, timeout=1)
     try:
-        connection.execute("SELECT 1").fetchone()
+        connection.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(f"PRAGMA user_version={version}")
+        connection.rollback()
     finally:
         connection.close()
 
 
-def _runtime_health(
-    state: Any,
-    settings: Any,
-    *,
-    include_maintenance: bool = True,
-) -> list[str]:
-    failures: list[str] = []
+def _runtime_health(state, settings, *, include_maintenance=True):
     gate = getattr(state, "recovery_gate", None)
-    if include_maintenance and gate is not None and gate.maintenance:
-        failures.append("maintenance")
-
+    if include_maintenance and gate and (gate.maintenance or gate.failed):
+        return ["maintenance" if not gate.failed else "recovery_failed"]
+    failures = []
     try:
-        state.engine.store.connection.execute("SELECT 1").fetchone()
-    except Exception as exc:
-        failures.append(f"outreach_db:{type(exc).__name__}")
-
-    # The audit caught a restore where these services still pointed to the old,
-    # closed store. Treat that as not-ready even if the replacement database
-    # itself answers SELECT 1.
-    engine_store = getattr(getattr(state, "engine", None), "store", None)
-    if getattr(getattr(state, "sales", None), "store", None) is not engine_store:
-        failures.append("sales_store:stale")
-    if getattr(getattr(state, "ai_chat", None), "store", None) is not engine_store:
-        failures.append("ai_chat_store:stale")
-    delivery = getattr(state, "email_delivery", None)
-    if getattr(delivery, "engine", None) is not getattr(state, "engine", None):
-        failures.append("email_delivery_engine:stale")
-    if getattr(getattr(delivery, "store", None), "outreach", None) is not engine_store:
-        failures.append("email_delivery_store:stale")
-
-    # Read/write the durable root, not merely SELECT 1 from one database. A
-    # mounted disk that vanished or became read-only must make readiness red.
-    try:
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix=".offcrm-ready-", dir=settings.data_dir)
+        settings.verify_persistent_mount()
+    except ValueError:
+        failures.append("persistent_mount:missing")
+    stores = {"outreach_db": state.engine.store, "ai_context": state.ai_context,
+              "ai_recall": state.ai_recall, "ai_egress": state.ai_egress_log,
+              "imagery": state.image_store, "distribution": state.distribution_store,
+              "video": state.video_store}
+    for name, store in stores.items():
         try:
-            os.write(fd, b"ready")
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-            Path(name).unlink(missing_ok=True)
-    except Exception as exc:
-        failures.append(f"durable_root:{type(exc).__name__}")
-
-    # Existing durable sqlite stores are all probed. Optional stores that have
-    # never been created are not readiness dependencies yet.
-    for name in (
-        "ai_context.db",
-        "ai_recall.db",
-        "ai_egress.db",
-        "imagery.db",
-        "distribution.db",
-        "trends.db",
-        "video.db",
-    ):
-        try:
-            _sqlite_probe(settings.data_dir / name)
+            store.connection.execute("SELECT 1").fetchone()
+            target = getattr(store, "target", None) or getattr(store, "path", None)
+            if is_postgres_url(target):
+                store.connection.execute("SELECT count(*) FROM information_schema.tables").fetchone()
+            else:
+                _sqlite_probe(Path(target))
         except Exception as exc:
             failures.append(f"{name}:{type(exc).__name__}")
+    engine_store = state.engine.store
+    for name in ("sales", "ai_chat"):
+        if getattr(getattr(state, name, None), "store", None) is not engine_store:
+            failures.append(f"{name}_store:stale")
+    delivery = state.email_delivery
+    if delivery.engine is not state.engine or delivery.store.outreach is not engine_store:
+        failures.append("email_delivery:stale")
+    for path in (settings.data_dir, settings.export_dir, state.image_store.assets_dir,
+                 state.video_store.renders_dir, state.distribution_store.outbox_dir):
+        try:
+            if not path.is_dir():
+                raise OSError("Required durable directory is missing")
+            descriptor, name = tempfile.mkstemp(prefix=".offcrm-ready-", dir=path)
+            try:
+                os.write(descriptor, b"ready")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+                Path(name).unlink(missing_ok=True)
+        except Exception as exc:
+            failures.append(f"{path.name}:{type(exc).__name__}")
+    if (settings.data_dir / "trends.db").exists():
+        try:
+            _sqlite_probe(settings.data_dir / "trends.db")
+        except Exception as exc:
+            failures.append(f"trends:{type(exc).__name__}")
     return failures
 
 
-async def _bounded_upload(file: UploadFile, limit: int) -> bytes:
-    chunks: list[bytes] = []
-    total = 0
-    while True:
-        chunk = await file.read(min(_CHUNK, limit - total + 1))
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > limit:
-            raise HTTPException(status_code=413, detail="Backup exceeds the backup upload limit")
-        chunks.append(chunk)
-    return b"".join(chunks)
+async def _bounded_upload(file, limit):
+    content = bytearray()
+    while chunk := await file.read(min(1024 * 1024, limit - len(content) + 1)):
+        content.extend(chunk)
+        if len(content) > limit:
+            raise HTTPException(413, "Backup exceeds the configured recovery upload limit")
+    return bytes(content)
 
 
-def harden_create_app(original_create_app: Callable[..., Any]) -> Callable[..., Any]:
-    """Return ``create_app`` with WP1 production reliability boundaries added."""
+async def _finish_even_if_disconnected(operation):
+    task = asyncio.create_task(operation)
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        # Thread work cannot be cancelled. Keep the ownership until the swap,
+        # health check and commit/rollback decision have actually finished.
+        await task
+        raise
 
-    def create_app(settings: Any = None) -> Any:
-        app = original_create_app(settings)
-        original_lifespan = app.router.lifespan_context
 
-        @asynccontextmanager
-        async def reliable_lifespan(application: Any) -> AsyncIterator[None]:
-            async with original_lifespan(application):
-                application.state.recovery_gate = RecoveryGate()
-                yield
+@asynccontextmanager
+async def _maintenance(state):
+    gate = state.recovery_gate
+    try:
+        await gate.begin_maintenance()
+    except (RuntimeError, TimeoutError) as exc:
+        raise HTTPException(409, "Workspace could not drain. Wait for active operations and retry.") from exc
+    try:
+        await state.automation.stop()
+        await state.content_automation.stop()
+        try:
+            lease = WorkspaceLock(state.settings.data_dir, exclusive=True).__enter__()
+        except WorkspaceBusy as exc:
+            raise HTTPException(409, str(exc)) from exc
+        try:
+            yield
+        finally:
+            lease.__exit__()
+    finally:
+        if not gate.failed:
+            await state.automation.start()
+            await state.content_automation.start()
+        await gate.end_maintenance()
 
-        app.router.lifespan_context = reliable_lifespan
 
-        @app.middleware("http")
-        async def recovery_request_gate(request: Request, call_next: Any) -> Response:
-            gate = getattr(request.app.state, "recovery_gate", None)
-            if gate is None or request.url.path in {
-                "/health/live",
-                "/health/ready",
-                f"{API_PREFIX}/backups/restore",
-            }:
-                return await call_next(request)
-            if not await gate.enter_request():
-                return JSONResponse(
-                    status_code=503,
-                    content={"detail": "Workspace maintenance is in progress"},
-                    headers={"Retry-After": "5"},
-                )
-            try:
-                return await call_next(request)
-            finally:
-                await gate.leave_request()
+def _require_local_backup(state):
+    if any(is_postgres_url(store.target) for store in (state.ai_egress_log, state.video_store)):
+        raise HTTPException(409, "This workspace uses PostgreSQL. Use coordinated database and asset recovery; local backup cannot capture remote stores.")
 
-        _remove_route(app, "/health/ready", "GET")
 
-        @app.get("/health/ready")
-        def reliable_ready(request: Request) -> dict[str, Any]:
-            failures = _runtime_health(request.app.state, request.app.state.settings)
+async def _restore(state, content, passphrase):
+    settings = state.settings
+    async with _maintenance(state):
+        previous = _snapshot_runtime(state)
+        result = None
+        try:
+            _close_runtime(state)
+            result = await asyncio.to_thread(restore_encrypted_backup, content,
+                database_path=settings.database_path, data_dir=settings.data_dir,
+                passphrase=passphrase, max_bytes=settings.backup_max_bytes)
+            _rebind_runtime(state, settings, previous=previous)
+            failures = _runtime_health(state, settings, include_maintenance=False)
+            # The restored automation files must also be parseable before resume.
+            state.automation.config()
+            state.content_automation.config()
             if failures:
-                raise HTTPException(
-                    status_code=503,
-                    detail={"status": "not_ready", "components": failures},
-                )
-            return {"status": "ready"}
-
-        _remove_route(app, f"{API_PREFIX}/backups/export", "POST")
-
-        @app.post(f"{API_PREFIX}/backups/export")
-        def complete_backup(body: BackupExport, request: Request) -> Response:
-            resolved = request.app.state.settings
-            content = create_encrypted_backup(
-                database_path=resolved.database_path,
-                data_dir=resolved.data_dir,
-                passphrase=body.passphrase,
-                max_bytes=resolved.backup_max_bytes,
-            )
-            return Response(
-                content=content,
-                media_type="application/octet-stream",
-                headers={"Content-Disposition": 'attachment; filename="off-crm-workspace.oxbackup"'},
-            )
-
-        _remove_route(app, f"{API_PREFIX}/backups/restore", "POST")
-
-        @app.post(f"{API_PREFIX}/backups/restore")
-        async def safe_restore(
-            request: Request,
-            file: UploadFile = File(...),
-            passphrase: str = Form(..., min_length=12, max_length=500),
-        ) -> dict[str, Any]:
-            resolved = request.app.state.settings
-            content = await _bounded_upload(file, resolved.backup_max_bytes)
-
-            # A bad archive must not be able to take the live product down.
-            manifest = await asyncio.to_thread(
-                validate_encrypted_backup,
-                content,
-                passphrase=passphrase,
-                max_bytes=resolved.backup_max_bytes,
-            )
-
-            gate: RecoveryGate = request.app.state.recovery_gate
+                raise RuntimeError("Restored services failed readiness: " + ", ".join(failures))
+            await asyncio.to_thread(discard_restore_safety, result)
+            LOG.info("Workspace restore committed; schema=%s entries=%s", result["schema_version"], result["entries"])
+            return {key: value for key, value in result.items() if key in {"restored", "schema_version", "entries", "excluded_rebuildable", "legacy_partial"}} | {"health": "ready"}
+        except Exception as exc:
+            LOG.exception("Workspace restore failed; recovering the previous generation")
             try:
-                await gate.begin_maintenance()
-            except RuntimeError as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-            state = request.app.state
-            automation = state.automation
-            content_automation = state.content_automation
-            previous = _snapshot_runtime(state)
-            result: dict[str, Any] | None = None
-            try:
-                await automation.stop()
-                await content_automation.stop()
                 _close_runtime(state)
-                for suffix in ("-wal", "-shm"):
-                    Path(str(resolved.database_path) + suffix).unlink(missing_ok=True)
-                result = await asyncio.to_thread(
-                    restore_encrypted_backup,
-                    content,
-                    database_path=resolved.database_path,
-                    data_dir=resolved.data_dir,
-                    passphrase=passphrase,
-                    max_bytes=resolved.backup_max_bytes,
-                )
-                _rebind_runtime(state, resolved, previous=previous)
-                failures = _runtime_health(
-                    state,
-                    resolved,
-                    include_maintenance=False,
-                )
-                if failures:
-                    raise RuntimeError("Restored runtime is unhealthy: " + ", ".join(failures))
-                await automation.start()
-                await content_automation.start()
-                discard_restore_safety(result)
-                return {
-                    **result,
-                    "manifest_schema": int(manifest.get("schema_version") or 1),
-                    "health": "ready",
-                }
-            except Exception as exc:
-                # If replacement started, put the old bytes back, then rebuild
-                # the service graph from them before allowing another request.
-                try:
-                    _close_runtime(state)
-                except Exception:
-                    pass
                 if result is not None:
-                    await asyncio.to_thread(
-                        rollback_restored_backup,
-                        result,
-                        database_path=resolved.database_path,
-                        data_dir=resolved.data_dir,
-                    )
-                try:
-                    _rebind_runtime(state, resolved, previous=previous)
-                    await automation.start()
-                    await content_automation.start()
-                except Exception as recovery_exc:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=(
-                            "Restore failed and automatic rollback could not return the runtime to health: "
-                            + str(recovery_exc)[:500]
-                        ),
-                    ) from exc
-                raise HTTPException(
-                    status_code=422 if result is None else 500,
-                    detail="Restore failed; the previous workspace was recovered: " + str(exc)[:500],
-                ) from exc
-            finally:
-                await gate.end_maintenance()
+                    await asyncio.to_thread(rollback_restored_backup, result, database_path=settings.database_path, data_dir=settings.data_dir)
+                _rebind_runtime(state, settings, previous=previous)
+                failures = _runtime_health(state, settings, include_maintenance=False)
+                if failures:
+                    raise RuntimeError(", ".join(failures))
+            except Exception:
+                state.recovery_gate.failed = True
+                LOG.exception("Workspace rollback failed; maintenance remains active")
+                raise HTTPException(503, "Recovery could not restore service health. Keep the recovery files and restart the service to retry recovery; inspect the server log.") from exc
+            raise HTTPException(422, "Restore was rejected; the previous workspace is available. Check the backup's compatibility and retry.") from exc
 
-        return app
 
-    create_app.__name__ = getattr(original_create_app, "__name__", "create_app")
-    create_app.__doc__ = original_create_app.__doc__
-    return create_app
+def install_runtime_routes(app, settings):
+    app.add_middleware(RecoveryMiddleware, settings=settings)
+
+    @app.get("/health/ready")
+    async def ready(request: Request):
+        gate = request.app.state.recovery_gate
+        if not await gate.enter_request():
+            raise HTTPException(503, {"status": "not_ready", "components": ["maintenance" if not gate.failed else "recovery_failed"]})
+        try:
+            failures = await asyncio.to_thread(_runtime_health, request.app.state, settings)
+        finally:
+            await gate.leave_request()
+        if failures:
+            raise HTTPException(503, {"status": "not_ready", "components": failures})
+        return {"status": "ready"}
+
+    @app.post(f"{API_PREFIX}/backups/export")
+    async def export(body: BackupExport, request: Request):
+        state, gate = request.app.state, request.app.state.recovery_gate
+        _require_local_backup(state)
+        if gate.operation.locked():
+            raise HTTPException(409, "Another backup operation is running. Wait and retry.")
+        async def operation():
+            async with _maintenance(state):
+                content = await asyncio.to_thread(create_encrypted_backup,
+                    database_path=settings.database_path, data_dir=settings.data_dir,
+                    passphrase=body.passphrase, max_bytes=settings.backup_max_bytes)
+                return Response(content, media_type="application/octet-stream", headers={"Content-Disposition": 'attachment; filename="off-crm-workspace.oxbackup"'})
+        async with gate.operation:
+            return await _finish_even_if_disconnected(operation())
+
+    @app.post(f"{API_PREFIX}/backups/restore")
+    async def restore(request: Request, file: UploadFile = File(...), passphrase: str = Form(..., min_length=12, max_length=500)):
+        state, gate = request.app.state, request.app.state.recovery_gate
+        _require_local_backup(state)
+        if gate.operation.locked():
+            raise HTTPException(409, "Another backup operation is running. Wait and retry.")
+        async with gate.operation:
+            content = await _bounded_upload(file, settings.backup_max_bytes)
+            await asyncio.to_thread(validate_encrypted_backup, content, passphrase=passphrase, max_bytes=settings.backup_max_bytes)
+            return await _finish_even_if_disconnected(_restore(state, content, passphrase))

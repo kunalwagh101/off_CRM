@@ -5,6 +5,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..outreach.backup import DEFAULT_MAX_BACKUP_BYTES
+
 
 def _resolved(value: str | Path, root: Path) -> Path:
     path = Path(value).expanduser()
@@ -38,8 +40,9 @@ class AppSettings:
     session_secret: str = ""
     session_hours: int = 8
     max_upload_bytes: int = 10 * 1024 * 1024
-    backup_max_bytes: int = 512 * 1024 * 1024
+    backup_max_bytes: int = DEFAULT_MAX_BACKUP_BYTES
     production: bool = False
+    persistent_mount: Path | None = None
     gmail_client_secrets: Path | None = None
     gmail_token: Path | None = None
     own_email: str = ""
@@ -51,11 +54,12 @@ class AppSettings:
         root = Path(project_root or Path.cwd()).resolve()
         data_dir = _resolved(os.getenv("OFFSETX_DATA_DIR", "local_data"), root)
         gmail_secrets = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
-        gmail_token = os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json").strip()
+        gmail_token = os.getenv("OFFSETX_GMAIL_TOKEN", str(data_dir / "gmail_token.json")).strip()
+        persistent_mount = os.getenv("OFFSETX_PERSISTENT_MOUNT", "").strip()
         settings = cls(
             project_root=root,
             database_path=_resolved(
-                os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db"), root
+                os.getenv("OFFSETX_OUTREACH_DB", str(data_dir / "offsetx_outreach.db")), root
             ),
             data_dir=data_dir,
             export_dir=data_dir / "exports",
@@ -71,9 +75,10 @@ class AppSettings:
                 os.getenv("OFFSETX_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))
             ),
             backup_max_bytes=int(
-                os.getenv("OFFSETX_BACKUP_MAX_BYTES", str(512 * 1024 * 1024))
+                os.getenv("OFFSETX_BACKUP_MAX_BYTES", str(DEFAULT_MAX_BACKUP_BYTES))
             ),
             production=_enabled(os.getenv("OFFSETX_PRODUCTION", "")),
+            persistent_mount=_resolved(persistent_mount, root) if persistent_mount else None,
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
             gmail_token=_resolved(gmail_token, root) if gmail_token else None,
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
@@ -114,7 +119,7 @@ class AppSettings:
 
         if self.production:
             temporary_root = Path(tempfile.gettempdir()).resolve()
-            if _inside(self.data_dir, temporary_root):
+            if any(_inside(self.data_dir, path) for path in (temporary_root, Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"))):
                 raise ValueError(
                     "Production OFFSETX_DATA_DIR cannot live under the operating-system temporary directory"
                 )
@@ -122,12 +127,24 @@ class AppSettings:
                 raise ValueError(
                     "Production OFFSETX_OUTREACH_DB must live under OFFSETX_DATA_DIR so one durable root owns local state"
                 )
+            for path in (self.export_dir, self.gmail_token, self.gmail_client_secrets):
+                if path is not None and not _inside(path, self.data_dir):
+                    raise ValueError("Production exports and Gmail files must live under OFFSETX_DATA_DIR")
+            if os.getenv("OFFSETX_DATABASE_URL", "").strip():
+                raise ValueError("This production topology requires all stores on the persistent local root; unset OFFSETX_DATABASE_URL")
+            if not self.persistent_mount or not _inside(self.data_dir, self.persistent_mount) or self.data_dir.resolve() == self.persistent_mount.resolve():
+                raise ValueError("Set OFFSETX_PERSISTENT_MOUNT to the mounted disk and put OFFSETX_DATA_DIR in a subdirectory")
+
+    def verify_persistent_mount(self) -> None:
+        if self.production and (not self.persistent_mount or not self.persistent_mount.is_mount()):
+            raise ValueError("Persistent disk is not mounted. Attach OFFSETX_PERSISTENT_MOUNT before starting the production service")
 
     @property
     def demo_login_enabled(self) -> bool:
         return bool(self.demo_username and self.demo_password and self.session_secret)
 
     def prepare(self) -> None:
+        self.verify_persistent_mount()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.export_dir.mkdir(parents=True, exist_ok=True)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)

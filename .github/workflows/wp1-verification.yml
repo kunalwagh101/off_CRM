@@ -1,0 +1,83 @@
+name: WP1 production acceptance
+on:
+  push:
+    branches: [feature/audit-wp1-durable-state-safe-recovery]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wp1-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  production-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: offcrm_test
+          POSTGRES_PASSWORD: isolated-ci-only
+          POSTGRES_DB: offcrm_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U offcrm_test -d offcrm_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      OFF_CRM_TEST_POSTGRES_URL: postgresql://offcrm_test:isolated-ci-only@127.0.0.1:5432/offcrm_test
+      OFF_CRM_LIVE_EVIDENCE: ${{ github.workspace }}/verification-evidence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies and the live harness
+        run: |
+          uv sync --extra dev --extra email --extra postgres --locked
+          uv pip install playwright==1.61.0
+          mkdir -p verification-evidence
+      - name: Build and test the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Build the production container and require real services
+        run: |
+          docker build -t offcrm-wp1:acceptance .
+          docker pull python:3.12-slim
+          uv run --no-sync python verification/preflight.py
+      - name: Verify all existing and WP1 Python acceptance tests
+        run: uv run --no-sync pytest tests -q -ra --junitxml=verification-evidence/python.xml
+      - name: Verify WP1 in the browser and persistent container
+        run: uv run --no-sync pytest verification/test_wp1_live.py -q -ra --junitxml=verification-evidence/wp1-live.xml
+      - name: Verify the story board
+        run: uv run --no-sync python scripts/verify_board.py > verification-evidence/board.txt
+      - name: Reject skipped or missing acceptance evidence
+        run: |
+          uv run --no-sync python - <<'PY'
+          import json
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          result = {}
+          for name in ('python', 'wp1-live'):
+              root = ET.parse(Path('verification-evidence') / (name + '.xml')).getroot()
+              counts = {tag: len(root.findall('.//' + tag)) for tag in ('testcase', 'failure', 'error', 'skipped')}
+              result[name] = counts
+          print(json.dumps(result, indent=2))
+          Path('verification-evidence/summary.json').write_text(json.dumps(result, indent=2))
+          assert all(row['testcase'] and not any(row[tag] for tag in ('failure', 'error', 'skipped')) for row in result.values()), result
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wp1-acceptance-${{ github.sha }}
+          path: verification-evidence/
+          if-no-files-found: error
+          retention-days: 30

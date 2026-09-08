@@ -1,181 +1,103 @@
-"""Serialize ownership of the legacy shared OutreachStore SQLite connection.
-
-The CRM currently has one long-lived ``sqlite3.Connection`` behind an
-``OutreachStore``.  SQLite may be compiled in serialized mode, but a transaction
-still belongs to the *connection*, not to a Python thread.  Two threads can
-therefore interleave ``BEGIN``/``ROLLBACK`` on the same connection and one
-request can undo another request's acknowledged work.
-
-This module gives that connection one explicit owner at a time.  It is installed
-at the outreach package boundary before ``OutreachEngine`` is imported, so API,
-sales, delivery, automation and direct ``OutreachStore`` users all get the same
-rule.  The wrapper deliberately exposes only the sqlite methods the store uses;
-it is not a second persistence abstraction.
-"""
+"""One ownership guard for every operation on the CRM SQLite connection."""
 from __future__ import annotations
 
 import sqlite3
 import threading
-from functools import wraps
-from typing import Any, Iterable
+from contextlib import contextmanager
 
 
-class SerializedCursor:
-    """A cursor whose reads cannot race another operation on the connection."""
+class SerializedCursor(sqlite3.Cursor):
+    def execute(self, sql, parameters=()):
+        with self.connection.guard:
+            return super().execute(sql, parameters)
 
-    def __init__(self, cursor: sqlite3.Cursor, gate: threading.RLock):
-        self._cursor = cursor
-        self._gate = gate
+    def executemany(self, sql, parameters):
+        with self.connection.guard:
+            return super().executemany(sql, parameters)
 
-    def fetchone(self) -> Any:
-        with self._gate:
-            return self._cursor.fetchone()
+    def executescript(self, script):
+        with self.connection.guard:
+            if self.connection.in_transaction:
+                raise sqlite3.ProgrammingError("A script cannot implicitly commit an owned transaction")
+            return super().executescript(script)
 
-    def fetchall(self) -> list[Any]:
-        with self._gate:
-            return self._cursor.fetchall()
+    def fetchone(self):
+        with self.connection.guard:
+            return super().fetchone()
 
-    def fetchmany(self, size: int | None = None) -> list[Any]:
-        with self._gate:
-            return self._cursor.fetchmany() if size is None else self._cursor.fetchmany(size)
+    def fetchmany(self, size=None):
+        with self.connection.guard:
+            return super().fetchmany() if size is None else super().fetchmany(size)
 
-    def __iter__(self):
-        while True:
-            row = self.fetchone()
-            if row is None:
-                return
-            yield row
+    def fetchall(self):
+        with self.connection.guard:
+            return super().fetchall()
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._cursor, name)
+    def __next__(self):
+        with self.connection.guard:
+            return super().__next__()
+
+    def close(self):
+        with self.connection.guard:
+            return super().close()
 
 
-class SerializedConnection:
-    """One sqlite connection with transaction ownership serialized by thread.
+class SerializedConnection(sqlite3.Connection):
+    """Bare statements autocommit; explicit transactions own the same guard.
 
-    ``OutreachStore.transaction`` already defines the correct transaction
-    boundary.  The defect was that nothing held ownership from its ``BEGIN`` to
-    its ``COMMIT``/``ROLLBACK``.  We acquire an ``RLock`` when BEGIN starts and
-    release it only when the outer transaction ends.  RLock keeps ordinary store
-    helpers usable from inside a transaction.  Nested transactions in the same
-    thread are represented as savepoints rather than issuing an illegal nested
-    BEGIN.
+    This is a native SQLite connection, so SQLite's backup API and named SQL
+    bindings retain their normal semantics. There is no import-time patching.
     """
 
-    def __init__(self, connection: sqlite3.Connection):
-        self._connection = connection
-        self._gate = threading.RLock()
-        self._local = threading.local()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.guard = threading.RLock()
+        self._savepoint = 0
 
-    def _depth(self) -> int:
-        return int(getattr(self._local, "depth", 0))
+    def cursor(self, factory=SerializedCursor):
+        if factory is not SerializedCursor:
+            raise ValueError("CRM cursors must use the connection ownership guard")
+        with self.guard:
+            return super().cursor(factory)
 
-    def _savepoints(self) -> list[str]:
-        value = getattr(self._local, "savepoints", None)
-        if value is None:
-            value = []
-            self._local.savepoints = value
-        return value
+    def execute(self, sql, parameters=()):
+        return self.cursor().execute(sql, parameters)
 
-    @staticmethod
-    def _is_begin(sql: str) -> bool:
-        return str(sql).lstrip().upper().startswith("BEGIN")
+    def executemany(self, sql, parameters):
+        return self.cursor().executemany(sql, parameters)
 
-    def execute(self, sql: str, parameters: Iterable[Any] = ()) -> SerializedCursor:
-        if self._is_begin(sql):
-            depth = self._depth()
-            if depth == 0:
-                self._gate.acquire()
-                try:
-                    cursor = self._connection.execute(sql, tuple(parameters))
-                except Exception:
-                    self._gate.release()
-                    raise
-                self._local.depth = 1
-                return SerializedCursor(cursor, self._gate)
-            name = f"offcrm_nested_{threading.get_ident()}_{depth}"
-            cursor = self._connection.execute(f"SAVEPOINT {name}")
-            self._savepoints().append(name)
-            self._local.depth = depth + 1
-            return SerializedCursor(cursor, self._gate)
-        with self._gate:
-            return SerializedCursor(self._connection.execute(sql, tuple(parameters)), self._gate)
+    def executescript(self, script):
+        return self.cursor().executescript(script)
 
-    def executemany(self, sql: str, seq_of_parameters: Iterable[Iterable[Any]]) -> SerializedCursor:
-        with self._gate:
-            return SerializedCursor(
-                self._connection.executemany(sql, seq_of_parameters), self._gate
-            )
-
-    def executescript(self, script: str) -> SerializedCursor:
-        with self._gate:
-            return SerializedCursor(self._connection.executescript(script), self._gate)
-
-    def commit(self) -> None:
-        depth = self._depth()
-        if depth > 1:
-            name = self._savepoints().pop()
-            self._connection.execute(f"RELEASE SAVEPOINT {name}")
-            self._local.depth = depth - 1
-            return
-        if depth == 1:
+    @contextmanager
+    def transaction(self, *, immediate=False):
+        with self.guard:
+            nested = self.in_transaction
+            self._savepoint += 1
+            name = f"offcrm_{self._savepoint}"
+            self.execute(f"SAVEPOINT {name}" if nested else "BEGIN IMMEDIATE" if immediate else "BEGIN")
             try:
-                self._connection.commit()
-            finally:
-                self._local.depth = 0
-                self._local.savepoints = []
-                self._gate.release()
-            return
-        with self._gate:
-            self._connection.commit()
+                yield self
+                self.execute(f"RELEASE SAVEPOINT {name}" if nested else "COMMIT")
+            except BaseException:
+                if self.in_transaction:
+                    self.execute(f"ROLLBACK TO SAVEPOINT {name}" if nested else "ROLLBACK")
+                    if nested:
+                        self.execute(f"RELEASE SAVEPOINT {name}")
+                raise
 
-    def rollback(self) -> None:
-        depth = self._depth()
-        if depth > 1:
-            name = self._savepoints().pop()
-            try:
-                self._connection.execute(f"ROLLBACK TO SAVEPOINT {name}")
-            finally:
-                self._connection.execute(f"RELEASE SAVEPOINT {name}")
-                self._local.depth = depth - 1
-            return
-        if depth == 1:
-            try:
-                self._connection.rollback()
-            finally:
-                self._local.depth = 0
-                self._local.savepoints = []
-                self._gate.release()
-            return
-        with self._gate:
-            self._connection.rollback()
+    def commit(self):
+        with self.guard:
+            return super().commit()
 
-    def close(self) -> None:
-        with self._gate:
-            self._connection.close()
+    def rollback(self):
+        with self.guard:
+            return super().rollback()
 
-    @property
-    def raw_connection(self) -> sqlite3.Connection:
-        """Trusted maintenance access; callers must already have drained work."""
-        return self._connection
+    def backup(self, target, **kwargs):
+        with self.guard:
+            return super().backup(target, **kwargs)
 
-    def __getattr__(self, name: str) -> Any:
-        # Row factory and harmless connection metadata are read through here.
-        # Mutating SQL methods used by OutreachStore are explicitly wrapped above.
-        return getattr(self._connection, name)
-
-
-def harden_outreach_store(store_class: type[Any]) -> None:
-    """Install serialized connection ownership exactly once on OutreachStore."""
-    if getattr(store_class, "_offcrm_serialized_connection", False):
-        return
-    original_init = store_class.__init__
-
-    @wraps(original_init)
-    def safe_init(self: Any, *args: Any, **kwargs: Any) -> None:
-        original_init(self, *args, **kwargs)
-        if not isinstance(self.connection, SerializedConnection):
-            self.connection = SerializedConnection(self.connection)
-
-    store_class.__init__ = safe_init
-    store_class._offcrm_serialized_connection = True
+    def close(self):
+        with self.guard:
+            return super().close()

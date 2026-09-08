@@ -183,7 +183,13 @@ def test_backup_contains_durable_stores_assets_and_unsubscribe_secret(tmp_path):
     )
     assert result["schema_version"] == 2
     for relative, digest in expected.items():
-        assert _sha(target / "data" / relative) == digest, relative
+        if relative.endswith(".db"):
+            # SQLite backup may change header counters; compare durable records.
+            import sqlite3
+            with sqlite3.connect(data / relative) as original, sqlite3.connect(target / "data" / relative) as restored:
+                assert list(original.iterdump()) == list(restored.iterdump()), relative
+        else:
+            assert _sha(target / "data" / relative) == digest, relative
     assert not (target / "data" / "ai_cache.db").exists()
 
 
@@ -260,7 +266,7 @@ def test_restore_rebinds_every_service_that_holds_the_outreach_store(tmp_path):
         assert app.state.sales.store is app.state.engine.store
         assert app.state.ai_chat.store is app.state.engine.store
         assert app.state.email_delivery.engine is app.state.engine
-        assert app.state.email_delivery.store.store is app.state.engine.store
+        assert app.state.email_delivery.store.outreach is app.state.engine.store
         assert client.get("/health/ready").status_code == 200
 
 

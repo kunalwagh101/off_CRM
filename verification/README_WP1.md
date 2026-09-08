@@ -1,1 +1,0 @@
-This branch consumes the production-audit evidence as a red acceptance baseline for Audit Work Package 1. The original audit PR remains test-only; production fixes are developed and reviewed separately here.

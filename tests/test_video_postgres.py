@@ -259,9 +259,9 @@ def test_the_api_passes_the_video_store_through_the_seam():
     import ast
     import inspect
 
-    from offsetx_apollo_builder.api import app as app_module
+    from offsetx_apollo_builder.api import production_runtime as runtime_module
 
-    tree = ast.parse(inspect.getsource(app_module))
+    tree = ast.parse(inspect.getsource(runtime_module))
     calls = [
         node
         for node in ast.walk(tree)

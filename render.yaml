@@ -5,7 +5,7 @@ services:
     # Production customer state cannot run on Render's ephemeral free web tier.
     # This service is deliberately single-instance because the current complete
     # local workspace uses SQLite plus filesystem assets on one persistent disk.
-    plan: 0.5c-512mb
+    plan: 1c-2g
     numInstances: 1
     region: singapore
     branch: main
@@ -21,12 +21,14 @@ services:
         value: "1"
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
+      - key: OFFSETX_PERSISTENT_MOUNT
+        value: /var/lib/offcrm
       - key: OFFSETX_DATA_DIR
         value: /var/lib/offcrm/local_data
       - key: OFFSETX_OUTREACH_DB
         value: /var/lib/offcrm/local_data/offsetx_outreach.db
       - key: OFFSETX_BACKUP_MAX_BYTES
-        value: "536870912"
+        value: "67108864"
       - key: OFFSETX_DEMO_USERNAME
         sync: false
       - key: OFFSETX_DEMO_PASSWORD

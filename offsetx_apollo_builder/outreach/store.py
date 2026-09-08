@@ -23,6 +23,7 @@ from .models import (
     to_utc_iso,
 )
 from .schema import POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
+from .sqlite_ownership import SerializedConnection
 
 
 class OutreachStore:
@@ -31,11 +32,14 @@ class OutreachStore:
     def __init__(self, path: Path | str):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        self.connection = sqlite3.connect(
+            self.path, check_same_thread=False, isolation_level=None,
+            factory=SerializedConnection,
+        )
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
-        self.connection.execute("PRAGMA synchronous = NORMAL")
+        self.connection.execute("PRAGMA synchronous = FULL")
         self.connection.execute("PRAGMA busy_timeout = 5000")
         self.fts_enabled = False
 
@@ -50,13 +54,9 @@ class OutreachStore:
 
     @contextmanager
     def transaction(self, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
-        try:
-            self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
-            yield self.connection
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            raise
+        """Own all connection access through commit, rollback or nested savepoint."""
+        with self.connection.transaction(immediate=immediate) as connection:
+            yield connection
 
     def initialize(self) -> None:
         self.connection.executescript(SCHEMA_SQL)

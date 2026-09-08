@@ -4,7 +4,7 @@ import hmac
 import os
 import threading
 import uuid
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import nullcontext, asynccontextmanager, contextmanager
 from datetime import date
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -27,36 +27,28 @@ from ..distribution.pipeline import TrendPipeline
 from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
-from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
-from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
 from ..video.effects import catalogue as video_effects_catalogue
 from ..video.presets import catalogue as video_preset_catalogue
 from ..video.recipes import catalogue as video_recipe_catalogue
 from ..video.engine import VideoEditorEngine
-from ..video.store import VideoStore
 from ..video.timeline import (
     BLEND_MODES,
     FRAME_RATES,
     PRESETS as CANVAS_PRESETS,
     TICKS_PER_SECOND,
 )
-from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
-from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
-from ..outreach.deliverability.service import EmailDeliveryService
 from ..outreach.deliverability.ses import SesMailProvider
-from ..outreach.deliverability.store import DeliverabilityStore
-from ..outreach.deliverability.unsubscribe import UnsubscribeService
 from ..outreach.models import ProviderConfig, ROUTES, utc_now
 from ..outreach.ai_chat import AIChatService
 from ..outreach.notion import (
@@ -71,7 +63,6 @@ from ..ai import (
     CACHEABLE_TASK_TYPES,
     ProviderFailure,
     NEVER_CACHE_TASK_TYPES,
-    ResponseCache,
     checks_for,
     default_evals_path,
     DataClass,
@@ -82,21 +73,15 @@ from ..ai import (
     ModeRunner,
     RunMode,
     EgressBlocked,
-    EgressBroker,
-    EgressLog,
     EgressRequest,
     NoPermittedProvider,
-    PersonPublic,
     PolicyViolation,
-    ProviderRegistry,
-    QuotaTracker,
     RegistryError,
 )
 from ..ai.context import ContextLayer
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
-from ..ai.workspace import WorkspaceAISettingsStore
-from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
+from ..outreach.provider_profiles import create_guarded_provider
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
@@ -104,7 +89,6 @@ from .config import AppSettings
 from .email_delivery import build_email_delivery_router
 from .schemas import (
     AutomationUpdate,
-    BackupExport,
     CampaignCreate,
     CampaignUpdate,
     ContactUpdate,
@@ -135,6 +119,8 @@ from .schemas import (
     NotionSettingsUpdate,
 )
 
+
+from .production_runtime import RecoveryGate, _close_runtime, _rebind_runtime, install_runtime_routes
 
 API_PREFIX = "/api/v1"
 LIVE_SEND_CONFIRMATION = "SEND LIVE EMAILS"
@@ -301,140 +287,86 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        resolved.prepare()
+        from ..outreach.backup import recover_interrupted_restore
+        from ..outreach.workspace_lock import WorkspaceLock
+        resolved.verify_persistent_mount()
+        app.state.recovery_gate = RecoveryGate()
+        with WorkspaceLock(resolved.data_dir, exclusive=True):
+            recover_interrupted_restore(database_path=resolved.database_path, data_dir=resolved.data_dir)
+            resolved.prepare()
         app.state.settings = resolved
-        # Both are built before the engine: sending writes through them.
-        app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
-        app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
-        app.state.engine = OutreachEngine(
-            resolved.database_path,
-            template_counter=app.state.ai_context,
-            mail_archive=app.state.ai_recall,
-        )
-        app.state.ai_chat = AIChatService(app.state.engine.store)
-        app.state.sales = SalesTracker(app.state.engine.store)
-        app.state.campaign_locks = CampaignLocks()
-        delivery_store = DeliverabilityStore(app.state.engine.store)
-        unsubscribe = UnsubscribeService.from_path(
-            delivery_store,
-            resolved.data_dir / "email_unsubscribe.key",
-            public_base_url=resolved.public_base_url,
-            configured_secret=resolved.unsubscribe_secret,
-        )
-
-        def delivery_provider(job: dict[str, Any], identity: dict[str, Any] | None) -> Any:
-            provider_type = str(job.get("provider_type", ""))
-            if provider_type == "local":
-                return LocalOutboxProvider(resolved.data_dir / "mail")
-            if provider_type == "ses":
-                if not identity:
-                    raise PermanentDeliveryError("Amazon SES requires a sending identity")
-                return SesMailProvider(
-                    region=str(identity["aws_region"]),
-                    configuration_set=str(identity["configuration_set"]),
-                )
-            if provider_type == "gmail":
-                raise PermanentDeliveryError(
-                    "Durable Gmail jobs are disabled. Use the confirmed Gmail send action for small outreach."
-                )
-            raise PermanentDeliveryError(f"Unknown email provider: {provider_type}")
-
-        app.state.email_delivery = EmailDeliveryService(
-            app.state.engine,
-            unsubscribe=unsubscribe,
-            provider_factory=delivery_provider,
-        )
-        app.state.engine.delivery_preflight = app.state.email_delivery.preflight
-        app.state.engine.unsubscribe_service = unsubscribe
-        app.state.sns_verifier = SnsVerifier()
-        app.state.maintenance_lock = threading.Lock()
-        app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
-        app.state.ai_registry = ProviderRegistry()
-        app.state.ai_workspaces = WorkspaceAISettingsStore(
-            resolved.data_dir, app.state.ai_registry
-        )
-        # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
-        # can move the log off a disposable disk without every call site
-        # learning about it. On a deployment whose filesystem does not survive
-        # a restart, the audit trail is the one thing that must not live there.
-        app.state.ai_egress_log = EgressLog(
-            resolve_database_target(default=resolved.data_dir / "ai_egress.db")
-        )
-        app.state.ai_quota = QuotaTracker(resolved.data_dir)
-        # The cache only reuses answers for task types on its allowlist — work
-        # whose output is a fact, never work whose output is a message. Drafting
-        # is excluded by name: at pseudonymous policy two prospects with the same
-        # title and an equivalent hook build a byte-identical payload, so a hit
-        # would send them the same email.
-        app.state.ai_cache = ResponseCache(resolved.data_dir / "ai_cache.db")
-        app.state.ai_broker = EgressBroker(
-            registry=app.state.ai_registry,
-            credential_resolver=lambda provider_id: "",
-            quota=app.state.ai_quota,
-            logger=app.state.ai_egress_log.record,
-            cache=app.state.ai_cache,
-        )
-        app.state.image_store = ImageStore(
-            resolved.data_dir / "imagery.db",
-            assets_dir=resolved.data_dir / "image_assets",
-        )
-        app.state.distribution_store = DistributionStore(
-            resolved.data_dir / "distribution.db",
-            outbox_dir=resolved.data_dir / "post_outbox",
-        )
-        # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
-        # can move timelines onto Postgres. On a host whose filesystem does not
-        # survive a restart — Render's free plan writes to /tmp — an edit
-        # history in SQLite is an hour of work that disappears when the instance
-        # sleeps. The rendered files still need a real disk; the *document* does
-        # not, and it is the part that took the work.
-        app.state.video_store = VideoStore(
-            resolve_database_target(default=resolved.data_dir / "video.db"),
-            renders_dir=resolved.data_dir / "video_renders",
-        )
-        app.state.trends_path = resolved.data_dir / "trends.db"
-        app.state.notion = NotionSettingsStore(resolved.data_dir)
-        app.state.discovery_fetcher_factory = None
-        app.state.automation = AutomationService(
-            resolved.data_dir / "automation.json",
-            # The unattended sender records too, or overnight runs go unlogged.
-            engine_factory=lambda: OutreachEngine(
-                resolved.database_path,
-                template_counter=app.state.ai_context,
-                mail_archive=app.state.ai_recall,
-            ),
-            mail_provider_factory=lambda mode, authorized: _mail_provider(
-                resolved,
-                mode,
-                LIVE_SEND_CONFIRMATION if authorized else "",
-            ),
-            own_email_factory=lambda: resolved.own_email,
-        )
-        # The content engine's own timer. Separate from the email one on
-        # purpose: that service is email-shaped — a mail provider, an own
-        # address, run_due — and BUILD_STATE's rule is that nothing built from
-        # here may assume email.
-        app.state.content_automation = ContentAutomationService(
-            resolved.data_dir / "content_automation.json",
-            trends_factory=lambda: _trends(_TimerScope(app)),
-            pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
-            distribution_factory=lambda: _distribution(_TimerScope(app)),
-            pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
-        )
-        await app.state.automation.start()
-        await app.state.content_automation.start()
         try:
+            def delivery_provider(job: dict[str, Any], identity: dict[str, Any] | None) -> Any:
+                provider_type = str(job.get("provider_type", ""))
+                if provider_type == "local":
+                    return LocalOutboxProvider(resolved.data_dir / "mail")
+                if provider_type == "ses":
+                    if not identity:
+                        raise PermanentDeliveryError("Amazon SES requires a sending identity")
+                    return SesMailProvider(
+                        region=str(identity["aws_region"]),
+                        configuration_set=str(identity["configuration_set"]),
+                    )
+                if provider_type == "gmail":
+                    raise PermanentDeliveryError(
+                        "Durable Gmail jobs are disabled. Use the confirmed Gmail send action for small outreach."
+                    )
+                raise PermanentDeliveryError(f"Unknown email provider: {provider_type}")
+
+            app.state.delivery_provider_factory = delivery_provider
+            _rebind_runtime(app.state, resolved, previous={})
+            app.state.campaign_locks = CampaignLocks()
+            app.state.sns_verifier = SnsVerifier()
+            app.state.discovery_fetcher_factory = None
+            app.state.automation = AutomationService(
+                resolved.data_dir / "automation.json",
+                # The unattended sender records too, or overnight runs go unlogged.
+                engine_factory=lambda: OutreachEngine(
+                    resolved.database_path,
+                    template_counter=app.state.ai_context,
+                    mail_archive=app.state.ai_recall,
+                ),
+                mail_provider_factory=lambda mode, authorized: _mail_provider(
+                    resolved,
+                    mode,
+                    LIVE_SEND_CONFIRMATION if authorized else "",
+                ),
+                own_email_factory=lambda: resolved.own_email,
+            )
+            # The content engine's own timer. Separate from the email one on
+            # purpose: that service is email-shaped — a mail provider, an own
+            # address, run_due — and BUILD_STATE's rule is that nothing built from
+            # here may assume email.
+            app.state.content_automation = ContentAutomationService(
+                resolved.data_dir / "content_automation.json",
+                trends_factory=lambda: _trends(_TimerScope(app)),
+                pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
+                distribution_factory=lambda: _distribution(_TimerScope(app)),
+                pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
+            )
+            # Open every required store now. A lazy, unused store is still part of
+            # the recoverable workspace and must fail startup if it cannot open.
+            for store in (app.state.ai_context, app.state.ai_recall, app.state.ai_egress_log,
+                          app.state.image_store, app.state.distribution_store, app.state.video_store):
+                store.connection.execute("SELECT 1").fetchone()
+            await app.state.automation.start()
+            await app.state.content_automation.start()
             yield
         finally:
-            await app.state.automation.stop()
-            await app.state.content_automation.stop()
-            app.state.engine.close()
-            app.state.ai_egress_log.close()
-            app.state.image_store.close()
-            app.state.distribution_store.close()
-            app.state.video_store.close()
-            app.state.ai_context.close()
-            app.state.ai_recall.close()
+            for name in ("automation", "content_automation"):
+                service = getattr(app.state, name, None)
+                if service is not None:
+                    await service.stop()
+            _close_runtime(app.state)
+
+    @asynccontextmanager
+    async def guarded_lifespan(app):
+        from ..outreach.workspace_lock import WorkspaceLock
+        resolved.verify_persistent_mount()
+        lease = WorkspaceLock(resolved.data_dir, instance=True) if resolved.production else nullcontext()
+        with lease:
+            async with lifespan(app):
+                yield
 
     app = FastAPI(
         title="off_CRM",
@@ -442,7 +374,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/api/openapi.json",
-        lifespan=lifespan,
+        lifespan=guarded_lifespan,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -519,11 +451,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
-
-    @app.get("/health/ready")
-    def ready(request: Request) -> dict[str, str]:
-        _engine(request).store.connection.execute("SELECT 1").fetchone()
-        return {"status": "ready"}
 
     @app.get(f"{API_PREFIX}/meta")
     def meta() -> dict[str, Any]:
@@ -903,61 +830,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         results = request.app.state.content_automation.run_once()
         return {"results": results, "total": len(results)}
-
-    @app.post(f"{API_PREFIX}/backups/export")
-    def export_backup(body: BackupExport, request: Request) -> Response:
-        content = create_encrypted_backup(
-            database_path=_settings(request).database_path,
-            data_dir=_settings(request).data_dir,
-            passphrase=body.passphrase,
-        )
-        filename = f"offsetx-backup-{uuid.uuid4().hex[:8]}.oxbackup"
-        return Response(
-            content=content,
-            media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-
-    @app.post(f"{API_PREFIX}/backups/restore")
-    async def restore_backup(
-        request: Request,
-        file: UploadFile = File(...),
-        passphrase: str = Form(..., min_length=12, max_length=500),
-    ) -> dict[str, Any]:
-        settings = _settings(request)
-        content = await file.read(settings.max_upload_bytes + 1)
-        if len(content) > settings.max_upload_bytes:
-            raise HTTPException(status_code=413, detail="Backup exceeds the upload limit")
-        if not request.app.state.maintenance_lock.acquire(blocking=False):
-            raise HTTPException(status_code=409, detail="Maintenance is already running")
-        automation = request.app.state.automation
-        await automation.stop()
-        current_engine = request.app.state.engine
-        current_engine.close()
-        try:
-            for suffix in ("-wal", "-shm"):
-                Path(str(settings.database_path) + suffix).unlink(missing_ok=True)
-            result = restore_encrypted_backup(
-                content,
-                database_path=settings.database_path,
-                data_dir=settings.data_dir,
-                passphrase=passphrase,
-            )
-            request.app.state.engine = OutreachEngine(
-                settings.database_path,
-                template_counter=request.app.state.ai_context,
-                mail_archive=request.app.state.ai_recall,
-            )
-            return result
-        finally:
-            if getattr(request.app.state, "engine", None) is current_engine:
-                request.app.state.engine = OutreachEngine(
-                    settings.database_path,
-                    template_counter=request.app.state.ai_context,
-                    mail_archive=request.app.state.ai_recall,
-                )
-            await automation.start()
-            request.app.state.maintenance_lock.release()
 
     @app.get(f"{API_PREFIX}/campaigns")
     def campaigns(
@@ -3241,6 +3113,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         finally:
             temporary.unlink(missing_ok=True)
+
+    install_runtime_routes(app, resolved)
 
     if resolved.frontend_dist.exists():
         app.mount("/", StaticFiles(directory=resolved.frontend_dist, html=True), name="frontend")

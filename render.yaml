@@ -9,6 +9,8 @@ services:
     healthCheckPath: /health/ready
     autoDeploy: true
     envVars:
+      - key: OFFSETX_ALLOWED_HOSTS
+        sync: false   # the public hostname(s) this service answers to, comma separated
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
       - key: OFFSETX_DATA_DIR

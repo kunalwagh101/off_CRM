@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **BREAKING: off_CRM now requires authentication on every host, loopback
+  included** (`S-06.02.10`). The middleware used to enforce login only when a
+  token or demo login happened to be configured, so a default local install
+  served every contact to anything that could reach the port — verified: every
+  `/api/` route returned 200 unauthenticated. Loopback is not an exemption. An
+  unauthenticated local API is readable by every other process and user on the
+  machine, by a browser extension, and by any page that can rebind a hostname to
+  127.0.0.1.
+  - **This does not break a local install.** Starting through
+    `run_offsetx_web.py` provisions a token at `<data_dir>/local_api_token` with
+    mode `0600`, prints it once, and reuses it on every restart. Paste it into
+    the web UI. An explicitly set `OFFSETX_LOCAL_API_TOKEN` or demo login is
+    never overwritten.
+  - Refusal happens at construction, so a misconfiguration is a startup error
+    rather than a service quietly handing out data.
+- **Added a `Host` allowlist** (`S-06.02.10`). DNS rebinding is what makes "it
+  only listens on localhost" untrue: a page points a name it controls at
+  127.0.0.1 and reaches the API with the browser's cooperation. CORS does not
+  prevent the request — it only stops the attacker reading the reply — and a
+  rebound name looks same-origin. Unknown hosts get 421, checked before the
+  public-path exemption. Set `OFFSETX_ALLOWED_HOSTS` for a public deployment;
+  loopback names work with no configuration.
+- Fixed a CORS mismatch: `X-off-CRM-Token` was advertised while the server read
+  `x-offsetx-token`, so a client that followed the advertisement was refused.
+- Test fixtures that build an app now say `allow_unauthenticated=True`
+  explicitly. A config that simply forgot a token used to be indistinguishable
+  from one that meant it.
+
 - **Fixed silent data loss under concurrent writes.** `OutreachStore` shares one
   `sqlite3` connection across threads (`check_same_thread=False`) and FastAPI
   runs 193 of its 206 handlers in a threadpool, so two requests genuinely arrive

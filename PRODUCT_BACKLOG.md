@@ -609,6 +609,9 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
+| R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
+| R-93 | A local install provisions its own token rather than failing | S-06.02.10 |
+| R-94 | Requests for a host this server does not answer to are refused | S-06.02.10 |
 | R-31 | Companions: persisted agent profiles | S-04.01.01 |
 | R-32 | Skills: procedures separate from memory facts | S-04.01.02 |
 | R-33 | Sub-agents for context isolation | S-04.01.03 |
@@ -939,6 +942,21 @@ one page at a time.
   effects — target zero.
 
 ### F-11.06 — Process corrections  *(E-06)*
+
+#### S-06.02.10 — The local API is not open to whatever can reach the port
+**As an** owner, **I want** authentication and a host allowlist on every host
+including loopback, **so that** another process on my machine, or a web page
+that can rebind a name to 127.0.0.1, cannot read my CRM.
+- **Given** no token and no demo login, **when** the app is constructed, **then**
+  it refuses to start and says how to fix it. **(done)**
+- **Given** a local install that has never been configured, **when** it starts
+  through `run_offsetx_web.py`, **then** a token is generated at `0600`, printed
+  once, and stable across restarts. **(done)**
+- **Given** a request whose `Host` is not one this server answers to, **when** it
+  arrives, **then** it is refused with 421 before any other check, including the
+  public-path exemption. **(done)**
+- **Dependencies:** none. **Size:** M. **Indicator:** unauthenticated 200s on
+  `/api/` — target zero.
 
 #### S-06.02.09 — Every database write goes through one guard
 **As an** owner, **I want** all shared-connection access serialised, **so that**

@@ -272,6 +272,19 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     login_limiter = LoginAttemptLimiter()
     loopback = resolved.host in {"127.0.0.1", "localhost", "::1"}
 
+    # Refused here rather than per request, so a misconfiguration is a startup
+    # failure instead of an API that quietly serves every contact to anyone who
+    # can reach the port. Loopback is not an exemption: an unauthenticated local
+    # API is readable by every other process and user on the machine, and by any
+    # page that can rebind a hostname to 127.0.0.1.
+    if not (resolved.api_token or session_auth.enabled or resolved.allow_unauthenticated):
+        raise ValueError(
+            "off_CRM will not start without authentication. Set "
+            "OFFSETX_LOCAL_API_TOKEN, configure the demo login, or start through "
+            "run_offsetx_web.py, which provisions a local token for you."
+        )
+    host_allowlist = resolved.host_allowlist()
+
     def valid_api_token(request: Request) -> bool:
         if not resolved.api_token:
             return False
@@ -454,11 +467,42 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-off-CRM-Token"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Offsetx-Token"],
     )
 
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any):
+        # DNS rebinding is what makes "it only listens on localhost" untrue: a
+        # page can point a name it controls at 127.0.0.1 and reach this API with
+        # the browser's cooperation. CORS does not prevent the *request* — it
+        # only stops the attacker reading the reply — and a rebound name looks
+        # same-origin anyway. An allowlist of names this server answers to does
+        # prevent it, and it is one comparison.
+        if resolved.allow_unauthenticated:
+            # A test harness, not a deployment. The same flag that opts out of
+            # authentication opts out of the host allowlist, because both checks
+            # are about being reachable from somewhere real and a harness is not.
+            # Both are covered by their own tests against a production-shaped
+            # config, so nothing here goes unexercised.
+            return security_headers(await call_next(request))
+        sent_host = (request.headers.get("host") or "").strip().lower()
+        if sent_host.startswith("["):          # [::1]:8766  ->  ::1
+            bare_host = sent_host[1:].split("]", 1)[0]
+        else:                                  # 127.0.0.1:8766  ->  127.0.0.1
+            bare_host = sent_host.split(":", 1)[0]
+        if sent_host and bare_host not in host_allowlist:
+            return security_headers(
+                JSONResponse(
+                    status_code=421,
+                    content={
+                        "detail": (
+                            f"This server does not answer to the host {bare_host!r}. "
+                            "Set OFFSETX_ALLOWED_HOSTS if that name is legitimate."
+                        )
+                    },
+                )
+            )
+
         public_paths = {
             f"{API_PREFIX}/meta",
             f"{API_PREFIX}/auth/session",
@@ -472,11 +516,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         is_public = request.url.path in public_paths or request.url.path.startswith(
             public_prefixes
         )
-        protected = (
-            request.url.path.startswith("/api/")
-            and not is_public
-            and (bool(resolved.api_token) or session_auth.enabled)
-        )
+        # No configuration clause any more. Whether auth is set up is decided at
+        # startup above, so a request never re-decides it — that clause was the
+        # fail-open: with nothing configured, every route served 200 to anyone.
+        protected = request.url.path.startswith("/api/") and not is_public
+        if resolved.allow_unauthenticated:
+            protected = False
         if protected and not (valid_api_token(request) or session_identity(request)):
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})

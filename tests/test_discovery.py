@@ -235,6 +235,7 @@ def _settings(tmp_path: Path) -> AppSettings:
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
 
 

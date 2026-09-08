@@ -224,3 +224,147 @@ def test_a_session_token_still_round_trips_and_expires():
     assert auth.verify(token, now=1_000).username == "owner"
     assert auth.verify(token, now=1_000 + 3601) is None
     assert auth.verify(token[:-2] + "xx", now=1_000) is None
+
+
+# ── 4. the local API is no longer open to whatever can reach the port ───────
+#
+# Two controls, added 2026-09-08. Both are tested against a production-shaped
+# config — the harness opt-out (`allow_unauthenticated`) is off here, because a
+# test that runs with the check disabled proves nothing about the check.
+
+import json
+
+from fastapi.testclient import TestClient
+
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
+
+
+def _real_settings(tmp_path, **overrides) -> AppSettings:
+    base = dict(
+        project_root=tmp_path,
+        database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "no-dist",
+        api_token="k" * 40,
+        allowed_hosts=("testserver",),
+    )
+    base.update(overrides)
+    return AppSettings(**base)
+
+
+def test_a_local_install_will_not_start_without_authentication(tmp_path):
+    """The fail-open this closes: with nothing configured, every route used to
+    answer 200 to anyone who could reach the port. Loopback is not an exemption —
+    an unauthenticated local API is readable by every other process and user on
+    the machine.
+
+    Refused at construction rather than per request, so the failure is a startup
+    error somebody sees rather than a service quietly handing out contacts.
+    """
+    with pytest.raises(ValueError, match="requires an API token"):
+        create_app(_real_settings(tmp_path, api_token=""))
+
+
+def test_loopback_requires_the_token_like_everywhere_else(tmp_path):
+    settings = _real_settings(tmp_path, host="127.0.0.1")
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/v1/dashboard").status_code == 401
+        authorised = client.get(
+            "/api/v1/dashboard", headers={"Authorization": f"Bearer {settings.api_token}"}
+        )
+        assert authorised.status_code == 200
+
+
+def test_a_wrong_token_is_refused(tmp_path):
+    settings = _real_settings(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        assert client.get(
+            "/api/v1/dashboard", headers={"Authorization": "Bearer " + "k" * 39 + "j"}
+        ).status_code == 401
+
+
+def test_a_host_this_server_does_not_answer_to_is_refused(tmp_path):
+    """DNS rebinding is what makes "it only listens on localhost" untrue: a page
+    points a name it controls at 127.0.0.1 and reaches the API with the browser's
+    cooperation. CORS does not stop the request being made — it only stops the
+    attacker reading the reply — and a rebound name looks same-origin anyway.
+    """
+    settings = _real_settings(tmp_path)
+    headers = {"Authorization": f"Bearer {settings.api_token}"}
+    with TestClient(create_app(settings)) as client:
+        for host in ("rebind.attacker.test", "rebind.attacker.test:8766", "evil.example"):
+            answer = client.get("/api/v1/dashboard", headers={**headers, "Host": host})
+            assert answer.status_code == 421, f"{host} was answered"
+            assert "does not answer to the host" in answer.json()["detail"]
+
+
+def test_the_hosts_this_server_does_answer_to_still_work(tmp_path):
+    """A control that refuses everything is not a control, it is an outage."""
+    settings = _real_settings(tmp_path, allowed_hosts=("testserver", "crm.example"))
+    headers = {"Authorization": f"Bearer {settings.api_token}"}
+    with TestClient(create_app(settings)) as client:
+        for host in ("127.0.0.1:8766", "localhost:8766", "[::1]:8766", "crm.example",
+                     "CRM.example", "testserver"):
+            answer = client.get("/api/v1/dashboard", headers={**headers, "Host": host})
+            assert answer.status_code == 200, f"{host} was refused"
+
+
+def test_the_host_check_runs_before_the_public_path_exemption(tmp_path):
+    """Otherwise the unauthenticated endpoints are a rebinding target of their own."""
+    settings = _real_settings(tmp_path)
+    with TestClient(create_app(settings)) as client:
+        assert client.get(
+            "/api/v1/meta", headers={"Host": "rebind.attacker.test"}
+        ).status_code == 421
+        assert client.get("/api/v1/meta").status_code == 200
+
+
+def test_a_provisioned_token_is_strong_stable_and_private(tmp_path, monkeypatch):
+    """A local install gets a token rather than an error it must fix by hand.
+
+    `0600` is not theatre. Anything able to read this file can already open the
+    SQLite database beside it, so it adds no secret — it closes the gap between
+    "can read my files" and "can reach my API", which is where a browser
+    extension, another user account, or a rebinding page sits.
+    """
+    for name in ("OFFSETX_LOCAL_API_TOKEN", "OFFSETX_DEMO_USERNAME",
+                 "OFFSETX_DEMO_PASSWORD", "OFFSETX_SESSION_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("OFFSETX_OUTREACH_DB", str(tmp_path / "data" / "crm.db"))
+
+    first = AppSettings.from_env(tmp_path)
+    assert len(first.api_token) >= 32
+
+    token_file = tmp_path / "data" / AppSettings.TOKEN_FILENAME
+    assert oct(token_file.stat().st_mode & 0o777) == "0o600"
+    assert AppSettings.from_env(tmp_path).api_token == first.api_token, "token changed on restart"
+
+
+def test_provisioning_never_overwrites_a_token_the_owner_chose(tmp_path, monkeypatch):
+    monkeypatch.setenv("OFFSETX_LOCAL_API_TOKEN", "o" * 44)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("OFFSETX_OUTREACH_DB", str(tmp_path / "data" / "crm.db"))
+    settings = AppSettings.from_env(tmp_path)
+    assert settings.api_token == "o" * 44
+    assert not (tmp_path / "data" / AppSettings.TOKEN_FILENAME).exists()
+
+
+def test_the_advertised_token_header_is_the_one_the_server_reads(tmp_path):
+    """CORS advertised `X-off-CRM-Token` while the server read `x-offsetx-token`,
+    so a client that followed the advertisement was refused."""
+    settings = _real_settings(tmp_path)
+    app = create_app(settings)
+    advertised = {
+        header.lower()
+        for middleware in app.user_middleware
+        for header in (middleware.kwargs.get("allow_headers") or [])
+    }
+    with TestClient(app) as client:
+        answer = client.get(
+            "/api/v1/dashboard", headers={"X-Offsetx-Token": settings.api_token}
+        )
+    assert answer.status_code == 200, "the header the server reads does not work"
+    assert "x-offsetx-token" in advertised, "the server reads a header CORS does not allow"

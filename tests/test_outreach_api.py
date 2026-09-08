@@ -23,6 +23,11 @@ def _settings(tmp_path: Path, *, token: str = "", max_upload_bytes: int = 1024 *
         frontend_dist=tmp_path / "missing-dist",
         api_token=token,
         max_upload_bytes=max_upload_bytes,
+        allowed_hosts=("testserver",),
+        # A token means this case is about the security boundary, so the real
+        # checks run. Without one it is about business logic, and the harness
+        # opts out explicitly rather than the app failing open by default.
+        allow_unauthenticated=not token,
     )
 
 

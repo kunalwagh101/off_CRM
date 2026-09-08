@@ -252,6 +252,13 @@ remaining independent stories below stay READY.)*
   code: offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/signin.py
   commit: fd5ad0b
 
+- S-06.02.10 · The local API is not open to whatever can reach the port
+  tests: tests/test_security_audit.py::test_a_local_install_will_not_start_without_authentication, tests/test_security_audit.py::test_loopback_requires_the_token_like_everywhere_else, tests/test_security_audit.py::test_a_host_this_server_does_not_answer_to_is_refused, tests/test_security_audit.py::test_a_provisioned_token_is_strong_stable_and_private
+  command: python -m pytest tests/test_security_audit.py tests/test_api_auth.py tests/test_outreach_api.py -q
+  result: 33 passed (2026-09-08)
+  code: offsetx_apollo_builder/api/config.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/web_cli.py
+  commit: e4f91a4
+
 - S-03.02.01 · Sign in to a platform once, inside the box
   tests: tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards, tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted, tests/test_browser_signin.py::test_no_function_in_the_sign_in_path_accepts_a_credential, tests/test_browser_agent.py::test_a_lock_left_behind_by_a_browser_that_died_is_not_a_lock, tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
   command: python -m pytest tests/test_browser_signin.py tests/test_browser_agent.py tests/test_browser_box.py -q

@@ -406,6 +406,7 @@ def test_assembling_over_http_returns_the_beats_and_the_notes(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         campaign = client.post(
@@ -501,6 +502,7 @@ def test_directing_with_no_provider_connected_says_what_to_do(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         campaign = client.post(
@@ -709,6 +711,7 @@ def _settings(tmp_path: Path) -> AppSettings:
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
 
 

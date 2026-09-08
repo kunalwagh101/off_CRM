@@ -563,7 +563,7 @@ def test_sns_envelope_signature_is_verified_before_parsing():
     assert verified["MessageId"] == "message-1"
 
 
-def _settings(tmp_path: Path) -> AppSettings:
+def _settings(tmp_path: Path, *, token: str = "") -> AppSettings:
     return AppSettings(
         project_root=Path.cwd(),
         database_path=tmp_path / "outreach.db",
@@ -572,6 +572,12 @@ def _settings(tmp_path: Path) -> AppSettings:
         frontend_dist=tmp_path / "missing-dist",
         public_base_url="http://testserver",
         unsubscribe_secret="test-unsubscribe-secret-that-is-long-enough",
+        api_token=token,
+        allowed_hosts=("testserver",),
+        # A token means the case is about the security boundary, so the real
+        # checks run. Without one it is about delivery logic, and the harness
+        # opts out explicitly rather than the app failing open by default.
+        allow_unauthenticated=not token,
     )
 
 
@@ -621,8 +627,7 @@ def test_email_delivery_api_and_public_one_click_unsubscribe(tmp_path):
 
 
 def test_public_feedback_paths_bypass_login_but_still_verify_their_tokens(tmp_path):
-    settings = _settings(tmp_path)
-    settings.api_token = "x" * 32
+    settings = _settings(tmp_path, token="x" * 32)
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/v1/dashboard").status_code == 401
         invalid_unsubscribe = client.get("/api/v1/email/unsubscribe/not-a-token")

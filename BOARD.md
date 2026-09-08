@@ -73,6 +73,7 @@ remaining independent stories below stay READY.)*
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
+- S-06.02.09 · Every database write goes through one guard
 
 ## IN_PROGRESS
 

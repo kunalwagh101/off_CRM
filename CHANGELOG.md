@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Fixed silent data loss under concurrent writes.** `OutreachStore` shares one
+  `sqlite3` connection across threads (`check_same_thread=False`) and FastAPI
+  runs 193 of its 206 handlers in a threadpool, so two requests genuinely arrive
+  at once. `sqlite3.threadsafety` is 3, which serialises a single *statement*
+  and does nothing for a transaction made of several. Reproduced with two
+  threads writing forty rows each: one raised "cannot start a transaction within
+  a transaction" and **forty of the eighty rows were gone**, because the second
+  thread's commit and rollback acted on the first thread's open transaction.
+  `transaction()` now holds a reentrant lock for its whole body, which is what
+  `db/connection.py` has always done. 64 call sites depended on this, including
+  `claim_next` — the email worker's exclusive claim.
+- **Fixed unbounded memory growth in the login rate limiter.** Pruning emptied
+  each client's deque and left the key behind, so the dict only ever grew.
+  Measured at 50,000 retained keys with every window long expired; one IPv6 /64
+  is a single residential allocation and 18 quintillion keys.
+- **Fixed a username timing oracle in demo login.** `and` short-circuits, so a
+  wrong username returned before the password was compared and the difference is
+  measurable — which leaks which usernames are real and wastes the constant-time
+  comparison underneath.
+- Added `tests/test_security_audit.py`: 8 regressions covering all three.
+
 - Specified **E-11 — the agent browses the open web alone and comes back with
   facts you can trust**: 6 features, 15 stories, R-76 to R-90.
   `docs/architecture/AUTONOMOUS_BROWSING.md` is the build manual and

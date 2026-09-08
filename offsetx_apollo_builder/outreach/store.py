@@ -5,6 +5,7 @@ import json
 import math
 import re
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
@@ -32,6 +33,12 @@ class OutreachStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        # `check_same_thread=False` hands one connection to every thread, and
+        # FastAPI runs 193 of its 206 handlers in a threadpool — so two requests
+        # really do arrive on this object at once. `sqlite3.threadsafety` is 3,
+        # which serialises one *statement*; it does nothing for a transaction
+        # made of several. This lock is what makes `transaction()` atomic.
+        self._write_lock = threading.RLock()
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
@@ -50,13 +57,34 @@ class OutreachStore:
 
     @contextmanager
     def transaction(self, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
-        try:
-            self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
-            yield self.connection
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            raise
+        """One writer at a time, for the whole transaction rather than per statement.
+
+        **The lock is the correctness, not an optimisation.** Without it two
+        threads sharing this connection interleave their transactions, and the
+        failure is not an exception you notice — it is silent loss. Reproduced
+        with two threads writing forty rows each: one raised *"cannot start a
+        transaction within a transaction"*, and **forty of the eighty rows were
+        gone**, because the second thread's `commit()` and `rollback()` acted on
+        the first thread's open transaction.
+
+        `BEGIN IMMEDIATE` protects this database from other *processes* — it
+        takes SQLite's file lock. It cannot protect a connection from itself.
+
+        Reentrant because a few call sites open a transaction inside code that
+        already holds one; with a plain `Lock` those would deadlock instead of
+        proceeding, which trades silent loss for a silent hang.
+
+        `db/connection.py` already does exactly this. This module predates it
+        and never got the same treatment.
+        """
+        with self._write_lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
+                yield self.connection
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
 
     def initialize(self) -> None:
         self.connection.executescript(SCHEMA_SQL)

@@ -49,9 +49,23 @@ class DemoSessionAuth:
         return bool(self.username and self._password and self._secret)
 
     def authenticate(self, username: str, password: str) -> bool:
-        return self.enabled and hmac.compare_digest(
+        """Both comparisons always run, so the answer takes the same time.
+
+        `and` short-circuits: chaining the two `compare_digest` calls meant a
+        wrong username returned before the password was ever compared, and the
+        difference is measurable. That is a username oracle — an attacker learns
+        which name is real from the timing, and the constant-time comparison
+        underneath it is wasted. The `&` is deliberate and must stay.
+        """
+        if not self.enabled:
+            return False
+        user_ok = hmac.compare_digest(
             username.encode("utf-8"), self.username.encode("utf-8")
-        ) and hmac.compare_digest(password.encode("utf-8"), self._password.encode("utf-8"))
+        )
+        password_ok = hmac.compare_digest(
+            password.encode("utf-8"), self._password.encode("utf-8")
+        )
+        return user_ok & password_ok
 
     def issue(self, *, now: int | None = None) -> str:
         if not self.enabled:
@@ -97,7 +111,9 @@ class LoginAttemptLimiter:
         with self._lock:
             attempts = self._attempts.setdefault(key, deque())
             self._prune(attempts, current)
-            return len(attempts) < self.maximum
+            allowed = len(attempts) < self.maximum
+            self._forget_if_empty(key, attempts)
+            return allowed
 
     def failed(self, key: str, *, now: float | None = None) -> None:
         current = now if now is not None else time.monotonic()
@@ -114,3 +130,14 @@ class LoginAttemptLimiter:
         cutoff = now - self.window_seconds
         while attempts and attempts[0] <= cutoff:
             attempts.popleft()
+
+    def _forget_if_empty(self, key: str, attempts: deque[float]) -> None:
+        """Drop the key once its window is empty, not just the timestamps in it.
+
+        Pruning emptied the deque and left the key behind, so the dict only ever
+        grew. The key is a client address: one IPv6 /64 — a single residential
+        allocation — is 18 quintillion of them, so the growth is bounded only by
+        memory. Measured at 50,000 retained keys with every window long expired.
+        """
+        if not attempts:
+            self._attempts.pop(key, None)

@@ -608,6 +608,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-88 | Concurrent runs share pace and account budget, not multiply them | S-11.05.01 |
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
+| R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-31 | Companions: persisted agent profiles | S-04.01.01 |
 | R-32 | Skills: procedures separate from memory facts | S-04.01.02 |
 | R-33 | Sub-agents for context isolation | S-04.01.03 |
@@ -938,6 +939,22 @@ one page at a time.
   effects — target zero.
 
 ### F-11.06 — Process corrections  *(E-06)*
+
+#### S-06.02.09 — Every database write goes through one guard
+**As an** owner, **I want** all shared-connection access serialised, **so that**
+two requests cannot corrupt each other's writes.
+- **Given** concurrent transactions on `OutreachStore`, **when** they run,
+  **then** no write is lost and no transaction error is raised. **(fixed
+  2026-09-08)**
+- **Given** a bare `store.connection.execute(...)` outside a transaction,
+  **when** another thread holds an open transaction, **then** it does not read
+  uncommitted rows or get committed by that transaction. **(open)**
+- **Dependencies:** none. **Size:** M. **Indicator:** unguarded `.execute(` call
+  sites outside `transaction()` — target zero.
+- **Why:** the audit fixed the transaction race with a lock, which removes the
+  proven data loss. It does not stop a bare `.execute` landing inside another
+  thread's open transaction. `db/connection.py` already routes every method
+  through its lock; this module has ~300 call sites that do not.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

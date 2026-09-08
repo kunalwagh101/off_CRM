@@ -65,6 +65,16 @@
   does not invent a universal arithmetic or summarisation language. The dedicated
   acceptance suite includes a real-Chromium page where a plausible confidence-1
   wrong number is refused.
+- Delivered `S-11.02.04`, a run-scoped page-read cache that reuses the original
+  host-owned capture instead of issuing a second browser read. Cache identity
+  strips only known analytics/ad tracking parameters while preserving functional
+  query parameters and URL fragments. A cache hit retains the original trace
+  step and provenance, is audited as `read_cache_hit`, and does not count as a
+  browser action. Successful reads now persist their text as private trace
+  sidecars even for free-text runs. Actions that may mutate or reload a page
+  invalidate the affected cache entry, so deduplication cannot turn into stale
+  evidence. The dedicated suite includes a real-Chromium proof that two read
+  decisions invoke `Page.read` exactly once.
 - Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
   Shipped stories are **not** edited in place — an evidence block that describes
   something which never happened is worse than no record — so each amendment

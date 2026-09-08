@@ -64,10 +64,9 @@ reasoning survives the unblocking.)*
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
-is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
+is an item that gets built twice. S-11.02.01 through S-11.02.04 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-11.02.04 · The same page is never read twice in one run
 - S-11.01.01 · A failed action is recovered from, not repeated
 - S-11.01.03 · A run survives the process dying
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
@@ -97,6 +96,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.02.04 · The same page is never read twice in one run
+  tests: tests/test_agent_page_read_cache.py::test_a_page_already_read_in_the_run_reuses_the_stored_capture, tests/test_agent_page_read_cache.py::test_tracking_only_url_variants_share_one_read, tests/test_agent_page_read_cache.py::test_a_page_mutation_invalidates_that_pages_cached_read, tests/test_agent_page_read_cache.py::test_cached_structured_read_reuses_original_provenance_and_screenshot, tests/test_agent_page_read_cache.py::test_real_chromium_is_read_only_once_for_two_read_decisions
+  command: uv run pytest tests/test_agent_page_read_cache.py -q
+  result: 7 passed (2026-09-06)
+  code: offsetx_apollo_builder/agent/read_cache.py, offsetx_apollo_builder/agent/run.py
+  commit: c91a85e2f620533a8f828ab49acce89bc2c1ad83
 
 - S-11.02.03 · A claim the page does not support is refused
   tests: tests/test_agent_claim_verification.py::test_number_inside_a_larger_number_is_refused_even_at_high_confidence, tests/test_agent_claim_verification.py::test_derived_finding_is_allowed_only_from_individually_verified_inputs, tests/test_agent_claim_verification.py::test_missing_support_in_a_truncated_capture_is_reported_as_inconclusive, tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number

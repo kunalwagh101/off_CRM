@@ -77,7 +77,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-06.02.09 · Every database write goes through one guard
 
 ## IN_REVIEW
 

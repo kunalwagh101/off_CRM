@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Fixed a bare statement being rolled back with somebody else's failed
+  request** (`S-06.02.09`). The lock added on 2026-09-08 made two transactions
+  safe against each other but left this:
+
+      thread A   BEGIN, INSERT 'holder', raise  -> ROLLBACK
+      thread B   INSERT 'bystander'             -> reported success
+      surviving rows: []
+
+  B's write was destroyed by A's failure, and B was told it succeeded.
+- **Root cause: the connection was not in autocommit.** Python's default
+  `isolation_level` silently opens a transaction before any DML and leaves it
+  open, so a bare INSERT was never bare — it began a transaction the next
+  thread's `BEGIN` collided with, and whose fate a later `COMMIT` or `ROLLBACK`
+  decided. `db/connection.py` has always opened `isolation_level=None` and
+  documents that the stores were written against it; the Postgres backend has
+  always behaved that way. SQLite was the odd one out, which made this a
+  data-loss bug on one backend and not the other.
+- Added `GuardedConnection`: the object all 155 call sites reach through now
+  serialises every statement on the shared connection. Replacing the object
+  rather than migrating the call sites is both the smaller change and the one
+  with nowhere left to forget. What it does not cover is stated in its
+  docstring — the lock is released before rows are fetched from a returned
+  cursor, so a lazily-iterated `SELECT` can still span another transaction.
+  That is a read seeing in-flight state, not a lost write.
+- A test parses `outreach/` with `ast` and fails if any long-lived connection is
+  assigned without the guard. `backup.py`'s short-lived, function-local
+  connections are correctly excluded — the hazard is a connection stored on an
+  object, because that is the one two threads reach at once.
+
 - **BREAKING: off_CRM now requires authentication on every host, loopback
   included** (`S-06.02.10`). The middleware used to enforce login only when a
   token or demo login happened to be configured, so a default local install

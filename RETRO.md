@@ -223,3 +223,28 @@ use *almost true* values, not only invented sources: adjacent digits, negation,
 unrelated quotes and truncated captures. Confidence is never evidence. Verify
 against host-owned material after generation, fail closed when support is not
 there, and distinguish "not in the bounded capture" from "proved false".
+---
+
+## 2026-09-09 — S-06.02.09, the half the lock did not cover
+
+**What was cut.** Nothing. What was nearly cut was the root cause: the first fix
+that made the story's own test pass was the `GuardedConnection` wrapper, and it
+did not work — the holder thread still raised "cannot start a transaction within
+a transaction". Stopping at a green test would have shipped a lock around a
+problem that was really about `isolation_level`.
+
+**What the estimate got wrong.** I sized this as "wrap 155 call sites" and the
+call sites were the easy part. The actual defect was one keyword argument. The
+2026-09-08 fix treated the symptom — two transactions colliding — and the
+symptom was produced by Python opening transactions nobody asked for. Two
+sessions of work, both correct, and the second only found the cause because the
+first fix's own test failed in a way that did not fit the story I had in my head.
+
+**What to change next time.** The previous retros were about tests that pass
+with the feature removed, and criteria defended by argument rather than checked.
+This one is about **a fix whose test passes for the wrong reason.** The
+`GuardedConnection` reproduction went green while the bug was still there — the
+bystander survived because the holder timed out after five seconds and released
+the lock, not because anything was correct. A concurrency test that passes needs
+its *timing* inspected, not just its assertion: if it took five seconds, it did
+not demonstrate what it claims.

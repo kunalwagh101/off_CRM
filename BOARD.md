@@ -73,11 +73,10 @@ remaining independent stories below stay READY.)*
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
-- S-06.02.09 · Every database write goes through one guard
 
 ## IN_PROGRESS
 
-- S-06.02.09 · Every database write goes through one guard
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -251,6 +250,13 @@ remaining independent stories below stay READY.)*
   result: 81 passed (2026-09-06)
   code: offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/signin.py
   commit: fd5ad0b
+
+- S-06.02.09 · Every database write goes through one guard
+  tests: tests/test_security_audit.py::test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure, tests/test_security_audit.py::test_a_bare_write_is_not_committed_early_by_someone_else, tests/test_security_audit.py::test_no_shared_connection_escapes_the_guard, tests/test_security_audit.py::test_the_guard_still_behaves_like_a_connection
+  command: python -m pytest tests/test_security_audit.py tests/test_outreach_api.py tests/test_sales_tracker.py tests/test_email_delivery.py -q
+  result: 53 passed (2026-09-09)
+  code: offsetx_apollo_builder/outreach/store.py
+  commit: 4acf68e
 
 - S-06.02.10 · The local API is not open to whatever can reach the port
   tests: tests/test_security_audit.py::test_a_local_install_will_not_start_without_authentication, tests/test_security_audit.py::test_loopback_requires_the_token_like_everywhere_else, tests/test_security_audit.py::test_a_host_this_server_does_not_answer_to_is_refused, tests/test_security_audit.py::test_a_provisioned_token_is_strong_stable_and_private

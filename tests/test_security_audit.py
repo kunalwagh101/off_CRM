@@ -368,3 +368,200 @@ def test_the_advertised_token_header_is_the_one_the_server_reads(tmp_path):
         )
     assert answer.status_code == 200, "the header the server reads does not work"
     assert "x-offsetx-token" in advertised, "the server reads a header CORS does not allow"
+
+
+# ── 5. a bare statement no longer joins somebody else's transaction ─────────
+#
+# S-06.02.09. The lock added on 2026-09-08 made two transactions safe against
+# each other. It left this: a statement run outside any transaction joined
+# whatever transaction another thread had open, and was committed or rolled back
+# with work it had nothing to do with.
+
+
+def test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure(tmp_path):
+    """The demonstration that named the story.
+
+        thread A   BEGIN, INSERT 'holder', raise  -> ROLLBACK
+        thread B   INSERT 'bystander'             -> reported success
+        surviving rows: []
+
+    B's write was destroyed by A's failure, and B was told it succeeded. Every
+    bare write here must survive every rolled-back transaction beside it.
+    """
+    store = _probe_store(tmp_path)
+    rounds, bystanders = 12, 4
+    barrier = threading.Barrier(bystanders + 1)
+    errors: list[str] = []
+
+    def failing_transactions() -> None:
+        try:
+            barrier.wait(timeout=20)
+            for index in range(rounds):
+                try:
+                    with store.transaction() as conn:
+                        conn.execute("INSERT INTO audit_probe (who) VALUES (?)", (f"doomed-{index}",))
+                        raise RuntimeError("this request failed")
+                except RuntimeError:
+                    pass
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"holder: {type(exc).__name__}: {exc}")
+
+    def bare_writes(name: str) -> None:
+        try:
+            barrier.wait(timeout=20)
+            for index in range(rounds):
+                store.connection.execute(
+                    "INSERT INTO audit_probe (who) VALUES (?)", (f"{name}-{index}",)
+                )
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{name}: {type(exc).__name__}: {exc}")
+
+    threads = [threading.Thread(target=failing_transactions)]
+    threads += [threading.Thread(target=bare_writes, args=(f"bare{n}",)) for n in range(bystanders)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+    assert not any(thread.is_alive() for thread in threads), "a thread never finished — deadlock"
+    assert errors == [], errors
+
+    rows = [row[0] for row in store.connection.execute("SELECT who FROM audit_probe").fetchall()]
+    assert not [row for row in rows if row.startswith("doomed")], "a failed transaction committed"
+    assert len(rows) == rounds * bystanders, (
+        f"expected every bare write to survive, {rounds * bystanders - len(rows)} were lost"
+    )
+
+
+def test_a_bare_write_is_not_committed_early_by_someone_else(tmp_path):
+    """The mirror of the last one. A bare write must not be made durable by
+    another thread's commit before its own statement finished — and a read must
+    not see a transaction's uncommitted rows as though they were saved."""
+    store = _probe_store(tmp_path)
+    started, may_commit = threading.Event(), threading.Event()
+    seen: list[int] = []
+
+    def holder() -> None:
+        with store.transaction() as conn:
+            conn.execute("INSERT INTO audit_probe (who) VALUES ('uncommitted')")
+            started.set()
+            may_commit.wait(timeout=10)
+
+    def reader() -> None:
+        started.wait(timeout=10)
+        may_commit.set()
+        # Blocks until the transaction above releases, which is the point: the
+        # count it sees is a settled one, never a half-finished transaction.
+        seen.append(store.connection.execute("SELECT COUNT(*) FROM audit_probe").fetchone()[0])
+
+    threads = [threading.Thread(target=holder), threading.Thread(target=reader)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    assert not any(thread.is_alive() for thread in threads), "deadlock"
+    assert seen == [1], f"reader saw {seen}, expected the committed row only"
+
+
+def test_the_guard_still_behaves_like_a_connection(tmp_path):
+    """155 call sites reach through this object. Replacing it is only safe if it
+    keeps the shape they were written against."""
+    import sqlite3
+
+    store = _probe_store(tmp_path)
+    connection = store.connection
+
+    assert connection.row_factory is sqlite3.Row
+    cursor = connection.execute("INSERT INTO audit_probe (who) VALUES ('shape')")
+    assert isinstance(cursor, sqlite3.Cursor)
+    assert cursor.lastrowid is not None
+    connection.commit()
+
+    row = connection.execute("SELECT who FROM audit_probe").fetchone()
+    assert row["who"] == "shape", "row_factory did not survive the wrapper"
+
+    connection.executemany(
+        "INSERT INTO audit_probe (who) VALUES (?)", [("a",), ("b",)]
+    )
+    connection.commit()
+    assert connection.execute("SELECT COUNT(*) FROM audit_probe").fetchone()[0] == 3
+
+    connection.executescript("INSERT INTO audit_probe (who) VALUES ('script');")
+    assert connection.execute("SELECT COUNT(*) FROM audit_probe").fetchone()[0] == 4
+
+    # The escape hatch is named, so anything opting out of the guarantee says so.
+    assert isinstance(connection.raw, sqlite3.Connection)
+
+    manual = connection.cursor()
+    manual.execute("SELECT COUNT(*) FROM audit_probe")
+    assert manual.fetchone()[0] == 4
+
+
+def test_backup_reaches_the_real_connection_underneath(tmp_path):
+    """`Connection.backup` needs a real connection as its target, not a wrapper —
+    the one call site would raise a TypeError if this were forwarded naively."""
+    import sqlite3
+
+    store = _probe_store(tmp_path)
+    store.connection.execute("INSERT INTO audit_probe (who) VALUES ('saved')")
+    store.connection.commit()
+
+    other = OutreachStore(tmp_path / "copy.db")
+    store.connection.backup(other.connection)
+    assert other.connection.execute("SELECT who FROM audit_probe").fetchone()[0] == "saved"
+    other.close()
+
+
+def test_no_shared_connection_escapes_the_guard():
+    """The check that survives me.
+
+    Not "one connection in the package" — `backup.py` opens short-lived,
+    function-local ones to copy and integrity-check a file, and those are
+    correct: never shared, always closed in a `finally`. The hazard is a
+    connection **stored on an object**, because that is the one two threads
+    reach at once. So the rule is about assignment, not about counting, and it
+    is checked with `ast` rather than a regex so a line break cannot hide one.
+    """
+    import ast
+    import pathlib
+
+    offenders = []
+    for path in pathlib.Path("offsetx_apollo_builder/outreach").rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            # Only attribute targets: `self.connection = ...` outlives the call,
+            # a local `source = ...` does not.
+            if not any(isinstance(target, ast.Attribute) for target in node.targets):
+                continue
+            for inner in ast.walk(node.value):
+                if (
+                    isinstance(inner, ast.Call)
+                    and isinstance(inner.func, ast.Attribute)
+                    and inner.func.attr == "connect"
+                    and isinstance(inner.func.value, ast.Name)
+                    and inner.func.value.id == "sqlite3"
+                ):
+                    wrapped = isinstance(node.value, ast.Call) and (
+                        getattr(node.value.func, "id", "") == "GuardedConnection"
+                    )
+                    if not wrapped:
+                        offenders.append(f"{path}:{node.lineno}")
+
+    assert offenders == [], (
+        "a long-lived connection is assigned without GuardedConnection, which "
+        f"reopens the hazard: {offenders}"
+    )
+
+
+def test_the_connection_is_opened_in_autocommit():
+    """Python's default isolation level opens a transaction before any DML and
+    leaves it open, which is what made a bare statement joinable in the first
+    place. The guard serialises; this is what stops there being anything to
+    join."""
+    import inspect
+
+    from offsetx_apollo_builder.outreach import store as module
+
+    source = inspect.getsource(module.OutreachStore.__init__)
+    assert "isolation_level=None" in source

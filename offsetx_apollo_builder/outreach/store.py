@@ -26,19 +26,132 @@ from .models import (
 from .schema import POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
 
 
+class GuardedConnection:
+    """A `sqlite3.Connection` that will not let two threads overlap on it.  `S-06.02.09`
+
+    `check_same_thread=False` hands one connection to every thread and FastAPI
+    runs most of its handlers in a threadpool, so concurrent access is the
+    normal case rather than an edge one.
+
+    `transaction()` was given a lock on 2026-09-08 and that removed the proven
+    data loss between two transactions. It left a second hazard untouched: a
+    **bare** statement, run outside any transaction, joins whatever transaction
+    another thread happens to have open — and is then committed or rolled back
+    with work it has nothing to do with. Demonstrated with two threads:
+
+        thread A   BEGIN, INSERT 'holder', ... raise  -> ROLLBACK
+        thread B   INSERT 'bystander'                 -> reported success
+        surviving rows: []
+
+    B's write was destroyed by A's failure. B was told it succeeded.
+
+    Rather than migrate 155 call sites onto a new method, the object they all
+    reach through is replaced. Every call site keeps its shape and becomes safe
+    at once, which is both the smaller change and the one with nowhere left to
+    forget. `db/connection.py` already guards its own methods this way; this
+    module predates it.
+
+    **What the lock does not cover, stated plainly.** It is held for the
+    duration of each call, so a whole statement — every write — completes inside
+    it. It is released before rows are fetched from a returned cursor, so a
+    long `SELECT` iterated lazily can still span another thread's transaction.
+    That is a read seeing in-flight state on a connection that has always shared
+    one transaction context, not a lost write, and closing it would mean
+    materialising every result set. The write hazard is the one that costs data.
+    """
+
+    __slots__ = ("_raw", "_lock")
+
+    def __init__(self, raw: sqlite3.Connection, lock: "threading.RLock") -> None:
+        object.__setattr__(self, "_raw", raw)
+        object.__setattr__(self, "_lock", lock)
+
+    # ── the statement surface, each one serialised ──────────────────────────
+
+    def execute(self, sql: str, parameters: Any = (), /) -> sqlite3.Cursor:
+        with self._lock:
+            return self._raw.execute(sql, parameters)
+
+    def executemany(self, sql: str, parameters: Any, /) -> sqlite3.Cursor:
+        with self._lock:
+            return self._raw.executemany(sql, parameters)
+
+    def executescript(self, script: str, /) -> sqlite3.Cursor:
+        with self._lock:
+            return self._raw.executescript(script)
+
+    def cursor(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+        with self._lock:
+            return self._raw.cursor(*args, **kwargs)
+
+    def commit(self) -> None:
+        with self._lock:
+            self._raw.commit()
+
+    def rollback(self) -> None:
+        with self._lock:
+            self._raw.rollback()
+
+    def backup(self, target: Any, **kwargs: Any) -> None:
+        with self._lock:
+            self._raw.backup(getattr(target, "_raw", target), **kwargs)
+
+    def close(self) -> None:
+        with self._lock:
+            self._raw.close()
+
+    @property
+    def raw(self) -> sqlite3.Connection:
+        """The unguarded connection, for the few places that need the real type.
+
+        Named rather than reachable by accident: anything using this is opting
+        out of the guarantee above and should say why.
+        """
+        return self._raw
+
+    # ── everything else forwards ────────────────────────────────────────────
+
+    def __getattr__(self, name: str) -> Any:
+        # Attributes such as `row_factory`, `total_changes` and `in_transaction`.
+        # Reading one is a single interpreter-level access and needs no lock;
+        # every method that *runs* a statement is named explicitly above, so
+        # nothing that mutates the database arrives here.
+        return getattr(object.__getattribute__(self, "_raw"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(object.__getattribute__(self, "_raw"), name, value)
+
+
 class OutreachStore:
     """SQLite source of truth for one local user's outreach workspace."""
 
     def __init__(self, path: Path | str):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
         # `check_same_thread=False` hands one connection to every thread, and
-        # FastAPI runs 193 of its 206 handlers in a threadpool — so two requests
+        # FastAPI runs most of its handlers in a threadpool — so two requests
         # really do arrive on this object at once. `sqlite3.threadsafety` is 3,
         # which serialises one *statement*; it does nothing for a transaction
-        # made of several. This lock is what makes `transaction()` atomic.
+        # made of several, nor for a bare statement joining somebody else's.
+        # The lock is what makes both safe; see `GuardedConnection`.
         self._write_lock = threading.RLock()
+        # `isolation_level=None` is autocommit, and it is the root of the bug
+        # this guard exists for. Python's default silently opens a transaction
+        # before any DML and leaves it open, so a bare INSERT was never bare —
+        # it began a transaction that the next thread's BEGIN then collided
+        # with ("cannot start a transaction within a transaction"), and whose
+        # fate a later COMMIT or ROLLBACK decided.
+        #
+        # `db/connection.py` already opens this way and says the stores were
+        # written against it: they open an explicit transaction when they need
+        # one and otherwise expect a statement to be durable when it returns.
+        # The Postgres backend has always behaved that way. SQLite was the odd
+        # one out, and that difference was a silent data-loss bug on one backend
+        # and not the other.
+        self.connection = GuardedConnection(
+            sqlite3.connect(self.path, check_same_thread=False, isolation_level=None),
+            self._write_lock,
+        )
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")

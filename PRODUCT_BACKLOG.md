@@ -966,7 +966,10 @@ two requests cannot corrupt each other's writes.
   2026-09-08)**
 - **Given** a bare `store.connection.execute(...)` outside a transaction,
   **when** another thread holds an open transaction, **then** it does not read
-  uncommitted rows or get committed by that transaction. **(open)**
+  uncommitted rows or get committed by that transaction. **(fixed 2026-09-09)**
+- **Given** a long-lived connection assigned anywhere in `outreach/`, **when**
+  the package is parsed, **then** it is wrapped by `GuardedConnection`.
+  **(fixed 2026-09-09)**
 - **Dependencies:** none. **Size:** M. **Indicator:** unguarded `.execute(` call
   sites outside `transaction()` — target zero.
 - **Why:** the audit fixed the transaction race with a lock, which removes the

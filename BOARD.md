@@ -75,14 +75,14 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-*(Empty. F-11.02 is complete.)*
+*(Empty.)*
 
 ## IN_REVIEW
 
 - S-08.01.05 · Operators control delivery without hidden live sends
   tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
   command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
-  result: pending — Python API controls pass; this clean environment cannot install the uncached frontend dependency needed to re-run the dashboard test (2026-08-27)
+  result: Python controls and all 116 frontend tests pass on WP1; retained in this story's separate review (2026-09-09)
   code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
 
 ## BLOCKED
@@ -96,12 +96,21 @@ remaining independent stories below stay READY.)*
 
 ## DONE
 
+- S-06.02.11 · Durable customer state and safe recovery (Audit WP1)
+  tests: tests/test_audit_wp1.py, tests/test_wp1_recovery_edges.py, tests/test_workspace_lock.py, verification/test_wp1_live.py
+  command: uv run --no-sync pytest tests/test_audit_wp1.py tests/test_wp1_recovery_edges.py tests/test_workspace_lock.py -q
+  result: 41 focused tests passed; integrated CI passed 1686 Python and 116 frontend tests, both live recovery tests and Windows leases, with no acceptance skips (2026-09-09).
+  code: offsetx_apollo_builder/outreach/backup.py, offsetx_apollo_builder/outreach/sqlite_ownership.py, offsetx_apollo_builder/outreach/workspace_lock.py, offsetx_apollo_builder/api/production_runtime.py, offsetx_apollo_builder/api/config.py, frontend/src/pages/Settings.tsx, render.yaml
+  commit: 4d43169475cb014d119fdf0d2ec572161226e702
+  live_evidence: https://github.com/kunalwagh101/off_CRM/actions/runs/34306667467
+  documentation: docs/architecture/WP1_OPERATIONS.md, docs/audits/2026-09-08-wp1-completion.md
+
 - S-11.02.04 · The same page is never read twice in one run
   tests: tests/test_agent_page_memo.py::test_reading_the_same_page_twice_asks_the_page_once, tests/test_agent_page_memo.py::test_acting_on_a_page_forgets_it, tests/test_agent_page_memo.py::test_a_parameter_that_changes_the_page_is_never_stripped, tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
   command: python -m pytest tests/test_agent_page_memo.py tests/test_agent_run.py tests/test_agent_structured_result.py -q
   result: 25 passed (2026-09-09)
   code: offsetx_apollo_builder/agent/run.py
-  commit: 4acf68e
+  commit: 6ccb9011a1e703f421912a0bfe704c1822a7846b
 
 - S-11.02.03 · A claim the page does not support is refused
   tests: tests/test_agent_claim_verification.py::test_number_inside_a_larger_number_is_refused_even_at_high_confidence, tests/test_agent_claim_verification.py::test_derived_finding_is_allowed_only_from_individually_verified_inputs, tests/test_agent_claim_verification.py::test_missing_support_in_a_truncated_capture_is_reported_as_inconclusive, tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number
@@ -261,15 +270,15 @@ remaining independent stories below stay READY.)*
   tests: tests/test_security_audit.py::test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure, tests/test_security_audit.py::test_a_bare_write_is_not_committed_early_by_someone_else, tests/test_security_audit.py::test_no_shared_connection_escapes_the_guard, tests/test_security_audit.py::test_the_guard_still_behaves_like_a_connection
   command: python -m pytest tests/test_security_audit.py tests/test_outreach_api.py tests/test_sales_tracker.py tests/test_email_delivery.py -q
   result: 53 passed (2026-09-09)
-  code: offsetx_apollo_builder/outreach/store.py
-  commit: 4acf68e
+  code: offsetx_apollo_builder/outreach/store.py, offsetx_apollo_builder/outreach/sqlite_ownership.py
+  commit: 4d43169475cb014d119fdf0d2ec572161226e702
 
 - S-06.02.10 · The local API is not open to whatever can reach the port
   tests: tests/test_security_audit.py::test_a_local_install_will_not_start_without_authentication, tests/test_security_audit.py::test_loopback_requires_the_token_like_everywhere_else, tests/test_security_audit.py::test_a_host_this_server_does_not_answer_to_is_refused, tests/test_security_audit.py::test_a_provisioned_token_is_strong_stable_and_private
   command: python -m pytest tests/test_security_audit.py tests/test_api_auth.py tests/test_outreach_api.py -q
   result: 33 passed (2026-09-08)
   code: offsetx_apollo_builder/api/config.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/web_cli.py
-  commit: e4f91a4
+  commit: a280a66a81519d0e2fd19c67fb784e769757e463
 
 - S-03.02.01 · Sign in to a platform once, inside the box
   tests: tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards, tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted, tests/test_browser_signin.py::test_no_function_in_the_sign_in_path_accepts_a_credential, tests/test_browser_agent.py::test_a_lock_left_behind_by_a_browser_that_died_is_not_a_lock, tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused

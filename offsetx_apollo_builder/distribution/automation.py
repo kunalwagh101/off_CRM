@@ -41,6 +41,7 @@ the machine either side of them and stops at both.
 from __future__ import annotations
 
 import asyncio
+from ..outreach.workspace_lock import WorkspaceLock
 import json
 import os
 import threading
@@ -270,7 +271,11 @@ class ContentAutomationService:
 
     # ── one cycle ───────────────────────────────────────────────────────────
 
-    def run_once(self) -> list[dict[str, Any]]:
+    def run_once(self):
+        with WorkspaceLock(self.path.parent):
+            return self._run_once()
+
+    def _run_once(self) -> list[dict[str, Any]]:
         """Sweep, plan, draft, publish — in that order, each independently.
 
         The order is the pipeline's own: you cannot plan against topics you have

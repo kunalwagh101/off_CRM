@@ -32,7 +32,12 @@ Design documents live in `docs/architecture/`.
 
 ## What this is
 
-A local-first outreach CRM with an AI layer whose governing rule is:
+A production CRM for real company users. All architecture, implementation,
+tests, security, operations and UX must serve production use. Do not introduce
+fake workflows, placeholder behaviour or shortcuts for demonstrations. Tests may
+use isolated synthetic fixtures; product behaviour must use actual stored data.
+
+The AI layer's governing rule is:
 
 > **Models never pull. off_CRM pushes.**
 
@@ -98,9 +103,11 @@ with a misleading "Scrapling is not installed".
 SQLite, behind a boundary in `outreach/store.py`. Postgres is a swap, not a
 rewrite, and is not needed until this is a shared multi-user server.
 
-On Render, `OFFSETX_DATA_DIR` points at `/tmp`, which is wiped on restart — so
-the encrypted key file does not survive and the egress log resets. Provider keys
-come from `OFFSETX_AI_<PROVIDER>_KEY` environment variables there instead.
+Production state lives under `/var/lib/offcrm/local_data` on an actual mounted
+persistent disk, with one web instance. Startup rejects missing mounts and
+split/temporary durable paths. See `docs/architecture/WP1_OPERATIONS.md` for
+backup, restore, worker coordination, migration and rollback. Never revert this
+contract to ephemeral storage merely to make deployment start.
 
 ---
 

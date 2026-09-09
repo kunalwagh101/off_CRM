@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Audit WP1 — durable customer state and safe recovery (S-06.02.09/11).**
+  Every CRM connection/cursor operation shares transaction ownership; bare writes
+  autocommit and nested transactions use savepoints. Named parameters remain intact.
+  Production requires a mounted persistent root and one web instance. Complete,
+  encrypted, bounded backups include local stores, assets and operational keys.
+  Restore validates before maintenance, drains requests/timers/workers, journals
+  filesystem replacement, reopens all services and rolls back on failure. Failed
+  rollback keeps the service unavailable; interrupted swaps recover on startup.
+  Settings provides the complete backup flow. The Docker image installs the lock
+  and drops privileges after preparing the volume. See
+  `docs/architecture/WP1_OPERATIONS.md` for the migration and executed rollback tests.
 - **A page is read once per run** (`S-11.02.04`), completing F-11.02. A run is
   capped at 50 steps, and a step spent re-reading a page the run already read is
   a step not spent finding anything — with the model paying for the same text

@@ -370,7 +370,7 @@ deal and where it sits on the board.
 | P-3.5 | `intake.py` — two-mode intake; **a contact list never meets a model** | 470 | 28 | ✅ |
 | P-3.6 | `categories.py` / `locked_categories.py` | 200 | 3 | ◐ |
 | P-3.7 | `outreach/notion.py` — mirror to Notion | 300 | 8 | ◐ |
-| P-3.8 | `outreach/backup.py` | 200 | — | ◐ |
+| P-3.8 | `outreach/backup.py`, `api/production_runtime.py` — complete workspace recovery; Audit WP1 / S-06.02.11 | — | `tests/test_audit_wp1.py`, `tests/test_wp1_recovery_edges.py`, `verification/test_wp1_live.py` | ✅ S-06.02.11 |
 
 **Capabilities not yet named as stories** (this is the gap, stated plainly):
 

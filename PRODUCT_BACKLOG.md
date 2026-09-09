@@ -609,6 +609,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
+| R-95 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.11 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
 | R-93 | A local install provisions its own token rather than failing | S-06.02.10 |
 | R-94 | Requests for a host this server does not answer to are refused | S-06.02.10 |
@@ -972,14 +973,42 @@ two requests cannot corrupt each other's writes.
   **when** another thread holds an open transaction, **then** it does not read
   uncommitted rows or get committed by that transaction. **(fixed 2026-09-09)**
 - **Given** a long-lived connection assigned anywhere in `outreach/`, **when**
-  the package is parsed, **then** it is wrapped by `GuardedConnection`.
+  the package is parsed, **then** it uses the guarded native `SerializedConnection` factory.
   **(fixed 2026-09-09)**
 - **Dependencies:** none. **Size:** M. **Indicator:** unguarded `.execute(` call
   sites outside `transaction()` — target zero.
-- **Why:** the audit fixed the transaction race with a lock, which removes the
-  proven data loss. It does not stop a bare `.execute` landing inside another
-  thread's open transaction. `db/connection.py` already routes every method
-  through its lock; this module has ~300 call sites that do not.
+- **Why:** the initial transaction lock left bare statements able to enter another
+  thread's transaction. WP1 extends main's statement guard to native connection
+  and cursor operations through `outreach/sqlite_ownership.py`, preserving
+  autocommit, named parameters and SQLite backup compatibility.
+
+#### S-06.02.11 — Durable customer state and safe recovery (Audit WP1)
+**As an** operator, **I want** a complete recoverable company workspace,
+**so that** restarts, concurrent work and failed recovery cannot lose customer data.
+- **Given** production configuration, **when** the app starts, **then** every
+  local durable path is inside the persistent root and ephemeral or split
+  production state is refused; restart preserves records and assets.
+- **Given** concurrent requests, **when** one transaction fails, **then** no
+  acknowledged write is lost (delivered together with S-06.02.09).
+- **Given** a populated workspace, **when** an encrypted backup is exported and
+  restored into an empty destination, **then** all durable stores, assets,
+  configuration and local operational secrets are usable; caches are named exclusions.
+- **Given** malformed, oversized or incompatible input, **when** restore is
+  requested, **then** validation rejects it before disturbing live services.
+- **Given** active requests or background work, **when** recovery begins,
+  **then** work drains before replacement and new work receives maintenance status.
+- **Given** a restore failure or interrupted swap, **when** recovery runs,
+  **then** the old workspace is recovered, all services are rebound, and a
+  failed recovery keeps readiness red and ordinary work blocked.
+- **Given** unavailable durable stores or unwritable paths, **when** readiness
+  is checked, **then** it returns 503 and identifies the component.
+- **Given** the final branch, **when** the Python, frontend, board and relevant
+  live acceptance gates run, **then** their evidence passes together.
+- **Dependencies:** none. **Size:** L. **Indicator:** audit A01/A02/A03/A04/A17 acceptance failures — zero.
+- **Contract:** docs/architecture/AUDIT_WP1_DURABLE_STATE_SAFE_RECOVERY.md.
+- **ID reconciliation (2026-09-09):** WP1 originally used S-06.02.10 / R-92 on
+  its branch. Main independently delivered authentication under that ID. WP1
+  now uses S-06.02.11 / R-95; both stories and their evidence are retained.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

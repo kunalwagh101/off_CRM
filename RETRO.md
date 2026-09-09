@@ -275,3 +275,25 @@ Definition of Ready asks whether criteria are machine-testable; it does not ask
 whether they are complete, and completeness is the thing a cache gets wrong. The
 question to add: *what makes the stored answer stop being true, and which
 criterion says so?*
+
+---
+
+## 2026-09-08 — S-06.02.09/11, durable customer state and safe recovery
+
+**What was cut.** Nothing from WP1's eight acceptance criteria. Individual user
+identity, all-store PostgreSQL migration, provider-account certification and the
+other audit findings keep their existing scope; no whole-product readiness claim
+is attached to these five fixes.
+
+**What the estimate got wrong.** Copying the CRM database was only a small part
+of recovery. Safe replacement also required a complete file inventory, a shared
+startup/rebind graph, draining full response lifetimes and worker processes,
+closing connections created on other threads, and a durable crash journal.
+The real Docker build exposed a missing shared frontend fixture. Browser evidence
+also caught a test selecting the wrong passphrase field; its screenshot and
+server log identified the mistake without weakening the download assertion.
+
+**What to change next time.** Establish real-service CI before certification,
+exercise each destructive boundary with injected failure and process death,
+and preserve the test logs with the implementation SHA. Readiness must probe
+live service handles and operational keys, not just a newly opened database.

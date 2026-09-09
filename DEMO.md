@@ -445,3 +445,11 @@ Expect `7 passed`. The suite proves the hard step budget, broker-only model
 decisions, provider/model/cost trace records, Tier A/B planner floor, rejection
 of invented actions and undeclared arguments, prompt-injection framing, and that
 a consequential browser action stops for a human rather than self-confirming.
+## Production workspace recovery — Audit WP1 (8 September 2026)
+
+Use Settings → Encrypted backup to download and restore the entire local
+workspace. The production deployment, migration, failure recovery and rollback
+instructions are in `docs/architecture/WP1_OPERATIONS.md`; this is the operational
+contract for real users. Run `uv run pytest tests/test_audit_wp1.py
+tests/test_wp1_recovery_edges.py -q` for failure-path acceptance and the WP1
+workflow for actual Chromium, PostgreSQL and persistent-container evidence.

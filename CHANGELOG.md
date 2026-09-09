@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Audit WP1 — durable customer state and safe recovery (S-06.02.09/10).**
+- **Audit WP1 — durable customer state and safe recovery (S-06.02.09/11).**
   Every CRM connection/cursor operation shares transaction ownership; bare writes
   autocommit and nested transactions use savepoints. Named parameters remain intact.
   Production requires a mounted persistent root and one web instance. Complete,
@@ -13,6 +13,82 @@
   Settings provides the complete backup flow. The Docker image installs the lock
   and drops privileges after preparing the volume. See
   `docs/architecture/WP1_OPERATIONS.md` for the migration and executed rollback tests.
+- **A page is read once per run** (`S-11.02.04`), completing F-11.02. A run is
+  capped at 50 steps, and a step spent re-reading a page the run already read is
+  a step not spent finding anything — with the model paying for the same text
+  twice on the way in. A repeated `read` is answered from the run's own memo and
+  recorded in the trace as a reuse.
+- Two URLs that differ only by **how somebody arrived** are one page: the
+  fragment is dropped, the host lowercased, remaining parameters sorted, and the
+  tracking parameters in `TRACKING_PARAMETERS` stripped. That list is
+  deliberately short — `ref`, `id`, `page`, `q` and `source` are real parameters
+  on real sites, and stripping them would merge pages that differ and then serve
+  the wrong text. Under-deduplicating costs a page read; over-deduplicating
+  returns a wrong answer, so the bias is one-directional on purpose.
+- **Acting on a page forgets it.** A document can change while its URL does not
+  — "load more", a filter, a tab — so `click`, `type`, `select`, `press`,
+  `scroll` and `back` drop the memo for the page they acted on. `goto` does not
+  need to: it changes the URL and lands on a different key.
+- Only `read` is served from the memo. `goto` is never skipped, because the
+  agent often needs to *be* on a page to act on it and silently not navigating
+  would leave every following handle pointing at the wrong document.
+
+- **Fixed a bare statement being rolled back with somebody else's failed
+  request** (`S-06.02.09`). The lock added on 2026-09-08 made two transactions
+  safe against each other but left this:
+
+      thread A   BEGIN, INSERT 'holder', raise  -> ROLLBACK
+      thread B   INSERT 'bystander'             -> reported success
+      surviving rows: []
+
+  B's write was destroyed by A's failure, and B was told it succeeded.
+- **Root cause: the connection was not in autocommit.** Python's default
+  `isolation_level` silently opens a transaction before any DML and leaves it
+  open, so a bare INSERT was never bare — it began a transaction the next
+  thread's `BEGIN` collided with, and whose fate a later `COMMIT` or `ROLLBACK`
+  decided. `db/connection.py` has always opened `isolation_level=None` and
+  documents that the stores were written against it; the Postgres backend has
+  always behaved that way. SQLite was the odd one out, which made this a
+  data-loss bug on one backend and not the other.
+- Added `GuardedConnection`: the object all 155 call sites reach through now
+  serialises every statement on the shared connection. Replacing the object
+  rather than migrating the call sites is both the smaller change and the one
+  with nowhere left to forget. What it does not cover is stated in its
+  docstring — the lock is released before rows are fetched from a returned
+  cursor, so a lazily-iterated `SELECT` can still span another transaction.
+  That is a read seeing in-flight state, not a lost write.
+- A test parses `outreach/` with `ast` and fails if any long-lived connection is
+  assigned without the guard. `backup.py`'s short-lived, function-local
+  connections are correctly excluded — the hazard is a connection stored on an
+  object, because that is the one two threads reach at once.
+
+- **BREAKING: off_CRM now requires authentication on every host, loopback
+  included** (`S-06.02.10`). The middleware used to enforce login only when a
+  token or demo login happened to be configured, so a default local install
+  served every contact to anything that could reach the port — verified: every
+  `/api/` route returned 200 unauthenticated. Loopback is not an exemption. An
+  unauthenticated local API is readable by every other process and user on the
+  machine, by a browser extension, and by any page that can rebind a hostname to
+  127.0.0.1.
+  - **This does not break a local install.** Starting through
+    `run_offsetx_web.py` provisions a token at `<data_dir>/local_api_token` with
+    mode `0600`, prints it once, and reuses it on every restart. Paste it into
+    the web UI. An explicitly set `OFFSETX_LOCAL_API_TOKEN` or demo login is
+    never overwritten.
+  - Refusal happens at construction, so a misconfiguration is a startup error
+    rather than a service quietly handing out data.
+- **Added a `Host` allowlist** (`S-06.02.10`). DNS rebinding is what makes "it
+  only listens on localhost" untrue: a page points a name it controls at
+  127.0.0.1 and reaches the API with the browser's cooperation. CORS does not
+  prevent the request — it only stops the attacker reading the reply — and a
+  rebound name looks same-origin. Unknown hosts get 421, checked before the
+  public-path exemption. Set `OFFSETX_ALLOWED_HOSTS` for a public deployment;
+  loopback names work with no configuration.
+- Fixed a CORS mismatch: `X-off-CRM-Token` was advertised while the server read
+  `x-offsetx-token`, so a client that followed the advertisement was refused.
+- Test fixtures that build an app now say `allow_unauthenticated=True`
+  explicitly. A config that simply forgot a token used to be indistinguishable
+  from one that meant it.
 
 - **Fixed silent data loss under concurrent writes.** `OutreachStore` shares one
   `sqlite3` connection across threads (`check_same_thread=False`) and FastAPI

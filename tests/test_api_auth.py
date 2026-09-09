@@ -22,6 +22,7 @@ def _demo_settings(tmp_path: Path) -> AppSettings:
         demo_password="temporary-password-123",
         session_secret="s" * 48,
         session_hours=2,
+        allowed_hosts=("testserver", "crm.test"),
     )
 
 

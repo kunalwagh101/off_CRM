@@ -155,6 +155,7 @@ def _close_runtime(state: Any) -> None:
 
 def _rebind_runtime(state: Any, settings: Any, *, previous: dict[str, Any]) -> None:
     """Recreate every live object whose durable backing may have been replaced."""
+    settings.reload_local_api_token()
     settings.prepare()
     state.ai_context = ContextLayer(settings.data_dir / "ai_context.db")
     state.ai_recall = SentMailIndex(settings.data_dir / "ai_recall.db")
@@ -292,6 +293,13 @@ def _runtime_health(state, settings, *, include_maintenance=True):
                 raise ValueError("Local signing key differs from the active service")
         except (OSError, ValueError) as exc:
             failures.append(f"unsubscribe_key:{type(exc).__name__}")
+    if settings.api_token_from_file:
+        try:
+            token = (settings.data_dir / settings.TOKEN_FILENAME).read_text(encoding="utf-8").strip()
+            if not token.isascii() or not hmac.compare_digest(token, settings.api_token):
+                raise ValueError("Local API token differs from the active service")
+        except (OSError, ValueError) as exc:
+            failures.append(f"local_api_token:{type(exc).__name__}")
     for path in (settings.data_dir, settings.export_dir, state.image_store.assets_dir,
                  state.video_store.renders_dir, state.distribution_store.outbox_dir):
         try:

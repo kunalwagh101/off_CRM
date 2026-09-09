@@ -523,6 +523,7 @@ def client(tmp_path: Path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as test_client:
         yield test_client

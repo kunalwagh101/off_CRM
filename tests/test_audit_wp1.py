@@ -33,6 +33,8 @@ def _settings(tmp_path: Path) -> AppSettings:
         frontend_dist=tmp_path / "frontend-dist",
         host="127.0.0.1",
         backup_max_bytes=64 * 1024 * 1024,
+        allow_unauthenticated=True,  # Isolated recovery fixture; authenticated coverage is separate.
+        allowed_hosts=("testserver",),
     )
 
 

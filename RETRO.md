@@ -223,3 +223,77 @@ use *almost true* values, not only invented sources: adjacent digits, negation,
 unrelated quotes and truncated captures. Confidence is never evidence. Verify
 against host-owned material after generation, fail closed when support is not
 there, and distinguish "not in the bounded capture" from "proved false".
+---
+
+## 2026-09-09 — S-06.02.09, the half the lock did not cover
+
+**What was cut.** Nothing. What was nearly cut was the root cause: the first fix
+that made the story's own test pass was the `GuardedConnection` wrapper, and it
+did not work — the holder thread still raised "cannot start a transaction within
+a transaction". Stopping at a green test would have shipped a lock around a
+problem that was really about `isolation_level`.
+
+**What the estimate got wrong.** I sized this as "wrap 155 call sites" and the
+call sites were the easy part. The actual defect was one keyword argument. The
+2026-09-08 fix treated the symptom — two transactions colliding — and the
+symptom was produced by Python opening transactions nobody asked for. Two
+sessions of work, both correct, and the second only found the cause because the
+first fix's own test failed in a way that did not fit the story I had in my head.
+
+**What to change next time.** The previous retros were about tests that pass
+with the feature removed, and criteria defended by argument rather than checked.
+This one is about **a fix whose test passes for the wrong reason.** The
+`GuardedConnection` reproduction went green while the bug was still there — the
+bystander survived because the holder timed out after five seconds and released
+the lock, not because anything was correct. A concurrency test that passes needs
+its *timing* inspected, not just its assertion: if it took five seconds, it did
+not demonstrate what it claims.
+
+---
+
+## 2026-09-09 — S-11.02.04, and a story that was already built
+
+**What was cut.** Nothing, but the story I was asked to pull was already DONE.
+S-11.02.01 through .03 shipped from another session during the security audit.
+Rather than take the board's word for it I re-exercised all three acceptance
+criteria and the S-11.02.03 normaliser directly, including the trap the manual
+warns about: `+44 20 7946 9999` is refused against a page carrying
+`+44 20 7946 0001`, and `07946 0001` is refused as a substring. Digits are not
+fuzzed and truncation stays distinct from unsupported. It was built correctly.
+
+**What the estimate got wrong.** I sized this as a memo — a dict keyed on URL —
+and the dict was the smallest part. The real work was deciding *when the memo is
+wrong*, and the acceptance criteria I wrote in the spec did not cover it: a page
+can change while its URL does not, so a capture taken before a `scroll` is no
+longer what the page says. That criterion was added during the build and is
+recorded in the backlog as added, not backfilled silently.
+
+**What to change next time.** I wrote these criteria myself two days ago and
+they had a hole in them, which is the more useful observation than any of the
+code. **A caching story needs an invalidation criterion before it is READY.** The
+Definition of Ready asks whether criteria are machine-testable; it does not ask
+whether they are complete, and completeness is the thing a cache gets wrong. The
+question to add: *what makes the stored answer stop being true, and which
+criterion says so?*
+
+---
+
+## 2026-09-08 — S-06.02.09/11, durable customer state and safe recovery
+
+**What was cut.** Nothing from WP1's eight acceptance criteria. Individual user
+identity, all-store PostgreSQL migration, provider-account certification and the
+other audit findings keep their existing scope; no whole-product readiness claim
+is attached to these five fixes.
+
+**What the estimate got wrong.** Copying the CRM database was only a small part
+of recovery. Safe replacement also required a complete file inventory, a shared
+startup/rebind graph, draining full response lifetimes and worker processes,
+closing connections created on other threads, and a durable crash journal.
+The real Docker build exposed a missing shared frontend fixture. Browser evidence
+also caught a test selecting the wrong passphrase field; its screenshot and
+server log identified the mistake without weakening the download assertion.
+
+**What to change next time.** Establish real-service CI before certification,
+exercise each destructive boundary with injected failure and process death,
+and preserve the test logs with the implementation SHA. Readiness must probe
+live service handles and operational keys, not just a newly opened database.

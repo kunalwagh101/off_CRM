@@ -15,9 +15,14 @@ PASSPHRASE = 'synthetic-recovery-test-passphrase'
 
 
 def test_browser_can_download_and_restore_the_complete_workspace(page, tmp_path):
-    with app_server(tmp_path, evidence_name='wp1-browser-server.log') as (url, _):
-        original = requests.post(url + '/api/v1/campaigns', json={'name': 'Retained customer campaign'}, timeout=10).json()['id']
+    with app_server(tmp_path, login=True, evidence_name='wp1-browser-server.log') as (url, password):
+        client = requests.Session()
+        client.post(url + '/api/v1/auth/login', json={'username': 'audit-user', 'password': password}, timeout=10).raise_for_status()
+        original = client.post(url + '/api/v1/campaigns', json={'name': 'Retained customer campaign'}, timeout=10).json()['id']
         page.goto(url + '/#settings')
+        page.get_by_label('Username', exact=True).fill('audit-user')
+        page.get_by_label('Password', exact=True).fill(password)
+        page.get_by_role('button', name='Sign in', exact=True).click()
         panel = page.locator('section').filter(has=page.get_by_role('heading', name='Encrypted backup', exact=True))
         export_form = panel.locator('form').filter(has=page.get_by_role('button', name='Create encrypted backup', exact=True))
         restore_form = panel.locator('form').filter(has=page.get_by_role('button', name='Restore backup', exact=True))
@@ -34,7 +39,7 @@ def test_browser_can_download_and_restore_the_complete_workspace(page, tmp_path)
         archive = EVIDENCE / 'wp1-browser.oxbackup'
         event.value.save_as(archive)
         expect(export_form.get_by_label('Backup passphrase')).to_have_value('')
-        requests.post(url + '/api/v1/campaigns', json={'name': 'After backup'}, timeout=10).raise_for_status()
+        client.post(url + '/api/v1/campaigns', json={'name': 'After backup'}, timeout=10).raise_for_status()
         restore_form.get_by_label('Backup file', exact=True).set_input_files(str(archive))
         restore_form.get_by_label('Backup passphrase', exact=True).fill(PASSPHRASE)
         page.on('dialog', lambda dialog: dialog.accept())
@@ -44,10 +49,10 @@ def test_browser_can_download_and_restore_the_complete_workspace(page, tmp_path)
         page.wait_for_timeout(1000)  # UI announces success, then reloads after 700ms.
         expect(page.get_by_role('heading', name='Encrypted backup', exact=True)).to_be_visible()
         assert requests.get(url + '/health/ready', timeout=5).status_code == 200
-        campaigns = requests.get(url + '/api/v1/campaigns', timeout=10).json()['items']
+        campaigns = client.get(url + '/api/v1/campaigns', timeout=10).json()['items']
         assert [campaign['id'] for campaign in campaigns] == [original]
         for endpoint in ('/sales/dashboard', '/ai/chats', '/email-delivery/jobs'):
-            assert requests.get(url + '/api/v1' + endpoint, timeout=10).status_code == 200
+            assert client.get(url + '/api/v1' + endpoint, timeout=10).status_code == 200
         (EVIDENCE / 'wp1-browser-summary.json').write_text(json.dumps({'restored_campaign': original, 'archive_bytes': archive.stat().st_size, 'sha256': hashlib.sha256(archive.read_bytes()).hexdigest(), 'readiness': 'ready'}, indent=2))
 
 

@@ -54,6 +54,11 @@ class SerializedConnection(sqlite3.Connection):
         self.guard = threading.RLock()
         self._savepoint = 0
 
+    @property
+    def raw(self):
+        """Native-connection compatibility without exposing an unguarded handle."""
+        return self
+
     def cursor(self, factory=SerializedCursor):
         if factory is not SerializedCursor:
             raise ValueError("CRM cursors must use the connection ownership guard")

@@ -19,6 +19,8 @@ services:
     envVars:
       - key: OFFSETX_PRODUCTION
         value: "1"
+      - key: OFFSETX_ALLOWED_HOSTS
+        sync: false   # the public hostname(s) this service answers to, comma separated
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
       - key: OFFSETX_PERSISTENT_MOUNT

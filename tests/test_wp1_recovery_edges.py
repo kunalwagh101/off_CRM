@@ -245,6 +245,7 @@ def test_full_workspace_restore_relocates_assets_and_preserves_secrets(tmp_path)
 def test_backup_routes_require_authentication(tmp_path):
     settings = _settings(tmp_path)
     settings.api_token = 'x' * 40
+    settings.allow_unauthenticated = False
     with TestClient(create_app(settings)) as client:
         assert client.post('/api/v1/backups/export', json={'passphrase': PASSPHRASE}).status_code == 401
         assert _restore(client, b'bad').status_code == 401
@@ -347,7 +348,7 @@ def test_configured_root_owns_default_database_and_gmail_token(tmp_path, monkeyp
 def test_production_rejects_missing_persistent_mount(monkeypatch):
     from pathlib import Path
     from offsetx_apollo_builder.api.config import AppSettings
-    settings = AppSettings(project_root=Path('/app'), database_path=Path('/var/lib/offcrm/data/crm.db'), data_dir=Path('/var/lib/offcrm/data'), export_dir=Path('/var/lib/offcrm/data/exports'), frontend_dist=Path('/app/frontend/dist'), persistent_mount=Path('/var/lib/offcrm'), production=True)
+    settings = AppSettings(project_root=Path('/app'), database_path=Path('/var/lib/offcrm/data/crm.db'), data_dir=Path('/var/lib/offcrm/data'), export_dir=Path('/var/lib/offcrm/data/exports'), frontend_dist=Path('/app/frontend/dist'), persistent_mount=Path('/var/lib/offcrm'), production=True, api_token='synthetic-production-test-token-000000')
     settings.validate()
     monkeypatch.setattr(Path, 'is_mount', lambda self: False)
     with pytest.raises(ValueError, match='not mounted'):
@@ -391,3 +392,52 @@ def test_readiness_rejects_missing_or_changed_local_signing_key(tmp_path):
         assert client.get('/health/ready').status_code == 503
         key.write_bytes(original)
         assert client.get('/health/ready').status_code == 200
+
+
+@pytest.mark.parametrize('reject_restore', [False, True])
+def test_file_managed_authentication_follows_restore_and_rollback(tmp_path, monkeypatch, reject_restore):
+    from offsetx_apollo_builder.api import production_runtime as runtime
+
+    def managed(folder):
+        settings = _settings(folder)
+        settings.allow_unauthenticated = False
+        settings.ensure_api_token()
+        return settings
+
+    source = managed(tmp_path / 'source')
+    source_token = source.api_token
+    with TestClient(create_app(source), headers={'Authorization': 'Bearer ' + source_token}) as client:
+        content = _export(client)
+    target = managed(tmp_path / 'target')
+    previous_token = target.api_token
+    app = create_app(target)
+    with TestClient(app, headers={'Authorization': 'Bearer ' + previous_token}) as client:
+        if reject_restore:
+            rebind = runtime._rebind_runtime
+            def fail_restored_generation(state, settings, **kwargs):
+                rebind(state, settings, **kwargs)
+                if settings.api_token == source_token:
+                    raise RuntimeError('injected restored-service failure')
+            monkeypatch.setattr(runtime, '_rebind_runtime', fail_restored_generation)
+        response = _restore(client, content)
+        assert response.status_code == (422 if reject_restore else 200), response.text
+        accepted = previous_token if reject_restore else source_token
+        refused = source_token if reject_restore else previous_token
+        assert client.get('/api/v1/campaigns', headers={'Authorization': 'Bearer ' + accepted}).status_code == 200
+        assert client.get('/api/v1/campaigns', headers={'Authorization': 'Bearer ' + refused}).status_code == 401
+        assert target.api_token == (target.data_dir / target.TOKEN_FILENAME).read_text().strip() == accepted
+        assert client.get('/health/ready').status_code == 200
+        (target.data_dir / target.TOKEN_FILENAME).unlink()
+        assert client.get('/health/ready').status_code == 503
+        (target.data_dir / target.TOKEN_FILENAME).write_text('corrupt-credential-\u20b9' * 5)
+        assert client.get('/health/ready').status_code == 503
+
+
+def test_invalid_production_root_does_not_create_credentials(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.api.config import AppSettings
+    root = tmp_path / 'refused-production-root'
+    monkeypatch.setenv('OFFSETX_PRODUCTION', '1')
+    monkeypatch.setenv('OFFSETX_DATA_DIR', str(root))
+    with pytest.raises(ValueError, match='temporary'):
+        AppSettings.from_env(tmp_path)
+    assert not root.exists()

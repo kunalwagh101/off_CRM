@@ -1,6 +1,6 @@
 # Where everything stands
 
-**Current increment, 8 September 2026:** Audit WP1 (S-06.02.09/10) delivers
+**Current increment, 8 September 2026:** Audit WP1 (S-06.02.09/11) delivers
 persistent customer state, isolated writes, complete local backups, safe restore
 and truthful readiness. Live certification is in progress on PR #13. The older
 scoreboard below is historical; `BOARD.md` is the current source of truth.

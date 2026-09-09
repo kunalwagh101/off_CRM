@@ -1,4 +1,4 @@
-# Durable workspace operations — S-06.02.10 / Audit WP1
+# Durable workspace operations — S-06.02.11 / Audit WP1
 
 This runbook covers the supported production topology: one Linux web process,
 its local workers, and one persistent disk for one company installation. It does
@@ -25,6 +25,7 @@ Required settings:
 | `OFFSETX_GMAIL_CLIENT_SECRETS` | If used, a file within the data directory |
 | `OFFSETX_BACKUP_MAX_BYTES` | Defaults to 67108864 (64 MiB), shared by export and restore |
 | Authentication | Existing strong API token or complete session-login settings |
+| `OFFSETX_ALLOWED_HOSTS` | The public hostname(s), comma separated; unknown Host headers return 421 |
 | `OFFSETX_DATABASE_URL` | Unset for this complete local recovery topology |
 
 Temporary directories, missing mounts and durable paths outside the root are
@@ -63,6 +64,13 @@ mail and post outboxes, provider/Notion/workspace settings, encrypted local keys
 automation state, browser state stored under this root, and the local unsubscribe
 signing key. Known image/video path columns are relocated when the destination
 folder changes; user text and prompts are never rewritten.
+
+An automatically provisioned `local_api_token` is part of the workspace. Restore
+activates that restored token immediately; failed restore reactivates the old
+one. If you use this file-managed login, retrieve the restored token securely on
+the application host and enter it through **Key** in the browser after reload. An explicit
+environment API token and environment-managed session login keep their host's
+configuration. Readiness also detects a missing or changed file-managed token.
 
 Explicit exclusions: the rebuildable AI response cache and old `restore_safety/`
 scratch files. SQLite WAL/SHM/journal sidecars are represented by the consistent
@@ -126,8 +134,9 @@ and before/after the commit record. Do not delete or hand-edit it.
 
 For an ordinary restart, retain the disk/volume and replace only the application
 container. `/health/ready` verifies the mounted root, writable durable directories,
-required databases, the local signing key and current service bindings. `/health/live` answers whether
-the process is running. It intentionally stays available during recovery.
+required databases, the local signing key and current service bindings.
+`/health/live` answers whether the process is running. It intentionally stays
+available during recovery.
 
 Before upgrading an existing installation, export a recovery copy and record the
 current image digest. Copy all existing local state to the new mounted root while

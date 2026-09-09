@@ -1,10 +1,11 @@
 # BUILD_STATE.md
 
-Current increment (8 September 2026): **S-06.02.09 / S-06.02.10 — Audit WP1,
+Current increment (9 September 2026): **S-06.02.09 / S-06.02.11 — Audit WP1,
 durable customer state and safe recovery**, on
 `feature/audit-wp1-durable-state-safe-recovery`, draft PR #13. The branch includes
-main's `e4f91a4` security fixes. Implementation and focused acceptance are complete;
-the live release gate is being run before certification. See `BOARD.md` and
+main's `5b19a54` security and browser changes. The complete WP1 gate passed
+before that merge; integrated release acceptance is being repeated. Recovery is
+S-06.02.11 / R-95 because main independently used S-06.02.10 for authentication. See `BOARD.md` and
 `docs/architecture/WP1_OPERATIONS.md`. Historical test counts below describe their
 original dates, not this branch's current result.
 

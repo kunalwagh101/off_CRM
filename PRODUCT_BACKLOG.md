@@ -609,7 +609,10 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
-| R-92 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.10 |
+| R-95 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.11 |
+| R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
+| R-93 | A local install provisions its own token rather than failing | S-06.02.10 |
+| R-94 | Requests for a host this server does not answer to are refused | S-06.02.10 |
 | R-31 | Companions: persisted agent profiles | S-04.01.01 |
 | R-32 | Skills: procedures separate from memory facts | S-04.01.02 |
 | R-33 | Sub-agents for context isolation | S-04.01.03 |
@@ -862,9 +865,13 @@ from, **so that** a confident model cannot invent a phone number.
 **As an** owner, **I want** the agent to remember what it has read,
 **so that** the budget goes on new pages.
 - **Given** a URL already read in this run, **when** the agent decides to read
-  it again, **then** the stored capture is returned and no request is made.
+  it again, **then** the stored capture is returned and the page is not asked
+  again. **(done)**
 - **Given** two URLs that differ only by tracking parameters, **when** they are
-  compared, **then** they are treated as the same page.
+  compared, **then** they are treated as the same page. **(done)**
+- **Given** a page that changed under an unchanged URL, **when** it is read
+  again, **then** the memo is not used — added during the build, because a
+  stale capture is worse than a second read. **(done)**
 - **Dependencies:** S-02.02.01. **Size:** S. **Indicator:** duplicate fetches
   per run — target zero.
 
@@ -941,6 +948,21 @@ one page at a time.
 
 ### F-11.06 — Process corrections  *(E-06)*
 
+#### S-06.02.10 — The local API is not open to whatever can reach the port
+**As an** owner, **I want** authentication and a host allowlist on every host
+including loopback, **so that** another process on my machine, or a web page
+that can rebind a name to 127.0.0.1, cannot read my CRM.
+- **Given** no token and no demo login, **when** the app is constructed, **then**
+  it refuses to start and says how to fix it. **(done)**
+- **Given** a local install that has never been configured, **when** it starts
+  through `run_offsetx_web.py`, **then** a token is generated at `0600`, printed
+  once, and stable across restarts. **(done)**
+- **Given** a request whose `Host` is not one this server answers to, **when** it
+  arrives, **then** it is refused with 421 before any other check, including the
+  public-path exemption. **(done)**
+- **Dependencies:** none. **Size:** M. **Indicator:** unauthenticated 200s on
+  `/api/` — target zero.
+
 #### S-06.02.09 — Every database write goes through one guard
 **As an** owner, **I want** all shared-connection access serialised, **so that**
 two requests cannot corrupt each other's writes.
@@ -949,15 +971,18 @@ two requests cannot corrupt each other's writes.
   2026-09-08)**
 - **Given** a bare `store.connection.execute(...)` outside a transaction,
   **when** another thread holds an open transaction, **then** it does not read
-  uncommitted rows or get committed by that transaction. **(open)**
+  uncommitted rows or get committed by that transaction. **(fixed 2026-09-09)**
+- **Given** a long-lived connection assigned anywhere in `outreach/`, **when**
+  the package is parsed, **then** it uses the guarded native `SerializedConnection` factory.
+  **(fixed 2026-09-09)**
 - **Dependencies:** none. **Size:** M. **Indicator:** unguarded `.execute(` call
   sites outside `transaction()` — target zero.
-- **Why:** the audit fixed the transaction race with a lock, which removes the
-  proven data loss. It does not stop a bare `.execute` landing inside another
-  thread's open transaction. `db/connection.py` already routes every method
-  through its lock; this module has ~300 call sites that do not.
+- **Why:** the initial transaction lock left bare statements able to enter another
+  thread's transaction. WP1 extends main's statement guard to native connection
+  and cursor operations through `outreach/sqlite_ownership.py`, preserving
+  autocommit, named parameters and SQLite backup compatibility.
 
-#### S-06.02.10 — Durable customer state and safe recovery (Audit WP1)
+#### S-06.02.11 — Durable customer state and safe recovery (Audit WP1)
 **As an** operator, **I want** a complete recoverable company workspace,
 **so that** restarts, concurrent work and failed recovery cannot lose customer data.
 - **Given** production configuration, **when** the app starts, **then** every
@@ -981,6 +1006,9 @@ two requests cannot corrupt each other's writes.
   live acceptance gates run, **then** their evidence passes together.
 - **Dependencies:** none. **Size:** L. **Indicator:** audit A01/A02/A03/A04/A17 acceptance failures — zero.
 - **Contract:** docs/architecture/AUDIT_WP1_DURABLE_STATE_SAFE_RECOVERY.md.
+- **ID reconciliation (2026-09-09):** WP1 originally used S-06.02.10 / R-92 on
+  its branch. Main independently delivered authentication under that ID. WP1
+  now uses S-06.02.11 / R-95; both stories and their evidence are retained.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

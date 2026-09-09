@@ -535,6 +535,7 @@ def test_media_upload_and_the_caption_refusal_work_over_http(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         campaign = client.post("/api/v1/campaigns", json={"name": "Reels", "kind": "image"}).json()
@@ -589,6 +590,7 @@ def test_the_api_refuses_media_it_cannot_measure(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         campaign = client.post("/api/v1/campaigns", json={"name": "R", "kind": "image"}).json()

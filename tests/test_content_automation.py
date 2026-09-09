@@ -446,6 +446,7 @@ def test_the_engine_can_be_declared_and_run_over_http(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         status = client.get("/api/v1/content-automation").json()
@@ -513,6 +514,7 @@ def test_the_timer_starts_and_stops_with_the_app(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     application = create_app(settings)
     with TestClient(application) as client:

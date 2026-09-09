@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import tempfile
+import secrets
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +37,7 @@ class AppSettings:
     host: str = "127.0.0.1"
     port: int = 8766
     api_token: str = ""
+    api_token_from_file: bool = False
     demo_username: str = ""
     demo_password: str = ""
     session_secret: str = ""
@@ -48,6 +51,15 @@ class AppSettings:
     own_email: str = ""
     public_base_url: str = ""
     unsubscribe_secret: str = ""
+    #: Host header values this server answers to. Empty means "derive from
+    #: `host` plus the loopback names", which is right for a local install and
+    #: wrong for a public deployment — that one names its own domain.
+    allowed_hosts: tuple[str, ...] = ()
+    #: Serve the API with no authentication at all. **Only a test harness may
+    #: set this.** It exists so the fail-closed check in `create_app` has an
+    #: explicit, greppable opt-out rather than a silent one: a config that
+    #: simply forgot a token used to be indistinguishable from one that meant it.
+    allow_unauthenticated: bool = False
 
     @classmethod
     def from_env(cls, project_root: Path | str | None = None) -> "AppSettings":
@@ -84,7 +96,20 @@ class AppSettings:
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
             public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
             unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),
+            allowed_hosts=tuple(
+                item.strip().lower()
+                for item in os.getenv("OFFSETX_ALLOWED_HOSTS", "").split(",")
+                if item.strip()
+            ),
         )
+        # Provision before validating: `validate` now requires authentication on
+        # every host including loopback, and a local install that has never been
+        # configured should get a token rather than an error it has to fix by
+        # hand. Order matters — validate would refuse the very config this is
+        # about to make valid.
+        settings.validate_storage()
+        settings.verify_persistent_mount()
+        settings.ensure_api_token()
         settings.validate()
         return settings
 
@@ -102,9 +127,14 @@ class AppSettings:
             raise ValueError("OFFSETX_SESSION_SECRET must contain at least 32 characters")
         if self.api_token and len(self.api_token) < 32:
             raise ValueError("OFFSETX_LOCAL_API_TOKEN must contain at least 32 characters")
-        if not loopback and not (self.api_token or self.demo_login_enabled):
+        if not (self.api_token or self.demo_login_enabled or self.allow_unauthenticated):
             raise ValueError(
-                "A non-loopback host requires a strong API token or complete demo login settings"
+                "off_CRM requires an API token or complete demo login settings. "
+                "This applies on 127.0.0.1 too: an unauthenticated local API is "
+                "readable by every other process and user on the machine, and by "
+                "any web page that can rebind a hostname to loopback. Run through "
+                "`run_offsetx_web.py` and one will be generated for you, or set "
+                "OFFSETX_LOCAL_API_TOKEN yourself."
             )
         if not 1 <= self.port <= 65535:
             raise ValueError("OFFSETX_WEB_PORT must be between 1 and 65535")
@@ -117,6 +147,9 @@ class AppSettings:
         if self.unsubscribe_secret and len(self.unsubscribe_secret.encode("utf-8")) < 32:
             raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
 
+        self.validate_storage()
+
+    def validate_storage(self) -> None:
         if self.production:
             temporary_root = Path(tempfile.gettempdir()).resolve()
             if any(_inside(self.data_dir, path) for path in (temporary_root, Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"))):
@@ -138,6 +171,71 @@ class AppSettings:
     def verify_persistent_mount(self) -> None:
         if self.production and (not self.persistent_mount or not self.persistent_mount.is_mount()):
             raise ValueError("Persistent disk is not mounted. Attach OFFSETX_PERSISTENT_MOUNT before starting the production service")
+
+    #: Where an auto-provisioned local token lives. Beside the data it protects.
+    TOKEN_FILENAME = "local_api_token"
+
+    def ensure_api_token(self) -> str:
+        """Give a local install a token instead of an error.
+
+        Nothing is generated when a token or a demo login is already configured,
+        so an explicit choice is never overwritten.
+
+        The file is `0600`. That is not theatre: anything able to read it can
+        already open the SQLite database beside it, so this does not add a
+        secret to protect — it closes the gap between "can read my files" and
+        "can reach my API", which is the gap a browser extension, another user
+        account, or a DNS-rebinding page sits in.
+        """
+        if self.api_token or self.demo_login_enabled or self.allow_unauthenticated:
+            return self.api_token
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        path = self.data_dir / self.TOKEN_FILENAME
+        try:
+            existing = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            existing = ""
+        if len(existing) >= 32:
+            self.api_token = existing
+            self.api_token_from_file = True
+            return self.api_token
+        token = secrets.token_urlsafe(32)
+        # Create with the mode set, rather than creating then chmod-ing: between
+        # those two calls the token is world-readable.
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(token)
+        self.api_token = token
+        self.api_token_from_file = True
+        return token
+
+    def reload_local_api_token(self) -> None:
+        """Restore file-managed authentication with the workspace it protects."""
+        if self.api_token_from_file:
+            token = (self.data_dir / self.TOKEN_FILENAME).read_text(encoding="utf-8").strip()
+            if len(token) < 32 or not token.isascii():
+                raise ValueError("Restored local API token is invalid")
+            self.api_token = token
+
+    def host_allowlist(self) -> frozenset[str]:
+        """Host header values this server answers to.
+
+        A `Host` allowlist is the defence against DNS rebinding, and rebinding is
+        the attack that makes "it only listens on localhost" untrue: a page can
+        point a name it controls at 127.0.0.1 and reach the API with the
+        browser's cooperation. CORS does not stop the request being made.
+        """
+        names = {"localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"}
+        if self.host:
+            names.add(self.host.strip().lower())
+        names.update(self.allowed_hosts)
+        if self.public_base_url:
+            from urllib.parse import urlsplit
+
+            public = urlsplit(self.public_base_url).hostname
+            if public:
+                names.add(public.lower())
+        return frozenset(name for name in names if name)
 
     @property
     def demo_login_enabled(self) -> bool:

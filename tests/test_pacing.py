@@ -282,6 +282,7 @@ def test_a_real_goal_and_real_metrics_drive_the_rate(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing-dist",
+        allow_unauthenticated=True,
     )
     application = create_app(settings)
     with TestClient(application) as client:

@@ -152,6 +152,7 @@ def test_api_exposes_memory_provider_audit_and_experiment_contract(tmp_path):
         data_dir=tmp_path / "data",
         export_dir=tmp_path / "exports",
         frontend_dist=tmp_path / "missing",
+        allow_unauthenticated=True,
     )
     with TestClient(create_app(settings)) as client:
         campaign = client.post(

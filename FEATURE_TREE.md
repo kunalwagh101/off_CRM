@@ -370,7 +370,7 @@ deal and where it sits on the board.
 | P-3.5 | `intake.py` — two-mode intake; **a contact list never meets a model** | 470 | 28 | ✅ |
 | P-3.6 | `categories.py` / `locked_categories.py` | 200 | 3 | ◐ |
 | P-3.7 | `outreach/notion.py` — mirror to Notion | 300 | 8 | ◐ |
-| P-3.8 | `outreach/backup.py` | 200 | — | ◐ |
+| P-3.8 | `outreach/backup.py`, `api/production_runtime.py` — complete workspace recovery; Audit WP1 / S-06.02.11 | — | `tests/test_audit_wp1.py`, `tests/test_wp1_recovery_edges.py`, `verification/test_wp1_live.py` | ✅ S-06.02.11 |
 
 **Capabilities not yet named as stories** (this is the gap, stated plainly):
 
@@ -486,7 +486,7 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-8.8 | **The vault** — per-account key, OS keychain / passphrase fallback | 15 focused | S-03.02.02 ✅ |
 | P-8.9 | **Revoke and forget** — clear vaulted cookies, destroy account envelope, trace the act | 6 focused incl. live Chromium | S-03.02.03 ✅ |
 | P-8.10 | **The run loop** — goal → bounded sequence of actions | — | ⬜ S-02.02.01 |
-| P-8.11 | **PLAN.md as memory** | — | ⬜ S-02.02.02 |
+| P-8.11 | **PLAN.md as memory** | Run file, owner edits and checklist projection integrated; customer UI in review | IN_REVIEW · S-02.02.02 |
 | P-8.12 | **Interrupt, steer, resume** | — | ⬜ S-02.02.03 |
 | P-8.13 | **Safety countdowns** | — | ⬜ S-02.02.04 |
 

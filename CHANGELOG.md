@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Integration branch before main promotion.** Combine recovery, production
+  requirements, editable plans and both page-read implementations. Keep main's
+  authentication and failed-action recovery. Cached reads retain the original
+  evidence and count only actual browser actions. Preserve hash routes and
+  query order; reloads, waits and partially failed mutations invalidate stale
+  captures. The integration workflow also exercises the original open audit
+  regressions; their failures block promotion rather than being hidden.
+
 - **A failed action is recovered from rather than repeated** (`S-11.01.01`).
   Before this a failure became an observation and the loop carried on, with
   nothing stopping the model choosing the same failing action until the budget
@@ -22,6 +30,17 @@
   `goto` succeeds. Transient means timeout-shaped, and that is recorded in the
   backlog rather than left as a criterion the code silently does not meet.
 
+- **Audit WP1 — durable customer state and safe recovery (S-06.02.09/11).**
+  Every CRM connection/cursor operation shares transaction ownership; bare writes
+  autocommit and nested transactions use savepoints. Named parameters remain intact.
+  Production requires a mounted persistent root and one web instance. Complete,
+  encrypted, bounded backups include local stores, assets and operational keys.
+  Restore validates before maintenance, drains requests/timers/workers, journals
+  filesystem replacement, reopens all services and rolls back on failure. Failed
+  rollback keeps the service unavailable; interrupted swaps recover on startup.
+  Settings provides the complete backup flow. The Docker image installs the lock
+  and drops privileges after preparing the volume. See
+  `docs/architecture/WP1_OPERATIONS.md` for the migration and executed rollback tests.
 - **A page is read once per run** (`S-11.02.04`), completing F-11.02. A run is
   capped at 50 steps, and a step spent re-reading a page the run already read is
   a step not spent finding anything — with the model paying for the same text
@@ -162,6 +181,16 @@
   does not invent a universal arithmetic or summarisation language. The dedicated
   acceptance suite includes a real-Chromium page where a plausible confidence-1
   wrong number is refused.
+- Delivered `S-11.02.04`, a run-scoped page-read cache that reuses the original
+  host-owned capture instead of issuing a second browser read. Cache identity
+  strips only known analytics/ad tracking parameters while preserving functional
+  query parameters and URL fragments. A cache hit retains the original trace
+  step and provenance, is audited as `read_cache_hit`, and does not count as a
+  browser action. Successful reads now persist their text as private trace
+  sidecars even for free-text runs. Actions that may mutate or reload a page
+  invalidate the affected cache entry, so deduplication cannot turn into stale
+  evidence. The dedicated suite includes a real-Chromium proof that two read
+  decisions invoke `Page.read` exactly once.
 - Added `PRODUCT_BACKLOG.md §3b`, superseding notes for shipped definitions.
   Shipped stories are **not** edited in place — an evidence block that describes
   something which never happened is worse than no record — so each amendment

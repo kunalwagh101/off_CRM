@@ -1,22 +1,36 @@
 services:
   - type: web
-    name: off-crm-demo
+    name: off-crm
     runtime: docker
-    plan: free
+    # Production customer state cannot run on Render's ephemeral free web tier.
+    # This service is deliberately single-instance because the current complete
+    # local workspace uses SQLite plus filesystem assets on one persistent disk.
+    plan: 1c-2g
+    numInstances: 1
     region: singapore
     branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health/ready
-    autoDeploy: true
+    autoDeployTrigger: checksPass
+    disk:
+      name: off-crm-data
+      mountPath: /var/lib/offcrm
+      sizeGB: 10
     envVars:
+      - key: OFFSETX_PRODUCTION
+        value: "1"
       - key: OFFSETX_ALLOWED_HOSTS
         sync: false   # the public hostname(s) this service answers to, comma separated
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
+      - key: OFFSETX_PERSISTENT_MOUNT
+        value: /var/lib/offcrm
       - key: OFFSETX_DATA_DIR
-        value: /tmp/offsetx/local_data
+        value: /var/lib/offcrm/local_data
       - key: OFFSETX_OUTREACH_DB
-        value: /tmp/offsetx/local_data/offsetx_outreach.db
+        value: /var/lib/offcrm/local_data/offsetx_outreach.db
+      - key: OFFSETX_BACKUP_MAX_BYTES
+        value: "67108864"
       - key: OFFSETX_DEMO_USERNAME
         sync: false
       - key: OFFSETX_DEMO_PASSWORD

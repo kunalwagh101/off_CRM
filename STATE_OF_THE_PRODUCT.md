@@ -1,9 +1,14 @@
 # Where everything stands
 
-**Current increment, 8 September 2026:** Audit WP1 (S-06.02.09/11) delivers
-persistent customer state, isolated writes, complete local backups, safe restore
-and truthful readiness. Live certification is in progress on PR #13. The older
-scoreboard below is historical; `BOARD.md` is the current source of truth.
+**Current increment, 9 September 2026:** S-06.02.11 (Audit WP1) is DONE, including
+S-06.02.09's connection-ownership upgrade. Persistent storage, complete encrypted
+backups, crash recovery, rollback and truthful readiness passed integrated CI:
+1686 Python tests, 116 frontend tests, authenticated browser recovery, production
+container replacement and Windows leases. See the [closure evidence](docs/audits/2026-09-08-wp1-completion.md).
+
+The current board has **74 stories: 34 DONE, 6 READY, 1 IN_REVIEW, 3 BLOCKED and
+30 BACKLOG**; 95 requirements are mapped. The older sections below are a dated
+product snapshot. `BOARD.md` and `TRACEABILITY.md` hold the current state.
 
 *Plain English. Every segment of off_CRM, what state it is in, and who has to do
 what next.*

@@ -11,7 +11,7 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health/ready
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     disk:
       name: off-crm-data
       mountPath: /var/lib/offcrm

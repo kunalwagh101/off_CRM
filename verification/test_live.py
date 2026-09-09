@@ -27,6 +27,7 @@ from offsetx_apollo_builder.browser.session import find_browser
 
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = Path(os.environ["OFF_CRM_LIVE_EVIDENCE"])
+TEST_API_TOKEN = "synthetic-isolated-browser-audit-token-000000"
 ROUTES = (
     "dashboard", "campaigns", "discovery", "contacts", "drafts", "queue",
     "deliverability", "sales", "experiments", "imagereview", "videoeditor",
@@ -172,6 +173,8 @@ def app_server(directory, *, login=False, evidence_name=None):
         env.update({"OFFSETX_DEMO_USERNAME": "audit-user",
             "OFFSETX_DEMO_PASSWORD": password,
             "OFFSETX_SESSION_SECRET": secrets.token_hex(32)})
+    else:
+        env["OFFSETX_LOCAL_API_TOKEN"] = TEST_API_TOKEN
     log = open(directory / "server.log", "w")
     process = subprocess.Popen([sys.executable, "-m", "offsetx_apollo_builder.web_cli",
         "--host", "127.0.0.1", "--port", str(port)], cwd=ROOT, env=env,
@@ -220,7 +223,11 @@ def chrome():
 
 @pytest.fixture
 def page(chrome, request):
-    context = chrome.new_context(viewport={"width": 1440, "height": 1000})
+    # The default fixture is now authenticated, matching main's secure API.
+    # Session-login fixtures do not configure this token, so their login checks
+    # still require actual credentials and cookies.
+    context = chrome.new_context(viewport={"width": 1440, "height": 1000},
+        extra_http_headers={"Authorization": "Bearer " + TEST_API_TOKEN})
     page = context.new_page()
     page.set_default_timeout(15000)
     errors = []

@@ -69,6 +69,11 @@ def test_production_configuration_refuses_ephemeral_customer_state(tmp_path, mon
     assert "mountPath: /var/lib/offcrm" in blueprint
     assert "numInstances: 1" in blueprint
     assert "OFFSETX_PRODUCTION" in blueprint
+    import yaml
+    service = yaml.safe_load(blueprint)['services'][0]
+    assert service['autoDeployTrigger'] == 'checksPass'
+    workflow = yaml.load((Path(__file__).resolve().parents[1] / '.github/workflows/wp1-verification.yml').read_text(), Loader=yaml.BaseLoader)
+    assert 'main' in workflow['on']['push']['branches']
 
 
 def test_failed_concurrent_transaction_cannot_rollback_another_writer(tmp_path):

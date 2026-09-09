@@ -1,13 +1,19 @@
 # BUILD_STATE.md
 
-Current increment (9 September 2026): **S-06.02.09 / S-06.02.11 — Audit WP1,
-durable customer state and safe recovery**, on
-`feature/audit-wp1-durable-state-safe-recovery`, draft PR #13. The branch includes
-main's `5b19a54` security and browser changes. The complete WP1 gate passed
-before that merge; integrated release acceptance is being repeated. Recovery is
-S-06.02.11 / R-95 because main independently used S-06.02.10 for authentication. See `BOARD.md` and
-`docs/architecture/WP1_OPERATIONS.md`. Historical test counts below describe their
-original dates, not this branch's current result.
+Current increment (9 September 2026): **S-06.02.11 — Audit WP1, durable customer
+state and safe recovery, DONE**, with the S-06.02.09 connection-ownership upgrade.
+Branch: `feature/audit-wp1-durable-state-safe-recovery`, PR #13, based on current
+main `5b19a54`. Integrated acceptance at `4d43169`: **1686 Python passed, 116
+frontend passed, 2 live recovery tests passed, 2 Windows lease tests passed;
+zero skips in the required acceptance run**. The release gate is also enabled
+on main, and the Render Blueprint waits for passing CI before deployment.
+
+WP1 is S-06.02.11 / R-95 because main independently used S-06.02.10 for
+authentication. Both stories are retained. See `BOARD.md`, the closure report at
+`docs/audits/2026-09-08-wp1-completion.md`, and `docs/architecture/WP1_OPERATIONS.md`.
+Only A01/A02/A03/A04/A17 are closed by WP1; this does not certify a customer
+installation or close the other audit findings. Historical entries below retain
+their original dates and counts.
 
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.

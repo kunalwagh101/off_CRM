@@ -1,7 +1,7 @@
 name: WP1 production acceptance
 on:
   push:
-    branches: [feature/audit-wp1-durable-state-safe-recovery]
+    branches: [main, feature/audit-wp1-durable-state-safe-recovery]
   workflow_dispatch:
 permissions:
   contents: read

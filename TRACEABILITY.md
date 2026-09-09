@@ -8,12 +8,13 @@ The board keeps the runnable commands, results and implementation commits.
 references and runs every DONE evidence command. A story's status does not
 certify unrelated audit findings in the same subsystem.
 
-**95 requirements; 74 stories; 33 DONE, 1 IN_REVIEW, 1 IN_PROGRESS, 6 READY, 3 BLOCKED, 30 BACKLOG.**
+**95 requirements; 74 stories; 34 DONE, 1 IN_REVIEW, 0 IN_PROGRESS, 6 READY, 3 BLOCKED, 30 BACKLOG.**
 
 ## Delivered
 
 | Requirement | Story | Criteria | Tests | Code |
 |---|---|---|---|---|
+| R-95 | S-06.02.11 | 8 | `tests/test_audit_wp1.py`, `tests/test_wp1_recovery_edges.py`, `tests/test_workspace_lock.py`, `verification/test_wp1_live.py` | `offsetx_apollo_builder/outreach/backup.py`, `offsetx_apollo_builder/outreach/sqlite_ownership.py`, `offsetx_apollo_builder/outreach/workspace_lock.py`, `offsetx_apollo_builder/api/production_runtime.py`, `offsetx_apollo_builder/api/config.py`, `frontend/src/pages/Settings.tsx`, `render.yaml` |
 | R-83 | S-11.02.04 | 3 | `tests/test_agent_page_memo.py` | `offsetx_apollo_builder/agent/run.py` |
 | R-82 | S-11.02.03 | 3 | `tests/test_agent_claim_verification.py` | `offsetx_apollo_builder/agent/verify.py`, `offsetx_apollo_builder/agent/result.py`, `offsetx_apollo_builder/agent/run.py` |
 | R-81 | S-11.02.02 | 2 | `tests/test_agent_provenance.py` | `offsetx_apollo_builder/agent/result.py`, `offsetx_apollo_builder/agent/run.py`, `offsetx_apollo_builder/browser/trace.py` |
@@ -37,7 +38,7 @@ certify unrelated audit findings in the same subsystem.
 | R-16 | S-02.01.05 | 2 | `tests/test_browser_agent.py` | `offsetx_apollo_builder/browser/trace.py` |
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `offsetx_apollo_builder/browser/box.py`, `offsetx_apollo_builder/browser/guard.py` |
 | R-72, R-73, R-74 | S-03.02.04 | 3 | `tests/test_browser_budget.py` | `offsetx_apollo_builder/browser/budget.py`, `offsetx_apollo_builder/browser/identity.py`, `offsetx_apollo_builder/browser/page.py`, `offsetx_apollo_builder/browser/signin.py` |
-| R-91 | S-06.02.09 | 3 | `tests/test_security_audit.py` | `offsetx_apollo_builder/outreach/store.py` |
+| R-91 | S-06.02.09 | 3 | `tests/test_security_audit.py` | `offsetx_apollo_builder/outreach/store.py`, `offsetx_apollo_builder/outreach/sqlite_ownership.py` |
 | R-92, R-93, R-94 | S-06.02.10 | 3 | `tests/test_security_audit.py` | `offsetx_apollo_builder/api/config.py`, `offsetx_apollo_builder/api/app.py`, `offsetx_apollo_builder/web_cli.py` |
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `offsetx_apollo_builder/browser/identity.py`, `offsetx_apollo_builder/browser/signin.py`, `offsetx_apollo_builder/browser/session.py`, `offsetx_apollo_builder/browser/page.py` |
 | R-21, R-24 | S-03.01.02 | 1 | `tests/test_browser_box.py` | `offsetx_apollo_builder/ai/sandbox.py` |
@@ -50,9 +51,7 @@ certify unrelated audit findings in the same subsystem.
 
 ## In progress
 
-| Requirement | Story | Criteria | Tests | Code |
-|---|---|---|---|---|
-| R-95 | S-06.02.11 | 8 | — | — |
+No stories in this state.
 
 ## In review
 

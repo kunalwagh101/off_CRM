@@ -3,11 +3,13 @@
 Repository: `kunalwagh101/off_CRM` · Stories: **S-06.02.09 / S-06.02.11**
 Branch: `feature/audit-wp1-durable-state-safe-recovery` · [PR #13](https://github.com/kunalwagh101/off_CRM/pull/13)
 
-**Integration certification pending:** the complete WP1 gate passed at
-`b3fb49ce950b3b888a4c4f4e4fedbc9aa09d1e59` in
-[run 34305738186](https://github.com/kunalwagh101/off_CRM/actions/runs/34305738186).
-Main subsequently advanced; final acceptance is being repeated after integrating
-its security and page-reuse work at `5b19a54e60233134ec3bda711a58f7f37a1a94a7`.
+**Delivered and verified — 9 September 2026.** The integrated implementation at
+`4d43169475cb014d119fdf0d2ec572161226e702` passed
+[WP1 production acceptance](https://github.com/kunalwagh101/off_CRM/actions/runs/34306667467)
+and [the normal quality workflow](https://github.com/kunalwagh101/off_CRM/actions/runs/34306670062).
+It includes main `5b19a54`. The final closure commit adds the DONE evidence,
+keeps this gate running on main and configures Render to wait for passing CI.
+Its own branch checks must remain green before merge.
 
 ## What this delivers
 
@@ -46,7 +48,26 @@ Chromium and Docker, runs the complete Python suite, exercises browser recovery
 and container replacement, and re-runs all DONE story evidence commands.
 Missing or skipped Python/live evidence fails the gate.
 
-Final acceptance results will be recorded here after the run completes.
+| Gate | Result at the integrated implementation commit |
+|---|---|
+| Complete Python suite, with PostgreSQL enabled | **1,686 passed; 0 failures, errors or skips** |
+| Frontend | **116 passed; production build passed** |
+| Real Chromium: sign in, download, restore, reload, verify recovered records/APIs | **Passed; no JavaScript or server errors** |
+| Production Docker: kill/recreate on the same volume, assets/records survive, restore | **Passed** |
+| Native Windows shared/exclusive and cross-process file leases | **2 passed** |
+| Existing DONE-story evidence commands | **33/33 passed**; the closure commit adds WP1 as the 34th |
+| WP1 focused evidence | **41 passed** |
+
+Evidence: [artifact 10087070134](https://github.com/kunalwagh101/off_CRM/actions/runs/34306667467/artifacts/10087070134),
+ZIP SHA-256 `91e9ee02be68d4ac602a0db488e939eec2a6beaee94e8f8a82648059404d9e0f`.
+The artifact contains JUnit files, the board report, browser screenshot/error
+record, recovery summaries and runtime versions. GitHub retains it for 30 days;
+`verification/wp1-acceptance.json` preserves the result and runtime identifiers
+in the repository. The source tests and workflow reproduce the checks.
+
+The first attempt on this implementation hit a Docker Hub 502 while retrieving
+the Node base image. The subsequent attempt completed every gate successfully.
+No acceptance assertions or skip rules were weakened to obtain that result.
 
 Main independently allocated S-06.02.10 and R-92–R-94 to authentication while
 WP1 was in flight. Recovery is therefore S-06.02.11 / R-95. The authentication
@@ -59,8 +80,8 @@ and drop privileges. The running application has **UID 10001 and zero effective
 capabilities**. It creates records/assets, exports a backup, kills the container,
 recreates it on the same volume, verifies persistence and restores the archive.
 
-The browser test uses the built frontend against a real Uvicorn process. It
-downloads the encrypted archive through Settings, verifies the success message
+The browser test signs in through the built frontend against a real Uvicorn
+process. It downloads the encrypted archive through Settings, verifies the success message
 and cleared passphrase, creates later data, uploads the archive, confirms restore,
 checks the reload and verifies that the original records and dependent APIs work.
 
@@ -81,7 +102,9 @@ has been migrated to PostgreSQL.
 - Added crash-safe generation swaps, a durable recovery journal and startup
   rollback/cleanup so process death cannot leave a half-replaced workspace.
 - Closed old thread-local handles and coordinated API requests, timers and
-  delivery workers with the same recovery boundary.
+  delivery workers with the same recovery boundary. File-managed API tokens
+  follow restore/rollback immediately, and missing or damaged token files make
+  readiness red. Explicit environment credentials keep the host configuration.
 - Fixed the production Docker build's missing shared video conformance fixture
   and startup directory permissions under restricted capabilities.
 - Fixed the frontend export handler's use of its form after an asynchronous
@@ -109,6 +132,7 @@ deployment, migration, rollback and recovery procedure is in
 
 This evidence uses real infrastructure in disposable CI. It does not certify a
 specific customer deployment, account credentials or live provider delivery.
-The original live-audit assertions remain intact. Its six known failing checks
+The original live-audit assertions remain intact; their fixture supplies an
+isolated API token to match required authentication. The six previously observed failures
 for **A09/A32/A33/A34/A35** remain tracked outside WP1, as do the other findings
 in the original audit. No external messages or provider sends were performed.

@@ -12,6 +12,10 @@ preserves files under the mounted disk across restarts and replaces a service
 with a disk by stopping the previous instance first. The Blueprint uses the
 [documented compute plans](https://render.com/docs/blueprint-spec) and
 [persistent disk lifecycle](https://render.com/docs/disks), checked 8 September 2026.
+Automatic deployment uses `autoDeployTrigger: checksPass`, so it waits for the
+linked branch's CI checks. The recovery workflow also runs on `main` after merge;
+it is not limited to this feature branch. Apply the Blueprint setting to the
+actual service before relying on that deployment gate.
 
 Required settings:
 
@@ -164,8 +168,8 @@ skipped or missing test evidence and uploads logs, screenshots and JUnit results
 `verification/test_live.py` retains the original audit assertions. The unrelated
 sandbox, form-confirmation, connector, selection and media defects remain tracked
 by their original audit findings; WP1 does not weaken those assertions or claim
-to close them. This story closes only A01, A02, A03, A04 and A17 once its final
-acceptance run passes. Production account/deployment verification remains separate
+to close them. The [WP1 closure record](../audits/2026-09-08-wp1-completion.md) certifies
+A01, A02, A03, A04 and A17 against the integrated acceptance run. Production account/deployment verification remains separate
 from the disposable, real-service acceptance environment.
 
 Native Windows development uses shared/exclusive byte-range leases through

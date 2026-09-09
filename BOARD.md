@@ -75,8 +75,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-- S-06.02.11 · Durable customer state and safe recovery (Audit WP1)
-  scope: A01, A02, A03, A04, A17; continues draft PR #13 on current main.
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -96,6 +95,15 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.11 · Durable customer state and safe recovery (Audit WP1)
+  tests: tests/test_audit_wp1.py, tests/test_wp1_recovery_edges.py, tests/test_workspace_lock.py, verification/test_wp1_live.py
+  command: uv run --no-sync pytest tests/test_audit_wp1.py tests/test_wp1_recovery_edges.py tests/test_workspace_lock.py -q
+  result: 41 focused tests passed; integrated CI passed 1686 Python and 116 frontend tests, both live recovery tests and Windows leases, with no acceptance skips (2026-09-09).
+  code: offsetx_apollo_builder/outreach/backup.py, offsetx_apollo_builder/outreach/sqlite_ownership.py, offsetx_apollo_builder/outreach/workspace_lock.py, offsetx_apollo_builder/api/production_runtime.py, offsetx_apollo_builder/api/config.py, frontend/src/pages/Settings.tsx, render.yaml
+  commit: 4d43169475cb014d119fdf0d2ec572161226e702
+  live_evidence: https://github.com/kunalwagh101/off_CRM/actions/runs/34306667467
+  documentation: docs/architecture/WP1_OPERATIONS.md, docs/audits/2026-09-08-wp1-completion.md
 
 - S-11.02.04 · The same page is never read twice in one run
   tests: tests/test_agent_page_memo.py::test_reading_the_same_page_twice_asks_the_page_once, tests/test_agent_page_memo.py::test_acting_on_a_page_forgets_it, tests/test_agent_page_memo.py::test_a_parameter_that_changes_the_page_is_never_stripped, tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
@@ -262,8 +270,8 @@ remaining independent stories below stay READY.)*
   tests: tests/test_security_audit.py::test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure, tests/test_security_audit.py::test_a_bare_write_is_not_committed_early_by_someone_else, tests/test_security_audit.py::test_no_shared_connection_escapes_the_guard, tests/test_security_audit.py::test_the_guard_still_behaves_like_a_connection
   command: python -m pytest tests/test_security_audit.py tests/test_outreach_api.py tests/test_sales_tracker.py tests/test_email_delivery.py -q
   result: 53 passed (2026-09-09)
-  code: offsetx_apollo_builder/outreach/store.py
-  commit: 6ccb9011a1e703f421912a0bfe704c1822a7846b
+  code: offsetx_apollo_builder/outreach/store.py, offsetx_apollo_builder/outreach/sqlite_ownership.py
+  commit: 4d43169475cb014d119fdf0d2ec572161226e702
 
 - S-06.02.10 · The local API is not open to whatever can reach the port
   tests: tests/test_security_audit.py::test_a_local_install_will_not_start_without_authentication, tests/test_security_audit.py::test_loopback_requires_the_token_like_everywhere_else, tests/test_security_audit.py::test_a_host_this_server_does_not_answer_to_is_refused, tests/test_security_audit.py::test_a_provisioned_token_is_strong_stable_and_private

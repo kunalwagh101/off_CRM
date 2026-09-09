@@ -275,3 +275,29 @@ Definition of Ready asks whether criteria are machine-testable; it does not ask
 whether they are complete, and completeness is the thing a cache gets wrong. The
 question to add: *what makes the stored answer stop being true, and which
 criterion says so?*
+
+---
+
+## 2026-09-09 — S-11.01.01, and a criterion the code could not meet
+
+**What was cut.** One acceptance criterion was corrected rather than met. The
+story asked for retry on "navigation timeout, 5xx", and 5xx is not observable
+through the ten verbs: a server returning 500 still sends a page, the browser
+renders it, and `goto` succeeds. Writing a retry that claimed to handle 5xx
+would have been a comment describing something the code cannot see. The
+criterion now says timeout-shaped, and a status-aware retry has to earn its own
+ID.
+
+**What the estimate got wrong.** I sized this as retry logic and the retry was
+the small half. The larger half was deciding what counts as *the same attempt* —
+and the answer had to exclude the model's stated reason, because otherwise
+rewording why it wants to click element 7 makes clicking element 7 a new thing
+to try, and the guard never fires.
+
+**What to change next time.** Two stories running, two acceptance criteria of my
+own that did not survive contact with the code: S-11.02.04 had no invalidation
+criterion, and this one asked for something unobservable. Both were written in
+the same sitting, from the spec rather than from the code. **A criterion written
+without opening the module it constrains is a guess.** The Definition of Ready
+asks whether criteria are machine-testable; it should also ask whether anyone
+checked that the thing they describe is *visible from where it will be checked*.

@@ -21,7 +21,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-11.01.02 · A run that stops making progress is stopped
 - S-11.01.04 · A run has a money ceiling, not only a step ceiling
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
 - S-11.04.01 · A run report a person can audit
@@ -67,6 +66,7 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
+- S-11.01.02 · A run that stops making progress is stopped
 - S-11.01.03 · A run survives the process dying
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
@@ -74,7 +74,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-- S-11.01.01 · A failed action is recovered from, not repeated
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -94,6 +94,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.01.01 · A failed action is recovered from, not repeated
+  tests: tests/test_agent_recovery.py::test_the_same_failing_action_reaches_the_browser_only_once, tests/test_agent_recovery.py::test_three_failures_in_a_row_stop_the_run, tests/test_agent_recovery.py::test_a_timeout_is_retried_with_backoff_and_recorded_as_a_retry, tests/test_agent_recovery.py::test_a_success_clears_the_failure_streak
+  command: python -m pytest tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
+  result: 37 passed (2026-09-09)
+  code: offsetx_apollo_builder/agent/run.py
+  commit: ce3a994
 
 - S-11.02.04 · The same page is never read twice in one run
   tests: tests/test_agent_page_memo.py::test_reading_the_same_page_twice_asks_the_page_once, tests/test_agent_page_memo.py::test_acting_on_a_page_forgets_it, tests/test_agent_page_memo.py::test_a_parameter_that_changes_the_page_is_never_stripped, tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop

@@ -22,6 +22,7 @@ They are intentionally not smuggled into this slice.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -32,7 +33,8 @@ from typing import Any, Mapping
 from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings
 from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass, TrustTier
-from ..browser.page import ACTIONS, ActionResult, Page
+from ..browser.cdp import CDPTimeout
+from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace
 from .result import Finding, Provenance, ResultSchema, SourcedRecordValidation, coerce_result_schema
 from .verify import (
@@ -48,6 +50,25 @@ MAX_RUN_STEPS = 50
 #: this can never be the thing that fills memory — it is a ceiling on the
 #: screenshots held alongside the text, not on the number of pages visited.
 MAX_CAPTURES = 32
+
+#: How many failures in a row end the run. Three, because one is noise, two can
+#: be a page still settling, and a third means the agent has no idea what to do
+#: here — and every further step is budget spent learning that again.
+MAX_CONSECUTIVE_FAILURES = 3
+
+#: How many times a timeout-shaped failure is retried before it counts as a
+#: real one, and how long to wait between attempts.
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_BACKOFF_SECONDS = (0.5, 2.0)
+
+#: Failures worth trying again. A timeout means *no answer yet*; everything else
+#: the browser raises is an answer, and repeating it changes nothing.
+#:
+#: HTTP status is deliberately absent. A server returning 500 still sends a page
+#: and the browser renders it, so `goto` succeeds — the ten verbs do not expose a
+#: status code, and pretending to retry on 5xx would be a comment describing
+#: something the code cannot see.
+TRANSIENT_FAILURES = (CDPTimeout, asyncio.TimeoutError)
 
 #: Verbs that can change the document without changing its URL — "load more", a
 #: filter, a tab. A capture taken before one of these is no longer what the page
@@ -113,6 +134,31 @@ Rules:
 - If the goal is complete, return state=done instead of doing extra work.
 - Keep reason and result short. They are audit metadata, not hidden reasoning.
 """
+
+
+def action_signature(decision: "Decision") -> str:
+    """What makes two attempts *the same attempt*.  `S-11.01.01`
+
+    The verb and its arguments, with the arguments sorted so that argument order
+    cannot make one attempt look like two. The model's stated reason is
+    excluded on purpose: rewording why it wants to click element 7 does not make
+    clicking element 7 a different thing to try.
+    """
+    args = decision.args if isinstance(decision.args, Mapping) else {}
+    rendered = ",".join(f"{key}={args[key]!r}" for key in sorted(args))
+    return f"{decision.action}({rendered})"
+
+
+def is_transient(error: BaseException) -> bool:
+    """Whether waiting could plausibly change the answer.
+
+    A timeout is *no answer yet*. `ActionRefused` is an answer — a stale handle,
+    a refused domain, an element with no shape — and trying it again produces
+    the same refusal a second later, having spent the wait.
+    """
+    if isinstance(error, ActionRefused):
+        return False
+    return isinstance(error, TRANSIENT_FAILURES)
 
 
 def canonical_page_url(url: str) -> str:
@@ -294,6 +340,9 @@ class AgentRun:
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
+        # What has already failed, and how many failures in a row.  `S-11.01.01`
+        failed_signatures: set[str] = set()
+        consecutive_failures = 0
         planner = self._choose_planner(cleaned_goal)
         planner_settings = replace(
             self.settings,
@@ -446,19 +495,87 @@ class AgentRun:
                 )
                 continue
 
-            try:
-                action_result = await _execute(self.page, decision)
-            except Exception as exc:  # browser policy and stale handles are recoverable observations
-                observation = f"The action failed: {str(exc)[:MAX_OBSERVATION_CHARS]}"
+            # An attempt that already failed is not made again.  `S-11.01.01`
+            #
+            # Without this the model is free to choose the same failing action
+            # until the step budget runs out, and it does: a refusal comes back
+            # as an observation, the next decision is made from the same page,
+            # and the same conclusion follows. Refusing here spends no browser
+            # action and tells the model plainly that this one is spent.
+            signature = action_signature(decision)
+            if signature in failed_signatures:
+                consecutive_failures += 1
+                detail = (
+                    f"{signature} already failed in this run and was not tried "
+                    "again. Choose a different action, or take a fresh snapshot "
+                    "if the page has changed."
+                )
+                self.trace.append(
+                    Step(kind="action", detail=detail,
+                         url=self.page.url or snapshot.url, ok=False)
+                )
+                observation = detail
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    return self._stuck(
+                        cleaned_goal, budget, decisions, actions,
+                        consecutive_failures, observation, schema, collected,
+                    )
+                continue
+
+            attempt, action_result, failure = 0, None, None
+            while True:
+                try:
+                    action_result = await _execute(self.page, decision)
+                    failure = None
+                    break
+                except Exception as exc:  # noqa: BLE001 - classified below, never swallowed
+                    failure = exc
+                    if not is_transient(exc) or attempt >= MAX_TRANSIENT_RETRIES:
+                        break
+                    pause = TRANSIENT_BACKOFF_SECONDS[
+                        min(attempt, len(TRANSIENT_BACKOFF_SECONDS) - 1)
+                    ]
+                    # Recorded as a retry, not as a fresh attempt, so a trace
+                    # cannot be read as the agent having tried three things.
+                    self.trace.append(
+                        Step(
+                            kind="retry",
+                            detail=(
+                                f"{decision.action} timed out; retrying in "
+                                f"{pause}s (attempt {attempt + 2} of "
+                                f"{MAX_TRANSIENT_RETRIES + 1}): {str(exc)[:500]}"
+                            ),
+                            url=self.page.url or snapshot.url,
+                            ok=False,
+                        )
+                    )
+                    await asyncio.sleep(pause)
+                    attempt += 1
+
+            if failure is not None:
+                failed_signatures.add(signature)
+                consecutive_failures += 1
+                observation = (
+                    f"The action failed: {str(failure)[:MAX_OBSERVATION_CHARS]}. "
+                    "That exact action will not be tried again — choose a "
+                    "different one."
+                )
                 self.trace.append(
                     Step(
                         kind="action",
-                        detail=f"{decision.action} failed: {str(exc)[:2_000]}",
+                        detail=f"{decision.action} failed: {str(failure)[:2_000]}",
                         url=self.page.url or snapshot.url,
                         ok=False,
                     )
                 )
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    return self._stuck(
+                        cleaned_goal, budget, decisions, actions,
+                        consecutive_failures, observation, schema, collected,
+                    )
                 continue
+
+            consecutive_failures = 0
 
             if action_result.needs_confirmation:
                 self.trace.append(
@@ -867,6 +984,37 @@ class AgentRun:
             + model.cost_per_1m_output_usd * tokens_out
         ) / 1_000_000
         return tokens_in, tokens_out, cost
+
+    def _stuck(
+        self,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        failures: int,
+        observation: str,
+        schema: "ResultSchema | None",
+        collected: "Mapping[str, Finding]",
+    ) -> RunOutcome:
+        """Stop after `MAX_CONSECUTIVE_FAILURES` in a row.  `S-11.01.01`
+
+        A distinct status rather than `budget_exhausted`, because the two ask
+        different things of the owner: a run out of budget may just need a
+        larger one, and a stuck run needs the goal or the page looked at. Facts
+        already gathered are returned — a run that found four of five fields and
+        then got stuck should hand over the four.
+        """
+        message = (
+            f"Stopped after {failures} failed actions in a row. Last failure: "
+            f"{observation[:1_000]}"
+        )
+        self.trace.append(
+            Step(kind="stuck", detail=message, url=self.page.url, ok=False)
+        )
+        return self._outcome(
+            "stuck", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
+        )
 
     def _outcome(
         self,

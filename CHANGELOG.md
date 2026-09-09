@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **A failed action is recovered from rather than repeated** (`S-11.01.01`).
+  Before this a failure became an observation and the loop carried on, with
+  nothing stopping the model choosing the same failing action until the budget
+  ran out — and it does choose it again, because the refusal comes back as text,
+  the next decision is made from the same page, and the same conclusion follows.
+  The same verb with the same arguments is now spent after one failure, and the
+  model is told so plainly.
+- **Three failures in a row end the run as `stuck`.** A distinct status from
+  `budget_exhausted` because the two ask different things of the owner: a run out
+  of budget may just need a bigger one; a stuck run needs the goal or the page
+  looked at. Facts already gathered are still returned.
+- **A timeout is retried with backoff**, recorded in the trace as `kind="retry"`
+  so a trace cannot be misread as the agent having tried three different things.
+  `ActionRefused` is never retried: a stale handle or a refused domain is an
+  *answer*, and asking again produces the same refusal having spent the wait.
+- Scope corrected during the build: the story said "navigation timeout, 5xx".
+  HTTP status is not observable through the ten verbs — a 500 still renders, so
+  `goto` succeeds. Transient means timeout-shaped, and that is recorded in the
+  backlog rather than left as a criterion the code silently does not meet.
+
 - **A page is read once per run** (`S-11.02.04`), completing F-11.02. A run is
   capped at 50 steps, and a step spent re-reading a page the run already read is
   a step not spent finding anything — with the model paying for the same text

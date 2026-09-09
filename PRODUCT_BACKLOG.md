@@ -773,9 +773,15 @@ fails, **so that** one stale handle does not end a twenty-minute run.
   action with the same arguments is never retried more than once.
 - **Given** three consecutive failed actions, **when** the third fails, **then**
   the run stops with `status=stuck` rather than continuing to burn budget.
-- **Given** a transient failure (navigation timeout, 5xx), **when** it happens,
-  **then** it is retried with backoff and the retry is recorded in the trace as
-  a retry, not as a fresh attempt.
+- **Given** a transient failure, **when** it happens, **then** it is retried
+  with backoff and the retry is recorded in the trace as a retry, not as a fresh
+  attempt. **(done)**
+- **Scope corrected during the build:** the original wording said "navigation
+  timeout, 5xx". **HTTP status is not observable through the ten verbs** — a
+  server returning 500 still sends a page and the browser renders it, so `goto`
+  succeeds. Retrying on 5xx would have been a comment describing something the
+  code cannot see. Transient therefore means timeout-shaped, and a status-aware
+  retry needs its own ID if it is ever wanted.
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** runs ending `stuck`
   vs `done`.
 

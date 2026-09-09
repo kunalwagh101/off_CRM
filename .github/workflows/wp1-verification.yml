@@ -53,10 +53,10 @@ jobs:
           docker build -t offcrm-wp1:acceptance .
           docker pull python:3.12-slim
           uv run --no-sync python verification/preflight.py
-      - name: Verify all existing and WP1 Python acceptance tests
-        run: uv run --no-sync pytest tests -q -ra --junitxml=verification-evidence/python.xml
       - name: Verify WP1 in the browser and persistent container
         run: uv run --no-sync pytest verification/test_wp1_live.py -q -ra --junitxml=verification-evidence/wp1-live.xml
+      - name: Verify all existing and WP1 Python acceptance tests
+        run: uv run --no-sync pytest tests -q -ra --junitxml=verification-evidence/python.xml
       - name: Verify the story board
         run: uv run --no-sync python scripts/verify_board.py > verification-evidence/board.txt
       - name: Reject skipped or missing acceptance evidence

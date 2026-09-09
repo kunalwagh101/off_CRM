@@ -27,9 +27,12 @@ def test_browser_can_download_and_restore_the_complete_workspace(page, tmp_path)
         expect(export_form.get_by_label('Backup passphrase')).to_have_value(PASSPHRASE)
         with page.expect_download() as event:
             panel.get_by_role('button', name='Create encrypted backup', exact=True).click()
+        # The status also contains an icon and dismiss button. Check its message
+        # before saving the download, because notifications expire after 4.5s.
+        expect(page.get_by_role('status')).to_be_visible()
+        expect(page.get_by_role('status')).to_contain_text('Encrypted workspace backup created')
         archive = EVIDENCE / 'wp1-browser.oxbackup'
         event.value.save_as(archive)
-        expect(page.get_by_text('Encrypted workspace backup created', exact=True)).to_be_visible()
         expect(export_form.get_by_label('Backup passphrase')).to_have_value('')
         requests.post(url + '/api/v1/campaigns', json={'name': 'After backup'}, timeout=10).raise_for_status()
         restore_form.get_by_label('Backup file', exact=True).set_input_files(str(archive))

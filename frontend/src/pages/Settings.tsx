@@ -297,7 +297,7 @@ export default function Settings() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Credentials and data stay on this device. Stored provider keys are encrypted locally and never written to the CRM database." />
+      <PageHeader title="Settings" description="Workspace files and local credentials are stored on the application host. Provider keys are encrypted outside the CRM database." />
       <div className="settings-grid">
         <Panel title="Local storage" subtitle="SQLite is the source of truth">
           {status.loading || status.error ? <Loadable loading={status.loading} error={status.error} /> : status.data ? (
@@ -401,7 +401,7 @@ export default function Settings() {
           ) : (
             <form className="form-stack" onSubmit={connectNotion}>
               <div className="form-note"><strong>Two-minute setup.</strong><span>In Notion: Settings → Connections → Develop or manage integrations → New integration. Copy the secret token here. Then open the target database in Notion and share it with the integration.</span></div>
-              <Field label="Notion integration token" hint="Stored encrypted on this device only. Never written to the CRM database.">
+              <Field label="Notion integration token" hint="Stored encrypted on the application host, outside the CRM database.">
                 <input type="password" value={notionToken} onChange={(event) => setNotionToken(event.target.value)} placeholder="ntn_…" required autoComplete="off" />
               </Field>
               <div><Button type="submit" busy={busy === "notion-connect"}>Connect and test</Button></div>

@@ -196,7 +196,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
           </nav>
           <div className="sidebar-footer">
             <span className="local-dot" />
-            <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
+            <div><strong>Workspace storage</strong><small>On the application host</small></div>
           </div>
         </aside>
         <div className="app-main">

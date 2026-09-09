@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **A page is read once per run** (`S-11.02.04`), completing F-11.02. A run is
+  capped at 50 steps, and a step spent re-reading a page the run already read is
+  a step not spent finding anything — with the model paying for the same text
+  twice on the way in. A repeated `read` is answered from the run's own memo and
+  recorded in the trace as a reuse.
+- Two URLs that differ only by **how somebody arrived** are one page: the
+  fragment is dropped, the host lowercased, remaining parameters sorted, and the
+  tracking parameters in `TRACKING_PARAMETERS` stripped. That list is
+  deliberately short — `ref`, `id`, `page`, `q` and `source` are real parameters
+  on real sites, and stripping them would merge pages that differ and then serve
+  the wrong text. Under-deduplicating costs a page read; over-deduplicating
+  returns a wrong answer, so the bias is one-directional on purpose.
+- **Acting on a page forgets it.** A document can change while its URL does not
+  — "load more", a filter, a tab — so `click`, `type`, `select`, `press`,
+  `scroll` and `back` drop the memo for the page they acted on. `goto` does not
+  need to: it changes the URL and lands on a different key.
+- Only `read` is served from the memo. `goto` is never skipped, because the
+  agent often needs to *be* on a page to act on it and silently not navigating
+  would leave every following handle pointing at the wrong document.
+
 - **Fixed a bare statement being rolled back with somebody else's failed
   request** (`S-06.02.09`). The lock added on 2026-09-08 made two transactions
   safe against each other but left this:

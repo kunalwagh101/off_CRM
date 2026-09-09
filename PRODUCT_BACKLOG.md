@@ -864,9 +864,13 @@ from, **so that** a confident model cannot invent a phone number.
 **As an** owner, **I want** the agent to remember what it has read,
 **so that** the budget goes on new pages.
 - **Given** a URL already read in this run, **when** the agent decides to read
-  it again, **then** the stored capture is returned and no request is made.
+  it again, **then** the stored capture is returned and the page is not asked
+  again. **(done)**
 - **Given** two URLs that differ only by tracking parameters, **when** they are
-  compared, **then** they are treated as the same page.
+  compared, **then** they are treated as the same page. **(done)**
+- **Given** a page that changed under an unchanged URL, **when** it is read
+  again, **then** the memo is not used — added during the build, because a
+  stale capture is worse than a second read. **(done)**
 - **Dependencies:** S-02.02.01. **Size:** S. **Indicator:** duplicate fetches
   per run — target zero.
 

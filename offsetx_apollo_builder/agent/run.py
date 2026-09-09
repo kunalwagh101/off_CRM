@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -43,6 +44,33 @@ from .verify import (
 )
 
 MAX_RUN_STEPS = 50
+#: How many page captures one run keeps. A run is bounded at `MAX_RUN_STEPS`, so
+#: this can never be the thing that fills memory — it is a ceiling on the
+#: screenshots held alongside the text, not on the number of pages visited.
+MAX_CAPTURES = 32
+
+#: Verbs that can change the document without changing its URL — "load more", a
+#: filter, a tab. A capture taken before one of these is no longer what the page
+#: says. `goto` is absent because it changes the URL, so it lands on a different
+#: memo key anyway.
+PAGE_CHANGING_ACTIONS = frozenset({"click", "type", "select", "press", "scroll", "back"})
+
+#: Query parameters that identify *how somebody arrived*, never *what they asked
+#: for*. Stripping these is what makes the same article reached from two
+#: campaigns one page rather than two.
+#:
+#: Deliberately short. `ref`, `id`, `page`, `q` and `source` are all used as real
+#: parameters on real sites, and a list that strips them would merge pages that
+#: are genuinely different — and then serve the wrong text from the memo. Under-
+#: deduplicating costs a page read; over-deduplicating returns the wrong answer,
+#: so the bias is one-directional on purpose.
+TRACKING_PARAMETERS = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "utm_id", "utm_name", "utm_reader", "utm_social", "utm_brand",
+    "gclid", "gclsrc", "dclid", "fbclid", "msclkid", "yclid", "twclid",
+    "ttclid", "igshid", "mc_cid", "mc_eid", "_hsenc", "_hsmi", "vero_id",
+    "wickedid", "oly_anon_id", "oly_enc_id", "s_kwcid", "mkt_tok",
+})
 MAX_GOAL_CHARS = 4_000
 MAX_OBSERVATION_CHARS = 12_000
 MAX_DECISION_TEXT_CHARS = 2_000
@@ -85,6 +113,49 @@ Rules:
 - If the goal is complete, return state=done instead of doing extra work.
 - Keep reason and result short. They are audit metadata, not hidden reasoning.
 """
+
+
+def canonical_page_url(url: str) -> str:
+    """The key one page is remembered under.  `S-11.02.04`
+
+    Two URLs that differ only by how somebody arrived are the same page, so the
+    fragment goes (it never reaches the server), the host is lowercased, and the
+    parameters in `TRACKING_PARAMETERS` are dropped. Remaining parameters are
+    **sorted**, because `?a=1&b=2` and `?b=2&a=1` are one request.
+
+    An empty or unparseable value is returned unchanged rather than normalised
+    into a key that could collide with a real page.
+    """
+    text = str(url or "").strip()
+    if not text:
+        return ""
+    try:
+        parts = urlsplit(text)
+    except ValueError:
+        return text
+    if not parts.scheme or not parts.netloc:
+        # `data:` and `about:` URLs, and anything else without a host. They are
+        # their own identity and normalising them would only lose information.
+        return text
+    query = sorted(
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key.lower() not in TRACKING_PARAMETERS
+    )
+    path = parts.path or "/"
+    return urlunsplit((
+        parts.scheme.lower(), parts.netloc.lower(), path, urlencode(query), ""
+    ))
+
+
+@dataclass(frozen=True, slots=True)
+class PageCapture:
+    """What one page said, kept so the run does not ask it twice."""
+
+    url: str
+    text: str
+    screenshot: bytes
+    step_id: str
 
 
 class RunRefused(ValueError):
@@ -220,6 +291,9 @@ class AgentRun:
     ) -> RunOutcome:
         cleaned_goal, budget = _validate_start(goal, step_budget)
         schema = coerce_result_schema(result_schema)
+        # Per run, not per agent: a later run is entitled to fresh data, and a
+        # memo that outlived its run would quietly serve yesterday's page.
+        captures: dict[str, PageCapture] = {}
         planner = self._choose_planner(cleaned_goal)
         planner_settings = replace(
             self.settings,
@@ -345,6 +419,33 @@ class AgentRun:
                     actions=actions,
                 )
 
+            # A page already read in this run is answered from the memo.  `S-11.02.04`
+            #
+            # Only `read` is served this way. `goto` is never skipped: the agent
+            # often needs to *be* on a page to act on it, and silently not
+            # navigating would leave every following handle pointing at the
+            # wrong document.
+            memo_key = canonical_page_url(self.page.url or snapshot.url)
+            remembered = captures.get(memo_key) if decision.action == "read" else None
+            if remembered is not None:
+                self.trace.append(
+                    Step(
+                        kind="action",
+                        detail=(
+                            f"read reused the capture from {remembered.step_id} "
+                            f"({len(remembered.text)} characters); the page was not asked again"
+                        ),
+                        url=remembered.url,
+                        ok=True,
+                    )
+                )
+                actions += 1
+                observation = _observation(
+                    ActionResult(action="read", ok=True, url=remembered.url,
+                                 text=remembered.text)
+                )
+                continue
+
             try:
                 action_result = await _execute(self.page, decision)
             except Exception as exc:  # browser policy and stale handles are recoverable observations
@@ -416,6 +517,24 @@ class AgentRun:
                 screenshot=screenshot,
                 captured_text=captured_text,
             )
+
+            if action_result.action == "read" and action_result.ok:
+                # Remember it, with the screenshot, because a reused capture
+                # still has to be able to source a finding.
+                if len(captures) >= MAX_CAPTURES:
+                    captures.pop(next(iter(captures)))
+                captures[memo_key] = PageCapture(
+                    url=action_result.url or snapshot.url,
+                    text=str(action_result.text or ""),
+                    screenshot=screenshot,
+                    step_id=str(getattr(action_step, "step_id", "") or ""),
+                )
+            elif action_result.action in PAGE_CHANGING_ACTIONS:
+                # The URL can stay the same while the document underneath it
+                # does not — "load more", a filter, a tab. Serving the old
+                # capture then would be worse than reading again, so the memo
+                # for the page that was acted on is dropped.
+                captures.pop(memo_key, None)
             if evidence_error:
                 self.trace.append(
                     Step(

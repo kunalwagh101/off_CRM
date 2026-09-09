@@ -75,7 +75,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-- S-11.02.04 · The same page is never read twice in one run
+*(Empty. F-11.02 is complete.)*
 
 ## IN_REVIEW
 
@@ -95,6 +95,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.02.04 · The same page is never read twice in one run
+  tests: tests/test_agent_page_memo.py::test_reading_the_same_page_twice_asks_the_page_once, tests/test_agent_page_memo.py::test_acting_on_a_page_forgets_it, tests/test_agent_page_memo.py::test_a_parameter_that_changes_the_page_is_never_stripped, tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
+  command: python -m pytest tests/test_agent_page_memo.py tests/test_agent_run.py tests/test_agent_structured_result.py -q
+  result: 25 passed (2026-09-09)
+  code: offsetx_apollo_builder/agent/run.py
+  commit: 4acf68e
 
 - S-11.02.03 · A claim the page does not support is refused
   tests: tests/test_agent_claim_verification.py::test_number_inside_a_larger_number_is_refused_even_at_high_confidence, tests/test_agent_claim_verification.py::test_derived_finding_is_allowed_only_from_individually_verified_inputs, tests/test_agent_claim_verification.py::test_missing_support_in_a_truncated_capture_is_reported_as_inconclusive, tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number

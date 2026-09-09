@@ -248,3 +248,30 @@ bystander survived because the holder timed out after five seconds and released
 the lock, not because anything was correct. A concurrency test that passes needs
 its *timing* inspected, not just its assertion: if it took five seconds, it did
 not demonstrate what it claims.
+
+---
+
+## 2026-09-09 — S-11.02.04, and a story that was already built
+
+**What was cut.** Nothing, but the story I was asked to pull was already DONE.
+S-11.02.01 through .03 shipped from another session during the security audit.
+Rather than take the board's word for it I re-exercised all three acceptance
+criteria and the S-11.02.03 normaliser directly, including the trap the manual
+warns about: `+44 20 7946 9999` is refused against a page carrying
+`+44 20 7946 0001`, and `07946 0001` is refused as a substring. Digits are not
+fuzzed and truncation stays distinct from unsupported. It was built correctly.
+
+**What the estimate got wrong.** I sized this as a memo — a dict keyed on URL —
+and the dict was the smallest part. The real work was deciding *when the memo is
+wrong*, and the acceptance criteria I wrote in the spec did not cover it: a page
+can change while its URL does not, so a capture taken before a `scroll` is no
+longer what the page says. That criterion was added during the build and is
+recorded in the backlog as added, not backfilled silently.
+
+**What to change next time.** I wrote these criteria myself two days ago and
+they had a hole in them, which is the more useful observation than any of the
+code. **A caching story needs an invalidation criterion before it is READY.** The
+Definition of Ready asks whether criteria are machine-testable; it does not ask
+whether they are complete, and completeness is the thing a cache gets wrong. The
+question to add: *what makes the stored answer stop being true, and which
+criterion says so?*

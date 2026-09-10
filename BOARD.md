@@ -67,12 +67,11 @@ remaining independent stories below stay READY.)*
 
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
-- S-11.05.02 · Re-running does not duplicate what it already did
 - S-06.02.08 · One runner for every evidence command
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.05.02 · Re-running does not duplicate what it already did
 
 ## IN_REVIEW
 

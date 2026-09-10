@@ -23,7 +23,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 - S-11.01.04 · A run has a money ceiling, not only a step ceiling
 - S-11.03.03 · Enter is gated like the button beside it
-- S-11.04.02 · Progress is visible while it happens
 
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
@@ -74,10 +73,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-07.01.04 · Reports and artifacts
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
+- S-11.04.02 · Progress is visible while it happens
 
 ## IN_PROGRESS
 
-- S-11.04.01 · A run report a person can audit
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -97,6 +97,13 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.04.01 · A run report a person can audit
+  tests: tests/test_agent_report.py::test_every_returned_fact_appears_with_its_evidence, tests/test_agent_report.py::test_a_run_that_got_stuck_says_so_at_the_top, tests/test_agent_report.py::test_a_hostile_quote_comes_back_inert, tests/test_agent_report.py::test_a_screenshot_filename_that_tries_to_leave_the_directory_is_dropped, tests/test_agent_report.py::test_a_finished_run_writes_its_own_report
+  command: python -m pytest tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_injection.py tests/test_agent_resume.py tests/test_agent_structured_result.py -q
+  result: 82 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/agent/run.py
+  commit: cd25d9d
 
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
   tests: tests/test_agent_injection.py::test_an_attack_in_the_page_text_is_flagged_in_the_trace, tests/test_agent_injection.py::test_the_run_carries_on_under_the_owners_goal, tests/test_agent_injection.py::test_ordinary_page_text_is_left_alone, tests/test_agent_injection.py::test_an_attack_split_across_lines_is_still_caught, tests/test_agent_injection.py::test_the_quote_stays_out_of_the_audit_log

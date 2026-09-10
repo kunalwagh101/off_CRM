@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Every run now writes a report a person can read** (`S-11.04.01`).
+  `agent/report.py` renders one self-contained HTML page into the run's own
+  directory: each returned fact with its value, quote, source URL, timestamp,
+  trace step and screenshot, then every step in order with its cost. Provenance
+  has been bound to facts since `S-11.02.02`; it lived in a JSONL file and a
+  directory of PNGs, which is the right way to store an audit trail and a
+  hopeless way to read one.
+- It is written from `_outcome`, the single funnel every ending passes through,
+  so no exit quietly skips it — and a failure to render one is recorded rather
+  than raised, because the outcome matters more than the page describing it.
+- **The report renders attacker-controlled text, and that is what the tests are
+  mostly about.** Every quote came off a web page; the injection excerpts came
+  off a page actively trying to be interpreted as instructions. Everything
+  page-derived is escaped, and the tests assert on the *tags a browser would
+  parse* rather than on substrings — `"onerror=" not in page` is not a test,
+  because escaped text legitimately contains those characters and is inert.
+  Removing the escaping makes three tests fail.
+- A screenshot filename that is not local to the run directory is dropped: the
+  name comes off the trace, and a name walking out of the directory would turn
+  the report into a way of reading the disk.
+- Nothing is loaded from the network — no fonts, no scripts, no stylesheets — so
+  it opens offline from `file://` and cannot phone anywhere. Mode `0600`, beside
+  the evidence it describes.
+
 - **A page that tries to give the agent orders is now reported** (`S-11.03.02`).
   `agent/injection.py` scans both what the model is shown — the page outline —
   and anything a `read` brings back, and writes an `injection_suspected` step

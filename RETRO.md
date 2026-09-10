@@ -415,3 +415,33 @@ text in the shape it actually arrives in: **write at least one test with the
 input ugly rather than clean.** Every other test in the file used tidy
 single-line strings, and every one of them passed while the detector could be
 walked past with a carriage return.
+
+---
+
+## 2026-09-10 — S-11.04.01, and an XSS test that was testing nothing
+
+**What was cut.** Nothing. Two criteria were added rather than removed, both
+about the report being an attack surface itself, which the story had not
+considered at all.
+
+**What the estimate got wrong.** I sized this as rendering and the rendering was
+the easy half. The first version of the hostile-input test planted `<script>` in
+the **page body** and asserted it came back escaped — and it passed while
+proving nothing, because a page's raw text never reaches the report. It lives in
+a capture artefact, by the privacy rule from two stories ago. The attack had to
+be planted in what the model *quoted*, which is the same words arriving by a
+narrower road.
+
+Then the assertion itself was wrong. `assert "onerror=" not in page` failed
+against correctly escaped output, because `&lt;img src=x onerror=&quot;…` is
+inert text that still contains the substring. The real question is whether
+anything became a *tag*, so the tests now parse tag names out of the document
+and compare against the set `report.py` is allowed to emit.
+
+**What to change next time.** Both mistakes were the same one twice: **testing
+the shape of the output instead of the property.** "Is this string absent" is a
+proxy for "is this inert", and the proxy broke in both directions — it passed
+when the input never arrived, and failed when the output was correct. Ask what
+the *browser* would do, not what the string looks like. And the check that made
+this trustworthy took thirty seconds: delete the escaping, watch three tests go
+red, put it back.

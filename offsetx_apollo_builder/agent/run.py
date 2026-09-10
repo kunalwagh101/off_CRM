@@ -37,6 +37,7 @@ from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace
 from .injection import scan as scan_for_injection
+from .report import write as write_report
 from .result import (
     Finding,
     Provenance,
@@ -1467,6 +1468,23 @@ class AgentRun:
         derived_unverified_fields: tuple[str, ...] = (),
         dropped_fields: tuple[str, ...] = (),
     ) -> RunOutcome:
+        # Every ending funnels through here, so this is the one place a report
+        # gets written and there is no exit that quietly skips it.  `S-11.04.01`
+        #
+        # A report nobody writes is a report nobody opens, and a failure to
+        # render one must never cost the owner the run's actual result — so this
+        # is best-effort and the failure goes in the trace rather than upward.
+        try:
+            write_report(self.trace)
+        except Exception as exc:  # noqa: BLE001 - the outcome matters more
+            self.trace.append(
+                Step(
+                    kind="report_failed",
+                    detail=f"The run report could not be written: {str(exc)[:500]}",
+                    url=self.page.url,
+                    ok=False,
+                )
+            )
         return RunOutcome(
             run_id=self.trace.run_id,
             status=status,

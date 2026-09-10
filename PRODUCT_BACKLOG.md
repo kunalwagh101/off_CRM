@@ -962,7 +962,14 @@ evidence, **so that** trusting the output is a decision I make from evidence.
   returned field appears with its source URL, timestamp and screenshot, and
   every step appears in order with its cost.
 - **Given** a run that failed, **when** its report is opened, **then** it shows
-  where and why, not a blank page.
+  where and why, not a blank page. **(done)**
+- **Added during the build:** the report renders text an attacker wrote — every
+  quote came off a web page — so nothing page-derived may become live markup,
+  and a screenshot filename that is not local to the run directory is dropped
+  rather than followed. **(done)**
+- **Added during the build:** a report that cannot be written never costs the
+  owner the run's result; the failure is recorded and the outcome returned.
+  **(done)**
 - **Dependencies:** S-11.02.02. **Size:** M. **Indicator:** reports opened per run.
 
 #### S-11.04.02 — Progress is visible while it happens

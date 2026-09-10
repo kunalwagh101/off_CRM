@@ -36,6 +36,7 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace
+from .injection import scan as scan_for_injection
 from .result import (
     Finding,
     Provenance,
@@ -526,6 +527,9 @@ class AgentRun:
         # What a *previous life* of this run already did. Kept apart from
         # `performed_signatures` because the rule is about crossing the resume
         # point, not about repetition within one continuous run.  `S-11.05.02`
+        # One page attacking once is one line in the trace, not one per step —
+        # the snapshot is re-rendered on every pass of the loop.  `S-11.03.02`
+        reported_injections: set[tuple[str, str, int]] = set()
         inherited_signatures: set[str] = (
             set(resume_from.performed_signatures) if resume_from else set()
         )
@@ -582,6 +586,9 @@ class AgentRun:
 
         for index in range(budget):
             snapshot = await self.page.snapshot()
+            self._report_injection(
+                snapshot.render(), snapshot.url, "page outline", reported_injections
+            )
             instructions = _decision_input(
                 goal=cleaned_goal,
                 index=index,
@@ -926,6 +933,12 @@ class AgentRun:
             )
 
             if action_result.action == "read" and action_result.ok:
+                self._report_injection(
+                    str(action_result.text or ""),
+                    action_result.url or snapshot.url,
+                    "page text",
+                    reported_injections,
+                )
                 # Remember it, with the screenshot, because a reused capture
                 # still has to be able to source a finding.
                 if len(captures) >= MAX_CAPTURES:
@@ -1328,6 +1341,53 @@ class AgentRun:
             step_budget=state.steps_remaining,
             result_schema=state.schema_fields or None,
             resume_from=state,
+        )
+
+    def _report_injection(
+        self,
+        text: str,
+        url: str,
+        where: str,
+        already: "set[tuple[str, str, int]]",
+    ) -> None:
+        """Write down that a page tried to give orders. Change nothing else.
+
+        **The run carries on under the owner's goal.** That is the design, not a
+        gap: a model driving this browser can only name one of ten verbs, cannot
+        supply code, and cannot reach the CRM, so an instruction on a page has
+        nothing to reach for. Containment is structural and was built first.
+        What was missing is that an attack left no mark at all.
+
+        The quote goes in a capture artefact rather than in `detail`, because
+        page text does not belong in the JSONL audit log — the same rule the
+        finding steps follow, and one that several tests defend by asserting
+        page content never appears in `trace.jsonl`. The detail names which
+        rules matched, which is what makes the log greppable.
+        """
+        page = canonical_page_url(url)
+        fresh = [
+            suspicion for suspicion in scan_for_injection(text)
+            if (page, suspicion.rule, suspicion.offset) not in already
+        ]
+        if not fresh:
+            return
+        for suspicion in fresh:
+            already.add((page, suspicion.rule, suspicion.offset))
+        rules = ", ".join(sorted({suspicion.rule for suspicion in fresh}))
+        self.trace.append(
+            Step(
+                kind="injection_suspected",
+                detail=(
+                    f"The {where} contains {len(fresh)} passage(s) shaped like "
+                    f"instructions to the agent ({rules}). The run continues "
+                    "under the owner's goal; page content is never an instruction."
+                ),
+                url=url,
+                ok=False,
+            ),
+            captured_text=json.dumps(
+                [suspicion.to_dict() for suspicion in fresh], ensure_ascii=False
+            ),
         )
 
     def _stuck(

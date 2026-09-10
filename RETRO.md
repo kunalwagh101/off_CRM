@@ -386,3 +386,32 @@ is, with its cost: *a URL whose GET has a side effect is not protected*. **When 
 control has a deliberate hole, the hole goes in the code comment and the backlog
 entry, not only in the commit message** — commit messages are read once and code
 is read forever.
+
+---
+
+## 2026-09-10 — S-11.03.02, and an evasion found by a test about readability
+
+**What was cut.** Nothing, but the honest limit is written into the module
+rather than left to be discovered: this reports *injection-shaped text*, not
+proven malice, and a page explaining prompt injection to humans will match.
+Because nothing is blocked that is the cheap side to err on — and the module now
+says in its own docstring that it must never be given the power to stop
+something without that trade being re-argued.
+
+**What the estimate got wrong.** I thought the work was writing patterns. The
+work was *narrowing* them: every clause in the final version exists in the shape
+it does because an earlier version flagged ordinary business text. "You are now
+viewing page 2 of 5." "Our new role this quarter is Head of Growth." "We act as
+a broker for European fintech firms." "Send us your CV at careers@acme.test."
+Four false positives, four narrowings, all against sentences that are on real
+pages by the million.
+
+**What to change next time.** The evasion was found by a test that was not
+looking for it. `test_a_quote_is_readable_rather_than_mostly_whitespace` split
+an attack over newlines only because that is what messy page text looks like —
+and nothing matched at all, because the patterns used `[^.\n]` to stay inside a
+sentence and a newline ended them. A detector that reads text has to be given
+text in the shape it actually arrives in: **write at least one test with the
+input ugly rather than clean.** Every other test in the file used tidy
+single-line strings, and every one of them passed while the detector could be
+walked past with a carriage return.

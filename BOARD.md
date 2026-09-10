@@ -71,7 +71,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-- S-11.03.02 · A page that tries to give orders is reported, not obeyed
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -91,6 +91,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.03.02 · A page that tries to give orders is reported, not obeyed
+  tests: tests/test_agent_injection.py::test_an_attack_in_the_page_text_is_flagged_in_the_trace, tests/test_agent_injection.py::test_the_run_carries_on_under_the_owners_goal, tests/test_agent_injection.py::test_ordinary_page_text_is_left_alone, tests/test_agent_injection.py::test_an_attack_split_across_lines_is_still_caught, tests/test_agent_injection.py::test_the_quote_stays_out_of_the_audit_log
+  command: python -m pytest tests/test_agent_injection.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py -q
+  result: 81 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/injection.py, offsetx_apollo_builder/agent/run.py
+  commit: 2f5c19e
 
 - S-11.05.02 · Re-running does not duplicate what it already did
   tests: tests/test_agent_no_duplicate_effects.py::test_a_resumed_run_does_not_send_the_message_twice, tests/test_agent_no_duplicate_effects.py::test_pressing_enter_again_after_a_resume_does_not_submit_twice, tests/test_agent_no_duplicate_effects.py::test_navigating_back_to_where_it_was_still_works, tests/test_agent_no_duplicate_effects.py::test_within_one_run_the_guard_does_not_fire

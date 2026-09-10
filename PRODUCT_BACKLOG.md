@@ -920,7 +920,18 @@ from, **so that** a confident model cannot invent a phone number.
   flagged `injection_suspected` in the trace with the offending text quoted.
 - **Given** such a page, **when** the next decision is made, **then** the run
   continues under the owner's original goal — detection changes the record, not
-  the behaviour, because behaviour is already contained by the closed vocabulary.
+  the behaviour, because behaviour is already contained by the closed
+  vocabulary. **(done)**
+- **Stated during the build:** the quote lives in the step's capture artefact,
+  not in `detail`. Page text does not belong in `trace.jsonl` — the rule the
+  finding steps follow and that several tests defend — so the detail names which
+  rules matched and the artefact holds the words.
+- **Known limit, deliberate:** this reports *injection-shaped text*, not proven
+  malice. A page explaining prompt injection to humans contains the text and
+  will match. Because nothing is blocked, a wrong match costs one line in a
+  trace, so the patterns are tuned to catch a rephrasing rather than to avoid
+  every false positive. **This module must never be given the power to stop
+  something without that trade being re-argued.**
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** injection attempts
   seen per thousand pages.
 

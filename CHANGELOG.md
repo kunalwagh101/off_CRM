@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **A page that tries to give the agent orders is now reported** (`S-11.03.02`).
+  `agent/injection.py` scans both what the model is shown — the page outline —
+  and anything a `read` brings back, and writes an `injection_suspected` step
+  naming which rules matched.
+- **It changes the record, not the behaviour, and that is the design.**
+  Containment is already structural: the model can only name one of ten verbs,
+  cannot supply code, and cannot reach the CRM, so an instruction on a page has
+  nothing to reach for. What was missing is that an attack left no mark at all —
+  the run carried on correctly and nobody learned somebody had tried. A smoke
+  alarm, not a fire door; the fire door was built first.
+- The quote goes in the step's capture artefact, never in `detail`: page text
+  does not belong in `trace.jsonl`.
+- Every pattern was narrowed against real page text. A bare "you are now"
+  flagged *"You are now viewing page 2 of 5"*; a bare "new role" flagged *"Our
+  new role this quarter is Head of Growth"*; a bare "act as a" flagged *"We act
+  as a broker for European fintech firms"*; and an unanchored send-to-address
+  flagged *"Send us your CV at careers@acme.test"*. 12 attacks caught, 11 pieces
+  of ordinary business text left alone.
+- **Fixed an evasion before it shipped:** the patterns stay inside one sentence
+  with `[^.\n]`, so a newline stopped them and an attack wrapped across three
+  lines was missed entirely. Page text arrives full of line breaks, so that was
+  not a hypothetical layout. Whitespace is now collapsed before matching.
+
 - **A resumed run does not do again what it already did** (`S-11.05.02`). The
   pair to `S-11.01.03`: a resumed run re-decides from the **live page**, and the
   page does not remember that the message was already sent — the Send button is

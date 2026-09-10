@@ -8,6 +8,7 @@ from .result import (
     ResultSchemaError,
     SourcedRecordValidation,
 )
+from .plan import PLAN_FILENAME, PlanError, PlanSnapshot, RunPlan
 from .run import AgentRun, Decision, RunOutcome, RunRefused
 
 __all__ = [
@@ -21,4 +22,8 @@ __all__ = [
     "RunOutcome",
     "RunRefused",
     "SourcedRecordValidation",
+    "PLAN_FILENAME",
+    "PlanError",
+    "PlanSnapshot",
+    "RunPlan",
 ]

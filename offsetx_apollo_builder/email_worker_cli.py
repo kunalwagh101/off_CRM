@@ -14,6 +14,7 @@ from .outreach.deliverability.store import DeliverabilityStore
 from .outreach.deliverability.unsubscribe import UnsubscribeService
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import LocalOutboxProvider
+from .outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -74,21 +75,25 @@ def main(argv: list[str] | None = None) -> int:
         settings.database_path = args.database.resolve()
     if args.data_dir:
         settings.data_dir = args.data_dir.resolve()
-    settings.prepare()
-    engine = OutreachEngine(settings.database_path)
-    service = _service(settings, engine)
+    settings.validate()
     try:
         while True:
-            result = service.work_once(max_jobs=args.max_jobs)
-            print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
+            try:
+                # Reopen each cycle after taking the shared lease, so a worker
+                # never keeps a connection to the old generation after restore.
+                with WorkspaceLock(settings.data_dir):
+                    settings.prepare()
+                    engine = OutreachEngine(settings.database_path)
+                    try:
+                        result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
+                    finally:
+                        engine.close()
+                    print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
+            except WorkspaceBusy:
+                if not args.watch:
+                    raise SystemExit("Workspace recovery is in progress. Retry the worker after readiness returns.")
             if not args.watch:
                 return 0
             time.sleep(args.poll_seconds)
     except KeyboardInterrupt:
         return 130
-    finally:
-        engine.close()
-
-
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())

@@ -310,7 +310,10 @@ def test_contacts_import_and_search_work_in_the_browser(page, app):
     dialog.get_by_role("button", name="Import contacts", exact=True).click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_text("Audit Contact", exact=True)).to_be_visible()
-    records = requests.get(app + f"/api/v1/campaigns/{campaign_id}/contacts", timeout=10)
+    # Independent API readback must use the same authenticated identity as
+    # the browser; an anonymous 401 cannot verify the saved contact.
+    records = requests.get(app + f"/api/v1/campaigns/{campaign_id}/contacts",
+        headers={"Authorization": "Bearer " + TEST_API_TOKEN}, timeout=10)
     assert records.status_code == 200
     assert any(row["full_name"] == "Audit Contact" for row in records.json()["items"])
     page.reload()
@@ -342,7 +345,8 @@ def export_video(page, app):
     (EVIDENCE / f"video-export-{render_id}.json").write_text(json.dumps(result, indent=2))
     # Preserve failed exports too, and independently count decoded frames.
     # The application's header probe alone cannot establish a playable file.
-    stored = requests.get(app + f"/api/v1/video-renders/{render_id}/file", timeout=10)
+    stored = requests.get(app + f"/api/v1/video-renders/{render_id}/file",
+        headers={"Authorization": "Bearer " + TEST_API_TOKEN}, timeout=10)
     assert stored.status_code == 200, stored.text
     media = EVIDENCE / f"video-export-{render_id}.webm"
     media.write_bytes(stored.content)

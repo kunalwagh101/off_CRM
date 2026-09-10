@@ -69,6 +69,24 @@ verification; all 7 added interaction tests passed. Full combined validation is
 required before promotion. Historical green results from #13 do not substitute
 for the combined run. Known open audit assertions remain enabled.
 
+First combined CI at `5be4e4383a7e7165f6d3a165334f0dc8e16f312e`:
+**1,717 Python passed, 116 frontend passed, 2 live recovery tests passed**, with
+zero skips in those required suites. The production build, board verification,
+standard quality job and Windows lease job passed. The original audit reported
+**23 passed and 7 failed**, so the production acceptance gate correctly failed.
+Three of those failures were independent API readbacks missing main's required
+authentication token (contacts and both video exports). Those readbacks now use
+the same synthetic identity as the test browser; no application authentication
+or audit assertions have been weakened. The rerun must still verify video
+decoding and server acceptance after the authenticated download.
+
+The other first-run failures reproduce existing audit findings A09 (Enter can
+submit without confirmation), A32 (sandbox output permissions), A33 (new campaign
+selection) and A35 (Gmail status route). This consolidation does not close them.
+The exact follow-up commit and final audit results are recorded in
+[draft PR #14](https://github.com/kunalwagh101/off_CRM/pull/14), with links to
+the CI runs and retained evidence. Keep main promotion blocked by failures.
+
 ## Promotion and deployment
 
 Keep this branch as the single place for integration fixes. Do not merge into

@@ -6,8 +6,12 @@ updated by this consolidation. The two page-cache implementations now share
 one bounded cache, preserving URL fragments, query order, provenance and
 main's failed-action recovery. PLAN.md remains IN_REVIEW for its customer UI.
 Local combined checks: 1,678 Python passed (25 service-dependent skips),
-116 frontend passed and a successful production build. Real-service CI remains
-required before promotion. See `docs/integration/MAIN_CONSOLIDATION.md` for the input commits, conflict
+116 frontend passed and a successful production build. First combined CI at
+`5be4e438` passed 1,717 Python, 116 frontend and 2 live recovery tests with zero
+skips, plus the Windows lease job. The original audit failed 7 of 30 cases;
+3 unauthenticated readbacks are corrected for rerun and existing audit issues
+remain open. Main promotion is blocked; draft PR #14 carries current CI evidence.
+See `docs/integration/MAIN_CONSOLIDATION.md` for the input commits, conflict
 decisions and commands that test the combined application.
 
 ## Historical WP1 completion

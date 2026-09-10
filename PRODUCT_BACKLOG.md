@@ -608,6 +608,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-88 | Concurrent runs share pace and account budget, not multiply them | S-11.05.01 |
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-95 | Enter goes through the same consequential gate as a click | S-11.03.03 |
+| R-96 | The verifier checks READY, not only DONE | S-06.02.11 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1036,6 +1037,32 @@ two requests cannot corrupt each other's writes.
   proven data loss. It does not stop a bare `.execute` landing inside another
   thread's open transaction. `db/connection.py` already routes every method
   through its lock; this module has ~300 call sites that do not.
+
+#### S-06.02.11 — The verifier catches a stale READY column
+**As an** owner, **I want** `scripts/verify_board.py` to check readiness the way
+it already checks DONE, **so that** work is not sitting in BACKLOG because a
+manual step nobody does was never done.
+- **Given** a story in `BACKLOG` whose declared dependencies are all `DONE` and
+  which has no open question against it, **when** the verifier runs, **then** it
+  names the story as ready to move.
+- **Given** a story in `READY` whose dependencies are not all `DONE`, **when**
+  the verifier runs, **then** it fails — the Definition of Ready is not advisory.
+- **Given** a story whose dependency line names an id that does not exist,
+  **when** the verifier runs, **then** it fails rather than treating the
+  dependency as satisfied.
+- **Dependencies:** S-06.02.06. **Size:** S. **Indicator:** stories found stale
+  by an audit rather than by the verifier — target zero.
+- **Why:** on 2026-09-10, asked whether one story was really blocked, an audit
+  found **fourteen** in BACKLOG that could have been pulled — twelve whose
+  dependencies had all finished and two with no dependencies at all. The verifier
+  re-runs every DONE claim's test but never asks whether READY is true. A board
+  that is only accurate about the past is half a board.
+
+  The audit script that found them is in this story's commit and is what the
+  check should be built from. Note the bug in the first version of it: a
+  dependency regex of `[^.]*` stopped at the first period, and **story ids
+  contain periods**, so `S-03.02.04` parsed as `S-03` and every dependency
+  looked unmet. A checker that reads ids has to be tested against a real one.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

@@ -22,35 +22,21 @@ indented `blocked: <Q-nn or a named external dependency>`.
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
 - S-11.01.04 · A run has a money ceiling, not only a step ceiling
-- S-11.03.01 · A wall the agent must not climb pauses the run and asks
 - S-11.03.03 · Enter is gated like the button beside it
-- S-11.04.01 · A run report a person can audit
 - S-11.04.02 · Progress is visible while it happens
 
-- S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
-- S-02.02.04 · Safety countdowns before consequential actions
-- S-04.01.01 · Companions: persisted agent profiles
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation
 - S-04.01.04 · The five roles, wired to what already exists
-- S-05.01.01 · A crawler with a frontier, not a loop
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
-- S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.02 · Three-level permissions
-- S-06.01.03 · Cost estimated before a run and ledgered after
-- S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.05 · Deployment, monitoring and rollback
-- S-06.02.01 · No secret may enter a model prompt
-- S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.03 · Cost and latency budgets per run
 - S-06.02.04 · Data deletion and subject access
-- S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
-- S-07.01.03 · Meeting transcription with no bot in the call
-- S-07.01.04 · Reports and artifacts
 
 ## READY
 
@@ -68,6 +54,27 @@ remaining independent stories below stay READY.)*
 
 - S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
+- S-06.02.11 · The verifier catches a stale READY column
+
+*(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
+declare is DONE, and no open question is filed against any of them. They had
+been sitting in BACKLOG because nothing moves an item to READY when the story
+it waited on finishes — that is a manual step and nobody was doing it.)*
+
+- S-02.02.02 · PLAN.md as the single source of truth
+- S-02.02.04 · Safety countdowns before consequential actions
+- S-04.01.01 · Companions: persisted agent profiles
+- S-05.01.01 · A crawler with a frontier, not a loop
+- S-06.01.01 · Workspaces with their own keys and their own logins
+- S-06.01.03 · Cost estimated before a run and ledgered after
+- S-06.01.04 · Routines that fire agent runs on a schedule or an event
+- S-06.02.01 · No secret may enter a model prompt
+- S-06.02.02 · Every endpoint authorises and validates
+- S-06.02.05 · The UI is usable by keyboard and screen reader
+- S-07.01.03 · Meeting transcription with no bot in the call
+- S-07.01.04 · Reports and artifacts
+- S-11.03.01 · A wall the agent must not climb pauses the run and asks
+- S-11.04.01 · A run report a person can audit
 
 ## IN_PROGRESS
 

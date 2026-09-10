@@ -607,6 +607,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-87 | A run's progress is visible while it runs | S-11.04.02 |
 | R-88 | Concurrent runs share pace and account budget, not multiply them | S-11.05.01 |
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
+| R-95 | Enter goes through the same consequential gate as a click | S-11.03.03 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -923,6 +924,23 @@ from, **so that** a confident model cannot invent a phone number.
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** injection attempts
   seen per thousand pages.
 
+#### S-11.03.03 — Enter is gated like the button beside it
+**As a** security owner, **I want** `press` to go through the same
+consequential-action check as `click`, **so that** the human gate cannot be
+stepped around by pressing Enter instead of clicking Send.
+- **Given** a page where clicking "Send" needs confirmation, **when** the agent
+  presses Enter in the same form, **then** it needs confirmation too.
+- **Given** a key that cannot submit anything, **when** it is pressed, **then**
+  nothing new is asked of the owner.
+- **Dependencies:** S-02.02.04. **Size:** M. **Indicator:** consequential
+  actions reaching the world without a gate — target zero.
+- **Why:** found while building `S-11.05.02` on 2026-09-10 and **verified**:
+  `check_action` is called exactly once in `browser/page.py`, inside `click`.
+  `press` calls it zero times. Enter in a form is a submit, so the gate that
+  stops the agent clicking Send does not stop it sending. Filed rather than
+  fixed in flight because the fix belongs with the human-gate story, and
+  because a gate that asks about every keystroke would be worse than none.
+
 ### F-11.04 — You can watch it, steer it, and prove what it did  *(E-11)*
 
 #### S-11.04.01 — A run report a person can audit
@@ -963,6 +981,12 @@ one page at a time.
 **so that** a retry cannot send the same message twice.
 - **Given** a consequential action already recorded in the trace, **when** a
   resumed run reaches the same step, **then** it is not performed again.
+  **(done)**
+- **Scope stated during the build:** the guard covers `click` and `press` — the
+  two verbs that can send without the URL changing — and **deliberately not
+  `goto`**, because navigating is how a resumed run gets back to where it was
+  working and blocking a repeat would make resuming useless. The cost is that a
+  URL whose GET has a side effect is not protected here.
 - **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** duplicate side
   effects — target zero.
 

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **A resumed run does not do again what it already did** (`S-11.05.02`). The
+  pair to `S-11.01.03`: a resumed run re-decides from the **live page**, and the
+  page does not remember that the message was already sent — the Send button is
+  still sitting there looking unpressed. Nothing in the browser can say
+  otherwise; only the trace can, so action steps now carry their signature and a
+  resumed run reads them back.
+- The guard covers `click` and `press`, the two verbs that can send without the
+  URL changing, and **deliberately not `goto`** — navigating is how a resumed run
+  gets back to where it was working, and blocking a repeat would make resuming
+  useless. The cost is written down where the choice is made: a URL whose GET has
+  a side effect is not protected here.
+- It fires only across a resume point, never inside one continuous run, where
+  the agent is entitled to click the same thing twice.
+- Filed `S-11.03.03`: **`press` has no consequential-action gate.** Verified —
+  `check_action` is called exactly once in `browser/page.py`, inside `click`, and
+  `press` calls it zero times. Enter in a form is a submit, so the gate that
+  stops the agent clicking Send does not stop it sending. Filed rather than fixed
+  in flight because the fix belongs with the human-gate story.
+
 - **A killed run resumes where it stopped** (`S-11.01.03`). Construct the agent
   with `Trace.open(root, run_id=...)` and call `resume()`: the goal, budget and
   schema come back off the trace, so the caller cannot get them wrong, and the

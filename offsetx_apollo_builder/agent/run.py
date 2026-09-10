@@ -87,6 +87,19 @@ TRANSIENT_BACKOFF_SECONDS = (0.5, 2.0)
 #: something the code cannot see.
 TRANSIENT_FAILURES = (CDPTimeout, asyncio.TimeoutError)
 
+#: Verbs that can act on the world, not just move around in it.  `S-11.05.02`
+#:
+#: `click` and `press` are the two that can send, submit, delete or publish
+#: without the URL changing — `press("Enter")` in a form is a submit, and it
+#: does not go through the consequential-action gate that `click` does.
+#:
+#: **`goto` is deliberately absent.** Navigating is how a resumed run gets back
+#: to where it was working, so blocking a repeat of it would make resuming
+#: useless. The cost of that choice is stated where it lands: a URL whose GET
+#: has a side effect — a confirm link, an unsubscribe link — is not protected
+#: here, and would need its own story to be.
+EFFECTFUL_ACTIONS = frozenset({"click", "press"})
+
 #: Verbs that can change the document without changing its URL — "load more", a
 #: filter, a tab. A capture taken before one of these is no longer what the page
 #: says. `goto` is absent because it changes the URL, so it lands on a different
@@ -510,6 +523,12 @@ class AgentRun:
         performed_signatures: set[str] = (
             set(resume_from.performed_signatures) if resume_from else set()
         )
+        # What a *previous life* of this run already did. Kept apart from
+        # `performed_signatures` because the rule is about crossing the resume
+        # point, not about repetition within one continuous run.  `S-11.05.02`
+        inherited_signatures: set[str] = (
+            set(resume_from.performed_signatures) if resume_from else set()
+        )
         visited_urls: set[str] = (
             set(resume_from.visited_urls) if resume_from else set()
         )
@@ -701,6 +720,26 @@ class AgentRun:
             # action and tells the model plainly that this one is spent.
             signature = action_signature(decision)
             facts_before = len(collected)
+
+            # A side effect the run already had is not had twice.  `S-11.05.02`
+            #
+            # A resumed run re-decides from the live page, and the page does not
+            # remember that the message was already sent — the Send button is
+            # still sitting there looking unpressed. Nothing in the browser can
+            # tell the agent it has already done this; only the trace can.
+            if decision.action in EFFECTFUL_ACTIONS and signature in inherited_signatures:
+                detail = (
+                    f"{signature} was already performed before this run was "
+                    "resumed and will not be performed again. If it needs to "
+                    "happen a second time, that is a decision for the owner."
+                )
+                self.trace.append(
+                    Step(kind="duplicate_refused", detail=detail,
+                         url=self.page.url or snapshot.url, ok=False)
+                )
+                observation = detail
+                continue
+
             if signature in failed_signatures:
                 consecutive_failures += 1
                 detail = (
@@ -873,7 +912,11 @@ class AgentRun:
             action_step = self.trace.append(
                 Step(
                     kind="action",
-                    detail=action_result.detail,
+                    # The signature travels with the step because the trace is
+                    # the only thing a resumed run can read: a fresh process has
+                    # nothing in memory, and the live page cannot say whether it
+                    # has already been clicked.  `S-11.05.02`
+                    detail=f"{action_result.detail} [signature={signature}]",
                     url=action_result.url or snapshot.url,
                     ok=action_result.ok,
                     took_ms=action_result.took_ms,

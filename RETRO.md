@@ -359,3 +359,30 @@ other: a field that looked like it would hold a thing, and a cap two files away
 that said otherwise. The trace has four such caps — `MAX_DETAIL_CHARS`,
 `MAX_FIELD_VALUE_CHARS`, `MAX_QUOTE_CHARS`, `MAX_READ_CHARS` — and none of them
 is visible from the line where the decision gets made.
+
+---
+
+## 2026-09-10 — S-11.05.02, and a gate with a door beside it
+
+**What was cut.** One thing was filed rather than fixed: `press` does not go
+through the consequential-action check that `click` does, so the gate that stops
+the agent clicking Send does not stop it pressing Enter in the same form. That is
+`S-11.03.03` and it belongs with the human-gate story, not smuggled into a
+resume story — but it is worth noting how it was found. I only looked because I
+needed to know which verbs could have side effects, and the answer to *that*
+question was in a different file from the answer to *which verbs are gated*.
+
+**What the estimate got wrong.** The guard was ten lines. What took the time was
+noticing that the signature was recorded on **failed** action steps and not
+successful ones — added in the last story for a different purpose — so replay
+could see everything the run had tried and nothing it had actually done. The
+test said "the trace did not record what was performed", which is exactly the
+sentence I would have written if I had thought about it first.
+
+**What to change next time.** `goto` is excluded from the guard on purpose, and
+that exclusion is the interesting part of this story rather than the guard. A
+rule with an exception is only honest if the exception is written where the rule
+is, with its cost: *a URL whose GET has a side effect is not protected*. **When a
+control has a deliberate hole, the hole goes in the code comment and the backlog
+entry, not only in the commit message** — commit messages are read once and code
+is read forever.

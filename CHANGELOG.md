@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **A run that is busy and getting nowhere is stopped** (`S-11.01.02`).
+  `S-11.01.01` catches the agent repeating one *failing* action; this catches the
+  other shape, where every action succeeds and nothing is learned — bouncing
+  between two pages, or clicking a working button forever. `looping` and
+  `stalled` are separate statuses because they are separate problems, and both
+  return the facts already gathered.
+- One notion of progress serves both detectors: a step counts if it produced a
+  **new fact**, reached a page the run has **not visited at all**, or performed
+  an action it had **not performed before**.
+- Two corrections that the story's own third criterion forced — *a false
+  positive is worse than a wasted step*. **Unvisited, not merely different**:
+  bouncing between two pages is a different URL every step, so "different from
+  the last one" would have let the exact cycle through. And **the action
+  clause**: filling in a form is a dozen successful steps on one page with no
+  fact and no navigation, and stopping that would kill the runs that were
+  working. Both are recorded in the backlog as clarifications.
+
 - **A failed action is recovered from rather than repeated** (`S-11.01.01`).
   Before this a failure became an observation and the loop carried on, with
   nothing stopping the model choosing the same failing action until the budget

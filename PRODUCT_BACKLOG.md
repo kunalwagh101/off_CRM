@@ -791,10 +791,18 @@ fails, **so that** one stale handle does not end a twenty-minute run.
 - **Given** the agent returns to a URL it has already acted on twice with no new
   facts recorded, **when** the third visit is decided, **then** the run stops
   with `status=looping` and the trace names the cycle.
-- **Given** ten consecutive steps that record no new fact and no new URL,
-  **when** the tenth completes, **then** the run stops with `status=stalled`.
+- **Given** ten consecutive steps that produce nothing new, **when** the tenth
+  completes, **then** the run stops with `status=stalled`. **(done)**
 - **Given** a run that is progressing, **when** these checks run, **then** they
-  never stop it — a false positive here is worse than a wasted step.
+  never stop it — a false positive here is worse than a wasted step. **(done)**
+- **Scope clarified during the build:** "no new fact and no new URL" was widened
+  to "no new fact, no new **unvisited** page, and no action this run had not
+  already performed". Two corrections, both forced by the third criterion.
+  *Unvisited* rather than *different*, because bouncing between two pages is a
+  different URL every step and is the exact cycle this story exists to catch.
+  And the action clause, because filling a form is a dozen successful steps on
+  one page with no fact and no navigation — stopping that is the false positive
+  the third criterion forbids.
 - **Dependencies:** S-11.01.01. **Size:** M. **Indicator:** steps per fact returned.
 
 #### S-11.01.03 — A run survives the process dying

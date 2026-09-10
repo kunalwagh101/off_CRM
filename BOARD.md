@@ -73,7 +73,7 @@ remaining independent stories below stay READY.)*
 
 ## IN_PROGRESS
 
-- S-11.01.02 · A run that stops making progress is stopped
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -93,6 +93,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.01.02 · A run that stops making progress is stopped
+  tests: tests/test_agent_progress.py::test_filling_a_long_form_is_never_called_stalled, tests/test_agent_progress.py::test_a_search_and_browse_pattern_is_never_called_looping, tests/test_agent_progress.py::test_bouncing_between_two_pages_is_looping, tests/test_agent_progress.py::test_clicking_the_same_working_button_forever_is_stalled, tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+  command: python -m pytest tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
+  result: 51 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/run.py
+  commit: 1b3c519
 
 - S-11.01.01 · A failed action is recovered from, not repeated
   tests: tests/test_agent_recovery.py::test_the_same_failing_action_reaches_the_browser_only_once, tests/test_agent_recovery.py::test_three_failures_in_a_row_stop_the_run, tests/test_agent_recovery.py::test_a_timeout_is_retried_with_backoff_and_recorded_as_a_retry, tests/test_agent_recovery.py::test_a_success_clears_the_failure_streak

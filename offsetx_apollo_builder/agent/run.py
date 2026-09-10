@@ -56,6 +56,16 @@ MAX_CAPTURES = 32
 #: here — and every further step is budget spent learning that again.
 MAX_CONSECUTIVE_FAILURES = 3
 
+#: Steps without progress before a run is called stalled, and arrivals back at
+#: one page without progress before it is called looping.
+#:
+#: Both are ceilings on *wasted* steps, never on work: a step that produced
+#: something new resets them. Ten is chosen against the longest legitimate
+#: stretch of nothing — filling a form field by field, waiting for a slow table
+#: — and three arrivals is the shape of a genuine cycle rather than a detour.
+MAX_STEPS_WITHOUT_PROGRESS = 10
+MAX_ARRIVALS_WITHOUT_PROGRESS = 3
+
 #: How many times a timeout-shaped failure is retried before it counts as a
 #: real one, and how long to wait between attempts.
 MAX_TRANSIENT_RETRIES = 2
@@ -134,6 +144,40 @@ Rules:
 - If the goal is complete, return state=done instead of doing extra work.
 - Keep reason and result short. They are audit metadata, not hidden reasoning.
 """
+
+
+def made_progress(
+    *,
+    facts_before: int,
+    facts_after: int,
+    url_after: str,
+    visited: "set[str]",
+    signature: str,
+    performed: "set[str]",
+) -> bool:
+    """Whether a step produced anything the run did not already have.  `S-11.01.02`
+
+    Three ways to count, and a step needs only one of them:
+
+    * **a new fact** — the run learned something it was sent to learn;
+    * **a new page** — somewhere the run has not been *at all*, which is not the
+      same as somewhere different from the last step: bouncing between two pages
+      is a different URL every step and is the exact cycle this exists to catch;
+    * **an action it has not performed before** — it did something new here.
+
+    That third one is why this is a union rather than the literal wording of the
+    story, which asked only about facts and URLs. Filling a form is a dozen
+    successful steps on one page with no fact and no navigation, and stopping
+    that would be a false positive — which the story itself calls worse than a
+    wasted step. Typing into twelve different fields is twelve signatures, so it
+    reads as progress; clicking the same button twelve times is one, so it does
+    not.
+    """
+    if facts_after > facts_before:
+        return True
+    if canonical_page_url(url_after) not in visited:
+        return True
+    return signature not in performed
 
 
 def action_signature(decision: "Decision") -> str:
@@ -343,6 +387,11 @@ class AgentRun:
         # What has already failed, and how many failures in a row.  `S-11.01.01`
         failed_signatures: set[str] = set()
         consecutive_failures = 0
+        # Progress bookkeeping.  `S-11.01.02`
+        performed_signatures: set[str] = set()
+        visited_urls: set[str] = {canonical_page_url(self.page.url)}
+        steps_without_progress = 0
+        arrivals_without_progress: dict[str, int] = {}
         planner = self._choose_planner(cleaned_goal)
         planner_settings = replace(
             self.settings,
@@ -503,6 +552,7 @@ class AgentRun:
             # and the same conclusion follows. Refusing here spends no browser
             # action and tells the model plainly that this one is spent.
             signature = action_signature(decision)
+            facts_before = len(collected)
             if signature in failed_signatures:
                 consecutive_failures += 1
                 detail = (
@@ -576,6 +626,52 @@ class AgentRun:
                 continue
 
             consecutive_failures = 0
+
+            # Did that step produce anything the run did not already have?
+            url_after = action_result.url or self.page.url or snapshot.url
+            progressed = made_progress(
+                facts_before=facts_before,
+                facts_after=len(collected),
+                url_after=url_after,
+                visited=visited_urls,
+                signature=signature,
+                performed=performed_signatures,
+            )
+            performed_signatures.add(signature)
+            arrived_at = canonical_page_url(url_after)
+            if progressed:
+                steps_without_progress = 0
+                arrivals_without_progress.clear()
+            else:
+                steps_without_progress += 1
+                if canonical_page_url(snapshot.url) != arrived_at:
+                    # Back somewhere it has been, having gained nothing on the
+                    # way. That is the shape of a cycle rather than a detour.
+                    arrivals_without_progress[arrived_at] = (
+                        arrivals_without_progress.get(arrived_at, 0) + 1
+                    )
+            visited_urls.add(arrived_at)
+
+            if arrivals_without_progress.get(arrived_at, 0) >= MAX_ARRIVALS_WITHOUT_PROGRESS:
+                return self._not_progressing(
+                    "looping",
+                    (
+                        f"Returned to {arrived_at} "
+                        f"{arrivals_without_progress[arrived_at]} times without "
+                        "learning anything new."
+                    ),
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+            if steps_without_progress >= MAX_STEPS_WITHOUT_PROGRESS:
+                return self._not_progressing(
+                    "stalled",
+                    (
+                        f"{steps_without_progress} steps in a row produced no new "
+                        "fact, no new page and no action this run had not already "
+                        "performed."
+                    ),
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                )
 
             if action_result.needs_confirmation:
                 self.trace.append(
@@ -1013,6 +1109,31 @@ class AgentRun:
         )
         return self._outcome(
             "stuck", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
+        )
+
+    def _not_progressing(
+        self,
+        status: str,
+        why: str,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "Mapping[str, Finding]",
+    ) -> RunOutcome:
+        """Stop a run that is busy and getting nowhere.  `S-11.01.02`
+
+        `looping` and `stalled` are separate statuses because they are separate
+        problems: looping is a cycle between pages, stalling is activity on one.
+        Both return the facts already gathered — a run that found three fields
+        and then started going round in circles should still hand over three.
+        """
+        message = f"Stopped: {why}"
+        self.trace.append(Step(kind=status, detail=message, url=self.page.url, ok=False))
+        return self._outcome(
+            status, goal, budget, decisions, actions, message,
             schema=schema, findings=collected,
         )
 

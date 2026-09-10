@@ -301,3 +301,27 @@ the same sitting, from the spec rather than from the code. **A criterion written
 without opening the module it constrains is a guess.** The Definition of Ready
 asks whether criteria are machine-testable; it should also ask whether anyone
 checked that the thing they describe is *visible from where it will be checked*.
+
+---
+
+## 2026-09-10 — S-11.01.02, and a test that caught the definition
+
+**What was cut.** Nothing. The story's wording was widened twice, both times
+because the third acceptance criterion — *a false positive is worse than a
+wasted step* — made the literal reading wrong.
+
+**What the estimate got wrong.** I thought the hard part was picking thresholds.
+It was picking the *definition*. My first implementation counted "a URL
+different from the last step" as progress, which is a reasonable sentence and
+completely wrong: bouncing between two pages is a different URL every single
+step, so the detector could never fire on the one cycle the story names. The
+looping test failed and that is the only reason I noticed.
+
+**What to change next time.** The last two retros were about criteria that did
+not survive the code. This is the pleasant inverse and worth recording as such:
+**writing the false-positive tests first is what made the definition right.**
+The form-filling and search-and-browse cases were written before the detector
+existed, and they are what forced progress to be a union rather than the story's
+literal "no new fact and no new URL". A detector is defined by what it must not
+catch at least as much as by what it must, and the order the tests are written
+in decides which of those you think about.

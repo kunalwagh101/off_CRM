@@ -15,9 +15,15 @@ tell you what's available and wait.
 
 ```
 -----------------------------------------------------------------------------
-You are joining an in-flight project. State lives in the repository, never in
-chat. Read these files before doing anything else:
+You are joining an in-flight production project serving real users.
+Every plan, design, prompt and implementation must follow the production
+contract in AGENTS.md. Historical demo assumptions are superseded. The owner
+must not need to repeat this requirement.
 
+State lives in the repository, never in chat. Read these files before doing
+anything else:
+
+  AGENTS.md                standing production contract and security boundaries
   BOARD.md                 the only source of truth for status
   PRODUCT_BACKLOG.md       every epic, feature, story, acceptance criteria
   OPEN_QUESTIONS.md        decisions made, and questions still open
@@ -102,7 +108,9 @@ Architectural rules this codebase already enforces, which you must not break:
 === STEP 4 — PROVE IT ===
 
 Definition of Done, all of it, every time:
-  [ ] no TODO, no stub, no mock, no hardcoded fixture inside the slice
+  [ ] no runtime stub, fake success, mock integration or fixture replacing real data
+  [ ] real user path, relevant persistence, failure and recovery checks verified
+  [ ] remaining production blockers and unverified integrations recorded
   [ ] a test per acceptance criterion, named in the evidence block
   [ ] the test command actually run this session, output pasted
   [ ] error handling, validation, authz and data-integrity paths covered
@@ -125,7 +133,8 @@ for "I am fairly sure it works".
 
   1. uv run python scripts/verify_board.py    (must be green)
   2. Update CHANGELOG.md
-  3. Add a runnable block to DEMO.md — a command the owner pastes and watches
+  3. Record reproducible production acceptance checks in the story's evidence
+     document; a walkthrough alone does not establish release readiness
   4. Update TRACEABILITY.md and any repo-first feature map affected by the slice
   5. Commit, then push to main
   6. Retro, three lines: what was cut, what the estimate got wrong, what to
@@ -165,31 +174,25 @@ Start with STEP 1 now.
 
 ## Optional: point it at the next candidate
 
-`S-03.02.02 — the vault` is delivered. The board currently has no READY story,
-so do not silently pull from BACKLOG.
+Checked on 2026-09-05: `main` at `1e26a1f` closes `S-03.02.03` (Revoke
+and forget). `agent/s-02-02-01-bounded-run-loop` at `6cd9d81` contains the
+Run Loop implementation and focused tests, but its board still records
+`S-02.02.01` as `IN_PROGRESS`. It has not been merged into `main`.
 
-The dependency-contiguous next candidate is:
+Re-check both refs before continuing. Finish the existing Run Loop against the
+production contract and the Definition of Done, record actual evidence and
+reconcile the board and feature map before taking another feature.
+`S-08.01.05` also remains `IN_REVIEW` with frontend verification outstanding.
 
-```
-Refine S-03.02.03 — Revoke and forget — against the Definition of Ready. Its
-upstream S-03.02.02 vault dependency is now delivered. If all acceptance
-criteria, contracts and questions are resolved, move it BACKLOG -> READY and
-commit that state change before pulling it.
-```
+The next dependent feature is `S-02.02.02 — PLAN.md as the single source of
+truth`: one saved plan per run, read again before each decision so owner edits
+take effect. Refine it against the Definition of Ready after the Run Loop is
+DONE; then move BACKLOG -> READY before pulling it. Interrupt/resume and
+consequential-action countdowns remain separate required follow-on stories.
 
-The next high-leverage autonomy candidate after the session lifecycle is:
-
-```
-Refine S-02.02.01 — the bounded run loop. Everything in browser/ is a hand the
-agent does not yet know how to use on its own. Do not pull it until its Ready
-gate passes.
-```
-
-Or only inspect state:
-
-```
-Don't pull anything. Just run the standup and tell me where we are.
-```
+The current `render.yaml` stores CRM data under `/tmp`. Durable storage and
+restart/restore evidence are required before that deployment can serve
+production data. This documentation change does not fix the deployment.
 
 ---
 

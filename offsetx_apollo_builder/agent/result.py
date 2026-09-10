@@ -61,6 +61,17 @@ class Provenance:
             "quote": self.quote,
         }
 
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "Provenance":
+        """Rebuild from what `to_dict` wrote. Used when replaying a trace."""
+        return cls(
+            url=str(raw.get("url") or ""),
+            captured_at=str(raw.get("captured_at") or ""),
+            step_id=str(raw.get("step_id") or ""),
+            screenshot=str(raw.get("screenshot") or ""),
+            quote=str(raw.get("quote") or ""),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Finding:
@@ -89,6 +100,34 @@ class Finding:
         if self.inputs:
             item["inputs"] = list(self.inputs)
         return item
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> "Finding":
+        """Rebuild from what `to_dict` wrote.  `S-11.01.03`
+
+        A resumed run has to come back with the facts it had already gathered,
+        and the only durable record of those is the trace. This is the other
+        half of that round trip.
+
+        `source` is required and not defaulted: a `Finding` without resolvable
+        provenance is the one thing `S-11.02.02` exists to prevent, and quietly
+        rebuilding one with an empty source would reintroduce it through the
+        back door.
+        """
+        source = raw.get("source")
+        if not isinstance(source, Mapping):
+            raise ResultSchemaError(
+                f"A recorded finding for {raw.get('field')!r} has no provenance "
+                "and cannot be restored."
+            )
+        return cls(
+            field=str(raw.get("field") or ""),
+            value=str(raw.get("value") or ""),
+            source=Provenance.from_dict(source),
+            kind=str(raw.get("kind") or "observed"),
+            confidence=float(raw.get("confidence") or 0.0),
+            inputs=tuple(str(item) for item in (raw.get("inputs") or ())),
+        )
 
 
 @dataclass(frozen=True, slots=True)

@@ -8,7 +8,7 @@ from .result import (
     ResultSchemaError,
     SourcedRecordValidation,
 )
-from .run import AgentRun, Decision, RunOutcome, RunRefused
+from .run import AgentRun, Decision, ResumeState, RunOutcome, RunRefused, replay
 
 __all__ = [
     "AgentRun",
@@ -20,5 +20,7 @@ __all__ = [
     "ResultSchemaError",
     "RunOutcome",
     "RunRefused",
+    "ResumeState",
+    "replay",
     "SourcedRecordValidation",
 ]

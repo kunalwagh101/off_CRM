@@ -25,7 +25,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
 - S-11.04.01 · A run report a person can audit
 - S-11.04.02 · Progress is visible while it happens
-- S-11.05.02 · Re-running does not duplicate what it already did
 
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-02.02.03 · Interrupt, steer, resume
@@ -68,11 +67,12 @@ remaining independent stories below stay READY.)*
 
 - S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
+- S-11.05.02 · Re-running does not duplicate what it already did
 - S-06.02.08 · One runner for every evidence command
 
 ## IN_PROGRESS
 
-- S-11.01.03 · A run survives the process dying
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -92,6 +92,13 @@ remaining independent stories below stay READY.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.01.03 · A run survives the process dying
+  tests: tests/test_agent_resume.py::test_a_resumed_run_keeps_the_facts_it_already_gathered, tests/test_agent_resume.py::test_resuming_continues_the_same_trace_and_marks_where, tests/test_agent_resume.py::test_a_finished_run_is_not_resumed, tests/test_agent_resume.py::test_a_fact_whose_artefact_is_gone_is_dropped_not_invented
+  command: python -m pytest tests/test_agent_resume.py tests/test_agent_provenance.py tests/test_agent_run.py tests/test_agent_structured_result.py tests/test_agent_progress.py tests/test_agent_recovery.py -q
+  result: 56 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/result.py
+  commit: 8e759b9
 
 - S-11.01.02 · A run that stops making progress is stopped
   tests: tests/test_agent_progress.py::test_filling_a_long_form_is_never_called_stalled, tests/test_agent_progress.py::test_a_search_and_browse_pattern_is_never_called_looping, tests/test_agent_progress.py::test_bouncing_between_two_pages_is_looping, tests/test_agent_progress.py::test_clicking_the_same_working_button_forever_is_stalled, tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped

@@ -36,7 +36,14 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace
-from .result import Finding, Provenance, ResultSchema, SourcedRecordValidation, coerce_result_schema
+from .result import (
+    Finding,
+    Provenance,
+    ResultSchema,
+    ResultSchemaError,
+    SourcedRecordValidation,
+    coerce_result_schema,
+)
 from .verify import (
     DERIVED_UNVERIFIED,
     SUPPORTED,
@@ -144,6 +151,115 @@ Rules:
 - If the goal is complete, return state=done instead of doing extra work.
 - Keep reason and result short. They are audit metadata, not hidden reasoning.
 """
+
+
+@dataclass(frozen=True, slots=True)
+class ResumeState:
+    """What a half-finished run knew, read back off its own trace.  `S-11.01.03`
+
+    There is no checkpoint file. The trace is append-only, written a step at a
+    time with the handle opened per write, so a process killed mid-run leaves a
+    complete record up to its last step — and `Trace.read` says in its own
+    docstring that replaying it is what resuming is built on.
+
+    The alternative, a snapshot written every few steps, has a failure mode this
+    does not: the snapshot and the trace can disagree, and then the resumed run
+    believes something that never happened.
+    """
+
+    goal: str
+    step_budget: int
+    schema_fields: tuple[str, ...]
+    findings: "dict[str, Finding]"
+    decisions: int
+    actions: int
+    visited_urls: "set[str]"
+    performed_signatures: "set[str]"
+    failed_signatures: "set[str]"
+    last_url: str
+
+    @property
+    def steps_remaining(self) -> int:
+        return max(0, self.step_budget - self.decisions)
+
+
+def replay(trace: Trace) -> ResumeState:
+    """Rebuild what a run knew from the trace it left behind.  `S-11.01.03`
+
+    Raises `RunRefused` when the trace has no `run_started`, because a trace
+    without one cannot say what the run was for — and guessing a goal is a
+    worse failure than refusing to resume.
+    """
+    started = next((step for step in trace.read() if step.kind == "run_started"), None)
+    if started is None:
+        raise RunRefused(
+            f"Trace {trace.run_id} has no run_started step, so there is no goal "
+            "to resume. Start a new run instead."
+        )
+    try:
+        parameters = json.loads(trace.captured_text(started) or "{}")
+    except ValueError:
+        parameters = {}
+    goal = str(parameters.get("goal") or "")
+    if not goal:
+        raise RunRefused(
+            f"Trace {trace.run_id} does not record what its run was for, so it "
+            "cannot be resumed. Start a new run instead."
+        )
+
+    findings: dict[str, Finding] = {}
+    decisions = actions = 0
+    visited: set[str] = set()
+    performed: set[str] = set()
+    failed: set[str] = set()
+    last_url = str(started.url or "")
+
+    for step in trace.read():
+        if step.url:
+            last_url = step.url
+            visited.add(canonical_page_url(step.url))
+        if step.kind == "decision":
+            decisions += 1
+        elif step.kind == "action":
+            if step.ok:
+                actions += 1
+            signature = _signature_in(step.detail)
+            if signature:
+                performed.add(signature)
+                if not step.ok:
+                    failed.add(signature)
+        elif step.kind == "finding":
+            try:
+                finding = Finding.from_dict(json.loads(trace.captured_text(step) or "{}"))
+            except (ValueError, ResultSchemaError):
+                # A fact whose artefact is gone is dropped rather than guessed
+                # at. Losing one is recoverable; inventing one is not.
+                continue
+            if finding.field:
+                findings[finding.field] = finding
+
+    return ResumeState(
+        goal=goal,
+        step_budget=int(parameters.get("step_budget") or MAX_RUN_STEPS),
+        schema_fields=tuple(str(f) for f in (parameters.get("result_schema") or ())),
+        findings=findings,
+        decisions=decisions,
+        actions=actions,
+        visited_urls=visited,
+        performed_signatures=performed,
+        failed_signatures=failed,
+        last_url=last_url,
+    )
+
+
+def _signature_in(detail: str) -> str:
+    """Pull `[signature=...]` back out of an action step's detail."""
+    marker = "[signature="
+    start = str(detail or "").find(marker)
+    if start < 0:
+        return ""
+    end = detail.find("]", start)
+    return detail[start + len(marker):end] if end > start else ""
 
 
 def made_progress(
@@ -378,6 +494,7 @@ class AgentRun:
         *,
         step_budget: int,
         result_schema: ResultSchema | Iterable[str] | None = None,
+        resume_from: "ResumeState | None" = None,
     ) -> RunOutcome:
         cleaned_goal, budget = _validate_start(goal, step_budget)
         schema = coerce_result_schema(result_schema)
@@ -385,11 +502,18 @@ class AgentRun:
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
         # What has already failed, and how many failures in a row.  `S-11.01.01`
-        failed_signatures: set[str] = set()
+        # Seeded from the trace when resuming, so a continued run does not
+        # re-try what already failed or call a page it has seen "new".
+        failed_signatures: set[str] = set(resume_from.failed_signatures) if resume_from else set()
         consecutive_failures = 0
         # Progress bookkeeping.  `S-11.01.02`
-        performed_signatures: set[str] = set()
-        visited_urls: set[str] = {canonical_page_url(self.page.url)}
+        performed_signatures: set[str] = (
+            set(resume_from.performed_signatures) if resume_from else set()
+        )
+        visited_urls: set[str] = (
+            set(resume_from.visited_urls) if resume_from else set()
+        )
+        visited_urls.add(canonical_page_url(self.page.url))
         steps_without_progress = 0
         arrivals_without_progress: dict[str, int] = {}
         planner = self._choose_planner(cleaned_goal)
@@ -399,18 +523,42 @@ class AgentRun:
         )
 
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
+        if resume_from is not None:
+            # One continuous record, not two: the resume point is a step in the
+            # same trace rather than a new trace beside it, so the run reads
+            # end to end afterwards.  `S-11.01.03`
+            self.trace.append(
+                Step(
+                    kind="resumed",
+                    detail=(
+                        f"Resumed after {resume_from.decisions} decision(s) and "
+                        f"{resume_from.actions} action(s), with "
+                        f"{len(resume_from.findings)} fact(s) already gathered "
+                        f"and {budget} step(s) of budget left."
+                    ),
+                    url=self.page.url,
+                )
+            )
         self.trace.append(
             Step(
-                kind="run_started",
+                kind="run_started" if resume_from is None else "run_continued",
                 detail=f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}",
                 url=self.page.url,
-            )
+            ),
+            # The same facts again as JSON, because resuming has to read them
+            # back and parsing them out of an English sentence would break the
+            # first time somebody reworded it.  `S-11.01.03`
+            captured_text=json.dumps({
+                "goal": cleaned_goal,
+                "step_budget": budget,
+                "result_schema": list(schema.fields) if schema else [],
+            }),
         )
 
         decisions = 0
         actions = 0
         observation = ""
-        collected: dict[str, Finding] = {}
+        collected: dict[str, Finding] = dict(resume_from.findings) if resume_from else {}
         verification_failures: dict[str, str] = {}
 
         for index in range(budget):
@@ -613,7 +761,10 @@ class AgentRun:
                 self.trace.append(
                     Step(
                         kind="action",
-                        detail=f"{decision.action} failed: {str(failure)[:2_000]}",
+                        detail=(
+                            f"{decision.action} failed: {str(failure)[:2_000]} "
+                            f"[signature={signature}]"
+                        ),
                         url=self.page.url or snapshot.url,
                         ok=False,
                     )
@@ -943,6 +1094,26 @@ class AgentRun:
                     )
                 )
             collected[field_name] = finding
+            self.trace.append(
+                Step(
+                    kind="finding",
+                    # The field and its shape, never the value. The JSONL is the
+                    # audit log and harvested content does not belong in it —
+                    # `test_declared_schema_returns_a_valid_record_not_prose`
+                    # asserts that and caught this line carrying `finding.value`.
+                    # The value lives in the 0600 capture artefact beside it.
+                    detail=(
+                        f"{field_name} recorded ({finding.kind}, "
+                        f"{len(finding.value)} characters) from {finding.source.step_id}"
+                    ),
+                    url=finding.source.url,
+                ),
+                # As a capture, not in `detail`. A value may be 20,000
+                # characters and a quote 4,000, while `detail` truncates at
+                # 4,000 — serialising into it would produce JSON that silently
+                # fails to parse on replay, losing the fact it was recording.
+                captured_text=json.dumps(finding.to_dict()),
+            )
 
     def _structured_outcome(
         self,
@@ -1080,6 +1251,41 @@ class AgentRun:
             + model.cost_per_1m_output_usd * tokens_out
         ) / 1_000_000
         return tokens_in, tokens_out, cost
+
+    async def resume(self) -> RunOutcome:
+        """Continue the run this agent's trace belongs to.  `S-11.01.03`
+
+        Construct the agent with `Trace.open(root, run_id=...)` — the same run
+        id the interrupted process used — and call this. The goal, the budget
+        and the schema come back off the trace, so the caller does not have to
+        remember them and cannot get them wrong.
+
+        Refuses a finished run rather than reopening it: appending a second
+        ending to a trace that already has one would make the record say two
+        contradictory things about how the run turned out.
+        """
+        state = replay(self.trace)
+        ended = {
+            "completed", "budget_exhausted", "stuck", "looping", "stalled",
+            "incomplete", "human_gate",
+        }
+        for step in self.trace.read():
+            if step.kind in ended:
+                raise RunRefused(
+                    f"Run {self.trace.run_id} already ended ({step.kind}) and "
+                    "cannot be resumed. Start a new run."
+                )
+        if state.steps_remaining <= 0:
+            raise RunRefused(
+                f"Run {self.trace.run_id} has no budget left "
+                f"({state.decisions} of {state.step_budget} steps used)."
+            )
+        return await self.run(
+            state.goal,
+            step_budget=state.steps_remaining,
+            result_schema=state.schema_fields or None,
+            resume_from=state,
+        )
 
     def _stuck(
         self,

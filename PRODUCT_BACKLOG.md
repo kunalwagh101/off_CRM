@@ -809,9 +809,16 @@ fails, **so that** one stale handle does not end a twenty-minute run.
 **As an** owner, **I want** a killed run to resume where it stopped,
 **so that** a deploy or a crash does not throw away forty steps of work.
 - **Given** a run interrupted at step N, **when** it is resumed, **then** it
-  continues from step N+1 with the facts already gathered intact.
+  continues from step N+1 with the facts already gathered intact. **(done)**
 - **Given** a resumed run, **when** it finishes, **then** the trace is one
-  continuous record, not two, and the resume point is marked in it.
+  continuous record, not two, and the resume point is marked in it. **(done)**
+- **Given** a run that already ended, **when** a resume is attempted, **then** it
+  is refused — a second ending would make the trace say two contradictory things
+  about how the run turned out. **(added during the build)**
+- **Given** a fact whose evidence artefact is gone, **when** the trace is
+  replayed, **then** the fact is dropped rather than rebuilt unsourced. Losing
+  one is recoverable; inventing one is what `S-11.02.02` exists to prevent.
+  **(added during the build)**
 - **Dependencies:** S-02.02.01, S-02.01.05. **Size:** M. **Indicator:** runs
   resumed vs restarted.
 

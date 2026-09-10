@@ -325,3 +325,37 @@ existed, and they are what forced progress to be a union rather than the story's
 literal "no new fact and no new URL". A detector is defined by what it must not
 catch at least as much as by what it must, and the order the tests are written
 in decides which of those you think about.
+
+---
+
+## 2026-09-10 — S-11.01.03, and a design decided a month early
+
+**What was cut.** Nothing, and unusually little was decided: the blueprint had
+already named the design in August — *a run is resumable because the trace is
+complete; the trace* is *the progress* — and `Trace.read`'s own docstring said
+replaying it was what resuming would be built on. Two thirds of this story was
+reading what a previous session had already written down and not inventing a
+checkpoint file next to it.
+
+**What the estimate got wrong.** I planned to serialise each finding into its
+trace step's `detail`, and only checked the sizes afterwards: a value may be
+20,000 characters and a quote 4,000, against a 4,000-character detail cap. That
+would have truncated the JSON, which then fails to parse on replay — a resumed
+run losing exactly the facts it exists to keep, silently. The capture-artefact
+mechanism the trace already had for page text was the answer, and it was there
+the whole time.
+
+The other correction came from a test rather than from me. My `finding` step
+carried `finding.value` in its detail, and
+`test_declared_schema_returns_a_valid_record_not_prose` failed on
+`assert "Acme Ltd" not in trace.path.read_text()`. Harvested content is
+deliberately kept out of the JSONL and confined to the 0600 artefacts, and I had
+not known that invariant existed. A test written by an earlier session defended
+a property nobody had written into a story.
+
+**What to change next time.** **Check the size limits of a store before choosing
+what to put in it.** Both of this story's mistakes were the same shape as each
+other: a field that looked like it would hold a thing, and a cap two files away
+that said otherwise. The trace has four such caps — `MAX_DETAIL_CHARS`,
+`MAX_FIELD_VALUE_CHARS`, `MAX_QUOTE_CHARS`, `MAX_READ_CHARS` — and none of them
+is visible from the line where the decision gets made.

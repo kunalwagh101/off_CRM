@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **A killed run resumes where it stopped** (`S-11.01.03`). Construct the agent
+  with `Trace.open(root, run_id=...)` and call `resume()`: the goal, budget and
+  schema come back off the trace, so the caller cannot get them wrong, and the
+  facts already gathered come back with their provenance intact.
+- **There is no checkpoint file.** The trace is append-only, written a step at a
+  time with the handle opened per write, so a killed process leaves a complete
+  record up to its last step — and `Trace.read` already said in its docstring
+  that replaying it is what resuming is built on. A snapshot written every few
+  steps has a failure mode this does not: the snapshot and the trace can
+  disagree, and then the resumed run believes something that never happened.
+- Accepted findings are now written to the trace as `kind="finding"` steps, with
+  the finding as a **capture artefact rather than in `detail`** — a value may be
+  20,000 characters and a quote 4,000 against a 4,000-character detail cap, so
+  serialising into `detail` would have produced JSON that silently failed to
+  parse on replay, losing the fact it was recording. The audit detail names the
+  field and its size and never the value: harvested content stays out of the
+  JSONL and lives only in the 0600 artefacts.
+- A resumed run gets **the remaining budget, not a fresh one**, and comes back
+  knowing what it already tried — so the recovery and progress detectors from
+  `S-11.01.01` and `S-11.01.02` do not restart from nothing.
+- Resuming a run that already ended is refused, and a fact whose artefact is
+  missing is dropped rather than rebuilt without provenance.
+
 - **A run that is busy and getting nowhere is stopped** (`S-11.01.02`).
   `S-11.01.01` catches the agent repeating one *failing* action; this catches the
   other shape, where every action succeeds and nothing is learned — bouncing

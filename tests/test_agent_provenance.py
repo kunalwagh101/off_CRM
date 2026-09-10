@@ -247,7 +247,12 @@ def test_a_sourced_fact_survives_navigation_without_relying_on_model_memory(tmp_
             record={"company": _finding("Acme Ltd", "Company: Acme Ltd", "step-000002")},
         ),
         _act("read"),
-        _done({"employees": _finding("42", "Employees: 42", "step-000006")}),
+        # step-000007, not 000006: accepting the first fact now writes a
+        # `finding` step to the trace (`S-11.01.03`, so a resumed run gets its
+        # facts back), and every id after it shifts by one. Ids are assigned in
+        # append order and never renumbered, so a scripted citation has to count
+        # the steps the run actually writes.
+        _done({"employees": _finding("42", "Employees: 42", "step-000007")}),
     ]
     outcome, _, broker = _run(
         tmp_path,

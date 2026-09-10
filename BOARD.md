@@ -74,11 +74,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-07.01.04 · Reports and artifacts
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
-- S-11.04.01 · A run report a person can audit
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.04.01 · A run report a person can audit
 
 ## IN_REVIEW
 

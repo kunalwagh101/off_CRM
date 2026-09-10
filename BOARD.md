@@ -66,13 +66,12 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-11.03.02 · A page that tries to give orders is reported, not obeyed
 - S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-11.03.02 · A page that tries to give orders is reported, not obeyed
 
 ## IN_REVIEW
 

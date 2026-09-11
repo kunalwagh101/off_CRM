@@ -42,7 +42,7 @@ REPORT_FILENAME = "report.html"
 #: the thing the owner has to act on.
 ENDINGS = (
     "stuck", "looping", "stalled", "budget_exhausted", "over_budget",
-    "human_gate", "needs_confirmation", "incomplete", "completed",
+    "needs_human", "human_gate", "needs_confirmation", "incomplete", "completed",
 )
 
 #: Step kinds that are worth colouring, and what they mean to a reader.
@@ -55,8 +55,16 @@ TONE = {
     "retry": "warn",
     "stuck": "bad", "looping": "bad", "stalled": "bad",
     "budget_exhausted": "bad", "incomplete": "bad",
+    # Not "bad": nothing broke. These are endings that are waiting on the owner,
+    # which is a different thing to read at a glance.  `S-11.03.01`
+    "needs_human": "warn", "human_gate": "warn", "needs_confirmation": "warn",
     "completed": "good", "finding": "good", "resumed": "note", "run_started": "note",
 }
+
+#: Tones whose ending has to say why at the top of the page. A run that stopped
+#: is a run somebody has to act on, and making them scroll for the reason is how
+#: a report goes unread.
+MUST_EXPLAIN = ("bad", "warn")
 
 STYLE = """
 :root{color-scheme:light dark}
@@ -168,7 +176,7 @@ def render(trace: Trace) -> str:
         f'<span class="pill {TONE.get(status, "note")}">{_text(status)}</span></h1>',
         f'<p class="goal">{_text(goal) if goal else "<em>No goal recorded.</em>"}</p>',
     ]
-    if ending and TONE.get(ending.kind) == "bad":
+    if ending and TONE.get(ending.kind) in MUST_EXPLAIN:
         head.append(f'<div class="card"><span class="k">Why it stopped</span>'
                     f'<div>{_text(ending.detail)}</div></div>')
 

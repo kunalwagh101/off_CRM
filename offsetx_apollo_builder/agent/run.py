@@ -53,6 +53,7 @@ from .verify import (
     UNSUPPORTED,
     verify_finding,
 )
+from .wall import Wall, look as look_for_a_wall
 from .watch import Progress, observer
 
 MAX_RUN_STEPS = 50
@@ -607,6 +608,15 @@ class AgentRun:
             self._report_injection(
                 snapshot.render(), snapshot.url, "page outline", reported_injections
             )
+
+            # Checked before the model is asked anything, so a locked door costs
+            # nothing to find and the paused run keeps its whole budget.  `S-11.03.01`
+            wall = look_for_a_wall(snapshot)
+            if wall is not None:
+                return self._needs_human(
+                    wall, cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+
             instructions = _decision_input(
                 goal=cleaned_goal,
                 index=index,
@@ -1345,6 +1355,14 @@ class AgentRun:
         contradictory things about how the run turned out.
         """
         state = replay(self.trace)
+        # Endings that mean the run is over. `needs_human` is deliberately not
+        # among them: a run that stopped because a CAPTCHA or a sign-in form is
+        # in the way is exactly the run that should carry on once the owner has
+        # dealt with it, and it spent no budget stopping.  `S-11.03.01`
+        #
+        # `human_gate` is the other side of that coin and *is* final: there the
+        # agent wanted to do something consequential and the owner has to decide
+        # whether it happens at all, which is not a thing you resume into.
         ended = {
             "completed", "budget_exhausted", "stuck", "looping", "stalled",
             "incomplete", "human_gate",
@@ -1365,6 +1383,50 @@ class AgentRun:
             step_budget=state.steps_remaining,
             result_schema=state.schema_fields or None,
             resume_from=state,
+        )
+
+    def _needs_human(
+        self,
+        wall: Wall,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "dict[str, Finding]",
+    ) -> RunOutcome:
+        """Stop, say what is in the way, and leave the page alone.  `S-11.03.01`
+
+        **Nothing is attempted against the challenge.** No navigation, no click,
+        no retry, no second look — the browser is left exactly where the owner
+        will need it. The refusal to solve, evade or fingerprint around these is
+        recorded in `RETRO.md` 2026-09-06 and is not a gap to be closed later.
+
+        This ending is deliberately *not* in the set `resume()` treats as final.
+        A run that stopped because a person has to do something is precisely the
+        run that should continue once they have.
+        """
+        self.trace.append(
+            Step(
+                kind="needs_human",
+                # The rule and the kind, never the page's own words: what
+                # matched goes in the artefact beside the log, the same way
+                # findings and injection quotes do.
+                detail=f"{wall.kind} ({wall.rule}) — {wall.describe()}",
+                url=wall.url or self.page.url,
+                ok=False,
+            ),
+            captured_text=json.dumps(wall.to_dict()),
+        )
+        return self._outcome(
+            "needs_human",
+            goal,
+            budget,
+            decisions,
+            actions,
+            wall.describe(),
+            schema=schema,
+            findings=collected,
         )
 
     def _report_injection(

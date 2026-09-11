@@ -76,7 +76,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-11.03.01 · A wall the agent must not climb pauses the run and asks
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -96,6 +96,13 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.03.01 · A wall the agent must not climb pauses the run and asks
+  tests: tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_the_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge
+  command: python -m pytest tests/test_agent_wall.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_injection.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_structured_result.py tests/test_agent_no_duplicate_effects.py tests/test_agent_provenance.py tests/test_browser_agent.py tests/test_browser_signin.py -q
+  result: 221 passed (2026-09-11)
+  live: python scripts/live/pause_at_a_wall.py — real headless Chromium on a real sign-in page, all four steps checked and exit 0 only if every one holds. The agent met the wall (`needs_human`, "A sign-in form is in the way (password_field)", **0** model calls, 10 of 10 budget left); the tab was still on that URL afterwards and no page text reached `trace.jsonl`; a person signed in and the tab was reloaded; `resume()` carried on from the same step to `completed` with the answer that was behind the wall. One continuous trace: run_started → needs_human → resumed → run_continued → decision → action → decision → completed. Chrome's own accessibility tree named the field "Password", so the rule is verified against a real browser rather than a fixture.
+  code: offsetx_apollo_builder/agent/wall.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/browser/perceive.py
 
 - S-11.04.02 · Progress is visible while it happens
   tests: tests/test_agent_watch.py::test_a_watcher_sees_the_run_step_by_step, tests/test_agent_watch.py::test_a_read_answered_from_the_memo_still_reports_its_verb, tests/test_agent_watch.py::test_updates_arrive_during_the_run_not_in_a_batch_at_the_end, tests/test_agent_watch.py::test_an_update_carries_the_action_the_url_and_the_running_cost, tests/test_agent_watch.py::test_the_verb_comes_from_the_signature_not_from_the_prose, tests/test_agent_watch.py::test_a_listener_hears_only_what_is_already_durable, tests/test_agent_watch.py::test_a_watcher_that_throws_does_not_end_the_run, tests/test_agent_watch.py::test_a_run_with_nobody_watching_behaves_exactly_as_before

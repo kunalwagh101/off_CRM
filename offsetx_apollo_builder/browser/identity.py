@@ -212,10 +212,6 @@ def _word(signal: str) -> "re.Pattern[str]":
     return re.compile(rf"\b{re.escape(signal)}\b")
 
 
-def _names(snapshot: Snapshot) -> list[str]:
-    return [node.name.strip().lower() for node in snapshot.nodes if node.name.strip()]
-
-
 def read_state(snapshot: Snapshot, target: Platform) -> Reading:
     """Decide from what a screen reader would read.
 
@@ -223,7 +219,7 @@ def read_state(snapshot: Snapshot, target: Platform) -> Reading:
     something that looks like a signed-in control, the sign-in prompt is the
     thing that is actually true.
     """
-    names = _names(snapshot)
+    names = snapshot.names
 
     def matched(signals: Iterable[str]) -> str:
         for signal in signals:

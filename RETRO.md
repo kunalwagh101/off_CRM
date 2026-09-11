@@ -477,3 +477,41 @@ action step since `S-11.05.02`; one `grep` for a real detail string would have
 shown me "clicked More" before I wrote the parser, instead of after. A fixture I
 invented is a second guess dressed up as evidence.
 
+---
+
+## 2026-09-11 — S-11.03.01, a wall pauses the run and asks
+
+**What was cut.** Nothing, but one thing was inherited and then refused on its
+own terms. `injection.py` says at length that it must never be given the power
+to stop anything without the trade being re-argued. This module *does* stop
+runs, so I re-argued it instead of quoting it, and it came out the other way —
+because the two detectors have opposite costs. A wrong injection match costs one
+trace line, so those patterns can be broad. A wrong match here costs the owner a
+glance at a browser. What makes that acceptable is not the precision, it is that
+pausing is cheap and reversible: the check runs before the model is asked
+anything, so nothing is spent, and the run resumes with its whole budget.
+
+**What the estimate got wrong.** I thought the hard part was recognising a
+CAPTCHA. It was not — those widgets announce themselves. The hard part was every
+ordinary page that looks a bit like a wall, and I only found those by writing the
+false-positive tests first. Two rules were wrong when written and would have
+shipped: `/auth\b` matched `/help/two-factor-authentication`, so a page
+*explaining* two-step verification paused runs; and "second-factor language plus
+a text box" turned that same help article into a wall via its search box. Both
+were caught by a test about a page that is not a wall, which is the only kind of
+test that could have caught them.
+
+I also nearly duplicated `identity.py`. It already had the accessible-name
+reader and the word-boundary lesson that goes with it — a signal `me` matching
+inside `so-me-thing`. Reading the neighbouring module before writing mine turned
+a new helper into a `Snapshot.names` property both use.
+
+**What to change next time.** For any detector, **write the negative fixtures
+before the positive ones, and take them from pages that actually exist** — a
+marketing homepage with a "Sign in" link, a help article, a search results page.
+The positive cases were right on the first attempt because a CAPTCHA is
+unmistakable; every real defect lived in the cases I had to go looking for. And
+when a detector can *stop* something rather than only record it, that asymmetry
+is a design input, not a footnote — it decides how much corroboration each rule
+has to carry.
+

@@ -911,6 +911,26 @@ from, **so that** a confident model cannot invent a phone number.
 - **Given** any of these, **when** they are encountered, **then** off_CRM
   **never** attempts to solve, evade or fingerprint around them. Recorded as a
   decision in `RETRO.md` 2026-09-06; see OUT OF SCOPE below.
+- **Stated during the build:** this detector is allowed to **stop a run**, which
+  `injection.py` is explicitly not — so the trade was re-argued rather than
+  inherited. It comes out differently because the costs are opposite: a wrong
+  injection match costs one line in a trace, a wrong match here costs the owner
+  a glance. What makes that safe is that pausing is cheap and recoverable — the
+  check runs *before* the model is asked anything, so no budget is spent, and
+  the browser is left on the page. Where the two errors are close it leans
+  towards asking, because a false negative costs a whole run spent against a
+  locked door.
+- **Stated during the build:** the pause is not in the set `resume()` treats as
+  final, and `human_gate` still is. They are opposite situations — a wall means
+  a person must act before the run *can* continue; a human gate means a person
+  must decide whether it should happen *at all*, which is not a thing you resume
+  into.
+- **Known limits, deliberate:** a "change password" settings page has a password
+  field and will pause a run that lands on one — accepted, because the cost is a
+  pause the owner resumes from. A password field with no accessible name is
+  missed; Chrome does not expose password-ness in the accessibility tree, on
+  purpose, so the field is found by its label. The challenge phrases are
+  English.
 - **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** runs resumed after
   a human unblock.
 

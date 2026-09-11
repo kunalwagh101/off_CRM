@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+- **A CAPTCHA, sign-in form or 2FA prompt now pauses the run and asks**
+  (`S-11.03.01`). `agent/wall.py` reads the accessibility tree for something only
+  a person can get past; the run ends `needs_human`, names what it found, and
+  leaves the browser on that page. Before this, the agent did the only thing left
+  to it — burned its budget clicking around a page it could never get past and
+  reported `stuck`, which says something went wrong but not that *you* are the
+  fix.
+- **Nothing here solves, evades or fingerprints around a challenge, and nothing
+  here will.** That was decided on 2026-09-06 and written up in `RETRO.md`:
+  enforcement on these platforms is account termination rather than a 429, so
+  the asset at risk is the one the owner spent months building. A test asserts
+  the promise structurally — `wall.py` imports a snapshot and a regex engine and
+  holds no browser, connection or network client, so there is nothing in it that
+  could act even if a later edit wanted to.
+- **The check runs before the model is asked anything**, so a locked door costs
+  no decision and no budget: a paused run resumes with all of it. `needs_human`
+  is deliberately absent from the set `resume()` treats as final — a run that
+  stopped because a person has to do something is exactly the run that should
+  carry on once they have. `human_gate` stays final, because there the question
+  is whether a consequential action happens at all, which is not a thing you
+  resume into.
+- **This detector is allowed to stop a run, and `injection.py` is not.** The
+  trade was re-argued rather than inherited. A wrong injection match costs one
+  line in a trace; a wrong match here costs the owner a glance. So this one reads
+  structure rather than prose — a password field is an *editable* node, which is
+  what makes "Forgot password?" (a link) and "Show password" (a button) not
+  count — and asks for corroboration before it speaks. Two rules were tightened
+  after they fired on ordinary pages: `/auth\b` matched
+  `/help/two-factor-authentication`, and second-factor language plus any text
+  box made a help article about 2FA into a wall.
+- `Snapshot.names` now carries the accessible names, so the two things that ask
+  *what kind of page is this* — `identity.py` for signed-in state and
+  `wall.py` for something in the way — read one definition instead of two.
+- The run report explains itself at the top for any ending that is waiting on the
+  owner, not only for ones that went wrong. `needs_confirmation` and `human_gate`
+  had been stopping runs without saying why above the fold.
+
 - **A run can now be watched while it happens** (`S-11.04.02`). `agent/watch.py`
   turns each recorded step into a `Progress` carrying the verb, the live page
   URL and the run's running cost, and `console()` prints one block per step and

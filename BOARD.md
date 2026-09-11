@@ -62,7 +62,6 @@ been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-02.02.02 · PLAN.md as the single source of truth
-- S-02.02.04 · Safety countdowns before consequential actions
 - S-04.01.01 · Companions: persisted agent profiles
 - S-05.01.01 · A crawler with a frontier, not a loop
 - S-06.01.01 · Workspaces with their own keys and their own logins
@@ -75,7 +74,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-02.02.04 · Safety countdowns before consequential actions
 
 ## IN_REVIEW
 

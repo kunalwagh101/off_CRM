@@ -21,7 +21,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-11.03.03 · Enter is gated like the button beside it
 
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
@@ -74,7 +73,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-11.03.03 · Enter is gated like the button beside it
 
 ## IN_REVIEW
 

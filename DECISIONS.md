@@ -44,6 +44,7 @@ wastes a session when nobody can answer it.
 | DD-14 | 2026-09-11 | The run's estimate rides on `run_started`, not its own step | Less visible in the log than a step of its own would be |
 | DD-15 | 2026-09-11 | The ceiling predicts from the worst decision so far, not the average | Runs stop a little earlier than they strictly need to |
 | DD-16 | 2026-09-11 | A resumed run re-applies the ceiling it was started with | Raising it needs an explicit argument, which is easy to forget |
+| DD-17 | 2026-09-11 | An unattended run may not use a countdown at all | The attended and unattended paths through the gate are different code |
 
 ---
 
@@ -238,4 +239,29 @@ counts one allowance rather than ten.
 **Cost.** Raising a ceiling needs an argument somebody has to remember exists.
 That is the right way round — forgetting it means the run stops, which is safe;
 forgetting it the other way means the run spends, which is not.
+
+### DD-17 — An unattended run may not use a countdown · 2026-09-11
+
+**The obvious thing.** A countdown is a delay with a cancel. Let any caller
+supply one; if nobody cancels, the action goes ahead.
+
+**What was done instead.** `Page.click` refuses a countdown outright when the
+page is in unattended mode, and sends the action back to the owner instead.
+
+**Why.** A countdown with nobody watching is a sleep with extra steps — and
+worse, it is the human gate deleted while still looking like it is there. Five
+seconds pass, nobody cancels because nobody is there, and the agent has
+effectively approved its own consequential action.
+`docs/architecture/AUTONOMOUS_BROWSING.md` already said this in words —
+*E-11 does not auto-confirm anything; autonomy is about the path, not about the
+permission* — and a rule that lives only in a document is a rule somebody will
+implement past.
+
+**Cost.** The attended and unattended paths through the gate are now different
+code, so there are two behaviours to keep in mind rather than one. That is the
+right trade: the alternative is one behaviour that is wrong half the time.
+
+**What would make this wrong.** Nothing about the mechanism. Only a decision
+that unattended runs may act consequentially without a person, which is a much
+bigger question than this and belongs in `OPEN_QUESTIONS.md`.
 

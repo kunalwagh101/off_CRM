@@ -41,8 +41,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .cdp import CDPConnection, CDPTimeout
 from .budget import COSTED_ACTIONS, Budget, BudgetLedger
+from .cdp import CDPConnection, CDPTimeout
+from .countdown import Countdown
 from .guard import RequestGuard
 from .perceive import Snapshot, capture
 from .policy import DomainRule, Refused, check_action, check_navigation, rule_for
@@ -296,17 +297,55 @@ class Page:
             took_ms=int((time.monotonic() - started) * 1000),
         )
 
-    async def click(self, handle: int, *, confirmed: bool = False) -> ActionResult:
+    async def click(
+        self,
+        handle: int,
+        *,
+        confirmed: bool = False,
+        countdown: "Countdown | None" = None,
+    ) -> ActionResult:
         """A real mouse click: move, press, release.
 
         Not ``element.click()``. A synthetic event skips the hover, focus and
         pointer handlers a great many sites are built on, and the failure is
         silent — the click "works" and nothing happens.
+
+        `countdown` is how an *attended* caller clears a sensitive action: a
+        visible delay the owner can cancel, instead of a dialog they learn to
+        click through.  `S-02.02.04`
         """
         started = time.monotonic()
         node = self._current(handle).find(int(handle))
         rule, needs = check_action(_intent(node.role, node.name), self.url,
                                    unattended=self.unattended)
+
+        if needs and countdown is not None:
+            # A countdown with nobody watching is the human gate deleted while
+            # looking like it is still there. The rule lives here rather than
+            # only in the architecture note that states it.  `S-02.02.04`
+            if self.unattended:
+                return ActionResult(
+                    action="click", ok=False, needs_confirmation=True, url=self.url,
+                    detail=(
+                        "A countdown cannot stand in for confirmation in an "
+                        "unattended run — there is nobody to cancel it. This "
+                        "action needs the owner."
+                    ),
+                )
+            if not await countdown.run():
+                # Nothing was sent and nothing is charged: a cancelled
+                # countdown must not cost the account a thing, or cancelling
+                # becomes expensive and people stop doing it.
+                return ActionResult(
+                    action="click", ok=False, url=self.url,
+                    detail=(
+                        f"Cancelled during the countdown before clicking "
+                        f"{node.name or node.role!r}: {countdown.reason}"
+                    ),
+                    took_ms=int((time.monotonic() - started) * 1000),
+                )
+            confirmed = True
+
         if needs and not confirmed:
             # No charge: this is a refusal asking for confirmation, and nothing
             # was sent to the site. Charging here would let a countdown the

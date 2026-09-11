@@ -616,3 +616,43 @@ stands in for two views of one thing, derive the second view from the first
 instead of typing it twice. The rates in that file now compute the per-decision
 cost rather than asserting it, and the comment shows the arithmetic.
 
+---
+
+## 2026-09-11 — S-02.02.04, and a design written down in August
+
+**What was cut.** Nothing, and unusually little was decided. `policy.py` had
+carried the design in its own docstring since August — *sensitive actions get a
+countdown, not a dialog; a confirm box trains people to click through it* — and
+even named the five seconds. `check_action` already returned a variable called
+`needs_countdown`, and `ActionResult.needs_confirmation` already documented
+itself as "set when the action needed a countdown **and the caller has not run
+one**". The contract was complete. What was missing was the countdown.
+
+This is the second time that has happened — `S-11.01.03` was the same story with
+a different module. Reading the neighbouring docstring before designing is worth
+more here than it is on most codebases, because a previous session has usually
+already thought about it.
+
+**What the estimate got wrong.** I sized it as a delay and the delay was ten
+lines. The work was in the three things around it: that cancelling has to be
+possible **from another thread**, because the cancel comes from a person and a
+person is never on the event loop; that a spent countdown must not be reusable,
+or "the owner watched this one elapse" becomes a token; and that an unattended
+run must be refused one outright.
+
+That last one is worth more than the feature. A countdown with nobody watching
+is not a weaker gate — it is the gate deleted while still looking like it is
+there. The architecture note had said so in words for weeks, and words are not
+enforcement.
+
+**What to change next time.** **Ask what the feature looks like when the person
+it was built for is absent.** Every property that makes a countdown a control —
+visible, cancellable, prompt — is a property of somebody *being there*. Take the
+person away and it degrades into a sleep that approves things. The test that
+matters most in this story is the one that has nothing to do with counting.
+
+A smaller note on proof: the live check asks the *page* whether it received the
+click, by reading an element the page updates on click, rather than trusting the
+return value. A cancelled action that reports failure and still sends the click
+is precisely the defect this feature would have, and only the page can say.
+

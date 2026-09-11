@@ -74,7 +74,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-02.02.04 · Safety countdowns before consequential actions
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -90,6 +90,13 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-02.02.04 · Safety countdowns before consequential actions
+  tests: tests/test_browser_countdown.py::test_a_cancelled_countdown_sends_nothing_to_the_site, tests/test_browser_countdown.py::test_an_unattended_run_cannot_use_a_countdown, tests/test_browser_countdown.py::test_cancelling_is_prompt_rather_than_eventually, tests/test_browser_countdown.py::test_it_can_be_cancelled_from_another_thread, tests/test_browser_countdown.py::test_somebody_watching_sees_it_count_down, tests/test_browser_countdown.py::test_a_countdown_covers_one_action_and_no_more, tests/test_browser_countdown.py::test_without_a_countdown_a_send_still_refuses_and_asks, tests/test_browser_countdown.py::test_a_countdown_that_elapses_lets_the_click_through, tests/test_browser_countdown.py::test_an_ordinary_click_never_waits_for_anything
+  command: python -m pytest tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py -q
+  result: 95 passed (2026-09-11)
+  live: python scripts/live/cancel_the_countdown.py — real headless Chromium on a real page, all four steps checked and exit 0 only if every one holds. A harmless link ignored the five-second countdown it was offered (1.78s, all of it the page-settle every click pays). A Send button with the countdown cancelled after 0.4s was refused, the owner saw it counting, and **the page itself reported `nothing sent`** — the proof is asked of the page, not of the return value, because an action that reports failure and still sends the click is exactly the defect this feature would have. The same button left alone waited, clicked, and the page reported `SENT`. An unattended page was refused a countdown outright and sent back to the owner.
+  code: offsetx_apollo_builder/browser/countdown.py, offsetx_apollo_builder/browser/page.py
 
 - S-08.01.05 · Operators control delivery without hidden live sends
   tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx

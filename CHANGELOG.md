@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **A visible, cancellable delay before anything consequential**
+  (`S-02.02.04`). `browser/countdown.py` holds a sensitive click for five
+  seconds — the number `policy.py` has specified since August — reporting the
+  seconds left to whoever is watching, and anyone can stop it from any thread.
+  Cancelled, nothing reaches the site and nothing is charged to the account.
+- **A countdown, not a dialog, and the reason is in `policy.py`'s own words:**
+  a confirm box trains people to click through it, because that is what confirm
+  boxes are for. A countdown asks for nothing — you only act if you want to stop
+  it — so the reflex has nowhere to land.
+- **An unattended run cannot use one at all.** A countdown with nobody watching
+  is the human gate deleted while still looking like it is there:
+  `docs/architecture/AUTONOMOUS_BROWSING.md` says E-11 does not auto-confirm
+  anything, and that rule is now in the code rather than only in the document.
+  The existing refusal — stop the run and ask the owner — is unchanged for every
+  caller that supplies neither a countdown nor a confirmation.
+- **One countdown covers one action.** A spent one raises rather than passing a
+  second click through, because "the owner watched this one elapse" must not
+  become a token that waves through something they never saw.
+- A harmless click never waits. A countdown on every link would make the agent
+  unusable, and people switch off things that are unusable.
+
 - **`S-08.01.05` is finally `DONE`** rather than `IN_REVIEW`. It had sat there
   since 2026-08-27 — not because anything was wrong with it, but because the
   environment of the day could not install a frontend dependency, so half its

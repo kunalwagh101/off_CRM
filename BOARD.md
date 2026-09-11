@@ -73,11 +73,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-07.01.04 · Reports and artifacts
-- S-11.03.01 · A wall the agent must not climb pauses the run and asks
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-11.03.01 · A wall the agent must not climb pauses the run and asks
 
 ## IN_REVIEW
 

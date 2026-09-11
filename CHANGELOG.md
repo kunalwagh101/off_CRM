@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **A run now has a money ceiling, not only a step ceiling** (`S-11.01.04`).
+  `run(..., spend_ceiling_usd=...)` stops the run with `status=over_budget`
+  before the decision that would cross it. An agent left running overnight can
+  no longer cost more than was agreed.
+- **The check runs before the model is asked anything**, so the ceiling is never
+  crossed rather than reported once it already has been. That also makes
+  stopping free — which is what makes it safe to resume from. Whatever the run
+  gathered before the limit is kept: a run that found three facts and stopped on
+  the fourth has still found three facts.
+- **The ceiling survives a resume.** It is recorded on `run_started` and
+  re-applied by `resume()`, and the spend is read back off the trace — so a run
+  killed and restarted ten times counts one allowance rather than ten. Without
+  that the feature would be a speed bump: stop at the limit, resume, spend
+  without bound. Raising it is `resume(spend_ceiling_usd=...)` and has to be
+  done on purpose.
+- **The next decision is predicted from the most expensive one so far, not the
+  average.** A ceiling is a promise, and the average lags a trend — a run whose
+  pages keep growing would walk past the line while the average still said there
+  was room. Stopping early is recoverable; exceeding a limit the owner set is
+  not.
+- A projection that is already above the ceiling is said in `run_started`, not
+  at the step it stops on. "This will not fit" is worth knowing before the first
+  page loads.
+- **Known limit, tested rather than discovered:** a model with no price list
+  cannot have its first decision predicted, so that one goes through whatever
+  the ceiling says; from the second on the run's own costs take over. Refusing
+  every run on an unpriced model would make free and local models unusable, so
+  the exposure is capped at one decision and a test keeps it there.
+
 - **A run now says what it will cost before it starts, and what it did cost
   after** (`S-06.01.03`). The estimate goes into `run_started` beside the budget
   it was derived from, carries its own basis, and comes back on `RunOutcome`

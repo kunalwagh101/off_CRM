@@ -208,6 +208,13 @@ class ResumeState:
     performed_signatures: "set[str]"
     failed_signatures: "set[str]"
     last_url: str
+    #: The money ceiling the run was started with.  `S-11.01.04`
+    #:
+    #: Read back off the trace and re-applied, because a ceiling that evaporates
+    #: when a run is resumed is not a ceiling — stop at the limit, resume, spend
+    #: without bound. Raising it is the owner's decision and has to be made on
+    #: purpose: `resume(spend_ceiling_usd=...)`.
+    spend_ceiling_usd: float = 0.0
 
     @property
     def steps_remaining(self) -> int:
@@ -272,6 +279,7 @@ def replay(trace: Trace) -> ResumeState:
     return ResumeState(
         goal=goal,
         step_budget=int(parameters.get("step_budget") or MAX_RUN_STEPS),
+        spend_ceiling_usd=float(parameters.get("spend_ceiling_usd") or 0.0),
         schema_fields=tuple(str(f) for f in (parameters.get("result_schema") or ())),
         findings=findings,
         decisions=decisions,
@@ -474,6 +482,35 @@ class RunEstimate:
         }
 
 
+def next_decision_cost(*, observed: "list[float]", estimated: float) -> float:
+    """What the next decision should be assumed to cost.  `S-11.01.04`
+
+    The most expensive decision this run has made, or the pre-run estimate
+    before there has been one.
+
+    **The most expensive rather than the average, deliberately.** A ceiling is a
+    promise. Predicting from the average lets a run whose pages keep growing
+    walk straight past the line, because the average lags the trend. Being
+    conservative costs the owner a run that stops a little early and can be
+    restarted with a higher ceiling; being optimistic costs them a limit they
+    set and did not get.
+    """
+    return max(observed) if observed else max(0.0, estimated)
+
+
+def would_cross_ceiling(
+    *, ceiling_usd: float, spent_usd: float, next_decision_usd: float
+) -> bool:
+    """Whether making one more decision would take the run past its ceiling.
+
+    A ceiling of zero means there is none, which is the same convention
+    `QuotaLimits` uses for its own caps.
+    """
+    if ceiling_usd <= 0:
+        return False
+    return (spent_usd + next_decision_usd) > ceiling_usd
+
+
 def estimate_run(model: Any, *, step_budget: int, model_id: str = "") -> RunEstimate:
     """Price a run before it runs.  `S-06.01.03`
 
@@ -525,6 +562,15 @@ class RunOutcome:
     #: Both, together, because an estimate nobody ever compares against the bill
     #: is a number that never gets better.
     estimate: "RunEstimate | None" = None
+    #: What the run was allowed to spend. Zero means it was not capped.  `S-11.01.04`
+    spend_ceiling_usd: float = 0.0
+
+    @property
+    def headroom_usd(self) -> float:
+        """What was left of the ceiling. Zero when there was no ceiling."""
+        if self.spend_ceiling_usd <= 0:
+            return 0.0
+        return self.spend_ceiling_usd - self.spend_usd
 
     @property
     def spend_usd(self) -> float:
@@ -560,6 +606,8 @@ class RunOutcome:
             "trace_summary": self.trace_summary,
             "estimate": self.estimate.to_dict() if self.estimate else None,
             "spend_usd": round(self.spend_usd, 8),
+            "spend_ceiling_usd": round(self.spend_ceiling_usd, 8),
+            "headroom_usd": round(self.headroom_usd, 8),
             "estimate_error_usd": round(self.estimate_error, 8),
         }
 
@@ -592,8 +640,13 @@ class AgentRun:
         result_schema: ResultSchema | Iterable[str] | None = None,
         resume_from: "ResumeState | None" = None,
         on_progress: "Callable[[Progress], None] | None" = None,
+        spend_ceiling_usd: float = 0.0,
     ) -> RunOutcome:
         """Pursue `goal` for at most `step_budget` steps.
+
+        `spend_ceiling_usd` caps what the run may spend. The check happens
+        *before* each decision is asked for, so the ceiling is never crossed
+        rather than noticed afterwards; zero means no ceiling.  `S-11.01.04`
 
         `on_progress` is called with each step as it is recorded, so a run can
         be watched while it happens rather than read about once it is over —
@@ -608,7 +661,7 @@ class AgentRun:
             self.trace.listener = observer(self.trace, on_progress)
         try:
             return await self._drive(
-                cleaned_goal, budget, schema, resume_from,
+                cleaned_goal, budget, schema, resume_from, spend_ceiling_usd,
             )
         finally:
             self.trace.listener = previous_listener
@@ -619,10 +672,12 @@ class AgentRun:
         budget: int,
         schema: "ResultSchema | None",
         resume_from: "ResumeState | None",
+        spend_ceiling_usd: float = 0.0,
     ) -> RunOutcome:
         # Set before the loop and read by `_outcome`, so every ending carries
         # what the run was expected to cost next to what it did.  `S-06.01.03`
         self._estimate: RunEstimate | None = None
+        self._spend_ceiling_usd: float = float(spend_ceiling_usd)
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
@@ -671,6 +726,22 @@ class AgentRun:
             model_id=planner.model_id,
         )
         self._estimate = estimate
+        # Read by `_outcome`, so every ending says what the run was allowed to
+        # spend next to what it did.
+        self._spend_ceiling_usd = float(spend_ceiling_usd)
+
+        # Said in the line a person reads, not only in the JSON beside it — and
+        # said *now* rather than at the step it stops on, because "this will not
+        # fit" is worth knowing before the first page loads.  `S-11.01.04`
+        ceiling_note = ""
+        if spend_ceiling_usd > 0:
+            ceiling_note = f"spend_ceiling=${spend_ceiling_usd:.4f}; "
+            if estimate.projected_cost_usd > spend_ceiling_usd:
+                ceiling_note += (
+                    f"WARNING the projection (${estimate.projected_cost_usd:.4f}) "
+                    "is already above that ceiling, so this run is expected to "
+                    "stop short; "
+                )
 
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
         if resume_from is not None:
@@ -694,7 +765,7 @@ class AgentRun:
                 kind="run_started" if resume_from is None else "run_continued",
                 detail=(
                     f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}; "
-                    f"estimate={estimate.describe()}"
+                    f"{ceiling_note}estimate={estimate.describe()}"
                 ),
                 url=self.page.url,
             ),
@@ -706,11 +777,15 @@ class AgentRun:
                 "step_budget": budget,
                 "result_schema": list(schema.fields) if schema else [],
                 "estimate": estimate.to_dict(),
+                "spend_ceiling_usd": round(float(spend_ceiling_usd), 8),
             }),
         )
 
         decisions = 0
         actions = 0
+        # What each decision actually cost, so the next one can be predicted
+        # from this run rather than from the pre-run assumption.  `S-11.01.04`
+        decision_costs: list[float] = []
         observation = ""
         collected: dict[str, Finding] = dict(resume_from.findings) if resume_from else {}
         verification_failures: dict[str, str] = {}
@@ -727,6 +802,28 @@ class AgentRun:
             if wall is not None:
                 return self._needs_human(
                     wall, cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+
+            # Checked before the decision is asked for, so the ceiling is never
+            # crossed rather than noticed afterwards.  `S-11.01.04`
+            #
+            # Spend comes from the trace rather than a counter, so a resumed run
+            # counts what its earlier life spent too — otherwise the ceiling
+            # resets every time the process does.
+            spent_usd = float(self.trace.summary()["estimated_cost_usd"])
+            projected_usd = next_decision_cost(
+                observed=decision_costs, estimated=estimate.cost_per_decision_usd
+            )
+            if would_cross_ceiling(
+                ceiling_usd=spend_ceiling_usd,
+                spent_usd=spent_usd,
+                next_decision_usd=projected_usd,
+            ):
+                return self._over_budget(
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                    ceiling_usd=spend_ceiling_usd,
+                    spent_usd=spent_usd,
+                    projected_usd=projected_usd,
                 )
 
             instructions = _decision_input(
@@ -753,6 +850,7 @@ class AgentRun:
             )
             decisions += 1
             tokens_in, tokens_out, estimated_cost = self._measure(instructions, result)
+            decision_costs.append(estimated_cost)
 
             try:
                 decision = Decision.parse(result.text)
@@ -1467,7 +1565,7 @@ class AgentRun:
         )
         return tokens_in, tokens_out, cost
 
-    async def resume(self) -> RunOutcome:
+    async def resume(self, *, spend_ceiling_usd: float | None = None) -> RunOutcome:
         """Continue the run this agent's trace belongs to.  `S-11.01.03`
 
         Construct the agent with `Trace.open(root, run_id=...)` — the same run
@@ -1488,6 +1586,9 @@ class AgentRun:
         # `human_gate` is the other side of that coin and *is* final: there the
         # agent wanted to do something consequential and the owner has to decide
         # whether it happens at all, which is not a thing you resume into.
+        # `over_budget` is not here either, for the same reason `needs_human`
+        # is not: the owner raises the ceiling and the run carries on. It cost
+        # nothing to stop, so it costs nothing to stop again if they do not.
         ended = {
             "completed", "budget_exhausted", "stuck", "looping", "stalled",
             "incomplete", "human_gate",
@@ -1508,6 +1609,64 @@ class AgentRun:
             step_budget=state.steps_remaining,
             result_schema=state.schema_fields or None,
             resume_from=state,
+            # The ceiling the run started with, unless the owner raises it here
+            # on purpose. Defaulting to "no ceiling" would mean a run could be
+            # stopped at its limit and then resumed without one, which is not a
+            # limit.  `S-11.01.04`
+            spend_ceiling_usd=(
+                state.spend_ceiling_usd if spend_ceiling_usd is None
+                else float(spend_ceiling_usd)
+            ),
+        )
+
+    def _over_budget(
+        self,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "dict[str, Finding]",
+        *,
+        ceiling_usd: float,
+        spent_usd: float,
+        projected_usd: float,
+    ) -> RunOutcome:
+        """Stop at the money the owner agreed to, not after it.  `S-11.01.04`
+
+        The decision that would have crossed the line is never asked for, so the
+        ceiling holds rather than being reported once it is already behind us.
+        That also means stopping costs nothing, which is what makes it safe to
+        resume: raise the ceiling and the run carries on from here.
+
+        Whatever it gathered is kept. A run that found three facts and hit its
+        limit on the fourth has still found three facts, and throwing them away
+        would make the ceiling more expensive than the overspend.
+        """
+        message = (
+            f"Stopped at the spend ceiling. ${spent_usd:.4f} of "
+            f"${ceiling_usd:.4f} is spent and the next decision is expected to "
+            f"cost about ${projected_usd:.4f}, which would cross it. Nothing was "
+            "asked of the model, so this cost nothing to stop. Resume with a "
+            "higher ceiling to carry on from here."
+        )
+        self.trace.append(
+            Step(
+                kind="over_budget",
+                detail=message,
+                url=self.page.url,
+                ok=False,
+            ),
+            captured_text=json.dumps({
+                "ceiling_usd": round(ceiling_usd, 8),
+                "spent_usd": round(spent_usd, 8),
+                "projected_next_usd": round(projected_usd, 8),
+                "decisions": decisions,
+            }),
+        )
+        return self._outcome(
+            "over_budget", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
         )
 
     def _needs_human(
@@ -1716,6 +1875,7 @@ class AgentRun:
             dropped_fields=dropped_fields,
             trace_summary=self.trace.summary(),
             estimate=getattr(self, "_estimate", None),
+            spend_ceiling_usd=getattr(self, "_spend_ceiling_usd", 0.0),
         )
 
 

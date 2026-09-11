@@ -42,6 +42,8 @@ wastes a session when nobody can answer it.
 | DD-12 | 2026-09-11 | `needs_human` can be resumed; `human_gate` cannot | Two endings that look alike behave differently |
 | DD-13 | 2026-09-11 | The provider's own token counts beat our character count | Two numbers to explain instead of one, so each call says which it is |
 | DD-14 | 2026-09-11 | The run's estimate rides on `run_started`, not its own step | Less visible in the log than a step of its own would be |
+| DD-15 | 2026-09-11 | The ceiling predicts from the worst decision so far, not the average | Runs stop a little earlier than they strictly need to |
+| DD-16 | 2026-09-11 | A resumed run re-applies the ceiling it was started with | Raising it needs an explicit argument, which is easy to forget |
 
 ---
 
@@ -196,4 +198,44 @@ a new step shifts every trace id after it, and five test files hardcode
 `step-000002`. That fragility is `D-37` and is filed as `S-06.02.14`. It is
 recorded here because a decision that happens to avoid a problem should say so,
 rather than being remembered later as pure design.
+
+### DD-15 — Predict from the worst, not the average · 2026-09-11
+
+**The obvious thing.** Predict the next decision from the average of the ones
+so far. It is the standard estimator and it is what everybody reaches for.
+
+**What was done instead.** The most expensive decision the run has made.
+
+**Why.** A ceiling is a promise, and the average lags a trend. A run whose pages
+keep getting bigger — which is the normal shape of a search that is working —
+would walk straight past the line while the average still said there was room.
+The two errors are not symmetrical: stopping early costs the owner a run they
+can restart with a higher ceiling, and going over costs them a limit they set
+and did not get.
+
+**Cost.** Runs stop a little earlier than they strictly need to, and one
+unusually large page makes every subsequent check pessimistic for the rest of
+the run.
+
+**What would make this wrong.** If stopping early turned out to be expensive in
+practice — a run that has to be restarted repeatedly — the answer is a smarter
+predictor, not a more optimistic one.
+
+### DD-16 — A resumed run keeps its ceiling · 2026-09-11
+
+**The obvious thing.** `resume()` reconstructs the goal, the budget and the
+schema from the trace. Let the caller pass a ceiling if they want one.
+
+**What was done instead.** The ceiling is recorded on `run_started` and
+re-applied automatically. Raising it takes an explicit
+`resume(spend_ceiling_usd=…)`.
+
+**Why.** The default would have been "no ceiling", and that turns the whole
+feature into a speed bump: stop at the limit, resume, spend without bound. The
+spend is read from the trace too, so a run killed and restarted ten times
+counts one allowance rather than ten.
+
+**Cost.** Raising a ceiling needs an argument somebody has to remember exists.
+That is the right way round — forgetting it means the run stops, which is safe;
+forgetting it the other way means the run spends, which is not.
 

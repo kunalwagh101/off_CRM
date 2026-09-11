@@ -836,6 +836,26 @@ fails, **so that** one stale handle does not end a twenty-minute run.
   before the first step and the owner sees it.
 - **Given** a finished run, **when** it is inspected, **then** actual spend per
   step is in the trace, not a total nobody can decompose.
+- **Stated during the build:** the check runs *before* the decision is asked
+  for, so the ceiling is never crossed rather than reported once it already has
+  been. That also makes stopping free, which is what makes it safe to resume
+  from — raise the ceiling and the run carries on from the same step.
+- **Stated during the build:** the ceiling is recorded on `run_started` and
+  re-applied by `resume()`. A ceiling that disappears when a run is resumed is
+  not a ceiling; it is a speed bump. Raising it is `resume(spend_ceiling_usd=…)`
+  and has to be done on purpose.
+- **Stated during the build:** the next decision is predicted from the most
+  expensive one so far, not the average. A ceiling is a promise, and the average
+  lags a trend — a run whose pages keep growing would walk past the line while
+  the average still said it was fine. Stopping early is recoverable; exceeding a
+  limit the owner set is not.
+- **Known limit, deliberate and tested:** a model with no price list cannot have
+  its *first* decision predicted, because the pre-run estimate is zero. That one
+  decision goes through whatever the ceiling says; from the second on, the run's
+  own observed costs take over. Refusing every run on an unpriced model would
+  make free and local models unusable, so the exposure is capped at one decision
+  and `test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more` is
+  what keeps it at one.
 - **Dependencies:** S-02.02.01, S-06.01.03. **Size:** M. **Indicator:** runs
   stopped by ceiling; estimate vs actual error.
 

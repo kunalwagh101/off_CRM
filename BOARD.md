@@ -75,7 +75,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-11.01.04 · A run has a money ceiling, not only a step ceiling
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -95,6 +95,13 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.01.04 · A run has a money ceiling, not only a step ceiling
+  tests: tests/test_agent_money_ceiling.py::test_a_run_stops_at_the_ceiling_with_the_right_status, tests/test_agent_money_ceiling.py::test_the_decision_that_would_cross_is_never_asked_for, tests/test_agent_money_ceiling.py::test_a_resumed_run_keeps_the_ceiling_it_was_given, tests/test_agent_money_ceiling.py::test_raising_the_ceiling_on_purpose_lets_the_run_carry_on, tests/test_agent_money_ceiling.py::test_a_resumed_run_counts_what_its_earlier_life_spent, tests/test_agent_money_ceiling.py::test_the_next_decision_is_predicted_from_the_worst_so_far_not_the_average, tests/test_agent_money_ceiling.py::test_what_it_gathered_before_the_ceiling_is_kept, tests/test_agent_money_ceiling.py::test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more, tests/test_agent_money_ceiling.py::test_no_ceiling_behaves_exactly_as_before, tests/test_agent_money_ceiling.py::test_the_trace_says_why_it_stopped_and_by_how_much
+  command: python -m pytest tests/test_agent_money_ceiling.py tests/test_ai_cost_ledger.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_report.py tests/test_agent_wall.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_no_duplicate_effects.py -q
+  result: 155 passed (2026-09-11)
+  live: python scripts/live/stop_at_the_ceiling.py — real headless Chromium on a real page, decisions priced at $0.05 against a $0.20 ceiling, all four steps checked and exit 0 only if every one holds. The run made exactly four decisions and spent exactly $0.2000; the fifth was never asked for (4 model calls, not 5). Resumed with no argument it stopped again at `over_budget` after **0** model calls — the ceiling was read back off the trace. Resumed with the ceiling raised on purpose it completed with the answer, and reported $0.2500 spent across the whole run rather than $0.05 for its own part. One continuous trace: over_budget → resumed → run_continued → decision → completed.
+  code: offsetx_apollo_builder/agent/run.py
 
 - S-06.01.03 · Cost estimated before a run and ledgered after
   tests: tests/test_ai_cost_ledger.py::test_the_daily_spend_cap_now_stops_something, tests/test_ai_cost_ledger.py::test_recording_zero_would_never_reach_the_cap, tests/test_ai_cost_ledger.py::test_every_provider_shape_is_read, tests/test_ai_cost_ledger.py::test_a_response_with_no_usage_block_reports_nothing_rather_than_zero, tests/test_ai_cost_ledger.py::test_the_provider_receipt_is_preferred_over_our_guess, tests/test_ai_cost_ledger.py::test_a_guess_is_labelled_a_guess, tests/test_ai_cost_ledger.py::test_the_model_method_and_the_function_are_the_same_arithmetic, tests/test_ai_cost_ledger.py::test_an_estimate_is_produced_before_anything_runs, tests/test_ai_cost_ledger.py::test_the_estimate_is_recorded_before_the_first_action, tests/test_ai_cost_ledger.py::test_the_trace_total_is_the_sum_of_what_each_call_reported, tests/test_ai_cost_ledger.py::test_the_outcome_carries_the_estimate_and_what_was_actually_spent

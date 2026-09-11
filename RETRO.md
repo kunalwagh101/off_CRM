@@ -582,3 +582,37 @@ And the smaller lesson, again: I proved the dead cap by *running* it — 5,000
 calls, print the total — before writing a line of the fix. Twenty seconds, and
 it turned "this looks wrong" into a number I could put in a commit message.
 
+---
+
+## 2026-09-11 — S-11.01.04, and a fixture that disagreed with itself
+
+**What was cut.** Nothing. The story arrived two-thirds built, which is what
+pulling `S-06.01.03` first was for: the pre-run estimate and per-step spend were
+already there, so this was the ceiling alone. Splitting them was the right call
+and it was the owner's.
+
+**What the estimate got wrong.** Not the feature — forty lines. What cost the
+time was a test fixture that contradicted itself: the registry said the model
+was free while the broker reported five cents a decision. Four tests failed and
+the obvious reading was "the ceiling does not fire early enough".
+
+It was not. The ceiling predicts the first decision from the pre-run estimate,
+the estimate is priced from the registry, and a free model estimates at zero —
+so with a zero estimate nothing could be predicted and the first decision went
+through. The code was right and my fixture was two different models wearing one
+name.
+
+**That is worth more than the fix.** Chasing it turned an accident into a
+specified limit: an unpriced model costs exactly one decision of headroom,
+because from the second one the run has its own observed costs. That is now a
+named test rather than something the next person rediscovers at three in the
+morning.
+
+**What to change next time.** **A fixture that contradicts itself will be read
+as a bug in the code.** The two halves of this one — what the registry charges
+and what the broker reports — are the same number in production and were
+different numbers in my test, and nothing forced them to agree. When a double
+stands in for two views of one thing, derive the second view from the first
+instead of typing it twice. The rates in that file now compute the per-decision
+cost rather than asserting it, and the comment shows the arithmetic.
+

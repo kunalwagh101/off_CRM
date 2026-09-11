@@ -30,7 +30,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings
+from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings, measure
 from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
@@ -128,6 +128,20 @@ TRACKING_PARAMETERS = frozenset({
 })
 MAX_GOAL_CHARS = 4_000
 MAX_OBSERVATION_CHARS = 12_000
+
+#: What one decision is assumed to send and receive, for the estimate shown
+#: before a run starts.  `S-06.01.03`
+#:
+#: **This is an assumption, not a cap**, and the estimate says so out loud. The
+#: decision input is not capped: it is the system prompt, the goal, a rendered
+#: page of up to `perceive.MAX_NODES` nodes, and an observation capped at
+#: `MAX_OBSERVATION_CHARS`. A big page therefore costs more than this and a
+#: small one costs less. The basis goes into the trace beside the number, so
+#: estimate-against-actual is something a person can compute rather than a
+#: claim they have to take.
+TYPICAL_DECISION_INPUT_CHARS = MAX_OBSERVATION_CHARS
+#: A decision is one small JSON object — a verb, its arguments and a reason.
+TYPICAL_DECISION_OUTPUT_CHARS = 400
 MAX_DECISION_TEXT_CHARS = 2_000
 PLANNER_TIERS = frozenset({TrustTier.A, TrustTier.B})
 
@@ -429,6 +443,63 @@ class Decision:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class RunEstimate:
+    """What a run is expected to cost, worked out before it starts.  `S-06.01.03`
+
+    Carries its own basis. A number with no basis cannot be argued with, and an
+    estimate nobody can argue with is one nobody checks.
+    """
+
+    model_id: str
+    step_budget: int
+    cost_per_decision_usd: float
+    projected_cost_usd: float
+    basis: str
+
+    def describe(self) -> str:
+        return (
+            f"About ${self.projected_cost_usd:.4f} for up to {self.step_budget} "
+            f"decision(s) on {self.model_id} "
+            f"(~${self.cost_per_decision_usd:.5f} each). {self.basis}"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "step_budget": self.step_budget,
+            "cost_per_decision_usd": round(self.cost_per_decision_usd, 8),
+            "projected_cost_usd": round(self.projected_cost_usd, 8),
+            "basis": self.basis,
+        }
+
+
+def estimate_run(model: Any, *, step_budget: int, model_id: str = "") -> RunEstimate:
+    """Price a run before it runs.  `S-06.01.03`
+
+    Priced through the same `measure` the broker uses, so the estimate and the
+    bill are computed by one piece of code. A free model estimates at zero, and
+    that is correct rather than a missing number.
+    """
+    tokens_in, tokens_out, per_decision, _ = measure(
+        model,
+        reported=None,
+        sent="x" * TYPICAL_DECISION_INPUT_CHARS,
+        received="x" * TYPICAL_DECISION_OUTPUT_CHARS,
+    )
+    return RunEstimate(
+        model_id=model_id or getattr(model, "id", "") or "unknown",
+        step_budget=int(step_budget),
+        cost_per_decision_usd=per_decision,
+        projected_cost_usd=per_decision * max(0, int(step_budget)),
+        basis=(
+            f"Assumes ~{tokens_in} tokens in and ~{tokens_out} out per decision. "
+            "That is an assumption, not a ceiling — the page outline is not "
+            "capped, so a large page costs more and a small one costs less."
+        ),
+    )
+
+
 @dataclass(slots=True)
 class RunOutcome:
     run_id: str
@@ -450,6 +521,21 @@ class RunOutcome:
     derived_unverified_fields: tuple[str, ...] = ()
     dropped_fields: tuple[str, ...] = ()
     trace_summary: dict[str, Any] = field(default_factory=dict)
+    #: What the run was expected to cost, and what it actually did.  `S-06.01.03`
+    #: Both, together, because an estimate nobody ever compares against the bill
+    #: is a number that never gets better.
+    estimate: "RunEstimate | None" = None
+
+    @property
+    def spend_usd(self) -> float:
+        return float(self.trace_summary.get("estimated_cost_usd", 0.0) or 0.0)
+
+    @property
+    def estimate_error(self) -> float:
+        """Actual minus projected, in dollars. The story's own indicator."""
+        if self.estimate is None:
+            return 0.0
+        return self.spend_usd - self.estimate.projected_cost_usd
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -472,6 +558,9 @@ class RunOutcome:
             "derived_unverified_fields": list(self.derived_unverified_fields),
             "dropped_fields": list(self.dropped_fields),
             "trace_summary": self.trace_summary,
+            "estimate": self.estimate.to_dict() if self.estimate else None,
+            "spend_usd": round(self.spend_usd, 8),
+            "estimate_error_usd": round(self.estimate_error, 8),
         }
 
 
@@ -531,6 +620,9 @@ class AgentRun:
         schema: "ResultSchema | None",
         resume_from: "ResumeState | None",
     ) -> RunOutcome:
+        # Set before the loop and read by `_outcome`, so every ending carries
+        # what the run was expected to cost next to what it did.  `S-06.01.03`
+        self._estimate: RunEstimate | None = None
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
@@ -564,6 +656,22 @@ class AgentRun:
             enabled_models={**self.settings.enabled_models, planner.id: (planner.model_id,)},
         )
 
+        # Worked out before the first action, which is the whole point: a
+        # number produced afterwards is a bill.  `S-06.01.03`
+        #
+        # It rides on `run_started` rather than taking a step of its own,
+        # because it is not an event that happened — it is a property of the
+        # run, derived from the budget recorded in that same record. Keeping
+        # them together also means a resumed run reads the original estimate
+        # back for free.
+        planner_entry = self.broker.registry.get(planner.id)
+        estimate = estimate_run(
+            planner_entry.model(planner.model_id) if planner_entry else None,
+            step_budget=budget,
+            model_id=planner.model_id,
+        )
+        self._estimate = estimate
+
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
         if resume_from is not None:
             # One continuous record, not two: the resume point is a step in the
@@ -584,7 +692,10 @@ class AgentRun:
         self.trace.append(
             Step(
                 kind="run_started" if resume_from is None else "run_continued",
-                detail=f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}",
+                detail=(
+                    f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}; "
+                    f"estimate={estimate.describe()}"
+                ),
                 url=self.page.url,
             ),
             # The same facts again as JSON, because resuming has to read them
@@ -594,6 +705,7 @@ class AgentRun:
                 "goal": cleaned_goal,
                 "step_budget": budget,
                 "result_schema": list(schema.fields) if schema else [],
+                "estimate": estimate.to_dict(),
             }),
         )
 
@@ -640,7 +752,7 @@ class AgentRun:
                 expect_json=True,
             )
             decisions += 1
-            tokens_in, tokens_out, estimated_cost = self._estimate_cost(instructions, result)
+            tokens_in, tokens_out, estimated_cost = self._measure(instructions, result)
 
             try:
                 decision = Decision.parse(result.text)
@@ -1328,18 +1440,31 @@ class AgentRun:
         eligible.sort(key=lambda candidate: (-candidate.tier.rank, candidate.cost))
         return eligible[0]
 
-    def _estimate_cost(self, instructions: str, result: EgressResult) -> tuple[int, int, float]:
-        """Estimate usage honestly until the exact per-run provider ledger lands."""
-        tokens_in = max(1, (len(DECISION_SYSTEM_PROMPT) + len(instructions)) // 4)
-        tokens_out = max(1, len(result.text) // 4)
+    def _measure(self, instructions: str, result: EgressResult) -> tuple[int, int, float]:
+        """What that decision used and cost.  `S-06.01.03`
+
+        Takes the broker's numbers when it has them, because the broker got
+        them from the provider's own response and that is the receipt. Falls
+        back to `measure` — the *same* function the broker uses — for a caller
+        that predates the field, so there is one implementation of this
+        arithmetic in the codebase rather than one per place that needs it.
+
+        There used to be a second copy here, and a third in `broker.py` that
+        priced everything at zero. `D-35` is what that cost.
+        """
+        # `getattr` rather than attribute access: the broker is an interface,
+        # and a caller that supplies its own does not have to grow fields it
+        # never populates in order to be a valid broker.
+        if getattr(result, "usage_source", ""):
+            return result.tokens_in, result.tokens_out, result.cost_usd
         entry = self.broker.registry.get(result.provider_id)
         model = entry.model(result.model_id) if entry else None
-        if model is None:
-            return tokens_in, tokens_out, 0.0
-        cost = (
-            model.cost_per_1m_input_usd * tokens_in
-            + model.cost_per_1m_output_usd * tokens_out
-        ) / 1_000_000
+        tokens_in, tokens_out, cost, _ = measure(
+            model,
+            reported=None,
+            sent=DECISION_SYSTEM_PROMPT + instructions,
+            received=result.text,
+        )
         return tokens_in, tokens_out, cost
 
     async def resume(self) -> RunOutcome:
@@ -1590,6 +1715,7 @@ class AgentRun:
             derived_unverified_fields=derived_unverified_fields,
             dropped_fields=dropped_fields,
             trace_summary=self.trace.summary(),
+            estimate=getattr(self, "_estimate", None),
         )
 
 

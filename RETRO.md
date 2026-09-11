@@ -547,3 +547,38 @@ pattern lives in when things were noticed, not in how they were repaired. When
 something is written down in three places and queryable from none, the next
 thing to build is the table, not the fourth place.
 
+---
+
+## 2026-09-11 — S-06.01.03, a cap that had never stopped anything
+
+**What was cut.** Nothing, and the story got *bigger* honestly rather than
+quietly: it was written as "show an estimate, reconcile after", and the
+reconciliation half turned out to be sitting on a dead control. `S-11.01.04`,
+the story this was pulled ahead of, keeps its ceiling — what landed here is the
+measurement that ceiling will be enforced against, which is the right split.
+
+**What the estimate got wrong.** I expected to write an estimator. The estimator
+was twenty lines. What took the time was discovering that the owner's daily
+spend cap had never refused anything in its life: `quota.record` was being
+called with `spend_usd=0.0`, a hardcoded zero, so a $1.00 cap sat at $0.00
+through five thousand calls. Everything around it was real — the limit, the
+check, the usage bar on the Connectors screen — and the one number feeding it
+was a constant.
+
+Underneath that was something more useful than the bug: **the price of a call
+was being computed in three separate places.** One in the broker (zero), one in
+`agent/run.py` (characters over four), one implied by the model's rate fields
+that nothing used. That is the defect log's pattern 3 — two things that must
+agree drifting apart — except in arithmetic rather than in a list, and it is why
+the log was worth writing four hours before I needed it.
+
+**What to change next time.** **When the same calculation appears twice, one of
+the two is already wrong — go and look rather than reconciling them.** I found
+this by asking where a real number could come from, not by auditing. The
+provider had been sending exact token counts in every response the whole time
+and the adapter was throwing them away to make room for a guess.
+
+And the smaller lesson, again: I proved the dead cap by *running* it — 5,000
+calls, print the total — before writing a line of the fix. Twenty seconds, and
+it turned "this looks wrong" into a number I could put in a commit message.
+

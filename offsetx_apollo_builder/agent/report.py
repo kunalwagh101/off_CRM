@@ -124,6 +124,26 @@ def _findings(trace: Trace) -> list[dict[str, Any]]:
     return found
 
 
+def _projected(trace: Trace) -> float | None:
+    """What the run said it would cost, read back off its own first step.
+
+    `None` when the run predates the estimate or did not record one — which
+    renders nothing rather than a zero, because "we did not say" and "we said
+    nothing" are different claims.  `S-06.01.03`
+    """
+    started = next((step for step in trace.read() if step.kind == "run_started"), None)
+    if started is None:
+        return None
+    try:
+        estimate = json.loads(trace.captured_text(started) or "{}").get("estimate")
+    except ValueError:
+        return None
+    if not isinstance(estimate, dict):
+        return None
+    value = estimate.get("projected_cost_usd")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
 def _ending(steps: list[Step]) -> Step | None:
     for step in reversed(steps):
         if step.kind in ENDINGS:
@@ -180,13 +200,28 @@ def render(trace: Trace) -> str:
         head.append(f'<div class="card"><span class="k">Why it stopped</span>'
                     f'<div>{_text(ending.detail)}</div></div>')
 
+    # What it was expected to cost, beside what it did. Shown together on
+    # purpose: an estimate nobody ever compares against the bill is a number
+    # that never gets better.  `S-06.01.03`
+    projected = _projected(trace)
+    spent = float(summary["estimated_cost_usd"])
+    if projected is not None:
+        difference = spent - projected
+        head.append(
+            '<div class="card"><span class="k">Cost</span><div>'
+            f'Estimated ${projected:.4f} before the run · '
+            f'spent ${spent:.4f} · '
+            f'{"over" if difference > 0 else "under"} by ${abs(difference):.4f}'
+            "</div></div>"
+        )
+
     head.append(
         '<p class="meta">'
         + " · ".join(
             _text(item) for item in (
                 f"{summary['steps']} steps",
                 f"{summary['failed']} failed",
-                f"${summary['estimated_cost_usd']:.4f} estimated",
+                f"${summary['estimated_cost_usd']:.4f} spent",
                 f"{summary['tokens_in']} in / {summary['tokens_out']} out",
                 f"{summary['took_ms']} ms",
                 ", ".join(summary["models"]) or "no model recorded",

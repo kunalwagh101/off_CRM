@@ -44,7 +44,12 @@ from .errors import (
 from .failures import Failure, FailureAction, FailureKind, classify
 from .payload import EgressRequest, build_payload, payload_summary
 from .quota import QuotaLimits, QuotaTracker
-from .registry import ProviderOverride, ProviderRegistry, ResolvedProvider
+from .registry import (
+    ProviderOverride,
+    ProviderRegistry,
+    ResolvedProvider,
+    price_tokens,
+)
 from .scanner import scan_payload
 from .tiers import (
     MAILBOX_UNLOCK_PHRASE,
@@ -123,6 +128,45 @@ class EgressDecision:
         }
 
 
+#: Characters per token, for the case where the provider said nothing. A rough
+#: average across English prose and JSON; wrong for code, and wrong for
+#: languages that do not put spaces between words. It is a fallback and is
+#: labelled as one — see `EgressResult.usage_source`.  `S-06.01.03`
+CHARS_PER_TOKEN = 4
+
+
+def measure(
+    model: Any,
+    *,
+    reported: "dict[str, int] | None",
+    sent: str,
+    received: str,
+) -> tuple[int, int, float, str]:
+    """What a call used and what it cost. Returns (in, out, usd, source).
+
+    Prefers what the provider said it used, because that is the receipt and
+    anything else is an opinion. Falls back to counting characters and **says
+    so**, rather than reporting a guess as a measurement.
+    """
+    if reported:
+        tokens_in = max(0, int(reported.get("tokens_in", 0)))
+        tokens_out = max(0, int(reported.get("tokens_out", 0)))
+        source = "provider"
+    else:
+        tokens_in = max(1, len(sent) // CHARS_PER_TOKEN)
+        tokens_out = max(1, len(received) // CHARS_PER_TOKEN)
+        source = "estimated"
+    # Read off the model rather than called on it: `measure` is handed whatever
+    # the caller has, and requiring a method would put the burden on every
+    # object that could ever be a model. The arithmetic stays in one function.
+    cost = price_tokens(
+        tokens_in, tokens_out,
+        per_1m_in=getattr(model, "cost_per_1m_input_usd", 0.0),
+        per_1m_out=getattr(model, "cost_per_1m_output_usd", 0.0),
+    )
+    return tokens_in, tokens_out, cost, source
+
+
 @dataclass(slots=True)
 class EgressResult:
     text: str
@@ -137,6 +181,18 @@ class EgressResult:
     attempts: list[dict[str, Any]] = field(default_factory=list)
     rejected: list[dict[str, Any]] = field(default_factory=list)
     log_id: str = ""
+    #: What the call used and what that cost, priced once, here.  `S-06.01.03`
+    #: Everything downstream — the quota ledger, the run's trace, the egress log
+    #: — reads these rather than computing its own, because two places counting
+    #: the same money is two places that disagree about it.
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float = 0.0
+    #: `provider` when the provider reported the counts, `estimated` when they
+    #: were guessed from the text, `cache` when nothing was sent. Said out loud
+    #: because "the bill was $2.40" and "we think the bill was $2.40" are
+    #: different sentences and the owner is entitled to know which one this is.
+    usage_source: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -152,6 +208,10 @@ class EgressResult:
             "attempts": self.attempts,
             "rejected": self.rejected,
             "log_id": self.log_id,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "cost_usd": round(self.cost_usd, 8),
+            "usage_source": self.usage_source,
         }
 
 
@@ -611,6 +671,10 @@ class EgressBroker:
                         attempts=attempts,
                         rejected=rejected,
                         log_id=log_id,
+                        # Nothing was sent, so nothing was spent. Recorded as
+                        # its own source rather than as a $0.00 estimate, so a
+                        # free run and a cached run do not look alike.
+                        usage_source="cache",
                     )
 
             # 5. Call.
@@ -618,6 +682,9 @@ class EgressBroker:
             status = "succeeded"
             error = ""
             text = ""
+            # Bound before the try so the measurement below can ask it what it
+            # used even when `_instantiate` is what failed.
+            provider: Any = None
             try:
                 provider = self._instantiate(candidate)
                 raw = provider.generate(
@@ -631,10 +698,24 @@ class EgressBroker:
                 failure = classify(exc)
             duration_ms = int((time.monotonic() - started) * 1000)
 
+            # Priced here, once, and then carried. A *failed* call is measured
+            # too: the provider bills for the tokens it read before giving up,
+            # and a ledger that counts only successes under-reports exactly
+            # when the owner most wants the number.  `S-06.01.03`
+            tokens_in, tokens_out, cost_usd, usage_source = measure(
+                candidate.model,
+                reported=getattr(provider, "last_usage", None),
+                sent=system_prompt + json.dumps(payload, ensure_ascii=False),
+                received=text,
+            )
+
             if self.quota is not None:
                 self.quota.record(
                     candidate.id,
-                    spend_usd=0.0,
+                    # Was a hardcoded 0.0, which made `max_spend_usd_per_day` a
+                    # cap that could never be reached: 5,000 calls counted as
+                    # $0.00 and nothing was refused.  `D-35`
+                    spend_usd=cost_usd,
                     # Was a substring search for "429" over the message, which
                     # also fired on a body that merely contained those digits.
                     rate_limited=(
@@ -735,6 +816,10 @@ class EgressBroker:
                 attempts=attempts,
                 rejected=rejected,
                 log_id=log_id,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=cost_usd,
+                usage_source=usage_source,
             )
 
         detail = "; ".join(

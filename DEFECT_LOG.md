@@ -66,6 +66,10 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-32 | 2026-09-11 | gap | medium | A read served from memory recorded no signature at all | fixed · `S-11.04.02` |
 | D-33 | 2026-09-11 | process | medium | Two board entries pointed at a commit that no longer existed | fixed · filed as `S-06.02.12` |
 | D-34 | 2026-09-11 | bug | medium | A page *explaining* two-factor login would have paused every run | fixed before shipping · `S-11.03.01` |
+| D-35 | 2026-09-11 | security | high | The daily spend cap can never be reached — every call is recorded as costing $0.00 | fixed · `S-06.01.03` |
+| D-36 | 2026-09-11 | gap | high | Providers tell us exactly what each call used, and we throw it away and guess from character counts | fixed · `S-06.01.03` |
+| D-37 | 2026-09-11 | process | medium | Five test files hardcode `step-000002`, so adding any step to a run breaks them | open · `S-06.02.14` |
+| D-38 | 2026-09-11 | bug | medium | The same pricing arithmetic existed in three places, one of which returned zero | fixed · `S-06.01.03` |
 
 ---
 
@@ -90,8 +94,12 @@ how long it took, not only whether it passed.
 **3. Two lists that must match will drift apart, silently.**
 D-14: the verbs that act and the verbs that are paced were different lists, and
 `press` fell in the gap. D-24: signatures were written on one code path and not
-the other. D-32: the same again, on a shortcut path. When a rule applies to a
-set, test that the **set is complete**, not that the rule works.
+the other. D-32: the same again, on a shortcut path. D-38 is the same shape in
+arithmetic rather than in a list — the price of a call was computed in three
+separate places, and one of them returned zero, which is what `D-35` actually
+was underneath. When a rule applies to a set, test that the **set is complete**,
+not that the rule works; and when a calculation appears twice, one of the two is
+already wrong.
 
 **4. A limit two files away will not be seen from the line that matters.**
 D-27: a value may be 20,000 characters and the field holding it caps at 4,000,
@@ -107,6 +115,46 @@ tests first.
 ---
 
 ## Detail
+
+### D-35 — The daily spend cap can never be reached · 2026-09-11
+
+**What went wrong.** The owner can set a daily spend limit per provider. The
+check for it is real and works. But the line that records what a call cost
+passes `spend_usd=0.0` — a hardcoded zero — so the running total never moves off
+zero and the cap never fires.
+
+**How it was found.** By running it instead of reading it. A cap of $1.00, then
+5,000 calls recorded the way the code records them today:
+
+    calls recorded   : 5000
+    cap the owner set: $1.00
+    spend counted    : $0.0000
+    still allowed?   : True   (nothing refused it)
+
+The same 5,000 calls priced at the number the run's own log already computes
+come to $8.00, and the cap refuses immediately.
+
+**Why it mattered.** This is the only thing standing between an agent left
+running overnight and an unbounded bill. It is a control that exists, is
+configurable, is displayed on the Connectors screen as a usage bar, and does
+nothing.
+
+### D-36 — The provider tells us what we spent and we throw it away · 2026-09-11
+
+**What went wrong.** Every major provider returns a `usage` block with the exact
+token counts for the call. The adapter receives the whole JSON response, pulls
+the text out of it, and drops the rest. Cost is then guessed elsewhere by
+dividing the number of characters by four.
+
+**How it was found.** Looking for where a real number could come from, while
+fixing D-35.
+
+**Why it mattered.** Two separate problems. The guess is wrong — characters per
+token varies by model and by language, and it does not count the tokens a
+provider adds itself. And it makes "what did this run cost" unanswerable with
+authority: the number in the log is off_CRM's opinion, not the provider's
+receipt.
+
 
 Only where the one-line version is not enough.
 

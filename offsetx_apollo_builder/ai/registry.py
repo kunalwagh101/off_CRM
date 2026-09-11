@@ -87,6 +87,24 @@ class OriginRule:
         return {"prefix": self.prefix, "origin": self.origin, "tier_cap": self.tier_cap}
 
 
+def price_tokens(
+    tokens_in: int, tokens_out: int, *, per_1m_in: float, per_1m_out: float
+) -> float:
+    """What a call of this size costs, in dollars.  `S-06.01.03`
+
+    **The one place a token count becomes money.** A function rather than only a
+    method, because the thing that needs it most — `broker.measure` — is handed
+    whatever object the caller has, and a method would mean every test double
+    and every future model type had to grow one. Two copies of this arithmetic
+    is how a ledger and a run log end up disagreeing about the same call, which
+    is exactly what `D-35` was.
+    """
+    return (
+        (max(0, int(tokens_in)) / 1_000_000) * float(per_1m_in or 0.0)
+        + (max(0, int(tokens_out)) / 1_000_000) * float(per_1m_out or 0.0)
+    )
+
+
 @dataclass(slots=True)
 class ModelEntry:
     """One model offered by a provider."""
@@ -114,6 +132,14 @@ class ModelEntry:
     @property
     def is_free(self) -> bool:
         return self.cost_per_1m_input_usd == 0.0 and self.cost_per_1m_output_usd == 0.0
+
+    def price(self, tokens_in: int, tokens_out: int) -> float:
+        """What a call of this size costs on this model, in dollars."""
+        return price_tokens(
+            tokens_in, tokens_out,
+            per_1m_in=self.cost_per_1m_input_usd,
+            per_1m_out=self.cost_per_1m_output_usd,
+        )
 
     @property
     def blended_cost(self) -> float:

@@ -40,6 +40,8 @@ wastes a session when nobody can answer it.
 | DD-10 | 2026-09-11 | The step's signature is the record of what ran, not its English | Every writer of an action step must add the marker |
 | DD-11 | 2026-09-11 | A wall **may** stop a run, though injection may not | A wrong match costs the owner a glance at a browser |
 | DD-12 | 2026-09-11 | `needs_human` can be resumed; `human_gate` cannot | Two endings that look alike behave differently |
+| DD-13 | 2026-09-11 | The provider's own token counts beat our character count | Two numbers to explain instead of one, so each call says which it is |
+| DD-14 | 2026-09-11 | The run's estimate rides on `run_started`, not its own step | Less visible in the log than a step of its own would be |
 
 ---
 
@@ -147,3 +149,51 @@ treat them the same.
 **Cost.** Two endings that look alike behave differently, which is a thing
 somebody will get wrong later. It is written at the line that decides it, in
 `resume()`, and not only here.
+
+### DD-13 — The provider's receipt beats our guess · 2026-09-11
+
+**The obvious thing.** Keep estimating from character counts. It was already
+written, it was close enough, and it needed no new code.
+
+**What was done instead.** Read the `usage` block the provider already sends,
+price that, and label every figure with where it came from — `provider` when it
+is the receipt, `estimated` when it is not, `cache` when nothing was sent.
+
+**Why.** The guess is wrong in a way that cannot be corrected: characters per
+token varies by model and by language, and it cannot see the tokens a provider
+adds itself. More importantly it made "what did this run cost" unanswerable with
+authority — the number was off_CRM's opinion, and the owner is entitled to the
+provider's.
+
+**Cost.** Two numbers to explain instead of one, so every call now has to say
+which kind it is. That is a real cost in the interface and it is the honest
+version: reporting a guess without saying so is the cheaper option and the
+worse one.
+
+**What would make this wrong.** Nothing likely. If a provider reported usage
+that disagreed with its own invoice, this would need a third source, which is
+what the `usage_source` field leaves room for.
+
+### DD-14 — The estimate rides on `run_started` · 2026-09-11
+
+**The obvious thing.** Give the estimate its own step in the trace, the way
+every other notable event gets one.
+
+**What was done instead.** It goes in `run_started`'s own record, beside the
+goal and the budget it was derived from.
+
+**Why.** It is not an event that happened. It is a property of the run, computed
+from the budget recorded in that same line — and splitting "what this run was
+asked to do" from "what that should cost" across two adjacent steps makes each
+of them half a record. A resumed run also reads it back for free.
+
+**Cost.** It is less visible in a `grep` of the log than a `needs_human` or
+`injection_suspected` line is. Mitigated by putting the sentence in
+`run_started`'s detail as well as the JSON beside it.
+
+**Honest note.** There was a second reason, and it is not a good one on its own:
+a new step shifts every trace id after it, and five test files hardcode
+`step-000002`. That fragility is `D-37` and is filed as `S-06.02.14`. It is
+recorded here because a decision that happens to avoid a problem should say so,
+rather than being remembered later as pure design.
+

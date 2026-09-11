@@ -275,7 +275,12 @@ def test_the_header_carries_what_the_run_cost(tmp_path):
     page = render(trace)
     summary = trace.summary()
     assert f"{summary['steps']} steps" in page
-    assert "estimated" in page and "planner" in page
+    # "spent" and "estimated" are two different numbers now and must not share
+    # a word: the header figure is what the run actually cost, and the card
+    # above it is what it was projected to cost.  `S-06.01.03`
+    assert f"${summary['estimated_cost_usd']:.4f} spent" in page
+    assert "planner" in page
+    assert "Estimated $" in page and "before the run" in page
 
 
 # ── the second: a failed run shows where and why ────────────────────────────

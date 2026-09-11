@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **A run now says what it will cost before it starts, and what it did cost
+  after** (`S-06.01.03`). The estimate goes into `run_started` beside the budget
+  it was derived from, carries its own basis, and comes back on `RunOutcome`
+  next to the actual — `estimate_error` is the difference, which is this
+  story's own indicator.
+- **Fixed: the daily spend cap could never be reached** (`D-35`). The owner can
+  set a per-provider daily limit; the check for it is real, the usage bar
+  displays it, and the line that recorded what a call cost passed a hardcoded
+  `spend_usd=0.0`. Measured: a $1.00 cap, 5,000 calls, $0.0000 counted, nothing
+  refused. Priced properly those same calls are $8.00 and the cap refuses at
+  once. This was the only thing standing between an agent left running overnight
+  and an unbounded bill.
+- **Fixed: the provider tells us what each call used and we were discarding it**
+  (`D-36`). Every major API returns a `usage` block; the adapter pulled the text
+  out of the response and dropped the rest, and cost was then guessed by
+  dividing characters by four. Captured now in `_post`, the one place every HTTP
+  call passes through, so no adapter has to remember — and translated across the
+  two naming conventions in use (`input_tokens`/`output_tokens` and
+  `prompt_tokens`/`completion_tokens`).
+- **Fixed: the price of a call was computed in three places** (`D-38`), one of
+  which returned zero. `registry.price_tokens` is now the only implementation;
+  `ModelEntry.price` is a convenience over it and `broker.measure` is the single
+  funnel every caller uses. This is the defect log's pattern 3 — two things that
+  must agree, drifting apart — in arithmetic rather than in a list.
+- Every figure now says where it came from. `usage_source` is `provider` when it
+  is the provider's own count, `estimated` when it was guessed, and `cache` when
+  nothing was sent. "The bill was $2.40" and "we think the bill was $2.40" are
+  different sentences, and the owner is entitled to know which one this is.
+- A **failed** call is measured too. The provider bills for the tokens it read
+  before giving up, and a ledger that counts only successes under-reports
+  exactly when the owner most wants the number.
+- The run report shows estimated-against-spent at the top, and the header figure
+  is now labelled `spent` rather than `estimated` — they are two different
+  numbers and must not share a word.
+
 - **Added `DEFECT_LOG.md` and `DECISIONS.md`** (`S-06.02.13`), asked for by the
   owner. One table of every bug, security hole and broken connection found, in
   plain English, with the date it was found — and one of design calls where the

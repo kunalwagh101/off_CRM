@@ -611,6 +611,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-96 | The verifier checks READY, not only DONE | S-06.02.11 |
 | R-97 | Every commit the board names is on the branch | S-06.02.12 |
 | R-98 | Every defect and design call is written down in one place | S-06.02.13 |
+| R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1117,6 +1118,23 @@ this codebase keeps getting wrong without reading a year of commit messages.
   twice under different names (`D-14`, `D-24`, `D-32`: two lists that must match
   drifting apart). `RETRO.md` keeps its job — three lines of process lesson per
   increment — and is not replaced by this.
+
+#### S-06.02.14 — A test should not hardcode a trace step id
+**As a** builder, **I want** tests to address a trace step by finding it rather
+than by counting, **so that** adding a step to a run does not break tests that
+have nothing to do with it.
+- **Given** a test that needs a particular step's id, **when** it runs, **then**
+  it locates the step by kind or content, not by a literal like `step-000002`.
+- **Given** a new step added anywhere in a run, **when** the suite runs, **then**
+  no test fails because the numbering moved.
+- **Dependencies:** none. **Size:** S. **Indicator:** tests broken by an
+  unrelated step being added — target zero.
+- **Why:** `D-37`. Five test files hardcode `step-000002` as "the read action".
+  It has broken twice: once in `S-11.01.03` when a `finding` step was added, and
+  again in `S-06.01.03`. Both times the fix was to bump a number, which buys one
+  story of quiet. The scripted-decision doubles make it awkward — the record
+  citing a step is written before the run exists — so the fix is a placeholder
+  the broker double substitutes at call time, not a search-and-replace.
 
 #### S-06.02.12 — A recorded commit must be on the branch
 **As an** owner, **I want** `scripts/verify_board.py` to check that every

@@ -55,6 +55,7 @@ remaining independent stories below stay READY.)*
 - S-06.02.08 · One runner for every evidence command
 - S-06.02.11 · The verifier catches a stale READY column
 - S-06.02.12 · A recorded commit must be on the branch
+- S-06.02.14 · A test should not hardcode a trace step id
 
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
@@ -75,7 +76,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.01.03 · Cost estimated before a run and ledgered after
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -95,6 +96,13 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.01.03 · Cost estimated before a run and ledgered after
+  tests: tests/test_ai_cost_ledger.py::test_the_daily_spend_cap_now_stops_something, tests/test_ai_cost_ledger.py::test_recording_zero_would_never_reach_the_cap, tests/test_ai_cost_ledger.py::test_every_provider_shape_is_read, tests/test_ai_cost_ledger.py::test_a_response_with_no_usage_block_reports_nothing_rather_than_zero, tests/test_ai_cost_ledger.py::test_the_provider_receipt_is_preferred_over_our_guess, tests/test_ai_cost_ledger.py::test_a_guess_is_labelled_a_guess, tests/test_ai_cost_ledger.py::test_the_model_method_and_the_function_are_the_same_arithmetic, tests/test_ai_cost_ledger.py::test_an_estimate_is_produced_before_anything_runs, tests/test_ai_cost_ledger.py::test_the_estimate_is_recorded_before_the_first_action, tests/test_ai_cost_ledger.py::test_the_trace_total_is_the_sum_of_what_each_call_reported, tests/test_ai_cost_ledger.py::test_the_outcome_carries_the_estimate_and_what_was_actually_spent
+  command: python -m pytest tests/test_ai_cost_ledger.py tests/test_ai_egress_wall.py tests/test_ai_model_selection.py tests/test_ai_registry_packaging.py tests/test_outreach_providers.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_watch.py tests/test_agent_wall.py tests/test_agent_provenance.py tests/test_agent_structured_result.py -q
+  result: 200 passed (2026-09-11)
+  live: python scripts/live/what_a_run_costs.py — a stand-in provider answering real HTTP in the Chat Completions shape, spoken to by the real `openai_compatible` adapter, through the real `measure`, into a real quota file on disk. The adapter read the reported 1842 in / 97 out; `measure` priced it at $0.004460 and labelled the source `provider` rather than `estimated`; the ledger reached the owner's $1.00 cap after 225 calls and refused the 226th with "daily spend cap reached ($1.00/$1.00)". The same script then records 10,000 calls the old way, at $0.00 each, and confirms nothing is refused — which is `D-35` as it stood before this.
+  code: offsetx_apollo_builder/ai/broker.py, offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/outreach/providers.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py
 
 - S-06.02.13 · A defect log and a decision log the next session can read
   tests: tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_an_open_defect_naming_a_real_backlog_item_passes, tests/test_verify_board.py::test_the_same_defect_id_twice_fails, tests/test_verify_board.py::test_a_defect_that_does_not_say_what_went_wrong_fails, tests/test_verify_board.py::test_a_defect_with_no_date_found_fails, tests/test_verify_board.py::test_a_decision_with_no_cost_fails, tests/test_verify_board.py::test_a_missing_defect_log_fails_rather_than_passing_vacuously, tests/test_verify_board.py::test_a_missing_decision_log_fails_rather_than_passing_vacuously

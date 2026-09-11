@@ -445,3 +445,35 @@ when the input never arrived, and failed when the output was correct. Ask what
 the *browser* would do, not what the string looks like. And the check that made
 this trustworthy took thirty seconds: delete the escaping, watch three tests go
 red, put it back.
+
+---
+
+## 2026-09-11 — S-11.04.02, progress visible while it happens
+
+**What was cut.** The live gate could not click. This container's egress proxy
+refuses to serve Chromium (`ERR_CONNECTION_RESET` on a URL `curl` fetches with a
+200), so the only page reachable was one served on loopback — and `policy.py`
+refuses to act on loopback, correctly, because that rule is the whole SSRF
+boundary. I left the rule alone and recorded the hole in the evidence block
+rather than widening a security control to make my own gate go green.
+
+**What the estimate got wrong.** I wrote `Progress.action` as
+`detail.split(" ")[0]` and it passed the unit test I wrote next to it, because
+the detail I invented for that test was `"read the page"` and the verb happened
+to be the first word. A real click records `"clicked More"`. The fixture made
+the bug invisible: I chose the input *and* the expectation in the same breath,
+so they agreed with each other instead of with the system. The integration test
+caught it, an hour later.
+
+The story also looked like "hang a hook on the trace", and it was — but making
+the verb visible found a hole in `S-11.02.04`: a read answered from the run's
+memo was recording no signature at all. Nothing had needed the verb back from
+that step before, so nothing had missed it. Building the reader is what audited
+the writer.
+
+**What to change next time.** When a test needs a sample of something the system
+produces, take the sample *from* the system. `[signature=...]` had been on every
+action step since `S-11.05.02`; one `grep` for a real detail string would have
+shown me "clicked More" before I wrote the parser, instead of after. A fixture I
+invented is a second guess dressed up as evidence.
+

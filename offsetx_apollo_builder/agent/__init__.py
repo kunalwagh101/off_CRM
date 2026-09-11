@@ -9,11 +9,14 @@ from .result import (
     SourcedRecordValidation,
 )
 from .run import AgentRun, Decision, ResumeState, RunOutcome, RunRefused, replay
+from .watch import Progress, console
 
 __all__ = [
     "AgentRun",
+    "console",
     "Decision",
     "Finding",
+    "Progress",
     "Provenance",
     "RecordValidation",
     "ResultSchema",

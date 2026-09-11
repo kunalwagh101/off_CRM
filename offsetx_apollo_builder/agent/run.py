@@ -28,14 +28,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings
 from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
-from ..browser.trace import Step, Trace
+from ..browser.trace import Step, Trace, signature_in, signature_mark
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -53,6 +53,7 @@ from .verify import (
     UNSUPPORTED,
     verify_finding,
 )
+from .watch import Progress, observer
 
 MAX_RUN_STEPS = 50
 #: How many page captures one run keeps. A run is bounded at `MAX_RUN_STEPS`, so
@@ -238,7 +239,7 @@ def replay(trace: Trace) -> ResumeState:
         elif step.kind == "action":
             if step.ok:
                 actions += 1
-            signature = _signature_in(step.detail)
+            signature = signature_in(step.detail)
             if signature:
                 performed.add(signature)
                 if not step.ok:
@@ -265,16 +266,6 @@ def replay(trace: Trace) -> ResumeState:
         failed_signatures=failed,
         last_url=last_url,
     )
-
-
-def _signature_in(detail: str) -> str:
-    """Pull `[signature=...]` back out of an action step's detail."""
-    marker = "[signature="
-    start = str(detail or "").find(marker)
-    if start < 0:
-        return ""
-    end = detail.find("]", start)
-    return detail[start + len(marker):end] if end > start else ""
 
 
 def made_progress(
@@ -510,9 +501,35 @@ class AgentRun:
         step_budget: int,
         result_schema: ResultSchema | Iterable[str] | None = None,
         resume_from: "ResumeState | None" = None,
+        on_progress: "Callable[[Progress], None] | None" = None,
     ) -> RunOutcome:
+        """Pursue `goal` for at most `step_budget` steps.
+
+        `on_progress` is called with each step as it is recorded, so a run can
+        be watched while it happens rather than read about once it is over —
+        `agent.console()` is a ready-made one.  `S-11.04.02`
+        """
         cleaned_goal, budget = _validate_start(goal, step_budget)
         schema = coerce_result_schema(result_schema)
+        # Attached for the length of this run and put back afterwards, so a
+        # watcher cannot outlive the thing it was watching.  `S-11.04.02`
+        previous_listener = self.trace.listener
+        if on_progress is not None:
+            self.trace.listener = observer(self.trace, on_progress)
+        try:
+            return await self._drive(
+                cleaned_goal, budget, schema, resume_from,
+            )
+        finally:
+            self.trace.listener = previous_listener
+
+    async def _drive(
+        self,
+        cleaned_goal: str,
+        budget: int,
+        schema: "ResultSchema | None",
+        resume_from: "ResumeState | None",
+    ) -> RunOutcome:
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
@@ -692,6 +709,12 @@ class AgentRun:
                     actions=actions,
                 )
 
+            # Computed before the memo below rather than at its first use
+            # further down, because a memoed read is an action step too, and a
+            # step recording no signature is one nobody watching can name and
+            # no resumed run can match.  `S-11.04.02`
+            signature = action_signature(decision)
+
             # A page already read in this run is answered from the memo.  `S-11.02.04`
             #
             # Only `read` is served this way. `goto` is never skipped: the agent
@@ -706,7 +729,8 @@ class AgentRun:
                         kind="action",
                         detail=(
                             f"read reused the capture from {remembered.step_id} "
-                            f"({len(remembered.text)} characters); the page was not asked again"
+                            f"({len(remembered.text)} characters); the page was "
+                            f"not asked again {signature_mark(signature)}"
                         ),
                         url=remembered.url,
                         ok=True,
@@ -726,7 +750,6 @@ class AgentRun:
             # as an observation, the next decision is made from the same page,
             # and the same conclusion follows. Refusing here spends no browser
             # action and tells the model plainly that this one is spent.
-            signature = action_signature(decision)
             facts_before = len(collected)
 
             # A side effect the run already had is not had twice.  `S-11.05.02`
@@ -810,7 +833,7 @@ class AgentRun:
                         kind="action",
                         detail=(
                             f"{decision.action} failed: {str(failure)[:2_000]} "
-                            f"[signature={signature}]"
+                            f"{signature_mark(signature)}"
                         ),
                         url=self.page.url or snapshot.url,
                         ok=False,
@@ -924,7 +947,7 @@ class AgentRun:
                     # the only thing a resumed run can read: a fresh process has
                     # nothing in memory, and the live page cannot say whether it
                     # has already been clicked.  `S-11.05.02`
-                    detail=f"{action_result.detail} [signature={signature}]",
+                    detail=f"{action_result.detail} {signature_mark(signature)}",
                     url=action_result.url or snapshot.url,
                     ok=action_result.ok,
                     took_ms=action_result.took_ms,

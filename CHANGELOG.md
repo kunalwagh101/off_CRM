@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **A run can now be watched while it happens** (`S-11.04.02`). `agent/watch.py`
+  turns each recorded step into a `Progress` carrying the verb, the live page
+  URL and the run's running cost, and `console()` prints one block per step and
+  flushes it. `AgentRun.run(..., on_progress=...)` hangs the watcher on the
+  trace for the duration of the run and takes it off again in a `finally`, so a
+  watcher cannot outlive the run it was watching.
+- The hook lives on `Trace`, not at each call site. The trace is already the one
+  funnel every recorded event passes through, and there are forty of them — a
+  watcher hung there cannot be forgotten when a forty-first is added. It fires
+  *after* the disk write, so nothing reaches a watcher that a crash would then
+  erase, and a watcher that throws is swallowed: somebody looking at a run must
+  not be able to end it.
+- `S-11.04.01` tells you what a run did once it is over. This is so a run heading
+  for the wrong page at step 4 can be seen at step 4 rather than read about at
+  step 40. It shows; it does not stop — interrupting is `S-02.02.03`, and was
+  not smuggled in here.
+- **The verb a watcher reports comes from the step's recorded signature, not
+  from its prose.** A click records "clicked More", and `clicked` is not one of
+  the ten verbs. `[signature=...]` was already written into every action step by
+  `S-11.05.02` so a resumed run could tell what it had already done. The parser
+  and the writer now live together in `browser/trace.py` as `signature_in` and
+  `signature_mark`, beside the `Step` they describe, so the two cannot drift.
+- **Fixed: a read answered from the run's memo recorded no signature.**
+  `S-11.02.04` serves a second read of an already-read page without asking the
+  page again, and that step was being written without the marker every other
+  action step carries. It went unnoticed because nothing had needed the verb
+  back until now; a watcher could not name the step, and a resumed run could not
+  match it.
+
 - **Every run now writes a report a person can read** (`S-11.04.01`).
   `agent/report.py` renders one self-contained HTML page into the run's own
   directory: each returned fact with its value, quote, source URL, timestamp,

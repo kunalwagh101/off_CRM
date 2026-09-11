@@ -32,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BOARD = ROOT / "BOARD.md"
 BACKLOG = ROOT / "PRODUCT_BACKLOG.md"
 QUESTIONS = ROOT / "OPEN_QUESTIONS.md"
+DEFECTS = ROOT / "DEFECT_LOG.md"
+DECISIONS = ROOT / "DECISIONS.md"
 
 COLUMNS = (
     "BACKLOG", "READY", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "DEFERRED",
@@ -46,6 +48,17 @@ FIELD = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.+?)\s*$")
 DEFINITION = re.compile(r"^#{2,4}\s+(?P<id>[EFST]-[\d.]+[a-z]?)\s+[—-]\s+(?P<title>.+?)\s*$")
 #: A coverage row: `| R-01 | text | S-01.02.03, S-01.02.04 |`
 COVERAGE = re.compile(r"^\|\s*(?P<req>R-\d+)\s*\|(?P<text>[^|]*)\|\s*(?P<ids>[^|]*)\|")
+#: A defect row: `| D-07 | 2026-08-28 | data-loss | high | text | fixed · S-03.02.01 |`
+DEFECT = re.compile(
+    r"^\|\s*(?P<id>D-\d+)\s*\|\s*(?P<found>[^|]*)\|\s*(?P<kind>[^|]*)\|"
+    r"\s*(?P<severity>[^|]*)\|\s*(?P<what>[^|]*)\|\s*(?P<status>[^|]*)\|"
+)
+#: A decision row: `| DD-04 | 2026-09-06 | the call | what it cost |`
+DECISION = re.compile(
+    r"^\|\s*(?P<id>DD-\d+)\s*\|\s*(?P<date>[^|]*)\|\s*(?P<call>[^|]*)\|"
+    r"\s*(?P<cost>[^|]*)\|"
+)
+
 #: Words that mean "not finished" wherever they appear in a comment.
 UNFINISHED = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 
@@ -473,6 +486,74 @@ def summarise(
     return "\n".join(lines)
 
 
+def check_defects(defined: dict[str, str], report: Report) -> tuple[int, int]:
+    """Rule 7 — the defect log and the decision log say something checkable.
+
+    A log nobody checks is a log that rots, and the first thing to rot is the
+    part that matters: a defect recorded as `open` with nowhere to go. So an
+    open row has to name a backlog id that exists, and an id has to mean one
+    thing. Returns (defects, decisions) for the summary.
+
+    The prose is not checked, and could not be. This checks the two properties
+    that make the file usable by somebody who was not here.
+    """
+    defects: dict[str, str] = {}
+    if not DEFECTS.exists():
+        report.fail("DEFECT_LOG.md is missing. Every defect found gets a row.")
+    else:
+        for line in DEFECTS.read_text(encoding="utf-8").splitlines():
+            row = DEFECT.match(line)
+            if row is None:
+                continue
+            identifier = row.group("id")
+            if identifier in defects:
+                report.fail(
+                    f"{identifier} is in DEFECT_LOG.md twice. An id that points "
+                    "at two things points at neither."
+                )
+                continue
+            defects[identifier] = row.group("status").strip()
+
+            if not row.group("what").strip():
+                report.fail(f"{identifier} says nothing about what went wrong.")
+            if not row.group("found").strip():
+                report.fail(f"{identifier} does not say when it was found.")
+
+            status = defects[identifier]
+            if status.lower().startswith("open"):
+                named = [
+                    part for part in re.findall(r"[EFST]-[\d.]+[a-z]?", status)
+                    if part in defined
+                ]
+                if not named:
+                    report.fail(
+                        f"{identifier} is open but names no backlog item that "
+                        "exists. An unfixed defect with nowhere to go is a "
+                        "defect nobody will fix."
+                    )
+
+    decisions: dict[str, str] = {}
+    if not DECISIONS.exists():
+        report.fail("DECISIONS.md is missing. A design call that was not the "
+                    "obvious one gets an entry.")
+    else:
+        for line in DECISIONS.read_text(encoding="utf-8").splitlines():
+            row = DECISION.match(line)
+            if row is None:
+                continue
+            identifier = row.group("id")
+            if identifier in decisions:
+                report.fail(f"{identifier} is in DECISIONS.md twice.")
+                continue
+            decisions[identifier] = row.group("call").strip()
+            if not row.group("cost").strip():
+                report.fail(
+                    f"{identifier} names no cost. A decision with no cost was "
+                    "not a decision."
+                )
+    return len(defects), len(decisions)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -491,11 +572,13 @@ def main() -> int:
     check_blocked(items, report)
     check_ready(items, report)
     check_deferred(items, report)
+    logged = check_defects(defined, report)
     tests = check_evidence(items, report, run_tests=not arguments.skip_tests)
     if arguments.skip_tests:
         report.note("Evidence commands were not run (--skip-tests).")
 
     print(summarise(items, defined, coverage, criteria, tests, report))
+    print(f"  {logged[0]} defect(s) logged, {logged[1]} design decision(s) recorded.")
 
     if report.failures:
         print("")

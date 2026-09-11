@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Added `DEFECT_LOG.md` and `DECISIONS.md`** (`S-06.02.13`), asked for by the
+  owner. One table of every bug, security hole and broken connection found, in
+  plain English, with the date it was found — and one of design calls where the
+  obvious thing was *not* done, with what that cost. The reasons things broke
+  were spread across commit messages, `RETRO.md` and `CHANGELOG.md`: fine for
+  reading one story, useless for *has this happened before?*
+- **Writing the 34 existing defects into one table made five patterns visible
+  that no individual retro had shown.** The sharpest: the same defect has now
+  been fixed three times under three names (`D-14`, `D-24`, `D-32`) — two lists
+  that have to match each other drifting apart, silently. Also: the bug is
+  usually in code that was already `DONE` and passing, and for anything that
+  *detects* something, the false positives are where the real defects live.
+- Both logs are enforced rather than encouraged. `scripts/verify_board.py` fails
+  when a defect marked `open` names no backlog item that exists, when an id is
+  used twice, when a row does not say what went wrong or when it was found, and
+  when a decision names no cost. Nine tests, each proving its rule can go red —
+  a checker that never fires is worse than none, because it launders a false
+  claim into a green tick.
+- `RETRO.md` keeps its job: three lines of process lesson per increment. It is
+  not replaced, and the defect log is not a place for lessons.
+
 - **A CAPTCHA, sign-in form or 2FA prompt now pauses the run and asks**
   (`S-11.03.01`). `agent/wall.py` reads the accessibility tree for something only
   a person can get past; the run ends `needs_human`, names what it found, and

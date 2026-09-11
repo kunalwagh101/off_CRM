@@ -38,6 +38,11 @@ Every box, every time. This is a claim about the repository, not about intent.
       paths are covered** — including the failing cases, not only the happy one.
 - [ ] **Docs and CHANGELOG updated.** If state changed, the migration and its
       rollback are written down and the rollback has been executed once.
+- [ ] **Every defect found is in `DEFECT_LOG.md`** — including ones found in
+      *old* code while building this, and ones filed rather than fixed. A
+      defect found and not written down is one the next person finds again.
+- [ ] **Every design call that was not the obvious one is in `DECISIONS.md`**,
+      with what it cost. A decision with no cost was not a decision.
 - [ ] **Board updated and `scripts/verify_board.py` passes.**
 
 **A story that has code but no run test is `IN_REVIEW`, not `DONE`.** There is

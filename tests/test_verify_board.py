@@ -59,8 +59,24 @@ GOOD_BOARD = """# Board
 """
 
 
+GOOD_DEFECTS = """# Defect log
+
+| ID | Found | Kind | Severity | What went wrong, in one line | Status |
+|---|---|---|---|---|---|
+| D-01 | 2026-01-02 | bug | high | The thing counted the file instead of reading it | fixed · `S-01.01.01` |
+"""
+
+GOOD_DECISIONS = """# Design decisions
+
+| ID | Date | The call | Cost |
+|---|---|---|---|
+| DD-01 | 2026-01-02 | No second copy of the record | Resuming reads the whole log |
+"""
+
+
 def build(tmp_path: Path, *, board: str = GOOD_BOARD, backlog: str = GOOD_BACKLOG,
-          questions: str = "# Open questions\n", code: str = "def works():\n    return 1\n") -> Path:
+          questions: str = "# Open questions\n", code: str = "def works():\n    return 1\n",
+          defects: str = GOOD_DEFECTS, decisions: str = GOOD_DECISIONS) -> Path:
     """A tiny repository with the same shape the real one has."""
     (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
     (tmp_path / "src").mkdir(parents=True, exist_ok=True)
@@ -68,6 +84,8 @@ def build(tmp_path: Path, *, board: str = GOOD_BOARD, backlog: str = GOOD_BACKLO
     (tmp_path / "BOARD.md").write_text(board, encoding="utf-8")
     (tmp_path / "PRODUCT_BACKLOG.md").write_text(backlog, encoding="utf-8")
     (tmp_path / "OPEN_QUESTIONS.md").write_text(questions, encoding="utf-8")
+    (tmp_path / "DEFECT_LOG.md").write_text(defects, encoding="utf-8")
+    (tmp_path / "DECISIONS.md").write_text(decisions, encoding="utf-8")
     (tmp_path / "src" / "mod.py").write_text(code, encoding="utf-8")
     return tmp_path
 
@@ -351,3 +369,88 @@ def test_a_missing_board_fails_rather_than_passing_vacuously(tmp_path):
     result = run(repo)
     assert result.returncode == 1
     assert "BOARD.md does not exist" in result.stdout
+
+
+# ── rule 8: the defect log and the decision log ─────────────────────────────
+
+
+def test_an_open_defect_that_names_no_backlog_item_fails(tmp_path):
+    """The one that matters. A defect recorded as open with nowhere to go is a
+    defect nobody will ever fix, and the log quietly becomes a graveyard."""
+    defects = GOOD_DEFECTS + "| D-02 | 2026-01-03 | bug | low | Enter is not gated | open |\n"
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 1
+    assert "names no backlog item that exists" in result.stdout
+
+
+def test_an_open_defect_naming_a_real_backlog_item_passes(tmp_path):
+    defects = GOOD_DEFECTS + (
+        "| D-02 | 2026-01-03 | bug | low | Enter is not gated | open · `S-01.01.01` |\n"
+    )
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 0, result.stdout
+
+
+def test_an_open_defect_naming_an_id_that_does_not_exist_fails(tmp_path):
+    """Naming something is not the same as naming something real."""
+    defects = GOOD_DEFECTS + (
+        "| D-02 | 2026-01-03 | bug | low | Enter is not gated | open · `S-99.99.99` |\n"
+    )
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 1
+    assert "names no backlog item that exists" in result.stdout
+
+
+def test_the_same_defect_id_twice_fails(tmp_path):
+    defects = GOOD_DEFECTS + "| D-01 | 2026-01-03 | bug | low | Something else | fixed |\n"
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 1
+    assert "twice" in result.stdout
+
+
+def test_a_defect_that_does_not_say_what_went_wrong_fails(tmp_path):
+    defects = GOOD_DEFECTS + "| D-02 | 2026-01-03 | bug | low |  | fixed |\n"
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 1
+    assert "says nothing about what went wrong" in result.stdout
+
+
+def test_a_defect_with_no_date_found_fails(tmp_path):
+    """The date is the column the log exists for — it is what makes a pattern
+    visible across stories."""
+    defects = GOOD_DEFECTS + "| D-02 |  | bug | low | Something broke | fixed |\n"
+    result = run(build(tmp_path, defects=defects))
+    assert result.returncode == 1
+    assert "does not say when it was found" in result.stdout
+
+
+def test_a_missing_defect_log_fails_rather_than_passing_vacuously(tmp_path):
+    repo = build(tmp_path)
+    (repo / "DEFECT_LOG.md").unlink()
+    result = run(repo)
+    assert result.returncode == 1
+    assert "DEFECT_LOG.md is missing" in result.stdout
+
+
+def test_a_decision_with_no_cost_fails(tmp_path):
+    """A decision with no cost was not a decision — it was the obvious thing."""
+    decisions = GOOD_DECISIONS + "| DD-02 | 2026-01-03 | We chose the good option |  |\n"
+    result = run(build(tmp_path, decisions=decisions))
+    assert result.returncode == 1
+    assert "names no cost" in result.stdout
+
+
+def test_a_missing_decision_log_fails_rather_than_passing_vacuously(tmp_path):
+    repo = build(tmp_path)
+    (repo / "DECISIONS.md").unlink()
+    result = run(repo)
+    assert result.returncode == 1
+    assert "DECISIONS.md is missing" in result.stdout
+
+
+def test_the_counts_are_parsed_and_not_read_from_prose(tmp_path):
+    defects = GOOD_DEFECTS.replace(
+        "# Defect log", "# Defect log\n\nThere are 400 defects and 90 decisions.")
+    result = run(build(tmp_path, defects=defects))
+    assert "1 defect(s) logged, 1 design decision(s) recorded." in result.stdout
+

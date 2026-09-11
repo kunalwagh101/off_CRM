@@ -97,6 +97,13 @@ _nothing in flight_
 
 ## DONE
 
+- S-06.02.13 · A defect log and a decision log the next session can read
+  tests: tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_an_open_defect_naming_a_real_backlog_item_passes, tests/test_verify_board.py::test_the_same_defect_id_twice_fails, tests/test_verify_board.py::test_a_defect_that_does_not_say_what_went_wrong_fails, tests/test_verify_board.py::test_a_defect_with_no_date_found_fails, tests/test_verify_board.py::test_a_decision_with_no_cost_fails, tests/test_verify_board.py::test_a_missing_defect_log_fails_rather_than_passing_vacuously, tests/test_verify_board.py::test_a_missing_decision_log_fails_rather_than_passing_vacuously
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 39 passed (2026-09-11)
+  live: python scripts/verify_board.py --skip-tests — reports "34 defect(s) logged, 12 design decision(s) recorded" against the real repository, counted by parsing rather than read from prose. Each of the three new rules was then broken on purpose against the real files and the verifier named it: an open defect with its backlog id removed (D-25), a duplicated id (D-33), and a decision with its cost column emptied (DD-04). Restored, and green.
+  code: DEFECT_LOG.md, DECISIONS.md, scripts/verify_board.py, DEFINITION_OF_DONE.md, AGENTS.md
+
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
   tests: tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_the_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge
   command: python -m pytest tests/test_agent_wall.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_injection.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_structured_result.py tests/test_agent_no_duplicate_effects.py tests/test_agent_provenance.py tests/test_browser_agent.py tests/test_browser_signin.py -q

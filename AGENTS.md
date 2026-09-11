@@ -28,6 +28,18 @@ why, and the open questions for the owner.
 
 Design documents live in `docs/architecture/`.
 
+**Two logs are kept, and both are enforced by `scripts/verify_board.py`:**
+
+- **`DEFECT_LOG.md`** — every bug, security hole and broken connection found,
+  in plain English, with the date. Read it before starting: it says what this
+  codebase keeps getting wrong, which is usually where the next one is. Add a
+  row for anything you find, including in old code, including things you file
+  rather than fix.
+- **`DECISIONS.md`** — design calls where the obvious thing was *not* done, and
+  what that cost. Check it before deciding something; the answer may already be
+  there. `OPEN_QUESTIONS.md` is the owner's decisions, which is a different
+  file for a different reason.
+
 ---
 
 ## What this is

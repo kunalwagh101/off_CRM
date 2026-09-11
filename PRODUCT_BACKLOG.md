@@ -610,6 +610,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-95 | Enter goes through the same consequential gate as a click | S-11.03.03 |
 | R-96 | The verifier checks READY, not only DONE | S-06.02.11 |
 | R-97 | Every commit the board names is on the branch | S-06.02.12 |
+| R-98 | Every defect and design call is written down in one place | S-06.02.13 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1091,6 +1092,31 @@ manual step nobody does was never done.
   dependency regex of `[^.]*` stopped at the first period, and **story ids
   contain periods**, so `S-03.02.04` parsed as `S-03` and every dependency
   looked unmet. A checker that reads ids has to be tested against a real one.
+
+#### S-06.02.13 — A defect log and a decision log the next session can read
+**As an** owner, **I want** every bug, security hole and design call written
+down in one place in plain English, **so that** the next session can see what
+this codebase keeps getting wrong without reading a year of commit messages.
+- **Given** `DEFECT_LOG.md`, **when** it is read, **then** every defect found
+  carries an id, the date it was found, its kind, one plain-English line saying
+  what went wrong, and whether it is fixed or filed.
+- **Given** a defect recorded as `open`, **when** the verifier runs, **then** it
+  fails unless that row names a backlog id that exists — an unfixed defect with
+  nowhere to go is a defect nobody will fix.
+- **Given** two rows sharing an id, **when** the verifier runs, **then** it
+  fails. An id that points at two things points at neither.
+- **Given** `DECISIONS.md`, **when** it is read, **then** every entry says what
+  was given up, because a decision with no cost was not a decision.
+- **Dependencies:** none. **Size:** S. **Indicator:** defects found twice —
+  target zero.
+- **Why:** asked for by the owner on 2026-09-11. The reasons things broke were
+  spread across commit messages, `RETRO.md` and `CHANGELOG.md` — fine for
+  reading one story, useless for *has this happened before?* Writing the
+  existing 34 defects into one table made five repeating patterns visible that
+  no individual retro had shown, including one that had already been fixed
+  twice under different names (`D-14`, `D-24`, `D-32`: two lists that must match
+  drifting apart). `RETRO.md` keeps its job — three lines of process lesson per
+  increment — and is not replaced by this.
 
 #### S-06.02.12 — A recorded commit must be on the branch
 **As an** owner, **I want** `scripts/verify_board.py` to check that every

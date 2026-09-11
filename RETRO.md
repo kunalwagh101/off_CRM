@@ -515,3 +515,35 @@ when a detector can *stop* something rather than only record it, that asymmetry
 is a design input, not a footnote — it decides how much corroboration each rule
 has to carry.
 
+---
+
+## 2026-09-11 — S-06.02.13, the log that found a defect by existing
+
+**What was cut.** Nothing. One thing was deliberately *not* done: `RETRO.md` was
+not merged into the new log or replaced by it. They answer different questions —
+a retro says *what should I do differently*, a defect log says *what broke and
+how was it found* — and a file that tries to be both is read as neither.
+
+**What the estimate got wrong.** I sized this as writing a file. The writing was
+the small half. Putting 34 scattered defects into one table with a `Found`
+column made something visible that eighteen separate retros had not: **the same
+defect has been fixed three times under three different names.** `D-14` (`press`
+acted but was never paced), `D-24` (the signature was written on the failing
+path and not the succeeding one) and `D-32` (a read served from memory recorded
+nothing at all) are one bug wearing three coats — two lists that must match each
+other, drifting apart where nobody looks. Each was found by accident, months
+apart, while doing something else.
+
+The other surprise was that adding the check broke five existing verifier tests
+immediately, because their fixture repository had no logs in it. That is the
+check working on its first run, against the only repository that was not
+expecting it.
+
+**What to change next time.** **A record that is only readable one story at a
+time is not a record.** Everything in that table already existed in the
+repository — in commit messages, in retro prose, in changelog entries — and none
+of it was answerable. The column that did the work was `Found`, not `Fixed`: the
+pattern lives in when things were noticed, not in how they were repaired. When
+something is written down in three places and queryable from none, the next
+thing to build is the table, not the fourth place.
+

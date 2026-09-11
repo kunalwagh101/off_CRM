@@ -73,6 +73,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-39 | 2026-09-11 | process | low | A story sat unfinished for 15 days because nobody re-checked whether its blocker still existed | fixed · `S-08.01.05` |
 | D-40 | 2026-09-11 | bug | high | The agent's Enter key never did anything — the event was raised and no default action followed | fixed · `S-11.03.03` |
 | D-41 | 2026-09-11 | bug | low | The first Enter gate would have interrupted ordinary typing in a textarea | fixed before shipping · `S-11.03.03` |
+| D-42 | 2026-09-11 | security | high | Two runs on one host each kept their own pace clock, so N runs divided the floor by N | fixed · `S-11.05.01` |
+| D-43 | 2026-09-11 | data-loss | high | The budget ledger lost two thirds of its writes under concurrency — the lock was per object, the file was shared | fixed · `S-11.05.01` |
 
 ---
 
@@ -94,15 +96,19 @@ correctly escaped output legitimately contains. Ask of every test: *what would
 make this pass if the feature were gone?* And if a test involves timing, look at
 how long it took, not only whether it passed.
 
-**3. Two lists that must match will drift apart, silently.**
+**3. Two lists that must match will drift apart, silently — and so does state
+that must be shared.**
 D-14: the verbs that act and the verbs that are paced were different lists, and
 `press` fell in the gap. D-24: signatures were written on one code path and not
 the other. D-32: the same again, on a shortcut path. D-38 is the same shape in
 arithmetic rather than in a list — the price of a call was computed in three
 separate places, and one of them returned zero, which is what `D-35` actually
-was underneath. When a rule applies to a set, test that the **set is complete**,
-not that the rule works; and when a calculation appears twice, one of the two is
-already wrong.
+was underneath. D-42 and D-43 are the same thing again in *state*: a pace clock
+and a lock that had to be shared across runs, held per run. When a rule applies
+to a set, test that the **set is complete**, not that the rule works; when a
+calculation appears twice, one of the two is already wrong; and when something
+must be shared, share it by construction rather than by asking every caller to
+remember.
 
 **4. A limit two files away will not be seen from the line that matters.**
 D-27: a value may be 20,000 characters and the field holding it caps at 4,000,
@@ -118,6 +124,59 @@ tests first.
 ---
 
 ## Detail
+
+### D-42 — N runs divided the pace floor by N · 2026-09-11
+
+**What went wrong.** `policy.py` sets a minimum gap between actions on a host,
+and calls it the single most important number there: what gets an account
+restricted is rhythm, not volume. The gap was kept in a dictionary on each tab.
+Two tabs meant two clocks, so two runs on one host went twice as fast as the
+floor allowed, and N runs went N times as fast.
+
+**How it was found.** By measuring before building, rather than reading the
+code and believing it. Two runs, a 1.0s floor, three actions each:
+
+    elapsed        2.00s
+    honest minimum 5.00s   (six actions on one host, one every second)
+
+**Why it mattered.** The agent was not going faster because anyone asked it to.
+It was going faster because nobody was counting the two runs together — and the
+faster it goes, the more it looks like the thing the floor exists to stop it
+looking like.
+
+**The fix.** `browser/pace.py`. One `Pace` is shared by every tab in a browser
+session, and it records a *deadline* per host rather than a last-seen time — so
+a run claims its slot before sleeping. Two runs arriving together are spaced,
+rather than both reading "the last action was ages ago" and both going.
+
+### D-43 — The budget ledger lost two thirds of its writes · 2026-09-11
+
+**What went wrong.** `BudgetLedger` reads a JSON file, changes it and writes it
+back, under a `threading.RLock`. The lock was created per instance. Concurrent
+runs each build their own ledger over the same file, so the lock protected each
+object from itself and nothing else, and the writes overwrote each other.
+
+**How it was found.** Measured concurrently, which mattered: a sequential probe
+of the same thing counted 12 of 12 and looked fine.
+
+    4 concurrent runs, 25 actions each
+    actions taken   100
+    ledger counted   33     — 67% of the account's budget spent off the books
+
+**Why it mattered.** The budget is the ceiling that stops an account being used
+at a rate that gets it closed. Counting a third of the actions makes the real
+ceiling three times whatever the owner set.
+
+**The fix.** One lock per ledger *file*, keyed by resolved path and shared by
+every instance over it. Keyed rather than handed in, because correctness that
+depends on every caller remembering to share an object lapses the first time
+somebody builds one locally — which is exactly how this happened.
+
+**Known limit, measured and pinned:** the ceiling can still be overshot by one
+action per concurrent run, because `S-03.02.04` deliberately checks before an
+action and records after it so a failed action costs nothing. Measured at 1, 2,
+3, 5 and 8 runs: the overshoot was N-1 every time, and a test holds it there.
+
 
 ### D-40 — The agent's Enter key never did anything · 2026-09-11
 

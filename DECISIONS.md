@@ -45,6 +45,8 @@ wastes a session when nobody can answer it.
 | DD-15 | 2026-09-11 | The ceiling predicts from the worst decision so far, not the average | Runs stop a little earlier than they strictly need to |
 | DD-16 | 2026-09-11 | A resumed run re-applies the ceiling it was started with | Raising it needs an explicit argument, which is easy to forget |
 | DD-17 | 2026-09-11 | An unattended run may not use a countdown at all | The attended and unattended paths through the gate are different code |
+| DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
+| DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 
 ---
 
@@ -264,4 +266,50 @@ right trade: the alternative is one behaviour that is wrong half the time.
 **What would make this wrong.** Nothing about the mechanism. Only a decision
 that unattended runs may act consequentially without a person, which is a much
 bigger question than this and belongs in `OPEN_QUESTIONS.md`.
+
+### DD-18 — Shared state is shared by construction · 2026-09-11
+
+**The obvious thing.** `BudgetLedger` already takes a data directory. Tell
+callers to build one and pass it around, the way they already pass the ledger
+into each `Page`.
+
+**What was done instead.** The lock is keyed by the resolved file path on the
+class, so any number of `BudgetLedger` objects over one file share it
+automatically.
+
+**Why.** That instruction was already in the design and it was already being
+ignored: concurrent runs each built their own ledger, the per-instance lock
+protected nothing, and two thirds of the writes were lost (`D-43`). Correctness
+that depends on every caller remembering a convention lapses the first time
+somebody constructs one locally — and the failure is silent, which is the worst
+combination.
+
+**Cost.** A class-level registry is global state wearing a smaller hat. It never
+shrinks, and two ledgers over paths that resolve the same are treated as one,
+which is right here and would not be right everywhere.
+
+**Why `Pace` is not keyed the same way.** Its natural boundary is a browser
+session rather than a file — one browser is one set of logins acting as one
+person — and there is no path to key on. So `BrowserSession` holds one and the
+obvious construction picks it up. That is weaker than the ledger's guarantee,
+and it is the reason `Page.pace`'s docstring says to pass `session.pace` rather
+than mentioning it in passing.
+
+### DD-19 — The floor records a deadline, not a last action · 2026-09-11
+
+**The obvious thing.** Remember when each host was last acted on, and make a
+caller wait until `floor` seconds after that. It is what the code did.
+
+**What was done instead.** Remember when each host may *next* be acted on, and
+have a caller claim that slot — moving the deadline forward — before it sleeps.
+
+**Why.** The obvious version has a race that only appears with more than one
+run, which is the entire point of this story. Two runs arrive together, both
+read "the last action was ages ago", both conclude they need not wait, and both
+act in the same millisecond. Claiming first means the second run is told to wait
+by the first run's reservation rather than by its own observation.
+
+**Cost.** A run reserves a slot before it knows whether it will use it, so an
+action that raises after pacing leaves a gap nobody fills. The floor is a
+minimum, so waiting slightly longer than necessary is the harmless direction.
 

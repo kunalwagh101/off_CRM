@@ -694,3 +694,40 @@ target exists, not when the document has parsed. `focus()` against a page with
 no elements in it silently does nothing, and that reads *exactly* like a broken
 gate. A live check needs to wait for the page before it tests anything on it.
 
+---
+
+## 2026-09-11 — S-11.05.01, and the reason it was scheduled last
+
+**What was cut.** Nothing. The manual said in August to build this last and the
+reason turned out to be better than "it is hard": every other E-11 story put
+state somewhere, and this is the one that asks whether that state was in the
+right place. Doing it first would have been guessing about code that did not
+exist yet.
+
+**What the estimate got wrong.** I expected to build a coordinator. There was
+nothing to build — both failures were one-line placements. A pace clock on the
+tab that should have been on the browser; a lock on the object that should have
+been on the file. The work was in *finding* them, and the finding took one probe
+because I measured before reading.
+
+Which is the thing worth keeping. **A sequential probe passed both of these
+while both were broken.** Twelve of twelve actions counted; the pace floor
+looked fine. Run the same two probes concurrently and it is 33 of 100 and a
+floor halved. A concurrency story tested sequentially is a story tested in the
+one condition it does not care about.
+
+**What to change next time.** **Measure the acceptance criteria before writing
+any code, and measure them under the condition the story names.** Three criteria
+went in, one came back holding — and knowing which one saved building anything
+for it. That is now the first thing I do on a story that claims to fix
+something: prove it is broken, in the shape it is broken in.
+
+A second note, on knowing when to stop. The check-then-record gap lets the
+account ceiling be overshot by one action per concurrent run. Closing it needs a
+reserve-and-release protocol threaded through every action's error path, and it
+would reverse a decision `S-03.02.04` made with its own reasoning — that a
+failed action must not cost budget. So it is measured (N-1, at 1, 2, 3, 5 and 8
+runs), pinned by a test, and written down as a known limit. **A bound you have
+measured is not the same as a bug you have ignored**, and the difference is
+whether the number is in a test.
+

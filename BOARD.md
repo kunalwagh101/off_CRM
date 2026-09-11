@@ -72,7 +72,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-11.05.01 · Concurrent runs share one browser safely
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -88,6 +88,13 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.05.01 · Concurrent runs share one browser safely
+  tests: tests/test_browser_concurrency.py::test_two_runs_on_one_host_share_the_floor, tests/test_browser_concurrency.py::test_the_floor_holds_as_the_number_of_runs_grows, tests/test_browser_concurrency.py::test_runs_arriving_together_are_spaced_rather_than_all_waved_through, tests/test_browser_concurrency.py::test_concurrent_runs_draw_on_one_budget_not_one_each, tests/test_browser_concurrency.py::test_separate_ledger_objects_over_one_file_share_a_lock, tests/test_browser_concurrency.py::test_the_ceiling_can_be_overshot_by_the_runs_in_flight_and_no_more, tests/test_browser_concurrency.py::test_neither_run_can_resolve_a_handle_from_the_others_page, tests/test_browser_concurrency.py::test_different_hosts_do_not_wait_for_each_other, tests/test_browser_concurrency.py::test_a_session_hands_out_one_pace_so_there_is_a_right_answer
+  command: python -m pytest tests/test_browser_concurrency.py tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_countdown.py tests/test_browser_enter_gate.py tests/test_agent_run.py tests/test_browser_signin.py tests/test_browser_revoke.py -q
+  result: 161 passed (2026-09-11)
+  live: python scripts/live/two_runs_one_browser.py — one real headless Chromium, two tabs acting at the same time, all four steps checked and exit 0 only if every one holds. Separate tabs, separate traces, separate snapshots; a handle from the other run's page refused with LookupError; eight actions across both runs took 2.80s against a floor that a per-run clock would have satisfied in ~1.4s; all ten charges reached one ledger. Measured concurrently on purpose — a sequential probe of the same two things passed while both were broken.
+  code: offsetx_apollo_builder/browser/pace.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/session.py
 
 - S-11.03.03 · Enter is gated like the button beside it
   tests: tests/test_browser_enter_gate.py::test_enter_in_a_field_whose_form_submits_with_send_needs_confirmation, tests/test_browser_enter_gate.py::test_enter_and_click_agree_about_what_needs_a_human, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_asks_nothing, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_does_not_even_ask_the_page, tests/test_browser_enter_gate.py::test_if_the_page_cannot_be_asked_it_fails_closed, tests/test_browser_enter_gate.py::test_enter_in_a_search_box_is_ordinary, tests/test_browser_enter_gate.py::test_enter_is_sent_with_the_character_it_produces, tests/test_browser_enter_gate.py::test_a_key_that_produces_no_character_sends_none, tests/test_browser_enter_gate.py::test_an_unattended_run_cannot_countdown_its_way_past_enter_either

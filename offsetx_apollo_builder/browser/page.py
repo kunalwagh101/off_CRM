@@ -44,6 +44,7 @@ from typing import Any
 from .budget import COSTED_ACTIONS, Budget, BudgetLedger
 from .cdp import CDPConnection, CDPTimeout
 from .countdown import Countdown
+from .pace import Pace
 from .guard import RequestGuard
 from .perceive import Snapshot, capture
 from .policy import DomainRule, Refused, check_action, check_navigation, rule_for
@@ -174,7 +175,15 @@ class Page:
     #: reachable at all — see `policy.py`.
     unattended: bool = False
     #: When each host was last acted on, so the per-host floor can be met.
-    _last_action_at: dict[str, float] = field(default_factory=dict)
+    #: The rhythm this tab keeps, shared with every other tab that keeps the
+    #: same one — see `pace.py`.  `S-11.05.01`
+    #:
+    #: **Pass `session.pace`.** A tab given none keeps a private clock, which is
+    #: right for one run and wrong the moment there are two: the per-host floor
+    #: is then divided by the number of runs, and the thing that gets an account
+    #: restricted is rhythm. `BrowserSession` holds one for exactly this, so
+    #: there is an obvious right answer rather than a convention to remember.
+    pace: "Pace" = field(default_factory=Pace)
     _snapshot: Snapshot | None = None
     url: str = ""
 
@@ -238,13 +247,9 @@ class Page:
         """
         if action:
             self._spend(action)
-        floor = float(rule.min_seconds_between_actions or 0.0)
-        if floor > 0:
-            last = self._last_action_at.get(host, 0.0)
-            wait = floor - (time.monotonic() - last)
-            if wait > 0:
-                await asyncio.sleep(wait)
-        self._last_action_at[host] = time.monotonic()
+        # Counted across every tab sharing this `Pace`, not per tab. A floor
+        # each run keeps privately is a floor divided by the number of runs.
+        await self.pace.wait_for(host, rule.min_seconds_between_actions or 0.0)
 
     def _charge(self, action: str) -> None:
         """Record an action that actually happened.

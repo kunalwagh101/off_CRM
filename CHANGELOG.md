@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **Concurrent runs share one browser safely** (`S-11.05.01`), the last story
+  in E-11. Measured before building rather than read: of its three criteria one
+  held and two did not, and both failures were one mistake wearing two hats —
+  state that has to be shared across runs, held per run.
+- **Fixed: N runs divided the per-host pace floor by N** (`D-42`). The gap
+  between actions lived in a dictionary on each tab, so two runs on one host
+  went twice as fast as the floor allowed. Measured at 2.00s where 5.00s was
+  honest. `browser/pace.py` now holds one rhythm per browser session, and
+  records a *deadline* per host rather than a last-seen time — so a run claims
+  its slot before sleeping, and two runs arriving together are spaced instead of
+  both being waved through.
+- **Fixed: the budget ledger lost two thirds of its writes under concurrency**
+  (`D-43`). The lock was per instance and the file was shared, so four runs
+  taking 25 actions each left 33 of 100 in the ledger — making the real ceiling
+  three times whatever the owner set. The lock is now keyed by the ledger file,
+  so any number of instances over it serialise without anyone having to
+  remember to share one.
+- A sequential probe of both of those passed while both were broken. The tests
+  are concurrent for that reason.
+- **Known limit, measured and pinned:** the account ceiling can still be
+  overshot by one action per concurrent run, because `S-03.02.04` deliberately
+  checks before an action and records after it so a failed action costs nothing.
+  That decision is not reversed here. Measured at 1, 2, 3, 5 and 8 runs, the
+  overshoot was N-1 every time, and a test holds it there.
+
 - **Enter goes through the same gate as the button beside it** (`S-11.03.03`,
   closing `D-25`). `check_action` was called exactly once in `browser/page.py`,
   inside `click`; `press` called it zero times. The fix is not a second copy of

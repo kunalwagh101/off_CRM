@@ -97,6 +97,7 @@ _nothing waiting_
   result: 95 passed (2026-09-11)
   live: python scripts/live/cancel_the_countdown.py — real headless Chromium on a real page, all four steps checked and exit 0 only if every one holds. A harmless link ignored the five-second countdown it was offered (1.78s, all of it the page-settle every click pays). A Send button with the countdown cancelled after 0.4s was refused, the owner saw it counting, and **the page itself reported `nothing sent`** — the proof is asked of the page, not of the return value, because an action that reports failure and still sends the click is exactly the defect this feature would have. The same button left alone waited, clicked, and the page reported `SENT`. An unattended page was refused a countdown outright and sent back to the owner.
   code: offsetx_apollo_builder/browser/countdown.py, offsetx_apollo_builder/browser/page.py
+  commit: e822fcc
 
 - S-08.01.05 · Operators control delivery without hidden live sends
   tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx

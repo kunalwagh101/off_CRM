@@ -54,6 +54,7 @@ remaining independent stories below stay READY.)*
 - S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
 - S-06.02.11 · The verifier catches a stale READY column
+- S-06.02.12 · A recorded commit must be on the branch
 
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
@@ -103,7 +104,7 @@ _nothing in flight_
   result: 132 passed (2026-09-11)
   live: python scripts/live/watch_a_run.py — real headless Chromium, real page served over HTTP, real trace on disk, a watcher attached through `on_progress`. Exits 0 only if the run completes AND its nine steps arrived spread over more than half a second rather than in a batch at the end; observed spread 1.6s, each line carrying its verb from the recorded signature (`action read`, `action click`), the live page URL, and the running cost climbing $0.0000 -> $0.0071. The refused step printed marked `!` the moment it happened, which is the case this story exists for. That refusal is the loopback rule in `policy.py` doing its job and was left alone — this container's egress proxy will not serve Chromium, so no public page was reachable to click instead.
   code: offsetx_apollo_builder/agent/watch.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py
-  commit: ae6adcf
+  commit: 7a502b0
 
 - S-11.04.01 · A run report a person can audit
   tests: tests/test_agent_report.py::test_every_returned_fact_appears_with_its_evidence, tests/test_agent_report.py::test_a_run_that_got_stuck_says_so_at_the_top, tests/test_agent_report.py::test_a_hostile_quote_comes_back_inert, tests/test_agent_report.py::test_a_screenshot_filename_that_tries_to_leave_the_directory_is_dropped, tests/test_agent_report.py::test_a_finished_run_writes_its_own_report
@@ -299,7 +300,7 @@ _nothing in flight_
   command: python -m pytest tests/test_browser_box.py -q
   result: 30 passed (2026-08-25)
   code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py
-  commit: 0be650d
+  commit: 91c7cb2
 
 - S-03.02.04 · Several accounts per platform, each with its own budget
   tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
@@ -334,7 +335,7 @@ _nothing in flight_
   command: python -m pytest tests/test_ai_sandbox.py tests/test_browser_box.py -q
   result: 72 passed, 1 skipped (2026-08-25)
   code: offsetx_apollo_builder/ai/sandbox.py
-  commit: 0be650d
+  commit: 91c7cb2
 
 - S-06.02.07 · An answered question stops blocking
   tests: tests/test_verify_board.py::test_an_answered_question_stops_blocking_ready

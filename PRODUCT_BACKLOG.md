@@ -609,6 +609,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
 | R-95 | Enter goes through the same consequential gate as a click | S-11.03.03 |
 | R-96 | The verifier checks READY, not only DONE | S-06.02.11 |
+| R-97 | Every commit the board names is on the branch | S-06.02.12 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1070,6 +1071,28 @@ manual step nobody does was never done.
   dependency regex of `[^.]*` stopped at the first period, and **story ids
   contain periods**, so `S-03.02.04` parsed as `S-03` and every dependency
   looked unmet. A checker that reads ids has to be tested against a real one.
+
+#### S-06.02.12 — A recorded commit must be on the branch
+**As an** owner, **I want** `scripts/verify_board.py` to check that every
+`commit:` on the board is an ancestor of `HEAD`, **so that** the board's link
+from a claim to the code that satisfies it cannot quietly rot.
+- **Given** a DONE entry whose `commit:` is reachable from `HEAD`, **when** the
+  verifier runs, **then** it passes.
+- **Given** a DONE entry whose `commit:` names an object that exists but is not
+  on the branch — the usual cause is `git commit --amend` after the sha was
+  written down — **when** the verifier runs, **then** it fails and names the
+  entry.
+- **Given** a DONE entry whose `commit:` names no object at all, **when** the
+  verifier runs, **then** it fails.
+- **Dependencies:** none. **Size:** S. **Indicator:** board shas not on the
+  branch — target zero.
+- **Why:** found on 2026-09-11 while recording the sha for `S-11.04.02`. Writing
+  the sha onto the board and then amending the commit to include that edit
+  changes the sha, so the line points at the commit that *was* replaced. Two
+  older entries, `S-03.01.01` and `S-03.01.02`, had been carrying an orphaned
+  `0be650d` since 2026-08-29 for exactly this reason, and nothing noticed —
+  `git cat-file -e` still finds a dangling object, so a naive existence check
+  passes. The test is ancestry, not existence.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

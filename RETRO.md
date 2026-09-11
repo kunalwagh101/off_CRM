@@ -656,3 +656,41 @@ click, by reading an element the page updates on click, rather than trusting the
 return value. A cancelled action that reports failure and still sends the click
 is precisely the defect this feature would have, and only the page can say.
 
+---
+
+## 2026-09-11 — S-11.03.03, and a gate over a key that did nothing
+
+**What was cut.** Nothing, and something was deliberately *added*: the fix for
+`D-40`. That was a judgement call against change control, so here is the
+reasoning. The story is "Enter is gated **like the button beside it**". A button
+click works; an Enter press did not do anything at all. Shipping a gate over an
+inert key would have been shipping theatre — and worse, shipping a security
+control whose necessity I had just disproved, on top of a broken verb. The two
+belong in one commit because the gate is only meaningful once the key works.
+
+**What the estimate got wrong.** I sized this as wiring one existing check into
+one more place, and that part took twenty minutes. Then the live check failed
+in a way that made no sense: the gate refused Enter correctly, and when Enter
+was *allowed through*, the form still did not submit.
+
+`press` had been dispatching `keyDown`/`keyUp` with no `text` field. Chrome
+raises the event — a listener sees it, `isTrusted` is true — and then performs
+no default action. So Enter had never submitted a form, Tab had never been
+typed, and nothing had noticed, because every test of `press` had asked what the
+*call returned* rather than what the *page did*.
+
+Which means `D-25` was a hole nobody could fall through yet. It would have
+opened silently the day somebody fixed `press`.
+
+**What to change next time.** **For anything that acts on the world, assert on
+the world.** Every `press` test in this repository checked the return value, and
+the return value was `ok=True` the whole time it was doing nothing. The live
+checks in this session that have been worth most — the countdown, the wall, this
+— all ask the page what happened instead of asking the code what it thinks
+happened. That is now the habit for any verb with an effect.
+
+And a second, smaller one that cost half an hour: `new_tab` returns when the
+target exists, not when the document has parsed. `focus()` against a page with
+no elements in it silently does nothing, and that reads *exactly* like a broken
+gate. A live check needs to wait for the page before it tests anything on it.
+

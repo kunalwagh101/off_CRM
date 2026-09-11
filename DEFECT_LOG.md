@@ -56,7 +56,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-22 | 2026-09-09 | bug | low | The server advertised one auth header name and read another | fixed · `S-06.02.10` |
 | D-23 | 2026-09-09 | security | high | A stale element handle was silently re-resolved instead of refused | fixed · `S-03.02.01` |
 | D-24 | 2026-09-09 | gap | medium | Action signatures were recorded on failed steps only, never successful ones | fixed · `S-11.05.02` |
-| D-25 | 2026-09-10 | gap | medium | Enter is not gated the way the Send button beside it is | open · `S-11.03.03` |
+| D-25 | 2026-09-10 | gap | medium | Enter is not gated the way the Send button beside it is | fixed · `S-11.03.03` |
 | D-26 | 2026-09-10 | bug | high | The loop detector could never fire, because its idea of progress was wrong | fixed · `S-11.01.02` |
 | D-27 | 2026-09-10 | data-loss | high | A resumed run would have silently lost the facts it exists to keep | fixed before shipping · `S-11.01.03` |
 | D-28 | 2026-09-10 | security | high | An injection attack split across two lines escaped the detector entirely | fixed · `S-11.03.02` |
@@ -71,6 +71,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-37 | 2026-09-11 | process | medium | Five test files hardcode `step-000002`, so adding any step to a run breaks them | open · `S-06.02.14` |
 | D-38 | 2026-09-11 | bug | medium | The same pricing arithmetic existed in three places, one of which returned zero | fixed · `S-06.01.03` |
 | D-39 | 2026-09-11 | process | low | A story sat unfinished for 15 days because nobody re-checked whether its blocker still existed | fixed · `S-08.01.05` |
+| D-40 | 2026-09-11 | bug | high | The agent's Enter key never did anything — the event was raised and no default action followed | fixed · `S-11.03.03` |
+| D-41 | 2026-09-11 | bug | low | The first Enter gate would have interrupted ordinary typing in a textarea | fixed before shipping · `S-11.03.03` |
 
 ---
 
@@ -116,6 +118,49 @@ tests first.
 ---
 
 ## Detail
+
+### D-40 — The agent's Enter key never did anything · 2026-09-11
+
+**What went wrong.** `press` dispatched `keyDown` and `keyUp` to the page with
+no `text` field. Chrome raises the event — a listener sees it, `isTrusted` is
+true — and then performs **no default action**. So Enter did not submit forms.
+The agent had a verb in its ten that half-worked, and nobody had noticed because
+nothing had ever checked what the *page* did afterwards, only what the call
+returned.
+
+**How it was found.** By the live check for `S-11.03.03` failing in a way that
+made no sense: the gate refused Enter correctly, but when Enter was allowed
+through, the form still did not submit. Measured key by key rather than guessed:
+
+    key         today          with `text`
+    Enter       does nothing   WORKS
+    Tab         WORKS          WORKS
+    Backspace   WORKS          WORKS
+
+**Why it mattered.** Two ways. A broken verb in a closed ten-verb vocabulary is
+a large fraction of what the agent can do. And it meant `D-25` — the gate that
+stopped a click but not an Enter — was a hole nobody could fall through *yet*.
+The day somebody fixed `press`, it would have opened silently.
+
+**The fix.** Send the character the key produces: `\r` for Enter, `\t` for Tab.
+Measured, not assumed — the keys that need it are the keys that type something.
+
+### D-41 — The gate would have interrupted ordinary typing · 2026-09-11
+
+**What went wrong.** The first version of the Enter gate asked "is the focused
+element inside a form with a Send button?" A `<textarea>` inside a compose form
+answers yes — so writing a message and pressing Enter for a new paragraph would
+have stopped the run and asked the owner to confirm.
+
+**How it was found.** The live check, on a page that had a textarea in it
+because that is what a compose box looks like.
+
+**Why it mattered.** Enter in a textarea makes a newline in every browser there
+is. It cannot submit. So this was pure interruption — and the story's second
+acceptance criterion exists precisely to prevent it: *a key that cannot submit
+anything asks nothing new*. A gate that interrupts typing is one people switch
+off.
+
 
 ### D-39 — A blocker nobody re-checked · 2026-09-11
 

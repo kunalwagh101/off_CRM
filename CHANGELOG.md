@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- **Enter goes through the same gate as the button beside it** (`S-11.03.03`,
+  closing `D-25`). `check_action` was called exactly once in `browser/page.py`,
+  inside `click`; `press` called it zero times. The fix is not a second copy of
+  the check inside `press` — `click` and `press` now ask the *same* function, so
+  the set of things that need a human and the set of things that get asked about
+  are one set by construction. That is the defect log's pattern 3, solved the
+  only way it stays solved.
+- What Enter would activate is answered by the page, because the accessibility
+  tree cannot say whether the focused field belongs to a form or what that
+  form's submit control is called — and "Enter in the same form" is the
+  criterion's own wording. It **fails closed**: if the page cannot be asked, it
+  asks the owner.
+- **Fixed: the agent's Enter key never did anything** (`D-40`). `press`
+  dispatched a key event with no `text`, so Chrome raised it and performed no
+  default action. Forms were never submitted. Found because the live check could
+  not demonstrate the hole it was closing, and measured key by key rather than
+  guessed — Tab and Backspace work either way, Enter only with the character it
+  produces. A broken verb in a closed ten-verb vocabulary is a large fraction of
+  what the agent can do, and it meant `D-25` was a hole nobody could fall
+  through *yet*.
+- **Fixed before shipping: the first gate would have interrupted typing**
+  (`D-41`). A `<textarea>` inside a compose form is "in a form with a Send
+  button", so pressing Enter for a new paragraph would have stopped the run.
+  Enter in a textarea makes a newline in every browser there is; it cannot
+  submit, so it is not gated.
+- Only Enter is treated as able to activate anything. Tab moves, Escape closes,
+  the arrows scroll — and none of them even ask the page, because a round trip
+  per arrow key would make reading a feed absurd.
+
 - **A visible, cancellable delay before anything consequential**
   (`S-02.02.04`). `browser/countdown.py` holds a sensitive click for five
   seconds — the number `policy.py` has specified since August — reporting the

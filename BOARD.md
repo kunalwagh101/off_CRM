@@ -73,7 +73,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-11.03.03 · Enter is gated like the button beside it
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -89,6 +89,13 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-11.03.03 · Enter is gated like the button beside it
+  tests: tests/test_browser_enter_gate.py::test_enter_in_a_field_whose_form_submits_with_send_needs_confirmation, tests/test_browser_enter_gate.py::test_enter_and_click_agree_about_what_needs_a_human, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_asks_nothing, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_does_not_even_ask_the_page, tests/test_browser_enter_gate.py::test_if_the_page_cannot_be_asked_it_fails_closed, tests/test_browser_enter_gate.py::test_enter_in_a_search_box_is_ordinary, tests/test_browser_enter_gate.py::test_enter_is_sent_with_the_character_it_produces, tests/test_browser_enter_gate.py::test_a_key_that_produces_no_character_sends_none, tests/test_browser_enter_gate.py::test_an_unattended_run_cannot_countdown_its_way_past_enter_either
+  command: python -m pytest tests/test_browser_enter_gate.py tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py tests/test_browser_signin.py -q
+  result: 150 passed (2026-09-11)
+  live: python scripts/live/enter_is_gated.py — real headless Chromium, a real `<form>` with a real submit button, all six steps checked and exit 0 only if every one holds. Step 0 proves the hole is real: with the gate waived, Enter submits the form (`COMPOSE SUBMITTED`). Gated, the same keystroke is refused and **the page reports `nothing happened`**. Tab, ArrowDown and Escape pass straight through. Enter in a `<textarea>` beside a Send button is ordinary, because there it makes a newline and cannot submit. Enter in a search box runs the search. Cleared by a countdown, Enter submits. The proof is asked of the page every time, which is how `D-40` was found — every previous test of `press` asked the return value, and the return value said `ok=True` the whole time the key was doing nothing.
+  code: offsetx_apollo_builder/browser/page.py
 
 - S-02.02.04 · Safety countdowns before consequential actions
   tests: tests/test_browser_countdown.py::test_a_cancelled_countdown_sends_nothing_to_the_site, tests/test_browser_countdown.py::test_an_unattended_run_cannot_use_a_countdown, tests/test_browser_countdown.py::test_cancelling_is_prompt_rather_than_eventually, tests/test_browser_countdown.py::test_it_can_be_cancelled_from_another_thread, tests/test_browser_countdown.py::test_somebody_watching_sees_it_count_down, tests/test_browser_countdown.py::test_a_countdown_covers_one_action_and_no_more, tests/test_browser_countdown.py::test_without_a_countdown_a_send_still_refuses_and_asks, tests/test_browser_countdown.py::test_a_countdown_that_elapses_lets_the_click_through, tests/test_browser_countdown.py::test_an_ordinary_click_never_waits_for_anything

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`S-08.01.05` is finally `DONE`** rather than `IN_REVIEW`. It had sat there
+  since 2026-08-27 — not because anything was wrong with it, but because the
+  environment of the day could not install a frontend dependency, so half its
+  evidence could never be re-run. The dependency installs cleanly now: 2 Python
+  controls and 11 dashboard tests, both halves green. The board has no stale
+  rows.
+
 - **A run now has a money ceiling, not only a step ceiling** (`S-11.01.04`).
   `run(..., spend_ceiling_usd=...)` stops the run with `status=over_budget`
   before the decision that would cross it. An agent left running overnight can

@@ -70,6 +70,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-36 | 2026-09-11 | gap | high | Providers tell us exactly what each call used, and we throw it away and guess from character counts | fixed · `S-06.01.03` |
 | D-37 | 2026-09-11 | process | medium | Five test files hardcode `step-000002`, so adding any step to a run breaks them | open · `S-06.02.14` |
 | D-38 | 2026-09-11 | bug | medium | The same pricing arithmetic existed in three places, one of which returned zero | fixed · `S-06.01.03` |
+| D-39 | 2026-09-11 | process | low | A story sat unfinished for 15 days because nobody re-checked whether its blocker still existed | fixed · `S-08.01.05` |
 
 ---
 
@@ -115,6 +116,28 @@ tests first.
 ---
 
 ## Detail
+
+### D-39 — A blocker nobody re-checked · 2026-09-11
+
+**What went wrong.** `S-08.01.05` was stuck in `IN_REVIEW` from 27 August to 11
+September. Its code was finished and its Python tests passed. The only thing
+missing was a frontend test that could not run, because that day's environment
+could not install an npm package.
+
+Nothing was wrong with the story. What was wrong is that the reason it was stuck
+was **environmental and temporary**, and nobody asked again for fifteen days.
+The install takes under a minute and works.
+
+**How it was found.** By asking "what is actually left?" rather than reading the
+board's own answer. The board said `pending`, which is honest and is also the
+kind of note that stops being read.
+
+**Why it mattered.** Two weeks of a finished feature looking unfinished, and a
+row on the board that everybody had learned to skip. A blocked item that nobody
+re-tests is indistinguishable from a broken one.
+
+**The fix.** `npm ci`, then the recorded command. 2 passed and 11 passed.
+
 
 ### D-35 — The daily spend cap can never be reached · 2026-09-11
 

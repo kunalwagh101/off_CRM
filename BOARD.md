@@ -79,11 +79,7 @@ _nothing in flight_
 
 ## IN_REVIEW
 
-- S-08.01.05 · Operators control delivery without hidden live sends
-  tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
-  command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
-  result: pending — Python API controls pass; this clean environment cannot install the uncached frontend dependency needed to re-run the dashboard test (2026-08-27)
-  code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
+_nothing waiting_
 
 ## BLOCKED
 
@@ -95,6 +91,14 @@ _nothing in flight_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-08.01.05 · Operators control delivery without hidden live sends
+  tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
+  command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: 2 passed + 11 passed (2026-09-11) — both halves, at last
+  live: `npm ci` in frontend/ then `npm test -- src/components.test.tsx` — 1 test file, 11 tests, 1.52s. The dependency that could not be installed on 2026-08-27 installs cleanly now, so the dashboard half of this story is proven rather than argued.
+  code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
+  commit: d96ea9d
 
 - S-11.01.04 · A run has a money ceiling, not only a step ceiling
   tests: tests/test_agent_money_ceiling.py::test_a_run_stops_at_the_ceiling_with_the_right_status, tests/test_agent_money_ceiling.py::test_the_decision_that_would_cross_is_never_asked_for, tests/test_agent_money_ceiling.py::test_a_resumed_run_keeps_the_ceiling_it_was_given, tests/test_agent_money_ceiling.py::test_raising_the_ceiling_on_purpose_lets_the_run_carry_on, tests/test_agent_money_ceiling.py::test_a_resumed_run_counts_what_its_earlier_life_spent, tests/test_agent_money_ceiling.py::test_the_next_decision_is_predicted_from_the_worst_so_far_not_the_average, tests/test_agent_money_ceiling.py::test_what_it_gathered_before_the_ceiling_is_kept, tests/test_agent_money_ceiling.py::test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more, tests/test_agent_money_ceiling.py::test_no_ceiling_behaves_exactly_as_before, tests/test_agent_money_ceiling.py::test_the_trace_says_why_it_stopped_and_by_how_much

@@ -146,6 +146,15 @@ tests first.
 
 ## Detail
 
+### D-47 follow-up — Real-browser cache readback · 2026-09-12
+
+The first combined live CI at `a786c45` found one remaining assertion selecting
+the first capture of any kind. That is now the `run_started` metadata sidecar,
+not page text. The cache still performed exactly one real page read and emitted
+its cache-hit event. The live assertion now selects an action capture, retaining
+the independent `Acme Ltd` content check. The original production audit is
+unchanged; the corrected test must pass again in real Chromium.
+
 ### D-51 — Background refresh redirects campaign work · 2026-09-12
 
 The create handler selected the returned ID while App still held the previous
@@ -159,6 +168,13 @@ increasing request generation rejects superseded replies; later manual choices
 also win over earlier create responses. Only a detail 404 permits fallback.
 Campaign-bound screens remount when the ID changes, clearing the previous form.
 Acceptance must prove actual import/project ownership through the real API.
+
+The first live run at `a786c45` passed five of the six new cases, including
+actual contact and video ownership. The empty-workspace case expected a heading
+role for `StatePanel`'s existing bold caption. Its locator now matches the
+visible caption and also clicks the campaign-creation action; no product
+assertion was removed. The original A33 regression passed in the unchanged
+audit, which reported 26 passes and four remaining A32/A34/A35 failures.
 
 
 ### Integration findings — 2026-09-12

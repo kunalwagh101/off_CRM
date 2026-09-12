@@ -207,5 +207,8 @@ def test_a_confirmed_missing_saved_campaign_has_a_visible_fallback(page, workspa
         assert page.evaluate("localStorage.getItem('offsetx-active-campaign')") == fallback["id"]
     else:
         expect(selected).to_have_value("")
-        expect(page.get_by_role("heading", name="Create your first campaign", exact=True)).to_be_visible()
+        expect(page.get_by_text("Create your first campaign", exact=True)).to_be_visible()
         assert page.evaluate("localStorage.getItem('offsetx-active-campaign')") is None
+        page.get_by_role("button", name="Go to campaigns", exact=True).click()
+        expect(page.get_by_role("heading", name="Campaigns", exact=True)).to_be_visible()
+        expect(page.get_by_role("button", name="Create campaign", exact=True).first).to_be_enabled()

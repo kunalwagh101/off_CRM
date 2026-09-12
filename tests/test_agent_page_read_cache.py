@@ -331,5 +331,5 @@ def test_real_chromium_is_read_only_once_for_two_read_decisions(tmp_path):
     assert outcome.status == "completed"
     assert calls == 1
     assert any(step.kind == "read_cache_hit" for step in run.trace.steps)
-    read_step = next(step for step in run.trace.steps if step.capture)
+    read_step = next(step for step in run.trace.steps if step.kind == "action" and step.capture)
     assert "Acme Ltd" in run.trace.captured_text(read_step)

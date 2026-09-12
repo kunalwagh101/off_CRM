@@ -50,7 +50,7 @@ class Progress:
         it: a click reads "clicked More", and "clicked" is not one of the ten
         verbs. The signature is the record of what actually ran.
         """
-        if self.kind != "action":
+        if self.kind not in {"action", "read_cache_hit"}:
             return ""
         return signature_in(self.detail).split("(", 1)[0].strip()
 

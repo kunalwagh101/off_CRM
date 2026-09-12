@@ -47,10 +47,56 @@ wastes a session when nobody can answer it.
 | DD-17 | 2026-09-11 | An unattended run may not use a countdown at all | The attended and unattended paths through the gate are different code |
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
+| DD-20 | 2026-09-12 | Keep one cache and a distinct event for reads served from it | Watchers must understand the cache event as well as actual browser actions |
+| DD-22 | 2026-09-12 | Campaign list and selection publish as one snapshot; only detail 404 permits fallback | One focused state owner and an extra detail read for a selection outside the bounded list |
+| DD-21 | 2026-09-12 | Preserve main's IDs and remap WP1 to S-06.02.15 / R-100 | Historical evidence needs an explicit old-to-current ID note |
 
 ---
 
 ## Detail
+
+### DD-22 — One campaign snapshot and authoritative fallback · 2026-09-12
+
+Waiting for a list reload before setting the ID would still fail when the
+selected record is outside the first 200 rows or responses arrive out of order.
+S-06.02.16 uses one observable snapshot for the list and active ID. Request
+versions discard older replies; a choice version preserves a later manual
+selection while an earlier creation finishes. The creation response supplies
+real saved data immediately, and a failed refresh stays a refresh error.
+
+A missing list entry triggers the authenticated detail endpoint. Only its 404
+establishes that fallback is needed. Campaign-specific screens remount on a
+switch so old forms cannot run against the new ID. Global screens keep their
+state. No storage format or API contract changes.
+
+**Cost:** a small state owner outside React and one extra read for a missing
+list entry. Switching clears unsaved campaign-specific form input. The selector
+still loads 200 rows plus its verified current selection; full record browsing
+remains A23. Revisit if campaign search/pagination or multi-workspace identity
+changes that contract.
+
+
+### DD-20 — One cached source, visible without inventing work · 2026-09-12
+
+Main and PR #10 implemented overlapping caches. Integration keeps one bounded
+cache with main's recovery controls and PR #10's conservative URL identity and
+durable source evidence. Fragments and query ordering can select different data,
+so they remain part of the key. Reloads, waits and partial mutations invalidate
+the affected capture. These choices can cause additional reads, which costs
+time but avoids silently sourcing a claim from the wrong page.
+
+Main's new watcher expects signatures on action events. A cached read retains
+its distinct `read_cache_hit` event and now carries that signature too. The
+watcher handles both kinds; the actual browser-action count remains unchanged.
+If trace consumers are added, they must preserve this distinction.
+
+### DD-21 — Reconcile independently allocated IDs · 2026-09-12
+
+WP1 used S-06.02.11 / R-95 after the first merge. Main subsequently used those
+IDs for readiness and Enter approval. Keep main's published IDs and assign WP1
+the unused S-06.02.15 / R-100, retaining all code, criteria and evidence. This
+costs a mapping note wherever historical WP1 IDs are read. Losing either story
+or overwriting its tests would lose the meaning the board is supposed to keep.
 
 ### DD-04 — No Cloudflare or anti-bot evasion. Ever. · 2026-09-06
 
@@ -312,4 +358,3 @@ by the first run's reservation rather than by its own observation.
 **Cost.** A run reserves a slot before it knows whether it will use it, so an
 action that raises after pacing leaves a gap nobody fills. The floor is a
 minimum, so waiting slightly longer than necessary is the harmless direction.
-

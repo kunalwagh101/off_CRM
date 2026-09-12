@@ -304,6 +304,35 @@ checked that the thing they describe is *visible from where it will be checked*.
 
 ---
 
+## 2026-09-08 — S-06.02.09/11, durable customer state and safe recovery
+
+**What was cut.** Nothing from WP1's eight acceptance criteria. Individual user
+identity, all-store PostgreSQL migration, provider-account certification and the
+other audit findings keep their existing scope; no whole-product readiness claim
+is attached to these five fixes.
+
+**What the estimate got wrong.** Copying the CRM database was only a small part
+of recovery. Safe replacement also required a complete file inventory, a shared
+startup/rebind graph, draining full response lifetimes and worker processes,
+closing connections created on other threads, and a durable crash journal.
+The real Docker build exposed a missing shared frontend fixture. Browser evidence
+also caught a test selecting the wrong passphrase field; its screenshot and
+server log identified the mistake without weakening the download assertion.
+
+**What to change next time.** Establish real-service CI before certification,
+exercise each destructive boundary with injected failure and process death,
+and preserve the test logs with the implementation SHA. Readiness must probe
+live service handles and operational keys, not just a newly opened database.
+
+---
+
+## 2026-09-06 — S-11.02.04, run-scoped page-read cache
+
+**What was cut.** Cross-run relational indexing was deliberately not absorbed into a read-deduplication story. The durable evidence remains the append-only trace and its private text/screenshot sidecars; rebuilding the cache after a process death remains owned by `S-11.01.03`. This slice only guarantees reuse inside one live logical run.
+
+**What the estimate got wrong.** URL canonicalisation was the easy half. On a modern application the same URL can represent new content after a click, scroll, form edit, wait or navigation reload. A naive `url -> text` dictionary would meet the duplicate-read metric while quietly feeding stale evidence back to the model. The production problem was therefore identity *and invalidation*, not only memoisation.
+
+**What to change next time.** Every cache needs an explicit scope, identity rule and invalidation rule before it gets an implementation. Optimisation cannot be allowed to weaken provenance: a hit must point back to the original host-owned evidence, not create a second synthetic source. And if a browser action can plausibly change what the URL represents, correctness wins over cache hit rate.
 ## 2026-09-10 — S-11.01.02, and a test that caught the definition
 
 **What was cut.** Nothing. The story's wording was widened twice, both times
@@ -826,4 +855,3 @@ only that today's numbering is today's numbering.
 It also found a straggler I would have missed. One assertion still failed:
 `screenshot == "0002.png"`. Artefact filenames encode the step index too, so it
 was the same defect in another costume, and only the shifted run showed it.
-

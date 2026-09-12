@@ -265,9 +265,19 @@ For a security problem, do not open a public issue containing credentials, perso
 
 The default installation stores data locally using SQLite, JSON and local files.
 
-The checked-in Render blueprint is a disposable demonstration configuration. Its `/tmp` data can disappear after a restart or redeploy. Do not put personal contacts, Gmail tokens or production credentials there.
+The checked-in Render blueprint runs one production instance with a persistent
+disk at `/var/lib/offcrm`. All local customer state belongs in its `local_data`
+subdirectory. Production startup refuses missing mounts, temporary storage and
+split durable paths. The container runs the app as an unprivileged user.
 
-A production shared service still needs complete PostgreSQL migration, tenant isolation, object storage, durable background jobs, managed secrets, monitoring and tested recovery.
+Settings provides encrypted workspace backup and restore, including databases,
+assets, settings and local keys. Read the [operations and recovery guide](docs/architecture/WP1_OPERATIONS.md)
+before migrating an existing installation. Keep recovery copies off the live disk.
+
+This topology supports one company installation. Multi-tenant identity, multiple
+web instances and an all-store PostgreSQL migration remain separate work; do not
+scale writable SQLite state across instances. See [the current audit closure evidence](docs/audits/2026-09-08-wp1-completion.md)
+for verified behaviour and the remaining audit scope.
 
 ## Documentation
 

@@ -1,0 +1,84 @@
+{
+  "story": "S-06.02.11",
+  "supporting_story": "S-06.02.09",
+  "requirements": [
+    "R-91",
+    "R-95"
+  ],
+  "audit_findings": [
+    "A01",
+    "A02",
+    "A03",
+    "A04",
+    "A17"
+  ],
+  "implementation_commit": "4d43169475cb014d119fdf0d2ec572161226e702",
+  "integrated_main": "5b19a54e60233134ec3bda711a58f7f37a1a94a7",
+  "acceptance_run": "https://github.com/kunalwagh101/off_CRM/actions/runs/34306667467",
+  "quality_run": "https://github.com/kunalwagh101/off_CRM/actions/runs/34306670062",
+  "artifact_id": 10087070134,
+  "artifact_sha256": "91e9ee02be68d4ac602a0db488e939eec2a6beaee94e8f8a82648059404d9e0f",
+  "results": {
+    "python": {
+      "testcase": 1686,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "wp1-live": {
+      "testcase": 2,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0
+    }
+  },
+  "frontend": {
+    "passed": 116,
+    "production_build": "passed"
+  },
+  "windows_leases": {
+    "passed": 2
+  },
+  "existing_board_evidence": {
+    "passed": 33,
+    "total": 33
+  },
+  "focused_wp1": {
+    "passed": 41
+  },
+  "runtime": {
+    "commit": "4d43169475cb014d119fdf0d2ec572161226e702",
+    "application_baseline": "9f71f3c07f32407857311a1c4ed756925a612e6d",
+    "python": "3.12.14",
+    "browser": "Google Chrome 152.0.7977.64",
+    "uid": 1001,
+    "docker": "28.0.4",
+    "sandbox_image": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "postgres": "PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit"
+  },
+  "browser": {
+    "restored_campaign": "7e28bef4-31ce-4373-b662-a63b845515f2",
+    "archive_bytes": 31595,
+    "sha256": "fd1246129fa03eceb07d782799aa26a8b55d5c0e8fceb309ce31fa0d0df531b5",
+    "readiness": "ready"
+  },
+  "container": {
+    "persistent_volume": true,
+    "kill_and_recreate": true,
+    "restored": {
+      "restored": true,
+      "schema_version": 2,
+      "entries": 9,
+      "excluded_rebuildable": [
+        "ai_cache.db"
+      ],
+      "legacy_partial": false,
+      "health": "ready"
+    },
+    "uid": 10001,
+    "effective_capabilities": 0,
+    "root_readonly": true,
+    "campaign_id": "b12bb7cb-69a2-41c5-8cb7-67082ee738f2"
+  },
+  "scope": "Disposable real-service acceptance. Does not certify a customer deployment, live provider account, or other audit findings."
+}

@@ -1,15 +1,30 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import secrets
 import stat
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+
+from ..outreach.backup import DEFAULT_MAX_BACKUP_BYTES
 
 
 def _resolved(value: str | Path, root: Path) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (root / path).resolve()
+
+
+def _enabled(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 @dataclass(slots=True)
@@ -22,11 +37,15 @@ class AppSettings:
     host: str = "127.0.0.1"
     port: int = 8766
     api_token: str = ""
+    api_token_from_file: bool = False
     demo_username: str = ""
     demo_password: str = ""
     session_secret: str = ""
     session_hours: int = 8
     max_upload_bytes: int = 10 * 1024 * 1024
+    backup_max_bytes: int = DEFAULT_MAX_BACKUP_BYTES
+    production: bool = False
+    persistent_mount: Path | None = None
     gmail_client_secrets: Path | None = None
     gmail_token: Path | None = None
     own_email: str = ""
@@ -47,11 +66,12 @@ class AppSettings:
         root = Path(project_root or Path.cwd()).resolve()
         data_dir = _resolved(os.getenv("OFFSETX_DATA_DIR", "local_data"), root)
         gmail_secrets = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
-        gmail_token = os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json").strip()
+        gmail_token = os.getenv("OFFSETX_GMAIL_TOKEN", str(data_dir / "gmail_token.json")).strip()
+        persistent_mount = os.getenv("OFFSETX_PERSISTENT_MOUNT", "").strip()
         settings = cls(
             project_root=root,
             database_path=_resolved(
-                os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db"), root
+                os.getenv("OFFSETX_OUTREACH_DB", str(data_dir / "offsetx_outreach.db")), root
             ),
             data_dir=data_dir,
             export_dir=data_dir / "exports",
@@ -66,6 +86,11 @@ class AppSettings:
             max_upload_bytes=int(
                 os.getenv("OFFSETX_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024))
             ),
+            backup_max_bytes=int(
+                os.getenv("OFFSETX_BACKUP_MAX_BYTES", str(DEFAULT_MAX_BACKUP_BYTES))
+            ),
+            production=_enabled(os.getenv("OFFSETX_PRODUCTION", "")),
+            persistent_mount=_resolved(persistent_mount, root) if persistent_mount else None,
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
             gmail_token=_resolved(gmail_token, root) if gmail_token else None,
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
@@ -82,6 +107,8 @@ class AppSettings:
         # configured should get a token rather than an error it has to fix by
         # hand. Order matters — validate would refuse the very config this is
         # about to make valid.
+        settings.validate_storage()
+        settings.verify_persistent_mount()
         settings.ensure_api_token()
         settings.validate()
         return settings
@@ -113,10 +140,37 @@ class AppSettings:
             raise ValueError("OFFSETX_WEB_PORT must be between 1 and 65535")
         if self.max_upload_bytes < 1024:
             raise ValueError("OFFSETX_MAX_UPLOAD_BYTES is too small")
+        if self.backup_max_bytes < 1024 * 1024:
+            raise ValueError("OFFSETX_BACKUP_MAX_BYTES must be at least 1 MiB")
         if not 1 <= self.session_hours <= 24:
             raise ValueError("OFFSETX_SESSION_HOURS must be between 1 and 24")
         if self.unsubscribe_secret and len(self.unsubscribe_secret.encode("utf-8")) < 32:
             raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
+
+        self.validate_storage()
+
+    def validate_storage(self) -> None:
+        if self.production:
+            temporary_root = Path(tempfile.gettempdir()).resolve()
+            if any(_inside(self.data_dir, path) for path in (temporary_root, Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"))):
+                raise ValueError(
+                    "Production OFFSETX_DATA_DIR cannot live under the operating-system temporary directory"
+                )
+            if not _inside(self.database_path, self.data_dir):
+                raise ValueError(
+                    "Production OFFSETX_OUTREACH_DB must live under OFFSETX_DATA_DIR so one durable root owns local state"
+                )
+            for path in (self.export_dir, self.gmail_token, self.gmail_client_secrets):
+                if path is not None and not _inside(path, self.data_dir):
+                    raise ValueError("Production exports and Gmail files must live under OFFSETX_DATA_DIR")
+            if os.getenv("OFFSETX_DATABASE_URL", "").strip():
+                raise ValueError("This production topology requires all stores on the persistent local root; unset OFFSETX_DATABASE_URL")
+            if not self.persistent_mount or not _inside(self.data_dir, self.persistent_mount) or self.data_dir.resolve() == self.persistent_mount.resolve():
+                raise ValueError("Set OFFSETX_PERSISTENT_MOUNT to the mounted disk and put OFFSETX_DATA_DIR in a subdirectory")
+
+    def verify_persistent_mount(self) -> None:
+        if self.production and (not self.persistent_mount or not self.persistent_mount.is_mount()):
+            raise ValueError("Persistent disk is not mounted. Attach OFFSETX_PERSISTENT_MOUNT before starting the production service")
 
     #: Where an auto-provisioned local token lives. Beside the data it protects.
     TOKEN_FILENAME = "local_api_token"
@@ -143,6 +197,7 @@ class AppSettings:
             existing = ""
         if len(existing) >= 32:
             self.api_token = existing
+            self.api_token_from_file = True
             return self.api_token
         token = secrets.token_urlsafe(32)
         # Create with the mode set, rather than creating then chmod-ing: between
@@ -151,7 +206,16 @@ class AppSettings:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(token)
         self.api_token = token
+        self.api_token_from_file = True
         return token
+
+    def reload_local_api_token(self) -> None:
+        """Restore file-managed authentication with the workspace it protects."""
+        if self.api_token_from_file:
+            token = (self.data_dir / self.TOKEN_FILENAME).read_text(encoding="utf-8").strip()
+            if len(token) < 32 or not token.isascii():
+                raise ValueError("Restored local API token is invalid")
+            self.api_token = token
 
     def host_allowlist(self) -> frozenset[str]:
         """Host header values this server answers to.
@@ -178,6 +242,7 @@ class AppSettings:
         return bool(self.demo_username and self.demo_password and self.session_secret)
 
     def prepare(self) -> None:
+        self.verify_persistent_mount()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.export_dir.mkdir(parents=True, exist_ok=True)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)

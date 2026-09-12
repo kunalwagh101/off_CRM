@@ -77,6 +77,17 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-43 | 2026-09-11 | data-loss | high | The budget ledger lost two thirds of its writes under concurrency — the lock was per object, the file was shared | fixed · `S-11.05.01` |
 | D-44 | 2026-09-12 | process | high | The rule that an open question blocks READY had never fired — the parser threw away the line the story is named on | fixed · `S-06.02.11` |
 | D-45 | 2026-09-12 | process | medium | A `git reset --hard` used to tidy up a live check destroyed an hour of uncommitted work | fixed · `S-06.02.12` |
+| D-46 | 2026-09-12 | process | high | Independent branches assigned the same story and requirement IDs to different work | fixed · WP1 is now `S-06.02.15` / R-100 |
+| D-47 | 2026-09-12 | process | medium | Cache tests counted resume metadata and saved findings as page captures | fixed · `S-11.02.04`, `S-06.02.14` |
+| D-48 | 2026-09-12 | gap | medium | The new progress watcher could not name a cached read after the branch merge | fixed · `S-11.04.02` |
+| D-49 | 2026-09-10 | process | medium | Independent audit readbacks omitted the authentication token required by main | fixed · `S-06.02.10` integration harness |
+| D-50 | 2026-09-07 | bug | high | A real unprivileged sandbox container cannot write its result to /work | open · `F-03.01` · audit A32 |
+| D-51 | 2026-09-07 | bug | high | Creating a campaign can leave an older campaign selected | in progress · `S-06.02.16` · audit A33 |
+| D-52 | 2026-09-07 | bug | medium | A valid 60-frame export is rejected because it is smaller than 4096 bytes | open · `F-01.02` · audit A34 |
+| D-53 | 2026-09-07 | gap | medium | The Gmail connector panel calls an API route that returns 404 | open · `F-07.01` · audit A35 |
+| D-54 | 2026-09-09 | bug | high | Overlapping caches could collapse different routes or keep evidence after page changes | fixed · `S-11.02.04` consolidation |
+| D-55 | 2026-09-12 | process | high | CI checked out one commit while the new board gate requires its recorded ancestors | fixed · `S-06.02.12` integration workflows |
+| D-56 | 2026-09-12 | process | medium | Twenty-one board entries still named pre-import commits absent from the current ancestry | fixed · `S-06.02.12` · reverified at 24d7425 |
 
 ---
 
@@ -134,6 +145,69 @@ tests first.
 ---
 
 ## Detail
+
+### D-47 follow-up — Real-browser cache readback · 2026-09-12
+
+The first combined live CI at `a786c45` found one remaining assertion selecting
+the first capture of any kind. That is now the `run_started` metadata sidecar,
+not page text. The cache still performed exactly one real page read and emitted
+its cache-hit event. The live assertion now selects an action capture, retaining
+the independent `Acme Ltd` content check. The original production audit is
+unchanged; the corrected test must pass again in real Chromium.
+
+### D-51 — Background refresh redirects campaign work · 2026-09-12
+
+The create handler selected the returned ID while App still held the previous
+list. A fallback effect treated absence from that old, bounded list as deletion
+and rewrote the active ID and browser storage. A saved ID beyond 200 results
+had the same problem. Campaign-bound React components also retained edit/import
+state across a manual switch. These are the boundaries covered by S-06.02.16.
+
+The new selection owner publishes the list and ID together. A monotonically
+increasing request generation rejects superseded replies; later manual choices
+also win over earlier create responses. Only a detail 404 permits fallback.
+Campaign-bound screens remount when the ID changes, clearing the previous form.
+Acceptance must prove actual import/project ownership through the real API.
+
+The first live run at `a786c45` passed five of the six new cases, including
+actual contact and video ownership. The empty-workspace case expected a heading
+role for `StatePanel`'s existing bold caption. Its locator now matches the
+visible caption and also clicks the campaign-creation action; no product
+assertion was removed. The original A33 regression passed in the unchanged
+audit, which reported 26 passes and four remaining A32/A34/A35 failures.
+
+
+### Integration findings — 2026-09-12
+
+D-46 was found while merging main's 44 newer commits into the integration
+branch. Keep main's readiness and Enter IDs; WP1's current story is S-06.02.15
+and requirement R-100. Original branch evidence remains dated and identifiable.
+
+D-47 and D-48 were found by running the combined agent/browser tests. Tests now
+identify actual read captures by event kind and use the offered source ID rather
+than a fixed trace index. The watcher names `read_cache_hit` events without
+adding fictitious browser actions. An additional interrupted-run test checks
+that the owner's edited PLAN.md and the original cached source survive resume.
+
+D-49 was exposed by real-service CI at `5be4e438`. The browser was authenticated,
+but direct contact/video readbacks were anonymous. Supplying that same synthetic
+identity made contact import/search/readback pass and let video checks reach the
+actual server acceptance assertion. Application authentication was not changed.
+
+D-50 through D-53 are retained from the original production audit. All four
+were reproduced by the real browser/container run at `24d7425`; the video issue
+fails two cases. Their detailed reproduction and acceptance criteria are in
+`docs/audits/2026-09-07-production-audit.md`. They remain release blockers.
+A09 is tracked by D-25 and main's S-11.03.03 fix; the refreshed integration run
+must verify it. D-54 is covered by the original integration cache regressions.
+D-55 was found by checking the workflow against the new ancestry verifier.
+Both board-checking jobs now fetch complete history instead of weakening the
+verification or treating absent commit objects as passing evidence.
+D-56 was then exposed by running that check locally. The original commit and
+result are retained as historical fields. Their current evidence points to
+`24d7425`, where the complete core suites and recorded board tests were actually
+run with real services. The refreshed CI still reruns those tests; no missing
+commit was treated as an ancestor and no verification rule was disabled.
 
 ### D-45 — Tidying up a live check destroyed the work it was checking · 2026-09-12
 

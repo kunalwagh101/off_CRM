@@ -1,5 +1,46 @@
 # BUILD_STATE.md
 
+Active story: **S-06.02.16 / R-101 — reliable campaign creation and switching**
+(A33 / D-51), on the existing `integration/main-consolidation` branch.
+The implementation starts from the combined main refresh at `432eec1`; it keeps
+WP1 and main's newer work. All 136 frontend tests (including 20 targeted
+selection checks) and the production build pass locally. Real-browser acceptance and final combined CI are pending.
+
+Current work: `integration/main-consolidation`, draft PR #14. The five original
+pending PRs (#13, #11, #4, #6 and #10) are combined, and main's subsequent
+44 commits through `aa380578` are being integrated into this same branch.
+Main has not been modified by this work. Its newer resume, spending, report,
+watcher, wall, Enter approval and browser concurrency controls are preserved.
+WP1 now maps to **S-06.02.15 / R-100** to avoid IDs independently reused in main.
+PLAN.md remains IN_REVIEW for its customer checklist UI; main's completed
+operator delivery review is retained as DONE.
+
+Before the main refresh, `24d7425` passed 1,717 Python tests, 116 frontend tests,
+2 live recovery checks and the Windows lease job. Its original audit had
+24 passes and 6 failures across A09/A32/A33/A34/A35. The refreshed branch must
+be tested again: main includes an A09 Enter fix, and those earlier results do
+not certify the new combined code. PR #14 records results for each exact head.
+Refreshed local results: 1,954 Python passed (26 service-dependent skips),
+116 frontend passed, production build passed, Ruff and board checks passed.
+See `docs/integration/MAIN_CONSOLIDATION.md` for history and conflict decisions.
+
+## Historical WP1 completion
+
+Current increment (9 September 2026): **S-06.02.11 — Audit WP1, durable customer
+state and safe recovery, DONE**, with the S-06.02.09 connection-ownership upgrade.
+Branch: `feature/audit-wp1-durable-state-safe-recovery`, PR #13, based on current
+main `5b19a54`. Integrated acceptance at `4d43169`: **1686 Python passed, 116
+frontend passed, 2 live recovery tests passed, 2 Windows lease tests passed;
+zero skips in the required acceptance run**. The release gate is also enabled
+on main, and the Render Blueprint waits for passing CI before deployment.
+
+WP1 is S-06.02.11 / R-95 because main independently used S-06.02.10 for
+authentication. Both stories are retained. See `BOARD.md`, the closure report at
+`docs/audits/2026-09-08-wp1-completion.md`, and `docs/architecture/WP1_OPERATIONS.md`.
+Only A01/A02/A03/A04/A17 are closed by WP1; this does not certify a customer
+installation or close the other audit findings. Historical entries below retain
+their original dates and counts.
+
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 
@@ -7,7 +48,12 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
+Production requirement clarified: 2026-09-05. The standing contract is in
+`AGENTS.md`; it applies to every future change and supersedes historical demo
+assumptions. Test results below retain their original dates. Current delivery
+status comes from `BOARD.md` at the branch/commit being inspected.
+
+Last implementation summary update: 2026-08-28
 Branch: `main`
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
 The latest frontend evidence remains 116 passed plus a clean production build
@@ -2123,17 +2169,14 @@ Listed honestly. Nothing below is silently assumed done.
    cross-job stability is ever wanted, that file is the shape it should take —
    not a column on `contacts`.
 3. **Positioning line** — set per workspace in Connectors; no default shipped.
-4. **Render deployment** — `render.yaml` deploys `branch: main` with
-   `autoDeploy: true`, so nothing ships until this branch is merged there.
-   Two things to set up before the first deploy:
-   - Provider keys as environment variables `OFFSETX_AI_<PROVIDER>_KEY`
-     (e.g. `OFFSETX_AI_MISTRAL_KEY`). `OFFSETX_DATA_DIR` points at `/tmp`
-     on Render, which is wiped on every restart, so the encrypted key file
-     will not survive. The env fallback is why keys still work there.
-   - **The egress log lives in the same disposable `/tmp` directory.** It is
-     the audit trail, and on Render it resets on every restart. Fine for a
-     demo; a real shared deployment needs a Render disk or Postgres.
-5. **Postgres** — needed before "millions of users"; say when.
+4. **Render deployment** — the WP1 Blueprint uses a mounted persistent disk,
+   one web instance and `autoDeployTrigger: checksPass` for `main`. The earlier
+   `/tmp` storage contract is superseded. Production setup and recovery steps
+   are in `docs/architecture/WP1_OPERATIONS.md`; applying them to a customer
+   service and verifying that deployment remain separate operations.
+5. **Storage topology** — choose it from the actual deployment, isolation,
+   concurrency and recovery requirements. The Postgres work above covers
+   selected stores; it is not a completed CRM migration.
 
 ---
 

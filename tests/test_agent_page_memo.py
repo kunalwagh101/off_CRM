@@ -42,13 +42,13 @@ def test_a_url_that_differs_only_by_how_you_arrived_is_the_same_page():
     same = canonical_page_url("https://example.test/post?id=7")
     assert canonical_page_url("https://example.test/post?id=7&utm_source=news") == same
     assert canonical_page_url("https://EXAMPLE.test/post?utm_campaign=q3&id=7") == same
-    assert canonical_page_url("https://example.test/post?id=7#comments") == same
+    assert canonical_page_url("https://example.test/post?id=7#comments") != same
     assert canonical_page_url("https://example.test/post?id=7&fbclid=abc") == same
 
 
-def test_parameter_order_is_not_identity():
-    """`?a=1&b=2` and `?b=2&a=1` are one request."""
-    assert canonical_page_url("https://e.test/x?a=1&b=2") == canonical_page_url(
+def test_query_order_is_preserved_for_order_sensitive_servers():
+    """Query order can affect signatures and repeated-key interpretation."""
+    assert canonical_page_url("https://e.test/x?a=1&b=2") != canonical_page_url(
         "https://e.test/x?b=2&a=1"
     )
 

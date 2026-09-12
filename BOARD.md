@@ -92,6 +92,7 @@ _nothing waiting_
   result: 58 passed (2026-09-12)
   live: the criterion is "adding a step anywhere breaks nothing", which cannot be asserted from inside the tests it protects — so it was proven by doing it. A junk `Step(kind="noise")` inserted into `agent/run.py` shifts every trace id in every run; the five converted files then ran **49 passed**, and the step was removed. The first attempt at this found a straggler nothing else would have: `screenshot == "0002.png"` failed, because artefact filenames encode the step index too and it was the same defect in another costume.
   code: tests/trace_ids.py, tests/test_agent_provenance.py, tests/test_agent_structured_result.py, tests/test_agent_claim_verification.py, tests/test_agent_resume.py
+  commit: 122871f
 
 - S-06.02.12 · A recorded commit must be on the branch
   tests: tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails, tests/test_verify_board.py::test_a_commit_that_does_not_exist_at_all_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed

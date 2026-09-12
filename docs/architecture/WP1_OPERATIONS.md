@@ -1,4 +1,4 @@
-# Durable workspace operations — S-06.02.11 / Audit WP1
+# Durable workspace operations — S-06.02.15 / Audit WP1
 
 This runbook covers the supported production topology: one Linux web process,
 its local workers, and one persistent disk for one company installation. It does

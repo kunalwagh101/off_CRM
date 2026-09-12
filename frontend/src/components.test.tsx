@@ -41,7 +41,7 @@ describe("shared production UI", () => {
 
   it("renders all sales tracker operating views from one lead-card source", () => {
     const html = renderToStaticMarkup(
-      <AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: () => undefined, refreshCampaigns: () => undefined, notify: () => undefined }}>
+      <AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: () => undefined, createCampaign: async () => { throw new Error("Unexpected creation in a rendering test"); }, refreshCampaigns: () => undefined, notify: () => undefined }}>
         <SalesTracker />
       </AppContext.Provider>
     );
@@ -59,7 +59,7 @@ describe("v0.12 additions", () => {
     campaigns: [],
     campaignId: "c1",
     activeCampaign: null,
-    selectCampaign: () => undefined,
+    selectCampaign: () => undefined, createCampaign: async () => { throw new Error("Unexpected creation in a rendering test"); },
     refreshCampaigns: () => undefined,
     notify: () => undefined
   };
@@ -115,7 +115,7 @@ describe("the video section on the command centre", () => {
     campaigns: [],
     campaignId: "c1",
     activeCampaign: { id: "c1", name: "Launch", kind } as never,
-    selectCampaign: () => {},
+    selectCampaign: () => {}, createCampaign: async () => { throw new Error("Unexpected creation in a rendering test"); },
     refreshCampaigns: () => {},
     notify: () => {}
   });

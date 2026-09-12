@@ -6,6 +6,7 @@ export type AppContextValue = {
   campaignId: string;
   activeCampaign: Campaign | null;
   selectCampaign: (id: string) => void;
+  createCampaign: (body: Record<string, unknown>) => Promise<Campaign>;
   refreshCampaigns: () => void;
   notify: (message: string, tone?: "success" | "error" | "info" | "warning") => void;
 };

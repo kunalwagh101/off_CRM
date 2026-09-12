@@ -21,35 +21,19 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-11.01.04 · A run has a money ceiling, not only a step ceiling
-- S-11.03.01 · A wall the agent must not climb pauses the run and asks
-- S-11.04.01 · A run report a person can audit
-- S-11.04.02 · Progress is visible while it happens
-- S-11.05.02 · Re-running does not duplicate what it already did
 
 - S-02.02.03 · Interrupt, steer, resume
-- S-02.02.04 · Safety countdowns before consequential actions
-- S-04.01.01 · Companions: persisted agent profiles
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation
 - S-04.01.04 · The five roles, wired to what already exists
-- S-05.01.01 · A crawler with a frontier, not a loop
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
-- S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.02 · Three-level permissions
-- S-06.01.03 · Cost estimated before a run and ledgered after
-- S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.05 · Deployment, monitoring and rollback
-- S-06.02.01 · No secret may enter a model prompt
-- S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.03 · Cost and latency budgets per run
 - S-06.02.04 · Data deletion and subject access
-- S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
-- S-07.01.03 · Meeting transcription with no bot in the call
-- S-07.01.04 · Reports and artifacts
 
 ## READY
 
@@ -65,29 +49,36 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.04 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-11.01.02 · A run that stops making progress is stopped
-- S-11.01.03 · A run survives the process dying
-- S-11.03.02 · A page that tries to give orders is reported, not obeyed
-- S-11.05.01 · Concurrent runs share one browser safely
 - S-06.02.08 · One runner for every evidence command
+
+*(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
+declare is DONE, and no open question is filed against any of them. They had
+been sitting in BACKLOG because nothing moves an item to READY when the story
+it waited on finishes — that is a manual step and nobody was doing it.)*
+
+- S-04.01.01 · Companions: persisted agent profiles
+- S-05.01.01 · A crawler with a frontier, not a loop
+- S-06.01.01 · Workspaces with their own keys and their own logins
+- S-06.01.04 · Routines that fire agent runs on a schedule or an event
+- S-06.02.01 · No secret may enter a model prompt
+- S-06.02.02 · Every endpoint authorises and validates
+- S-06.02.05 · The UI is usable by keyboard and screen reader
+- S-07.01.03 · Meeting transcription with no bot in the call
+- S-07.01.04 · Reports and artifacts
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-06.02.16 · A created or selected campaign stays the active workspace
+  scope: audit A33 / D-51; one selection snapshot, request ordering, verified fallback and real campaign-specific browser writes.
 
 ## IN_REVIEW
 
 - S-02.02.02 · PLAN.md as the single source of truth
   tests: tests/test_agent_plan.py, tests/test_agent_consolidation.py
   command: uv run --no-sync pytest tests/test_agent_plan.py tests/test_agent_consolidation.py -q
-  result: Five PLAN.md tests and seven integration cases pass locally (2026-09-09); customer checklist UI remains in review.
+  result: Five PLAN.md tests and eight integration cases pass locally (2026-09-12); customer checklist UI remains in review.
   code: offsetx_apollo_builder/agent/plan.py, offsetx_apollo_builder/agent/run.py
 
-- S-08.01.05 · Operators control delivery without hidden live sends
-  tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
-  command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
-  result: Python controls and all 116 frontend tests pass on WP1; retained in this story's separate review (2026-09-09)
-  code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
 
 ## BLOCKED
 
@@ -100,6 +91,138 @@ remaining independent stories below stay READY.)*
 
 ## DONE
 
+- S-06.02.14 · A test should not hardcode a trace step id
+  tests: tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone
+  command: python -m pytest tests/test_trace_ids.py tests/test_agent_provenance.py tests/test_agent_structured_result.py tests/test_agent_claim_verification.py tests/test_agent_report.py tests/test_agent_resume.py -q
+  result: 58 passed (2026-09-12)
+  live: the criterion is "adding a step anywhere breaks nothing", which cannot be asserted from inside the tests it protects — so it was proven by doing it. A junk `Step(kind="noise")` inserted into `agent/run.py` shifts every trace id in every run; the five converted files then ran **49 passed**, and the step was removed. The first attempt at this found a straggler nothing else would have: `screenshot == "0002.png"` failed, because artefact filenames encode the step index too and it was the same defect in another costume.
+  code: tests/trace_ids.py, tests/test_agent_provenance.py, tests/test_agent_structured_result.py, tests/test_agent_claim_verification.py, tests/test_agent_resume.py
+  commit: 122871f
+
+- S-06.02.12 · A recorded commit must be on the branch
+  tests: tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails, tests/test_verify_board.py::test_a_commit_that_does_not_exist_at_all_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 53 passed (2026-09-12)
+  live: git clone -q . /tmp/gate2, then a real orphan built in the clone the way it really happens — commit, note the sha, `git commit --amend`. `git cat-file -e` still finds the object, which is the trap; the verifier refused it: "S-06.02.11 records commit 16c89e0, which exists but is not an ancestor of HEAD." Against the real board it reports 48 recorded commits, all on this branch. Run in a throwaway clone rather than the working tree, because the first attempt at this check used `git reset --hard` here and discarded the work it was checking — `D-45`.
+  code: scripts/verify_board.py
+  commit: e8dbaa6
+
+- S-06.02.11 · The verifier catches a stale READY column
+  tests: tests/test_verify_board.py::test_ready_with_a_dependency_that_is_not_done_fails, tests/test_verify_board.py::test_a_dependency_on_a_story_that_does_not_exist_fails, tests/test_verify_board.py::test_a_backlog_story_whose_dependencies_are_all_done_is_named, tests/test_verify_board.py::test_a_backlog_story_with_an_open_question_against_it_is_not_named, tests/test_verify_board.py::test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop, tests/test_verify_board.py::test_a_question_that_names_its_story_only_in_the_heading_still_blocks, tests/test_verify_board.py::test_an_answered_question_in_the_heading_does_not_block, tests/test_verify_board.py::test_ready_with_every_dependency_done_passes
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 49 passed (2026-09-12)
+  live: python scripts/verify_board.py --skip-tests, then each new rule broken on purpose against the real repository and restored. As it stands it reports `1 story(s) could be pulled today: S-06.02.03` — which became available when S-06.01.03 landed the day before. Moving S-02.02.03 into READY while S-02.02.02 is still BACKLOG: refused. Pointing S-06.02.03's dependency at S-99.99.99: refused. Moving S-06.01.02 into READY: refused by Q-04 — the rule that `D-44` had kept silent since the verifier was written, firing for the first time on real data.
+  code: scripts/verify_board.py
+  commit: a9cee44
+
+- S-11.05.01 · Concurrent runs share one browser safely
+  tests: tests/test_browser_concurrency.py::test_two_runs_on_one_host_share_the_floor, tests/test_browser_concurrency.py::test_the_floor_holds_as_the_number_of_runs_grows, tests/test_browser_concurrency.py::test_runs_arriving_together_are_spaced_rather_than_all_waved_through, tests/test_browser_concurrency.py::test_concurrent_runs_draw_on_one_budget_not_one_each, tests/test_browser_concurrency.py::test_separate_ledger_objects_over_one_file_share_a_lock, tests/test_browser_concurrency.py::test_the_ceiling_can_be_overshot_by_the_runs_in_flight_and_no_more, tests/test_browser_concurrency.py::test_neither_run_can_resolve_a_handle_from_the_others_page, tests/test_browser_concurrency.py::test_different_hosts_do_not_wait_for_each_other, tests/test_browser_concurrency.py::test_a_session_hands_out_one_pace_so_there_is_a_right_answer
+  command: python -m pytest tests/test_browser_concurrency.py tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_countdown.py tests/test_browser_enter_gate.py tests/test_agent_run.py tests/test_browser_signin.py tests/test_browser_revoke.py -q
+  result: 161 passed (2026-09-11)
+  live: python scripts/live/two_runs_one_browser.py — one real headless Chromium, two tabs acting at the same time, all four steps checked and exit 0 only if every one holds. Separate tabs, separate traces, separate snapshots; a handle from the other run's page refused with LookupError; eight actions across both runs took 2.80s against a floor that a per-run clock would have satisfied in ~1.4s; all ten charges reached one ledger. Measured concurrently on purpose — a sequential probe of the same two things passed while both were broken.
+  code: offsetx_apollo_builder/browser/pace.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/session.py
+  commit: 117ee87
+
+- S-11.03.03 · Enter is gated like the button beside it
+  tests: tests/test_browser_enter_gate.py::test_enter_in_a_field_whose_form_submits_with_send_needs_confirmation, tests/test_browser_enter_gate.py::test_enter_and_click_agree_about_what_needs_a_human, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_asks_nothing, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_does_not_even_ask_the_page, tests/test_browser_enter_gate.py::test_if_the_page_cannot_be_asked_it_fails_closed, tests/test_browser_enter_gate.py::test_enter_in_a_search_box_is_ordinary, tests/test_browser_enter_gate.py::test_enter_is_sent_with_the_character_it_produces, tests/test_browser_enter_gate.py::test_a_key_that_produces_no_character_sends_none, tests/test_browser_enter_gate.py::test_an_unattended_run_cannot_countdown_its_way_past_enter_either
+  command: python -m pytest tests/test_browser_enter_gate.py tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py tests/test_browser_signin.py -q
+  result: 150 passed (2026-09-11)
+  live: python scripts/live/enter_is_gated.py — real headless Chromium, a real `<form>` with a real submit button, all six steps checked and exit 0 only if every one holds. Step 0 proves the hole is real: with the gate waived, Enter submits the form (`COMPOSE SUBMITTED`). Gated, the same keystroke is refused and **the page reports `nothing happened`**. Tab, ArrowDown and Escape pass straight through. Enter in a `<textarea>` beside a Send button is ordinary, because there it makes a newline and cannot submit. Enter in a search box runs the search. Cleared by a countdown, Enter submits. The proof is asked of the page every time, which is how `D-40` was found — every previous test of `press` asked the return value, and the return value said `ok=True` the whole time the key was doing nothing.
+  code: offsetx_apollo_builder/browser/page.py
+  commit: 99d5219
+
+- S-02.02.04 · Safety countdowns before consequential actions
+  tests: tests/test_browser_countdown.py::test_a_cancelled_countdown_sends_nothing_to_the_site, tests/test_browser_countdown.py::test_an_unattended_run_cannot_use_a_countdown, tests/test_browser_countdown.py::test_cancelling_is_prompt_rather_than_eventually, tests/test_browser_countdown.py::test_it_can_be_cancelled_from_another_thread, tests/test_browser_countdown.py::test_somebody_watching_sees_it_count_down, tests/test_browser_countdown.py::test_a_countdown_covers_one_action_and_no_more, tests/test_browser_countdown.py::test_without_a_countdown_a_send_still_refuses_and_asks, tests/test_browser_countdown.py::test_a_countdown_that_elapses_lets_the_click_through, tests/test_browser_countdown.py::test_an_ordinary_click_never_waits_for_anything
+  command: python -m pytest tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py -q
+  result: 95 passed (2026-09-11)
+  live: python scripts/live/cancel_the_countdown.py — real headless Chromium on a real page, all four steps checked and exit 0 only if every one holds. A harmless link ignored the five-second countdown it was offered (1.78s, all of it the page-settle every click pays). A Send button with the countdown cancelled after 0.4s was refused, the owner saw it counting, and **the page itself reported `nothing sent`** — the proof is asked of the page, not of the return value, because an action that reports failure and still sends the click is exactly the defect this feature would have. The same button left alone waited, clicked, and the page reported `SENT`. An unattended page was refused a countdown outright and sent back to the owner.
+  code: offsetx_apollo_builder/browser/countdown.py, offsetx_apollo_builder/browser/page.py
+  commit: e822fcc
+
+- S-08.01.05 · Operators control delivery without hidden live sends
+  tests: tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx
+  command: python -m pytest tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation -q && (cd frontend && npm test -- src/components.test.tsx)
+  historical_result: 2 passed + 11 passed (2026-09-11) — both halves, at last
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
+  live: `npm ci` in frontend/ then `npm test -- src/components.test.tsx` — 1 test file, 11 tests, 1.52s. The dependency that could not be installed on 2026-08-27 installs cleanly now, so the dashboard half of this story is proven rather than argued.
+  code: offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
+
+- S-11.01.04 · A run has a money ceiling, not only a step ceiling
+  tests: tests/test_agent_money_ceiling.py::test_a_run_stops_at_the_ceiling_with_the_right_status, tests/test_agent_money_ceiling.py::test_the_decision_that_would_cross_is_never_asked_for, tests/test_agent_money_ceiling.py::test_a_resumed_run_keeps_the_ceiling_it_was_given, tests/test_agent_money_ceiling.py::test_raising_the_ceiling_on_purpose_lets_the_run_carry_on, tests/test_agent_money_ceiling.py::test_a_resumed_run_counts_what_its_earlier_life_spent, tests/test_agent_money_ceiling.py::test_the_next_decision_is_predicted_from_the_worst_so_far_not_the_average, tests/test_agent_money_ceiling.py::test_what_it_gathered_before_the_ceiling_is_kept, tests/test_agent_money_ceiling.py::test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more, tests/test_agent_money_ceiling.py::test_no_ceiling_behaves_exactly_as_before, tests/test_agent_money_ceiling.py::test_the_trace_says_why_it_stopped_and_by_how_much
+  command: python -m pytest tests/test_agent_money_ceiling.py tests/test_ai_cost_ledger.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_report.py tests/test_agent_wall.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_no_duplicate_effects.py -q
+  result: 155 passed (2026-09-11)
+  live: python scripts/live/stop_at_the_ceiling.py — real headless Chromium on a real page, decisions priced at $0.05 against a $0.20 ceiling, all four steps checked and exit 0 only if every one holds. The run made exactly four decisions and spent exactly $0.2000; the fifth was never asked for (4 model calls, not 5). Resumed with no argument it stopped again at `over_budget` after **0** model calls — the ceiling was read back off the trace. Resumed with the ceiling raised on purpose it completed with the answer, and reported $0.2500 spent across the whole run rather than $0.05 for its own part. One continuous trace: over_budget → resumed → run_continued → decision → completed.
+  code: offsetx_apollo_builder/agent/run.py
+  commit: b659b79
+
+- S-06.01.03 · Cost estimated before a run and ledgered after
+  tests: tests/test_ai_cost_ledger.py::test_the_daily_spend_cap_now_stops_something, tests/test_ai_cost_ledger.py::test_recording_zero_would_never_reach_the_cap, tests/test_ai_cost_ledger.py::test_every_provider_shape_is_read, tests/test_ai_cost_ledger.py::test_a_response_with_no_usage_block_reports_nothing_rather_than_zero, tests/test_ai_cost_ledger.py::test_the_provider_receipt_is_preferred_over_our_guess, tests/test_ai_cost_ledger.py::test_a_guess_is_labelled_a_guess, tests/test_ai_cost_ledger.py::test_the_model_method_and_the_function_are_the_same_arithmetic, tests/test_ai_cost_ledger.py::test_an_estimate_is_produced_before_anything_runs, tests/test_ai_cost_ledger.py::test_the_estimate_is_recorded_before_the_first_action, tests/test_ai_cost_ledger.py::test_the_trace_total_is_the_sum_of_what_each_call_reported, tests/test_ai_cost_ledger.py::test_the_outcome_carries_the_estimate_and_what_was_actually_spent
+  command: python -m pytest tests/test_ai_cost_ledger.py tests/test_ai_egress_wall.py tests/test_ai_model_selection.py tests/test_ai_registry_packaging.py tests/test_outreach_providers.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_watch.py tests/test_agent_wall.py tests/test_agent_provenance.py tests/test_agent_structured_result.py -q
+  result: 200 passed (2026-09-11)
+  live: python scripts/live/what_a_run_costs.py — a stand-in provider answering real HTTP in the Chat Completions shape, spoken to by the real `openai_compatible` adapter, through the real `measure`, into a real quota file on disk. The adapter read the reported 1842 in / 97 out; `measure` priced it at $0.004460 and labelled the source `provider` rather than `estimated`; the ledger reached the owner's $1.00 cap after 225 calls and refused the 226th with "daily spend cap reached ($1.00/$1.00)". The same script then records 10,000 calls the old way, at $0.00 each, and confirms nothing is refused — which is `D-35` as it stood before this.
+  code: offsetx_apollo_builder/ai/broker.py, offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/outreach/providers.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py
+  commit: 97cda8f
+
+- S-06.02.13 · A defect log and a decision log the next session can read
+  tests: tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_an_open_defect_naming_a_real_backlog_item_passes, tests/test_verify_board.py::test_the_same_defect_id_twice_fails, tests/test_verify_board.py::test_a_defect_that_does_not_say_what_went_wrong_fails, tests/test_verify_board.py::test_a_defect_with_no_date_found_fails, tests/test_verify_board.py::test_a_decision_with_no_cost_fails, tests/test_verify_board.py::test_a_missing_defect_log_fails_rather_than_passing_vacuously, tests/test_verify_board.py::test_a_missing_decision_log_fails_rather_than_passing_vacuously
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 39 passed (2026-09-11)
+  live: python scripts/verify_board.py --skip-tests — reports "34 defect(s) logged, 12 design decision(s) recorded" against the real repository, counted by parsing rather than read from prose. Each of the three new rules was then broken on purpose against the real files and the verifier named it: an open defect with its backlog id removed (D-25), a duplicated id (D-33), and a decision with its cost column emptied (DD-04). Restored, and green.
+  code: DEFECT_LOG.md, DECISIONS.md, scripts/verify_board.py, DEFINITION_OF_DONE.md, AGENTS.md
+
+- S-11.03.01 · A wall the agent must not climb pauses the run and asks
+  tests: tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_the_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge
+  command: python -m pytest tests/test_agent_wall.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_injection.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_structured_result.py tests/test_agent_no_duplicate_effects.py tests/test_agent_provenance.py tests/test_browser_agent.py tests/test_browser_signin.py -q
+  result: 221 passed (2026-09-11)
+  live: python scripts/live/pause_at_a_wall.py — real headless Chromium on a real sign-in page, all four steps checked and exit 0 only if every one holds. The agent met the wall (`needs_human`, "A sign-in form is in the way (password_field)", **0** model calls, 10 of 10 budget left); the tab was still on that URL afterwards and no page text reached `trace.jsonl`; a person signed in and the tab was reloaded; `resume()` carried on from the same step to `completed` with the answer that was behind the wall. One continuous trace: run_started → needs_human → resumed → run_continued → decision → action → decision → completed. Chrome's own accessibility tree named the field "Password", so the rule is verified against a real browser rather than a fixture.
+  code: offsetx_apollo_builder/agent/wall.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/browser/perceive.py
+  commit: 7f69c9a
+
+- S-11.04.02 · Progress is visible while it happens
+  tests: tests/test_agent_watch.py::test_a_watcher_sees_the_run_step_by_step, tests/test_agent_watch.py::test_a_read_answered_from_the_memo_still_reports_its_verb, tests/test_agent_watch.py::test_updates_arrive_during_the_run_not_in_a_batch_at_the_end, tests/test_agent_watch.py::test_an_update_carries_the_action_the_url_and_the_running_cost, tests/test_agent_watch.py::test_the_verb_comes_from_the_signature_not_from_the_prose, tests/test_agent_watch.py::test_a_listener_hears_only_what_is_already_durable, tests/test_agent_watch.py::test_a_watcher_that_throws_does_not_end_the_run, tests/test_agent_watch.py::test_a_run_with_nobody_watching_behaves_exactly_as_before
+  command: python -m pytest tests/test_agent_watch.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py tests/test_agent_provenance.py tests/test_agent_recovery.py tests/test_agent_report.py tests/test_browser_agent.py -q
+  result: 132 passed (2026-09-11)
+  live: python scripts/live/watch_a_run.py — real headless Chromium, real page served over HTTP, real trace on disk, a watcher attached through `on_progress`. Exits 0 only if the run completes AND its nine steps arrived spread over more than half a second rather than in a batch at the end; observed spread 1.6s, each line carrying its verb from the recorded signature (`action read`, `action click`), the live page URL, and the running cost climbing $0.0000 -> $0.0071. The refused step printed marked `!` the moment it happened, which is the case this story exists for. That refusal is the loopback rule in `policy.py` doing its job and was left alone — this container's egress proxy will not serve Chromium, so no public page was reachable to click instead.
+  code: offsetx_apollo_builder/agent/watch.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py
+  commit: 7a502b0
+
+- S-11.04.01 · A run report a person can audit
+  tests: tests/test_agent_report.py::test_every_returned_fact_appears_with_its_evidence, tests/test_agent_report.py::test_a_run_that_got_stuck_says_so_at_the_top, tests/test_agent_report.py::test_a_hostile_quote_comes_back_inert, tests/test_agent_report.py::test_a_screenshot_filename_that_tries_to_leave_the_directory_is_dropped, tests/test_agent_report.py::test_a_finished_run_writes_its_own_report
+  command: python -m pytest tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_injection.py tests/test_agent_resume.py tests/test_agent_structured_result.py -q
+  result: 82 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/agent/run.py
+  commit: cd25d9d
+
+- S-11.03.02 · A page that tries to give orders is reported, not obeyed
+  tests: tests/test_agent_injection.py::test_an_attack_in_the_page_text_is_flagged_in_the_trace, tests/test_agent_injection.py::test_the_run_carries_on_under_the_owners_goal, tests/test_agent_injection.py::test_ordinary_page_text_is_left_alone, tests/test_agent_injection.py::test_an_attack_split_across_lines_is_still_caught, tests/test_agent_injection.py::test_the_quote_stays_out_of_the_audit_log
+  command: python -m pytest tests/test_agent_injection.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py -q
+  result: 81 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/injection.py, offsetx_apollo_builder/agent/run.py
+  commit: 2f5c19e
+
+- S-11.05.02 · Re-running does not duplicate what it already did
+  tests: tests/test_agent_no_duplicate_effects.py::test_a_resumed_run_does_not_send_the_message_twice, tests/test_agent_no_duplicate_effects.py::test_pressing_enter_again_after_a_resume_does_not_submit_twice, tests/test_agent_no_duplicate_effects.py::test_navigating_back_to_where_it_was_still_works, tests/test_agent_no_duplicate_effects.py::test_within_one_run_the_guard_does_not_fire
+  command: python -m pytest tests/test_agent_no_duplicate_effects.py tests/test_agent_resume.py tests/test_agent_run.py tests/test_agent_provenance.py tests/test_agent_progress.py tests/test_agent_recovery.py -q
+  result: 59 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/run.py
+  commit: 1e1bd0d
+
+- S-11.01.03 · A run survives the process dying
+  tests: tests/test_agent_resume.py::test_a_resumed_run_keeps_the_facts_it_already_gathered, tests/test_agent_resume.py::test_resuming_continues_the_same_trace_and_marks_where, tests/test_agent_resume.py::test_a_finished_run_is_not_resumed, tests/test_agent_resume.py::test_a_fact_whose_artefact_is_gone_is_dropped_not_invented
+  command: python -m pytest tests/test_agent_resume.py tests/test_agent_provenance.py tests/test_agent_run.py tests/test_agent_structured_result.py tests/test_agent_progress.py tests/test_agent_recovery.py -q
+  result: 56 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/result.py
+  commit: 8e759b9
+
+- S-11.01.02 · A run that stops making progress is stopped
+  tests: tests/test_agent_progress.py::test_filling_a_long_form_is_never_called_stalled, tests/test_agent_progress.py::test_a_search_and_browse_pattern_is_never_called_looping, tests/test_agent_progress.py::test_bouncing_between_two_pages_is_looping, tests/test_agent_progress.py::test_clicking_the_same_working_button_forever_is_stalled, tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+  command: python -m pytest tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
+  result: 51 passed (2026-09-10)
+  code: offsetx_apollo_builder/agent/run.py
+  commit: 1b3c519
+
 - S-11.01.01 · A failed action is recovered from, not repeated
   tests: tests/test_agent_recovery.py::test_the_same_failing_action_reaches_the_browser_only_once, tests/test_agent_recovery.py::test_three_failures_in_a_row_stop_the_run, tests/test_agent_recovery.py::test_a_timeout_is_retried_with_backoff_and_recorded_as_a_retry, tests/test_agent_recovery.py::test_a_success_clears_the_failure_streak
   command: python -m pytest tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
@@ -107,7 +230,7 @@ remaining independent stories below stay READY.)*
   code: offsetx_apollo_builder/agent/run.py
   commit: ce3a994
 
-- S-06.02.11 · Durable customer state and safe recovery (Audit WP1)
+- S-06.02.15 · Durable customer state and safe recovery (Audit WP1)
   tests: tests/test_audit_wp1.py, tests/test_wp1_recovery_edges.py, tests/test_workspace_lock.py, verification/test_wp1_live.py
   command: uv run --no-sync pytest tests/test_audit_wp1.py tests/test_wp1_recovery_edges.py tests/test_workspace_lock.py -q
   result: 41 focused tests passed; integrated CI passed 1686 Python and 116 frontend tests, both live recovery tests and Windows leases, with no acceptance skips (2026-09-09).
@@ -168,107 +291,135 @@ remaining independent stories below stay READY.)*
 - S-01.01.01 · A timeline that cannot represent an invalid edit
   tests: tests/test_video_timeline.py
   command: python -m pytest tests/test_video_timeline.py -q
-  result: 49 passed (2026-08-25)
+  historical_result: 49 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/timeline.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.01.02 · Two resolvers held to one answer by a fixture
   tests: tests/test_video_mixdown.py
   command: python -m pytest tests/test_video_mixdown.py -q
-  result: 29 passed (2026-08-25)
+  historical_result: 29 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: tests/fixtures/timeline_conformance.json
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.02.01 · Video, audio and footage in one exported file
   tests: tests/test_video_engine.py
   command: python -m pytest tests/test_video_engine.py -q
-  result: 46 passed (2026-08-25)
+  historical_result: 46 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/mixdown.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.02.02 · Time remapping as one integral
   tests: tests/test_video_retime.py
   command: python -m pytest tests/test_video_retime.py -q
-  result: 34 passed (2026-08-25)
+  historical_result: 34 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/presets.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.02.03 · 48 pixel primitives and a catalogue of looks
   tests: tests/test_video_effects.py
   command: python -m pytest tests/test_video_effects.py -q
-  result: 49 passed (2026-08-25)
+  historical_result: 49 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/effects.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.03.01 · Material in, finished timeline out
   tests: tests/test_video_assembly.py
   command: python -m pytest tests/test_video_assembly.py -q
-  result: 94 passed (2026-08-25)
+  historical_result: 94 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/assembly.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.03.02 · A topic in, a finished project out
   tests: tests/test_video_director.py
   command: python -m pytest tests/test_video_director.py -q
-  result: 31 passed (2026-08-25)
+  historical_result: 31 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/director.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.04.01 · Push, ignore, edit
   tests: tests/test_video_review.py
   command: python -m pytest tests/test_video_review.py -q
-  result: 37 passed (2026-08-25)
+  historical_result: 37 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/video/engine.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-01.04.02 · The owner's posting cap, and advice about the rate
   tests: tests/test_pacing_cap.py
   command: python -m pytest tests/test_pacing_cap.py -q
-  result: 19 passed (2026-08-25)
+  historical_result: 19 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/distribution/pacing.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-02.01.01 · A hand-written DevTools client
   tests: tests/test_browser_agent.py::test_a_command_the_browser_does_not_know_raises_rather_than_hangs
   command: python -m pytest tests/test_browser_agent.py -q
-  result: 32 passed (2026-08-25)
+  historical_result: 32 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/browser/cdp.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-02.01.02 · The page as an accessibility outline with stable handles
   tests: tests/test_browser_agent.py::test_a_snapshot_reads_in_document_order_and_not_cdps_order
   command: python -m pytest tests/test_browser_agent.py -q
-  result: 32 passed (2026-08-25)
+  historical_result: 32 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/browser/perceive.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-02.01.03 · Ten verbs, real input, no arbitrary code
   tests: tests/test_browser_agent.py::test_the_vocabulary_is_ten_verbs_and_none_of_them_runs_code
   command: python -m pytest tests/test_browser_agent.py -q
-  result: 32 passed (2026-08-25)
+  historical_result: 32 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/browser/page.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-02.01.04 · Per-domain policy, enforced in code
   tests: tests/test_browser_agent.py::test_the_machine_itself_is_never_reachable
   command: python -m pytest tests/test_browser_agent.py -q
-  result: 32 passed (2026-08-25)
+  historical_result: 32 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/browser/policy.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-02.01.05 · An append-only work trace
   tests: tests/test_browser_agent.py::test_a_trace_is_append_only_with_no_way_to_remove_a_step
   command: python -m pytest tests/test_browser_agent.py -q
-  result: 32 passed (2026-08-25)
+  historical_result: 32 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/browser/trace.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-03.01.01 · A browser box: network yes, host filesystem never
   tests: tests/test_browser_box.py::test_the_only_mount_is_a_docker_volume_and_not_a_path_on_your_disk, tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain
   command: python -m pytest tests/test_browser_box.py -q
   result: 30 passed (2026-08-25)
   code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py
-  commit: 0be650d
+  commit: 91c7cb2
 
 - S-03.02.04 · Several accounts per platform, each with its own budget
   tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
@@ -303,21 +454,25 @@ remaining independent stories below stay READY.)*
   command: python -m pytest tests/test_ai_sandbox.py tests/test_browser_box.py -q
   result: 72 passed, 1 skipped (2026-08-25)
   code: offsetx_apollo_builder/ai/sandbox.py
-  commit: 0be650d
+  commit: 91c7cb2
 
 - S-06.02.07 · An answered question stops blocking
   tests: tests/test_verify_board.py::test_an_answered_question_stops_blocking_ready
   command: python -m pytest tests/test_verify_board.py -q
-  result: 29 passed (2026-08-25)
+  historical_result: 29 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: scripts/verify_board.py
-  commit: 8b6876e
+  historical_commit: 8b6876e (pre-import evidence reference)
+  commit: 24d7425
 
 - S-06.02.06 · The delivery process is verifiable by the owner
   tests: tests/test_verify_board.py
   command: python -m pytest tests/test_verify_board.py -q
-  result: 29 passed (2026-08-25)
+  historical_result: 29 passed (2026-08-25)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: scripts/verify_board.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 *Retrospective certification, 2026-08-27: the protected email implementation
 arrived in `d96ea9d` before it had backlog IDs. The entries below certify the
@@ -327,30 +482,38 @@ the pull-before-code process.*
 - S-08.01.01 · Permission and suppression fail closed
   tests: tests/test_email_delivery.py::test_permission_marketing_fails_closed_and_suppression_is_global, tests/test_email_delivery.py::test_direct_sender_checks_global_suppression_before_provider_call, tests/test_email_delivery.py::test_transactional_lane_requires_relationship_basis_not_marketing_consent
   command: python -m pytest tests/test_email_delivery.py::test_permission_marketing_fails_closed_and_suppression_is_global tests/test_email_delivery.py::test_direct_sender_checks_global_suppression_before_provider_call tests/test_email_delivery.py::test_transactional_lane_requires_relationship_basis_not_marketing_consent -q
-  result: 3 passed (2026-08-27)
+  historical_result: 3 passed (2026-08-27)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/outreach/deliverability/preflight.py, offsetx_apollo_builder/outreach/deliverability/store.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-08.01.02 · Durable jobs survive crashes without duplicate sends
   tests: tests/test_email_delivery.py::test_durable_local_job_is_snapshotted_claimed_once_and_recorded, tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried, tests/test_email_delivery.py::test_stale_claim_without_a_recorded_message_becomes_delivery_unknown, tests/test_email_delivery.py::test_job_cancellation_is_terminal_and_only_allowed_before_claim, tests/test_email_delivery.py::test_reply_cancels_an_already_queued_email_before_delivery, tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt
   command: python -m pytest tests/test_email_delivery.py::test_durable_local_job_is_snapshotted_claimed_once_and_recorded tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried tests/test_email_delivery.py::test_stale_claim_without_a_recorded_message_becomes_delivery_unknown tests/test_email_delivery.py::test_job_cancellation_is_terminal_and_only_allowed_before_claim tests/test_email_delivery.py::test_reply_cancels_an_already_queued_email_before_delivery tests/test_email_delivery.py::test_worker_defers_outside_send_window_without_spending_a_provider_attempt -q
-  result: 6 passed (2026-08-27)
+  historical_result: 6 passed (2026-08-27)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/outreach/deliverability/service.py, offsetx_apollo_builder/outreach/deliverability/store.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-08.01.03 · Authenticated SES lanes carry bulk mail
   tests: tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence, tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one_click_headers
   command: python -m pytest tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one_click_headers -q
-  result: 2 passed (2026-08-27)
+  historical_result: 2 passed (2026-08-27)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/outreach/deliverability/domain_auth.py, offsetx_apollo_builder/outreach/deliverability/ses.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 - S-08.01.04 · Provider feedback stops unhealthy sending
   tests: tests/test_email_delivery.py::test_ses_feedback_is_idempotent_suppresses_and_auto_pauses, tests/test_email_delivery.py::test_sns_envelope_signature_is_verified_before_parsing, tests/test_email_delivery.py::test_public_feedback_paths_bypass_login_but_still_verify_their_tokens
   command: python -m pytest tests/test_email_delivery.py::test_ses_feedback_is_idempotent_suppresses_and_auto_pauses tests/test_email_delivery.py::test_sns_envelope_signature_is_verified_before_parsing tests/test_email_delivery.py::test_public_feedback_paths_bypass_login_but_still_verify_their_tokens -q
-  result: 3 passed (2026-08-27)
+  historical_result: 3 passed (2026-08-27)
+  result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.
   code: offsetx_apollo_builder/outreach/deliverability/events.py, offsetx_apollo_builder/outreach/deliverability/service.py
-  commit: d96ea9d
+  historical_commit: d96ea9d (pre-import evidence reference)
+  commit: 24d7425
 
 ## DEFERRED
 

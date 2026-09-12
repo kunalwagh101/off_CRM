@@ -28,6 +28,8 @@ jobs:
       OFF_CRM_LIVE_EVIDENCE: ${{ github.workspace }}/verification-evidence
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required by the board's commit ancestry verification.
       - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v5
         with:
@@ -62,6 +64,8 @@ jobs:
           fi
       - name: Verify WP1 in the browser and persistent container
         run: uv run --no-sync pytest verification/test_wp1_live.py -q -ra --junitxml=verification-evidence/wp1-live.xml
+      - name: Verify campaign creation and switching in real Chromium
+        run: uv run --no-sync pytest verification/test_campaign_selection_live.py -q -ra --junitxml=verification-evidence/campaign-selection-live.xml
       - name: Verify all existing and WP1 Python acceptance tests
         run: uv run --no-sync pytest tests -q -ra --junitxml=verification-evidence/python.xml
       - name: Verify the story board
@@ -78,7 +82,7 @@ jobs:
           from pathlib import Path
           from xml.etree import ElementTree as ET
           result = {}
-          names = ('python', 'wp1-live')
+          names = ('python', 'wp1-live', 'campaign-selection-live')
           if os.environ.get('GITHUB_REF') == 'refs/heads/integration/main-consolidation':
               names += ('acceptance',)
           for name in names:

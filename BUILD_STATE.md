@@ -1,18 +1,28 @@
 # BUILD_STATE.md
 
-Current work: `integration/main-consolidation`, starting from main `37cf9b1`.
-The five open PRs (#13, #11, #4, #6 and #10) are combined here; main is not
-updated by this consolidation. The two page-cache implementations now share
-one bounded cache, preserving URL fragments, query order, provenance and
-main's failed-action recovery. PLAN.md remains IN_REVIEW for its customer UI.
-Local combined checks: 1,678 Python passed (25 service-dependent skips),
-116 frontend passed and a successful production build. First combined CI at
-`5be4e438` passed 1,717 Python, 116 frontend and 2 live recovery tests with zero
-skips, plus the Windows lease job. The original audit failed 7 of 30 cases;
-3 unauthenticated readbacks are corrected for rerun and existing audit issues
-remain open. Main promotion is blocked; draft PR #14 carries current CI evidence.
-See `docs/integration/MAIN_CONSOLIDATION.md` for the input commits, conflict
-decisions and commands that test the combined application.
+Active story: **S-06.02.16 / R-101 — reliable campaign creation and switching**
+(A33 / D-51), on the existing `integration/main-consolidation` branch.
+The implementation starts from the combined main refresh at `432eec1`; it keeps
+WP1 and main's newer work. All 136 frontend tests (including 20 targeted
+selection checks) and the production build pass locally. Real-browser acceptance and final combined CI are pending.
+
+Current work: `integration/main-consolidation`, draft PR #14. The five original
+pending PRs (#13, #11, #4, #6 and #10) are combined, and main's subsequent
+44 commits through `aa380578` are being integrated into this same branch.
+Main has not been modified by this work. Its newer resume, spending, report,
+watcher, wall, Enter approval and browser concurrency controls are preserved.
+WP1 now maps to **S-06.02.15 / R-100** to avoid IDs independently reused in main.
+PLAN.md remains IN_REVIEW for its customer checklist UI; main's completed
+operator delivery review is retained as DONE.
+
+Before the main refresh, `24d7425` passed 1,717 Python tests, 116 frontend tests,
+2 live recovery checks and the Windows lease job. Its original audit had
+24 passes and 6 failures across A09/A32/A33/A34/A35. The refreshed branch must
+be tested again: main includes an A09 Enter fix, and those earlier results do
+not certify the new combined code. PR #14 records results for each exact head.
+Refreshed local results: 1,954 Python passed (26 service-dependent skips),
+116 frontend passed, production build passed, Ruff and board checks passed.
+See `docs/integration/MAIN_CONSOLIDATION.md` for history and conflict decisions.
 
 ## Historical WP1 completion
 

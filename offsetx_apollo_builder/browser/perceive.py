@@ -140,6 +140,18 @@ class Snapshot:
     def actions(self) -> list[Node]:
         return [node for node in self.nodes if node.actionable]
 
+    @property
+    def names(self) -> list[str]:
+        """Every accessible name on the page, lowered, in document order.
+
+        What a screen reader would read out. Anything deciding *what kind of
+        page this is* — whether you are signed in (`identity.py`), whether
+        something is in the way (`agent/wall.py`) — reads this rather than the
+        markup, because a class name changes on the next deploy and a button
+        still says "Sign in".
+        """
+        return [node.name.strip().lower() for node in self.nodes if node.name.strip()]
+
     def find(self, handle: int) -> Node:
         for node in self.nodes:
             if node.handle == int(handle):

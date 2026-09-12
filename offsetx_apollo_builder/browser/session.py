@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Any
 
 from .cdp import CDPConnection, connect
+from .pace import Pace
 
 #: Where Chrome and its relatives usually are, per platform. Checked in order,
 #: and the owner can always name a path instead.
@@ -418,6 +419,14 @@ class BrowserSession:
     profile_dir: str = ""
     browser_path: str = ""
     version: dict[str, Any] = field(default_factory=dict)
+    #: The rhythm every tab in this browser keeps, together.  `S-11.05.01`
+    #:
+    #: One browser is one set of logins acting as one person, so the per-host
+    #: floor `policy.py` sets has to be counted across its tabs rather than per
+    #: tab. Hand this to every `Page` built from this session —
+    #: `Page(..., pace=session.pace)` — or two runs halve the interval and N
+    #: runs divide it by N.
+    pace: Pace = field(default_factory=Pace)
 
     @property
     def launched_by_us(self) -> bool:

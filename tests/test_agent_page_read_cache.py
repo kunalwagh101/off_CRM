@@ -18,6 +18,7 @@ from offsetx_apollo_builder.browser.page import ActionResult, Page
 from offsetx_apollo_builder.browser.perceive import Snapshot
 from offsetx_apollo_builder.browser.session import BrowserUnavailable, find_browser
 from offsetx_apollo_builder.browser.trace import Trace
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 class _Registry:
@@ -48,7 +49,7 @@ class _Broker:
     def call(self, request, settings, *, system_prompt, provider_id="", expect_json=False):
         self.calls.append(request.instructions)
         return SimpleNamespace(
-            text=self.answers.pop(0),
+            text=fill_citations(self.answers.pop(0), request.instructions),
             provider_id="trusted",
             provider_name="Trusted",
             model_id="planner",
@@ -244,7 +245,7 @@ def test_cached_structured_read_reuses_original_provenance_and_screenshot(tmp_pa
         [
             _act("read"),
             _act("read"),
-            _done({"company": _finding("Acme Ltd", "Company: Acme Ltd", "step-000002")}),
+            _done({"company": _finding("Acme Ltd", "Company: Acme Ltd", CITE)}),
         ],
         page=page,
         fields=("company",),
@@ -252,11 +253,12 @@ def test_cached_structured_read_reuses_original_provenance_and_screenshot(tmp_pa
 
     assert outcome.status == "completed"
     assert outcome.record == {"company": "Acme Ltd"}
-    assert outcome.findings["company"].source.step_id == "step-000002"
+    source_id = step_id_of(run.trace, "action")
+    assert outcome.findings["company"].source.step_id == source_id
     assert page.read_calls == 1
     assert page.screenshot_calls == 1
-    assert "step_id=step-000002" in broker.calls[2]
-    assert len([step for step in run.trace.steps if step.capture]) == 1
+    assert f"step_id={source_id}" in broker.calls[2]
+    assert len([step for step in run.trace.steps if step.kind == "action" and step.capture]) == 1
 
 
 # The live gate proves that the second model read does not invoke Page.read on

@@ -9,18 +9,23 @@ from .result import (
     SourcedRecordValidation,
 )
 from .plan import PLAN_FILENAME, PlanError, PlanSnapshot, RunPlan
-from .run import AgentRun, Decision, RunOutcome, RunRefused
+from .run import AgentRun, Decision, ResumeState, RunOutcome, RunRefused, replay
+from .watch import Progress, console
 
 __all__ = [
     "AgentRun",
+    "console",
     "Decision",
     "Finding",
+    "Progress",
     "Provenance",
     "RecordValidation",
     "ResultSchema",
     "ResultSchemaError",
     "RunOutcome",
     "RunRefused",
+    "ResumeState",
+    "replay",
     "SourcedRecordValidation",
     "PLAN_FILENAME",
     "PlanError",

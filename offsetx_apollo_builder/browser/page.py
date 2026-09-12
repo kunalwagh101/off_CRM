@@ -41,8 +41,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .cdp import CDPConnection, CDPTimeout
 from .budget import COSTED_ACTIONS, Budget, BudgetLedger
+from .cdp import CDPConnection, CDPTimeout
+from .countdown import Countdown
+from .pace import Pace
 from .guard import RequestGuard
 from .perceive import Snapshot, capture
 from .policy import DomainRule, Refused, check_action, check_navigation, rule_for
@@ -60,6 +62,74 @@ SETTLE_SECONDS = 2.0
 #: What `read` may return. A page can contain a novel; a model has a context
 #: window. Past this the text is cut and says so.
 MAX_READ_CHARS = 20_000
+
+#: Keys that can activate something. Enter is the whole list: Tab moves,
+#: Escape closes, the arrows and the paging keys scroll. A gate that asked
+#: about every keystroke would be worse than none, because people switch off
+#: things that ask too often.  `S-11.03.03`
+SUBMITTING_KEYS = frozenset({"Enter"})
+
+#: The keys the agent may press, and what the browser calls them.
+KEY_CODES = {
+    "Enter": 13, "Tab": 9, "Escape": 27, "Backspace": 8,
+    "ArrowDown": 40, "ArrowUp": 38, "ArrowLeft": 37, "ArrowRight": 39,
+    "PageDown": 34, "PageUp": 33, "Home": 36, "End": 35,
+}
+
+#: The character each key produces, for the ones that produce one.
+#:
+#: **Not cosmetic.** A key event sent without it is raised on the page and then
+#: does *nothing* — Chrome performs no default action, so Enter never submitted
+#: a form and the agent had a verb that half-worked. Found by the live check for
+#: `S-11.03.03`, which could not demonstrate the hole it was closing, and
+#: measured key by key rather than guessed: Tab and Backspace work either way,
+#: Enter only with this.  `D-40`
+KEY_TEXT = {"Enter": "\r", "Tab": "\t"}
+
+#: How much of a control's label is kept. It comes off an untrusted page and
+#: only ever reaches `_intent`, which matches it against a fixed word list.
+MAX_CONTROL_LABEL_CHARS = 120
+
+#: What Enter would activate, asked of the page itself.  `S-11.03.03`
+#:
+#: The accessibility tree says what is focused; it cannot say whether that
+#: field belongs to a form, or what that form's submit control is called. "Enter
+#: in the same form" is the story's own wording and it is a DOM relationship,
+#: so the DOM is what gets asked.
+#:
+#: Reads labels only — `aria-label`, then the button's own text, then `value`.
+#: Never a field's contents.
+_WHAT_ENTER_WOULD_DO = """
+(() => {
+  const label = (n) => String(
+    n.getAttribute('aria-label') || n.innerText || n.value || n.name || ''
+  ).replace(/\s+/g, ' ').trim().slice(0, 120);
+  const el = document.activeElement;
+  if (!el || el === document.body) return {role: '', label: ''};
+  const tag = (el.tagName || '').toLowerCase();
+  // Enter in a textarea or a rich-text box makes a newline. It does not
+  // submit, in any browser — so gating it would interrupt ordinary typing,
+  // and a gate that interrupts typing is one people switch off.
+  if (tag === 'textarea' || el.isContentEditable) return {role: '', label: ''};
+  const type = String(el.getAttribute && el.getAttribute('type') || '').toLowerCase();
+  // Focus is already on the thing Enter would press.
+  if (tag === 'button' || tag === 'a'
+      || (tag === 'input' && ['submit', 'button', 'image'].includes(type))
+      || el.getAttribute('role') === 'button'
+      || el.getAttribute('role') === 'link') {
+    return {role: tag === 'a' ? 'link' : 'button', label: label(el)};
+  }
+  // Focus is in a field. Enter submits the form it belongs to, if it has one.
+  const form = el.form || (el.closest && el.closest('form'));
+  if (!form) return {role: '', label: ''};
+  const submit = form.querySelector(
+    'button[type=submit], input[type=submit], [role=button], button:not([type])'
+  );
+  return submit
+    ? {role: 'button', label: label(submit)}
+    : {role: 'button', label: 'submit'};
+})()
+"""
 
 
 class ActionRefused(ValueError):
@@ -105,7 +175,15 @@ class Page:
     #: reachable at all — see `policy.py`.
     unattended: bool = False
     #: When each host was last acted on, so the per-host floor can be met.
-    _last_action_at: dict[str, float] = field(default_factory=dict)
+    #: The rhythm this tab keeps, shared with every other tab that keeps the
+    #: same one — see `pace.py`.  `S-11.05.01`
+    #:
+    #: **Pass `session.pace`.** A tab given none keeps a private clock, which is
+    #: right for one run and wrong the moment there are two: the per-host floor
+    #: is then divided by the number of runs, and the thing that gets an account
+    #: restricted is rhythm. `BrowserSession` holds one for exactly this, so
+    #: there is an obvious right answer rather than a convention to remember.
+    pace: "Pace" = field(default_factory=Pace)
     _snapshot: Snapshot | None = None
     url: str = ""
 
@@ -169,13 +247,9 @@ class Page:
         """
         if action:
             self._spend(action)
-        floor = float(rule.min_seconds_between_actions or 0.0)
-        if floor > 0:
-            last = self._last_action_at.get(host, 0.0)
-            wait = floor - (time.monotonic() - last)
-            if wait > 0:
-                await asyncio.sleep(wait)
-        self._last_action_at[host] = time.monotonic()
+        # Counted across every tab sharing this `Pace`, not per tab. A floor
+        # each run keeps privately is a floor divided by the number of runs.
+        await self.pace.wait_for(host, rule.min_seconds_between_actions or 0.0)
 
     def _charge(self, action: str) -> None:
         """Record an action that actually happened.
@@ -296,26 +370,92 @@ class Page:
             took_ms=int((time.monotonic() - started) * 1000),
         )
 
-    async def click(self, handle: int, *, confirmed: bool = False) -> ActionResult:
+    async def _clear_to_act(
+        self,
+        action: str,
+        intent: str,
+        what: str,
+        *,
+        confirmed: bool,
+        countdown: "Countdown | None",
+        started: float,
+    ) -> "ActionResult | None":
+        """The consequential-action gate. `None` means go ahead.  `S-11.03.03`
+
+        **One gate, two callers.** `click` and `press` ask the same question of
+        the same function, so the set of things that need a human and the set of
+        things that get asked about cannot drift apart. They had: `check_action`
+        was called exactly once in this file, inside `click`, and `press` called
+        it zero times — so the gate that stopped the agent clicking Send did not
+        stop it pressing Enter in the same form. That was `D-25`, and the fix is
+        not a second copy of this logic in `press`.
+        """
+        rule, needs = check_action(intent, self.url, unattended=self.unattended)
+        if not needs:
+            return None
+
+        if countdown is not None:
+            # A countdown with nobody watching is the human gate deleted while
+            # looking like it is still there.  `S-02.02.04`
+            if self.unattended:
+                return ActionResult(
+                    action=action, ok=False, needs_confirmation=True, url=self.url,
+                    detail=(
+                        "A countdown cannot stand in for confirmation in an "
+                        "unattended run — there is nobody to cancel it. This "
+                        "action needs the owner."
+                    ),
+                )
+            if not await countdown.run():
+                # Nothing was sent and nothing is charged: a cancelled
+                # countdown must not cost the account a thing, or cancelling
+                # becomes expensive and people stop doing it.
+                return ActionResult(
+                    action=action, ok=False, url=self.url,
+                    detail=f"Cancelled during the countdown before {what}: "
+                           f"{countdown.reason}",
+                    took_ms=int((time.monotonic() - started) * 1000),
+                )
+            return None
+
+        if confirmed:
+            return None
+
+        # No charge: this is a refusal asking for confirmation, and nothing was
+        # sent to the site. Charging here would let a countdown the owner
+        # cancels still eat the account's budget.
+        return ActionResult(
+            action=action, ok=False, needs_confirmation=True, url=self.url,
+            detail=f"{what} sends or changes something. Confirm it first.",
+        )
+
+    async def click(
+        self,
+        handle: int,
+        *,
+        confirmed: bool = False,
+        countdown: "Countdown | None" = None,
+    ) -> ActionResult:
         """A real mouse click: move, press, release.
 
         Not ``element.click()``. A synthetic event skips the hover, focus and
         pointer handlers a great many sites are built on, and the failure is
         silent — the click "works" and nothing happens.
+
+        `countdown` is how an *attended* caller clears a sensitive action: a
+        visible delay the owner can cancel, instead of a dialog they learn to
+        click through.  `S-02.02.04`
         """
         started = time.monotonic()
         node = self._current(handle).find(int(handle))
-        rule, needs = check_action(_intent(node.role, node.name), self.url,
-                                   unattended=self.unattended)
-        if needs and not confirmed:
-            # No charge: this is a refusal asking for confirmation, and nothing
-            # was sent to the site. Charging here would let a countdown the
-            # owner cancels still eat the account's budget.
-            return ActionResult(
-                action="click", ok=False, needs_confirmation=True, url=self.url,
-                detail=f"clicking {node.name or node.role!r} sends or changes "
-                       "something. Confirm it first.",
-            )
+        refusal = await self._clear_to_act(
+            "click", _intent(node.role, node.name),
+            f"clicking {node.name or node.role!r}",
+            confirmed=confirmed, countdown=countdown, started=started,
+        )
+        if refusal is not None:
+            return refusal
+        rule = rule_for(self.url)
         await self._pace(rule, rule.suffix, "click")
         backend_id = await self._resolve(handle)
         await self._scroll_into_view(backend_id)
@@ -454,31 +594,60 @@ class Page:
             took_ms=int((time.monotonic() - started) * 1000),
         )
 
-    async def press(self, key: str) -> ActionResult:
-        """One named key. Enter, Tab, Escape, the arrows."""
+    async def press(
+        self,
+        key: str,
+        *,
+        confirmed: bool = False,
+        countdown: "Countdown | None" = None,
+    ) -> ActionResult:
+        """One named key. Enter, Tab, Escape, the arrows.
+
+        **Enter goes through the same gate as the button beside it.**
+        `S-11.03.03`. Pressing Enter in a compose form is pressing Send, and a
+        gate that only watches the mouse is a gate with a door next to it.
+        """
         started = time.monotonic()
         name = str(key or "").strip()
-        codes = {
-            "Enter": 13, "Tab": 9, "Escape": 27, "Backspace": 8,
-            "ArrowDown": 40, "ArrowUp": 38, "ArrowLeft": 37, "ArrowRight": 39,
-            "PageDown": 34, "PageUp": 33, "Home": 36, "End": 35,
-        }
-        if name not in codes:
+        if name not in KEY_CODES:
             raise ActionRefused(
                 f"{name!r} is not a key the agent may press. Known: "
-                + ", ".join(sorted(codes))
+                + ", ".join(sorted(KEY_CODES))
             )
+
+        # Only Enter can activate anything. Tab moves, Escape closes, the
+        # arrows and the paging keys scroll — none of them submit, and a gate
+        # that asked about every keystroke would be worse than none, because
+        # people switch off things that ask too often.
+        if name in SUBMITTING_KEYS:
+            target = await self._what_enter_would_do()
+            refusal = await self._clear_to_act(
+                "press", _intent(*target), f"pressing {name} to activate "
+                f"{target[1] or target[0]!r}",
+                confirmed=confirmed, countdown=countdown, started=started,
+            )
+            if refusal is not None:
+                return refusal
         # `press` was previously the one interaction that skipped the pace gate,
         # so Enter could be sent at machine speed on a host slowed everywhere
         # else. Found while wiring budgets: the list of verbs that spend was not
         # the list of verbs that were paced.
         await self._pace(rule_for(self.url), rule_for(self.url).suffix, "press")
         for kind in ("keyDown", "keyUp"):
+            event = {
+                "type": kind, "key": name, "code": name,
+                "windowsVirtualKeyCode": KEY_CODES[name],
+                "nativeVirtualKeyCode": KEY_CODES[name],
+            }
+            # Without the character the key produces, Chrome raises the event
+            # and performs **no default action** — so Enter never submitted
+            # anything. Measured: keyDown/keyUp alone left a focused form
+            # untouched; the same events with `text` submitted it.  `D-40`
+            if kind == "keyDown" and name in KEY_TEXT:
+                event["text"] = KEY_TEXT[name]
+                event["unmodifiedText"] = KEY_TEXT[name]
             await self.connection.send(
-                "Input.dispatchKeyEvent",
-                {"type": kind, "key": name, "code": name,
-                 "windowsVirtualKeyCode": codes[name], "nativeVirtualKeyCode": codes[name]},
-                session_id=self.session_id,
+                "Input.dispatchKeyEvent", event, session_id=self.session_id,
             )
         await self._settle(timeout=1.5)
         self._snapshot = None
@@ -487,6 +656,43 @@ class Page:
             action="press", ok=True, url=self.url, detail=f"pressed {name}",
             took_ms=int((time.monotonic() - started) * 1000),
         )
+
+    async def _what_enter_would_do(self) -> tuple[str, str]:
+        """What Enter would activate right now, as ``(role, label)``.  `S-11.03.03`
+
+        Answered by the page, because only the page knows the thing the
+        accessibility tree cannot say: whether the focused field belongs to a
+        form, and what that form's submit control is called. "Enter in the same
+        form" is the story's own wording and it is a DOM relationship.
+
+        **Fails closed.** If the page cannot be asked — a frame that refuses
+        evaluation, a navigation mid-flight — this reports a submit rather than
+        nothing. `_intent` says why in its own docstring: a false positive costs
+        five seconds and a false negative sends an email nobody wrote.
+
+        Only control *labels* come back, never field contents, and they are cut
+        short. The value is fed to `_intent`, which matches it against a fixed
+        word list and returns one of eight fixed strings, so a hostile label has
+        nothing to reach for.
+        """
+        try:
+            found = await self.connection.send(
+                "Runtime.evaluate",
+                {"expression": _WHAT_ENTER_WOULD_DO, "returnByValue": True},
+                session_id=self.session_id,
+            )
+        except Exception:  # noqa: BLE001 - cannot ask, so assume the worst
+            return ("button", "submit")
+        value = (found.get("result") or {}).get("value")
+        if not isinstance(value, dict):
+            return ("button", "submit")
+        role = str(value.get("role") or "")
+        label = str(value.get("label") or "")[:MAX_CONTROL_LABEL_CHARS]
+        if not role:
+            # Nothing focused and no form: Enter here activates nothing, which
+            # is the ordinary case and must stay silent.
+            return ("", "")
+        return (role, label)
 
     async def scroll(self, *, down: int = 1) -> ActionResult:
         """A wheel, not a scrollTop assignment — infinite feeds listen for it."""

@@ -607,9 +607,15 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-87 | A run's progress is visible while it runs | S-11.04.02 |
 | R-88 | Concurrent runs share pace and account budget, not multiply them | S-11.05.01 |
 | R-89 | A resumed run never repeats a consequential action | S-11.05.02 |
+| R-95 | Enter goes through the same consequential gate as a click | S-11.03.03 |
+| R-96 | The verifier checks READY, not only DONE | S-06.02.11 |
+| R-97 | Every commit the board names is on the branch | S-06.02.12 |
+| R-98 | Every defect and design call is written down in one place | S-06.02.13 |
+| R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
-| R-95 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.11 |
+| R-101 | Creating or switching campaigns preserves the intended target through refresh, failure and reload | S-06.02.16 |
+| R-100 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.15 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
 | R-93 | A local install provisions its own token rather than failing | S-06.02.10 |
 | R-94 | Requests for a host this server does not answer to are refused | S-06.02.10 |
@@ -792,19 +798,34 @@ fails, **so that** one stale handle does not end a twenty-minute run.
 - **Given** the agent returns to a URL it has already acted on twice with no new
   facts recorded, **when** the third visit is decided, **then** the run stops
   with `status=looping` and the trace names the cycle.
-- **Given** ten consecutive steps that record no new fact and no new URL,
-  **when** the tenth completes, **then** the run stops with `status=stalled`.
+- **Given** ten consecutive steps that produce nothing new, **when** the tenth
+  completes, **then** the run stops with `status=stalled`. **(done)**
 - **Given** a run that is progressing, **when** these checks run, **then** they
-  never stop it — a false positive here is worse than a wasted step.
+  never stop it — a false positive here is worse than a wasted step. **(done)**
+- **Scope clarified during the build:** "no new fact and no new URL" was widened
+  to "no new fact, no new **unvisited** page, and no action this run had not
+  already performed". Two corrections, both forced by the third criterion.
+  *Unvisited* rather than *different*, because bouncing between two pages is a
+  different URL every step and is the exact cycle this story exists to catch.
+  And the action clause, because filling a form is a dozen successful steps on
+  one page with no fact and no navigation — stopping that is the false positive
+  the third criterion forbids.
 - **Dependencies:** S-11.01.01. **Size:** M. **Indicator:** steps per fact returned.
 
 #### S-11.01.03 — A run survives the process dying
 **As an** owner, **I want** a killed run to resume where it stopped,
 **so that** a deploy or a crash does not throw away forty steps of work.
 - **Given** a run interrupted at step N, **when** it is resumed, **then** it
-  continues from step N+1 with the facts already gathered intact.
+  continues from step N+1 with the facts already gathered intact. **(done)**
 - **Given** a resumed run, **when** it finishes, **then** the trace is one
-  continuous record, not two, and the resume point is marked in it.
+  continuous record, not two, and the resume point is marked in it. **(done)**
+- **Given** a run that already ended, **when** a resume is attempted, **then** it
+  is refused — a second ending would make the trace say two contradictory things
+  about how the run turned out. **(added during the build)**
+- **Given** a fact whose evidence artefact is gone, **when** the trace is
+  replayed, **then** the fact is dropped rather than rebuilt unsourced. Losing
+  one is recoverable; inventing one is what `S-11.02.02` exists to prevent.
+  **(added during the build)**
 - **Dependencies:** S-02.02.01, S-02.01.05. **Size:** M. **Indicator:** runs
   resumed vs restarted.
 
@@ -817,6 +838,26 @@ fails, **so that** one stale handle does not end a twenty-minute run.
   before the first step and the owner sees it.
 - **Given** a finished run, **when** it is inspected, **then** actual spend per
   step is in the trace, not a total nobody can decompose.
+- **Stated during the build:** the check runs *before* the decision is asked
+  for, so the ceiling is never crossed rather than reported once it already has
+  been. That also makes stopping free, which is what makes it safe to resume
+  from — raise the ceiling and the run carries on from the same step.
+- **Stated during the build:** the ceiling is recorded on `run_started` and
+  re-applied by `resume()`. A ceiling that disappears when a run is resumed is
+  not a ceiling; it is a speed bump. Raising it is `resume(spend_ceiling_usd=…)`
+  and has to be done on purpose.
+- **Stated during the build:** the next decision is predicted from the most
+  expensive one so far, not the average. A ceiling is a promise, and the average
+  lags a trend — a run whose pages keep growing would walk past the line while
+  the average still said it was fine. Stopping early is recoverable; exceeding a
+  limit the owner set is not.
+- **Known limit, deliberate and tested:** a model with no price list cannot have
+  its *first* decision predicted, because the pre-run estimate is zero. That one
+  decision goes through whatever the ceiling says; from the second on, the run's
+  own observed costs take over. Refusing every run on an unpriced model would
+  make free and local models unusable, so the exposure is capped at one decision
+  and `test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more` is
+  what keeps it at one.
 - **Dependencies:** S-02.02.01, S-06.01.03. **Size:** M. **Indicator:** runs
   stopped by ceiling; estimate vs actual error.
 
@@ -894,6 +935,26 @@ from, **so that** a confident model cannot invent a phone number.
 - **Given** any of these, **when** they are encountered, **then** off_CRM
   **never** attempts to solve, evade or fingerprint around them. Recorded as a
   decision in `RETRO.md` 2026-09-06; see OUT OF SCOPE below.
+- **Stated during the build:** this detector is allowed to **stop a run**, which
+  `injection.py` is explicitly not — so the trade was re-argued rather than
+  inherited. It comes out differently because the costs are opposite: a wrong
+  injection match costs one line in a trace, a wrong match here costs the owner
+  a glance. What makes that safe is that pausing is cheap and recoverable — the
+  check runs *before* the model is asked anything, so no budget is spent, and
+  the browser is left on the page. Where the two errors are close it leans
+  towards asking, because a false negative costs a whole run spent against a
+  locked door.
+- **Stated during the build:** the pause is not in the set `resume()` treats as
+  final, and `human_gate` still is. They are opposite situations — a wall means
+  a person must act before the run *can* continue; a human gate means a person
+  must decide whether it should happen *at all*, which is not a thing you resume
+  into.
+- **Known limits, deliberate:** a "change password" settings page has a password
+  field and will pause a run that lands on one — accepted, because the cost is a
+  pause the owner resumes from. A password field with no accessible name is
+  missed; Chrome does not expose password-ness in the accessibility tree, on
+  purpose, so the field is found by its label. The challenge phrases are
+  English.
 - **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** runs resumed after
   a human unblock.
 
@@ -905,9 +966,37 @@ from, **so that** a confident model cannot invent a phone number.
   flagged `injection_suspected` in the trace with the offending text quoted.
 - **Given** such a page, **when** the next decision is made, **then** the run
   continues under the owner's original goal — detection changes the record, not
-  the behaviour, because behaviour is already contained by the closed vocabulary.
+  the behaviour, because behaviour is already contained by the closed
+  vocabulary. **(done)**
+- **Stated during the build:** the quote lives in the step's capture artefact,
+  not in `detail`. Page text does not belong in `trace.jsonl` — the rule the
+  finding steps follow and that several tests defend — so the detail names which
+  rules matched and the artefact holds the words.
+- **Known limit, deliberate:** this reports *injection-shaped text*, not proven
+  malice. A page explaining prompt injection to humans contains the text and
+  will match. Because nothing is blocked, a wrong match costs one line in a
+  trace, so the patterns are tuned to catch a rephrasing rather than to avoid
+  every false positive. **This module must never be given the power to stop
+  something without that trade being re-argued.**
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** injection attempts
   seen per thousand pages.
+
+#### S-11.03.03 — Enter is gated like the button beside it
+**As a** security owner, **I want** `press` to go through the same
+consequential-action check as `click`, **so that** the human gate cannot be
+stepped around by pressing Enter instead of clicking Send.
+- **Given** a page where clicking "Send" needs confirmation, **when** the agent
+  presses Enter in the same form, **then** it needs confirmation too.
+- **Given** a key that cannot submit anything, **when** it is pressed, **then**
+  nothing new is asked of the owner.
+- **Dependencies:** S-02.02.04. **Size:** M. **Indicator:** consequential
+  actions reaching the world without a gate — target zero.
+- **Why:** found while building `S-11.05.02` on 2026-09-10 and **verified**:
+  `check_action` is called exactly once in `browser/page.py`, inside `click`.
+  `press` calls it zero times. Enter in a form is a submit, so the gate that
+  stops the agent clicking Send does not stop it sending. Filed rather than
+  fixed in flight because the fix belongs with the human-gate story, and
+  because a gate that asks about every keystroke would be worse than none.
 
 ### F-11.04 — You can watch it, steer it, and prove what it did  *(E-11)*
 
@@ -918,7 +1007,14 @@ evidence, **so that** trusting the output is a decision I make from evidence.
   returned field appears with its source URL, timestamp and screenshot, and
   every step appears in order with its cost.
 - **Given** a run that failed, **when** its report is opened, **then** it shows
-  where and why, not a blank page.
+  where and why, not a blank page. **(done)**
+- **Added during the build:** the report renders text an attacker wrote — every
+  quote came off a web page — so nothing page-derived may become live markup,
+  and a screenshot filename that is not local to the run directory is dropped
+  rather than followed. **(done)**
+- **Added during the build:** a report that cannot be written never costs the
+  owner the run's result; the failure is recorded and the outcome returned.
+  **(done)**
 - **Dependencies:** S-11.02.02. **Size:** M. **Indicator:** reports opened per run.
 
 #### S-11.04.02 — Progress is visible while it happens
@@ -949,6 +1045,12 @@ one page at a time.
 **so that** a retry cannot send the same message twice.
 - **Given** a consequential action already recorded in the trace, **when** a
   resumed run reaches the same step, **then** it is not performed again.
+  **(done)**
+- **Scope stated during the build:** the guard covers `click` and `press` — the
+  two verbs that can send without the URL changing — and **deliberately not
+  `goto`**, because navigating is how a resumed run gets back to where it was
+  working and blocking a repeat would make resuming useless. The cost is that a
+  URL whose GET has a side effect is not protected here.
 - **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** duplicate side
   effects — target zero.
 
@@ -988,7 +1090,7 @@ two requests cannot corrupt each other's writes.
   and cursor operations through `outreach/sqlite_ownership.py`, preserving
   autocommit, named parameters and SQLite backup compatibility.
 
-#### S-06.02.11 — Durable customer state and safe recovery (Audit WP1)
+#### S-06.02.15 — Durable customer state and safe recovery (Audit WP1)
 **As an** operator, **I want** a complete recoverable company workspace,
 **so that** restarts, concurrent work and failed recovery cannot lose customer data.
 - **Given** production configuration, **when** the app starts, **then** every
@@ -1014,7 +1116,133 @@ two requests cannot corrupt each other's writes.
 - **Contract:** docs/architecture/AUDIT_WP1_DURABLE_STATE_SAFE_RECOVERY.md.
 - **ID reconciliation (2026-09-09):** WP1 originally used S-06.02.10 / R-92 on
   its branch. Main independently delivered authentication under that ID. WP1
-  now uses S-06.02.11 / R-95; both stories and their evidence are retained.
+  then used S-06.02.11 / R-95; both stories and their evidence were retained.
+- **ID reconciliation (2026-09-12):** main subsequently allocated S-06.02.11
+  to readiness checks and R-95 to Enter approval. The integration branch assigns
+  WP1 the unused S-06.02.15 / R-100; original dated evidence retains its old IDs.
+
+
+#### S-06.02.16 — A created or selected campaign stays the active workspace
+**As a** company operator, **I want** creation, switching and reload to keep the
+campaign I chose, **so that** contacts, edits and media never use an older campaign
+because a background response arrived late.
+- **Given** existing campaigns and a successful creation, **when** refresh is
+  delayed or returns an older snapshot, **then** the created row and active ID
+  appear together and remain selected through navigation and reload.
+- **Given** overlapping refreshes or a pending creation, **when** the operator
+  makes a later selection, **then** older responses cannot override that choice.
+- **Given** a saved campaign outside the first 200 results, **when** the app
+  starts, **then** it verifies that campaign directly and preserves its ID and kind.
+- **Given** a missing saved ID, **when** the detail endpoint confirms 404,
+  **then** the app selects a valid fallback and names it, or clears selection if
+  no campaign exists; network, permission and server errors do not imply deletion.
+- **Given** the newly created email campaign, **when** contacts are imported,
+  **then** independent API readback finds them only in that campaign; a saved
+  image campaign similarly owns the video project created through the editor.
+- **Given** a campaign-specific edit or import form, **when** the active campaign
+  changes, **then** the old form and its row selection are cleared before work
+  can be submitted under the new campaign.
+- **Given** a failed save, refresh, logout or unavailable browser storage,
+  **when** pending work finishes, **then** it cannot redirect selection, report a
+  persisted save as failed, or overwrite a signed-out session; retry and storage
+  errors explain the next action.
+- **Dependencies:** S-06.02.10, S-06.02.15. **Size:** M. **Indicator:** campaign
+  operations applied to an unintended target (zero). **Audit:** A33 / D-51.
+- **User path and contracts:** Campaigns → create/open → Contacts or Video editor
+  → reload. Existing authenticated campaign list/detail/create and import/project
+  endpoints; the existing browser selection key. No schema or credential change.
+  Real-browser acceptance uses disposable records and needs no provider account.
+
+
+#### S-06.02.11 — The verifier catches a stale READY column
+**As an** owner, **I want** `scripts/verify_board.py` to check readiness the way
+it already checks DONE, **so that** work is not sitting in BACKLOG because a
+manual step nobody does was never done.
+- **Given** a story in `BACKLOG` whose declared dependencies are all `DONE` and
+  which has no open question against it, **when** the verifier runs, **then** it
+  names the story as ready to move.
+- **Given** a story in `READY` whose dependencies are not all `DONE`, **when**
+  the verifier runs, **then** it fails — the Definition of Ready is not advisory.
+- **Given** a story whose dependency line names an id that does not exist,
+  **when** the verifier runs, **then** it fails rather than treating the
+  dependency as satisfied.
+- **Dependencies:** S-06.02.06. **Size:** S. **Indicator:** stories found stale
+  by an audit rather than by the verifier — target zero.
+- **Why:** on 2026-09-10, asked whether one story was really blocked, an audit
+  found **fourteen** in BACKLOG that could have been pulled — twelve whose
+  dependencies had all finished and two with no dependencies at all. The verifier
+  re-runs every DONE claim's test but never asks whether READY is true. A board
+  that is only accurate about the past is half a board.
+
+  The audit script that found them is in this story's commit and is what the
+  check should be built from. Note the bug in the first version of it: a
+  dependency regex of `[^.]*` stopped at the first period, and **story ids
+  contain periods**, so `S-03.02.04` parsed as `S-03` and every dependency
+  looked unmet. A checker that reads ids has to be tested against a real one.
+
+#### S-06.02.13 — A defect log and a decision log the next session can read
+**As an** owner, **I want** every bug, security hole and design call written
+down in one place in plain English, **so that** the next session can see what
+this codebase keeps getting wrong without reading a year of commit messages.
+- **Given** `DEFECT_LOG.md`, **when** it is read, **then** every defect found
+  carries an id, the date it was found, its kind, one plain-English line saying
+  what went wrong, and whether it is fixed or filed.
+- **Given** a defect recorded as `open`, **when** the verifier runs, **then** it
+  fails unless that row names a backlog id that exists — an unfixed defect with
+  nowhere to go is a defect nobody will fix.
+- **Given** two rows sharing an id, **when** the verifier runs, **then** it
+  fails. An id that points at two things points at neither.
+- **Given** `DECISIONS.md`, **when** it is read, **then** every entry says what
+  was given up, because a decision with no cost was not a decision.
+- **Dependencies:** none. **Size:** S. **Indicator:** defects found twice —
+  target zero.
+- **Why:** asked for by the owner on 2026-09-11. The reasons things broke were
+  spread across commit messages, `RETRO.md` and `CHANGELOG.md` — fine for
+  reading one story, useless for *has this happened before?* Writing the
+  existing 34 defects into one table made five repeating patterns visible that
+  no individual retro had shown, including one that had already been fixed
+  twice under different names (`D-14`, `D-24`, `D-32`: two lists that must match
+  drifting apart). `RETRO.md` keeps its job — three lines of process lesson per
+  increment — and is not replaced by this.
+
+#### S-06.02.14 — A test should not hardcode a trace step id
+**As a** builder, **I want** tests to address a trace step by finding it rather
+than by counting, **so that** adding a step to a run does not break tests that
+have nothing to do with it.
+- **Given** a test that needs a particular step's id, **when** it runs, **then**
+  it locates the step by kind or content, not by a literal like `step-000002`.
+- **Given** a new step added anywhere in a run, **when** the suite runs, **then**
+  no test fails because the numbering moved.
+- **Dependencies:** none. **Size:** S. **Indicator:** tests broken by an
+  unrelated step being added — target zero.
+- **Why:** `D-37`. Five test files hardcode `step-000002` as "the read action".
+  It has broken twice: once in `S-11.01.03` when a `finding` step was added, and
+  again in `S-06.01.03`. Both times the fix was to bump a number, which buys one
+  story of quiet. The scripted-decision doubles make it awkward — the record
+  citing a step is written before the run exists — so the fix is a placeholder
+  the broker double substitutes at call time, not a search-and-replace.
+
+#### S-06.02.12 — A recorded commit must be on the branch
+**As an** owner, **I want** `scripts/verify_board.py` to check that every
+`commit:` on the board is an ancestor of `HEAD`, **so that** the board's link
+from a claim to the code that satisfies it cannot quietly rot.
+- **Given** a DONE entry whose `commit:` is reachable from `HEAD`, **when** the
+  verifier runs, **then** it passes.
+- **Given** a DONE entry whose `commit:` names an object that exists but is not
+  on the branch — the usual cause is `git commit --amend` after the sha was
+  written down — **when** the verifier runs, **then** it fails and names the
+  entry.
+- **Given** a DONE entry whose `commit:` names no object at all, **when** the
+  verifier runs, **then** it fails.
+- **Dependencies:** none. **Size:** S. **Indicator:** board shas not on the
+  branch — target zero.
+- **Why:** found on 2026-09-11 while recording the sha for `S-11.04.02`. Writing
+  the sha onto the board and then amending the commit to include that edit
+  changes the sha, so the line points at the commit that *was* replaced. Two
+  older entries, `S-03.01.01` and `S-03.01.02`, had been carrying an orphaned
+  `0be650d` since 2026-08-29 for exactly this reason, and nothing noticed —
+  `git cat-file -e` still finds a dangling object, so a naive existence check
+  passes. The test is ancestry, not existence.
 
 #### S-06.02.08 — One runner for every evidence command
 **As an** owner, **I want** every evidence command to use the same test runner,

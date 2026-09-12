@@ -153,9 +153,33 @@ class BudgetLedger:
     accounts, and it is the kind of thing they should be able to open.
     """
 
+    #: One lock per ledger *file*, not per ledger object.  `S-11.05.01`
+    #:
+    #: Concurrent runs each build their own `BudgetLedger` over the same file,
+    #: and a per-instance lock protects an object from itself and nothing else.
+    #: Measured before this existed: four runs taking 25 actions each left 33 of
+    #: 100 in the ledger — two thirds of the account's budget spent off the
+    #: books, so the ceiling the owner set was three times higher in practice.
+    #:
+    #: Keyed rather than handed in, because correctness that depends on every
+    #: caller remembering to share an instance is correctness that lapses the
+    #: first time somebody constructs one locally.
+    _locks: "dict[str, threading.RLock]" = {}
+    _locks_guard = threading.Lock()
+
     def __init__(self, data_dir: Path | str) -> None:
         self.path = Path(data_dir) / "browser_budgets.json"
-        self._lock = threading.RLock()
+        self._lock = self._lock_for(self.path)
+
+    @classmethod
+    def _lock_for(cls, path: Path) -> "threading.RLock":
+        key = str(Path(path).resolve())
+        with cls._locks_guard:
+            lock = cls._locks.get(key)
+            if lock is None:
+                lock = threading.RLock()
+                cls._locks[key] = lock
+            return lock
 
     # ── reading ─────────────────────────────────────────────────────────────
 

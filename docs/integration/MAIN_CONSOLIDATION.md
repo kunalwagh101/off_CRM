@@ -4,6 +4,44 @@ The owner requested one integration branch before promotion to main.
 `integration/main-consolidation` starts from main `37cf9b151200be42a6c1c31c8e9a05d6825ac1f5`.
 Main and its deployment have not been changed by this work.
 
+## Main refresh — 12 September 2026
+
+After the first combined CI, main independently advanced by 44 commits to
+`aa38057834faa39f9bdf1d62a35ab0f81a0addaf`. Those commits are merged into this
+same integration branch, preserving both parent histories. The original inputs
+below remain ancestors. No additional integration branch is created.
+
+The refresh retains resumable traces, progress detection, no-duplicate-effect
+guards, injection reporting, run reports/watchers, human-wall handling, provider
+costs and spend limits, Enter approval/countdowns, and shared browser pace and
+account budgets. PLAN.md is reopened when resuming; its owner edits and the
+original cached evidence survive an interrupted run. Cached reads keep their
+distinct audit event and now expose their verb to the new watcher. Page capture
+tests identify read events instead of counting resume metadata as page text.
+
+Main independently reused WP1's previous story and requirement IDs. Current WP1
+is **S-06.02.15 / R-100**; main keeps S-06.02.11 for readiness and R-95 for Enter
+approval. All criteria and evidence are retained. Main's completed S-08.01.05
+review remains DONE; PLAN.md stays IN_REVIEW for its customer checklist UI.
+After the main refresh, S-06.02.16 / R-101 addresses campaign selection
+(A33 / D-51). The board now has 52 DONE, 1 IN_PROGRESS, 1 IN_REVIEW, 11 READY,
+12 BACKLOG and 3 BLOCKED items. See `docs/architecture/CAMPAIGN_SELECTION.md`.
+
+The board's new ancestry verification requires complete Git history. Both CI
+jobs that run it now use `fetch-depth: 0`. The checks themselves are unchanged.
+Twenty-one pre-import evidence references were also stale. Their old commits
+and results are retained in historical fields; current evidence points to
+`24d7425`, where the recorded tests were reverified in the combined core CI.
+`DEFECT_LOG.md` and `DECISIONS.md` record the integration defects and choices.
+Results from `24d7425` below apply to the previous combined head; the draft PR
+carries the required fresh results for the commit that includes `aa380578`.
+
+Refreshed local validation: **1,954 Python passed, 26 service-dependent skips**;
+all **116 frontend tests and the production build passed**. Ruff and the board's
+structure, readiness, log and commit ancestry checks passed. Eight integration
+cases now cover plan/cache/recovery interactions. Real-service CI must execute
+the skipped cases and repeat the original production audit for this new tree.
+
 ## Pending pull requests combined
 
 | PR | Branch | Input commit |

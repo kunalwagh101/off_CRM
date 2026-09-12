@@ -1,14 +1,16 @@
 # Where everything stands
 
-**Current increment, 9 September 2026:** S-06.02.11 (Audit WP1) is DONE, including
-S-06.02.09's connection-ownership upgrade. Persistent storage, complete encrypted
-backups, crash recovery, rollback and truthful readiness passed integrated CI:
-1686 Python tests, 116 frontend tests, authenticated browser recovery, production
-container replacement and Windows leases. See the [closure evidence](docs/audits/2026-09-08-wp1-completion.md).
+**Current increment, 12 September 2026:** S-06.02.16 / R-101 fixes campaign
+creation and switching (A33 / D-51). The implementation passes 136 frontend
+tests and the production build locally; real-browser acceptance is pending.
+It preserves the latest main work through `aa380578` and WP1 recovery, now
+S-06.02.15 / R-100. See [campaign selection](docs/architecture/CAMPAIGN_SELECTION.md).
 
-The current board has **74 stories: 34 DONE, 6 READY, 1 IN_REVIEW, 3 BLOCKED and
-30 BACKLOG**; 95 requirements are mapped. The older sections below are a dated
-product snapshot. `BOARD.md` and `TRACEABILITY.md` hold the current state.
+The current board has **80 stories: 52 DONE, 11 READY, 1 IN_PROGRESS, 1 IN_REVIEW,
+3 BLOCKED and 12 BACKLOG**; 101 requirements are mapped. PR #14 remains draft
+while the combined branch is verified and remaining production audit failures
+are resolved. This is not a merge or deployment claim. The older sections below
+are dated snapshots; `BOARD.md` and `TRACEABILITY.md` hold current status.
 
 *Plain English. Every segment of off_CRM, what state it is in, and who has to do
 what next.*

@@ -336,6 +336,37 @@ def _validate_http_url(value: str, *, allow_local: bool = True) -> str:
     return value.rstrip("/")
 
 
+#: The two names the major APIs give the same two numbers. OpenAI's Responses
+#: API and Anthropic's Messages API say `input_tokens`/`output_tokens`; the
+#: Chat Completions shape everyone else copied says `prompt_tokens`/
+#: `completion_tokens`. Nothing else needs translating, because every one of
+#: them puts the block at the top level under `usage`.  `S-06.01.03`
+_USAGE_KEYS = (
+    ("tokens_in", ("input_tokens", "prompt_tokens")),
+    ("tokens_out", ("output_tokens", "completion_tokens")),
+)
+
+
+def read_usage(data: dict[str, Any]) -> dict[str, int]:
+    """What the provider says the call actually used.
+
+    Empty when it said nothing, which is the honest answer — a caller that gets
+    `{}` knows to estimate and knows that it is estimating. Returning zeros here
+    would be indistinguishable from a free call.
+    """
+    block = data.get("usage")
+    if not isinstance(block, dict):
+        return {}
+    found: dict[str, int] = {}
+    for name, candidates in _USAGE_KEYS:
+        for key in candidates:
+            value = block.get(key)
+            if isinstance(value, (int, float)) and value >= 0:
+                found[name] = int(value)
+                break
+    return found if len(found) == len(_USAGE_KEYS) else {}
+
+
 class _HttpProvider:
     def __init__(
         self,
@@ -347,11 +378,19 @@ class _HttpProvider:
         self.config = config
         self.api_key = api_key
         self.session = session or requests.Session()
+        #: What the last call reported it used. Read by the broker, which prices
+        #: it and puts it in the ledger. Captured in `_post` rather than in each
+        #: adapter because `_post` is the one place every HTTP call passes
+        #: through, and a per-adapter copy is a list that drifts.  `S-06.01.03`
+        self.last_usage: dict[str, int] = {}
 
     def _post(
         self, url: str, *, headers: dict[str, str], payload: dict[str, Any]
     ) -> dict[str, Any]:
         last_error: Exception | None = None
+        # Cleared up front: a call that fails must not report the *previous*
+        # call's usage, which is how a ledger quietly double-counts.
+        self.last_usage = {}
         for attempt in range(3):
             try:
                 response = self.session.post(
@@ -382,6 +421,7 @@ class _HttpProvider:
                 raise ProviderError("AI provider returned a non-JSON response") from exc
             if not isinstance(data, dict):
                 raise ProviderError("AI provider returned an invalid JSON response")
+            self.last_usage = read_usage(data)
             return data
         raise ProviderError(f"AI provider request failed after retries: {last_error}")
 

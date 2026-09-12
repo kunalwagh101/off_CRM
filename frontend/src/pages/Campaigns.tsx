@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, idempotencyKey } from "../api";
+import { api } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
@@ -7,7 +7,7 @@ import type { Campaign, CampaignKind } from "../types";
 import { statusTone } from "./shared";
 
 export default function Campaigns() {
-  const { campaigns, campaignId, selectCampaign, refreshCampaigns, notify } = useApp();
+  const { campaigns, campaignId, selectCampaign, createCampaign, refreshCampaigns, notify } = useApp();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
@@ -35,8 +35,7 @@ export default function Campaigns() {
     event.preventDefault();
     setBusy(true);
     try {
-      const campaign = await api.post<Campaign>(
-        "/campaigns",
+      await createCampaign(
         {
           name,
           kind,
@@ -49,11 +48,8 @@ export default function Campaigns() {
           experiment_hypothesis: hypothesis,
           experiment_min_sample: minimumSample,
           control_variant: "A"
-        },
-        idempotencyKey("campaign")
+        }
       );
-      selectCampaign(campaign.id);
-      refreshCampaigns();
       setOpen(false);
       setName("");
       setKind("email");
@@ -99,9 +95,9 @@ export default function Campaigns() {
               <h2>{campaign.name}</h2>
               <p className="muted">Updated {formatDate(campaign.updated_at)}</p>
               <div className="mini-stats">
-                <span><strong>{campaign.contact_count ?? 0}</strong>contacts</span>
-                <span><strong>{campaign.sent_count ?? 0}</strong>sent</span>
-                <span><strong>{campaign.replied_count ?? 0}</strong>replies</span>
+                <span><strong>{campaign.contact_count ?? "—"}</strong>contacts</span>
+                <span><strong>{campaign.sent_count ?? "—"}</strong>sent</span>
+                <span><strong>{campaign.replied_count ?? "—"}</strong>replies</span>
               </div>
               <div className="card-meta">
                 <span>{campaign.daily_send_limit} emails/day</span>

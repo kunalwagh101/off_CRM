@@ -1,64 +1,53 @@
 # Traceability
 
-Snapshot of the combined integration branch, 9 September 2026. `BOARD.md` owns
-status and runnable evidence. Input-branch results do not certify the combined
-application; its verification is recorded in `docs/integration/MAIN_CONSOLIDATION.md`.
+Snapshot of the combined integration branch, 12 September 2026, including main
+`aa380578`. `BOARD.md` owns status and runnable evidence. Exact combined CI
+results are recorded in draft PR #14 and `docs/integration/MAIN_CONSOLIDATION.md`.
 
 ## Backlog
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
-| R-79 | S-11.01.04 | 3 | A run has a money ceiling, not only a step ceiling | — |
-| R-84 | S-11.03.01 | 3 | A wall the agent must not climb pauses the run and asks | — |
-| R-86 | S-11.04.01 | 2 | A run report a person can audit | — |
-| R-87 | S-11.04.02 | 1 | Progress is visible while it happens | — |
-| R-89 | S-11.05.02 | 1 | Re-running does not duplicate what it already did | — |
 | R-19 | S-02.02.03 | 1 | Interrupt, steer, resume | — |
-| R-20 | S-02.02.04 | 1 | Safety countdowns before consequential actions | — |
-| R-31, R-35 | S-04.01.01 | 1 | Companions: persisted agent profiles | — |
 | R-32 | S-04.01.02 | 1 | Skills: procedures fetched on demand | — |
 | R-33 | S-04.01.03 | 2 | Sub-agents for context isolation | — |
 | R-34, R-35 | S-04.01.04 | 2 | The five roles, wired to what already exists | — |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | A crawler with a frontier, not a loop | — |
 | R-38 | S-05.01.02 | 1 | Extraction packs as declared data | — |
 | R-39 | S-05.01.03 | 2 | Take a competitor post apart and rebuild the shape | — |
-| R-41, R-42 | S-06.01.01 | 1 | Workspaces with their own keys and their own logins | — |
 | R-43 | S-06.01.02 | 2 | Three-level permissions | — |
-| R-44 | S-06.01.03 | 2 | Cost estimated before a run and ledgered after | — |
-| R-45, R-46 | S-06.01.04 | 2 | Routines that fire agent runs on a schedule or an event | — |
 | R-47 | S-06.01.05 | 2 | Deployment, monitoring and rollback | — |
-| R-29 | S-06.02.01 | 1 | No secret may enter a model prompt | — |
-| R-48 | S-06.02.02 | 2 | Every endpoint authorises and validates | — |
 | R-49 | S-06.02.03 | 1 | Cost and latency budgets per run | — |
 | R-50 | S-06.02.04 | 1 | Data deletion and subject access | — |
-| R-51 | S-06.02.05 | 1 | The UI is usable by keyboard and screen reader | — |
 | R-53 | S-07.01.01 | 2 | An MCP client | — |
 | R-54 | S-07.01.02 | 1 | Native OAuth integrations | — |
-| R-55 | S-07.01.03 | 1 | Meeting transcription with no bot in the call | — |
-| R-56 | S-07.01.04 | 1 | Reports and artifacts | — |
 
 ## Ready
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
 | R-75 | S-03.02.05 | 2 | A platform is a row, not a code change | — |
-| R-77 | S-11.01.02 | 3 | A run that stops making progress is stopped | — |
-| R-78 | S-11.01.03 | 2 | A run survives the process dying | — |
-| R-85 | S-11.03.02 | 2 | A page that tries to give orders is reported, not obeyed | — |
-| R-88 | S-11.05.01 | 3 | Concurrent runs share one browser safely | — |
 | R-90 | S-06.02.08 | 2 | One runner for every evidence command | — |
+| R-31, R-35 | S-04.01.01 | 1 | Companions: persisted agent profiles | — |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | A crawler with a frontier, not a loop | — |
+| R-41, R-42 | S-06.01.01 | 1 | Workspaces with their own keys and their own logins | — |
+| R-45, R-46 | S-06.01.04 | 2 | Routines that fire agent runs on a schedule or an event | — |
+| R-29 | S-06.02.01 | 1 | No secret may enter a model prompt | — |
+| R-48 | S-06.02.02 | 2 | Every endpoint authorises and validates | — |
+| R-51 | S-06.02.05 | 1 | The UI is usable by keyboard and screen reader | — |
+| R-55 | S-07.01.03 | 1 | Meeting transcription with no bot in the call | — |
+| R-56 | S-07.01.04 | 1 | Reports and artifacts | — |
 
 ## In Progress
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
+| R-101 | S-06.02.16 | 7 | frontend/src/campaignSelection.test.ts, verification/test_campaign_selection_live.py; live acceptance pending | frontend/src/campaignSelection.ts, frontend/src/App.tsx, frontend/src/pages/Campaigns.tsx, frontend/src/pages/Contacts.tsx |
 
 ## In Review
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
 | R-18 | S-02.02.02 | 2 | tests/test_agent_plan.py, tests/test_agent_consolidation.py | offsetx_apollo_builder/agent/plan.py, offsetx_apollo_builder/agent/run.py |
-| R-63, R-71 | S-08.01.05 | 3 | tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx | offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx |
 
 ## Blocked
 
@@ -72,8 +61,25 @@ application; its verification is recorded in `docs/integration/MAIN_CONSOLIDATIO
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
+| R-99 | S-06.02.14 | 2 | tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone | tests/trace_ids.py, tests/test_agent_provenance.py, tests/test_agent_structured_result.py, tests/test_agent_claim_verification.py, tests/test_agent_resume.py |
+| R-97 | S-06.02.12 | 3 | tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails, tests/test_verify_board.py::test_a_commit_that_does_not_exist_at_all_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed | scripts/verify_board.py |
+| R-96 | S-06.02.11 | 3 | tests/test_verify_board.py::test_ready_with_a_dependency_that_is_not_done_fails, tests/test_verify_board.py::test_a_dependency_on_a_story_that_does_not_exist_fails, tests/test_verify_board.py::test_a_backlog_story_whose_dependencies_are_all_done_is_named, tests/test_verify_board.py::test_a_backlog_story_with_an_open_question_against_it_is_not_named, tests/test_verify_board.py::test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop, tests/test_verify_board.py::test_a_question_that_names_its_story_only_in_the_heading_still_blocks, tests/test_verify_board.py::test_an_answered_question_in_the_heading_does_not_block, tests/test_verify_board.py::test_ready_with_every_dependency_done_passes | scripts/verify_board.py |
+| R-88 | S-11.05.01 | 3 | tests/test_browser_concurrency.py::test_two_runs_on_one_host_share_the_floor, tests/test_browser_concurrency.py::test_the_floor_holds_as_the_number_of_runs_grows, tests/test_browser_concurrency.py::test_runs_arriving_together_are_spaced_rather_than_all_waved_through, tests/test_browser_concurrency.py::test_concurrent_runs_draw_on_one_budget_not_one_each, tests/test_browser_concurrency.py::test_separate_ledger_objects_over_one_file_share_a_lock, tests/test_browser_concurrency.py::test_the_ceiling_can_be_overshot_by_the_runs_in_flight_and_no_more, tests/test_browser_concurrency.py::test_neither_run_can_resolve_a_handle_from_the_others_page, tests/test_browser_concurrency.py::test_different_hosts_do_not_wait_for_each_other, tests/test_browser_concurrency.py::test_a_session_hands_out_one_pace_so_there_is_a_right_answer | offsetx_apollo_builder/browser/pace.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/session.py |
+| R-95 | S-11.03.03 | 2 | tests/test_browser_enter_gate.py::test_enter_in_a_field_whose_form_submits_with_send_needs_confirmation, tests/test_browser_enter_gate.py::test_enter_and_click_agree_about_what_needs_a_human, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_asks_nothing, tests/test_browser_enter_gate.py::test_a_key_that_cannot_submit_does_not_even_ask_the_page, tests/test_browser_enter_gate.py::test_if_the_page_cannot_be_asked_it_fails_closed, tests/test_browser_enter_gate.py::test_enter_in_a_search_box_is_ordinary, tests/test_browser_enter_gate.py::test_enter_is_sent_with_the_character_it_produces, tests/test_browser_enter_gate.py::test_a_key_that_produces_no_character_sends_none, tests/test_browser_enter_gate.py::test_an_unattended_run_cannot_countdown_its_way_past_enter_either | offsetx_apollo_builder/browser/page.py |
+| R-20 | S-02.02.04 | 1 | tests/test_browser_countdown.py::test_a_cancelled_countdown_sends_nothing_to_the_site, tests/test_browser_countdown.py::test_an_unattended_run_cannot_use_a_countdown, tests/test_browser_countdown.py::test_cancelling_is_prompt_rather_than_eventually, tests/test_browser_countdown.py::test_it_can_be_cancelled_from_another_thread, tests/test_browser_countdown.py::test_somebody_watching_sees_it_count_down, tests/test_browser_countdown.py::test_a_countdown_covers_one_action_and_no_more, tests/test_browser_countdown.py::test_without_a_countdown_a_send_still_refuses_and_asks, tests/test_browser_countdown.py::test_a_countdown_that_elapses_lets_the_click_through, tests/test_browser_countdown.py::test_an_ordinary_click_never_waits_for_anything | offsetx_apollo_builder/browser/countdown.py, offsetx_apollo_builder/browser/page.py |
+| R-63, R-71 | S-08.01.05 | 3 | tests/test_email_delivery.py::test_email_delivery_api_and_public_one_click_unsubscribe, tests/test_email_delivery.py::test_live_ses_queue_requires_exact_operator_confirmation, frontend/src/components.test.tsx | offsetx_apollo_builder/api/email_delivery.py, frontend/src/pages/Deliverability.tsx |
+| R-79 | S-11.01.04 | 3 | tests/test_agent_money_ceiling.py::test_a_run_stops_at_the_ceiling_with_the_right_status, tests/test_agent_money_ceiling.py::test_the_decision_that_would_cross_is_never_asked_for, tests/test_agent_money_ceiling.py::test_a_resumed_run_keeps_the_ceiling_it_was_given, tests/test_agent_money_ceiling.py::test_raising_the_ceiling_on_purpose_lets_the_run_carry_on, tests/test_agent_money_ceiling.py::test_a_resumed_run_counts_what_its_earlier_life_spent, tests/test_agent_money_ceiling.py::test_the_next_decision_is_predicted_from_the_worst_so_far_not_the_average, tests/test_agent_money_ceiling.py::test_what_it_gathered_before_the_ceiling_is_kept, tests/test_agent_money_ceiling.py::test_an_unpriced_model_costs_one_decision_of_headroom_and_no_more, tests/test_agent_money_ceiling.py::test_no_ceiling_behaves_exactly_as_before, tests/test_agent_money_ceiling.py::test_the_trace_says_why_it_stopped_and_by_how_much | offsetx_apollo_builder/agent/run.py |
+| R-44 | S-06.01.03 | 2 | tests/test_ai_cost_ledger.py::test_the_daily_spend_cap_now_stops_something, tests/test_ai_cost_ledger.py::test_recording_zero_would_never_reach_the_cap, tests/test_ai_cost_ledger.py::test_every_provider_shape_is_read, tests/test_ai_cost_ledger.py::test_a_response_with_no_usage_block_reports_nothing_rather_than_zero, tests/test_ai_cost_ledger.py::test_the_provider_receipt_is_preferred_over_our_guess, tests/test_ai_cost_ledger.py::test_a_guess_is_labelled_a_guess, tests/test_ai_cost_ledger.py::test_the_model_method_and_the_function_are_the_same_arithmetic, tests/test_ai_cost_ledger.py::test_an_estimate_is_produced_before_anything_runs, tests/test_ai_cost_ledger.py::test_the_estimate_is_recorded_before_the_first_action, tests/test_ai_cost_ledger.py::test_the_trace_total_is_the_sum_of_what_each_call_reported, tests/test_ai_cost_ledger.py::test_the_outcome_carries_the_estimate_and_what_was_actually_spent | offsetx_apollo_builder/ai/broker.py, offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/outreach/providers.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py |
+| R-98 | S-06.02.13 | 4 | tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_an_open_defect_naming_a_real_backlog_item_passes, tests/test_verify_board.py::test_the_same_defect_id_twice_fails, tests/test_verify_board.py::test_a_defect_that_does_not_say_what_went_wrong_fails, tests/test_verify_board.py::test_a_defect_with_no_date_found_fails, tests/test_verify_board.py::test_a_decision_with_no_cost_fails, tests/test_verify_board.py::test_a_missing_defect_log_fails_rather_than_passing_vacuously, tests/test_verify_board.py::test_a_missing_decision_log_fails_rather_than_passing_vacuously | DEFECT_LOG.md, DECISIONS.md, scripts/verify_board.py, DEFINITION_OF_DONE.md, AGENTS.md |
+| R-84 | S-11.03.01 | 3 | tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_the_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge | offsetx_apollo_builder/agent/wall.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/browser/perceive.py |
+| R-87 | S-11.04.02 | 1 | tests/test_agent_watch.py::test_a_watcher_sees_the_run_step_by_step, tests/test_agent_watch.py::test_a_read_answered_from_the_memo_still_reports_its_verb, tests/test_agent_watch.py::test_updates_arrive_during_the_run_not_in_a_batch_at_the_end, tests/test_agent_watch.py::test_an_update_carries_the_action_the_url_and_the_running_cost, tests/test_agent_watch.py::test_the_verb_comes_from_the_signature_not_from_the_prose, tests/test_agent_watch.py::test_a_listener_hears_only_what_is_already_durable, tests/test_agent_watch.py::test_a_watcher_that_throws_does_not_end_the_run, tests/test_agent_watch.py::test_a_run_with_nobody_watching_behaves_exactly_as_before | offsetx_apollo_builder/agent/watch.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py |
+| R-86 | S-11.04.01 | 2 | tests/test_agent_report.py::test_every_returned_fact_appears_with_its_evidence, tests/test_agent_report.py::test_a_run_that_got_stuck_says_so_at_the_top, tests/test_agent_report.py::test_a_hostile_quote_comes_back_inert, tests/test_agent_report.py::test_a_screenshot_filename_that_tries_to_leave_the_directory_is_dropped, tests/test_agent_report.py::test_a_finished_run_writes_its_own_report | offsetx_apollo_builder/agent/report.py, offsetx_apollo_builder/agent/run.py |
+| R-85 | S-11.03.02 | 2 | tests/test_agent_injection.py::test_an_attack_in_the_page_text_is_flagged_in_the_trace, tests/test_agent_injection.py::test_the_run_carries_on_under_the_owners_goal, tests/test_agent_injection.py::test_ordinary_page_text_is_left_alone, tests/test_agent_injection.py::test_an_attack_split_across_lines_is_still_caught, tests/test_agent_injection.py::test_the_quote_stays_out_of_the_audit_log | offsetx_apollo_builder/agent/injection.py, offsetx_apollo_builder/agent/run.py |
+| R-89 | S-11.05.02 | 1 | tests/test_agent_no_duplicate_effects.py::test_a_resumed_run_does_not_send_the_message_twice, tests/test_agent_no_duplicate_effects.py::test_pressing_enter_again_after_a_resume_does_not_submit_twice, tests/test_agent_no_duplicate_effects.py::test_navigating_back_to_where_it_was_still_works, tests/test_agent_no_duplicate_effects.py::test_within_one_run_the_guard_does_not_fire | offsetx_apollo_builder/agent/run.py |
+| R-78 | S-11.01.03 | 4 | tests/test_agent_resume.py::test_a_resumed_run_keeps_the_facts_it_already_gathered, tests/test_agent_resume.py::test_resuming_continues_the_same_trace_and_marks_where, tests/test_agent_resume.py::test_a_finished_run_is_not_resumed, tests/test_agent_resume.py::test_a_fact_whose_artefact_is_gone_is_dropped_not_invented | offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/result.py |
+| R-77 | S-11.01.02 | 3 | tests/test_agent_progress.py::test_filling_a_long_form_is_never_called_stalled, tests/test_agent_progress.py::test_a_search_and_browse_pattern_is_never_called_looping, tests/test_agent_progress.py::test_bouncing_between_two_pages_is_looping, tests/test_agent_progress.py::test_clicking_the_same_working_button_forever_is_stalled, tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped | offsetx_apollo_builder/agent/run.py |
 | R-76 | S-11.01.01 | 3 | tests/test_agent_recovery.py::test_the_same_failing_action_reaches_the_browser_only_once, tests/test_agent_recovery.py::test_three_failures_in_a_row_stop_the_run, tests/test_agent_recovery.py::test_a_timeout_is_retried_with_backoff_and_recorded_as_a_retry, tests/test_agent_recovery.py::test_a_success_clears_the_failure_streak | offsetx_apollo_builder/agent/run.py |
-| R-95 | S-06.02.11 | 8 | tests/test_audit_wp1.py, tests/test_wp1_recovery_edges.py, tests/test_workspace_lock.py, verification/test_wp1_live.py | offsetx_apollo_builder/outreach/backup.py, offsetx_apollo_builder/outreach/sqlite_ownership.py, offsetx_apollo_builder/outreach/workspace_lock.py, offsetx_apollo_builder/api/production_runtime.py, offsetx_apollo_builder/api/config.py, frontend/src/pages/Settings.tsx, render.yaml |
+| R-100 | S-06.02.15 | 8 | tests/test_audit_wp1.py, tests/test_wp1_recovery_edges.py, tests/test_workspace_lock.py, verification/test_wp1_live.py | offsetx_apollo_builder/outreach/backup.py, offsetx_apollo_builder/outreach/sqlite_ownership.py, offsetx_apollo_builder/outreach/workspace_lock.py, offsetx_apollo_builder/api/production_runtime.py, offsetx_apollo_builder/api/config.py, frontend/src/pages/Settings.tsx, render.yaml |
 | R-83 | S-11.02.04 | 3 | tests/test_agent_page_memo.py::test_reading_the_same_page_twice_asks_the_page_once, tests/test_agent_page_memo.py::test_acting_on_a_page_forgets_it, tests/test_agent_page_memo.py::test_a_parameter_that_changes_the_page_is_never_stripped, tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop | offsetx_apollo_builder/agent/run.py |
 | R-82 | S-11.02.03 | 3 | tests/test_agent_claim_verification.py::test_number_inside_a_larger_number_is_refused_even_at_high_confidence, tests/test_agent_claim_verification.py::test_derived_finding_is_allowed_only_from_individually_verified_inputs, tests/test_agent_claim_verification.py::test_missing_support_in_a_truncated_capture_is_reported_as_inconclusive, tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number | offsetx_apollo_builder/agent/verify.py, offsetx_apollo_builder/agent/result.py, offsetx_apollo_builder/agent/run.py |
 | R-81 | S-11.02.02 | 2 | tests/test_agent_provenance.py::test_returned_finding_resolves_url_time_step_and_screenshot_from_trace, tests/test_agent_provenance.py::test_an_unresolvable_source_is_refused_instead_of_returned, tests/test_agent_provenance.py::test_a_sourced_fact_survives_navigation_without_relying_on_model_memory, tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence | offsetx_apollo_builder/agent/result.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py |

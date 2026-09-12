@@ -32,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BOARD = ROOT / "BOARD.md"
 BACKLOG = ROOT / "PRODUCT_BACKLOG.md"
 QUESTIONS = ROOT / "OPEN_QUESTIONS.md"
+DEFECTS = ROOT / "DEFECT_LOG.md"
+DECISIONS = ROOT / "DECISIONS.md"
 
 COLUMNS = (
     "BACKLOG", "READY", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "DEFERRED",
@@ -46,6 +48,27 @@ FIELD = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.+?)\s*$")
 DEFINITION = re.compile(r"^#{2,4}\s+(?P<id>[EFST]-[\d.]+[a-z]?)\s+[—-]\s+(?P<title>.+?)\s*$")
 #: A coverage row: `| R-01 | text | S-01.02.03, S-01.02.04 |`
 COVERAGE = re.compile(r"^\|\s*(?P<req>R-\d+)\s*\|(?P<text>[^|]*)\|\s*(?P<ids>[^|]*)\|")
+#: A defect row: `| D-07 | 2026-08-28 | data-loss | high | text | fixed · S-03.02.01 |`
+DEFECT = re.compile(
+    r"^\|\s*(?P<id>D-\d+)\s*\|\s*(?P<found>[^|]*)\|\s*(?P<kind>[^|]*)\|"
+    r"\s*(?P<severity>[^|]*)\|\s*(?P<what>[^|]*)\|\s*(?P<status>[^|]*)\|"
+)
+#: A decision row: `| DD-04 | 2026-09-06 | the call | what it cost |`
+DECISION = re.compile(
+    r"^\|\s*(?P<id>DD-\d+)\s*\|\s*(?P<date>[^|]*)\|\s*(?P<call>[^|]*)\|"
+    r"\s*(?P<cost>[^|]*)\|"
+)
+
+#: `**Dependencies:** S-02.02.01, S-06.01.03. **Size:** M.`  `S-06.02.11`
+#:
+#: Read to `**Size:**` rather than to the first full stop. **Story ids contain
+#: periods**, so a pattern of `[^.]*` parses `S-03.02.04` as `S-03` and every
+#: dependency looks unmet — which is the bug the first version of the audit
+#: script this replaces actually had, and it reported the exact opposite of the
+#: truth.
+DEPENDENCIES = re.compile(r"\*\*Dependencies:\*\*(.*?)(?:\*\*Size:\*\*|\Z)", re.DOTALL)
+STORY_ID = re.compile(r"S-\d+\.\d+\.\d+")
+
 #: Words that mean "not finished" wherever they appear in a comment.
 UNFINISHED = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 
@@ -119,15 +142,19 @@ def read_board(path: Path, report: Report) -> list[Item]:
     return items
 
 
-def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int]]:
-    """Returns (defined ids → title, requirement → ids, story id → criteria count)."""
+def read_backlog(
+    path: Path, report: Report
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int], dict[str, list[str]]]:
+    """Returns (defined ids → title, requirement → ids, id → criteria count,
+    id → what it waits on)."""
     if not path.exists():
         report.fail(f"{path.name} does not exist. Nothing can be traced without it.")
-        return {}, {}, {}
+        return {}, {}, {}, {}
 
     text = path.read_text(encoding="utf-8")
     defined: dict[str, str] = {}
     criteria: dict[str, int] = {}
+    depends: dict[str, list[str]] = {}
 
     # Split on definitions so each story's criteria can be counted against it.
     blocks = re.split(r"(?m)^(#{2,4}\s+[EFST]-[\d.]+[a-z]?\s+[—-]\s+.+)$", text)
@@ -139,6 +166,10 @@ def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, 
         defined[identifier] = header.group("title")
         body = blocks[index + 1] if index + 1 < len(blocks) else ""
         criteria[identifier] = len(CRITERION.findall(body))
+        named = DEPENDENCIES.search(body)
+        depends[identifier] = sorted(
+            set(STORY_ID.findall(named.group(1))) - {identifier}
+        ) if named else []
 
     coverage: dict[str, list[str]] = {}
     for line in text.splitlines():
@@ -147,7 +178,7 @@ def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, 
             continue
         ids = [piece.strip() for piece in row.group("ids").split(",") if piece.strip()]
         coverage[row.group("req")] = ids
-    return defined, coverage, criteria
+    return defined, coverage, criteria, depends
 
 
 # ── the checks ──────────────────────────────────────────────────────────────
@@ -255,13 +286,33 @@ def open_questions(path: Path) -> dict[str, str]:
         body = blocks[index + 1] if index + 1 < len(blocks) else ""
         if re.search(r"\*\*Status:\*\*\s*answered", body, re.I):
             continue
-        found[heading.group(1)] = body
+        # The heading is kept, not stripped. Every question in this repository
+        # names the story it blocks *in its heading* — `*(blocks S-06.01.02)*`
+        # — and nowhere else, so searching the body alone found nothing and the
+        # Definition of Ready rule had never once fired.  `D-44`
+        found[heading.group(1)] = blocks[index] + body
     return found
 
 
-def check_ready(items: list[Item], report: Report) -> None:
-    """Definition of Ready: nothing enters READY with an *open* question against it."""
+def check_ready(
+    items: list[Item], depends: dict[str, list[str]], report: Report
+) -> list[str]:
+    """The Definition of Ready, checked the way DONE already is.  `S-06.02.11`
+
+    The verifier re-runs every DONE claim and never asked whether READY was
+    true. A board that is only accurate about the past is half a board: on
+    2026-09-10 an audit found **fourteen** stories sitting in BACKLOG that could
+    have been pulled, twelve whose dependencies had all finished and two with
+    none at all.
+
+    Returns the stories that could be pulled today, which are reported rather
+    than failed — sitting in BACKLOG is not a lie about the repository, it is
+    work nobody noticed was available.
+    """
     still_open = open_questions(QUESTIONS)
+    column = {item.identifier: item.column for item in items}
+    blocked_by_question: set[str] = set()
+
     for item in items:
         if item.column != "READY":
             continue
@@ -271,6 +322,42 @@ def check_ready(items: list[Item], report: Report) -> None:
                     f"{item.identifier} is READY but {question} is still open against "
                     "it. An answer may change its shape."
                 )
+
+    for identifier in sorted(column):
+        for question, body in still_open.items():
+            if re.search(rf"\b{re.escape(identifier)}\b", body):
+                blocked_by_question.add(identifier)
+
+    for item in items:
+        waiting = depends.get(item.identifier, [])
+
+        # A dependency on something that is not on the board is not a satisfied
+        # dependency — it is a name nobody checked.
+        for name in waiting:
+            if name not in column:
+                report.fail(
+                    f"{item.identifier} declares a dependency on {name}, which is "
+                    "on no column of the board. A dependency that does not exist "
+                    "cannot be met."
+                )
+
+        if item.column == "READY":
+            unmet = [name for name in waiting
+                     if name in column and column[name] != "DONE"]
+            if unmet:
+                report.fail(
+                    f"{item.identifier} is READY but waits on {', '.join(unmet)}, "
+                    "which is not DONE. The Definition of Ready is not advisory."
+                )
+
+    could_be_pulled = [
+        item.identifier
+        for item in items
+        if item.column == "BACKLOG"
+        and item.identifier not in blocked_by_question
+        and all(column.get(name) == "DONE" for name in depends.get(item.identifier, []))
+    ]
+    return sorted(could_be_pulled)
 
 
 def check_deferred(items: list[Item], report: Report) -> None:
@@ -473,6 +560,133 @@ def summarise(
     return "\n".join(lines)
 
 
+def check_commits(items: list[Item], report: Report) -> int:
+    """Rule 8 — every sha the board names is on this branch.  `S-06.02.12`
+
+    **Ancestry, not existence.** `git cat-file -e` succeeds for a dangling
+    object, so an orphaned sha passes any check that only asks whether the
+    commit is there. Two entries carried one for thirteen days on exactly that
+    basis.
+
+    The usual cause is writing the sha onto the board and then amending the
+    commit to include that edit, which changes the sha and leaves the line
+    pointing at the commit that was just replaced. Recording it in a follow-up
+    commit instead is the habit; this is what catches the lapse.
+
+    Returns how many were checked. A repository with no git — a tarball, a
+    vendored copy — is noted rather than failed, because the board is still
+    readable there and failing would make the verifier untrustworthy in the one
+    place it cannot know the answer.
+    """
+    named = [(item, item.fields["commit"].strip())
+             for item in items if item.fields.get("commit")]
+    if not named:
+        return 0
+
+    inside = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        report.note(
+            f"{len(named)} recorded commit(s) were not checked: this is not a "
+            "git work tree."
+        )
+        return 0
+
+    for item, sha in named:
+        exists = subprocess.run(
+            ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if exists.returncode != 0:
+            report.fail(
+                f"{item.identifier} records commit {sha}, which is not a commit "
+                "in this repository at all."
+            )
+            continue
+        # The real check. An object can exist and be unreachable.
+        ancestor = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if ancestor.returncode != 0:
+            report.fail(
+                f"{item.identifier} records commit {sha}, which exists but is not "
+                "an ancestor of HEAD. The usual cause is amending after the sha "
+                "was written down; record it in a follow-up commit instead."
+            )
+    return len(named)
+
+
+def check_defects(defined: dict[str, str], report: Report) -> tuple[int, int]:
+    """Rule 7 — the defect log and the decision log say something checkable.
+
+    A log nobody checks is a log that rots, and the first thing to rot is the
+    part that matters: a defect recorded as `open` with nowhere to go. So an
+    open row has to name a backlog id that exists, and an id has to mean one
+    thing. Returns (defects, decisions) for the summary.
+
+    The prose is not checked, and could not be. This checks the two properties
+    that make the file usable by somebody who was not here.
+    """
+    defects: dict[str, str] = {}
+    if not DEFECTS.exists():
+        report.fail("DEFECT_LOG.md is missing. Every defect found gets a row.")
+    else:
+        for line in DEFECTS.read_text(encoding="utf-8").splitlines():
+            row = DEFECT.match(line)
+            if row is None:
+                continue
+            identifier = row.group("id")
+            if identifier in defects:
+                report.fail(
+                    f"{identifier} is in DEFECT_LOG.md twice. An id that points "
+                    "at two things points at neither."
+                )
+                continue
+            defects[identifier] = row.group("status").strip()
+
+            if not row.group("what").strip():
+                report.fail(f"{identifier} says nothing about what went wrong.")
+            if not row.group("found").strip():
+                report.fail(f"{identifier} does not say when it was found.")
+
+            status = defects[identifier]
+            if status.lower().startswith("open"):
+                named = [
+                    part for part in re.findall(r"[EFST]-[\d.]+[a-z]?", status)
+                    if part in defined
+                ]
+                if not named:
+                    report.fail(
+                        f"{identifier} is open but names no backlog item that "
+                        "exists. An unfixed defect with nowhere to go is a "
+                        "defect nobody will fix."
+                    )
+
+    decisions: dict[str, str] = {}
+    if not DECISIONS.exists():
+        report.fail("DECISIONS.md is missing. A design call that was not the "
+                    "obvious one gets an entry.")
+    else:
+        for line in DECISIONS.read_text(encoding="utf-8").splitlines():
+            row = DECISION.match(line)
+            if row is None:
+                continue
+            identifier = row.group("id")
+            if identifier in decisions:
+                report.fail(f"{identifier} is in DECISIONS.md twice.")
+                continue
+            decisions[identifier] = row.group("call").strip()
+            if not row.group("cost").strip():
+                report.fail(
+                    f"{identifier} names no cost. A decision with no cost was "
+                    "not a decision."
+                )
+    return len(defects), len(decisions)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -482,20 +696,28 @@ def main() -> int:
     arguments = parser.parse_args()
 
     report = Report()
-    defined, coverage, criteria = read_backlog(BACKLOG, report)
+    defined, coverage, criteria, depends = read_backlog(BACKLOG, report)
     items = read_board(BOARD, report)
 
     check_coverage(coverage, defined, report)
     check_board_completeness(items, defined, report)
     check_wip(items, report)
     check_blocked(items, report)
-    check_ready(items, report)
+    could_be_pulled = check_ready(items, depends, report)
     check_deferred(items, report)
+    shas = check_commits(items, report)
+    logged = check_defects(defined, report)
     tests = check_evidence(items, report, run_tests=not arguments.skip_tests)
     if arguments.skip_tests:
         report.note("Evidence commands were not run (--skip-tests).")
 
     print(summarise(items, defined, coverage, criteria, tests, report))
+    print(f"  {logged[0]} defect(s) logged, {logged[1]} design decision(s) recorded.")
+    if shas:
+        print(f"  {shas} recorded commit(s), all on this branch.")
+    if could_be_pulled:
+        print(f"  {len(could_be_pulled)} story(s) could be pulled today: "
+              + ", ".join(could_be_pulled))
 
     if report.failures:
         print("")

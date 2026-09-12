@@ -1,7 +1,416 @@
 # Changelog
 
+## 2026-09-12 — Reliable campaign selection (S-06.02.16)
+
+- Keep a newly created campaign selected through delayed refreshes and reloads.
+- Preserve later manual choices and saved campaigns outside the first 200 rows.
+- Fall back only after a confirmed missing campaign, with a visible explanation.
+- Clear campaign-specific forms on switching and name the destination in import confirmations.
+- Add request-ordering regressions and real browser/API ownership checks.
+
+
+## 2026-09-12 — Refresh the single integration branch with current main
+
+- Preserve main's newer run recovery, reports/watchers, spending controls,
+  human gates and browser concurrency alongside PLAN.md, cached evidence and WP1.
+- Keep cached reads visible in progress events without counting extra browser
+  work; verify that an owner-edited plan and original evidence survive resume.
+- Map WP1 to S-06.02.15 / R-100 after independent ID allocations in main.
+  Retain main's delivery review and refresh the board/traceability records.
+- Fetch full history in CI so the new commit ancestry gate can actually run.
+  Exact combined test results and remaining audit blockers are recorded in PR #14.
+
 ## Unreleased
 
+- **A test refers to a trace step by finding it, not by counting to it**
+  (`S-06.02.14`, closing `D-37`). Five files named `step-000002` and meant "the
+  read action". Adding any step earlier in a run shifts every id after it, so a
+  story with nothing to do with provenance broke the provenance tests — twice,
+  and both times the fix was to bump a number.
+- **A scripted decision now cites what the run offered it**, which is what a
+  real model does: the observation carries `step_id=step-000002` into the
+  prompt and the model repeats it back. An answer says `CITE` and the broker
+  double fills it in from the instructions it was just handed — immune to
+  renumbering, and a closer imitation of the thing it stands in for.
+- Assertions use `step_id_of(trace, "action")`. Artefact filenames encode the
+  step index too, so `"0002.png"` was the same bug in another costume and is
+  now the screenshot of the step the finding cites.
+- Tests *of* the numbering keep their literals: that a trace with no ids gets
+  them assigned in order, that `step-000002` follows `step-000001`. There the
+  number is the subject rather than a way of pointing at something.
+- Proven by doing it: a step inserted into `agent/run.py` shifts every id in
+  every run, and all 49 tests across the five converted files still pass.
+
+- **Every commit the board names is checked against the branch**
+  (`S-06.02.12`). **Ancestry, not existence:** `git cat-file -e` succeeds for a
+  dangling object, so a sha orphaned by `--amend` passes any check that only
+  asks whether the commit is there — which is how two entries carried an
+  orphaned `0be650d` for thirteen days without anyone noticing. A sha that is
+  not an ancestor of `HEAD` now fails and names the entry; one that is no commit
+  at all fails; and a repository with no git is noted rather than failed,
+  because the board is still readable in a tarball.
+- 48 recorded commits, all on the branch.
+
+- **The verifier now checks readiness the way it already checks DONE**
+  (`S-06.02.11`). It re-ran every `DONE` claim and never asked whether `READY`
+  was true. A story in `READY` whose dependencies are not finished now fails the
+  build; a dependency naming a story on no column of the board fails; and a
+  story sitting in `BACKLOG` whose dependencies are all `DONE` is named in the
+  summary as available to pull. It found one on its first run — `S-06.02.03`,
+  which became pullable when `S-06.01.03` landed the day before.
+- The dependency parser reads to `**Size:**` rather than to the first full stop,
+  because **story ids contain periods** — a pattern of `[^.]*` parses
+  `S-03.02.04` as `S-03`, and the first version of the audit script this
+  replaces reported the exact opposite of the truth because of it. There is a
+  test whose only job is that.
+- **Fixed: the rule that an open question blocks `READY` had never fired once**
+  (`D-44`). Every question in `OPEN_QUESTIONS.md` names the story it blocks in
+  its *heading* — `*(blocks S-06.01.02)*` — and the parser handed the check only
+  what came after the heading. Three open questions were blocking nothing. The
+  board was still honest, but by luck rather than by the check.
+- That is the third control this session that looked present and was not, after
+  a spend cap fed a hardcoded zero (`D-35`) and a key event with no default
+  action (`D-40`). `DEFECT_LOG.md`'s second pattern now says the thing they have
+  in common: **for every control, ask when it last actually refused something.**
+
+- **Concurrent runs share one browser safely** (`S-11.05.01`), the last story
+  in E-11. Measured before building rather than read: of its three criteria one
+  held and two did not, and both failures were one mistake wearing two hats —
+  state that has to be shared across runs, held per run.
+- **Fixed: N runs divided the per-host pace floor by N** (`D-42`). The gap
+  between actions lived in a dictionary on each tab, so two runs on one host
+  went twice as fast as the floor allowed. Measured at 2.00s where 5.00s was
+  honest. `browser/pace.py` now holds one rhythm per browser session, and
+  records a *deadline* per host rather than a last-seen time — so a run claims
+  its slot before sleeping, and two runs arriving together are spaced instead of
+  both being waved through.
+- **Fixed: the budget ledger lost two thirds of its writes under concurrency**
+  (`D-43`). The lock was per instance and the file was shared, so four runs
+  taking 25 actions each left 33 of 100 in the ledger — making the real ceiling
+  three times whatever the owner set. The lock is now keyed by the ledger file,
+  so any number of instances over it serialise without anyone having to
+  remember to share one.
+- A sequential probe of both of those passed while both were broken. The tests
+  are concurrent for that reason.
+- **Known limit, measured and pinned:** the account ceiling can still be
+  overshot by one action per concurrent run, because `S-03.02.04` deliberately
+  checks before an action and records after it so a failed action costs nothing.
+  That decision is not reversed here. Measured at 1, 2, 3, 5 and 8 runs, the
+  overshoot was N-1 every time, and a test holds it there.
+
+- **Enter goes through the same gate as the button beside it** (`S-11.03.03`,
+  closing `D-25`). `check_action` was called exactly once in `browser/page.py`,
+  inside `click`; `press` called it zero times. The fix is not a second copy of
+  the check inside `press` — `click` and `press` now ask the *same* function, so
+  the set of things that need a human and the set of things that get asked about
+  are one set by construction. That is the defect log's pattern 3, solved the
+  only way it stays solved.
+- What Enter would activate is answered by the page, because the accessibility
+  tree cannot say whether the focused field belongs to a form or what that
+  form's submit control is called — and "Enter in the same form" is the
+  criterion's own wording. It **fails closed**: if the page cannot be asked, it
+  asks the owner.
+- **Fixed: the agent's Enter key never did anything** (`D-40`). `press`
+  dispatched a key event with no `text`, so Chrome raised it and performed no
+  default action. Forms were never submitted. Found because the live check could
+  not demonstrate the hole it was closing, and measured key by key rather than
+  guessed — Tab and Backspace work either way, Enter only with the character it
+  produces. A broken verb in a closed ten-verb vocabulary is a large fraction of
+  what the agent can do, and it meant `D-25` was a hole nobody could fall
+  through *yet*.
+- **Fixed before shipping: the first gate would have interrupted typing**
+  (`D-41`). A `<textarea>` inside a compose form is "in a form with a Send
+  button", so pressing Enter for a new paragraph would have stopped the run.
+  Enter in a textarea makes a newline in every browser there is; it cannot
+  submit, so it is not gated.
+- Only Enter is treated as able to activate anything. Tab moves, Escape closes,
+  the arrows scroll — and none of them even ask the page, because a round trip
+  per arrow key would make reading a feed absurd.
+
+- **A visible, cancellable delay before anything consequential**
+  (`S-02.02.04`). `browser/countdown.py` holds a sensitive click for five
+  seconds — the number `policy.py` has specified since August — reporting the
+  seconds left to whoever is watching, and anyone can stop it from any thread.
+  Cancelled, nothing reaches the site and nothing is charged to the account.
+- **A countdown, not a dialog, and the reason is in `policy.py`'s own words:**
+  a confirm box trains people to click through it, because that is what confirm
+  boxes are for. A countdown asks for nothing — you only act if you want to stop
+  it — so the reflex has nowhere to land.
+- **An unattended run cannot use one at all.** A countdown with nobody watching
+  is the human gate deleted while still looking like it is there:
+  `docs/architecture/AUTONOMOUS_BROWSING.md` says E-11 does not auto-confirm
+  anything, and that rule is now in the code rather than only in the document.
+  The existing refusal — stop the run and ask the owner — is unchanged for every
+  caller that supplies neither a countdown nor a confirmation.
+- **One countdown covers one action.** A spent one raises rather than passing a
+  second click through, because "the owner watched this one elapse" must not
+  become a token that waves through something they never saw.
+- A harmless click never waits. A countdown on every link would make the agent
+  unusable, and people switch off things that are unusable.
+
+- **`S-08.01.05` is finally `DONE`** rather than `IN_REVIEW`. It had sat there
+  since 2026-08-27 — not because anything was wrong with it, but because the
+  environment of the day could not install a frontend dependency, so half its
+  evidence could never be re-run. The dependency installs cleanly now: 2 Python
+  controls and 11 dashboard tests, both halves green. The board has no stale
+  rows.
+
+- **A run now has a money ceiling, not only a step ceiling** (`S-11.01.04`).
+  `run(..., spend_ceiling_usd=...)` stops the run with `status=over_budget`
+  before the decision that would cross it. An agent left running overnight can
+  no longer cost more than was agreed.
+- **The check runs before the model is asked anything**, so the ceiling is never
+  crossed rather than reported once it already has been. That also makes
+  stopping free — which is what makes it safe to resume from. Whatever the run
+  gathered before the limit is kept: a run that found three facts and stopped on
+  the fourth has still found three facts.
+- **The ceiling survives a resume.** It is recorded on `run_started` and
+  re-applied by `resume()`, and the spend is read back off the trace — so a run
+  killed and restarted ten times counts one allowance rather than ten. Without
+  that the feature would be a speed bump: stop at the limit, resume, spend
+  without bound. Raising it is `resume(spend_ceiling_usd=...)` and has to be
+  done on purpose.
+- **The next decision is predicted from the most expensive one so far, not the
+  average.** A ceiling is a promise, and the average lags a trend — a run whose
+  pages keep growing would walk past the line while the average still said there
+  was room. Stopping early is recoverable; exceeding a limit the owner set is
+  not.
+- A projection that is already above the ceiling is said in `run_started`, not
+  at the step it stops on. "This will not fit" is worth knowing before the first
+  page loads.
+- **Known limit, tested rather than discovered:** a model with no price list
+  cannot have its first decision predicted, so that one goes through whatever
+  the ceiling says; from the second on the run's own costs take over. Refusing
+  every run on an unpriced model would make free and local models unusable, so
+  the exposure is capped at one decision and a test keeps it there.
+
+- **A run now says what it will cost before it starts, and what it did cost
+  after** (`S-06.01.03`). The estimate goes into `run_started` beside the budget
+  it was derived from, carries its own basis, and comes back on `RunOutcome`
+  next to the actual — `estimate_error` is the difference, which is this
+  story's own indicator.
+- **Fixed: the daily spend cap could never be reached** (`D-35`). The owner can
+  set a per-provider daily limit; the check for it is real, the usage bar
+  displays it, and the line that recorded what a call cost passed a hardcoded
+  `spend_usd=0.0`. Measured: a $1.00 cap, 5,000 calls, $0.0000 counted, nothing
+  refused. Priced properly those same calls are $8.00 and the cap refuses at
+  once. This was the only thing standing between an agent left running overnight
+  and an unbounded bill.
+- **Fixed: the provider tells us what each call used and we were discarding it**
+  (`D-36`). Every major API returns a `usage` block; the adapter pulled the text
+  out of the response and dropped the rest, and cost was then guessed by
+  dividing characters by four. Captured now in `_post`, the one place every HTTP
+  call passes through, so no adapter has to remember — and translated across the
+  two naming conventions in use (`input_tokens`/`output_tokens` and
+  `prompt_tokens`/`completion_tokens`).
+- **Fixed: the price of a call was computed in three places** (`D-38`), one of
+  which returned zero. `registry.price_tokens` is now the only implementation;
+  `ModelEntry.price` is a convenience over it and `broker.measure` is the single
+  funnel every caller uses. This is the defect log's pattern 3 — two things that
+  must agree, drifting apart — in arithmetic rather than in a list.
+- Every figure now says where it came from. `usage_source` is `provider` when it
+  is the provider's own count, `estimated` when it was guessed, and `cache` when
+  nothing was sent. "The bill was $2.40" and "we think the bill was $2.40" are
+  different sentences, and the owner is entitled to know which one this is.
+- A **failed** call is measured too. The provider bills for the tokens it read
+  before giving up, and a ledger that counts only successes under-reports
+  exactly when the owner most wants the number.
+- The run report shows estimated-against-spent at the top, and the header figure
+  is now labelled `spent` rather than `estimated` — they are two different
+  numbers and must not share a word.
+
+- **Added `DEFECT_LOG.md` and `DECISIONS.md`** (`S-06.02.13`), asked for by the
+  owner. One table of every bug, security hole and broken connection found, in
+  plain English, with the date it was found — and one of design calls where the
+  obvious thing was *not* done, with what that cost. The reasons things broke
+  were spread across commit messages, `RETRO.md` and `CHANGELOG.md`: fine for
+  reading one story, useless for *has this happened before?*
+- **Writing the 34 existing defects into one table made five patterns visible
+  that no individual retro had shown.** The sharpest: the same defect has now
+  been fixed three times under three names (`D-14`, `D-24`, `D-32`) — two lists
+  that have to match each other drifting apart, silently. Also: the bug is
+  usually in code that was already `DONE` and passing, and for anything that
+  *detects* something, the false positives are where the real defects live.
+- Both logs are enforced rather than encouraged. `scripts/verify_board.py` fails
+  when a defect marked `open` names no backlog item that exists, when an id is
+  used twice, when a row does not say what went wrong or when it was found, and
+  when a decision names no cost. Nine tests, each proving its rule can go red —
+  a checker that never fires is worse than none, because it launders a false
+  claim into a green tick.
+- `RETRO.md` keeps its job: three lines of process lesson per increment. It is
+  not replaced, and the defect log is not a place for lessons.
+
+- **A CAPTCHA, sign-in form or 2FA prompt now pauses the run and asks**
+  (`S-11.03.01`). `agent/wall.py` reads the accessibility tree for something only
+  a person can get past; the run ends `needs_human`, names what it found, and
+  leaves the browser on that page. Before this, the agent did the only thing left
+  to it — burned its budget clicking around a page it could never get past and
+  reported `stuck`, which says something went wrong but not that *you* are the
+  fix.
+- **Nothing here solves, evades or fingerprints around a challenge, and nothing
+  here will.** That was decided on 2026-09-06 and written up in `RETRO.md`:
+  enforcement on these platforms is account termination rather than a 429, so
+  the asset at risk is the one the owner spent months building. A test asserts
+  the promise structurally — `wall.py` imports a snapshot and a regex engine and
+  holds no browser, connection or network client, so there is nothing in it that
+  could act even if a later edit wanted to.
+- **The check runs before the model is asked anything**, so a locked door costs
+  no decision and no budget: a paused run resumes with all of it. `needs_human`
+  is deliberately absent from the set `resume()` treats as final — a run that
+  stopped because a person has to do something is exactly the run that should
+  carry on once they have. `human_gate` stays final, because there the question
+  is whether a consequential action happens at all, which is not a thing you
+  resume into.
+- **This detector is allowed to stop a run, and `injection.py` is not.** The
+  trade was re-argued rather than inherited. A wrong injection match costs one
+  line in a trace; a wrong match here costs the owner a glance. So this one reads
+  structure rather than prose — a password field is an *editable* node, which is
+  what makes "Forgot password?" (a link) and "Show password" (a button) not
+  count — and asks for corroboration before it speaks. Two rules were tightened
+  after they fired on ordinary pages: `/auth\b` matched
+  `/help/two-factor-authentication`, and second-factor language plus any text
+  box made a help article about 2FA into a wall.
+- `Snapshot.names` now carries the accessible names, so the two things that ask
+  *what kind of page is this* — `identity.py` for signed-in state and
+  `wall.py` for something in the way — read one definition instead of two.
+- The run report explains itself at the top for any ending that is waiting on the
+  owner, not only for ones that went wrong. `needs_confirmation` and `human_gate`
+  had been stopping runs without saying why above the fold.
+
+- **A run can now be watched while it happens** (`S-11.04.02`). `agent/watch.py`
+  turns each recorded step into a `Progress` carrying the verb, the live page
+  URL and the run's running cost, and `console()` prints one block per step and
+  flushes it. `AgentRun.run(..., on_progress=...)` hangs the watcher on the
+  trace for the duration of the run and takes it off again in a `finally`, so a
+  watcher cannot outlive the run it was watching.
+- The hook lives on `Trace`, not at each call site. The trace is already the one
+  funnel every recorded event passes through, and there are forty of them — a
+  watcher hung there cannot be forgotten when a forty-first is added. It fires
+  *after* the disk write, so nothing reaches a watcher that a crash would then
+  erase, and a watcher that throws is swallowed: somebody looking at a run must
+  not be able to end it.
+- `S-11.04.01` tells you what a run did once it is over. This is so a run heading
+  for the wrong page at step 4 can be seen at step 4 rather than read about at
+  step 40. It shows; it does not stop — interrupting is `S-02.02.03`, and was
+  not smuggled in here.
+- **The verb a watcher reports comes from the step's recorded signature, not
+  from its prose.** A click records "clicked More", and `clicked` is not one of
+  the ten verbs. `[signature=...]` was already written into every action step by
+  `S-11.05.02` so a resumed run could tell what it had already done. The parser
+  and the writer now live together in `browser/trace.py` as `signature_in` and
+  `signature_mark`, beside the `Step` they describe, so the two cannot drift.
+- **Fixed: a read answered from the run's memo recorded no signature.**
+  `S-11.02.04` serves a second read of an already-read page without asking the
+  page again, and that step was being written without the marker every other
+  action step carries. It went unnoticed because nothing had needed the verb
+  back until now; a watcher could not name the step, and a resumed run could not
+  match it.
+
+- **Every run now writes a report a person can read** (`S-11.04.01`).
+  `agent/report.py` renders one self-contained HTML page into the run's own
+  directory: each returned fact with its value, quote, source URL, timestamp,
+  trace step and screenshot, then every step in order with its cost. Provenance
+  has been bound to facts since `S-11.02.02`; it lived in a JSONL file and a
+  directory of PNGs, which is the right way to store an audit trail and a
+  hopeless way to read one.
+- It is written from `_outcome`, the single funnel every ending passes through,
+  so no exit quietly skips it — and a failure to render one is recorded rather
+  than raised, because the outcome matters more than the page describing it.
+- **The report renders attacker-controlled text, and that is what the tests are
+  mostly about.** Every quote came off a web page; the injection excerpts came
+  off a page actively trying to be interpreted as instructions. Everything
+  page-derived is escaped, and the tests assert on the *tags a browser would
+  parse* rather than on substrings — `"onerror=" not in page` is not a test,
+  because escaped text legitimately contains those characters and is inert.
+  Removing the escaping makes three tests fail.
+- A screenshot filename that is not local to the run directory is dropped: the
+  name comes off the trace, and a name walking out of the directory would turn
+  the report into a way of reading the disk.
+- Nothing is loaded from the network — no fonts, no scripts, no stylesheets — so
+  it opens offline from `file://` and cannot phone anywhere. Mode `0600`, beside
+  the evidence it describes.
+
+- **A page that tries to give the agent orders is now reported** (`S-11.03.02`).
+  `agent/injection.py` scans both what the model is shown — the page outline —
+  and anything a `read` brings back, and writes an `injection_suspected` step
+  naming which rules matched.
+- **It changes the record, not the behaviour, and that is the design.**
+  Containment is already structural: the model can only name one of ten verbs,
+  cannot supply code, and cannot reach the CRM, so an instruction on a page has
+  nothing to reach for. What was missing is that an attack left no mark at all —
+  the run carried on correctly and nobody learned somebody had tried. A smoke
+  alarm, not a fire door; the fire door was built first.
+- The quote goes in the step's capture artefact, never in `detail`: page text
+  does not belong in `trace.jsonl`.
+- Every pattern was narrowed against real page text. A bare "you are now"
+  flagged *"You are now viewing page 2 of 5"*; a bare "new role" flagged *"Our
+  new role this quarter is Head of Growth"*; a bare "act as a" flagged *"We act
+  as a broker for European fintech firms"*; and an unanchored send-to-address
+  flagged *"Send us your CV at careers@acme.test"*. 12 attacks caught, 11 pieces
+  of ordinary business text left alone.
+- **Fixed an evasion before it shipped:** the patterns stay inside one sentence
+  with `[^.\n]`, so a newline stopped them and an attack wrapped across three
+  lines was missed entirely. Page text arrives full of line breaks, so that was
+  not a hypothetical layout. Whitespace is now collapsed before matching.
+
+- **A resumed run does not do again what it already did** (`S-11.05.02`). The
+  pair to `S-11.01.03`: a resumed run re-decides from the **live page**, and the
+  page does not remember that the message was already sent — the Send button is
+  still sitting there looking unpressed. Nothing in the browser can say
+  otherwise; only the trace can, so action steps now carry their signature and a
+  resumed run reads them back.
+- The guard covers `click` and `press`, the two verbs that can send without the
+  URL changing, and **deliberately not `goto`** — navigating is how a resumed run
+  gets back to where it was working, and blocking a repeat would make resuming
+  useless. The cost is written down where the choice is made: a URL whose GET has
+  a side effect is not protected here.
+- It fires only across a resume point, never inside one continuous run, where
+  the agent is entitled to click the same thing twice.
+- Filed `S-11.03.03`: **`press` has no consequential-action gate.** Verified —
+  `check_action` is called exactly once in `browser/page.py`, inside `click`, and
+  `press` calls it zero times. Enter in a form is a submit, so the gate that
+  stops the agent clicking Send does not stop it sending. Filed rather than fixed
+  in flight because the fix belongs with the human-gate story.
+
+- **A killed run resumes where it stopped** (`S-11.01.03`). Construct the agent
+  with `Trace.open(root, run_id=...)` and call `resume()`: the goal, budget and
+  schema come back off the trace, so the caller cannot get them wrong, and the
+  facts already gathered come back with their provenance intact.
+- **There is no checkpoint file.** The trace is append-only, written a step at a
+  time with the handle opened per write, so a killed process leaves a complete
+  record up to its last step — and `Trace.read` already said in its docstring
+  that replaying it is what resuming is built on. A snapshot written every few
+  steps has a failure mode this does not: the snapshot and the trace can
+  disagree, and then the resumed run believes something that never happened.
+- Accepted findings are now written to the trace as `kind="finding"` steps, with
+  the finding as a **capture artefact rather than in `detail`** — a value may be
+  20,000 characters and a quote 4,000 against a 4,000-character detail cap, so
+  serialising into `detail` would have produced JSON that silently failed to
+  parse on replay, losing the fact it was recording. The audit detail names the
+  field and its size and never the value: harvested content stays out of the
+  JSONL and lives only in the 0600 artefacts.
+- A resumed run gets **the remaining budget, not a fresh one**, and comes back
+  knowing what it already tried — so the recovery and progress detectors from
+  `S-11.01.01` and `S-11.01.02` do not restart from nothing.
+- Resuming a run that already ended is refused, and a fact whose artefact is
+  missing is dropped rather than rebuilt without provenance.
+
+- **A run that is busy and getting nowhere is stopped** (`S-11.01.02`).
+  `S-11.01.01` catches the agent repeating one *failing* action; this catches the
+  other shape, where every action succeeds and nothing is learned — bouncing
+  between two pages, or clicking a working button forever. `looping` and
+  `stalled` are separate statuses because they are separate problems, and both
+  return the facts already gathered.
+- One notion of progress serves both detectors: a step counts if it produced a
+  **new fact**, reached a page the run has **not visited at all**, or performed
+  an action it had **not performed before**.
+- Two corrections that the story's own third criterion forced — *a false
+  positive is worse than a wasted step*. **Unvisited, not merely different**:
+  bouncing between two pages is a different URL every step, so "different from
+  the last one" would have let the exact cycle through. And **the action
+  clause**: filling in a form is a dozen successful steps on one page with no
+  fact and no navigation, and stopping that would kill the runs that were
+  working. Both are recorded in the backlog as clarifications.
 - **Integration branch before main promotion.** Combine recovery, production
   requirements, editable plans and both page-read implementations. Keep main's
   authentication and failed-action recovery. Cached reads retain the original

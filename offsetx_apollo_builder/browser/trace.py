@@ -40,7 +40,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 #: What one step's detail may weigh in the log. A page's text can be enormous
 #: and the trace is meant to stay readable; the full text lives in the step's
@@ -107,6 +107,34 @@ class Step:
         return item
 
 
+#: How an action step records the verb and arguments it ran, inside its detail
+#: text. `S-11.05.02` writes it so a resumed run can tell what it has already
+#: done; anything that needs the verb reads it from here rather than parsing the
+#: English around it — a step that clicked reads "clicked More", not "click".
+_SIGNATURE_MARKER = "[signature="
+
+
+def signature_mark(signature: str) -> str:
+    """The marker to append to an action step's detail. Paired with
+    :func:`signature_in`, so the thing that writes it and the thing that reads
+    it cannot drift apart."""
+    return f"{_SIGNATURE_MARKER}{signature}]"
+
+
+def signature_in(detail: str) -> str:
+    """Pull the signature back out of an action step's detail.
+
+    Empty when the step carried none: a decision, an ending, or a step recorded
+    before signatures were.
+    """
+    text = str(detail or "")
+    start = text.find(_SIGNATURE_MARKER)
+    if start < 0:
+        return ""
+    end = text.find("]", start)
+    return text[start + len(_SIGNATURE_MARKER):end] if end > start else ""
+
+
 @dataclass
 class Trace:
     """The record of one run.
@@ -120,6 +148,12 @@ class Trace:
     directory: Path
     #: Kept in memory as well as on disk so a live view needs no re-read.
     steps: list[Step] = field(default_factory=list)
+    #: Called with each step as it is recorded, for anyone watching.  `S-11.04.02`
+    #:
+    #: On the trace rather than on the agent because this is already the single
+    #: funnel every recorded event passes through — a watcher hung here cannot
+    #: be forgotten at a new call site, and there are forty of them.
+    listener: "Callable[[Step], None] | None" = None
 
     @classmethod
     def open(cls, root: Path | str, *, run_id: str = "") -> "Trace":
@@ -176,6 +210,15 @@ class Trace:
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(step.to_dict(), ensure_ascii=False) + "\n")
         self.steps.append(step)
+        if self.listener is not None:
+            # After the write, never before: a watcher sees only what is
+            # durable. And its failure is swallowed on purpose — an audit log
+            # that a broken viewer can bring down is worse than no viewer, and
+            # the run must not end because somebody's terminal went away.
+            try:
+                self.listener(step)
+            except Exception:  # noqa: BLE001 - a watcher is not load-bearing
+                pass
         return step
 
     def read(self) -> Iterator[Step]:

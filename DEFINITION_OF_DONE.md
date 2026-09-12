@@ -59,6 +59,11 @@ Every box, every time. This is a claim about the repository, not about intent.
 - [ ] **Release status is explicit.** Record remaining production blockers and
       distinguish code completion from merge and deployment. A known blocker
       cannot be waived because a walkthrough succeeds.
+- [ ] **Every defect found is in `DEFECT_LOG.md`** — including ones found in
+      *old* code while building this, and ones filed rather than fixed. A
+      defect found and not written down is one the next person finds again.
+- [ ] **Every design call that was not the obvious one is in `DECISIONS.md`**,
+      with what it cost. A decision with no cost was not a decision.
 - [ ] **Board updated and `scripts/verify_board.py` passes.**
 
 **A story that has code but no run test is `IN_REVIEW`, not `DONE`.** There is

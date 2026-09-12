@@ -1,5 +1,9 @@
 # Audit WP1 — durable customer state and safe recovery
 
+Integration note (12 September 2026): WP1 now maps to **S-06.02.15 / R-100**.
+Main independently reused S-06.02.11 and R-95. The dated evidence and earlier
+reconciliation below are retained unchanged.
+
 Repository: `kunalwagh101/off_CRM` · Stories: **S-06.02.09 / S-06.02.11**
 Branch: `feature/audit-wp1-durable-state-safe-recovery` · [PR #13](https://github.com/kunalwagh101/off_CRM/pull/13)
 

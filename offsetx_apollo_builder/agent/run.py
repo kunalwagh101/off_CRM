@@ -30,15 +30,24 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
-from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings
+from ..ai.broker import EgressBroker, EgressResult, WorkspaceEgressSettings, measure
 from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
-from ..browser.trace import Step, Trace
-from .result import Finding, Provenance, ResultSchema, SourcedRecordValidation, coerce_result_schema
+from ..browser.trace import Step, Trace, signature_in, signature_mark
+from .injection import scan as scan_for_injection
+from .report import write as write_report
+from .result import (
+    Finding,
+    Provenance,
+    ResultSchema,
+    ResultSchemaError,
+    SourcedRecordValidation,
+    coerce_result_schema,
+)
 from .verify import (
     DERIVED_UNVERIFIED,
     SUPPORTED,
@@ -53,6 +62,8 @@ from .read_cache import (
     TRACKING_PARAMETER_NAMES as TRACKING_PARAMETERS,
     canonical_page_url,
 )
+from .wall import Wall, look as look_for_a_wall
+from .watch import Progress, observer
 
 MAX_RUN_STEPS = 50
 #: How many page captures one run keeps. A run is bounded at `MAX_RUN_STEPS`, so
@@ -64,6 +75,16 @@ MAX_CAPTURES = 32
 #: be a page still settling, and a third means the agent has no idea what to do
 #: here — and every further step is budget spent learning that again.
 MAX_CONSECUTIVE_FAILURES = 3
+
+#: Steps without progress before a run is called stalled, and arrivals back at
+#: one page without progress before it is called looping.
+#:
+#: Both are ceilings on *wasted* steps, never on work: a step that produced
+#: something new resets them. Ten is chosen against the longest legitimate
+#: stretch of nothing — filling a form field by field, waiting for a slow table
+#: — and three arrivals is the shape of a genuine cycle rather than a detour.
+MAX_STEPS_WITHOUT_PROGRESS = 10
+MAX_ARRIVALS_WITHOUT_PROGRESS = 3
 
 #: How many times a timeout-shaped failure is retried before it counts as a
 #: real one, and how long to wait between attempts.
@@ -79,11 +100,38 @@ TRANSIENT_BACKOFF_SECONDS = (0.5, 2.0)
 #: something the code cannot see.
 TRANSIENT_FAILURES = (CDPTimeout, asyncio.TimeoutError)
 
+#: Verbs that can act on the world, not just move around in it.  `S-11.05.02`
+#:
+#: `click` and `press` are the two that can send, submit, delete or publish
+#: without the URL changing. Both verbs pass the consequential-action gate;
+#: this additional guard prevents repeating a previously completed effect.
+#:
+#: **`goto` is deliberately absent.** Navigating is how a resumed run gets back
+#: to where it was working, so blocking a repeat of it would make resuming
+#: useless. The cost of that choice is stated where it lands: a URL whose GET
+#: has a side effect — a confirm link, an unsubscribe link — is not protected
+#: here, and would need its own story to be.
+EFFECTFUL_ACTIONS = frozenset({"click", "press"})
+
 # Kept available to callers inspecting the run's in-place invalidation verbs.
 PAGE_CHANGING_ACTIONS = CONTENT_MUTATING_ACTIONS | frozenset({"back"})
 
 MAX_GOAL_CHARS = 4_000
 MAX_OBSERVATION_CHARS = 12_000
+
+#: What one decision is assumed to send and receive, for the estimate shown
+#: before a run starts.  `S-06.01.03`
+#:
+#: **This is an assumption, not a cap**, and the estimate says so out loud. The
+#: decision input is not capped: it is the system prompt, the goal, a rendered
+#: page of up to `perceive.MAX_NODES` nodes, and an observation capped at
+#: `MAX_OBSERVATION_CHARS`. A big page therefore costs more than this and a
+#: small one costs less. The basis goes into the trace beside the number, so
+#: estimate-against-actual is something a person can compute rather than a
+#: claim they have to take.
+TYPICAL_DECISION_INPUT_CHARS = MAX_OBSERVATION_CHARS
+#: A decision is one small JSON object — a verb, its arguments and a reason.
+TYPICAL_DECISION_OUTPUT_CHARS = 400
 MAX_DECISION_TEXT_CHARS = 2_000
 PLANNER_TIERS = frozenset({TrustTier.A, TrustTier.B})
 
@@ -133,6 +181,147 @@ Rules:
 - If the plan's current goal is complete, return state=done instead of doing extra work.
 - Keep reason and result short. They are audit metadata, not hidden reasoning.
 """
+
+
+@dataclass(frozen=True, slots=True)
+class ResumeState:
+    """What a half-finished run knew, read back off its own trace.  `S-11.01.03`
+
+    There is no checkpoint file. The trace is append-only, written a step at a
+    time with the handle opened per write, so a process killed mid-run leaves a
+    complete record up to its last step — and `Trace.read` says in its own
+    docstring that replaying it is what resuming is built on.
+
+    The alternative, a snapshot written every few steps, has a failure mode this
+    does not: the snapshot and the trace can disagree, and then the resumed run
+    believes something that never happened.
+    """
+
+    goal: str
+    step_budget: int
+    schema_fields: tuple[str, ...]
+    findings: "dict[str, Finding]"
+    decisions: int
+    actions: int
+    visited_urls: "set[str]"
+    performed_signatures: "set[str]"
+    failed_signatures: "set[str]"
+    last_url: str
+    #: The money ceiling the run was started with.  `S-11.01.04`
+    #:
+    #: Read back off the trace and re-applied, because a ceiling that evaporates
+    #: when a run is resumed is not a ceiling — stop at the limit, resume, spend
+    #: without bound. Raising it is the owner's decision and has to be made on
+    #: purpose: `resume(spend_ceiling_usd=...)`.
+    spend_ceiling_usd: float = 0.0
+
+    @property
+    def steps_remaining(self) -> int:
+        return max(0, self.step_budget - self.decisions)
+
+
+def replay(trace: Trace) -> ResumeState:
+    """Rebuild what a run knew from the trace it left behind.  `S-11.01.03`
+
+    Raises `RunRefused` when the trace has no `run_started`, because a trace
+    without one cannot say what the run was for — and guessing a goal is a
+    worse failure than refusing to resume.
+    """
+    started = next((step for step in trace.read() if step.kind == "run_started"), None)
+    if started is None:
+        raise RunRefused(
+            f"Trace {trace.run_id} has no run_started step, so there is no goal "
+            "to resume. Start a new run instead."
+        )
+    try:
+        parameters = json.loads(trace.captured_text(started) or "{}")
+    except ValueError:
+        parameters = {}
+    goal = str(parameters.get("goal") or "")
+    if not goal:
+        raise RunRefused(
+            f"Trace {trace.run_id} does not record what its run was for, so it "
+            "cannot be resumed. Start a new run instead."
+        )
+
+    findings: dict[str, Finding] = {}
+    decisions = actions = 0
+    visited: set[str] = set()
+    performed: set[str] = set()
+    failed: set[str] = set()
+    last_url = str(started.url or "")
+
+    for step in trace.read():
+        if step.url:
+            last_url = step.url
+            visited.add(canonical_page_url(step.url))
+        if step.kind == "decision":
+            decisions += 1
+        elif step.kind == "action":
+            if step.ok:
+                actions += 1
+            signature = signature_in(step.detail)
+            if signature:
+                performed.add(signature)
+                if not step.ok:
+                    failed.add(signature)
+        elif step.kind == "finding":
+            try:
+                finding = Finding.from_dict(json.loads(trace.captured_text(step) or "{}"))
+            except (ValueError, ResultSchemaError):
+                # A fact whose artefact is gone is dropped rather than guessed
+                # at. Losing one is recoverable; inventing one is not.
+                continue
+            if finding.field:
+                findings[finding.field] = finding
+
+    return ResumeState(
+        goal=goal,
+        step_budget=int(parameters.get("step_budget") or MAX_RUN_STEPS),
+        spend_ceiling_usd=float(parameters.get("spend_ceiling_usd") or 0.0),
+        schema_fields=tuple(str(f) for f in (parameters.get("result_schema") or ())),
+        findings=findings,
+        decisions=decisions,
+        actions=actions,
+        visited_urls=visited,
+        performed_signatures=performed,
+        failed_signatures=failed,
+        last_url=last_url,
+    )
+
+
+def made_progress(
+    *,
+    facts_before: int,
+    facts_after: int,
+    url_after: str,
+    visited: "set[str]",
+    signature: str,
+    performed: "set[str]",
+) -> bool:
+    """Whether a step produced anything the run did not already have.  `S-11.01.02`
+
+    Three ways to count, and a step needs only one of them:
+
+    * **a new fact** — the run learned something it was sent to learn;
+    * **a new page** — somewhere the run has not been *at all*, which is not the
+      same as somewhere different from the last step: bouncing between two pages
+      is a different URL every step and is the exact cycle this exists to catch;
+    * **an action it has not performed before** — it did something new here.
+
+    That third one is why this is a union rather than the literal wording of the
+    story, which asked only about facts and URLs. Filling a form is a dozen
+    successful steps on one page with no fact and no navigation, and stopping
+    that would be a false positive — which the story itself calls worse than a
+    wasted step. Typing into twelve different fields is twelve signatures, so it
+    reads as progress; clicking the same button twelve times is one, so it does
+    not.
+    """
+    if facts_after > facts_before:
+        return True
+    if canonical_page_url(url_after) not in visited:
+        return True
+    return signature not in performed
 
 
 def action_signature(decision: "Decision") -> str:
@@ -218,6 +407,92 @@ class Decision:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class RunEstimate:
+    """What a run is expected to cost, worked out before it starts.  `S-06.01.03`
+
+    Carries its own basis. A number with no basis cannot be argued with, and an
+    estimate nobody can argue with is one nobody checks.
+    """
+
+    model_id: str
+    step_budget: int
+    cost_per_decision_usd: float
+    projected_cost_usd: float
+    basis: str
+
+    def describe(self) -> str:
+        return (
+            f"About ${self.projected_cost_usd:.4f} for up to {self.step_budget} "
+            f"decision(s) on {self.model_id} "
+            f"(~${self.cost_per_decision_usd:.5f} each). {self.basis}"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "step_budget": self.step_budget,
+            "cost_per_decision_usd": round(self.cost_per_decision_usd, 8),
+            "projected_cost_usd": round(self.projected_cost_usd, 8),
+            "basis": self.basis,
+        }
+
+
+def next_decision_cost(*, observed: "list[float]", estimated: float) -> float:
+    """What the next decision should be assumed to cost.  `S-11.01.04`
+
+    The most expensive decision this run has made, or the pre-run estimate
+    before there has been one.
+
+    **The most expensive rather than the average, deliberately.** A ceiling is a
+    promise. Predicting from the average lets a run whose pages keep growing
+    walk straight past the line, because the average lags the trend. Being
+    conservative costs the owner a run that stops a little early and can be
+    restarted with a higher ceiling; being optimistic costs them a limit they
+    set and did not get.
+    """
+    return max(observed) if observed else max(0.0, estimated)
+
+
+def would_cross_ceiling(
+    *, ceiling_usd: float, spent_usd: float, next_decision_usd: float
+) -> bool:
+    """Whether making one more decision would take the run past its ceiling.
+
+    A ceiling of zero means there is none, which is the same convention
+    `QuotaLimits` uses for its own caps.
+    """
+    if ceiling_usd <= 0:
+        return False
+    return (spent_usd + next_decision_usd) > ceiling_usd
+
+
+def estimate_run(model: Any, *, step_budget: int, model_id: str = "") -> RunEstimate:
+    """Price a run before it runs.  `S-06.01.03`
+
+    Priced through the same `measure` the broker uses, so the estimate and the
+    bill are computed by one piece of code. A free model estimates at zero, and
+    that is correct rather than a missing number.
+    """
+    tokens_in, tokens_out, per_decision, _ = measure(
+        model,
+        reported=None,
+        sent="x" * TYPICAL_DECISION_INPUT_CHARS,
+        received="x" * TYPICAL_DECISION_OUTPUT_CHARS,
+    )
+    return RunEstimate(
+        model_id=model_id or getattr(model, "id", "") or "unknown",
+        step_budget=int(step_budget),
+        cost_per_decision_usd=per_decision,
+        projected_cost_usd=per_decision * max(0, int(step_budget)),
+        basis=(
+            f"Assumes ~{tokens_in} tokens in and ~{tokens_out} out per decision. "
+            "That is an assumption, not a ceiling — the page outline is not "
+            "capped, so a large page costs more and a small one costs less."
+        ),
+    )
+
+
 @dataclass(slots=True)
 class RunOutcome:
     run_id: str
@@ -240,6 +515,30 @@ class RunOutcome:
     dropped_fields: tuple[str, ...] = ()
     plan_file: str = PLAN_FILENAME
     trace_summary: dict[str, Any] = field(default_factory=dict)
+    #: What the run was expected to cost, and what it actually did.  `S-06.01.03`
+    #: Both, together, because an estimate nobody ever compares against the bill
+    #: is a number that never gets better.
+    estimate: "RunEstimate | None" = None
+    #: What the run was allowed to spend. Zero means it was not capped.  `S-11.01.04`
+    spend_ceiling_usd: float = 0.0
+
+    @property
+    def headroom_usd(self) -> float:
+        """What was left of the ceiling. Zero when there was no ceiling."""
+        if self.spend_ceiling_usd <= 0:
+            return 0.0
+        return self.spend_ceiling_usd - self.spend_usd
+
+    @property
+    def spend_usd(self) -> float:
+        return float(self.trace_summary.get("estimated_cost_usd", 0.0) or 0.0)
+
+    @property
+    def estimate_error(self) -> float:
+        """Actual minus projected, in dollars. The story's own indicator."""
+        if self.estimate is None:
+            return 0.0
+        return self.spend_usd - self.estimate.projected_cost_usd
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -263,6 +562,11 @@ class RunOutcome:
             "dropped_fields": list(self.dropped_fields),
             "plan_file": self.plan_file,
             "trace_summary": self.trace_summary,
+            "estimate": self.estimate.to_dict() if self.estimate else None,
+            "spend_usd": round(self.spend_usd, 8),
+            "spend_ceiling_usd": round(self.spend_ceiling_usd, 8),
+            "headroom_usd": round(self.headroom_usd, 8),
+            "estimate_error_usd": round(self.estimate_error, 8),
         }
 
 
@@ -293,15 +597,73 @@ class AgentRun:
         *,
         step_budget: int,
         result_schema: ResultSchema | Iterable[str] | None = None,
+        resume_from: "ResumeState | None" = None,
+        on_progress: "Callable[[Progress], None] | None" = None,
+        spend_ceiling_usd: float = 0.0,
     ) -> RunOutcome:
+        """Pursue `goal` for at most `step_budget` steps.
+
+        `spend_ceiling_usd` caps what the run may spend. The check happens
+        *before* each decision is asked for, so the ceiling is never crossed
+        rather than noticed afterwards; zero means no ceiling.  `S-11.01.04`
+
+        `on_progress` is called with each step as it is recorded, so a run can
+        be watched while it happens rather than read about once it is over —
+        `agent.console()` is a ready-made one.  `S-11.04.02`
+        """
         cleaned_goal, budget = _validate_start(goal, step_budget)
         schema = coerce_result_schema(result_schema)
+        # Attached for the length of this run and put back afterwards, so a
+        # watcher cannot outlive the thing it was watching.  `S-11.04.02`
+        previous_listener = self.trace.listener
+        if on_progress is not None:
+            self.trace.listener = observer(self.trace, on_progress)
+        try:
+            return await self._drive(
+                cleaned_goal, budget, schema, resume_from, spend_ceiling_usd,
+            )
+        finally:
+            self.trace.listener = previous_listener
+
+    async def _drive(
+        self,
+        cleaned_goal: str,
+        budget: int,
+        schema: "ResultSchema | None",
+        resume_from: "ResumeState | None",
+        spend_ceiling_usd: float = 0.0,
+    ) -> RunOutcome:
+        # Set before the loop and read by `_outcome`, so every ending carries
+        # what the run was expected to cost next to what it did.  `S-06.01.03`
+        self._estimate: RunEstimate | None = None
+        self._spend_ceiling_usd: float = float(spend_ceiling_usd)
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, tuple[ActionResult, Step]] = {}
         # What has already failed, and how many failures in a row.  `S-11.01.01`
-        failed_signatures: set[str] = set()
+        # Seeded from the trace when resuming, so a continued run does not
+        # re-try what already failed or call a page it has seen "new".
+        failed_signatures: set[str] = set(resume_from.failed_signatures) if resume_from else set()
         consecutive_failures = 0
+        # Progress bookkeeping.  `S-11.01.02`
+        performed_signatures: set[str] = (
+            set(resume_from.performed_signatures) if resume_from else set()
+        )
+        # What a *previous life* of this run already did. Kept apart from
+        # `performed_signatures` because the rule is about crossing the resume
+        # point, not about repetition within one continuous run.  `S-11.05.02`
+        # One page attacking once is one line in the trace, not one per step —
+        # the snapshot is re-rendered on every pass of the loop.  `S-11.03.02`
+        reported_injections: set[tuple[str, str, int]] = set()
+        inherited_signatures: set[str] = (
+            set(resume_from.performed_signatures) if resume_from else set()
+        )
+        visited_urls: set[str] = (
+            set(resume_from.visited_urls) if resume_from else set()
+        )
+        visited_urls.add(canonical_page_url(self.page.url))
+        steps_without_progress = 0
+        arrivals_without_progress: dict[str, int] = {}
         planner = self._choose_planner(cleaned_goal)
         planner_settings = replace(
             self.settings,
@@ -314,23 +676,85 @@ class AgentRun:
         except PlanError as exc:
             raise RunRefused(f"The run cannot start because PLAN.md is unsafe: {exc}") from exc
         self.plan = plan
+        # Worked out before the first action, which is the whole point: a
+        # number produced afterwards is a bill.  `S-06.01.03`
+        #
+        # It rides on `run_started` rather than taking a step of its own,
+        # because it is not an event that happened — it is a property of the
+        # run, derived from the budget recorded in that same record. Keeping
+        # them together also means a resumed run reads the original estimate
+        # back for free.
+        planner_entry = self.broker.registry.get(planner.id)
+        estimate = estimate_run(
+            planner_entry.model(planner.model_id) if planner_entry else None,
+            step_budget=budget,
+            model_id=planner.model_id,
+        )
+        self._estimate = estimate
+        # Read by `_outcome`, so every ending says what the run was allowed to
+        # spend next to what it did.
+        self._spend_ceiling_usd = float(spend_ceiling_usd)
+
+        # Said in the line a person reads, not only in the JSON beside it — and
+        # said *now* rather than at the step it stops on, because "this will not
+        # fit" is worth knowing before the first page loads.  `S-11.01.04`
+        ceiling_note = ""
+        if spend_ceiling_usd > 0:
+            ceiling_note = f"spend_ceiling=${spend_ceiling_usd:.4f}; "
+            if estimate.projected_cost_usd > spend_ceiling_usd:
+                ceiling_note += (
+                    f"WARNING the projection (${estimate.projected_cost_usd:.4f}) "
+                    "is already above that ceiling, so this run is expected to "
+                    "stop short; "
+                )
 
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
+        if resume_from is not None:
+            # One continuous record, not two: the resume point is a step in the
+            # same trace rather than a new trace beside it, so the run reads
+            # end to end afterwards.  `S-11.01.03`
+            self.trace.append(
+                Step(
+                    kind="resumed",
+                    detail=(
+                        f"Resumed after {resume_from.decisions} decision(s) and "
+                        f"{resume_from.actions} action(s), with "
+                        f"{len(resume_from.findings)} fact(s) already gathered "
+                        f"and {budget} step(s) of budget left."
+                    ),
+                    url=self.page.url,
+                )
+            )
         self.trace.append(
             Step(
-                kind="run_started",
+                kind="run_started" if resume_from is None else "run_continued",
                 detail=(
-                    f"goal={cleaned_goal!r}; step_budget={budget}; "
-                    f"plan={PLAN_FILENAME} sha256={plan_snapshot.digest[:16]}{schema_note}"
+                    f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}; "
+                    f"plan={PLAN_FILENAME} sha256={plan_snapshot.digest[:16]}; "
+                    f"{ceiling_note}estimate={estimate.describe()}"
                 ),
                 url=self.page.url,
-            )
+            ),
+            # The same facts again as JSON, because resuming has to read them
+            # back and parsing them out of an English sentence would break the
+            # first time somebody reworded it.  `S-11.01.03`
+            captured_text=json.dumps({
+                "goal": cleaned_goal,
+                "plan_sha256": plan_snapshot.digest,
+                "step_budget": budget,
+                "result_schema": list(schema.fields) if schema else [],
+                "estimate": estimate.to_dict(),
+                "spend_ceiling_usd": round(float(spend_ceiling_usd), 8),
+            }),
         )
 
         decisions = 0
         actions = 0
+        # What each decision actually cost, so the next one can be predicted
+        # from this run rather than from the pre-run assumption.  `S-11.01.04`
+        decision_costs: list[float] = []
         observation = ""
-        collected: dict[str, Finding] = {}
+        collected: dict[str, Finding] = dict(resume_from.findings) if resume_from else {}
         verification_failures: dict[str, str] = {}
         last_plan_digest = plan_snapshot.digest
 
@@ -362,6 +786,39 @@ class AgentRun:
                     )
                 )
                 last_plan_digest = plan_snapshot.digest
+            self._report_injection(
+                snapshot.render(), snapshot.url, "page outline", reported_injections
+            )
+
+            # Checked before the model is asked anything, so a locked door costs
+            # nothing to find and the paused run keeps its whole budget.  `S-11.03.01`
+            wall = look_for_a_wall(snapshot)
+            if wall is not None:
+                return self._needs_human(
+                    wall, cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+
+            # Checked before the decision is asked for, so the ceiling is never
+            # crossed rather than noticed afterwards.  `S-11.01.04`
+            #
+            # Spend comes from the trace rather than a counter, so a resumed run
+            # counts what its earlier life spent too — otherwise the ceiling
+            # resets every time the process does.
+            spent_usd = float(self.trace.summary()["estimated_cost_usd"])
+            projected_usd = next_decision_cost(
+                observed=decision_costs, estimated=estimate.cost_per_decision_usd
+            )
+            if would_cross_ceiling(
+                ceiling_usd=spend_ceiling_usd,
+                spent_usd=spent_usd,
+                next_decision_usd=projected_usd,
+            ):
+                return self._over_budget(
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                    ceiling_usd=spend_ceiling_usd,
+                    spent_usd=spent_usd,
+                    projected_usd=projected_usd,
+                )
 
             instructions = _decision_input(
                 plan=plan_snapshot.markdown,
@@ -386,7 +843,8 @@ class AgentRun:
                 expect_json=True,
             )
             decisions += 1
-            tokens_in, tokens_out, estimated_cost = self._estimate_cost(instructions, result)
+            tokens_in, tokens_out, estimated_cost = self._measure(instructions, result)
+            decision_costs.append(estimated_cost)
 
             try:
                 decision = Decision.parse(result.text)
@@ -465,6 +923,12 @@ class AgentRun:
                     actions=actions,
                 )
 
+            # Computed before the memo below rather than at its first use
+            # further down, because a memoed read is an action step too, and a
+            # step recording no signature is one nobody watching can name and
+            # no resumed run can match.  `S-11.04.02`
+            signature = action_signature(decision)
+
             # A page already read in this run is answered from the memo.  `S-11.02.04`
             #
             # Only `read` is served this way. `goto` is never skipped: the agent
@@ -481,7 +945,8 @@ class AgentRun:
                         detail=(
                             f"read reused the capture from {cached_step.step_id} "
                             f"({len(cached_result.text)} characters); "
-                            f"source_step_id={cached_step.step_id}; no browser read issued"
+                            f"source_step_id={cached_step.step_id}; no browser read issued "
+                            f"{signature_mark(signature)}"
                         ),
                         url=cached_step.url,
                         ok=True,
@@ -501,7 +966,27 @@ class AgentRun:
             # as an observation, the next decision is made from the same page,
             # and the same conclusion follows. Refusing here spends no browser
             # action and tells the model plainly that this one is spent.
-            signature = action_signature(decision)
+            facts_before = len(collected)
+
+            # A side effect the run already had is not had twice.  `S-11.05.02`
+            #
+            # A resumed run re-decides from the live page, and the page does not
+            # remember that the message was already sent — the Send button is
+            # still sitting there looking unpressed. Nothing in the browser can
+            # tell the agent it has already done this; only the trace can.
+            if decision.action in EFFECTFUL_ACTIONS and signature in inherited_signatures:
+                detail = (
+                    f"{signature} was already performed before this run was "
+                    "resumed and will not be performed again. If it needs to "
+                    "happen a second time, that is a decision for the owner."
+                )
+                self.trace.append(
+                    Step(kind="duplicate_refused", detail=detail,
+                         url=self.page.url or snapshot.url, ok=False)
+                )
+                observation = detail
+                continue
+
             if signature in failed_signatures:
                 consecutive_failures += 1
                 detail = (
@@ -567,7 +1052,10 @@ class AgentRun:
                 self.trace.append(
                     Step(
                         kind="action",
-                        detail=f"{decision.action} failed: {str(failure)[:2_000]}",
+                        detail=(
+                            f"{decision.action} failed: {str(failure)[:2_000]} "
+                            f"{signature_mark(signature)}"
+                        ),
                         url=self.page.url or snapshot.url,
                         ok=False,
                     )
@@ -580,6 +1068,52 @@ class AgentRun:
                 continue
 
             consecutive_failures = 0
+
+            # Did that step produce anything the run did not already have?
+            url_after = action_result.url or self.page.url or snapshot.url
+            progressed = made_progress(
+                facts_before=facts_before,
+                facts_after=len(collected),
+                url_after=url_after,
+                visited=visited_urls,
+                signature=signature,
+                performed=performed_signatures,
+            )
+            performed_signatures.add(signature)
+            arrived_at = canonical_page_url(url_after)
+            if progressed:
+                steps_without_progress = 0
+                arrivals_without_progress.clear()
+            else:
+                steps_without_progress += 1
+                if canonical_page_url(snapshot.url) != arrived_at:
+                    # Back somewhere it has been, having gained nothing on the
+                    # way. That is the shape of a cycle rather than a detour.
+                    arrivals_without_progress[arrived_at] = (
+                        arrivals_without_progress.get(arrived_at, 0) + 1
+                    )
+            visited_urls.add(arrived_at)
+
+            if arrivals_without_progress.get(arrived_at, 0) >= MAX_ARRIVALS_WITHOUT_PROGRESS:
+                return self._not_progressing(
+                    "looping",
+                    (
+                        f"Returned to {arrived_at} "
+                        f"{arrivals_without_progress[arrived_at]} times without "
+                        "learning anything new."
+                    ),
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+            if steps_without_progress >= MAX_STEPS_WITHOUT_PROGRESS:
+                return self._not_progressing(
+                    "stalled",
+                    (
+                        f"{steps_without_progress} steps in a row produced no new "
+                        "fact, no new page and no action this run had not already "
+                        "performed."
+                    ),
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                )
 
             if action_result.needs_confirmation:
                 self.trace.append(
@@ -636,7 +1170,11 @@ class AgentRun:
             action_step = self.trace.append(
                 Step(
                     kind="action",
-                    detail=action_result.detail,
+                    # The signature travels with the step because the trace is
+                    # the only thing a resumed run can read: a fresh process has
+                    # nothing in memory, and the live page cannot say whether it
+                    # has already been clicked.  `S-11.05.02`
+                    detail=f"{action_result.detail} {signature_mark(signature)}",
                     url=action_result.url or snapshot.url,
                     ok=action_result.ok,
                     took_ms=action_result.took_ms,
@@ -646,6 +1184,12 @@ class AgentRun:
             )
 
             if action_result.action == "read" and action_result.ok:
+                self._report_injection(
+                    str(action_result.text or ""),
+                    action_result.url or snapshot.url,
+                    "page text",
+                    reported_injections,
+                )
                 read_key = canonical_page_url(action_result.url or snapshot.url)
                 if read_key:
                     if read_key not in captures and len(captures) >= MAX_CAPTURES:
@@ -846,6 +1390,26 @@ class AgentRun:
                     )
                 )
             collected[field_name] = finding
+            self.trace.append(
+                Step(
+                    kind="finding",
+                    # The field and its shape, never the value. The JSONL is the
+                    # audit log and harvested content does not belong in it —
+                    # `test_declared_schema_returns_a_valid_record_not_prose`
+                    # asserts that and caught this line carrying `finding.value`.
+                    # The value lives in the 0600 capture artefact beside it.
+                    detail=(
+                        f"{field_name} recorded ({finding.kind}, "
+                        f"{len(finding.value)} characters) from {finding.source.step_id}"
+                    ),
+                    url=finding.source.url,
+                ),
+                # As a capture, not in `detail`. A value may be 20,000
+                # characters and a quote 4,000, while `detail` truncates at
+                # 4,000 — serialising into it would produce JSON that silently
+                # fails to parse on replay, losing the fact it was recording.
+                captured_text=json.dumps(finding.to_dict()),
+            )
 
     def _structured_outcome(
         self,
@@ -970,19 +1534,227 @@ class AgentRun:
         eligible.sort(key=lambda candidate: (-candidate.tier.rank, candidate.cost))
         return eligible[0]
 
-    def _estimate_cost(self, instructions: str, result: EgressResult) -> tuple[int, int, float]:
-        """Estimate usage honestly until the exact per-run provider ledger lands."""
-        tokens_in = max(1, (len(DECISION_SYSTEM_PROMPT) + len(instructions)) // 4)
-        tokens_out = max(1, len(result.text) // 4)
+    def _measure(self, instructions: str, result: EgressResult) -> tuple[int, int, float]:
+        """What that decision used and cost.  `S-06.01.03`
+
+        Takes the broker's numbers when it has them, because the broker got
+        them from the provider's own response and that is the receipt. Falls
+        back to `measure` — the *same* function the broker uses — for a caller
+        that predates the field, so there is one implementation of this
+        arithmetic in the codebase rather than one per place that needs it.
+
+        There used to be a second copy here, and a third in `broker.py` that
+        priced everything at zero. `D-35` is what that cost.
+        """
+        # `getattr` rather than attribute access: the broker is an interface,
+        # and a caller that supplies its own does not have to grow fields it
+        # never populates in order to be a valid broker.
+        if getattr(result, "usage_source", ""):
+            return result.tokens_in, result.tokens_out, result.cost_usd
         entry = self.broker.registry.get(result.provider_id)
         model = entry.model(result.model_id) if entry else None
-        if model is None:
-            return tokens_in, tokens_out, 0.0
-        cost = (
-            model.cost_per_1m_input_usd * tokens_in
-            + model.cost_per_1m_output_usd * tokens_out
-        ) / 1_000_000
+        tokens_in, tokens_out, cost, _ = measure(
+            model,
+            reported=None,
+            sent=DECISION_SYSTEM_PROMPT + instructions,
+            received=result.text,
+        )
         return tokens_in, tokens_out, cost
+
+    async def resume(self, *, spend_ceiling_usd: float | None = None) -> RunOutcome:
+        """Continue the run this agent's trace belongs to.  `S-11.01.03`
+
+        Construct the agent with `Trace.open(root, run_id=...)` — the same run
+        id the interrupted process used — and call this. The goal, the budget
+        and the schema come back off the trace, so the caller does not have to
+        remember them and cannot get them wrong.
+
+        Refuses a finished run rather than reopening it: appending a second
+        ending to a trace that already has one would make the record say two
+        contradictory things about how the run turned out.
+        """
+        state = replay(self.trace)
+        # Endings that mean the run is over. `needs_human` is deliberately not
+        # among them: a run that stopped because a CAPTCHA or a sign-in form is
+        # in the way is exactly the run that should carry on once the owner has
+        # dealt with it, and it spent no budget stopping.  `S-11.03.01`
+        #
+        # `human_gate` is the other side of that coin and *is* final: there the
+        # agent wanted to do something consequential and the owner has to decide
+        # whether it happens at all, which is not a thing you resume into.
+        # `over_budget` is not here either, for the same reason `needs_human`
+        # is not: the owner raises the ceiling and the run carries on. It cost
+        # nothing to stop, so it costs nothing to stop again if they do not.
+        ended = {
+            "completed", "budget_exhausted", "stuck", "looping", "stalled",
+            "incomplete", "human_gate",
+        }
+        for step in self.trace.read():
+            if step.kind in ended:
+                raise RunRefused(
+                    f"Run {self.trace.run_id} already ended ({step.kind}) and "
+                    "cannot be resumed. Start a new run."
+                )
+        if state.steps_remaining <= 0:
+            raise RunRefused(
+                f"Run {self.trace.run_id} has no budget left "
+                f"({state.decisions} of {state.step_budget} steps used)."
+            )
+        return await self.run(
+            state.goal,
+            step_budget=state.steps_remaining,
+            result_schema=state.schema_fields or None,
+            resume_from=state,
+            # The ceiling the run started with, unless the owner raises it here
+            # on purpose. Defaulting to "no ceiling" would mean a run could be
+            # stopped at its limit and then resumed without one, which is not a
+            # limit.  `S-11.01.04`
+            spend_ceiling_usd=(
+                state.spend_ceiling_usd if spend_ceiling_usd is None
+                else float(spend_ceiling_usd)
+            ),
+        )
+
+    def _over_budget(
+        self,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "dict[str, Finding]",
+        *,
+        ceiling_usd: float,
+        spent_usd: float,
+        projected_usd: float,
+    ) -> RunOutcome:
+        """Stop at the money the owner agreed to, not after it.  `S-11.01.04`
+
+        The decision that would have crossed the line is never asked for, so the
+        ceiling holds rather than being reported once it is already behind us.
+        That also means stopping costs nothing, which is what makes it safe to
+        resume: raise the ceiling and the run carries on from here.
+
+        Whatever it gathered is kept. A run that found three facts and hit its
+        limit on the fourth has still found three facts, and throwing them away
+        would make the ceiling more expensive than the overspend.
+        """
+        message = (
+            f"Stopped at the spend ceiling. ${spent_usd:.4f} of "
+            f"${ceiling_usd:.4f} is spent and the next decision is expected to "
+            f"cost about ${projected_usd:.4f}, which would cross it. Nothing was "
+            "asked of the model, so this cost nothing to stop. Resume with a "
+            "higher ceiling to carry on from here."
+        )
+        self.trace.append(
+            Step(
+                kind="over_budget",
+                detail=message,
+                url=self.page.url,
+                ok=False,
+            ),
+            captured_text=json.dumps({
+                "ceiling_usd": round(ceiling_usd, 8),
+                "spent_usd": round(spent_usd, 8),
+                "projected_next_usd": round(projected_usd, 8),
+                "decisions": decisions,
+            }),
+        )
+        return self._outcome(
+            "over_budget", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
+        )
+
+    def _needs_human(
+        self,
+        wall: Wall,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "dict[str, Finding]",
+    ) -> RunOutcome:
+        """Stop, say what is in the way, and leave the page alone.  `S-11.03.01`
+
+        **Nothing is attempted against the challenge.** No navigation, no click,
+        no retry, no second look — the browser is left exactly where the owner
+        will need it. The refusal to solve, evade or fingerprint around these is
+        recorded in `RETRO.md` 2026-09-06 and is not a gap to be closed later.
+
+        This ending is deliberately *not* in the set `resume()` treats as final.
+        A run that stopped because a person has to do something is precisely the
+        run that should continue once they have.
+        """
+        self.trace.append(
+            Step(
+                kind="needs_human",
+                # The rule and the kind, never the page's own words: what
+                # matched goes in the artefact beside the log, the same way
+                # findings and injection quotes do.
+                detail=f"{wall.kind} ({wall.rule}) — {wall.describe()}",
+                url=wall.url or self.page.url,
+                ok=False,
+            ),
+            captured_text=json.dumps(wall.to_dict()),
+        )
+        return self._outcome(
+            "needs_human",
+            goal,
+            budget,
+            decisions,
+            actions,
+            wall.describe(),
+            schema=schema,
+            findings=collected,
+        )
+
+    def _report_injection(
+        self,
+        text: str,
+        url: str,
+        where: str,
+        already: "set[tuple[str, str, int]]",
+    ) -> None:
+        """Write down that a page tried to give orders. Change nothing else.
+
+        **The run carries on under the owner's goal.** That is the design, not a
+        gap: a model driving this browser can only name one of ten verbs, cannot
+        supply code, and cannot reach the CRM, so an instruction on a page has
+        nothing to reach for. Containment is structural and was built first.
+        What was missing is that an attack left no mark at all.
+
+        The quote goes in a capture artefact rather than in `detail`, because
+        page text does not belong in the JSONL audit log — the same rule the
+        finding steps follow, and one that several tests defend by asserting
+        page content never appears in `trace.jsonl`. The detail names which
+        rules matched, which is what makes the log greppable.
+        """
+        page = canonical_page_url(url)
+        fresh = [
+            suspicion for suspicion in scan_for_injection(text)
+            if (page, suspicion.rule, suspicion.offset) not in already
+        ]
+        if not fresh:
+            return
+        for suspicion in fresh:
+            already.add((page, suspicion.rule, suspicion.offset))
+        rules = ", ".join(sorted({suspicion.rule for suspicion in fresh}))
+        self.trace.append(
+            Step(
+                kind="injection_suspected",
+                detail=(
+                    f"The {where} contains {len(fresh)} passage(s) shaped like "
+                    f"instructions to the agent ({rules}). The run continues "
+                    "under the owner's goal; page content is never an instruction."
+                ),
+                url=url,
+                ok=False,
+            ),
+            captured_text=json.dumps(
+                [suspicion.to_dict() for suspicion in fresh], ensure_ascii=False
+            ),
+        )
 
     def _stuck(
         self,
@@ -1015,6 +1787,31 @@ class AgentRun:
             schema=schema, findings=collected,
         )
 
+    def _not_progressing(
+        self,
+        status: str,
+        why: str,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "Mapping[str, Finding]",
+    ) -> RunOutcome:
+        """Stop a run that is busy and getting nowhere.  `S-11.01.02`
+
+        `looping` and `stalled` are separate statuses because they are separate
+        problems: looping is a cycle between pages, stalling is activity on one.
+        Both return the facts already gathered — a run that found three fields
+        and then started going round in circles should still hand over three.
+        """
+        message = f"Stopped: {why}"
+        self.trace.append(Step(kind=status, detail=message, url=self.page.url, ok=False))
+        return self._outcome(
+            status, goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
+        )
+
     def _outcome(
         self,
         status: str,
@@ -1036,6 +1833,23 @@ class AgentRun:
         derived_unverified_fields: tuple[str, ...] = (),
         dropped_fields: tuple[str, ...] = (),
     ) -> RunOutcome:
+        # Every ending funnels through here, so this is the one place a report
+        # gets written and there is no exit that quietly skips it.  `S-11.04.01`
+        #
+        # A report nobody writes is a report nobody opens, and a failure to
+        # render one must never cost the owner the run's actual result — so this
+        # is best-effort and the failure goes in the trace rather than upward.
+        try:
+            write_report(self.trace)
+        except Exception as exc:  # noqa: BLE001 - the outcome matters more
+            self.trace.append(
+                Step(
+                    kind="report_failed",
+                    detail=f"The run report could not be written: {str(exc)[:500]}",
+                    url=self.page.url,
+                    ok=False,
+                )
+            )
         return RunOutcome(
             run_id=self.trace.run_id,
             status=status,
@@ -1057,6 +1871,8 @@ class AgentRun:
             dropped_fields=dropped_fields,
             plan_file=PLAN_FILENAME,
             trace_summary=self.trace.summary(),
+            estimate=getattr(self, "_estimate", None),
+            spend_ceiling_usd=getattr(self, "_spend_ceiling_usd", 0.0),
         )
 
 

@@ -764,3 +764,31 @@ not "is it tested" — both were true all three times. *When did it last say no?
 If the answer is never, that is the finding, and the way to prove it either way
 is to make it say no on purpose against real data.
 
+---
+
+## 2026-09-12 — S-06.02.12, and a live check that ate its own subject
+
+**What was cut.** Nothing. The check is fifteen lines, and the only interesting
+decision in it is which question to ask: `git cat-file -e` or `git merge-base
+--is-ancestor`. The first is the obvious one and it is the reason the defect
+survived thirteen days — a dangling object still answers yes.
+
+**What the estimate got wrong.** Not the feature. The *proof*. A live check for
+this needs a genuinely orphaned commit, so I made one in the working tree, and
+then ran `git reset --hard HEAD~1` to tidy up. That threw away every uncommitted
+change, including the check I was proving and its tests.
+
+It then presented as a bug in the feature: the check stopped firing and my first
+few minutes went into wondering why, rather than into `grep check_commits`
+coming back empty. Recovered from a scratch copy, and the tests rewritten.
+
+**What to change next time.** **A live check that mutates state does it on a
+copy.** `git clone -q . /tmp/gate2` takes half a second, has the same history
+and the same board, and nothing it does can reach work in progress. The check is
+no less real for being in a clone — it found the orphan there exactly as it
+would have here.
+
+The second half is simpler and I have been doing it inconsistently all session:
+**commit before running a live check.** Every one of these checks exists to
+touch something real, and "something real" is the same tree the work is in.
+

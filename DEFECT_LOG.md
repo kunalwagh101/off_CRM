@@ -76,6 +76,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-42 | 2026-09-11 | security | high | Two runs on one host each kept their own pace clock, so N runs divided the floor by N | fixed · `S-11.05.01` |
 | D-43 | 2026-09-11 | data-loss | high | The budget ledger lost two thirds of its writes under concurrency — the lock was per object, the file was shared | fixed · `S-11.05.01` |
 | D-44 | 2026-09-12 | process | high | The rule that an open question blocks READY had never fired — the parser threw away the line the story is named on | fixed · `S-06.02.11` |
+| D-45 | 2026-09-12 | process | medium | A `git reset --hard` used to tidy up a live check destroyed an hour of uncommitted work | fixed · `S-06.02.12` |
 
 ---
 
@@ -133,6 +134,33 @@ tests first.
 ---
 
 ## Detail
+
+### D-45 — Tidying up a live check destroyed the work it was checking · 2026-09-12
+
+**What went wrong.** The live check for `S-06.02.12` needs a real orphaned
+commit, so it made one in the working tree: commit, note the sha, `--amend`.
+To undo that afterwards I ran `git reset --hard HEAD~1` — which also discarded
+every *uncommitted* change in the tree, and that included the feature being
+tested and its tests.
+
+**How it was found.** The check stopped firing. I assumed the check was wrong
+and went looking, which cost several minutes before `grep check_commits` came
+back empty.
+
+**Why it mattered.** Nothing was lost permanently — a scratch copy in `/tmp`
+still had the source and the tests were rewritten — but it could easily have
+been an hour, and the failure presented as a bug in the feature rather than as
+missing code, which is the expensive kind of confusion.
+
+**The fix, which is a habit rather than a line of code.** A live check that
+needs to mutate git history does it in a throwaway clone:
+
+    git clone -q . /tmp/gate2 && cd /tmp/gate2
+
+The check is just as real there — the clone has the same history and the same
+board — and nothing it does can reach the work in progress. Committing before
+running a live check is the other half of it, and is now what happens.
+
 
 ### D-44 — A rule that had never fired once · 2026-09-12
 

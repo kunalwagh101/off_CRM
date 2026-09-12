@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Every commit the board names is checked against the branch**
+  (`S-06.02.12`). **Ancestry, not existence:** `git cat-file -e` succeeds for a
+  dangling object, so a sha orphaned by `--amend` passes any check that only
+  asks whether the commit is there — which is how two entries carried an
+  orphaned `0be650d` for thirteen days without anyone noticing. A sha that is
+  not an ancestor of `HEAD` now fails and names the entry; one that is no commit
+  at all fails; and a repository with no git is noted rather than failed,
+  because the board is still readable in a tarball.
+- 48 recorded commits, all on the branch.
+
 - **The verifier now checks readiness the way it already checks DONE**
   (`S-06.02.11`). It re-ran every `DONE` claim and never asked whether `READY`
   was true. A story in `READY` whose dependencies are not finished now fails the

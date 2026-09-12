@@ -560,6 +560,65 @@ def summarise(
     return "\n".join(lines)
 
 
+def check_commits(items: list[Item], report: Report) -> int:
+    """Rule 8 — every sha the board names is on this branch.  `S-06.02.12`
+
+    **Ancestry, not existence.** `git cat-file -e` succeeds for a dangling
+    object, so an orphaned sha passes any check that only asks whether the
+    commit is there. Two entries carried one for thirteen days on exactly that
+    basis.
+
+    The usual cause is writing the sha onto the board and then amending the
+    commit to include that edit, which changes the sha and leaves the line
+    pointing at the commit that was just replaced. Recording it in a follow-up
+    commit instead is the habit; this is what catches the lapse.
+
+    Returns how many were checked. A repository with no git — a tarball, a
+    vendored copy — is noted rather than failed, because the board is still
+    readable there and failing would make the verifier untrustworthy in the one
+    place it cannot know the answer.
+    """
+    named = [(item, item.fields["commit"].strip())
+             for item in items if item.fields.get("commit")]
+    if not named:
+        return 0
+
+    inside = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        report.note(
+            f"{len(named)} recorded commit(s) were not checked: this is not a "
+            "git work tree."
+        )
+        return 0
+
+    for item, sha in named:
+        exists = subprocess.run(
+            ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if exists.returncode != 0:
+            report.fail(
+                f"{item.identifier} records commit {sha}, which is not a commit "
+                "in this repository at all."
+            )
+            continue
+        # The real check. An object can exist and be unreachable.
+        ancestor = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+            cwd=ROOT, capture_output=True, text=True,
+        )
+        if ancestor.returncode != 0:
+            report.fail(
+                f"{item.identifier} records commit {sha}, which exists but is not "
+                "an ancestor of HEAD. The usual cause is amending after the sha "
+                "was written down; record it in a follow-up commit instead."
+            )
+    return len(named)
+
+
 def check_defects(defined: dict[str, str], report: Report) -> tuple[int, int]:
     """Rule 7 — the defect log and the decision log say something checkable.
 
@@ -646,6 +705,7 @@ def main() -> int:
     check_blocked(items, report)
     could_be_pulled = check_ready(items, depends, report)
     check_deferred(items, report)
+    shas = check_commits(items, report)
     logged = check_defects(defined, report)
     tests = check_evidence(items, report, run_tests=not arguments.skip_tests)
     if arguments.skip_tests:
@@ -653,6 +713,8 @@ def main() -> int:
 
     print(summarise(items, defined, coverage, criteria, tests, report))
     print(f"  {logged[0]} defect(s) logged, {logged[1]} design decision(s) recorded.")
+    if shas:
+        print(f"  {shas} recorded commit(s), all on this branch.")
     if could_be_pulled:
         print(f"  {len(could_be_pulled)} story(s) could be pulled today: "
               + ", ".join(could_be_pulled))

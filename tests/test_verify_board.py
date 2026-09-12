@@ -90,6 +90,25 @@ def build(tmp_path: Path, *, board: str = GOOD_BOARD, backlog: str = GOOD_BACKLO
     return tmp_path
 
 
+def as_git_repo(repo: Path) -> str:
+    """Make the fixture a real repository and return its one commit's short sha.
+
+    A real one, not a mock. The rule this supports is about the difference
+    between an object *existing* and an object being *reachable*, and only git
+    knows that difference.
+    """
+    def git(*arguments: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *arguments], cwd=repo,
+                              capture_output=True, text=True, check=True)
+
+    git("init", "-q")
+    git("config", "user.email", "fixture@example.test")
+    git("config", "user.name", "Fixture")
+    git("add", "-A")
+    git("commit", "-q", "-m", "the fixture")
+    return git("rev-parse", "--short", "HEAD").stdout.strip()
+
+
 def run(repo: Path, *arguments: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(repo / "scripts" / "verify_board.py"), *arguments],
@@ -598,4 +617,76 @@ def test_an_answered_question_in_the_heading_does_not_block(tmp_path):
 
     result = run(build(tmp_path, backlog=backlog, board=board, questions=questions))
     assert result.returncode == 0, result.stdout
+
+
+# ── rule 10: a recorded commit is on the branch  `S-06.02.12` ───────────────
+
+
+def _with_commit(board: str, sha: str) -> str:
+    return board.replace("  commit: abc1234", f"  commit: {sha}")
+
+
+def test_a_commit_that_is_on_the_branch_passes(tmp_path):
+    repo = build(tmp_path)
+    sha = as_git_repo(repo)
+    (repo / "BOARD.md").write_text(_with_commit(GOOD_BOARD, sha), encoding="utf-8")
+
+    result = run(repo)
+    assert result.returncode == 0, result.stdout
+    assert "recorded commit(s), all on this branch" in result.stdout
+
+
+def test_a_commit_that_does_not_exist_at_all_fails(tmp_path):
+    repo = build(tmp_path)
+    as_git_repo(repo)
+    (repo / "BOARD.md").write_text(_with_commit(GOOD_BOARD, "0123456"),
+                                   encoding="utf-8")
+
+    result = run(repo)
+    assert result.returncode == 1
+    assert "not a commit in this repository at all" in result.stdout
+
+
+def test_a_commit_that_exists_but_was_orphaned_fails(tmp_path):
+    """**The case an existence check misses, and the one that actually happened.**
+
+    `git cat-file -e` succeeds for a dangling object, so a sha orphaned by
+    `--amend` passes any check that only asks whether the commit is there. Two
+    board entries carried one for thirteen days on exactly that basis.
+
+    This builds a real orphan the way it really happens: commit, write the sha
+    down, amend to include that edit, and the sha now names a commit that
+    exists and is unreachable.
+    """
+    repo = build(tmp_path)
+    as_git_repo(repo)
+
+    def git(*arguments: str) -> str:
+        return subprocess.run(["git", *arguments], cwd=repo, capture_output=True,
+                              text=True, check=True).stdout.strip()
+
+    (repo / "src" / "extra.py").write_text("VALUE = 1\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "the one whose sha gets written down")
+    orphan = git("rev-parse", "--short", "HEAD")
+    git("commit", "-q", "--amend", "-m", "amended, which changes the sha")
+
+    # The trap itself, asserted: the object is still perfectly findable.
+    assert subprocess.run(["git", "cat-file", "-e", f"{orphan}^{{commit}}"],
+                          cwd=repo).returncode == 0, "the fixture built no orphan"
+
+    (repo / "BOARD.md").write_text(_with_commit(GOOD_BOARD, orphan), encoding="utf-8")
+    result = run(repo)
+
+    assert result.returncode == 1
+    assert "not an ancestor of HEAD" in result.stdout
+    assert orphan in result.stdout
+
+
+def test_a_repository_with_no_git_is_noted_rather_than_failed(tmp_path):
+    """The board is still readable in a tarball or a vendored copy. Failing
+    where the verifier cannot know the answer is how it stops being trusted."""
+    result = run(build(tmp_path))
+    assert result.returncode == 0, result.stdout
+    assert "not a git work tree" in result.stdout
 

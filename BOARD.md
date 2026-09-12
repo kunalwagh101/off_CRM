@@ -93,6 +93,7 @@ _nothing waiting_
   result: 53 passed (2026-09-12)
   live: git clone -q . /tmp/gate2, then a real orphan built in the clone the way it really happens — commit, note the sha, `git commit --amend`. `git cat-file -e` still finds the object, which is the trap; the verifier refused it: "S-06.02.11 records commit 16c89e0, which exists but is not an ancestor of HEAD." Against the real board it reports 48 recorded commits, all on this branch. Run in a throwaway clone rather than the working tree, because the first attempt at this check used `git reset --hard` here and discarded the work it was checking — `D-45`.
   code: scripts/verify_board.py
+  commit: e8dbaa6
 
 - S-06.02.11 · The verifier catches a stale READY column
   tests: tests/test_verify_board.py::test_ready_with_a_dependency_that_is_not_done_fails, tests/test_verify_board.py::test_a_dependency_on_a_story_that_does_not_exist_fails, tests/test_verify_board.py::test_a_backlog_story_whose_dependencies_are_all_done_is_named, tests/test_verify_board.py::test_a_backlog_story_with_an_open_question_against_it_is_not_named, tests/test_verify_board.py::test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop, tests/test_verify_board.py::test_a_question_that_names_its_story_only_in_the_heading_still_blocks, tests/test_verify_board.py::test_an_answered_question_in_the_heading_does_not_block, tests/test_verify_board.py::test_ready_with_every_dependency_done_passes

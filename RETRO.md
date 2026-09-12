@@ -792,3 +792,38 @@ The second half is simpler and I have been doing it inconsistently all session:
 **commit before running a live check.** Every one of these checks exists to
 touch something real, and "something real" is the same tree the work is in.
 
+---
+
+## 2026-09-12 — S-06.02.14, and a fixture that could not look anything up
+
+**What was cut.** Nothing, and one thing was deliberately left alone: tests *of*
+the numbering keep their literals. That a trace with no ids gets them assigned
+in order, that `step-000002` follows `step-000001` — there the number is the
+subject, not a way of pointing at something. Converting those would have
+replaced a test with a tautology.
+
+**What the estimate got wrong.** I expected a search and replace. The obstacle
+was that half the literals are in *scripted model answers*, written before the
+run exists — so there is nothing to look up yet, which is exactly why somebody
+typed a number in the first place.
+
+The way out was to stop asking how a test refers to a step and ask how the
+**model** does. It does not count. The observation puts `step_id=step-000002`
+in front of it and it repeats that back. So the double does the same: an answer
+says `CITE`, and the broker fills it in from the instructions it was just
+handed. That is immune to renumbering *and* a closer imitation of the thing it
+stands in for, which is the rare case where the robust version is also the more
+honest one.
+
+**What to change next time.** **Prove the criterion by doing the thing it
+forbids.** The acceptance criterion is "adding a step anywhere breaks nothing",
+and there is no way to assert that from inside the tests it protects. So I put
+a junk step into `agent/run.py`, shifted every id in every run, and re-ran the
+five converted files: 49 passing. Then took it out. That took ninety seconds and
+it is the only evidence that means anything here — a suite of green tests proves
+only that today's numbering is today's numbering.
+
+It also found a straggler I would have missed. One assertion still failed:
+`screenshot == "0002.png"`. Artefact filenames encode the step index too, so it
+was the same defect in another costume, and only the shifted run showed it.
+

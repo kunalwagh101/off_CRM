@@ -50,7 +50,6 @@ is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
 - S-06.02.08 · One runner for every evidence command
-- S-06.02.14 · A test should not hardcode a trace step id
 
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
@@ -86,6 +85,13 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.14 · A test should not hardcode a trace step id
+  tests: tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone
+  command: python -m pytest tests/test_trace_ids.py tests/test_agent_provenance.py tests/test_agent_structured_result.py tests/test_agent_claim_verification.py tests/test_agent_report.py tests/test_agent_resume.py -q
+  result: 58 passed (2026-09-12)
+  live: the criterion is "adding a step anywhere breaks nothing", which cannot be asserted from inside the tests it protects — so it was proven by doing it. A junk `Step(kind="noise")` inserted into `agent/run.py` shifts every trace id in every run; the five converted files then ran **49 passed**, and the step was removed. The first attempt at this found a straggler nothing else would have: `screenshot == "0002.png"` failed, because artefact filenames encode the step index too and it was the same defect in another costume.
+  code: tests/trace_ids.py, tests/test_agent_provenance.py, tests/test_agent_structured_result.py, tests/test_agent_claim_verification.py, tests/test_agent_resume.py
 
 - S-06.02.12 · A recorded commit must be on the branch
   tests: tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails, tests/test_verify_board.py::test_a_commit_that_does_not_exist_at_all_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed

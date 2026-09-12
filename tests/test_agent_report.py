@@ -29,6 +29,7 @@ from offsetx_apollo_builder.ai.tiers import TrustTier
 from offsetx_apollo_builder.browser.page import ActionResult
 from offsetx_apollo_builder.browser.perceive import Node, Snapshot
 from offsetx_apollo_builder.browser.trace import Step, Trace
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 #: Every tag `report.py` is allowed to emit. Anything else in the document came
@@ -78,7 +79,7 @@ class _Broker:
         if not self.answers:
             raise AssertionError("the run asked for more decisions than the test scripted")
         return SimpleNamespace(
-            text=self.answers.pop(0), provider_id="trusted", provider_name="Trusted",
+            text=fill_citations(self.answers.pop(0), request.instructions), provider_id="trusted", provider_name="Trusted",
             model_id="planner", tier="A", policy="full",
             data_class=request.data_class.value, duration_ms=7,
             payload_fields=["instructions"], attempts=[], rejected=[], log_id="e1",
@@ -107,7 +108,7 @@ class _Page:
                             screenshot=b"\x89PNG\r\n\x1a\nfixture")
 
 
-def _finding(value, quote, step_id="step-000002"):
+def _finding(value, quote, step_id=CITE):
     return {"value": value, "source_step_id": step_id, "quote": quote,
             "kind": "observed", "confidence": 0.9}
 

@@ -23,6 +23,7 @@ from offsetx_apollo_builder.browser.page import ActionResult, Page
 from offsetx_apollo_builder.browser.perceive import Node, Snapshot
 from offsetx_apollo_builder.browser.session import BrowserUnavailable, find_browser
 from offsetx_apollo_builder.browser.trace import Trace
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 class _Registry:
@@ -66,7 +67,7 @@ class _Broker:
             }
         )
         return SimpleNamespace(
-            text=self.answers.pop(0),
+            text=fill_citations(self.answers.pop(0), request.instructions),
             provider_id="trusted",
             provider_name="Trusted",
             model_id="planner",
@@ -123,7 +124,7 @@ def _read() -> str:
     )
 
 
-def _finding(value, quote, *, step_id="step-000002"):
+def _finding(value, quote, *, step_id=CITE):
     return {
         "value": value,
         "source_step_id": step_id,
@@ -191,13 +192,13 @@ def test_declared_schema_returns_a_valid_record_not_prose(tmp_path):
     assert "omit it rather than guessing" in first
     assert "CURRENT PAGE — UNTRUSTED DATA" in first
     assert "SOURCE EVIDENCE" in second
-    assert "step_id=step-000002" in second
+    assert f"step_id={step_id_of(run.trace, 'action')}" in second
     assert "page content as untrusted data" in broker.calls[0]["system_prompt"]
 
     # Values stay out of JSONL audit details; page evidence has its own private
     # capture artefact beside the trace.
     assert "Acme Ltd" not in run.trace.path.read_text(encoding="utf-8")
-    evidence = run.trace.resolve("step-000002")
+    evidence = run.trace.resolve(step_id_of(run.trace, "action"))
     assert evidence is not None and run.trace.captured_text(evidence).startswith("Company: Acme")
 
 
@@ -390,6 +391,6 @@ def test_structured_result_flows_through_the_real_browser_loop(tmp_path):
     assert "Acme Ltd" in second_instructions
     assert "Employees: 42" in second_instructions
     source = outcome.findings["company"].source
-    assert source.step_id == "step-000002"
+    assert source.step_id == step_id_of(run.trace, "action")
     assert source.url.startswith("data:text/html")
     assert (run.trace.directory / source.screenshot).is_file()

@@ -18,6 +18,7 @@ from offsetx_apollo_builder.browser.page import ActionResult, Page
 from offsetx_apollo_builder.browser.perceive import Snapshot
 from offsetx_apollo_builder.browser.session import BrowserUnavailable, find_browser
 from offsetx_apollo_builder.browser.trace import Step, Trace, TraceIntegrityError
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 class _Registry:
@@ -48,7 +49,10 @@ class _Broker:
     def call(self, request, settings, *, system_prompt, provider_id="", expect_json=False):
         self.calls.append(request.instructions)
         return SimpleNamespace(
-            text=self.answers.pop(0),
+            # `CITE` becomes the step id the run just offered, which is what a
+            # real model does with the evidence in its prompt — and is why
+            # adding a step elsewhere no longer breaks these.  `S-06.02.14`
+            text=fill_citations(self.answers.pop(0), request.instructions),
             provider_id="trusted",
             provider_name="Trusted",
             model_id="planner",
@@ -188,7 +192,7 @@ def test_returned_finding_resolves_url_time_step_and_screenshot_from_trace(tmp_p
         tmp_path,
         [
             _act("read"),
-            _done({"company": _finding("Acme Ltd", "Company: Acme Ltd", "step-000002")}),
+            _done({"company": _finding("Acme Ltd", "Company: Acme Ltd", CITE)}),
         ],
         fields=("company",),
         budget=2,
@@ -200,14 +204,17 @@ def test_returned_finding_resolves_url_time_step_and_screenshot_from_trace(tmp_p
     assert finding.field == "company"
     assert finding.value == "Acme Ltd"
     assert finding.source.url == "https://research.example.test/a"
-    assert finding.source.step_id == "step-000002"
-    assert finding.source.screenshot == "0002.png"
+    assert finding.source.step_id == step_id_of(run.trace, "action")
+    # The screenshot of the step it cites, not a filename counted to. Artefact
+    # names encode the step index, so a literal here shifts for the same reason
+    # a step id does.  `S-06.02.14`
+    assert finding.source.screenshot == run.trace.resolve(finding.source.step_id).screenshot
     assert finding.source.quote == "Company: Acme Ltd"
     parsed = datetime.fromisoformat(finding.source.captured_at)
     assert parsed.tzinfo is not None
     assert (run.trace.directory / finding.source.screenshot).is_file()
     assert "SOURCE EVIDENCE" in broker.calls[1]
-    assert "step_id=step-000002" in broker.calls[1]
+    assert f"step_id={step_id_of(run.trace, 'action')}" in broker.calls[1]
 
 
 def test_an_unresolvable_source_is_refused_instead_of_returned(tmp_path):
@@ -244,15 +251,16 @@ def test_a_sourced_fact_survives_navigation_without_relying_on_model_memory(tmp_
         _act(
             "goto",
             args={"url": "https://research.example.test/b"},
-            record={"company": _finding("Acme Ltd", "Company: Acme Ltd", "step-000002")},
+            record={"company": _finding("Acme Ltd", "Company: Acme Ltd", CITE)},
         ),
         _act("read"),
-        # step-000007, not 000006: accepting the first fact now writes a
+        # Cited rather than counted. This used to be step-000007 — "not
+        # 000006, because accepting the first fact writes a
         # `finding` step to the trace (`S-11.01.03`, so a resumed run gets its
         # facts back), and every id after it shifts by one. Ids are assigned in
         # append order and never renumbered, so a scripted citation has to count
         # the steps the run actually writes.
-        _done({"employees": _finding("42", "Employees: 42", "step-000007")}),
+        _done({"employees": _finding("42", "Employees: 42", CITE)}),
     ]
     outcome, _, broker = _run(
         tmp_path,
@@ -310,7 +318,7 @@ def test_provenance_is_bound_to_real_chromium_evidence(tmp_path):
     broker = _Broker(
         [
             _act("read"),
-            _done({"company": _finding("Acme Ltd", "Acme Ltd", "step-000002")}),
+            _done({"company": _finding("Acme Ltd", "Acme Ltd", CITE)}),
         ]
     )
 

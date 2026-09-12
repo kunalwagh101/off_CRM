@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **A test refers to a trace step by finding it, not by counting to it**
+  (`S-06.02.14`, closing `D-37`). Five files named `step-000002` and meant "the
+  read action". Adding any step earlier in a run shifts every id after it, so a
+  story with nothing to do with provenance broke the provenance tests — twice,
+  and both times the fix was to bump a number.
+- **A scripted decision now cites what the run offered it**, which is what a
+  real model does: the observation carries `step_id=step-000002` into the
+  prompt and the model repeats it back. An answer says `CITE` and the broker
+  double fills it in from the instructions it was just handed — immune to
+  renumbering, and a closer imitation of the thing it stands in for.
+- Assertions use `step_id_of(trace, "action")`. Artefact filenames encode the
+  step index too, so `"0002.png"` was the same bug in another costume and is
+  now the screenshot of the step the finding cites.
+- Tests *of* the numbering keep their literals: that a trace with no ids gets
+  them assigned in order, that `step-000002` follows `step-000001`. There the
+  number is the subject rather than a way of pointing at something.
+- Proven by doing it: a step inserted into `agent/run.py` shifts every id in
+  every run, and all 49 tests across the five converted files still pass.
+
 - **Every commit the board names is checked against the branch**
   (`S-06.02.12`). **Ancestry, not existence:** `git cat-file -e` succeeds for a
   dangling object, so a sha orphaned by `--amend` passes any check that only

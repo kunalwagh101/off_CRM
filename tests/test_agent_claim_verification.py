@@ -17,6 +17,7 @@ from offsetx_apollo_builder.browser.page import ActionResult, Page
 from offsetx_apollo_builder.browser.perceive import Snapshot
 from offsetx_apollo_builder.browser.session import BrowserUnavailable, find_browser
 from offsetx_apollo_builder.browser.trace import Trace
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 class _Registry:
@@ -47,7 +48,7 @@ class _Broker:
     def call(self, request, settings, *, system_prompt, provider_id="", expect_json=False):
         self.calls.append(request.instructions)
         return SimpleNamespace(
-            text=self.answers.pop(0),
+            text=fill_citations(self.answers.pop(0), request.instructions),
             provider_id="trusted",
             provider_name="Trusted",
             model_id="planner",
@@ -97,7 +98,7 @@ def _finding(
     value: str,
     quote: str,
     *,
-    step_id: str = "step-000002",
+    step_id: str = CITE,
     kind: str = "observed",
     inputs: tuple[str, ...] = (),
     confidence: float = 0.99,
@@ -361,7 +362,7 @@ def test_real_chromium_page_refuses_a_plausible_but_unsupported_number(tmp_path)
     assert outcome.status == "incomplete"
     assert outcome.record == {}
     assert outcome.unsupported_fields == ("employees",)
-    evidence = run.trace.resolve("step-000002")
+    evidence = run.trace.resolve(step_id_of(run.trace, "action"))
     assert evidence is not None
     assert "Employees: 420" in run.trace.captured_text(evidence)
     assert any(step.kind == "result_field_unsupported" for step in run.trace.steps)

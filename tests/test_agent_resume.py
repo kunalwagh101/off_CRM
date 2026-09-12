@@ -27,6 +27,7 @@ from offsetx_apollo_builder.ai.tiers import TrustTier
 from offsetx_apollo_builder.browser.page import ActionResult
 from offsetx_apollo_builder.browser.perceive import Node, Snapshot
 from offsetx_apollo_builder.browser.trace import Step, Trace
+from trace_ids import CITE, fill_citations, step_id_of
 
 
 # ── the round trip a resumed fact depends on ────────────────────────────────
@@ -73,7 +74,7 @@ class _Broker:
         if not self.answers:
             raise AssertionError("the run asked for more decisions than the test scripted")
         return SimpleNamespace(
-            text=self.answers.pop(0), provider_id="trusted", provider_name="Trusted",
+            text=fill_citations(self.answers.pop(0), request.instructions), provider_id="trusted", provider_name="Trusted",
             model_id="planner", tier="A", policy="full",
             data_class=request.data_class.value, duration_ms=7,
             payload_fields=["instructions"], attempts=[], rejected=[], log_id="e1",
@@ -145,13 +146,14 @@ def _interrupted_run(tmp_path, *, root):
         page,
         [
             _act("read"),
-            # Citing the read's own trace step. Ids are assigned in order, so
-            # run_started is 000000, the first decision 000001, and the read
-            # action 000002 — the step that carries the page capture.
+            # Citing the read's own trace step, the way a model does: the run
+            # puts `step_id=` in front of it and it repeats that back. Counting
+            # to it instead — run_started is 000000, the first decision
+            # 000001 — is what broke twice when a step was added.  `S-06.02.14`
             _act("click", handle=1, record={
                 "employees": {
                     "value": "42",
-                    "source_step_id": "step-000002",
+                    "source_step_id": CITE,
                     "quote": "Employees: 42",
                     "kind": "observed",
                     "confidence": 0.9,

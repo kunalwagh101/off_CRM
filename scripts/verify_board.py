@@ -59,6 +59,16 @@ DECISION = re.compile(
     r"\s*(?P<cost>[^|]*)\|"
 )
 
+#: `**Dependencies:** S-02.02.01, S-06.01.03. **Size:** M.`  `S-06.02.11`
+#:
+#: Read to `**Size:**` rather than to the first full stop. **Story ids contain
+#: periods**, so a pattern of `[^.]*` parses `S-03.02.04` as `S-03` and every
+#: dependency looks unmet — which is the bug the first version of the audit
+#: script this replaces actually had, and it reported the exact opposite of the
+#: truth.
+DEPENDENCIES = re.compile(r"\*\*Dependencies:\*\*(.*?)(?:\*\*Size:\*\*|\Z)", re.DOTALL)
+STORY_ID = re.compile(r"S-\d+\.\d+\.\d+")
+
 #: Words that mean "not finished" wherever they appear in a comment.
 UNFINISHED = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b")
 
@@ -132,15 +142,19 @@ def read_board(path: Path, report: Report) -> list[Item]:
     return items
 
 
-def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int]]:
-    """Returns (defined ids → title, requirement → ids, story id → criteria count)."""
+def read_backlog(
+    path: Path, report: Report
+) -> tuple[dict[str, str], dict[str, list[str]], dict[str, int], dict[str, list[str]]]:
+    """Returns (defined ids → title, requirement → ids, id → criteria count,
+    id → what it waits on)."""
     if not path.exists():
         report.fail(f"{path.name} does not exist. Nothing can be traced without it.")
-        return {}, {}, {}
+        return {}, {}, {}, {}
 
     text = path.read_text(encoding="utf-8")
     defined: dict[str, str] = {}
     criteria: dict[str, int] = {}
+    depends: dict[str, list[str]] = {}
 
     # Split on definitions so each story's criteria can be counted against it.
     blocks = re.split(r"(?m)^(#{2,4}\s+[EFST]-[\d.]+[a-z]?\s+[—-]\s+.+)$", text)
@@ -152,6 +166,10 @@ def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, 
         defined[identifier] = header.group("title")
         body = blocks[index + 1] if index + 1 < len(blocks) else ""
         criteria[identifier] = len(CRITERION.findall(body))
+        named = DEPENDENCIES.search(body)
+        depends[identifier] = sorted(
+            set(STORY_ID.findall(named.group(1))) - {identifier}
+        ) if named else []
 
     coverage: dict[str, list[str]] = {}
     for line in text.splitlines():
@@ -160,7 +178,7 @@ def read_backlog(path: Path, report: Report) -> tuple[dict[str, str], dict[str, 
             continue
         ids = [piece.strip() for piece in row.group("ids").split(",") if piece.strip()]
         coverage[row.group("req")] = ids
-    return defined, coverage, criteria
+    return defined, coverage, criteria, depends
 
 
 # ── the checks ──────────────────────────────────────────────────────────────
@@ -268,13 +286,33 @@ def open_questions(path: Path) -> dict[str, str]:
         body = blocks[index + 1] if index + 1 < len(blocks) else ""
         if re.search(r"\*\*Status:\*\*\s*answered", body, re.I):
             continue
-        found[heading.group(1)] = body
+        # The heading is kept, not stripped. Every question in this repository
+        # names the story it blocks *in its heading* — `*(blocks S-06.01.02)*`
+        # — and nowhere else, so searching the body alone found nothing and the
+        # Definition of Ready rule had never once fired.  `D-44`
+        found[heading.group(1)] = blocks[index] + body
     return found
 
 
-def check_ready(items: list[Item], report: Report) -> None:
-    """Definition of Ready: nothing enters READY with an *open* question against it."""
+def check_ready(
+    items: list[Item], depends: dict[str, list[str]], report: Report
+) -> list[str]:
+    """The Definition of Ready, checked the way DONE already is.  `S-06.02.11`
+
+    The verifier re-runs every DONE claim and never asked whether READY was
+    true. A board that is only accurate about the past is half a board: on
+    2026-09-10 an audit found **fourteen** stories sitting in BACKLOG that could
+    have been pulled, twelve whose dependencies had all finished and two with
+    none at all.
+
+    Returns the stories that could be pulled today, which are reported rather
+    than failed — sitting in BACKLOG is not a lie about the repository, it is
+    work nobody noticed was available.
+    """
     still_open = open_questions(QUESTIONS)
+    column = {item.identifier: item.column for item in items}
+    blocked_by_question: set[str] = set()
+
     for item in items:
         if item.column != "READY":
             continue
@@ -284,6 +322,42 @@ def check_ready(items: list[Item], report: Report) -> None:
                     f"{item.identifier} is READY but {question} is still open against "
                     "it. An answer may change its shape."
                 )
+
+    for identifier in sorted(column):
+        for question, body in still_open.items():
+            if re.search(rf"\b{re.escape(identifier)}\b", body):
+                blocked_by_question.add(identifier)
+
+    for item in items:
+        waiting = depends.get(item.identifier, [])
+
+        # A dependency on something that is not on the board is not a satisfied
+        # dependency — it is a name nobody checked.
+        for name in waiting:
+            if name not in column:
+                report.fail(
+                    f"{item.identifier} declares a dependency on {name}, which is "
+                    "on no column of the board. A dependency that does not exist "
+                    "cannot be met."
+                )
+
+        if item.column == "READY":
+            unmet = [name for name in waiting
+                     if name in column and column[name] != "DONE"]
+            if unmet:
+                report.fail(
+                    f"{item.identifier} is READY but waits on {', '.join(unmet)}, "
+                    "which is not DONE. The Definition of Ready is not advisory."
+                )
+
+    could_be_pulled = [
+        item.identifier
+        for item in items
+        if item.column == "BACKLOG"
+        and item.identifier not in blocked_by_question
+        and all(column.get(name) == "DONE" for name in depends.get(item.identifier, []))
+    ]
+    return sorted(could_be_pulled)
 
 
 def check_deferred(items: list[Item], report: Report) -> None:
@@ -563,14 +637,14 @@ def main() -> int:
     arguments = parser.parse_args()
 
     report = Report()
-    defined, coverage, criteria = read_backlog(BACKLOG, report)
+    defined, coverage, criteria, depends = read_backlog(BACKLOG, report)
     items = read_board(BOARD, report)
 
     check_coverage(coverage, defined, report)
     check_board_completeness(items, defined, report)
     check_wip(items, report)
     check_blocked(items, report)
-    check_ready(items, report)
+    could_be_pulled = check_ready(items, depends, report)
     check_deferred(items, report)
     logged = check_defects(defined, report)
     tests = check_evidence(items, report, run_tests=not arguments.skip_tests)
@@ -579,6 +653,9 @@ def main() -> int:
 
     print(summarise(items, defined, coverage, criteria, tests, report))
     print(f"  {logged[0]} defect(s) logged, {logged[1]} design decision(s) recorded.")
+    if could_be_pulled:
+        print(f"  {len(could_be_pulled)} story(s) could be pulled today: "
+              + ", ".join(could_be_pulled))
 
     if report.failures:
         print("")

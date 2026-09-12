@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **The verifier now checks readiness the way it already checks DONE**
+  (`S-06.02.11`). It re-ran every `DONE` claim and never asked whether `READY`
+  was true. A story in `READY` whose dependencies are not finished now fails the
+  build; a dependency naming a story on no column of the board fails; and a
+  story sitting in `BACKLOG` whose dependencies are all `DONE` is named in the
+  summary as available to pull. It found one on its first run — `S-06.02.03`,
+  which became pullable when `S-06.01.03` landed the day before.
+- The dependency parser reads to `**Size:**` rather than to the first full stop,
+  because **story ids contain periods** — a pattern of `[^.]*` parses
+  `S-03.02.04` as `S-03`, and the first version of the audit script this
+  replaces reported the exact opposite of the truth because of it. There is a
+  test whose only job is that.
+- **Fixed: the rule that an open question blocks `READY` had never fired once**
+  (`D-44`). Every question in `OPEN_QUESTIONS.md` names the story it blocks in
+  its *heading* — `*(blocks S-06.01.02)*` — and the parser handed the check only
+  what came after the heading. Three open questions were blocking nothing. The
+  board was still honest, but by luck rather than by the check.
+- That is the third control this session that looked present and was not, after
+  a spend cap fed a hardcoded zero (`D-35`) and a key event with no default
+  action (`D-40`). `DEFECT_LOG.md`'s second pattern now says the thing they have
+  in common: **for every control, ask when it last actually refused something.**
+
 - **Concurrent runs share one browser safely** (`S-11.05.01`), the last story
   in E-11. Measured before building rather than read: of its three criteria one
   held and two did not, and both failures were one mistake wearing two hats —

@@ -454,3 +454,148 @@ def test_the_counts_are_parsed_and_not_read_from_prose(tmp_path):
     result = run(build(tmp_path, defects=defects))
     assert "1 defect(s) logged, 1 design decision(s) recorded." in result.stdout
 
+
+# ── rule 9: the Definition of Ready, checked like DONE is  `S-06.02.11` ──────
+
+
+def _with_story(backlog: str, identifier: str, *, waits_on: str = "none") -> str:
+    """Another story in the backlog, declaring what it waits on."""
+    return backlog.replace(
+        "## Coverage",
+        f"""#### {identifier} — Another thing
+**As a** person, **I want** it, **so that** something.
+- **Given** a state, **when** an act, **then** an outcome.
+- **Dependencies:** {waits_on}. **Size:** S. **Indicator:** none.
+
+## Coverage""",
+    ).replace(
+        "| R-01 | The thing works | S-01.01.01 |",
+        f"| R-01 | The thing works | S-01.01.01 |\n| R-02 | The other thing | {identifier} |",
+    )
+
+
+def _on_board(board: str, identifier: str, column: str) -> str:
+    return board.replace(f"## {column}\n",
+                         f"## {column}\n\n- {identifier} · Another thing\n", 1)
+
+
+def test_ready_with_a_dependency_that_is_not_done_fails(tmp_path):
+    """The Definition of Ready is not advisory. A story cannot be READY while
+    the thing it waits on is still in BACKLOG."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-03.03.03")
+    backlog = _with_story(backlog, "S-03.03.03")
+    board = _on_board(_on_board(GOOD_BOARD, "S-02.02.02", "READY"),
+                      "S-03.03.03", "BACKLOG")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert result.returncode == 1
+    assert "waits on S-03.03.03" in result.stdout
+
+
+def test_ready_with_every_dependency_done_passes(tmp_path):
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "READY")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert result.returncode == 0, result.stdout
+
+
+def test_a_dependency_on_a_story_that_does_not_exist_fails(tmp_path):
+    """A name nobody checked is not a satisfied dependency."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-99.99.99")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "READY")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert result.returncode == 1
+    assert "S-99.99.99" in result.stdout
+    assert "cannot be met" in result.stdout
+
+
+def test_a_backlog_story_whose_dependencies_are_all_done_is_named(tmp_path):
+    """Reported, not failed. Sitting in BACKLOG is not a lie about the
+    repository — it is work nobody noticed was available."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "BACKLOG")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert result.returncode == 0, result.stdout
+    assert "could be pulled today" in result.stdout
+    assert "S-02.02.02" in result.stdout
+
+
+def test_a_backlog_story_still_waiting_is_not_named(tmp_path):
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-03.03.03")
+    backlog = _with_story(backlog, "S-03.03.03")
+    board = _on_board(_on_board(GOOD_BOARD, "S-02.02.02", "BACKLOG"),
+                      "S-03.03.03", "BACKLOG")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert "S-02.02.02" not in result.stdout.split("could be pulled today")[-1]
+
+
+def test_a_backlog_story_with_an_open_question_against_it_is_not_named(tmp_path):
+    """It is not available. The answer may change its shape, which is the whole
+    reason an open question blocks READY."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "BACKLOG")
+    questions = ("# Open questions\n\n### Q-01 — Something unresolved "
+                 "*(blocks S-02.02.02)*\n\n**Status:** open\n\nBody.\n")
+
+    result = run(build(tmp_path, backlog=backlog, board=board, questions=questions))
+    assert result.returncode == 0, result.stdout
+    assert "could be pulled today" not in result.stdout
+
+
+def test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop(tmp_path):
+    """**The bug this check was built from.** Story ids contain periods, so a
+    dependency pattern of `[^.]*` parses `S-03.02.04` as `S-03` — and the first
+    version of the audit script reported the exact opposite of the truth
+    because of it.
+
+    Here `S-01.01.01` is DONE. If the id were cut at its first period the
+    dependency would read as `S-01`, which is on no column, and this would fail
+    with "cannot be met" instead of passing."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "READY")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert result.returncode == 0, result.stdout
+    assert "S-01 " not in result.stdout
+
+
+def test_a_story_that_waits_on_nothing_is_available_immediately(tmp_path):
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="none")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "BACKLOG")
+
+    result = run(build(tmp_path, backlog=backlog, board=board))
+    assert "S-02.02.02" in result.stdout.split("could be pulled today")[-1]
+
+
+def test_a_question_that_names_its_story_only_in_the_heading_still_blocks(tmp_path):
+    """**`D-44`.** Every question in this repository names the story it blocks in
+    its heading — `*(blocks S-06.01.02)*` — and nowhere else. The parser handed
+    the check only the body, so the Definition of Ready rule had never fired
+    once. Three open questions blocked nothing at all."""
+    questions = ("# Open questions\n\n"
+                 "### Q-01 — Something unresolved *(blocks S-02.02.02)*\n\n"
+                 "**Status:** open\n\n"
+                 "A body that does not repeat the story id anywhere.\n")
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "READY")
+
+    result = run(build(tmp_path, backlog=backlog, board=board, questions=questions))
+    assert result.returncode == 1
+    assert "Q-01 is still open against it" in result.stdout
+
+
+def test_an_answered_question_in_the_heading_does_not_block(tmp_path):
+    """The other half: keeping the heading must not resurrect a decided question."""
+    questions = ("# Open questions\n\n"
+                 "### Q-01 — Something decided *(blocks S-02.02.02)*\n\n"
+                 "**Status:** answered · **Decision:** the first option.\n")
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _on_board(GOOD_BOARD, "S-02.02.02", "READY")
+
+    result = run(build(tmp_path, backlog=backlog, board=board, questions=questions))
+    assert result.returncode == 0, result.stdout
+

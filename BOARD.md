@@ -71,7 +71,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.11 · The verifier catches a stale READY column
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -87,6 +87,13 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.11 · The verifier catches a stale READY column
+  tests: tests/test_verify_board.py::test_ready_with_a_dependency_that_is_not_done_fails, tests/test_verify_board.py::test_a_dependency_on_a_story_that_does_not_exist_fails, tests/test_verify_board.py::test_a_backlog_story_whose_dependencies_are_all_done_is_named, tests/test_verify_board.py::test_a_backlog_story_with_an_open_question_against_it_is_not_named, tests/test_verify_board.py::test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop, tests/test_verify_board.py::test_a_question_that_names_its_story_only_in_the_heading_still_blocks, tests/test_verify_board.py::test_an_answered_question_in_the_heading_does_not_block, tests/test_verify_board.py::test_ready_with_every_dependency_done_passes
+  command: python -m pytest tests/test_verify_board.py -q
+  result: 49 passed (2026-09-12)
+  live: python scripts/verify_board.py --skip-tests, then each new rule broken on purpose against the real repository and restored. As it stands it reports `1 story(s) could be pulled today: S-06.02.03` — which became available when S-06.01.03 landed the day before. Moving S-02.02.03 into READY while S-02.02.02 is still BACKLOG: refused. Pointing S-06.02.03's dependency at S-99.99.99: refused. Moving S-06.01.02 into READY: refused by Q-04 — the rule that `D-44` had kept silent since the verifier was written, firing for the first time on real data.
+  code: scripts/verify_board.py
 
 - S-11.05.01 · Concurrent runs share one browser safely
   tests: tests/test_browser_concurrency.py::test_two_runs_on_one_host_share_the_floor, tests/test_browser_concurrency.py::test_the_floor_holds_as_the_number_of_runs_grows, tests/test_browser_concurrency.py::test_runs_arriving_together_are_spaced_rather_than_all_waved_through, tests/test_browser_concurrency.py::test_concurrent_runs_draw_on_one_budget_not_one_each, tests/test_browser_concurrency.py::test_separate_ledger_objects_over_one_file_share_a_lock, tests/test_browser_concurrency.py::test_the_ceiling_can_be_overshot_by_the_runs_in_flight_and_no_more, tests/test_browser_concurrency.py::test_neither_run_can_resolve_a_handle_from_the_others_page, tests/test_browser_concurrency.py::test_different_hosts_do_not_wait_for_each_other, tests/test_browser_concurrency.py::test_a_session_hands_out_one_pace_so_there_is_a_right_answer

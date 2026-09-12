@@ -731,3 +731,36 @@ runs), pinned by a test, and written down as a known limit. **A bound you have
 measured is not the same as a bug you have ignored**, and the difference is
 whether the number is in a test.
 
+---
+
+## 2026-09-12 — S-06.02.11, and a rule that had never once fired
+
+**What was cut.** Nothing. The audit script from 2026-09-10 already had the
+logic and already carried the warning that mattered — *story ids contain
+periods, so `[^.]*` parses `S-03.02.04` as `S-03`* — so folding it in was mostly
+reading what a previous session had written down. That is the third time this
+week; it is becoming the cheapest habit in this repository.
+
+**What the estimate got wrong.** I sized this as moving a script into a
+function. Then a test I had written for a *different* rule failed: a story with
+an open question against it was still being reported as available to pull. My
+first instinct was that my test was wrong.
+
+It was not. `open_questions()` splits the file on question headings and returns
+what comes *after* each heading — and every question in this repository names
+the story it blocks *in the heading*. So the Definition of Ready rule, which has
+been in the verifier since it was written, had never fired in its life. Three
+open questions were blocking nothing.
+
+**What to change next time.** This is the third control in two days that existed,
+was configurable, was displayed, and could never refuse anything: a spend cap fed
+a hardcoded zero, a key event with no default action, and now a rule handed the
+wrong half of a parsed file. They do not go red. They do not look broken. They
+look like a feature.
+
+So the question has gone into the defect log as a standing one: **for every
+control, ask when it last actually refused something.** Not "is it implemented",
+not "is it tested" — both were true all three times. *When did it last say no?*
+If the answer is never, that is the finding, and the way to prove it either way
+is to make it say no on purpose against real data.
+

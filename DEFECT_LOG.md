@@ -75,6 +75,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-41 | 2026-09-11 | bug | low | The first Enter gate would have interrupted ordinary typing in a textarea | fixed before shipping · `S-11.03.03` |
 | D-42 | 2026-09-11 | security | high | Two runs on one host each kept their own pace clock, so N runs divided the floor by N | fixed · `S-11.05.01` |
 | D-43 | 2026-09-11 | data-loss | high | The budget ledger lost two thirds of its writes under concurrency — the lock was per object, the file was shared | fixed · `S-11.05.01` |
+| D-44 | 2026-09-12 | process | high | The rule that an open question blocks READY had never fired — the parser threw away the line the story is named on | fixed · `S-06.02.11` |
 
 ---
 
@@ -88,13 +89,21 @@ D-06, D-07, D-02, D-23 and D-24 were all in slices marked `DONE`. The new story
 did not break them; it was the first thing that *looked*. When a story touches
 old code, the old code is the suspect.
 
-**2. A green test is not the same as a working feature.**
+**2. A green test is not the same as a working feature — and a control that is
+never exercised is not a control at all.**
 D-03 passed with the feature deleted. D-17's test went green while the bug was
 still there — the other thread survived because a five-second timeout released
 the lock, not because anything was correct. D-29 checked for a string that
 correctly escaped output legitimately contains. Ask of every test: *what would
 make this pass if the feature were gone?* And if a test involves timing, look at
 how long it took, not only whether it passed.
+
+The sibling of this is worse, because nothing goes red at all. D-35, D-40 and
+D-44 were each a control that existed, was configurable, was displayed on a
+screen — and could never fire, because the one value feeding it was a hardcoded
+zero, an absent field, or the wrong half of a parsed file. **For every control,
+ask when it last actually refused something.** If the answer is "never", that is
+the finding.
 
 **3. Two lists that must match will drift apart, silently — and so does state
 that must be shared.**
@@ -124,6 +133,32 @@ tests first.
 ---
 
 ## Detail
+
+### D-44 — A rule that had never fired once · 2026-09-12
+
+**What went wrong.** The Definition of Ready says an item may not enter `READY`
+while an open question is filed against it, and `scripts/verify_board.py`
+enforces it — or appeared to. Every question in `OPEN_QUESTIONS.md` names the
+story it blocks **in its heading**:
+
+    ### Q-04 — What is "the owner" when a team uses this? *(blocks S-06.01.02)*
+
+The parser split the file on those headings and handed the check only what came
+*after* each one. So it searched every question's body for a story id, and no
+body contains one. Three open questions were blocking nothing at all.
+
+**How it was found.** Writing a test for a *different* rule — that a story with
+an open question against it should not be reported as available to pull. The
+test failed, I assumed my test was wrong, and checked. It was not.
+
+**Why it mattered.** It is the third control this session that looked present and
+was not, after `D-35` (a spend cap fed a hardcoded zero) and `D-40` (a key event
+with no default action). The board was still honest, but by luck rather than by
+the check: none of the three blocked stories happened to be sitting in `READY`.
+
+**The fix.** Keep the heading. One line, and the rule immediately caught
+`S-06.01.02` against `Q-04` when that story was moved into `READY` on purpose.
+
 
 ### D-42 — N runs divided the pace floor by N · 2026-09-11
 

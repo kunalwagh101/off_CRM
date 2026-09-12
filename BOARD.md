@@ -50,7 +50,6 @@ is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
 - S-06.02.08 · One runner for every evidence command
-- S-06.02.11 · The verifier catches a stale READY column
 - S-06.02.12 · A recorded commit must be on the branch
 - S-06.02.14 · A test should not hardcode a trace step id
 
@@ -72,7 +71,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-06.02.11 · The verifier catches a stale READY column
 
 ## IN_REVIEW
 

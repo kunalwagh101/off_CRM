@@ -1,5 +1,6 @@
 name: apply-s060203-once
 
+# Retry marker: acceptance fixture corrected on 2026-09-16.
 on:
   push:
     branches: [main]

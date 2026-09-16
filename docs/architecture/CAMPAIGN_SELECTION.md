@@ -1,8 +1,11 @@
 # Reliable campaign selection
 
 Story **S-06.02.16 / R-101**, audit **A33 / D-51**. Implemented on the existing
-integration branch; live acceptance is pending. This document records the
-supported behaviour and its evidence, not a deployment claim.
+integration branch. Live acceptance passed on 2026-09-12: all six real-Chromium
+campaign-selection journeys passed, the live Python suite passed 1,994 tests,
+and the frontend suite passed 136 tests with a successful production build.
+The original production audit still has four unrelated failures, so this is a
+story-completion claim rather than a whole-product release claim.
 
 ## Operator behaviour
 
@@ -64,7 +67,10 @@ errors, server logs and separate import/project ownership readbacks.
 The workflow also runs the full Python suite with PostgreSQL and Docker, WP1
 browser/container recovery, Windows leases, every board evidence command and
 the original production audit. Missing or skipped acceptance evidence fails the
-gate. The original audit assertions remain unchanged.
+gate. The original audit assertions remain unchanged. The passing live campaign
+evidence is retained in GitHub Actions run `34722869485`; its overall workflow
+is red only because the unchanged original audit still reports four separate
+release blockers.
 
 ## Operations and rollback
 

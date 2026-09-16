@@ -636,7 +636,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-98 | Every defect and design call is written down in one place | S-06.02.13 |
 | R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
 | R-100 | CI gives the verifier full history and evidence dependencies before it runs | S-06.02.15 |
-| R-101 | Frontend production dependencies carry no unresolved high-severity audit finding | S-06.02.16 |
+| R-101 | Frontend production dependencies stay audit-clean and development dependencies carry no unresolved high-severity finding | S-06.02.16 |
 | R-102 | A DONE story cannot depend on unfinished work | S-06.02.17 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
@@ -1237,17 +1237,19 @@ from a claim to the code that satisfies it cannot quietly rot.
   pytest`. It looked exactly like a code defect for several minutes. A lie
   detector that can cry wolf gets ignored.
 
-#### S-06.02.16 — Resolve frontend dependency audit findings
-**As an** operator, **I want** the shipped frontend dependency tree free of known
-high-severity audit findings, **so that** a clean install does not knowingly
-carry a vulnerable production dependency.
-- **Given** a clean `npm ci`, **when** the production dependency tree is audited,
+#### S-06.02.16 — Resolve frontend development dependency audit findings
+**As an** operator, **I want** the frontend development dependency tree free of
+known high-severity audit findings, **so that** test and build tooling does not
+knowingly carry a vulnerable package while the production tree remains clean.
+- **Given** a clean `npm ci`, **when** `npm audit --omit=dev` runs, **then** the
+  production dependency tree reports zero known vulnerabilities.
+- **Given** the full development dependency tree, **when** `npm audit` runs,
   **then** no high-severity finding remains unresolved or silently ignored.
 - **Given** a remediation that requires a breaking upgrade, **when** it is
   applied, **then** frontend tests and the production build prove the upgrade
   rather than relying on `npm audit fix --force`.
 - **Dependencies:** none. **Size:** S. **Indicator:** high-severity npm audit
-  findings in the shipped frontend tree — target zero.
+  findings in the frontend development tree — target zero.
 
 #### S-06.02.17 — DONE may not depend on unfinished work
 **As an** owner, **I want** the verifier to reject a DONE story whose declared

@@ -21,7 +21,7 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-06.02.16 · Resolve frontend dependency audit findings
+- S-06.02.16 · Resolve frontend development dependency audit findings
 - S-06.02.17 · DONE may not depend on unfinished work
 
 - S-02.02.03 · Interrupt, steer, resume

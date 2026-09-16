@@ -111,7 +111,9 @@ def test_frontend_evidence_uses_npm_without_a_shell(monkeypatch):
 
 
 def test_documented_verification_setup_names_both_dependency_sets_and_no_sync_verifier():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "uv sync --extra dev --extra email --locked" in readme
-    assert "npm ci --prefix frontend" in readme
-    assert "uv run --no-sync python scripts/verify_board.py" in readme
+    guide = (ROOT / "docs" / "architecture" / "EVIDENCE_RUNNER.md").read_text(
+        encoding="utf-8"
+    )
+    assert "uv sync --extra dev --extra email --locked" in guide
+    assert "npm ci --prefix frontend" in guide
+    assert "uv run --no-sync python scripts/verify_board.py" in guide

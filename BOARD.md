@@ -68,8 +68,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.16 · A created or selected campaign stays the active workspace
-  scope: audit A33 / D-51; one selection snapshot, request ordering, verified fallback and real campaign-specific browser writes.
+*(Empty.)*
 
 ## IN_REVIEW
 
@@ -90,6 +89,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.16 · A created or selected campaign stays the active workspace
+  tests: frontend/src/campaignSelection.test.ts, verification/test_campaign_selection_live.py
+  command: (cd frontend && npm test -- src/campaignSelection.test.ts)
+  result: 20 focused frontend cases passed; clean-checkout quality run 35057060484 passed the full Python suite, every recorded DONE evidence command, all 136 frontend tests and the production build (2026-09-16).
+  live: WP1 production acceptance run 34722869485 passed all 6 real-Chromium campaign-selection journeys with real persisted campaign/contact/video-project writes and independent authenticated readback. The same run passed 1,994 live Python tests and WP1 recovery; its overall workflow remained red only because four unchanged, unrelated original-audit regressions still fail.
+  code: frontend/src/campaignSelection.ts, frontend/src/App.tsx, frontend/src/pages/Campaigns.tsx, frontend/src/pages/Contacts.tsx, verification/test_campaign_selection_live.py
+  commit: 25336722
 
 - S-06.02.14 · A test should not hardcode a trace step id
   tests: tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone
@@ -166,14 +173,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   commit: 97cda8f
 
 - S-06.02.13 · A defect log and a decision log the next session can read
-  tests: tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_an_open_defect_naming_a_real_backlog_item_passes, tests/test_verify_board.py::test_the_same_defect_id_twice_fails, tests/test_verify_board.py::test_a_defect_that_does_not_say_what_went_wrong_fails, tests/test_verify_board.py::test_a_defect_with_no_date_found_fails, tests/test_verify_board.py::test_a_decision_with_no_cost_fails, tests/test_verify_board.py::test_a_missing_defect_log_fails_rather_than_passing_vacuously, tests/test_verify_board.py::test_a_missing_decision_log_fails_rather_than_passing_vacuously
+  tests: tests/test_verify_board.py::test_an_open_defect_that_names_no_backlog_item_fails, tests/test_verify_board.py::test_an_open_defect_naming_an_id_that_does_not_exist_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed
   command: python -m pytest tests/test_verify_board.py -q
   result: 39 passed (2026-09-11)
   live: python scripts/verify_board.py --skip-tests — reports "34 defect(s) logged, 12 design decision(s) recorded" against the real repository, counted by parsing rather than read from prose. Each of the three new rules was then broken on purpose against the real files and the verifier named it: an open defect with its backlog id removed (D-25), a duplicated id (D-33), and a decision with its cost column emptied (DD-04). Restored, and green.
   code: DEFECT_LOG.md, DECISIONS.md, scripts/verify_board.py, DEFINITION_OF_DONE.md, AGENTS.md
 
 - S-11.03.01 · A wall the agent must not climb pauses the run and asks
-  tests: tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_the_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge
+  tests: tests/test_agent_wall.py::test_a_sign_in_form_is_a_wall, tests/test_agent_wall.py::test_a_marketing_page_with_a_sign_in_link_is_not_a_wall, tests/test_agent_wall.py::test_a_help_article_about_two_factor_is_not_a_wall, tests/test_agent_wall.py::test_a_wall_pauses_the_run_and_spends_nothing_deciding_what_to_do, tests/test_agent_wall.py::test_the_browser_is_left_on_the_page_the_owner_has_to_deal_with, tests/test_agent_wall.py::test_the_owner_deals_with_it_and_the_run_carries_on_from_the_same_step, tests/test_agent_wall.py::test_a_pause_is_in_the_trace_without_putting_the_page_in_it, tests/test_agent_wall.py::test_nothing_in_this_module_could_solve_a_challenge
   command: python -m pytest tests/test_agent_wall.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_injection.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_structured_result.py tests/test_agent_no_duplicate_effects.py tests/test_agent_provenance.py tests/test_browser_agent.py tests/test_browser_signin.py -q
   result: 221 passed (2026-09-11)
   live: python scripts/live/pause_at_a_wall.py — real headless Chromium on a real sign-in page, all four steps checked and exit 0 only if every one holds. The agent met the wall (`needs_human`, "A sign-in form is in the way (password_field)", **0** model calls, 10 of 10 budget left); the tab was still on that URL afterwards and no page text reached `trace.jsonl`; a person signed in and the tab was reloaded; `resume()` carried on from the same step to `completed` with the answer that was behind the wall. One continuous trace: run_started → needs_human → resumed → run_continued → decision → action → decision → completed. Chrome's own accessibility tree named the field "Password", so the rule is verified against a real browser rather than a fixture.

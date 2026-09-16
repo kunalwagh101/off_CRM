@@ -41,8 +41,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-- S-03.02.05 · A platform is a row, not a code change
-
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
@@ -68,7 +66,8 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-*(Empty.)*
+- S-03.02.05 · A platform is a row, not a code change
+  scope: one declared platform row owns sign-in signals, domain pace/policy and account budget; invalid declarations fail at load time.
 
 ## IN_REVIEW
 
@@ -289,7 +288,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   commit: 5090be48801b2a776d89e5a05da7de3204a559aa
 
 - S-03.02.02 · A vault the model cannot read
-  tests: tests/test_browser_vault.py::test_cookie_token_and_password_fields_are_blocked_even_at_full_policy, tests/test_browser_vault.py::test_two_platforms_use_different_account_keys_and_plaintext_is_absent, tests/test_browser_vault.py::test_passphrase_derives_master_key_and_no_raw_key_file_is_written, tests/test_browser_vault_wiring.py::test_connected_state_is_vaulted_before_it_is_recorded, tests/test_browser_vault_wiring.py::test_vault_failure_refuses_the_connection_and_writes_no_green_state
+  tests: tests/test_browser_vault.py::test_cookie_token_and_password_fields_are_blocked_even_at_full_policy, tests/test_browser_vault.py::test_two_platforms_use_different_account_keys_and_plaintext_is_absent, tests/test_browser_vault.py::test_passphrase_derives_master_key_and_no_raw_key_file_is_written, tests/test_browser_vault_wiring.py::test_vault_failure_refuses_the_connection_and_writes_no_green_state
   command: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
   result: 15 passed (2026-09-04)
   code: offsetx_apollo_builder/browser/vault.py, offsetx_apollo_builder/browser/signin.py, offsetx_apollo_builder/ai/scanner.py
@@ -422,7 +421,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   commit: 24d7425
 
 - S-03.01.01 · A browser box: network yes, host filesystem never
-  tests: tests/test_browser_box.py::test_the_only_mount_is_a_docker_volume_and_not_a_path_on_your_disk, tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain
+  tests: tests/test_browser_box.py::test_the_only_mount_is_a_docker_volume_and_not_a_path_on_your_disk, tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off-list-domain
   command: python -m pytest tests/test_browser_box.py -q
   result: 30 passed (2026-08-25)
   code: offsetx_apollo_builder/browser/box.py, offsetx_apollo_builder/browser/guard.py

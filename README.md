@@ -229,13 +229,14 @@ Use `uv run <command> --help` for the complete options.
 
 ```bash
 uv sync --extra dev --extra email --locked
+npm ci --prefix frontend
+
 uv run ruff check --select E9,F63,F7,F82 .
 uv run pytest -q
+uv run python scripts/verify_board.py
 
-cd frontend
-npm ci
-npm test
-npm run build
+npm test --prefix frontend
+npm run build --prefix frontend
 ```
 
 The repository has more than 1,400 Python tests plus more than 115 frontend tests. CI performs the locked install, critical Python static checks, CLI smoke tests, backend tests, frontend tests and the production frontend build.

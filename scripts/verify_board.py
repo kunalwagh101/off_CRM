@@ -39,6 +39,7 @@ COLUMNS = (
     "BACKLOG", "READY", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "DEFERRED",
 )
 WIP_LIMIT = 2
+EVIDENCE_RUNNER = "uv run "
 
 #: `- S-01.02.03 · Title`
 ITEM = re.compile(r"^-\s+(?P<id>[EFST]-[\d.]+[a-z]?)\s+·\s+(?P<title>.+?)\s*$")
@@ -434,9 +435,20 @@ def check_evidence(items: list[Item], report: Report, *, run_tests: bool) -> tup
                     "not exist."
                 )
 
-        # Rule 5 — re-run the tests rather than believe the recorded result.
+        # Rule 5 — every evidence command enters the same locked project
+        # environment before it is allowed to run. D-10 existed because some
+        # commands used the ambient Python while others used uv; a verifier that
+        # changes interpreter by story can report environment drift as code drift.
+        command = item.fields["command"].strip()
+        if not command.startswith(EVIDENCE_RUNNER):
+            report.fail(
+                f"{item.identifier}'s evidence command bypasses the canonical "
+                f"runner {EVIDENCE_RUNNER.strip()!r}: {command}"
+            )
+            continue
+
+        # Re-run the tests rather than believe the recorded result.
         if run_tests:
-            command = item.fields["command"]
             outcome = subprocess.run(
                 command, shell=True, cwd=ROOT, capture_output=True, text=True, timeout=900,
             )

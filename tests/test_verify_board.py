@@ -50,7 +50,7 @@ GOOD_BOARD = """# Board
 
 - S-01.01.01 · A thing that works
   tests: src/mod.py
-  command: python -c "pass"
+  command: uv run python -c "pass"
   result: 1 passed (2026-08-25)
   code: src/mod.py
   commit: abc1234
@@ -241,10 +241,20 @@ def test_done_with_a_pending_result_fails(tmp_path):
 def test_a_failing_evidence_command_fails_the_verifier(tmp_path):
     """The recorded result says passed. The command says otherwise. The command
     is what counts."""
-    board = GOOD_BOARD.replace('command: python -c "pass"', 'command: python -c "raise SystemExit(1)"')
+    board = GOOD_BOARD.replace('command: uv run python -c "pass"', 'command: uv run python -c "raise SystemExit(1)"')
     result = run(build(tmp_path, board=board))
     assert result.returncode == 1
     assert "evidence command failed" in result.stdout
+
+
+def test_done_evidence_must_enter_the_locked_uv_runner(tmp_path):
+    board = GOOD_BOARD.replace(
+        'command: uv run python -c "pass"',
+        'command: python -c "pass"',
+    )
+    result = run(build(tmp_path, board=board), "--skip-tests")
+    assert result.returncode == 1
+    assert "bypasses the canonical runner 'uv run'" in result.stdout
 
 
 def test_skip_tests_does_not_hide_that_it_skipped(tmp_path):

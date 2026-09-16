@@ -34,6 +34,8 @@ Every box, every time. This is a claim about the repository, not about intent.
       acceptance criterion. A story with three criteria and one test is not done.
 - [ ] **The test command was actually run this session** and its output is
       pasted into the evidence block. Not "should pass".
+- [ ] **Every evidence command starts with `uv run`.** This is enforced by the
+      verifier so a DONE claim cannot accidentally use a stale ambient Python.
 - [ ] **Error handling, input validation, authorisation and data-integrity
       paths are covered** — including the failing cases, not only the happy one.
 - [ ] **Docs and CHANGELOG updated.** If state changed, the migration and its
@@ -57,7 +59,7 @@ Every `DONE` item on the board carries one, indented beneath it:
 ```
 - S-01.02.03 · A story title
   tests: tests/test_thing.py::test_the_rule_applies_at_the_boundary
-  command: python -m pytest tests/test_thing.py -q
+  command: uv run pytest tests/test_thing.py -q
   result: 12 passed (2026-08-25)
   code: offsetx_apollo_builder/thing.py
   commit: a1b2c3d

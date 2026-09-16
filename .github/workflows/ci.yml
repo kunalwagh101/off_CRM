@@ -27,45 +27,46 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --extra dev --extra email --locked
       - name: Catch broken Python names and syntax
-        run: uv run ruff check --select E9,F63,F7,F82 .
+        run: uv run --no-sync ruff check --select E9,F63,F7,F82 .
       - name: Smoke-test installed command-line entry points
         run: |
-          uv run offsetx-apollo --help
-          uv run offsetx-outreach --help
-          uv run offsetx-web --help
-          uv run offsetx-evals --help
-          uv run offsetx-tools --help
-          uv run offsetx-notebook --help
-          uv run offsetx-db --help
-          uv run offsetx-codegraph --help
-          uv run offsetx-email-worker --help
+          uv run --no-sync offsetx-apollo --help
+          uv run --no-sync offsetx-outreach --help
+          uv run --no-sync offsetx-web --help
+          uv run --no-sync offsetx-evals --help
+          uv run --no-sync offsetx-tools --help
+          uv run --no-sync offsetx-notebook --help
+          uv run --no-sync offsetx-db --help
+          uv run --no-sync offsetx-codegraph --help
+          uv run --no-sync offsetx-email-worker --help
       - name: Run Vault acceptance evidence
-        run: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-03.02.02
       - name: Run Revoke and Forget acceptance evidence
-        run: uv run pytest tests/test_browser_revoke.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-03.02.03
       - name: Run bounded Run Loop acceptance evidence
-        run: uv run pytest tests/test_agent_run.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-02.02.01
       - name: Run structured Run Result acceptance evidence
-        run: uv run pytest tests/test_agent_structured_result.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-11.02.01
       - name: Run provenance acceptance evidence
-        run: uv run pytest tests/test_agent_provenance.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-11.02.02
       - name: Run claim verification acceptance evidence
-        run: uv run pytest tests/test_agent_claim_verification.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-11.02.03
       - name: Run PLAN.md acceptance evidence
-        run: uv run pytest tests/test_agent_plan.py -q
+        run: uv run --no-sync pytest tests/test_agent_plan.py -q
       - name: Run page-read cache acceptance evidence
-        run: uv run pytest tests/test_agent_page_read_cache.py -q
+        run: uv run --no-sync python scripts/run_evidence.py S-11.02.04
+      - name: Run evidence-runner acceptance tests
+        run: uv run --no-sync pytest tests/test_evidence_runner.py -q
       - name: Run Python tests
-        run: uv run pytest -q
+        run: uv run --no-sync pytest -q
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
-      # The board verifier itself is standard-library-only, but the evidence
-      # commands it re-runs invoke Python and frontend test runners. Running it
-      # through uv keeps Python children inside the same locked environment; the
-      # npm install above makes mixed Python/frontend evidence reproducible too.
+      # The board verifier and evidence runner are standard-library-only. The
+      # locked sync above and npm ci are the entire setup; --no-sync proves the
+      # verifier cannot hide a second dependency-install step.
       - name: Verify the board against the repository
-        run: uv run python scripts/verify_board.py
+        run: uv run --no-sync python scripts/verify_board.py
       - name: Run frontend tests
         working-directory: frontend
         run: npm test

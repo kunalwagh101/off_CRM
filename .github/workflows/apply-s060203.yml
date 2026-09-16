@@ -1,6 +1,6 @@
 name: apply-s060203-once
 
-# Retry marker: acceptance fixture corrected on 2026-09-16.
+# Retry marker: full suite rerun after an unrelated Chromium startup timeout.
 on:
   push:
     branches: [main]

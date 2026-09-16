@@ -10,7 +10,8 @@ reading pace for eleven hours is still not a human, and ten accounts each at
 human pace is unmistakably a farm.
 
 So this counts. Per account, per hour and per day, refused **before** the action
-rather than noticed after it.
+rather than noticed after it. Since `S-03.02.05`, platform-specific defaults
+come from the same declarative platform row as sign-in signals and pace policy.
 
 ---
 
@@ -41,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from ..ai.workspace import atomic_json
+from .registry import load_platforms
 
 #: Actions that touch the platform and therefore cost budget. `read`,
 #: `screenshot` and `wait_for` are absent on purpose: they observe what is
@@ -48,25 +50,23 @@ from ..ai.workspace import atomic_json
 #: an agent towards acting blind to save budget.
 COSTED_ACTIONS = ("goto", "click", "type", "select", "scroll", "press", "back")
 
-#: Deliberately conservative, and deliberately not "what you can get away with".
-#: These are set below the informal thresholds each platform is observed to act
-#: on, because the cost of being wrong is asymmetric: too low wastes a run, too
-#: high loses the account. The owner can raise them per account and owns that
-#: decision; nothing here raises itself.
-DEFAULT_BUDGETS: dict[str, tuple[int, int]] = {
-    #  platform:      (per hour, per day)
-    "linkedin": (30, 120),
-    "instagram": (25, 100),
-    "facebook": (25, 100),
-    "tiktok": (25, 100),
-    "x": (40, 200),
-    "twitter": (40, 200),
-    "youtube": (60, 400),
-    "reddit": (40, 200),
-}
 
-#: Anything not named above. Not unlimited — an unknown platform is the one
-#: whose enforcement we understand least.
+def _declared_budgets() -> dict[str, tuple[int, int]]:
+    result: dict[str, tuple[int, int]] = {}
+    for entry in load_platforms().values():
+        limits = (entry.actions_per_hour, entry.actions_per_day)
+        result[entry.id] = limits
+        for alias in entry.aliases:
+            result[alias] = limits
+    return result
+
+
+#: Compatibility name retained for callers and tests, but no longer a second
+#: hand-maintained platform list. It is materialised from `platforms.yaml`.
+DEFAULT_BUDGETS: dict[str, tuple[int, int]] = _declared_budgets()
+
+#: Anything not declared. Not unlimited — an unknown platform is the one whose
+#: enforcement we understand least.
 DEFAULT_BUDGET = (60, 300)
 
 

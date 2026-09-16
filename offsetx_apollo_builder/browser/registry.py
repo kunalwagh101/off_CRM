@@ -57,28 +57,19 @@ class Platform:
     note: str = ""
 
     def to_dict(self) -> dict[str, Any]:
+        """Public connection-catalogue fields, preserving the pre-registry API.
+
+        Registry-only policy and budget data stay internal. `identity.catalogue`
+        adds *live remaining budget* only when a BudgetLedger is supplied; merely
+        declaring a default ceiling must not make a no-ledger catalogue pretend
+        it has spend information.
+        """
         return {
             "id": self.id,
             "label": self.label,
             "login_url": self.login_url,
             "home_url": self.home_url,
             "note": self.note,
-            "aliases": list(self.aliases),
-            "budget": {
-                "actions_per_hour": self.actions_per_hour,
-                "actions_per_day": self.actions_per_day,
-            },
-            "domains": [
-                {
-                    "suffix": item.suffix,
-                    "min_seconds_between_actions": item.min_seconds_between_actions,
-                    "unattended": item.unattended,
-                    "refuse": list(item.refuse),
-                    "confirm": list(item.confirm),
-                    "note": item.note,
-                }
-                for item in self.domains
-            ],
         }
 
 

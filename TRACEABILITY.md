@@ -44,6 +44,7 @@ the code exists and holds no stub).
 
 | R-49 | S-06.02.03 | 4 | `tests/test_agent_run_budgets.py`, `tests/test_agent_money_ceiling.py` | `agent/run.py` |
 | R-100 | S-06.02.15 | 3 | `tests/test_ci_verifier_environment.py`, `tests/test_verify_board.py` | `.github/workflows/ci.yml`, `scripts/verify_board.py` |
+| R-90 | S-06.02.08 | 2 | `tests/test_verify_board.py`, `tests/test_ci_verifier_environment.py` | `scripts/verify_board.py`, `DEFINITION_OF_DONE.md`, `README.md`, `CONTINUE.md` |
 
 ## In review — built, but this session cannot complete the proof
 
@@ -90,6 +91,8 @@ the code exists and holds no stub).
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-55 | S-07.01.03 | 1 | — | — |
 | R-56 | S-07.01.04 | 1 | — | — |
+| R-101 | S-06.02.16 | 3 | — | — |
+| R-102 | S-06.02.17 | 2 | — | — |
 
 ## Deferred — cut, with the trigger to bring it back
 

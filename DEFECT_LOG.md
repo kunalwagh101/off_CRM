@@ -41,7 +41,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-07 | 2026-08-28 | data-loss | high | Closing the browser killed it, so a just-completed login was lost | fixed · `S-03.02.01` |
 | D-08 | 2026-09-04 | security | high | A platform was reported "connected" before the vault existed | fixed · `S-03.02.02` |
 | D-09 | 2026-09-04 | security | high | The outgoing-data scanner did not recognise cookies, passwords or tokens | fixed · `S-03.02.02` |
-| D-10 | 2026-09-04 | process | medium | The board verifier ran under a different Python than the tests | fixed · filed again as `S-06.02.08` |
+| D-10 | 2026-09-04 | process | medium | The board verifier ran under a different Python than the tests | fixed · `S-06.02.08` |
 | D-11 | 2026-09-04 | security | high | Deleting the vault file left a working cookie alive inside Chromium | fixed · `S-03.02.03` |
 | D-12 | 2026-09-04 | bug | medium | `Storage.deleteCookies` does not exist at browser level | fixed · `S-03.02.03` |
 | D-13 | 2026-09-05 | security | high | A signed-in page counted as public, so private text could reach a weaker model | fixed · `S-02.02.01` |

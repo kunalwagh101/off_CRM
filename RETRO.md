@@ -851,3 +851,9 @@ at close-out; that ordering is recorded here rather than rewritten as if the
 ceremony happened earlier. Also keep budget controls on existing ledgers and
 traces: a second cost/timing subsystem would have created drift rather than
 safety.
+
+## 2026-09-16 — S-06.02.08 one evidence runner
+
+- **Cut:** nothing. Frontend evidence still executes npm inside a command that enters the locked project through `uv run`; the story standardises the environment boundary, not the JavaScript test framework.
+- **Estimate wrong:** the feature was small, but the repository exposed `D-47`/`D-48`, and the first tested delivery commit was rejected because an Actions token with contents write cannot update workflow files (`D-49`). The tested code was reproduced without that unnecessary workflow-comment mutation rather than weakening permissions.
+- **Next time:** delivery workflows must never assume `contents: write` includes `.github/workflows/`; keep workflow mutation and cleanup in the connector/API path, and add the failing process fact to the defect log immediately.

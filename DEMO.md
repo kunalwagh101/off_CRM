@@ -9,6 +9,7 @@ Setup, once:
 ```bash
 git clone https://github.com/kunalwagh101/off_CRM.git && cd off_CRM
 uv sync --locked --extra dev --extra email
+npm ci --prefix frontend
 ```
 
 ---
@@ -467,3 +468,16 @@ uv run python scripts/verify_board.py
 ```
 
 Expect: exit code 0 and `OK — the board matches the repository.`
+
+---
+
+## S-06.02.08. Evidence uses one runner
+
+```bash
+uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q
+uv run python scripts/verify_board.py --skip-tests
+```
+
+The first command proves the runner contract and clean-checkout setup. The
+second checks the real board without replaying historical tests; every DONE
+`command:` must begin with `uv run`, or the verifier refuses the board.

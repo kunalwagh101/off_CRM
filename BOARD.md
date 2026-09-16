@@ -69,7 +69,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.08 · One runner for every evidence command
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -85,6 +85,14 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.08 · One runner for every evidence command
+  tests: tests/test_verify_board.py::test_done_evidence_must_enter_the_locked_uv_runner, tests/test_ci_verifier_environment.py::test_ci_syncs_locked_python_evidence_dependencies_before_the_verifier, tests/test_ci_verifier_environment.py::test_clean_checkout_docs_prepare_both_evidence_environments_before_verification
+  command: uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q
+  result: 58 passed in 5.34s; full Python regression 1933 passed, 4 skipped, 4 warnings in 151.84s (0:02:31)
+  live: every DONE command now starts with uv run; the verifier rejects ambient-Python evidence even with --skip-tests; clean-checkout docs and CI prepare the locked Python and frontend evidence dependencies before verification.
+  code: scripts/verify_board.py, tests/test_verify_board.py, tests/test_ci_verifier_environment.py, DEFINITION_OF_DONE.md, README.md, CONTINUE.md
+  commit: 93ad48b
 
 - S-06.02.03 · Cost and latency budgets per run
   tests: tests/test_agent_run_budgets.py, tests/test_agent_money_ceiling.py

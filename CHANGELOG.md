@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.
+- **Delivery failures were recorded instead of hidden.** `D-47` is dev-tooling-only: `npm audit --omit=dev` is clean while the full tree has four findings and is tracked by `S-06.02.16`. `D-48` tracks the missing DONE-dependency check under `S-06.02.17`. `D-49` records the rejected workflow-file push and the transport fix used to finish this story.
+
 - **Per-run cost and latency budgets are now one enforceable contract**
   (`S-06.02.03`). Existing pre-emptive money ceilings are reused rather than
   duplicated. A caller can also supply `latency_ceiling_ms`; cumulative

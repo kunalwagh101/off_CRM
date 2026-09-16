@@ -47,8 +47,6 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.04 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-06.02.08 · One runner for every evidence command
-
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
 been sitting in BACKLOG because nothing moves an item to READY when the story
@@ -66,8 +64,8 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-03.02.05 · A platform is a row, not a code change
-  scope: one declared platform row owns sign-in signals, domain pace/policy and account budget; invalid declarations fail at load time.
+- S-06.02.08 · One runner for every evidence command
+  scope: make every DONE evidence command use one declared runner and make clean-checkout setup sufficient for the verifier with no hidden environment step.
 
 ## IN_REVIEW
 
@@ -88,6 +86,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-03.02.05 · A platform is a row, not a code change
+  tests: tests/test_browser_platform_registry.py, tests/test_browser_signin.py, tests/test_browser_budget.py, tests/test_browser_agent.py
+  command: uv run pytest tests/test_browser_platform_registry.py tests/test_browser_signin.py tests/test_browser_budget.py tests/test_browser_agent.py -q
+  result: Clean-checkout quality run 35060976420 passed 1,983 Python tests with 4 skips, all 53 recorded DONE evidence commands, all 136 frontend tests and the production build (2026-09-16).
+  live: A fresh Python process loaded a synthetic platform solely through OFFSETX_PLATFORM_REGISTRY and proved sign-in recognition, connection state, per-domain pace/autonomy and account budget without a Python edit; invalid declarations fail at load time.
+  code: config/platforms.yaml, offsetx_apollo_builder/browser/platforms.yaml, offsetx_apollo_builder/browser/registry.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/policy.py, offsetx_apollo_builder/browser/budget.py, tests/test_browser_platform_registry.py
+  commit: 2b27898290c0b00fa1fa59ef2de5a8ab29566dc0
 
 - S-06.02.16 · A created or selected campaign stays the active workspace
   tests: frontend/src/campaignSelection.test.ts, verification/test_campaign_selection_live.py
@@ -190,7 +196,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   tests: tests/test_agent_watch.py::test_a_watcher_sees_the_run_step_by_step, tests/test_agent_watch.py::test_a_read_answered_from_the_memo_still_reports_its_verb, tests/test_agent_watch.py::test_updates_arrive_during_the_run_not_in_a_batch_at_the_end, tests/test_agent_watch.py::test_an_update_carries_the_action_the_url_and_the_running_cost, tests/test_agent_watch.py::test_the_verb_comes_from_the_signature_not_from_the_prose, tests/test_agent_watch.py::test_a_listener_hears_only_what_is_already_durable, tests/test_agent_watch.py::test_a_watcher_that_throws_does_not_end_the_run, tests/test_agent_watch.py::test_a_run_with_nobody_watching_behaves_exactly_as_before
   command: python -m pytest tests/test_agent_watch.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py tests/test_agent_provenance.py tests/test_agent_recovery.py tests/test_agent_report.py tests/test_browser_agent.py -q
   result: 132 passed (2026-09-11)
-  live: python scripts/live/watch_a_run.py — real headless Chromium, real page served over HTTP, real trace on disk, a watcher attached through `on_progress`. Exits 0 only if the run completes AND its nine steps arrived spread over more than half a second rather than in a batch at the end; observed spread 1.6s, each line carrying its verb from the recorded signature (`action read`, `action click`), the live page URL, and the running cost climbing $0.0000 -> $0.0071. The refused step printed marked `!` the moment it happened, which is the case this story exists for. That refusal is the loopback rule in `policy.py` doing its job and was left alone — this container's egress proxy will not serve Chromium, so no public page was reachable to click instead.
+  live: python scripts/live/watch_a_run.py — one real headless Chromium, real page served over HTTP, real trace on disk, a watcher attached through `on_progress`. Exits 0 only if the run completes AND its nine steps arrived spread over more than half a second rather than in a batch at the end; observed spread 1.6s, each line carrying its verb from the recorded signature (`action read`, `action click`), the live page URL, and the running cost climbing $0.0000 -> $0.0071. The refused step printed marked `!` the moment it happened, which is the case this story exists for. That refusal is the loopback rule in `policy.py` doing its job and was left alone — this container's egress proxy will not serve Chromium, so no public page was reachable to click instead.
   code: offsetx_apollo_builder/agent/watch.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/browser/trace.py
   commit: 7a502b0
 

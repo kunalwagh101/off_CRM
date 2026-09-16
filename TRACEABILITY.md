@@ -1,6 +1,6 @@
 # Traceability
 
-Snapshot of the combined integration branch, 12 September 2026, including main
+Snapshot of the combined integration branch, 16 September 2026, including main
 `aa380578`. `BOARD.md` owns status and runnable evidence. Exact combined CI
 results are recorded in draft PR #14 and `docs/integration/MAIN_CONSOLIDATION.md`.
 
@@ -41,7 +41,6 @@ results are recorded in draft PR #14 and `docs/integration/MAIN_CONSOLIDATION.md
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
-| R-101 | S-06.02.16 | 7 | frontend/src/campaignSelection.test.ts, verification/test_campaign_selection_live.py; live acceptance pending | frontend/src/campaignSelection.ts, frontend/src/App.tsx, frontend/src/pages/Campaigns.tsx, frontend/src/pages/Contacts.tsx |
 
 ## In Review
 
@@ -61,6 +60,7 @@ results are recorded in draft PR #14 and `docs/integration/MAIN_CONSOLIDATION.md
 
 | Requirement | Story | Criteria | Evidence / scope | Code |
 |---|---|---|---|---|
+| R-101 | S-06.02.16 | 7 | frontend/src/campaignSelection.test.ts; verification/test_campaign_selection_live.py — 20 focused frontend cases + 6 real-Chromium journeys; live run 34722869485 | frontend/src/campaignSelection.ts, frontend/src/App.tsx, frontend/src/pages/Campaigns.tsx, frontend/src/pages/Contacts.tsx |
 | R-99 | S-06.02.14 | 2 | tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone | tests/trace_ids.py, tests/test_agent_provenance.py, tests/test_agent_structured_result.py, tests/test_agent_claim_verification.py, tests/test_agent_resume.py |
 | R-97 | S-06.02.12 | 3 | tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails, tests/test_verify_board.py::test_a_commit_that_does_not_exist_at_all_fails, tests/test_verify_board.py::test_a_commit_that_is_on_the_branch_passes, tests/test_verify_board.py::test_a_repository_with_no_git_is_noted_rather_than_failed | scripts/verify_board.py |
 | R-96 | S-06.02.11 | 3 | tests/test_verify_board.py::test_ready_with_a_dependency_that_is_not_done_fails, tests/test_verify_board.py::test_a_dependency_on_a_story_that_does_not_exist_fails, tests/test_verify_board.py::test_a_backlog_story_whose_dependencies_are_all_done_is_named, tests/test_verify_board.py::test_a_backlog_story_with_an_open_question_against_it_is_not_named, tests/test_verify_board.py::test_a_story_id_is_read_whole_and_not_cut_at_its_first_full_stop, tests/test_verify_board.py::test_a_question_that_names_its_story_only_in_the_heading_still_blocks, tests/test_verify_board.py::test_an_answered_question_in_the_heading_does_not_block, tests/test_verify_board.py::test_ready_with_every_dependency_done_passes | scripts/verify_board.py |

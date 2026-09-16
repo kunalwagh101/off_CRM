@@ -518,8 +518,31 @@ back, **so that** a bad release is a five-minute problem.
 - **Dependencies:** none. **Size:** M. **Indicator:** unauthenticated reachability.
 
 #### S-06.02.03 — Cost and latency budgets per run
-- **Given** a run, **when** it exceeds its budget, **then** it stops and says so.
-- **Dependencies:** S-06.01.03. **Size:** S. **Indicator:** budget overruns.
+**As an** owner running unattended work, **I want** each run to respect the
+spend and measured-latency ceilings I supply, **so that** autonomous work cannot
+silently keep consuming money or execution time beyond my chosen limits.
+- **Given** a positive spend ceiling, **when** the next model decision would
+  cross it, **then** no provider call starts and the run ends `over_budget` with
+  the ceiling and projected next spend recorded.
+- **Given** a positive latency ceiling, **when** a completed provider or browser
+  operation makes cumulative recorded `took_ms` reach or exceed it, **then** no
+  new unit of work starts and the run ends `over_latency` with ceiling, actual
+  latency and any in-flight overrun recorded.
+- **Given** a run that is resumed, **when** no new latency ceiling is supplied,
+  **then** its original ceiling and all earlier measured latency still count;
+  raising the ceiling requires an explicit argument.
+- **Given** a zero ceiling, **when** the run executes, **then** that dimension is
+  uncapped exactly as before; a negative, boolean or non-integer latency ceiling
+  is refused before the run starts.
+- **Dependencies:** S-06.01.03, S-11.01.04. **Size:** S. **Indicator:** new work
+  started after a recorded run ceiling — target zero. **Business value:** E-06,
+  bounded production operation owners can trust.
+- **Blocking risk:** none after the dependencies above. Exact millisecond
+  cancellation of an operation already in flight is unsafe for side-effectful
+  browser/provider operations; DD-20 records the operation-boundary rule.
+- **Tasks:** T-06.02.03.a integrate latency with the existing trace/run/resume
+  path (<=1 day); T-06.02.03.b acceptance and regression tests (<=1 day);
+  T-06.02.03.c demo, traceability, evidence and verifier certification (<=1 day).
 
 #### S-06.02.04 — Data deletion and subject access
 - **Given** a request to delete a person's data, **when** it is executed, **then**
@@ -612,6 +635,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-97 | Every commit the board names is on the branch | S-06.02.12 |
 | R-98 | Every defect and design call is written down in one place | S-06.02.13 |
 | R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
+| R-100 | CI gives the verifier full history and evidence dependencies before it runs | S-06.02.15 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1156,6 +1180,25 @@ have nothing to do with it.
   citing a step is written before the run exists — so the fix is a placeholder
   the broker double substitutes at call time, not a search-and-replace.
 
+#### S-06.02.15 — CI gives the verifier the repository it claims to verify
+**As an** owner, **I want** CI to give the board verifier complete Git history
+and every dependency its evidence commands require, **so that** a red or green
+verifier result measures the repository rather than an incomplete CI checkout.
+- **Given** a DONE evidence commit older than `HEAD`, **when** CI runs the
+  verifier, **then** full ancestry is available and a reachable commit passes.
+- **Given** DONE frontend evidence, **when** CI runs the verifier, **then**
+  `npm ci` has already completed and the named frontend test can execute.
+- **Given** the CI workflow itself, **when** its regression test runs, **then**
+  both ordering constraints above are pinned in code.
+- **Dependencies:** S-06.02.08, S-06.02.12. **Size:** S. **Indicator:** verifier
+  failures caused by CI environment rather than repository state — target zero.
+  **Business value:** E-06, trustworthy release evidence.
+- **Blocking risk:** none. GitHub Actions run 393 proved the repaired workflow
+  end to end on a clean runner.
+- **Tasks:** T-06.02.15.a repair checkout/dependency ordering (<=1 day);
+  T-06.02.15.b pin the workflow contract with regression tests (<=1 day);
+  T-06.02.15.c record the defect and evidence (<=1 day).
+
 #### S-06.02.12 — A recorded commit must be on the branch
 **As an** owner, **I want** `scripts/verify_board.py` to check that every
 `commit:` on the board is an ancestor of `HEAD`, **so that** the board's link
@@ -1226,6 +1269,7 @@ Silence must never be mistakable for scope.
 | Buying followers, engagement pods, sock puppets | Fraud against the platform and against the owner's own metrics. |
 | A mobile app | The browser box and the editor both assume a desktop. |
 | Multi-tenant SaaS hosting | The product is local-first by design; hosting other people's session cookies is a different business with a different threat model. |
+| Hard-cancelling an already-running provider/browser operation to hit an exact millisecond latency wall | The current interfaces cannot prove rollback of a side effect. S-06.02.03 stops *new* work at the operation boundary and reports any one-operation overrun. Revisit only when every effectful operation has a cancellation/idempotency contract. |
 
 ---
 

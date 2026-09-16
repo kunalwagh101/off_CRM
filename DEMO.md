@@ -445,3 +445,25 @@ Expect `7 passed`. The suite proves the hard step budget, broker-only model
 decisions, provider/model/cost trace records, Tier A/B planner floor, rejection
 of invented actions and undeclared arguments, prompt-injection framing, and that
 a consequential browser action stops for a human rather than self-confirming.
+
+---
+
+## S-06.02.03 — prove cost and latency ceilings stop new work
+
+```bash
+uv run pytest tests/test_agent_run_budgets.py tests/test_agent_money_ceiling.py -q
+```
+
+Expect: `33 passed`. The acceptance cases prove both sides of the boundary: a
+model call can consume the remaining latency and prevent the next browser
+action; a browser action can cross the ceiling and prevent the next model call;
+resume keeps the original allowance; the existing money ceiling still stops
+before a provider call.
+
+Then run the independent delivery gate:
+
+```bash
+uv run python scripts/verify_board.py
+```
+
+Expect: exit code 0 and `OK — the board matches the repository.`

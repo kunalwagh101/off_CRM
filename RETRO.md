@@ -827,3 +827,27 @@ It also found a straggler I would have missed. One assertion still failed:
 `screenshot == "0002.png"`. Artefact filenames encode the step index too, so it
 was the same defect in another costume, and only the shifted run showed it.
 
+---
+
+## 2026-09-16 — S-06.02.03, cost and latency budgets per run
+
+**What was cut.** Nothing from the promised budget control. Exact cancellation
+of an operation already in flight is explicitly *not claimed*: with the current
+browser/provider contracts it can leave an unknown remote side effect. The run
+stops new work at the next operation boundary and reports the measured overrun;
+DD-20 records the trigger for revisiting that choice.
+
+**What the estimate got wrong.** The product change was small because the money
+ceiling and trace timing already existed. The expensive part was process truth:
+the session-open verifier exposed `D-46`, where CI itself gave the verifier a
+shallow checkout and no frontend dependencies. The first full regression also
+hit an unrelated Chromium startup timeout after 1927 tests had passed; the clean
+rerun passed all 1928 before the source commit was allowed through.
+
+**What to change next time.** Run the session-open verifier before any product
+patch and treat a red verifier as its own change-controlled defect immediately.
+This session repaired it first but wrote its formal backlog/board artifacts only
+at close-out; that ordering is recorded here rather than rewritten as if the
+ceremony happened earlier. Also keep budget controls on existing ledgers and
+traces: a second cost/timing subsystem would have created drift rather than
+safety.

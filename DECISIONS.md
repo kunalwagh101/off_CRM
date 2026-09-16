@@ -47,6 +47,7 @@ wastes a session when nobody can answer it.
 | DD-17 | 2026-09-11 | An unattended run may not use a countdown at all | The attended and unattended paths through the gate are different code |
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
+| DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
 
 ---
 
@@ -313,3 +314,23 @@ by the first run's reservation rather than by its own observation.
 action that raises after pacing leaves a gap nobody fills. The floor is a
 minimum, so waiting slightly longer than necessary is the harmless direction.
 
+### DD-20 — Latency stops at an operation boundary · 2026-09-16
+
+**The obvious thing.** Wrap every provider or browser call in a wall-clock timeout
+and cancel it at the exact millisecond ceiling.
+
+**What was done instead.** Let an already-started operation finish, record its
+measured latency, then refuse to start anything else once cumulative trace
+latency reaches the ceiling.
+
+**Why.** A cancelled browser operation may already have clicked, submitted or
+changed remote state, and a cancelled provider request may still be billed. The
+current interfaces have no transaction or cancellation acknowledgement that can
+prove the side effect rolled back. Exact cancellation would make the number look
+stronger while making execution less trustworthy.
+
+**Cost.** The ceiling can be exceeded by one operation already in flight. That
+overrun is explicit in the trace and `RunOutcome`, never hidden.
+
+**What would make this wrong.** Every effectful provider/browser operation gaining
+an idempotency or cancellation contract that proves whether the effect happened.

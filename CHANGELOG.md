@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Per-run cost and latency budgets are now one enforceable contract**
+  (`S-06.02.03`). Existing pre-emptive money ceilings are reused rather than
+  duplicated. A caller can also supply `latency_ceiling_ms`; cumulative
+  provider/browser `took_ms` is read from the existing append-only trace, is
+  preserved across resume, and stops new work with `status=over_latency` once
+  reached. Outcomes expose actual latency, ceiling, remaining headroom and any
+  one-operation overrun. Zero remains uncapped and invalid ceilings fail before
+  a run starts.
+- **CI now gives the board verifier the environment it actually verifies**
+  (`S-06.02.15`, closing `D-46`): full Git history for evidence-commit ancestry
+  and frontend dependencies before DONE evidence is replayed. GitHub Actions
+  run 393 passed the repaired pipeline end to end.
+
 - **A test refers to a trace step by finding it, not by counting to it**
   (`S-06.02.14`, closing `D-37`). Five files named `step-000002` and meant "the
   read action". Adding any step earlier in a run shifts every id after it, so a

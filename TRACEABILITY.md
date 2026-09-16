@@ -42,6 +42,9 @@ the code exists and holds no stub).
 | R-67, R-68 | S-08.01.03 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/domain_auth.py`, `outreach/deliverability/ses.py` |
 | R-69, R-70 | S-08.01.04 | 3 | `tests/test_email_delivery.py` | `outreach/deliverability/events.py`, `outreach/deliverability/service.py` |
 
+| R-49 | S-06.02.03 | 4 | `tests/test_agent_run_budgets.py`, `tests/test_agent_money_ceiling.py` | `agent/run.py` |
+| R-100 | S-06.02.15 | 3 | `tests/test_ci_verifier_environment.py`, `tests/test_verify_board.py` | `.github/workflows/ci.yml`, `scripts/verify_board.py` |
+
 ## In review — built, but this session cannot complete the proof
 
 | Req | Story | Criteria | Current proof | Missing proof |
@@ -81,7 +84,6 @@ the code exists and holds no stub).
 | R-47 | S-06.01.05 | 2 | — | — |
 | R-29 | S-06.02.01 | 1 | — | — |
 | R-48 | S-06.02.02 | 2 | — | — |
-| R-49 | S-06.02.03 | 1 | — | — |
 | R-50 | S-06.02.04 | 1 | — | — |
 | R-51 | S-06.02.05 | 1 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |

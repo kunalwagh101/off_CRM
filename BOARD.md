@@ -30,7 +30,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-06.01.02 · Three-level permissions
 - S-06.01.05 · Deployment, monitoring and rollback
-- S-06.02.03 · Cost and latency budgets per run
 - S-06.02.04 · Data deletion and subject access
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
@@ -85,6 +84,22 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.03 · Cost and latency budgets per run
+  tests: tests/test_agent_run_budgets.py, tests/test_agent_money_ceiling.py
+  command: python -m pytest tests/test_agent_run_budgets.py tests/test_agent_money_ceiling.py -q
+  result: 33 passed (2026-09-16); full Python regression 1928 passed, 4 skipped
+  live: the run stops before a browser action when the model call consumes the remaining latency; stops before another model call when a browser action crosses it; resume preserves prior measured latency; raising the ceiling explicitly resumes; existing spend pre-check still prevents the provider call. A first full-suite run also exposed an unrelated Chromium startup timeout; the clean rerun passed all 1928 Python tests before this code was committed.
+  code: offsetx_apollo_builder/agent/run.py, tests/test_agent_run_budgets.py
+  commit: 7071213
+
+- S-06.02.15 · CI gives the verifier the repository it claims to verify
+  tests: tests/test_ci_verifier_environment.py, tests/test_verify_board.py
+  command: python -m pytest tests/test_ci_verifier_environment.py tests/test_verify_board.py -q
+  result: 55 passed (2026-09-16); GitHub Actions test run 393 passed end to end
+  live: the pre-fix CI passed 1915 Python tests and then the verifier failed because checkout depth 1 hid historical evidence commits and frontend evidence ran before npm dependencies existed. Run 393, commit 0434081, passed after fetch-depth 0 and npm ci were moved before verification.
+  code: .github/workflows/ci.yml, scripts/verify_board.py, tests/test_ci_verifier_environment.py
+  commit: 0434081
 
 - S-06.02.14 · A test should not hardcode a trace step id
   tests: tests/test_trace_ids.py::test_inserting_a_step_moves_the_number_but_not_the_answer, tests/test_trace_ids.py::test_a_scripted_answer_is_filled_in_with_what_was_offered, tests/test_trace_ids.py::test_the_most_recent_offer_wins, tests/test_trace_ids.py::test_the_first_step_of_a_kind_is_found_not_counted, tests/test_trace_ids.py::test_asking_for_a_step_that_is_not_there_says_so, tests/test_trace_ids.py::test_an_answer_that_cites_nothing_is_left_exactly_alone

@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Check the board against the repository. Independently of anything I say.
 
-Run it yourself:
+Run it yourself after the documented locked setup:
 
-    python scripts/verify_board.py
+    uv run --no-sync python scripts/verify_board.py
 
 **This exists because "done" is a claim, and a claim without a check is a
 sentence.** Everything here is recomputed from the repository — counts are
 never read from a number somebody typed, tests are re-run rather than trusted,
 and a file named as evidence is opened to see whether it exists.
 
-Standard library only, deliberately: a verifier that needed installing is one
-that stops being run.
+This verifier and ``run_evidence.py`` are standard-library-only deliberately.
+The documented setup installs the product/test dependencies once; verification
+then runs with ``--no-sync`` so no evidence command gets a private environment
+or a hidden install step.
 
 Exit codes: ``0`` everything checks out, ``1`` at least one check failed.
 """
@@ -34,6 +36,8 @@ BACKLOG = ROOT / "PRODUCT_BACKLOG.md"
 QUESTIONS = ROOT / "OPEN_QUESTIONS.md"
 DEFECTS = ROOT / "DEFECT_LOG.md"
 DECISIONS = ROOT / "DECISIONS.md"
+EVIDENCE_RUNNER = ROOT / "scripts" / "run_evidence.py"
+EVIDENCE_COMMAND = "python scripts/run_evidence.py"
 
 COLUMNS = (
     "BACKLOG", "READY", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "DEFERRED",
@@ -389,8 +393,15 @@ def _resolve_code(reference: str) -> tuple[Path, tuple[int, int] | None, str]:
 
 
 def check_evidence(items: list[Item], report: Report, *, run_tests: bool) -> tuple[int, int]:
-    """Rules 4, 5 and 6. Returns (tests run, tests passed)."""
+    """Rules 4, 5, 6 and R-90. Returns (tests run, tests passed)."""
     ran = passed = 0
+    if not EVIDENCE_RUNNER.exists():
+        report.fail(
+            "scripts/run_evidence.py is missing. DONE evidence has one runner; "
+            "removing it removes the reproducibility boundary."
+        )
+        return ran, passed
+
     for item in items:
         if item.column != "DONE":
             continue
@@ -402,6 +413,14 @@ def check_evidence(items: list[Item], report: Report, *, run_tests: bool) -> tup
                 "evidence block."
             )
             continue
+
+        expected = f"{EVIDENCE_COMMAND} {item.identifier}"
+        command_ok = item.fields["command"] == expected
+        if not command_ok:
+            report.fail(
+                f"{item.identifier}'s evidence command must be exactly {expected!r}; "
+                "every DONE claim uses one runner and one interpreter boundary."
+            )
 
         if item.fields.get("result", "").strip().lower().startswith("pending"):
             report.fail(
@@ -434,19 +453,26 @@ def check_evidence(items: list[Item], report: Report, *, run_tests: bool) -> tup
                     "not exist."
                 )
 
-        # Rule 5 — re-run the tests rather than believe the recorded result.
-        if run_tests:
-            command = item.fields["command"]
+        # Rule 5 — re-run through one runner rather than believe the result or
+        # execute arbitrary shell carried by the board. `sys.executable` is the
+        # verifier's interpreter, so `uv run --no-sync python verify_board.py`
+        # creates one Python environment for every DONE story.
+        if run_tests and command_ok:
             outcome = subprocess.run(
-                command, shell=True, cwd=ROOT, capture_output=True, text=True, timeout=900,
+                [sys.executable, str(EVIDENCE_RUNNER), item.identifier],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=900,
             )
             ran += 1
             if outcome.returncode == 0:
                 passed += 1
             else:
-                tail = (outcome.stdout or outcome.stderr).strip().splitlines()[-3:]
+                output = (outcome.stdout + "\n" + outcome.stderr).strip()
+                tail = output.splitlines()[-3:]
                 report.fail(
-                    f"{item.identifier}'s evidence command failed: {command}\n"
+                    f"{item.identifier}'s evidence command failed: {expected}\n"
                     + "\n".join(f"      {line}" for line in tail)
                 )
     return ran, passed

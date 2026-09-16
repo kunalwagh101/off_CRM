@@ -215,6 +215,11 @@ class ResumeState:
     #: without bound. Raising it is the owner's decision and has to be made on
     #: purpose: `resume(spend_ceiling_usd=...)`.
     spend_ceiling_usd: float = 0.0
+    #: Cumulative measured execution latency allowed for this run. `S-06.02.03`
+    #:
+    #: Zero means uncapped. It is persisted and re-applied on resume so a restart
+    #: cannot mint a fresh latency allowance.
+    latency_ceiling_ms: int = 0
 
     @property
     def steps_remaining(self) -> int:
@@ -280,6 +285,7 @@ def replay(trace: Trace) -> ResumeState:
         goal=goal,
         step_budget=int(parameters.get("step_budget") or MAX_RUN_STEPS),
         spend_ceiling_usd=float(parameters.get("spend_ceiling_usd") or 0.0),
+        latency_ceiling_ms=int(parameters.get("latency_ceiling_ms") or 0),
         schema_fields=tuple(str(f) for f in (parameters.get("result_schema") or ())),
         findings=findings,
         decisions=decisions,
@@ -511,6 +517,19 @@ def would_cross_ceiling(
     return (spent_usd + next_decision_usd) > ceiling_usd
 
 
+def latency_ceiling_reached(*, ceiling_ms: int, spent_ms: int) -> bool:
+    """Whether another unit of work may start.  `S-06.02.03`
+
+    Latency cannot be predicted safely the way token spend can. The run therefore
+    lets an operation already in flight finish, records its measured latency, and
+    refuses to start anything else once the ceiling has been reached. Zero means
+    uncapped.
+    """
+    if ceiling_ms <= 0:
+        return False
+    return spent_ms >= ceiling_ms
+
+
 def estimate_run(model: Any, *, step_budget: int, model_id: str = "") -> RunEstimate:
     """Price a run before it runs.  `S-06.01.03`
 
@@ -564,6 +583,8 @@ class RunOutcome:
     estimate: "RunEstimate | None" = None
     #: What the run was allowed to spend. Zero means it was not capped.  `S-11.01.04`
     spend_ceiling_usd: float = 0.0
+    #: Cumulative measured execution latency allowed for the run. `S-06.02.03`
+    latency_ceiling_ms: int = 0
 
     @property
     def headroom_usd(self) -> float:
@@ -575,6 +596,25 @@ class RunOutcome:
     @property
     def spend_usd(self) -> float:
         return float(self.trace_summary.get("estimated_cost_usd", 0.0) or 0.0)
+
+    @property
+    def latency_ms(self) -> int:
+        """Measured provider + browser latency recorded by the append-only trace."""
+        return int(self.trace_summary.get("took_ms", 0) or 0)
+
+    @property
+    def latency_headroom_ms(self) -> int:
+        """Unused latency budget; zero once the ceiling has been reached."""
+        if self.latency_ceiling_ms <= 0:
+            return 0
+        return max(0, self.latency_ceiling_ms - self.latency_ms)
+
+    @property
+    def latency_overrun_ms(self) -> int:
+        """How far the already-in-flight operation crossed the latency ceiling."""
+        if self.latency_ceiling_ms <= 0:
+            return 0
+        return max(0, self.latency_ms - self.latency_ceiling_ms)
 
     @property
     def estimate_error(self) -> float:
@@ -609,6 +649,10 @@ class RunOutcome:
             "spend_ceiling_usd": round(self.spend_ceiling_usd, 8),
             "headroom_usd": round(self.headroom_usd, 8),
             "estimate_error_usd": round(self.estimate_error, 8),
+            "latency_ms": self.latency_ms,
+            "latency_ceiling_ms": self.latency_ceiling_ms,
+            "latency_headroom_ms": self.latency_headroom_ms,
+            "latency_overrun_ms": self.latency_overrun_ms,
         }
 
 
@@ -641,6 +685,7 @@ class AgentRun:
         resume_from: "ResumeState | None" = None,
         on_progress: "Callable[[Progress], None] | None" = None,
         spend_ceiling_usd: float = 0.0,
+        latency_ceiling_ms: int = 0,
     ) -> RunOutcome:
         """Pursue `goal` for at most `step_budget` steps.
 
@@ -648,11 +693,18 @@ class AgentRun:
         *before* each decision is asked for, so the ceiling is never crossed
         rather than noticed afterwards; zero means no ceiling.  `S-11.01.04`
 
+        `latency_ceiling_ms` caps cumulative measured provider/browser latency.
+        An operation already in flight is allowed to finish rather than being
+        cancelled halfway through a possible side effect; once its measured
+        latency reaches the ceiling, no new work starts. Zero means uncapped.
+        `S-06.02.03`
+
         `on_progress` is called with each step as it is recorded, so a run can
         be watched while it happens rather than read about once it is over —
         `agent.console()` is a ready-made one.  `S-11.04.02`
         """
         cleaned_goal, budget = _validate_start(goal, step_budget)
+        latency_ceiling = _validate_latency_ceiling(latency_ceiling_ms)
         schema = coerce_result_schema(result_schema)
         # Attached for the length of this run and put back afterwards, so a
         # watcher cannot outlive the thing it was watching.  `S-11.04.02`
@@ -662,6 +714,7 @@ class AgentRun:
         try:
             return await self._drive(
                 cleaned_goal, budget, schema, resume_from, spend_ceiling_usd,
+                latency_ceiling,
             )
         finally:
             self.trace.listener = previous_listener
@@ -673,11 +726,13 @@ class AgentRun:
         schema: "ResultSchema | None",
         resume_from: "ResumeState | None",
         spend_ceiling_usd: float = 0.0,
+        latency_ceiling_ms: int = 0,
     ) -> RunOutcome:
         # Set before the loop and read by `_outcome`, so every ending carries
         # what the run was expected to cost next to what it did.  `S-06.01.03`
         self._estimate: RunEstimate | None = None
         self._spend_ceiling_usd: float = float(spend_ceiling_usd)
+        self._latency_ceiling_ms: int = int(latency_ceiling_ms)
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
@@ -742,6 +797,8 @@ class AgentRun:
                     "is already above that ceiling, so this run is expected to "
                     "stop short; "
                 )
+        if latency_ceiling_ms > 0:
+            ceiling_note += f"latency_ceiling={latency_ceiling_ms}ms; "
 
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
         if resume_from is not None:
@@ -778,6 +835,7 @@ class AgentRun:
                 "result_schema": list(schema.fields) if schema else [],
                 "estimate": estimate.to_dict(),
                 "spend_ceiling_usd": round(float(spend_ceiling_usd), 8),
+                "latency_ceiling_ms": int(latency_ceiling_ms),
             }),
         )
 
@@ -791,6 +849,15 @@ class AgentRun:
         verification_failures: dict[str, str] = {}
 
         for index in range(budget):
+            latency_ms = int(self.trace.summary().get("took_ms", 0) or 0)
+            if latency_ceiling_reached(
+                ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms
+            ):
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                    ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms,
+                )
+
             snapshot = await self.page.snapshot()
             self._report_injection(
                 snapshot.render(), snapshot.url, "page outline", reported_injections
@@ -886,6 +953,15 @@ class AgentRun:
                     estimated_cost_usd=estimated_cost,
                 )
             )
+
+            latency_ms = int(self.trace.summary().get("took_ms", 0) or 0)
+            if latency_ceiling_reached(
+                ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms
+            ):
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                    ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms,
+                )
 
             validation: SourcedRecordValidation | None = None
             if schema is not None and decision.record is not None:
@@ -1218,6 +1294,15 @@ class AgentRun:
                 evidence_step=evidence_step,
                 evidence_error=evidence_error,
             )
+
+            latency_ms = int(self.trace.summary().get("took_ms", 0) or 0)
+            if latency_ceiling_reached(
+                ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms
+            ):
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected,
+                    ceiling_ms=latency_ceiling_ms, spent_ms=latency_ms,
+                )
 
         message = (
             f"Step budget exhausted after {decisions} decision(s) and {actions} action(s). "
@@ -1565,7 +1650,12 @@ class AgentRun:
         )
         return tokens_in, tokens_out, cost
 
-    async def resume(self, *, spend_ceiling_usd: float | None = None) -> RunOutcome:
+    async def resume(
+        self,
+        *,
+        spend_ceiling_usd: float | None = None,
+        latency_ceiling_ms: int | None = None,
+    ) -> RunOutcome:
         """Continue the run this agent's trace belongs to.  `S-11.01.03`
 
         Construct the agent with `Trace.open(root, run_id=...)` — the same run
@@ -1617,6 +1707,10 @@ class AgentRun:
                 state.spend_ceiling_usd if spend_ceiling_usd is None
                 else float(spend_ceiling_usd)
             ),
+            latency_ceiling_ms=(
+                state.latency_ceiling_ms if latency_ceiling_ms is None
+                else _validate_latency_ceiling(latency_ceiling_ms)
+            ),
         )
 
     def _over_budget(
@@ -1666,6 +1760,43 @@ class AgentRun:
         )
         return self._outcome(
             "over_budget", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
+        )
+
+    def _over_latency(
+        self,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "Mapping[str, Finding]",
+        *,
+        ceiling_ms: int,
+        spent_ms: int,
+    ) -> RunOutcome:
+        """Stop before new work once measured run latency reaches its ceiling."""
+        overrun_ms = max(0, spent_ms - ceiling_ms)
+        message = (
+            f"Stopped at the latency ceiling. {spent_ms}ms of measured provider/browser "
+            f"latency has been used against a {ceiling_ms}ms ceiling"
+            + (f" ({overrun_ms}ms over from the operation already in flight). "
+               if overrun_ms else ". ")
+            + "No new operation was started after the ceiling was observed. Resume with "
+              "a higher latency ceiling to carry on from here."
+        )
+        self.trace.append(
+            Step(kind="over_latency", detail=message, url=self.page.url, ok=False),
+            captured_text=json.dumps({
+                "ceiling_ms": ceiling_ms,
+                "spent_ms": spent_ms,
+                "overrun_ms": overrun_ms,
+                "decisions": decisions,
+                "actions": actions,
+            }),
+        )
+        return self._outcome(
+            "over_latency", goal, budget, decisions, actions, message,
             schema=schema, findings=collected,
         )
 
@@ -1876,6 +2007,7 @@ class AgentRun:
             trace_summary=self.trace.summary(),
             estimate=getattr(self, "_estimate", None),
             spend_ceiling_usd=getattr(self, "_spend_ceiling_usd", 0.0),
+            latency_ceiling_ms=getattr(self, "_latency_ceiling_ms", 0),
         )
 
 
@@ -1891,6 +2023,15 @@ def _remember_verification_failures(
         state[field_name] = DERIVED_UNVERIFIED
     for field_name in validation.findings:
         state.pop(field_name, None)
+
+
+def _validate_latency_ceiling(value: object) -> int:
+    """Validate a caller-owned per-run latency ceiling without coercing surprises."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise RunRefused("Latency ceiling must be a non-negative integer number of milliseconds.")
+    if value < 0:
+        raise RunRefused("Latency ceiling must be a non-negative integer number of milliseconds.")
+    return value
 
 
 def _validate_start(goal: str, step_budget: int) -> tuple[str, int]:

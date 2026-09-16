@@ -30,7 +30,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-06.01.02 · Three-level permissions
 - S-06.01.05 · Deployment, monitoring and rollback
-- S-06.02.03 · Cost and latency budgets per run
 - S-06.02.04 · Data deletion and subject access
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
@@ -64,8 +63,8 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.08 · One runner for every evidence command
-  scope: make every DONE evidence command use one declared runner and make clean-checkout setup sufficient for the verifier with no hidden environment step.
+- S-06.02.03 · Cost and latency budgets per run
+  scope: add a host-enforced per-run latency ceiling beside the existing spend ceiling; persist it across resume and stop safely when elapsed time reaches it.
 
 ## IN_REVIEW
 
@@ -86,6 +85,13 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.08 · One runner for every evidence command
+  tests: tests/test_evidence_runner.py, tests/test_verify_board.py
+  command: python scripts/run_evidence.py S-06.02.08
+  result: Clean-checkout quality run 35066193199 passed 1,992 Python tests with 4 skips, all 54 recorded DONE evidence commands, all 136 frontend tests and the production build (2026-09-16).
+  code: scripts/run_evidence.py, scripts/verify_board.py, tests/test_evidence_runner.py, .github/workflows/ci.yml
+  commit: 6563fa97dc45dcd20e58acf411c559128c5c3395
 
 - S-03.02.05 · A platform is a row, not a code change
   tests: tests/test_browser_platform_registry.py, tests/test_browser_signin.py, tests/test_browser_budget.py, tests/test_browser_agent.py

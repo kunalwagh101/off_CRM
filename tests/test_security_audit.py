@@ -545,11 +545,17 @@ def test_no_shared_connection_escapes_the_guard():
                     wrapped = isinstance(node.value, ast.Call) and (
                         getattr(node.value.func, "id", "") == "GuardedConnection"
                     )
-                    if not wrapped:
+                    native_guard = any(
+                        keyword.arg == "factory"
+                        and isinstance(keyword.value, ast.Name)
+                        and keyword.value.id == "SerializedConnection"
+                        for keyword in inner.keywords
+                    )
+                    if not (wrapped or native_guard):
                         offenders.append(f"{path}:{node.lineno}")
 
     assert offenders == [], (
-        "a long-lived connection is assigned without GuardedConnection, which "
+        "a long-lived connection is assigned without the ownership guard, which "
         f"reopens the hazard: {offenders}"
     )
 

@@ -614,6 +614,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
+| R-101 | Creating or switching campaigns preserves the intended target through refresh, failure and reload | S-06.02.16 |
+| R-100 | Durable customer state, complete backups, safe recovery and truthful readiness | S-06.02.15 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
 | R-93 | A local install provisions its own token rather than failing | S-06.02.10 |
 | R-94 | Requests for a host this server does not answer to are refused | S-06.02.10 |
@@ -1079,14 +1081,78 @@ two requests cannot corrupt each other's writes.
   **when** another thread holds an open transaction, **then** it does not read
   uncommitted rows or get committed by that transaction. **(fixed 2026-09-09)**
 - **Given** a long-lived connection assigned anywhere in `outreach/`, **when**
-  the package is parsed, **then** it is wrapped by `GuardedConnection`.
+  the package is parsed, **then** it uses the guarded native `SerializedConnection` factory.
   **(fixed 2026-09-09)**
 - **Dependencies:** none. **Size:** M. **Indicator:** unguarded `.execute(` call
   sites outside `transaction()` — target zero.
-- **Why:** the audit fixed the transaction race with a lock, which removes the
-  proven data loss. It does not stop a bare `.execute` landing inside another
-  thread's open transaction. `db/connection.py` already routes every method
-  through its lock; this module has ~300 call sites that do not.
+- **Why:** the initial transaction lock left bare statements able to enter another
+  thread's transaction. WP1 extends main's statement guard to native connection
+  and cursor operations through `outreach/sqlite_ownership.py`, preserving
+  autocommit, named parameters and SQLite backup compatibility.
+
+#### S-06.02.15 — Durable customer state and safe recovery (Audit WP1)
+**As an** operator, **I want** a complete recoverable company workspace,
+**so that** restarts, concurrent work and failed recovery cannot lose customer data.
+- **Given** production configuration, **when** the app starts, **then** every
+  local durable path is inside the persistent root and ephemeral or split
+  production state is refused; restart preserves records and assets.
+- **Given** concurrent requests, **when** one transaction fails, **then** no
+  acknowledged write is lost (delivered together with S-06.02.09).
+- **Given** a populated workspace, **when** an encrypted backup is exported and
+  restored into an empty destination, **then** all durable stores, assets,
+  configuration and local operational secrets are usable; caches are named exclusions.
+- **Given** malformed, oversized or incompatible input, **when** restore is
+  requested, **then** validation rejects it before disturbing live services.
+- **Given** active requests or background work, **when** recovery begins,
+  **then** work drains before replacement and new work receives maintenance status.
+- **Given** a restore failure or interrupted swap, **when** recovery runs,
+  **then** the old workspace is recovered, all services are rebound, and a
+  failed recovery keeps readiness red and ordinary work blocked.
+- **Given** unavailable durable stores or unwritable paths, **when** readiness
+  is checked, **then** it returns 503 and identifies the component.
+- **Given** the final branch, **when** the Python, frontend, board and relevant
+  live acceptance gates run, **then** their evidence passes together.
+- **Dependencies:** none. **Size:** L. **Indicator:** audit A01/A02/A03/A04/A17 acceptance failures — zero.
+- **Contract:** docs/architecture/AUDIT_WP1_DURABLE_STATE_SAFE_RECOVERY.md.
+- **ID reconciliation (2026-09-09):** WP1 originally used S-06.02.10 / R-92 on
+  its branch. Main independently delivered authentication under that ID. WP1
+  then used S-06.02.11 / R-95; both stories and their evidence were retained.
+- **ID reconciliation (2026-09-12):** main subsequently allocated S-06.02.11
+  to readiness checks and R-95 to Enter approval. The integration branch assigns
+  WP1 the unused S-06.02.15 / R-100; original dated evidence retains its old IDs.
+
+
+#### S-06.02.16 — A created or selected campaign stays the active workspace
+**As a** company operator, **I want** creation, switching and reload to keep the
+campaign I chose, **so that** contacts, edits and media never use an older campaign
+because a background response arrived late.
+- **Given** existing campaigns and a successful creation, **when** refresh is
+  delayed or returns an older snapshot, **then** the created row and active ID
+  appear together and remain selected through navigation and reload.
+- **Given** overlapping refreshes or a pending creation, **when** the operator
+  makes a later selection, **then** older responses cannot override that choice.
+- **Given** a saved campaign outside the first 200 results, **when** the app
+  starts, **then** it verifies that campaign directly and preserves its ID and kind.
+- **Given** a missing saved ID, **when** the detail endpoint confirms 404,
+  **then** the app selects a valid fallback and names it, or clears selection if
+  no campaign exists; network, permission and server errors do not imply deletion.
+- **Given** the newly created email campaign, **when** contacts are imported,
+  **then** independent API readback finds them only in that campaign; a saved
+  image campaign similarly owns the video project created through the editor.
+- **Given** a campaign-specific edit or import form, **when** the active campaign
+  changes, **then** the old form and its row selection are cleared before work
+  can be submitted under the new campaign.
+- **Given** a failed save, refresh, logout or unavailable browser storage,
+  **when** pending work finishes, **then** it cannot redirect selection, report a
+  persisted save as failed, or overwrite a signed-out session; retry and storage
+  errors explain the next action.
+- **Dependencies:** S-06.02.10, S-06.02.15. **Size:** M. **Indicator:** campaign
+  operations applied to an unintended target (zero). **Audit:** A33 / D-51.
+- **User path and contracts:** Campaigns → create/open → Contacts or Video editor
+  → reload. Existing authenticated campaign list/detail/create and import/project
+  endpoints; the existing browser selection key. No schema or credential change.
+  Real-browser acceptance uses disposable records and needs no provider account.
+
 
 #### S-06.02.11 — The verifier catches a stale READY column
 **As an** owner, **I want** `scripts/verify_board.py` to check readiness the way

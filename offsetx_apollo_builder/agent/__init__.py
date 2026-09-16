@@ -8,6 +8,7 @@ from .result import (
     ResultSchemaError,
     SourcedRecordValidation,
 )
+from .plan import PLAN_FILENAME, PlanError, PlanSnapshot, RunPlan
 from .run import AgentRun, Decision, ResumeState, RunOutcome, RunRefused, replay
 from .watch import Progress, console
 
@@ -26,4 +27,8 @@ __all__ = [
     "ResumeState",
     "replay",
     "SourcedRecordValidation",
+    "PLAN_FILENAME",
+    "PlanError",
+    "PlanSnapshot",
+    "RunPlan",
 ]

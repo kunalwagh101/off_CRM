@@ -18,7 +18,9 @@ from pathlib import Path
 
 import pytest
 
-VERIFIER = Path(__file__).resolve().parents[1] / "scripts" / "verify_board.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+VERIFIER = REPO_ROOT / "scripts" / "verify_board.py"
+RUNNER = REPO_ROOT / "scripts" / "run_evidence.py"
 
 
 GOOD_BACKLOG = """# Product backlog
@@ -49,8 +51,8 @@ GOOD_BOARD = """# Board
 ## DONE
 
 - S-01.01.01 · A thing that works
-  tests: src/mod.py
-  command: python -c "pass"
+  tests: tests/test_mod.py
+  command: python scripts/run_evidence.py S-01.01.01
   result: 1 passed (2026-08-25)
   code: src/mod.py
   commit: abc1234
@@ -74,19 +76,30 @@ GOOD_DECISIONS = """# Design decisions
 """
 
 
-def build(tmp_path: Path, *, board: str = GOOD_BOARD, backlog: str = GOOD_BACKLOG,
-          questions: str = "# Open questions\n", code: str = "def works():\n    return 1\n",
-          defects: str = GOOD_DEFECTS, decisions: str = GOOD_DECISIONS) -> Path:
+def build(
+    tmp_path: Path,
+    *,
+    board: str = GOOD_BOARD,
+    backlog: str = GOOD_BACKLOG,
+    questions: str = "# Open questions\n",
+    code: str = "def works():\n    return 1\n",
+    test_code: str = "def test_works():\n    assert True\n",
+    defects: str = GOOD_DEFECTS,
+    decisions: str = GOOD_DECISIONS,
+) -> Path:
     """A tiny repository with the same shape the real one has."""
     (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
     (tmp_path / "src").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "tests").mkdir(parents=True, exist_ok=True)
     (tmp_path / "scripts" / "verify_board.py").write_bytes(VERIFIER.read_bytes())
+    (tmp_path / "scripts" / "run_evidence.py").write_bytes(RUNNER.read_bytes())
     (tmp_path / "BOARD.md").write_text(board, encoding="utf-8")
     (tmp_path / "PRODUCT_BACKLOG.md").write_text(backlog, encoding="utf-8")
     (tmp_path / "OPEN_QUESTIONS.md").write_text(questions, encoding="utf-8")
     (tmp_path / "DEFECT_LOG.md").write_text(defects, encoding="utf-8")
     (tmp_path / "DECISIONS.md").write_text(decisions, encoding="utf-8")
     (tmp_path / "src" / "mod.py").write_text(code, encoding="utf-8")
+    (tmp_path / "tests" / "test_mod.py").write_text(test_code, encoding="utf-8")
     return tmp_path
 
 
@@ -220,7 +233,7 @@ def test_done_naming_a_line_range_past_the_end_of_the_file_fails(tmp_path):
 
 
 def test_done_naming_a_test_file_that_does_not_exist_fails(tmp_path):
-    board = GOOD_BOARD.replace("tests: src/mod.py", "tests: tests/test_nothing.py")
+    board = GOOD_BOARD.replace("tests: tests/test_mod.py", "tests: tests/test_nothing.py")
     result = run(build(tmp_path, board=board))
     assert result.returncode == 1
     assert "test 'tests/test_nothing.py'" in result.stdout
@@ -239,12 +252,20 @@ def test_done_with_a_pending_result_fails(tmp_path):
 
 
 def test_a_failing_evidence_command_fails_the_verifier(tmp_path):
-    """The recorded result says passed. The command says otherwise. The command
-    is what counts."""
-    board = GOOD_BOARD.replace('command: python -c "pass"', 'command: python -c "raise SystemExit(1)"')
-    result = run(build(tmp_path, board=board))
+    """The recorded result says passed. The replayed test says otherwise."""
+    result = run(build(tmp_path, test_code="def test_fails():\n    assert False\n"))
     assert result.returncode == 1
     assert "evidence command failed" in result.stdout
+
+
+def test_a_noncanonical_evidence_command_is_refused(tmp_path):
+    board = GOOD_BOARD.replace(
+        "command: python scripts/run_evidence.py S-01.01.01",
+        "command: python -m pytest tests/test_mod.py -q",
+    )
+    result = run(build(tmp_path, board=board), "--skip-tests")
+    assert result.returncode == 1
+    assert "must be exactly" in result.stdout
 
 
 def test_skip_tests_does_not_hide_that_it_skipped(tmp_path):
@@ -689,4 +710,3 @@ def test_a_repository_with_no_git_is_noted_rather_than_failed(tmp_path):
     result = run(build(tmp_path))
     assert result.returncode == 0, result.stdout
     assert "not a git work tree" in result.stdout
-

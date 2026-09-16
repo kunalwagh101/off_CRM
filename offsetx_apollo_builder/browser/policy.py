@@ -14,6 +14,10 @@ that act automated.
 engines keep their block list. This file governs the browser agent, and it draws
 the line somewhere else — at *volume and autonomy* rather than at *domain*.
 
+Since `S-03.02.05`, account-platform domain rules are declared in the same
+registry row as sign-in signals and budgets. Host-only safety rules such as
+Gmail remain explicit here because they are not account-platform declarations.
+
 ---
 
 **Three things every domain gets a decision about.**
@@ -41,9 +45,11 @@ delay with a cancel button does not, because there is nothing to click.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
+
+from .registry import load_platforms
 
 #: Actions that change something outside the browser. Every one of these gets a
 #: countdown before it fires, whatever site it is on.
@@ -89,79 +95,28 @@ OPEN_WEB = DomainRule(
     note="Ordinary sites. Paced enough to be polite, not enough to be slow.",
 )
 
-#: The platforms whose terms specifically forbid automated collection, and whose
-#: enforcement is account termination rather than a rate-limit response.
-#:
-#: They are **not blocked** — the agent works in your session and you are
-#: allowed to look at your own feed. They are slowed to human pace and kept out
-#: of unattended runs, which is where the difference between "using a computer"
-#: and "operating a scraper" actually lies.
-RULES: tuple[DomainRule, ...] = (
-    DomainRule(
-        suffix="linkedin.com",
-        label="LinkedIn",
-        min_seconds_between_actions=6.0,
-        unattended=False,
-        refuse=("bulk_export",),
-        confirm=("send", "submit", "connect"),
-        note=(
-            "Your session, your account, your risk. Automated collection breaches "
-            "the User Agreement and the penalty is permanent restriction, so this "
-            "runs at reading pace and never on a schedule. Profile data about "
-            "people in the EU or UK is personal data — having a lawful basis for "
-            "holding it is your job, not the browser's."
-        ),
-    ),
-    DomainRule(
-        suffix="instagram.com",
-        label="Instagram",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-        note=(
-            "Same shape as LinkedIn. The Business Discovery API is the supported "
-            "route for competitor data and needs no session at all — prefer it."
-        ),
-    ),
-    DomainRule(
-        suffix="facebook.com",
-        label="Facebook",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="tiktok.com",
-        label="TikTok",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="x.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="twitter.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="youtube.com",
-        label="YouTube",
-        min_seconds_between_actions=1.0,
-        unattended=True,
-        note=(
-            "The Data API serves public video and channel data properly and is "
-            "already wired in `distribution/trends.py`. Drive the site only for "
-            "what the API does not expose."
-        ),
-    ),
+
+def _platform_rules() -> tuple[DomainRule, ...]:
+    rules: list[DomainRule] = []
+    for platform in load_platforms().values():
+        for declared in platform.domains:
+            rules.append(DomainRule(
+                suffix=declared.suffix,
+                label=platform.label,
+                min_seconds_between_actions=declared.min_seconds_between_actions,
+                unattended=declared.unattended,
+                refuse=declared.refuse,
+                confirm=declared.confirm,
+                note=declared.note or platform.note,
+            ))
+    return tuple(rules)
+
+
+#: Rules that protect a host but do not describe a browser-account platform.
+#: Gmail is an email transport surface, not a row in the social/platform sign-in
+#: catalogue, so pretending it is one would require fake sign-in signals and a
+#: fake account budget just to satisfy a schema.
+EXTRA_RULES: tuple[DomainRule, ...] = (
     DomainRule(
         suffix="mail.google.com",
         label="Gmail",
@@ -171,6 +126,8 @@ RULES: tuple[DomainRule, ...] = (
         note="Sending mail as you is the highest-consequence thing here.",
     ),
 )
+
+RULES: tuple[DomainRule, ...] = (*_platform_rules(), *EXTRA_RULES)
 
 #: Hosts nothing may reach, ever. Not a policy choice — these resolve to the
 #: machine off_CRM is running on, and a page that can be talked into fetching

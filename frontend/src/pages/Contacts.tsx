@@ -53,7 +53,7 @@ export default function Contacts() {
         `/campaigns/${campaignId}/contacts/import`,
         form
       );
-      notify(`${result.added} contacts added, ${result.skipped} skipped`, result.skipped ? "info" : "success");
+      notify(`${result.added} contacts added to ${activeCampaign?.name ?? "the selected campaign"}, ${result.skipped} skipped`, result.skipped ? "info" : "success");
       setImportOpen(false);
       contacts.reload();
       refreshCampaigns();
@@ -148,7 +148,7 @@ export default function Contacts() {
         )}
       </Panel>
 
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import contacts" description="Files stay on this device and are deleted from the upload area after import.">
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import contacts" description="Files are processed on your application host. Contacts are saved only in the selected campaign.">
         <form className="form-stack" onSubmit={importFile}>
           <Field label="CSV or Excel file" hint="Maximum 10 MB. Name is required. Email and a verified public hook are required before sending.">
             <input name="contacts-file" type="file" accept=".csv,.xlsx,.xls" required />

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from ..outreach.workspace_lock import WorkspaceLock
 import json
 import os
 import threading
@@ -88,7 +89,11 @@ class AutomationService:
     def status(self) -> dict[str, Any]:
         return {**self.config(), "running": bool(self._task and not self._task.done()), "last_run_at": self.last_run_at, "last_error": self.last_error, "last_results": self.last_results}
 
-    def run_once(self) -> list[dict[str, Any]]:
+    def run_once(self):
+        with WorkspaceLock(self.path.parent):
+            return self._run_once()
+
+    def _run_once(self) -> list[dict[str, Any]]:
         if not self._run_lock.acquire(blocking=False):
             raise RuntimeError("An automation cycle is already running")
         engine = None

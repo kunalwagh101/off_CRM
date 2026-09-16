@@ -258,12 +258,13 @@ def test_a_watcher_sees_the_run_step_by_step(tmp_path):
 
 def test_a_read_answered_from_the_memo_still_reports_its_verb(tmp_path):
     """`S-11.02.04` answers a second read of a page the run has already read
-    from its memo, without asking the page again. That is still an action step,
-    and an action step a watcher cannot name is a hole in this criterion."""
+    from its memo, without asking the page again. The separate cache event must
+    still name its verb, while the action count records actual browser work."""
     seen: list[Progress] = []
     _run(tmp_path, [_act("read"), _act("read"), _done()], on_progress=seen.append)
 
-    actions = [update for update in seen if update.kind == "action"]
+    actions = [update for update in seen if update.kind in {"action", "read_cache_hit"}]
+    assert [update.kind for update in actions] == ["action", "read_cache_hit"]
     assert [update.action for update in actions] == ["read", "read"]
     assert "reused the capture" in actions[1].detail, "the memo was not the one served"
 

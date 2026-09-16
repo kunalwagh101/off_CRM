@@ -21,6 +21,8 @@ indented `blocked: <Q-nn or a named external dependency>`.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
+- S-06.02.16 · Resolve frontend dependency audit findings
+- S-06.02.17 · DONE may not depend on unfinished work
 
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
@@ -48,7 +50,6 @@ Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
 
-- S-06.02.08 · One runner for every evidence command
 
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
@@ -68,7 +69,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-06.02.08 · One runner for every evidence command
 
 ## IN_REVIEW
 

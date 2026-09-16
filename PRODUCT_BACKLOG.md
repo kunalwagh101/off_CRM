@@ -636,6 +636,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-98 | Every defect and design call is written down in one place | S-06.02.13 |
 | R-99 | A test addresses a trace step by finding it, not by counting | S-06.02.14 |
 | R-100 | CI gives the verifier full history and evidence dependencies before it runs | S-06.02.15 |
+| R-101 | Frontend production dependencies carry no unresolved high-severity audit finding | S-06.02.16 |
+| R-102 | A DONE story cannot depend on unfinished work | S-06.02.17 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1234,6 +1236,30 @@ from a claim to the code that satisfies it cannot quietly rot.
   `uv run pytest` against an unsynced venv while the rest used `python -m
   pytest`. It looked exactly like a code defect for several minutes. A lie
   detector that can cry wolf gets ignored.
+
+#### S-06.02.16 — Resolve frontend dependency audit findings
+**As an** operator, **I want** the shipped frontend dependency tree free of known
+high-severity audit findings, **so that** a clean install does not knowingly
+carry a vulnerable production dependency.
+- **Given** a clean `npm ci`, **when** the production dependency tree is audited,
+  **then** no high-severity finding remains unresolved or silently ignored.
+- **Given** a remediation that requires a breaking upgrade, **when** it is
+  applied, **then** frontend tests and the production build prove the upgrade
+  rather than relying on `npm audit fix --force`.
+- **Dependencies:** none. **Size:** S. **Indicator:** high-severity npm audit
+  findings in the shipped frontend tree — target zero.
+
+#### S-06.02.17 — DONE may not depend on unfinished work
+**As an** owner, **I want** the verifier to reject a DONE story whose declared
+upstream dependency is not DONE, **so that** a green board cannot contain an
+impossible delivery history.
+- **Given** a DONE story that depends on a READY, BACKLOG or BLOCKED story,
+  **when** the verifier runs, **then** it fails and names both stories.
+- **Given** a DONE story whose declared dependencies are all DONE, **when** the
+  verifier runs, **then** the dependency check passes.
+- **Dependencies:** S-06.02.11. **Size:** S. **Indicator:** DONE stories whose
+  dependencies are not DONE — target zero.
+
 
 ---
 

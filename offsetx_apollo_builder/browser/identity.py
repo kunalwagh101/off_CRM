@@ -1,7 +1,8 @@
 """Which platforms this workspace is signed in to — and never how.
 
 `S-03.02.01`. The half of "log in once, inside the box" that off_CRM is allowed
-to know about.
+to know about. `S-03.02.05` moves the platform catalogue itself to a validated
+registry so a new site is a data row rather than a Python edit.
 
 ---
 
@@ -45,7 +46,7 @@ sign-in prompt is on the page.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +55,7 @@ from typing import Any, Iterable
 from ..ai.workspace import atomic_json
 from .budget import Budget, BudgetLedger
 from .perceive import Snapshot
+from .registry import Platform, PlatformRegistryError, load_platforms, resolve_platform
 
 #: Never stored, never accepted as an argument, never logged. The test
 #: `test_no_function_here_accepts_a_credential` reads this list and checks every
@@ -64,101 +66,9 @@ FORBIDDEN_FIELDS = (
 )
 
 
-@dataclass(frozen=True)
-class Platform:
-    """One place a person can sign in to, and how to tell whether they have.
-
-    The signals are **accessible names**, not CSS selectors, for the reason
-    `perceive.py` gives at length: a class name changes on the next deploy and a
-    button still says "Sign in". They are matched case-insensitively against the
-    page's accessibility tree.
-    """
-
-    id: str
-    label: str
-    #: Where a person goes to sign in. Opened for them; never submitted by us.
-    login_url: str
-    #: A page that looks different depending on whether they are signed in.
-    home_url: str
-    #: Names that appear **only** when signed in.
-    signed_in: tuple[str, ...]
-    #: Names that appear **only** when signed out. These win ties.
-    signed_out: tuple[str, ...]
-    note: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "login_url": self.login_url,
-            "home_url": self.home_url,
-            "note": self.note,
-        }
-
-
-#: The six the owner named. LinkedIn is first because Q-03 chose it: it is the
-#: one with no usable CRM API, so the browser is necessary there rather than
-#: merely convenient.
-PLATFORMS: dict[str, Platform] = {
-    platform.id: platform
-    for platform in (
-        Platform(
-            id="linkedin",
-            label="LinkedIn",
-            login_url="https://www.linkedin.com/login",
-            home_url="https://www.linkedin.com/feed/",
-            signed_in=("my network", "messaging", "start a post", "my items"),
-            signed_out=("sign in", "join now", "new to linkedin"),
-            note=(
-                "Attended only. The agent may read as you when you ask it to and "
-                "never on a schedule — see `policy.py`. Automated collection "
-                "breaches the User Agreement and the penalty falls on your account."
-            ),
-        ),
-        Platform(
-            id="instagram",
-            label="Instagram",
-            login_url="https://www.instagram.com/accounts/login/",
-            home_url="https://www.instagram.com/",
-            signed_in=("home", "new post", "profile", "direct"),
-            signed_out=("log in", "sign up", "forgot password"),
-            note="The Business Discovery API is the supported route for competitor data.",
-        ),
-        Platform(
-            id="facebook",
-            label="Facebook",
-            login_url="https://www.facebook.com/login/",
-            home_url="https://www.facebook.com/",
-            signed_in=("your profile", "create", "notifications"),
-            signed_out=("log in", "create new account", "forgotten password"),
-        ),
-        Platform(
-            id="youtube",
-            label="YouTube",
-            login_url="https://accounts.google.com/ServiceLogin?service=youtube",
-            home_url="https://www.youtube.com/",
-            signed_in=("account menu", "create", "subscriptions"),
-            signed_out=("sign in",),
-            note="The Data API serves public data properly. Drive the site only for what it does not expose.",
-        ),
-        Platform(
-            id="x",
-            label="X",
-            login_url="https://x.com/i/flow/login",
-            home_url="https://x.com/home",
-            signed_in=("post", "home timeline", "account menu"),
-            signed_out=("sign in", "create account"),
-        ),
-        Platform(
-            id="tiktok",
-            label="TikTok",
-            login_url="https://www.tiktok.com/login",
-            home_url="https://www.tiktok.com/foryou",
-            signed_in=("upload", "inbox", "profile"),
-            signed_out=("log in", "sign up"),
-        ),
-    )
-}
+#: One validated source of truth. Sign-in signals, browser policy and account
+#: budget all consume these same rows; this module owns only connection state.
+PLATFORMS: dict[str, Platform] = load_platforms()
 
 
 class UnknownPlatform(ValueError):
@@ -166,12 +76,10 @@ class UnknownPlatform(ValueError):
 
 
 def platform(platform_id: str) -> Platform:
-    key = str(platform_id or "").strip().lower()
-    if key not in PLATFORMS:
-        raise UnknownPlatform(
-            f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(PLATFORMS))}."
-        )
-    return PLATFORMS[key]
+    try:
+        return resolve_platform(platform_id, PLATFORMS)
+    except PlatformRegistryError as exc:
+        raise UnknownPlatform(str(exc)) from exc
 
 
 def _now() -> str:
@@ -386,19 +294,19 @@ class ConnectionStore:
     def all(self, workspace_id: str) -> list[Connection]:
         """Every account in the workspace, plus every platform with none.
 
-        The built-in platforms always appear even when nothing is connected,
+        Declared platforms always appear even when nothing is connected,
         because a catalogue that hides what you have *not* done is a catalogue
         that cannot be used to decide what to do next.
         """
         found: list[Connection] = []
         seen: set[str] = set()
-        for platform in sorted(PLATFORMS):
-            connected = self.accounts(workspace_id, platform)
+        for platform_id in sorted(PLATFORMS):
+            connected = self.accounts(workspace_id, platform_id)
             if connected:
                 found.extend(connected)
                 seen.update(row.account for row in connected)
             else:
-                found.append(self.get(workspace_id, platform))
+                found.append(self.get(workspace_id, platform_id))
         # Accounts on platforms that are no longer declared still belong to the
         # owner and must not vanish from their own record.
         for key in sorted(self._document().get(str(workspace_id), {})):

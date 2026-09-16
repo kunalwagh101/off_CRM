@@ -57,16 +57,19 @@ jobs:
         run: uv run pytest tests/test_agent_page_read_cache.py -q
       - name: Run Python tests
         run: uv run pytest -q
-      # The board verifier is standard-library-only, but the evidence commands
-      # it re-runs are not: they invoke `python -m pytest`. Running the verifier
-      # through uv keeps those child processes inside the same locked environment
-      # that was just tested instead of accidentally resolving the runner's bare
-      # system Python.
-      - name: Verify the board against the repository
-        run: uv run python scripts/verify_board.py
+      # DONE-story evidence is replayed from a clean checkout. Some evidence
+      # commands include frontend tests, so install the locked frontend tree
+      # before invoking the board verifier rather than relying on a prior job or
+      # a developer's node_modules directory.
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+      # The board verifier itself is standard-library-only, but the evidence
+      # commands it re-runs invoke Python and frontend test runners. Running it
+      # through uv keeps Python children inside the same locked environment; the
+      # npm install above makes mixed Python/frontend evidence reproducible too.
+      - name: Verify the board against the repository
+        run: uv run python scripts/verify_board.py
       - name: Run frontend tests
         working-directory: frontend
         run: npm test

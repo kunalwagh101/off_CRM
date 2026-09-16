@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -77,7 +79,7 @@ MAX_CAPTURES = 32
 MAX_CONSECUTIVE_FAILURES = 3
 
 #: Steps without progress before a run is called stalled, and arrivals back at
-#: one page without progress before it is called looping.
+#: one page without progress before a run is called looping.
 #:
 #: Both are ceilings on *wasted* steps, never on work: a step that produced
 #: something new resets them. Ten is chosen against the longest legitimate
@@ -214,6 +216,13 @@ class ResumeState:
     #: without bound. Raising it is the owner's decision and has to be made on
     #: purpose: `resume(spend_ceiling_usd=...)`.
     spend_ceiling_usd: float = 0.0
+    #: Elapsed wall time is the other per-run resource budget.  `S-06.02.03`
+    #:
+    #: Wall time rather than process CPU time is deliberate: provider waits,
+    #: browser waits and process downtime are all latency the owner experiences.
+    #: The original start survives a process restart, so resume cannot reset it.
+    latency_ceiling_seconds: float = 0.0
+    latency_started_at: float = 0.0
 
     @property
     def steps_remaining(self) -> int:
@@ -227,7 +236,8 @@ def replay(trace: Trace) -> ResumeState:
     without one cannot say what the run was for — and guessing a goal is a
     worse failure than refusing to resume.
     """
-    started = next((step for step in trace.read() if step.kind == "run_started"), None)
+    steps = trace.read()
+    started = next((step for step in steps if step.kind == "run_started"), None)
     if started is None:
         raise RunRefused(
             f"Trace {trace.run_id} has no run_started step, so there is no goal "
@@ -235,7 +245,7 @@ def replay(trace: Trace) -> ResumeState:
         )
     try:
         parameters = json.loads(trace.captured_text(started) or "{}")
-    except ValueError:
+    except (OSError, UnicodeError, ValueError):
         parameters = {}
     goal = str(parameters.get("goal") or "")
     if not goal:
@@ -244,6 +254,10 @@ def replay(trace: Trace) -> ResumeState:
             "cannot be resumed. Start a new run instead."
         )
 
+    spend_ceiling_usd = float(parameters.get("spend_ceiling_usd") or 0.0)
+    latency_ceiling_seconds = float(parameters.get("latency_ceiling_seconds") or 0.0)
+    latency_started_at = float(parameters.get("latency_started_at") or 0.0)
+
     findings: dict[str, Finding] = {}
     decisions = actions = 0
     visited: set[str] = set()
@@ -251,7 +265,23 @@ def replay(trace: Trace) -> ResumeState:
     failed: set[str] = set()
     last_url = str(started.url or "")
 
-    for step in trace.read():
+    for step in steps:
+        if step.kind == "run_continued":
+            # A ceiling explicitly raised on resume is itself durable. Reading
+            # only `run_started` resurrects the old lower value after a second
+            # process death, which turns a persisted budget into session state.
+            try:
+                continued = json.loads(trace.captured_text(step) or "{}")
+            except (OSError, UnicodeError, ValueError):
+                continued = {}
+            if "spend_ceiling_usd" in continued:
+                spend_ceiling_usd = float(continued.get("spend_ceiling_usd") or 0.0)
+            if "latency_ceiling_seconds" in continued:
+                latency_ceiling_seconds = float(
+                    continued.get("latency_ceiling_seconds") or 0.0
+                )
+            if not latency_started_at and continued.get("latency_started_at"):
+                latency_started_at = float(continued["latency_started_at"])
         if step.url:
             last_url = step.url
             visited.add(canonical_page_url(step.url))
@@ -278,7 +308,9 @@ def replay(trace: Trace) -> ResumeState:
     return ResumeState(
         goal=goal,
         step_budget=int(parameters.get("step_budget") or MAX_RUN_STEPS),
-        spend_ceiling_usd=float(parameters.get("spend_ceiling_usd") or 0.0),
+        spend_ceiling_usd=spend_ceiling_usd,
+        latency_ceiling_seconds=latency_ceiling_seconds,
+        latency_started_at=latency_started_at,
         schema_fields=tuple(str(f) for f in (parameters.get("result_schema") or ())),
         findings=findings,
         decisions=decisions,
@@ -521,6 +553,9 @@ class RunOutcome:
     estimate: "RunEstimate | None" = None
     #: What the run was allowed to spend. Zero means it was not capped.  `S-11.01.04`
     spend_ceiling_usd: float = 0.0
+    #: Wall-clock latency budget and observed elapsed time.  `S-06.02.03`
+    latency_ceiling_seconds: float = 0.0
+    elapsed_seconds: float = 0.0
 
     @property
     def headroom_usd(self) -> float:
@@ -539,6 +574,13 @@ class RunOutcome:
         if self.estimate is None:
             return 0.0
         return self.spend_usd - self.estimate.projected_cost_usd
+
+    @property
+    def latency_headroom_seconds(self) -> float:
+        """Seconds left; negative means an in-flight call crossed the ceiling."""
+        if self.latency_ceiling_seconds <= 0:
+            return 0.0
+        return self.latency_ceiling_seconds - self.elapsed_seconds
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -567,6 +609,9 @@ class RunOutcome:
             "spend_ceiling_usd": round(self.spend_ceiling_usd, 8),
             "headroom_usd": round(self.headroom_usd, 8),
             "estimate_error_usd": round(self.estimate_error, 8),
+            "latency_ceiling_seconds": round(self.latency_ceiling_seconds, 6),
+            "elapsed_seconds": round(self.elapsed_seconds, 6),
+            "latency_headroom_seconds": round(self.latency_headroom_seconds, 6),
         }
 
 
@@ -582,6 +627,7 @@ class AgentRun:
         trace: Trace,
         decision_data_class: DataClass = DataClass.INTERNAL,
         planner_provider_id: str = "",
+        clock: "Callable[[], float] | None" = None,
     ) -> None:
         self.broker = broker
         self.settings = settings
@@ -590,6 +636,11 @@ class AgentRun:
         self.decision_data_class = decision_data_class
         self.planner_provider_id = str(planner_provider_id or "").strip()
         self.plan: RunPlan | None = None
+        # Wall clock, not monotonic, because a latency budget has to survive a
+        # process restart. Tests inject a deterministic clock; production uses
+        # epoch time and therefore counts provider waits, browser waits and
+        # process downtime equally.  `S-06.02.03`
+        self._clock: Callable[[], float] = clock or time.time
 
     async def run(
         self,
@@ -600,6 +651,7 @@ class AgentRun:
         resume_from: "ResumeState | None" = None,
         on_progress: "Callable[[Progress], None] | None" = None,
         spend_ceiling_usd: float = 0.0,
+        latency_ceiling_seconds: float = 0.0,
     ) -> RunOutcome:
         """Pursue `goal` for at most `step_budget` steps.
 
@@ -607,11 +659,18 @@ class AgentRun:
         *before* each decision is asked for, so the ceiling is never crossed
         rather than noticed afterwards; zero means no ceiling.  `S-11.01.04`
 
+        `latency_ceiling_seconds` caps wall-clock elapsed time for the whole
+        logical run, including provider/browser waits and process downtime. An
+        in-flight synchronous provider/browser call cannot be un-done, so the
+        host stops at the first safe boundary after it returns and starts no
+        further action. Zero means no latency ceiling.  `S-06.02.03`
+
         `on_progress` is called with each step as it is recorded, so a run can
         be watched while it happens rather than read about once it is over —
         `agent.console()` is a ready-made one.  `S-11.04.02`
         """
         cleaned_goal, budget = _validate_start(goal, step_budget)
+        latency_ceiling = _validate_latency_budget(latency_ceiling_seconds)
         schema = coerce_result_schema(result_schema)
         # Attached for the length of this run and put back afterwards, so a
         # watcher cannot outlive the thing it was watching.  `S-11.04.02`
@@ -620,7 +679,12 @@ class AgentRun:
             self.trace.listener = observer(self.trace, on_progress)
         try:
             return await self._drive(
-                cleaned_goal, budget, schema, resume_from, spend_ceiling_usd,
+                cleaned_goal,
+                budget,
+                schema,
+                resume_from,
+                spend_ceiling_usd,
+                latency_ceiling,
             )
         finally:
             self.trace.listener = previous_listener
@@ -632,7 +696,16 @@ class AgentRun:
         schema: "ResultSchema | None",
         resume_from: "ResumeState | None",
         spend_ceiling_usd: float = 0.0,
+        latency_ceiling_seconds: float = 0.0,
     ) -> RunOutcome:
+        # Set before any planner/page work. The original wall-clock origin is
+        # carried through resume so killing the process cannot buy more latency.
+        self._latency_ceiling_seconds = float(latency_ceiling_seconds)
+        self._latency_started_at = (
+            float(resume_from.latency_started_at)
+            if resume_from is not None and resume_from.latency_started_at > 0
+            else float(self._clock())
+        )
         # Set before the loop and read by `_outcome`, so every ending carries
         # what the run was expected to cost next to what it did.  `S-06.01.03`
         self._estimate: RunEstimate | None = None
@@ -707,6 +780,10 @@ class AgentRun:
                     "is already above that ceiling, so this run is expected to "
                     "stop short; "
                 )
+        latency_note = (
+            f"latency_ceiling={latency_ceiling_seconds:.3f}s; "
+            if latency_ceiling_seconds > 0 else ""
+        )
 
         schema_note = f"; result_schema={list(schema.fields)!r}" if schema else ""
         if resume_from is not None:
@@ -731,7 +808,7 @@ class AgentRun:
                 detail=(
                     f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}; "
                     f"plan={PLAN_FILENAME} sha256={plan_snapshot.digest[:16]}; "
-                    f"{ceiling_note}estimate={estimate.describe()}"
+                    f"{ceiling_note}{latency_note}estimate={estimate.describe()}"
                 ),
                 url=self.page.url,
             ),
@@ -745,6 +822,8 @@ class AgentRun:
                 "result_schema": list(schema.fields) if schema else [],
                 "estimate": estimate.to_dict(),
                 "spend_ceiling_usd": round(float(spend_ceiling_usd), 8),
+                "latency_ceiling_seconds": round(float(latency_ceiling_seconds), 6),
+                "latency_started_at": round(float(self._latency_started_at), 6),
             }),
         )
 
@@ -759,6 +838,13 @@ class AgentRun:
         last_plan_digest = plan_snapshot.digest
 
         for index in range(budget):
+            # Check before even touching the browser. A resumed run whose wall
+            # clock already expired must not get one free snapshot/action.
+            if self._latency_exceeded():
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected
+                )
+
             snapshot = await self.page.snapshot()
             # Read immediately before the model call. There is deliberately no
             # long-lived cached plan: an owner save between steps is steering.
@@ -796,6 +882,13 @@ class AgentRun:
             if wall is not None:
                 return self._needs_human(
                     wall, cleaned_goal, budget, decisions, actions, schema, collected,
+                )
+
+            # Snapshot/plan/wall work also consumes user-observed latency. Stop
+            # before another paid/model decision if that local work used the rest.
+            if self._latency_exceeded():
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected
                 )
 
             # Checked before the decision is asked for, so the ceiling is never
@@ -845,6 +938,31 @@ class AgentRun:
             decisions += 1
             tokens_in, tokens_out, estimated_cost = self._measure(instructions, result)
             decision_costs.append(estimated_cost)
+
+            # A synchronous provider call cannot be interrupted by this loop.
+            # Once it returns, however, the proposed action is not allowed to
+            # start if the deadline elapsed while the model was thinking.
+            if self._latency_exceeded():
+                self.trace.append(
+                    Step(
+                        kind="decision",
+                        detail=(
+                            "model response arrived after the latency ceiling; "
+                            "the response was not acted on"
+                        ),
+                        url=snapshot.url,
+                        ok=False,
+                        took_ms=result.duration_ms,
+                        provider_id=result.provider_id,
+                        model_id=result.model_id,
+                        tokens_in=tokens_in,
+                        tokens_out=tokens_out,
+                        estimated_cost_usd=estimated_cost,
+                    )
+                )
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected
+                )
 
             try:
                 decision = Decision.parse(result.text)
@@ -1022,6 +1140,14 @@ class AgentRun:
                     pause = TRANSIENT_BACKOFF_SECONDS[
                         min(attempt, len(TRANSIENT_BACKOFF_SECONDS) - 1)
                     ]
+                    # Never deliberately sleep through an owner's deadline.
+                    if self._latency_exceeded() or (
+                        self._latency_ceiling_seconds > 0
+                        and self._elapsed_seconds() + pause >= self._latency_ceiling_seconds
+                    ):
+                        return self._over_latency(
+                            cleaned_goal, budget, decisions, actions, schema, collected
+                        )
                     # Recorded as a retry, not as a fresh attempt, so a trace
                     # cannot be read as the agent having tried three things.
                     self.trace.append(
@@ -1060,6 +1186,10 @@ class AgentRun:
                         ok=False,
                     )
                 )
+                if self._latency_exceeded():
+                    return self._over_latency(
+                        cleaned_goal, budget, decisions, actions, schema, collected
+                    )
                 if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                     return self._stuck(
                         cleaned_goal, budget, decisions, actions,
@@ -1214,6 +1344,13 @@ class AgentRun:
                 evidence_step=evidence_step,
                 evidence_error=evidence_error,
             )
+
+            # An action already in flight may finish after the deadline. Keep
+            # its trace/evidence intact, then stop before asking for anything else.
+            if self._latency_exceeded():
+                return self._over_latency(
+                    cleaned_goal, budget, decisions, actions, schema, collected
+                )
 
         message = (
             f"Step budget exhausted after {decisions} decision(s) and {actions} action(s). "
@@ -1561,7 +1698,12 @@ class AgentRun:
         )
         return tokens_in, tokens_out, cost
 
-    async def resume(self, *, spend_ceiling_usd: float | None = None) -> RunOutcome:
+    async def resume(
+        self,
+        *,
+        spend_ceiling_usd: float | None = None,
+        latency_ceiling_seconds: float | None = None,
+    ) -> RunOutcome:
         """Continue the run this agent's trace belongs to.  `S-11.01.03`
 
         Construct the agent with `Trace.open(root, run_id=...)` — the same run
@@ -1582,9 +1724,8 @@ class AgentRun:
         # `human_gate` is the other side of that coin and *is* final: there the
         # agent wanted to do something consequential and the owner has to decide
         # whether it happens at all, which is not a thing you resume into.
-        # `over_budget` is not here either, for the same reason `needs_human`
-        # is not: the owner raises the ceiling and the run carries on. It cost
-        # nothing to stop, so it costs nothing to stop again if they do not.
+        # `over_budget` and `over_latency` stay resumable: the owner can
+        # explicitly raise the relevant ceiling and carry on from the same trace.
         ended = {
             "completed", "budget_exhausted", "stuck", "looping", "stalled",
             "incomplete", "human_gate",
@@ -1613,6 +1754,54 @@ class AgentRun:
                 state.spend_ceiling_usd if spend_ceiling_usd is None
                 else float(spend_ceiling_usd)
             ),
+            latency_ceiling_seconds=(
+                state.latency_ceiling_seconds if latency_ceiling_seconds is None
+                else _validate_latency_budget(latency_ceiling_seconds)
+            ),
+        )
+
+    def _elapsed_seconds(self) -> float:
+        started = float(getattr(self, "_latency_started_at", 0.0) or 0.0)
+        if started <= 0:
+            return 0.0
+        return max(0.0, float(self._clock()) - started)
+
+    def _latency_exceeded(self) -> bool:
+        ceiling = float(getattr(self, "_latency_ceiling_seconds", 0.0) or 0.0)
+        return ceiling > 0 and self._elapsed_seconds() >= ceiling
+
+    def _over_latency(
+        self,
+        goal: str,
+        budget: int,
+        decisions: int,
+        actions: int,
+        schema: "ResultSchema | None",
+        collected: "Mapping[str, Finding]",
+    ) -> RunOutcome:
+        """Stop at the first safe host boundary after the wall-clock ceiling."""
+        ceiling = float(self._latency_ceiling_seconds)
+        elapsed = self._elapsed_seconds()
+        overrun = max(0.0, elapsed - ceiling)
+        message = (
+            f"Stopped at the latency ceiling. {elapsed:.3f}s elapsed against "
+            f"{ceiling:.3f}s (overrun {overrun:.3f}s). No further model decision "
+            "or browser action was started. Resume with a higher latency ceiling "
+            "to carry on from the same run."
+        )
+        self.trace.append(
+            Step(kind="over_latency", detail=message, url=self.page.url, ok=False),
+            captured_text=json.dumps({
+                "ceiling_seconds": round(ceiling, 6),
+                "elapsed_seconds": round(elapsed, 6),
+                "overrun_seconds": round(overrun, 6),
+                "decisions": decisions,
+                "actions": actions,
+            }),
+        )
+        return self._outcome(
+            "over_latency", goal, budget, decisions, actions, message,
+            schema=schema, findings=collected,
         )
 
     def _over_budget(
@@ -1873,6 +2062,8 @@ class AgentRun:
             trace_summary=self.trace.summary(),
             estimate=getattr(self, "_estimate", None),
             spend_ceiling_usd=getattr(self, "_spend_ceiling_usd", 0.0),
+            latency_ceiling_seconds=getattr(self, "_latency_ceiling_seconds", 0.0),
+            elapsed_seconds=self._elapsed_seconds(),
         )
 
 
@@ -1905,6 +2096,20 @@ def _validate_start(goal: str, step_budget: int) -> tuple[str, int]:
     if budget < 1 or budget > MAX_RUN_STEPS:
         raise RunRefused(f"Step budget must be between 1 and {MAX_RUN_STEPS}.")
     return cleaned, budget
+
+
+def _validate_latency_budget(value: object) -> float:
+    if isinstance(value, bool):
+        raise RunRefused("Latency budget must be a finite number of seconds at or above zero.")
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError) as exc:
+        raise RunRefused(
+            "Latency budget must be a finite number of seconds at or above zero."
+        ) from exc
+    if not math.isfinite(seconds) or seconds < 0:
+        raise RunRefused("Latency budget must be a finite number of seconds at or above zero.")
+    return seconds
 
 
 def _decision_input(

@@ -275,4 +275,4 @@ def test_invalid_latency_ceiling_is_refused_before_the_run_starts(tmp_path, bad)
         asyncio.run(agent.run("find it", step_budget=10, latency_ceiling_ms=bad))
 
     assert broker.calls == 0
-    assert trace.read() == []
+    assert list(trace.read()) == []

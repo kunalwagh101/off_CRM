@@ -434,7 +434,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   commit: 91c7cb2
 
 - S-03.02.04 · Several accounts per platform, each with its own budget
-  tests: tests/test_browser_budget.py::test_spending_one_account_does_not_spend_the_other, tests/test_browser_budget.py::test_real_browser_stops_when_the_account_is_spent, tests/test_browser_budget.py::test_looking_costs_nothing_and_acting_costs_one, tests/test_browser_budget.py::test_a_record_written_before_accounts_existed_still_reads
+  tests: tests/test_browser_budget.py, tests/test_browser_agent.py, tests/test_browser_signin.py
   command: python scripts/run_evidence.py S-03.02.04
   result: 81 passed (2026-09-06)
   code: offsetx_apollo_builder/browser/budget.py, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/page.py, offsetx_apollo_builder/browser/signin.py
@@ -510,7 +510,7 @@ the pull-before-code process.*
   commit: 24d7425
 
 - S-08.01.03 · Authenticated SES lanes carry bulk mail
-  tests: tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence, tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one-click_headers
+  tests: tests/test_email_delivery.py::test_domain_auth_uses_dns_and_ses_identity_evidence, tests/test_email_delivery.py::test_ses_provider_builds_raw_mime_with_one_click_headers
   command: python scripts/run_evidence.py S-08.01.03
   historical_result: 2 passed (2026-08-27)
   result: Reverified in combined core CI at 24d7425 (2026-09-10): recorded tests passed within 1717 Python and 116 frontend passes; no core-suite skips. PR #14 retains the run and separate open audit findings.

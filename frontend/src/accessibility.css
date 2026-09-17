@@ -1,0 +1,41 @@
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  transform: translateY(-180%);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: white;
+  background: var(--navy);
+  font-size: .78rem;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.loading-status {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.campaign-switcher select:focus-visible,
+.search-box input:focus-visible {
+  outline: 2.5px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+#main-content:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}

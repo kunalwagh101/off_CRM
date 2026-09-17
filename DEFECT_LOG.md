@@ -81,6 +81,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-47 | 2026-09-16 | security | medium | The frontend development dependency tree reports four audit findings, including a high-severity nanoid advisory; the production tree reports zero | open · `S-06.02.16` |
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | open · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
+| D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
 
 ---
 

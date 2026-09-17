@@ -82,6 +82,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-51 | 2026-09-17 | security | critical | The egress scanner checked the constructed user payload but not the separate `system_prompt`, so a credential in system instructions could reach a model provider | fixed on feature branch · `S-06.02.01`, awaiting verification/merge |
+| D-52 | 2026-09-17 | process | high | GitHub Actions jobs fail before any runner is assigned (`runner_id: 0`, zero steps), including on the unchanged base commit, so CI cannot execute | open · `S-06.01.05` |
 
 ---
 
@@ -387,7 +389,7 @@ still raising "cannot start a transaction within a transaction", which did not
 fit the explanation in my head.
 
 **Why it mattered.** Shipping it would have put a lock around the symptom and
-left the cause in place, and the next person would have had no reason to look.
+left the cause in place, and the next person would have no reason to look.
 
 ### D-20 — Every API route was open on a local install · 2026-09-09
 

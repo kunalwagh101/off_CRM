@@ -41,6 +41,22 @@ def pull() -> None:
     )
     write("BOARD.md", board)
 
+    defects = read("DEFECT_LOG.md")
+    d50 = (
+        "| D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper "
+        "contained an uncompiled nested string and failed before pulling the story | "
+        "fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |"
+    )
+    if "| D-50 |" not in defects:
+        anchor = (
+            "| D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a "
+            "`.github/workflows/` change with a contents-only token and GitHub rejected the "
+            "otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay "
+            "outside Actions |"
+        )
+        defects = replace_once(defects, anchor, anchor + "\n" + d50, label="log D-50")
+        write("DEFECT_LOG.md", defects)
+
 
 def implement() -> None:
     verifier = read("scripts/verify_board.py")
@@ -64,15 +80,15 @@ def implement() -> None:
 
 def _done_on_board(board: str, identifier: str) -> str:
     """Put a second story in DONE with the minimum truthful evidence fixture."""
-    block = f'''## DONE
+    block = f"""## DONE
 
 - {identifier} · Another thing
   tests: src/mod.py
-  command: uv run python -c "pass"
+  command: uv run python -c \"pass\"
   result: 1 passed (fixture)
   code: src/mod.py
 
-'''
+"""
     return board.replace("## DONE\n", block, 1)
 
 

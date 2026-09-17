@@ -12,7 +12,8 @@ Order of operations, and the order matters:
    cheap model can never win a task it is not allowed to see.
 2. **Quota filter.** Providers with no budget left are skipped, not called.
 3. **Payload construction.** Built from empty against the resolved policy.
-4. **Pre-flight scan.** A hit blocks the call and raises.
+4. **Pre-flight scan.** Every provider-bound text surface is scanned. A hit
+   blocks the call and raises before an adapter is instantiated.
 5. **Call and log.** Every attempt is recorded with what was sent.
 
 Failover walks the remaining candidates *within the same trust tier only*.  A
@@ -539,6 +540,34 @@ class EgressBroker:
             f"{failure.kind.value})"
         )
 
+    @staticmethod
+    def _merge_text_scan(
+        report: Any,
+        *,
+        fields: Mapping[str, str],
+        candidate: ResolvedProvider,
+        settings: WorkspaceEgressSettings,
+    ) -> None:
+        """Scan text that leaves beside the allowlisted JSON payload.
+
+        Chat providers receive a separate system prompt, and transcription APIs
+        receive filename/language/media metadata. Those strings cross the same
+        trust boundary as the JSON body, so scanning only ``build_payload`` is a
+        partial wall. Findings are merged into the existing report so the same
+        fail-closed logging and error path handles every surface.
+        """
+        extra = {key: str(value) for key, value in fields.items() if str(value or "")}
+        if not extra:
+            return
+        extra_report = scan_payload(
+            extra,
+            policy=candidate.policy,
+            owner_domains=settings.owner_domains,
+            owner_addresses=settings.owner_addresses,
+            allow_addresses=candidate.policy is DataPolicy.FULL,
+        )
+        report.findings.extend(extra_report.findings)
+
     # ── the gate ────────────────────────────────────────────────────────────
 
     def call(
@@ -602,13 +631,21 @@ class EgressBroker:
                 abstract_shape=settings.abstract_business_shape,
             )
 
-            # 4. Scan — block and alert, never silently redact.
+            # 4. Scan — block and alert, never silently redact. The system
+            # prompt is a separate provider-bound string and must pass the same
+            # wall as the JSON user payload (D-51 / S-06.02.01).
             report = scan_payload(
                 payload,
                 policy=candidate.policy,
                 owner_domains=settings.owner_domains,
                 owner_addresses=settings.owner_addresses,
                 allow_addresses=candidate.policy is DataPolicy.FULL,
+            )
+            self._merge_text_scan(
+                report,
+                fields={"system_prompt": system_prompt},
+                candidate=candidate,
+                settings=settings,
             )
             if not report.clean:
                 self._log(
@@ -626,7 +663,7 @@ class EgressBroker:
                     (
                         f"Blocked before sending to {candidate.name}. "
                         f"{report.findings[0].detail} "
-                        "Nothing was sent. This is a payload-construction bug worth fixing, "
+                        "Nothing was sent. This is an egress-construction bug worth fixing, "
                         "not something to redact and retry."
                     ),
                     findings=[item.to_dict() for item in report.findings],
@@ -966,9 +1003,9 @@ class EgressBroker:
           audio, because the check that would have caught it cannot run.
         - The tier filter still applies in full, so a recording only reaches a
           provider already trusted with that class of material as text.
-        - The **text** part of the request — a language hint, a vocabulary
-          prompt — is still built from the allowlist and still scanned, because
-          that part is scannable and there is no reason to lower it.
+        - Every textual part of the request that leaves beside the waveform —
+          vocabulary prompt, filename, media type and language — is scanned
+          before an adapter is instantiated.
 
         The audio never enters the egress log; its size and the word count do.
         The log exists to record what left, and a log holding the recordings
@@ -1011,6 +1048,16 @@ class EgressBroker:
                 owner_domains=settings.owner_domains,
                 owner_addresses=settings.owner_addresses,
                 allow_addresses=candidate.policy is DataPolicy.FULL,
+            )
+            self._merge_text_scan(
+                report,
+                fields={
+                    "filename": filename,
+                    "media_type": media_type,
+                    "language": language,
+                },
+                candidate=candidate,
+                settings=settings,
             )
             if not report.clean:
                 self._log(

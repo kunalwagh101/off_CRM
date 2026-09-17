@@ -12,7 +12,8 @@ Order of operations, and the order matters:
    cheap model can never win a task it is not allowed to see.
 2. **Quota filter.** Providers with no budget left are skipped, not called.
 3. **Payload construction.** Built from empty against the resolved policy.
-4. **Pre-flight scan.** A hit blocks the call and raises.
+4. **Pre-flight scan.** The payload and every other provider-bound text field
+   are scanned. A hit blocks the call and raises before a provider exists.
 5. **Call and log.** Every attempt is recorded with what was sent.
 
 Failover walks the remaining candidates *within the same trust tier only*.  A
@@ -539,6 +540,74 @@ class EgressBroker:
             f"{failure.kind.value})"
         )
 
+    def _preflight(
+        self,
+        *,
+        settings: WorkspaceEgressSettings,
+        candidate: ResolvedProvider,
+        request: EgressRequest,
+        payload: dict[str, Any],
+        provider_text: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Scan everything textual that will cross the provider boundary.
+
+        Payload construction is the primary control, but not every adapter field
+        lives inside that payload. Chat has a separate system prompt;
+        transcription has filename/media-type/language metadata. Those used to
+        bypass the scanner entirely. Keeping the scan here, beside the only
+        provider gate, means a new outbound method has one invariant to satisfy:
+        call ``_preflight`` before ``_instantiate``.
+
+        Provider credentials are deliberately *not* included: the API key must
+        reach the provider transport as authentication. The guarantee is that it
+        never enters model-visible prompt or request content.
+        """
+        reports = [
+            scan_payload(
+                payload,
+                policy=candidate.policy,
+                owner_domains=settings.owner_domains,
+                owner_addresses=settings.owner_addresses,
+                allow_addresses=candidate.policy is DataPolicy.FULL,
+            )
+        ]
+        if provider_text:
+            reports.append(
+                scan_payload(
+                    dict(provider_text),
+                    policy=candidate.policy,
+                    owner_domains=settings.owner_domains,
+                    owner_addresses=settings.owner_addresses,
+                    allow_addresses=candidate.policy is DataPolicy.FULL,
+                )
+            )
+
+        findings = [finding for report in reports for finding in report.findings]
+        if not findings:
+            return
+
+        finding_dicts = [item.to_dict() for item in findings]
+        kinds = sorted({item.kind for item in findings})
+        self._log(
+            settings=settings,
+            candidate=candidate,
+            request=request,
+            payload=payload,
+            status="blocked",
+            error=f"Blocked: {', '.join(kinds)}",
+            findings=finding_dicts,
+            duration_ms=0,
+            response_text="",
+        )
+        raise EgressBlocked(
+            (
+                f"Blocked before sending to {candidate.name}. {findings[0].detail} "
+                "Nothing was sent. This is an egress-construction bug worth fixing, "
+                "not something to redact and retry."
+            ),
+            findings=finding_dicts,
+        )
+
     # ── the gate ────────────────────────────────────────────────────────────
 
     def call(
@@ -602,35 +671,15 @@ class EgressBroker:
                 abstract_shape=settings.abstract_business_shape,
             )
 
-            # 4. Scan — block and alert, never silently redact.
-            report = scan_payload(
-                payload,
-                policy=candidate.policy,
-                owner_domains=settings.owner_domains,
-                owner_addresses=settings.owner_addresses,
-                allow_addresses=candidate.policy is DataPolicy.FULL,
+            # 4. Scan every provider-visible text field, not only the user
+            # payload. A system prompt is just as visible to the model.
+            self._preflight(
+                settings=settings,
+                candidate=candidate,
+                request=request,
+                payload=payload,
+                provider_text={"system_prompt": system_prompt},
             )
-            if not report.clean:
-                self._log(
-                    settings=settings,
-                    candidate=candidate,
-                    request=request,
-                    payload=payload,
-                    status="blocked",
-                    error=report.summary(),
-                    findings=[item.to_dict() for item in report.findings],
-                    duration_ms=0,
-                    response_text="",
-                )
-                raise EgressBlocked(
-                    (
-                        f"Blocked before sending to {candidate.name}. "
-                        f"{report.findings[0].detail} "
-                        "Nothing was sent. This is a payload-construction bug worth fixing, "
-                        "not something to redact and retry."
-                    ),
-                    findings=[item.to_dict() for item in report.findings],
-                )
 
             # 4b. Cache. Deliberately after construction and scanning: the
             # payload is the cache key, so it has to be built first, and a hit
@@ -854,32 +903,17 @@ class EgressBroker:
                 candidate.policy,
                 abstract_shape=settings.abstract_business_shape,
             )
-            report = scan_payload(
-                payload,
-                policy=candidate.policy,
-                owner_domains=settings.owner_domains,
-                owner_addresses=settings.owner_addresses,
-                allow_addresses=candidate.policy is DataPolicy.FULL,
+            self._preflight(
+                settings=settings,
+                candidate=candidate,
+                request=request,
+                payload=payload,
             )
-            if not report.clean:
-                self._log(
-                    settings=settings,
-                    candidate=candidate,
-                    request=request,
-                    payload=payload,
-                    status="blocked",
-                    error=report.summary(),
-                    findings=[item.to_dict() for item in report.findings],
-                    duration_ms=0,
-                    response_text="",
-                )
-                raise EgressBlocked(
-                    f"Blocked before sending to {candidate.name}. {report.findings[0].detail} "
-                    "Nothing was sent.",
-                    findings=[item.to_dict() for item in report.findings],
-                )
 
-            prompt = str(payload.get("instructions") or request.instructions or "").strip()
+            # Only use the value that survived allowlist construction and the
+            # pre-flight scan. Falling back to raw request.instructions would
+            # recreate an unscanned path if the payload builder ever omits it.
+            prompt = str(payload.get("instructions") or "").strip()
             started = time.monotonic()
             status = "succeeded"
             error = ""
@@ -966,9 +1000,10 @@ class EgressBroker:
           audio, because the check that would have caught it cannot run.
         - The tier filter still applies in full, so a recording only reaches a
           provider already trusted with that class of material as text.
-        - The **text** part of the request — a language hint, a vocabulary
-          prompt — is still built from the allowlist and still scanned, because
-          that part is scannable and there is no reason to lower it.
+        - The **text** part of the request — vocabulary prompt, filename,
+          media type and language hint — is still scanned. Provider metadata is
+          outbound data too; putting a secret in a multipart filename must not
+          become a side door around the prompt wall.
 
         The audio never enters the egress log; its size and the word count do.
         The log exists to record what left, and a log holding the recordings
@@ -1005,30 +1040,17 @@ class EgressBroker:
                 candidate.policy,
                 abstract_shape=settings.abstract_business_shape,
             )
-            report = scan_payload(
-                payload,
-                policy=candidate.policy,
-                owner_domains=settings.owner_domains,
-                owner_addresses=settings.owner_addresses,
-                allow_addresses=candidate.policy is DataPolicy.FULL,
+            self._preflight(
+                settings=settings,
+                candidate=candidate,
+                request=request,
+                payload=payload,
+                provider_text={
+                    "filename": filename,
+                    "media_type": media_type,
+                    "language": language,
+                },
             )
-            if not report.clean:
-                self._log(
-                    settings=settings,
-                    candidate=candidate,
-                    request=request,
-                    payload=payload,
-                    status="blocked",
-                    error=report.summary(),
-                    findings=[item.to_dict() for item in report.findings],
-                    duration_ms=0,
-                    response_text="",
-                )
-                raise EgressBlocked(
-                    f"Blocked before sending to {candidate.name}. "
-                    f"{report.findings[0].detail} Nothing was sent.",
-                    findings=[item.to_dict() for item in report.findings],
-                )
 
             hint = str(payload.get("instructions") or "").strip()
             started = time.monotonic()

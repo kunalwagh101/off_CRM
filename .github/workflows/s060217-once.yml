@@ -1,0 +1,87 @@
+name: s060217-done-dependency-integrity-once
+
+on:
+  push:
+    branches:
+      - feature/s-06-02-17-done-dependency-integrity
+    paths:
+      - .github/workflows/s060217-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  deliver:
+    if: github.event.head_commit.message == 'Run S-06.02.17 delivery'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/s-06-02-17-done-dependency-integrity
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Configure delivery identity
+        run: |
+          git config user.name "off-CRM delivery bot"
+          git config user.email "actions@users.noreply.github.com"
+      - name: Pull S-06.02.17 onto the board
+        run: |
+          uv run python scripts/s060217_once.py pull
+          git add BOARD.md
+          git commit -m "Pull S-06.02.17 DONE dependency integrity"
+          git push origin HEAD:feature/s-06-02-17-done-dependency-integrity
+      - name: Install locked evidence environments
+        run: |
+          uv sync --extra dev --extra email --locked
+          npm ci --prefix frontend
+      - name: Implement the invariant and acceptance tests
+        run: uv run python scripts/s060217_once.py implement
+      - name: Static validation
+        run: uv run ruff check --select E9,F63,F7,F82 scripts/verify_board.py tests/test_verify_board.py scripts/s060217_once.py
+      - name: Run focused acceptance evidence
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pytest tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails tests/test_verify_board.py::test_done_with_only_done_dependencies_passes -q | tee /tmp/s060217-focused.txt
+          summary="$(tail -n 1 /tmp/s060217-focused.txt)"
+          echo "FOCUSED_SUMMARY=$summary" >> "$GITHUB_ENV"
+      - name: Run verifier regression suite
+        run: uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q
+      - name: Run full Python regression
+        shell: bash
+        run: |
+          set -o pipefail
+          uv run pytest -q | tee /tmp/s060217-full.txt
+          summary="$(tail -n 1 /tmp/s060217-full.txt)"
+          echo "FULL_SUMMARY=$summary" >> "$GITHUB_ENV"
+      - name: Run frontend regression
+        working-directory: frontend
+        run: |
+          npm test
+          npm run build
+      - name: Commit tested implementation
+        run: |
+          git add scripts/verify_board.py tests/test_verify_board.py DEFINITION_OF_DONE.md CHANGELOG.md DEMO.md
+          git commit -m "Implement S-06.02.17 DONE dependency integrity"
+          git push origin HEAD:feature/s-06-02-17-done-dependency-integrity
+          echo "IMPLEMENTATION_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Close governance artifacts
+        run: uv run python scripts/s060217_once.py close "$IMPLEMENTATION_SHA" "$FOCUSED_SUMMARY" "$FULL_SUMMARY"
+      - name: Independent repository verifier
+        run: uv run python scripts/verify_board.py
+      - name: Remove one-shot Python transport
+        run: rm scripts/s060217_once.py
+      - name: Commit certified story state
+        run: |
+          git add -A
+          git commit -m "Certify S-06.02.17 delivery artifacts"
+          git push origin HEAD:feature/s-06-02-17-done-dependency-integrity

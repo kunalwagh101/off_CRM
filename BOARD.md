@@ -68,7 +68,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.17 · DONE may not depend on unfinished work
+_nothing in flight_
 
 ## IN_REVIEW
 
@@ -84,6 +84,14 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.17 · DONE may not depend on unfinished work
+  tests: tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails, tests/test_verify_board.py::test_done_with_only_done_dependencies_passes
+  command: uv run pytest tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails tests/test_verify_board.py::test_done_with_only_done_dependencies_passes -q
+  result: 7 passed in 0.57s; full Python regression 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19)
+  live: the acceptance fixture places the upstream story in BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED and the verifier refuses every impossible DONE chain while naming both story IDs and the upstream state; an all-DONE chain passes.
+  code: scripts/verify_board.py, tests/test_verify_board.py, DEFINITION_OF_DONE.md
+  commit: bafb973
 
 - S-06.02.08 · One runner for every evidence command
   tests: tests/test_verify_board.py::test_done_evidence_must_enter_the_locked_uv_runner, tests/test_ci_verifier_environment.py::test_ci_syncs_locked_python_evidence_dependencies_before_the_verifier, tests/test_ci_verifier_environment.py::test_clean_checkout_docs_prepare_both_evidence_environments_before_verification

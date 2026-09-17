@@ -857,3 +857,22 @@ safety.
 - **Cut:** nothing. Frontend evidence still executes npm inside a command that enters the locked project through `uv run`; the story standardises the environment boundary, not the JavaScript test framework.
 - **Estimate wrong:** the feature was small, but the repository exposed `D-47`/`D-48`, and the first tested delivery commit was rejected because an Actions token with contents write cannot update workflow files (`D-49`). The tested code was reproduced without that unnecessary workflow-comment mutation rather than weakening permissions.
 - **Next time:** delivery workflows must never assume `contents: write` includes `.github/workflows/`; keep workflow mutation and cleanup in the connector/API path, and add the failing process fact to the defect log immediately.
+
+---
+
+## 2026-09-17 — S-06.02.17, DONE dependency integrity
+
+**What was cut.** Nothing. The criterion names BACKLOG, READY and BLOCKED; the
+implementation intentionally covers every non-DONE column instead of maintaining
+a narrower list that could miss IN_PROGRESS, IN_REVIEW or DEFERRED later.
+
+**What the estimate got wrong.** The dependency parser and READY enforcement were
+already correct. The gap was smaller and more dangerous: the same parsed data was
+never applied to DONE. That let an impossible delivery history pass a green
+verifier even though all the information required to reject it was already present.
+
+**What to change next time.** When a process invariant is defined over a lifecycle,
+test the invariant across every state, not only the state that first exposed the
+bug. A checker should encode the invariant once and make new impossible states
+fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
+

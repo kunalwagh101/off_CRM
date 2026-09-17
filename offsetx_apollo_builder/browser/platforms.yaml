@@ -1,0 +1,125 @@
+version: 1
+
+platforms:
+  - id: linkedin
+    label: LinkedIn
+    login_url: https://www.linkedin.com/login
+    home_url: https://www.linkedin.com/feed/
+    signed_in: [my network, messaging, start a post, my items]
+    signed_out: [sign in, join now, new to linkedin]
+    note: >-
+      Attended only. The agent may read as you when you ask it to and never on
+      a schedule.
+    budget:
+      actions_per_hour: 30
+      actions_per_day: 120
+    domains:
+      - suffix: linkedin.com
+        min_seconds_between_actions: 6.0
+        unattended: false
+        refuse: [bulk_export]
+        confirm: [send, submit, connect]
+        note: >-
+          Your session and your account. Keep browser automation at reading
+          pace; bulk export is refused and consequential actions require the
+          existing human gate.
+
+  - id: instagram
+    label: Instagram
+    login_url: https://www.instagram.com/accounts/login/
+    home_url: https://www.instagram.com/
+    signed_in: [home, new post, profile, direct]
+    signed_out: [log in, sign up, forgot password]
+    note: The Business Discovery API is the supported route for competitor data.
+    budget:
+      actions_per_hour: 25
+      actions_per_day: 100
+    domains:
+      - suffix: instagram.com
+        min_seconds_between_actions: 5.0
+        unattended: false
+        confirm: [send, submit, publish]
+
+  - id: facebook
+    label: Facebook
+    login_url: https://www.facebook.com/login/
+    home_url: https://www.facebook.com/
+    signed_in: [your profile, create, notifications]
+    signed_out: [log in, create new account, forgotten password]
+    budget:
+      actions_per_hour: 25
+      actions_per_day: 100
+    domains:
+      - suffix: facebook.com
+        min_seconds_between_actions: 5.0
+        unattended: false
+        confirm: [send, submit, publish]
+
+  - id: youtube
+    label: YouTube
+    login_url: https://accounts.google.com/ServiceLogin?service=youtube
+    home_url: https://www.youtube.com/
+    signed_in: [account menu, create, subscriptions]
+    signed_out: [sign in]
+    note: The Data API serves public data properly. Drive the site only for gaps.
+    budget:
+      actions_per_hour: 60
+      actions_per_day: 400
+    domains:
+      - suffix: youtube.com
+        min_seconds_between_actions: 1.0
+        unattended: true
+        note: Prefer the Data API for public video and channel data.
+
+  - id: x
+    aliases: [twitter]
+    label: X
+    login_url: https://x.com/i/flow/login
+    home_url: https://x.com/home
+    signed_in: [post, home timeline, account menu]
+    signed_out: [sign in, create account]
+    budget:
+      actions_per_hour: 40
+      actions_per_day: 200
+    domains:
+      - suffix: x.com
+        min_seconds_between_actions: 4.0
+        unattended: false
+        confirm: [send, submit, publish]
+      - suffix: twitter.com
+        min_seconds_between_actions: 4.0
+        unattended: false
+        confirm: [send, submit, publish]
+
+  - id: tiktok
+    label: TikTok
+    login_url: https://www.tiktok.com/login
+    home_url: https://www.tiktok.com/foryou
+    signed_in: [upload, inbox, profile]
+    signed_out: [log in, sign up]
+    budget:
+      actions_per_hour: 25
+      actions_per_day: 100
+    domains:
+      - suffix: tiktok.com
+        min_seconds_between_actions: 5.0
+        unattended: false
+        confirm: [send, submit, publish]
+
+  - id: reddit
+    label: Reddit
+    login_url: https://www.reddit.com/login/
+    home_url: https://www.reddit.com/
+    signed_in: [create post, notifications, chat]
+    signed_out: [log in, sign up]
+    note: >-
+      Declared as data to prove platform coverage is extensible. Keep it
+      attended-only until an owner-approved automation policy says otherwise.
+    budget:
+      actions_per_hour: 40
+      actions_per_day: 200
+    domains:
+      - suffix: reddit.com
+        min_seconds_between_actions: 4.0
+        unattended: false
+        confirm: [send, submit, publish]

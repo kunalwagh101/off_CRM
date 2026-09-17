@@ -3,7 +3,7 @@
 
 Run it yourself:
 
-    python scripts/verify_board.py
+    uv run python scripts/verify_board.py
 
 **This exists because "done" is a claim, and a claim without a check is a
 sentence.** Everything here is recomputed from the repository — counts are
@@ -349,6 +349,21 @@ def check_ready(
                 report.fail(
                     f"{item.identifier} is READY but waits on {', '.join(unmet)}, "
                     "which is not DONE. The Definition of Ready is not advisory."
+                )
+
+        # A DONE story is a claim about delivery history as well as current code.
+        # If an upstream story is not DONE, that history is impossible: either
+        # the dependency is false or the DONE claim is. `S-06.02.17` / `D-48`.
+        if item.column == "DONE":
+            unfinished = [name for name in waiting
+                          if name in column and column[name] != "DONE"]
+            if unfinished:
+                detail = ", ".join(
+                    f"{name} ({column[name]})" for name in unfinished
+                )
+                report.fail(
+                    f"{item.identifier} is DONE but waits on {detail}, which is "
+                    "not DONE. A completed story cannot depend on unfinished work."
                 )
 
     could_be_pulled = [

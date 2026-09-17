@@ -32,6 +32,8 @@ Every box, every time. This is a claim about the repository, not about intent.
       the slice.
 - [ ] **Tests exist and are named in the evidence block**, covering *each*
       acceptance criterion. A story with three criteria and one test is not done.
+- [ ] **Every declared upstream dependency is already `DONE`.** A DONE
+      story cannot certify an impossible delivery history on unfinished work.
 - [ ] **The test command was actually run this session** and its output is
       pasted into the evidence block. Not "should pass".
 - [ ] **Every evidence command starts with `uv run`.** This is enforced by the

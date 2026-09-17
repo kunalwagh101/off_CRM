@@ -629,6 +629,76 @@ def test_an_answered_question_in_the_heading_does_not_block(tmp_path):
     assert result.returncode == 0, result.stdout
 
 
+# ── rule 9b: DONE cannot depend on unfinished work  `S-06.02.17` ────────────
+
+
+def _done_on_board(board: str, identifier: str) -> str:
+    """Put a second story in DONE with the minimum truthful evidence fixture."""
+    block = f"""## DONE
+
+- {identifier} · Another thing
+  tests: src/mod.py
+  command: uv run python -c \"pass\"
+  result: 1 passed (fixture)
+  code: src/mod.py
+
+"""
+    return board.replace("## DONE\n", block, 1)
+
+
+def _unfinished_on_board(board: str, identifier: str, column: str) -> str:
+    if column == "BLOCKED":
+        return board.replace(
+            "## BLOCKED\n",
+            f"## BLOCKED\n\n- {identifier} · Another thing\n"
+            "  blocked: external — fixture dependency\n",
+            1,
+        )
+    if column == "DEFERRED":
+        return board.replace(
+            "## DEFERRED\n",
+            f"## DEFERRED\n\n- {identifier} · Another thing\n"
+            "  reason: fixture deferral\n"
+            "  trigger: fixture trigger\n",
+            1,
+        )
+    return _on_board(board, identifier, column)
+
+
+@pytest.mark.parametrize(
+    "dependency_column",
+    ["BACKLOG", "READY", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DEFERRED"],
+)
+def test_done_with_any_unfinished_dependency_fails(tmp_path, dependency_column):
+    """A DONE claim cannot be built on any state other than DONE.
+
+    The acceptance criterion names BACKLOG, READY and BLOCKED. The remaining
+    unfinished columns are included because the invariant is stronger and
+    simpler than a hand-maintained allow/deny list.
+    """
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-03.03.03")
+    backlog = _with_story(backlog, "S-03.03.03")
+    board = _done_on_board(GOOD_BOARD, "S-02.02.02")
+    board = _unfinished_on_board(board, "S-03.03.03", dependency_column)
+
+    result = run(build(tmp_path, backlog=backlog, board=board), "--skip-tests")
+
+    assert result.returncode == 1
+    assert "S-02.02.02 is DONE but waits on S-03.03.03" in result.stdout
+    assert f"S-03.03.03 ({dependency_column})" in result.stdout
+
+
+def test_done_with_only_done_dependencies_passes(tmp_path):
+    """The guard must not reject a truthful delivery chain."""
+    backlog = _with_story(GOOD_BACKLOG, "S-02.02.02", waits_on="S-01.01.01")
+    board = _done_on_board(GOOD_BOARD, "S-02.02.02")
+
+    result = run(build(tmp_path, backlog=backlog, board=board), "--skip-tests")
+
+    assert result.returncode == 0, result.stdout
+    assert "OK — the board matches the repository" in result.stdout
+
+
 # ── rule 10: a recorded commit is on the branch  `S-06.02.12` ───────────────
 
 

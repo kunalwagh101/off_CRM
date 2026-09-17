@@ -481,3 +481,19 @@ uv run python scripts/verify_board.py --skip-tests
 The first command proves the runner contract and clean-checkout setup. The
 second checks the real board without replaying historical tests; every DONE
 `command:` must begin with `uv run`, or the verifier refuses the board.
+
+---
+
+## DONE cannot depend on unfinished work
+
+The verifier's delivery-history guard is tested against every non-DONE board
+column, plus the valid all-DONE case:
+
+```bash
+uv run pytest tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails tests/test_verify_board.py::test_done_with_only_done_dependencies_passes -q
+```
+
+Expect `7 passed`. The failing fixtures deliberately put the upstream story in
+BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
+verifier name both story IDs and refuse the DONE claim.
+

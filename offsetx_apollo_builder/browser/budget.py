@@ -1,35 +1,13 @@
 """What one account is allowed to do, and how much of it is left.  `S-03.02.04`
 
+The ledger owns counting. `S-03.02.05` moves the platform-specific ceilings to
+`platforms.yaml`, so identity, pacing and budget cannot silently drift into
+three different platform catalogues.
+
 **The problem this exists for is not rate limiting. It is account termination.**
-
-A platform that thinks you are a script does not answer with `429`. LinkedIn,
-Instagram and the rest restrict or close the account, and the account is the
-thing the owner spent months building. `policy.py` already slows the agent to
-human *pace* — a floor between actions. Pace alone is not enough: a human at
-reading pace for eleven hours is still not a human, and ten accounts each at
-human pace is unmistakably a farm.
-
-So this counts. Per account, per hour and per day, refused **before** the action
-rather than noticed after it.
-
----
-
-**Why this is not `ai/quota.py`.** That module is the same shape — file-backed,
-locked, check-then-record — and it was read closely before this was written. It
-is not reused because it answers a different question. Provider quota is about
-*money and rate limits*: minute and day windows, a spend ceiling, and running
-out means "use a different provider". Account budget is about *not being
-banned*: hour and day windows, no spend, and running out means "stop, and come
-back later, because there is no different account that is this account".
-
-Generalising `QuotaTracker` over both would mean parameterising its windows and
-loosening its vocabulary for the benefit of a caller it does not otherwise know
-about — a shared abstraction over two things that are only superficially alike.
-Two small concrete ledgers are the smaller change and the honest one.
-
-What *is* reused is the write: `ai/workspace.atomic_json`, so a crash mid-write
-cannot leave a half-written ledger that reads as an empty one — which would
-silently hand every account a fresh budget.
+A human-paced agent can still perform an inhuman amount of work over a long
+period, so each account gets an hourly and daily ceiling and is refused before
+the next action.
 """
 
 from __future__ import annotations
@@ -41,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..ai.workspace import atomic_json
+from .platform_registry import DEFAULT_FALLBACK_BUDGET, budget_defaults, budget_for_platform
 
 #: Actions that touch the platform and therefore cost budget. `read`,
 #: `screenshot` and `wait_for` are absent on purpose: they observe what is
@@ -48,26 +27,13 @@ from ..ai.workspace import atomic_json
 #: an agent towards acting blind to save budget.
 COSTED_ACTIONS = ("goto", "click", "type", "select", "scroll", "press", "back")
 
-#: Deliberately conservative, and deliberately not "what you can get away with".
-#: These are set below the informal thresholds each platform is observed to act
-#: on, because the cost of being wrong is asymmetric: too low wastes a run, too
-#: high loses the account. The owner can raise them per account and owns that
-#: decision; nothing here raises itself.
-DEFAULT_BUDGETS: dict[str, tuple[int, int]] = {
-    #  platform:      (per hour, per day)
-    "linkedin": (30, 120),
-    "instagram": (25, 100),
-    "facebook": (25, 100),
-    "tiktok": (25, 100),
-    "x": (40, 200),
-    "twitter": (40, 200),
-    "youtube": (60, 400),
-    "reddit": (40, 200),
-}
+#: Compatibility views for existing callers and tests. The source is now the
+#: validated platform registry, including declared aliases such as twitter -> x.
+DEFAULT_BUDGETS: dict[str, tuple[int, int]] = budget_defaults()
 
-#: Anything not named above. Not unlimited — an unknown platform is the one
-#: whose enforcement we understand least.
-DEFAULT_BUDGET = (60, 300)
+#: Anything not declared still receives a conservative ceiling rather than
+#: becoming unlimited. Unknown does not mean trusted.
+DEFAULT_BUDGET = DEFAULT_FALLBACK_BUDGET
 
 
 class BudgetSpent(RuntimeError):
@@ -83,7 +49,7 @@ class Budget:
 
     @classmethod
     def for_platform(cls, platform_id: str) -> "Budget":
-        hour, day = DEFAULT_BUDGETS.get(str(platform_id).lower(), DEFAULT_BUDGET)
+        hour, day = budget_for_platform(platform_id)
         return cls(actions_per_hour=hour, actions_per_day=day)
 
     @property
@@ -157,13 +123,8 @@ class BudgetLedger:
     #:
     #: Concurrent runs each build their own `BudgetLedger` over the same file,
     #: and a per-instance lock protects an object from itself and nothing else.
-    #: Measured before this existed: four runs taking 25 actions each left 33 of
-    #: 100 in the ledger — two thirds of the account's budget spent off the
-    #: books, so the ceiling the owner set was three times higher in practice.
-    #:
     #: Keyed rather than handed in, because correctness that depends on every
-    #: caller remembering to share an instance is correctness that lapses the
-    #: first time somebody constructs one locally.
+    #: caller remembering to share an instance lapses eventually.
     _locks: "dict[str, threading.RLock]" = {}
     _locks_guard = threading.Lock()
 
@@ -214,8 +175,13 @@ class BudgetLedger:
             spend.day, spend.day_count = _today(now), 0
         return spend
 
-    def check(self, account_id: str, budget: Budget, *,
-              now: float | None = None) -> tuple[bool, str]:
+    def check(
+        self,
+        account_id: str,
+        budget: Budget,
+        *,
+        now: float | None = None,
+    ) -> tuple[bool, str]:
         """`(allowed, reason)`, consuming nothing.
 
         Separate from `record` on purpose: an action can be refused for other
@@ -263,17 +229,28 @@ class BudgetLedger:
             document.pop(str(account_id), None)
             atomic_json(self.path, document)
 
-    def remaining(self, account_id: str, budget: Budget,
-                  *, now: float | None = None) -> dict[str, Any]:
+    def remaining(
+        self,
+        account_id: str,
+        budget: Budget,
+        *,
+        now: float | None = None,
+    ) -> dict[str, Any]:
         """What is left, for a screen to show before a run rather than after."""
         spend = self.spend_of(account_id, now=now)
         return {
             "account": str(account_id),
             "used_this_hour": spend.hour_count,
             "used_today": spend.day_count,
-            "left_this_hour": max(0, budget.actions_per_hour - spend.hour_count)
-            if budget.actions_per_hour > 0 else None,
-            "left_today": max(0, budget.actions_per_day - spend.day_count)
-            if budget.actions_per_day > 0 else None,
+            "left_this_hour": (
+                max(0, budget.actions_per_hour - spend.hour_count)
+                if budget.actions_per_hour > 0
+                else None
+            ),
+            "left_today": (
+                max(0, budget.actions_per_day - spend.day_count)
+                if budget.actions_per_day > 0
+                else None
+            ),
             "budget": budget.to_dict(),
         }

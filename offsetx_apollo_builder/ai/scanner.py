@@ -31,12 +31,27 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("aws_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
     ("bearer_header", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{20,}")),
+    ("basic_auth_header", re.compile(r"\bBasic\s+[A-Za-z0-9+/]{12,}={0,2}\b")),
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("connection_string", re.compile(r"\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis)://\S+")),
+    ("url_userinfo", re.compile(r"\bhttps?://[^\s/:@]+:[^\s/@]+@[^\s/]+", re.IGNORECASE)),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
     ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
-    ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token|oauth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    (
+        "api_secret_assignment",
+        re.compile(
+            r"\b(?:api[_ -]?key|client[_ -]?secret|secret[_ -]?access[_ -]?key|private[_ -]?key|authorization)\s*[:=]\s*\S{8,}",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "secret_env_assignment",
+        re.compile(
+            r"\b[A-Z][A-Z0-9_]*(?:API_KEY|ACCESS_TOKEN|REFRESH_TOKEN|CLIENT_SECRET|SECRET_ACCESS_KEY|PASSWORD)\s*=\s*\S{8,}",
+        ),
+    ),
 )
 
 #: Browser and OAuth credentials can be opaque and have no recognisable value
@@ -45,6 +60,8 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "authorization",
+        "authorization_header",
+        "bearer_token",
         "cookie",
         "cookies",
         "credential",
@@ -53,6 +70,12 @@ _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
         "password",
         "passwd",
         "passphrase",
+        "secret",
+        "api_key",
+        "client_secret",
+        "private_key",
+        "secret_access_key",
+        "oauth_token",
         "session",
         "session_id",
         "session_token",

@@ -69,9 +69,10 @@ where = ["."]
 include = ["offsetx_apollo_builder*"]
 
 [tool.setuptools.package-data]
-# The provider registry must travel with the package: a pip-installed
-# deployment has no source tree to fall back on.
+# Declarative registries must travel with a wheel/sdist. A pip-installed
+# deployment must behave exactly like the source checkout.
 "offsetx_apollo_builder.ai" = ["providers.yaml", "evals.yaml"]
+"offsetx_apollo_builder.browser" = ["platforms.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

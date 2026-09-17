@@ -1,59 +1,36 @@
 """Which platforms this workspace is signed in to — and never how.
 
-`S-03.02.01`. The half of "log in once, inside the box" that off_CRM is allowed
-to know about.
-
----
+`S-03.02.01` owns the sign-in-state model. `S-03.02.05` moves the platform
+catalogue itself into a validated declaration so adding a platform does not mean
+adding another branch in this module.
 
 **The rule this module exists to keep: off_CRM never handles a password.**
 
 Not encrypted, not hashed, not held in memory for a moment and discarded. The
 person types it into the browser inside the box, with their own fingers, and the
 only thing that crosses back is *whether it worked*. There is no field here for
-a credential, no parameter that accepts one, and no code path that could be
-extended into one without deleting a test.
-
-What is stored is a sentence: `linkedin: connected, checked at 14:02`. Losing
-that file costs you nothing.
-
-**Where the session actually lives.** In the box's Docker volume, which is
-Chrome's own cookie jar. off_CRM does not copy it, read it, or back it up —
-which is also why the session survives a restart without anything here doing
-work: the volume outlives the container.
-
----
+a credential and no public function accepts one.
 
 **Signed-in is observed, never assumed.** A cookie that exists is not a session
 that works; it expires, gets revoked from another device, or trips a security
-check. So the check is empirical — open the platform's own page and read what a
-screen reader would read.
-
-Three answers, and the third is the important one:
-
-    connected      a signal only a signed-in view has
-    disconnected   a signal only a signed-out view has
-    unknown        neither — the page changed, or something is in the way
-
-**Unknown is never rounded to either.** A layout change that silently reported
-"connected" would let a scheduled run believe it had a session it did not, and
-the failure would surface as an agent doing nothing useful for a week.
-
-**Signed-out wins ties.** If both signals appear, the honest reading is that a
-sign-in prompt is on the page.
+check. The check is empirical: open the platform's own page and read what a
+screen reader would read. Unknown is never rounded to connected or disconnected,
+and a signed-out signal wins a tie.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from functools import lru_cache
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
 from ..ai.workspace import atomic_json
 from .budget import Budget, BudgetLedger
 from .perceive import Snapshot
+from .platform_registry import Platform, PLATFORMS, UnknownPlatform, platform
 
 #: Never stored, never accepted as an argument, never logged. The test
 #: `test_no_function_here_accepts_a_credential` reads this list and checks every
@@ -62,116 +39,6 @@ FORBIDDEN_FIELDS = (
     "password", "passwd", "secret", "token", "cookie", "session_id",
     "credential", "otp", "totp", "pin", "passphrase",
 )
-
-
-@dataclass(frozen=True)
-class Platform:
-    """One place a person can sign in to, and how to tell whether they have.
-
-    The signals are **accessible names**, not CSS selectors, for the reason
-    `perceive.py` gives at length: a class name changes on the next deploy and a
-    button still says "Sign in". They are matched case-insensitively against the
-    page's accessibility tree.
-    """
-
-    id: str
-    label: str
-    #: Where a person goes to sign in. Opened for them; never submitted by us.
-    login_url: str
-    #: A page that looks different depending on whether they are signed in.
-    home_url: str
-    #: Names that appear **only** when signed in.
-    signed_in: tuple[str, ...]
-    #: Names that appear **only** when signed out. These win ties.
-    signed_out: tuple[str, ...]
-    note: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "login_url": self.login_url,
-            "home_url": self.home_url,
-            "note": self.note,
-        }
-
-
-#: The six the owner named. LinkedIn is first because Q-03 chose it: it is the
-#: one with no usable CRM API, so the browser is necessary there rather than
-#: merely convenient.
-PLATFORMS: dict[str, Platform] = {
-    platform.id: platform
-    for platform in (
-        Platform(
-            id="linkedin",
-            label="LinkedIn",
-            login_url="https://www.linkedin.com/login",
-            home_url="https://www.linkedin.com/feed/",
-            signed_in=("my network", "messaging", "start a post", "my items"),
-            signed_out=("sign in", "join now", "new to linkedin"),
-            note=(
-                "Attended only. The agent may read as you when you ask it to and "
-                "never on a schedule — see `policy.py`. Automated collection "
-                "breaches the User Agreement and the penalty falls on your account."
-            ),
-        ),
-        Platform(
-            id="instagram",
-            label="Instagram",
-            login_url="https://www.instagram.com/accounts/login/",
-            home_url="https://www.instagram.com/",
-            signed_in=("home", "new post", "profile", "direct"),
-            signed_out=("log in", "sign up", "forgot password"),
-            note="The Business Discovery API is the supported route for competitor data.",
-        ),
-        Platform(
-            id="facebook",
-            label="Facebook",
-            login_url="https://www.facebook.com/login/",
-            home_url="https://www.facebook.com/",
-            signed_in=("your profile", "create", "notifications"),
-            signed_out=("log in", "create new account", "forgotten password"),
-        ),
-        Platform(
-            id="youtube",
-            label="YouTube",
-            login_url="https://accounts.google.com/ServiceLogin?service=youtube",
-            home_url="https://www.youtube.com/",
-            signed_in=("account menu", "create", "subscriptions"),
-            signed_out=("sign in",),
-            note="The Data API serves public data properly. Drive the site only for what it does not expose.",
-        ),
-        Platform(
-            id="x",
-            label="X",
-            login_url="https://x.com/i/flow/login",
-            home_url="https://x.com/home",
-            signed_in=("post", "home timeline", "account menu"),
-            signed_out=("sign in", "create account"),
-        ),
-        Platform(
-            id="tiktok",
-            label="TikTok",
-            login_url="https://www.tiktok.com/login",
-            home_url="https://www.tiktok.com/foryou",
-            signed_in=("upload", "inbox", "profile"),
-            signed_out=("log in", "sign up"),
-        ),
-    )
-}
-
-
-class UnknownPlatform(ValueError):
-    """A platform nobody declared. Never assumed to be safe to sign in to."""
-
-
-def platform(platform_id: str) -> Platform:
-    key = str(platform_id or "").strip().lower()
-    if key not in PLATFORMS:
-        raise UnknownPlatform(
-            f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(PLATFORMS))}."
-        )
-    return PLATFORMS[key]
 
 
 def _now() -> str:
@@ -263,10 +130,10 @@ def account_id(platform_id: str, account: str = "") -> str:
     normalised rather than validated away — a name with a colon in it would
     otherwise collide with another account.
     """
-    platform = str(platform_id).strip().lower()
+    platform_id = str(platform_id).strip().lower()
     label = str(account or "").strip().lower().replace(":", "-")
     label = "".join(ch for ch in label if ch.isalnum() or ch in "-_")[:40]
-    return f"{platform}:{label}" if label and label != platform else platform
+    return f"{platform_id}:{label}" if label and label != platform_id else platform_id
 
 
 @dataclass
@@ -323,8 +190,15 @@ class ConnectionStore:
             # that cannot be rebuilt by looking at the browser again.
             return {}
 
-    def record(self, workspace_id: str, reading: Reading, target: Platform,
-               *, handle: str = "", account: str = "") -> Connection:
+    def record(
+        self,
+        workspace_id: str,
+        reading: Reading,
+        target: Platform,
+        *,
+        handle: str = "",
+        account: str = "",
+    ) -> Connection:
         """Write down what was observed. The only writer here.
 
         Takes a `Reading` rather than fields, so there is no signature on this
@@ -375,30 +249,33 @@ class ConnectionStore:
 
     def accounts(self, workspace_id: str, platform_id: str) -> list[Connection]:
         """Every account connected on one platform, default first."""
-        platform = str(platform_id).strip().lower()
+        platform_id = str(platform_id).strip().lower()
         keys = [
-            key for key in self._document().get(str(workspace_id), {})
-            if key == platform or key.startswith(f"{platform}:")
+            key
+            for key in self._document().get(str(workspace_id), {})
+            if key == platform_id or key.startswith(f"{platform_id}:")
         ]
-        return [self.get(workspace_id, platform, _suffix(platform, key))
-                for key in sorted(keys)]
+        return [
+            self.get(workspace_id, platform_id, _suffix(platform_id, key))
+            for key in sorted(keys)
+        ]
 
     def all(self, workspace_id: str) -> list[Connection]:
         """Every account in the workspace, plus every platform with none.
 
-        The built-in platforms always appear even when nothing is connected,
+        Declared platforms always appear even when nothing is connected,
         because a catalogue that hides what you have *not* done is a catalogue
         that cannot be used to decide what to do next.
         """
         found: list[Connection] = []
         seen: set[str] = set()
-        for platform in sorted(PLATFORMS):
-            connected = self.accounts(workspace_id, platform)
+        for platform_id in sorted(PLATFORMS):
+            connected = self.accounts(workspace_id, platform_id)
             if connected:
                 found.extend(connected)
                 seen.update(row.account for row in connected)
             else:
-                found.append(self.get(workspace_id, platform))
+                found.append(self.get(workspace_id, platform_id))
         # Accounts on platforms that are no longer declared still belong to the
         # owner and must not vanish from their own record.
         for key in sorted(self._document().get(str(workspace_id), {})):
@@ -406,19 +283,24 @@ class ConnectionStore:
                 continue
             raw = self._document()[str(workspace_id)][key]
             if isinstance(raw, dict):
-                found.append(Connection(
-                    platform=str(raw.get("platform") or key.split(":", 1)[0]),
-                    account=key,
-                    state=str(raw.get("state") or "unknown"),
-                    checked_at=str(raw.get("checked_at") or ""),
-                    evidence=str(raw.get("evidence") or ""),
-                    handle=str(raw.get("handle") or ""),
-                ))
+                found.append(
+                    Connection(
+                        platform=str(raw.get("platform") or key.split(":", 1)[0]),
+                        account=key,
+                        state=str(raw.get("state") or "unknown"),
+                        checked_at=str(raw.get("checked_at") or ""),
+                        evidence=str(raw.get("evidence") or ""),
+                        handle=str(raw.get("handle") or ""),
+                    )
+                )
         return found
 
 
-def catalogue(store: ConnectionStore, workspace_id: str,
-              ledger: "BudgetLedger | None" = None) -> dict[str, Any]:
+def catalogue(
+    store: ConnectionStore,
+    workspace_id: str,
+    ledger: "BudgetLedger | None" = None,
+) -> dict[str, Any]:
     """Every account, where this workspace stands with it, and what is left.
 
     `ledger` is optional so a screen that only wants connection state does not
@@ -430,9 +312,14 @@ def catalogue(store: ConnectionStore, workspace_id: str,
     rows = []
     for connection in store.all(workspace_id):
         declared = PLATFORMS.get(connection.platform)
-        row = {**(declared.to_dict() if declared else {"id": connection.platform,
-                                                       "label": connection.platform}),
-               **connection.to_dict()}
+        row = {
+            **(
+                declared.to_dict()
+                if declared
+                else {"id": connection.platform, "label": connection.platform}
+            ),
+            **connection.to_dict(),
+        }
         if ledger is not None:
             budget = Budget.for_platform(connection.platform)
             row["budget"] = ledger.remaining(connection.account, budget)

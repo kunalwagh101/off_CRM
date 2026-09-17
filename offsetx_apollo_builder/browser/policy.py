@@ -2,8 +2,8 @@
 
 Connected-platform policy is declared in ``platforms.yaml``.  `S-03.02.05`
 means adding a platform must not require another Python branch for identity,
-budget or pacing.  Generic browser safety remains code because a platform row
-must never be able to weaken localhost, metadata or scheme protections.
+budget or pacing. Generic browser safety remains code because a platform row
+must never be able to weaken localhost, metadata, scheme or CRM boundaries.
 
 Three decisions are enforced here: may the browser navigate there, how quickly
 may it act, and may it run unattended. Sensitive actions still receive a
@@ -27,7 +27,7 @@ SENSITIVE_ACTIONS = frozenset({"submit", "send", "delete", "purchase", "publish"
 class DomainRule:
     """What the agent may do on one host."""
 
-    #: Match on the registrable suffix, so ``www.linkedin.com`` and
+    #: Match on a hostname suffix, so ``www.linkedin.com`` and
     #: ``uk.linkedin.com`` are governed by the same declaration.
     suffix: str
     label: str
@@ -87,10 +87,22 @@ GMAIL = DomainRule(
     note="Sending mail as you is the highest-consequence thing here.",
 )
 
+
+def _ordered_rules() -> tuple[DomainRule, ...]:
+    """Most-specific hostname suffix wins, independent of declaration order.
+
+    A broad row such as ``google.com`` must never shadow the explicit
+    ``mail.google.com`` CRM boundary. The same rule makes nested platform
+    domains deterministic rather than dependent on YAML ordering.
+    """
+    rules = (GMAIL,) + _declared_platform_rules()
+    return tuple(sorted(rules, key=lambda rule: len(rule.suffix), reverse=True))
+
+
 #: Platform-specific rows come from the single registry. Non-platform safety
 #: exceptions remain code. A newly declared platform therefore appears here on
 #: the next process start with no edit to this module.
-RULES: tuple[DomainRule, ...] = _declared_platform_rules() + (GMAIL,)
+RULES: tuple[DomainRule, ...] = _ordered_rules()
 
 #: Hosts nothing may reach, ever. These resolve to the machine off_CRM is
 #: running on; letting a page point the browser at them turns it into a proxy
@@ -114,7 +126,7 @@ def host_of(url: str) -> str:
 
 
 def rule_for(url: str) -> DomainRule:
-    """The rule governing one URL. Matches on suffix, so subdomains inherit."""
+    """The most-specific rule governing one URL; subdomains inherit."""
     host = host_of(url)
     if not host:
         return OPEN_WEB

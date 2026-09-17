@@ -33,11 +33,13 @@ jobs:
         run: |
           git config user.name "off-CRM delivery bot"
           git config user.email "actions@users.noreply.github.com"
-      - name: Pull S-06.02.17 onto the board
+      - name: Syntax-check one-shot transport before execution
+        run: uv run python -m py_compile scripts/s060217_once.py
+      - name: Pull S-06.02.17 onto the board and log D-50
         run: |
           uv run python scripts/s060217_once.py pull
-          git add BOARD.md
-          git commit -m "Pull S-06.02.17 DONE dependency integrity"
+          git add BOARD.md DEFECT_LOG.md
+          git commit -m "Pull S-06.02.17 and log delivery helper failure"
           git push origin HEAD:feature/s-06-02-17-done-dependency-integrity
       - name: Install locked evidence environments
         run: |

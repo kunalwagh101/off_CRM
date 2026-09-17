@@ -1,0 +1,34 @@
+name: pull-s030205
+
+on:
+  push:
+    branches:
+      - feature/s-03-02-05-platform-registry
+    paths:
+      - .github/workflows/pull-s030205.yml
+
+permissions:
+  contents: write
+
+jobs:
+  pull-story:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/s-03-02-05-platform-registry
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile helper before execution
+        run: python -m py_compile scripts/pull_s030205.py
+      - name: Pull S-03.02.05
+        run: python scripts/pull_s030205.py
+      - name: Commit board state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add BOARD.md
+          git commit -m "Pull S-03.02.05 into progress"
+          git push origin HEAD:feature/s-03-02-05-platform-registry

@@ -1,0 +1,47 @@
+name: s060216-frontend-audit-once
+
+on:
+  push:
+    branches:
+      - feature/s-06-02-16-frontend-audit
+    paths:
+      - .github/workflows/s060216-audit-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Clean install
+        working-directory: frontend
+        run: npm ci
+      - name: Production audit evidence
+        working-directory: frontend
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --json
+          echo "prod_audit_exit=$?"
+          exit 0
+      - name: Full development audit evidence
+        working-directory: frontend
+        shell: bash
+        run: |
+          set +e
+          npm audit --json
+          echo "full_audit_exit=$?"
+          exit 0
+      - name: Vulnerable dependency paths
+        working-directory: frontend
+        run: |
+          npm ls nanoid || true
+          npm outdated --json || true

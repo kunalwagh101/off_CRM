@@ -82,6 +82,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-54 | 2026-09-19 | bug | medium | `/api/v1/auth/session` reported `authenticated: true` to an anonymous caller whenever session login was disabled, even though protected routes still required the API token | fixed · `S-06.02.02` |
+| D-55 | 2026-09-19 | security | high | Public API exemptions were path-wide, so a future sensitive HTTP method under a public prefix could silently inherit anonymous access | fixed · `S-06.02.02` |
 
 ---
 

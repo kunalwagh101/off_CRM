@@ -51,6 +51,7 @@ class DataClass(str, Enum):
     PUBLIC = "public"
     PERSON_PUBLIC = "person_public"
     CAMPAIGN = "campaign"
+    MEETING = "meeting"
     INTERNAL = "internal"
     MAILBOX = "mailbox"
 
@@ -60,6 +61,7 @@ class DataClass(str, Enum):
             DataClass.PUBLIC: "Public, non-personal content",
             DataClass.PERSON_PUBLIC: "A person's public professional profile",
             DataClass.CAMPAIGN: "Template text and campaign drafts",
+            DataClass.MEETING: "Meeting recordings and transcripts",
             DataClass.INTERNAL: "CRM records and internal notes",
             DataClass.MAILBOX: "Mailbox content (received mail, replies, threads)",
         }[self]
@@ -209,7 +211,7 @@ TIER_DEFAULT_POLICY: dict[TrustTier, DataPolicy] = {
 #: always needs the separate unlock described in :func:`tier_permits_class`.
 TIER_PERMITTED_CLASSES: dict[TrustTier, frozenset[DataClass]] = {
     TrustTier.A: frozenset(
-        {DataClass.PUBLIC, DataClass.PERSON_PUBLIC, DataClass.CAMPAIGN, DataClass.INTERNAL}
+        {DataClass.PUBLIC, DataClass.PERSON_PUBLIC, DataClass.CAMPAIGN, DataClass.MEETING, DataClass.INTERNAL}
     ),
     TrustTier.B: frozenset({DataClass.PUBLIC, DataClass.PERSON_PUBLIC, DataClass.CAMPAIGN}),
     TrustTier.C: frozenset({DataClass.PUBLIC, DataClass.PERSON_PUBLIC}),

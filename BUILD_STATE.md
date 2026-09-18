@@ -2057,7 +2057,7 @@ written from memory were wrong:
 
 ---
 
-### Meeting transcription without a bot — S-07.01.03 (2026-09-19, IN_PROGRESS)
+### Meeting transcription without a bot — S-07.01.03 (2026-09-19, IN_REVIEW)
 
 - [x] Browser-native capture mixes microphone plus explicitly shared
       screen/tab audio. The display video track is never recorded.
@@ -2085,7 +2085,7 @@ written from memory were wrong:
 - [x] Same-origin microphone/display capture is explicitly allowed by
       Permissions-Policy; camera and geolocation remain denied.
 - [x] Focused backend, browser-capture and UI smoke tests are committed.
-- [ ] Executable evidence is pending. GitHub Actions run #684 created the
+- [ ] Executable evidence is pending. GitHub Actions runs #684 and #720 created the
       `quality` job but executed zero workflow steps and exposed no log. Until
       focused tests, frontend tests/build, full regression and
       `scripts/verify_board.py` actually run, this story cannot be DONE.

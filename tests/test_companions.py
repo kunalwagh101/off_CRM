@@ -172,3 +172,47 @@ def test_approved_memory_loader_never_reads_outside_scope_or_unapproved_items() 
             },
         )
     ]
+
+
+def test_real_memory_backend_can_exclude_global_and_unapproved_items(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        backend = app.state.engine.store
+        backend.add_memory_item(
+            workspace_id="local",
+            scope="global",
+            kind="manual",
+            content="GLOBAL SHOULD NOT APPEAR",
+            tags=[],
+            metadata={},
+            confidence=1.0,
+            approved=True,
+            source_type="manual",
+        )
+        backend.add_memory_item(
+            workspace_id="local",
+            scope="campaign:one",
+            kind="manual",
+            content="SCOPED APPROVED",
+            tags=[],
+            metadata={},
+            confidence=1.0,
+            approved=True,
+            source_type="manual",
+        )
+        backend.add_memory_item(
+            workspace_id="local",
+            scope="campaign:one",
+            kind="manual",
+            content="SCOPED UNAPPROVED",
+            tags=[],
+            metadata={},
+            confidence=1.0,
+            approved=False,
+            source_type="manual",
+        )
+
+        loaded = approved_memory_loader(backend)("local", "campaign:one")
+        assert loaded == "SCOPED APPROVED"
+        assert "GLOBAL SHOULD NOT APPEAR" not in loaded
+        assert "SCOPED UNAPPROVED" not in loaded

@@ -396,7 +396,7 @@ evidence for why they matter, and not adding the same company twice.
 | P-4.3 | `dedupe.py` — same company, two names | 217 | 3 | ⚠️ |
 | P-4.4 | `scoring.py` | 60 | 2 | ◐ |
 | P-4.5 | `research.py` | 209 | — | ◐ |
-| P-4.6 | **A real crawler** — frontier, politeness, change-driven revisit | — | — | ⬜ S-05.01.01 |
+| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, politeness, change-driven revisit | 392 + wiring | 5 focused | ◐ S-05.01.01 · IN_REVIEW |
 | P-4.7 | **Extraction packs** — a new source is one row, not a new parser | — | — | ⬜ S-05.01.02 |
 | P-4.8 | **Competitor teardown** — take a hit post apart, rebuild the shape | — | — | ⬜ S-05.01.03 |
 

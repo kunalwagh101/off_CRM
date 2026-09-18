@@ -60,7 +60,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-05.01.01 · A crawler with a frontier, not a loop
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
-- S-06.02.01 · No secret may enter a model prompt
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-07.01.03 · Meeting transcription with no bot in the call
@@ -68,7 +67,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-06.02.01 · No secret may enter a model prompt
 
 ## IN_REVIEW
 

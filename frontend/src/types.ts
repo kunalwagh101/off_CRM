@@ -69,6 +69,7 @@ export type AuthSession = {
   configured: boolean;
   authenticated: boolean;
   username: string;
+  workspace_id: string;
   expires_at: number | null;
 };
 

@@ -143,7 +143,7 @@ export default function AIPage() {
 
   function closePanel() {
     const returnTarget = panelReturnFocusRef.current;
-    closePanel();
+    setPanelOpen(false);
     panelReturnFocusRef.current = null;
     window.requestAnimationFrame(() => returnTarget?.focus());
   }

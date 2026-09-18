@@ -50,6 +50,7 @@ def test_companion_profile_persists_and_names_are_workspace_scoped(tmp_path: Pat
     assert loaded.memory_scope == "campaign:carbon"
     assert loaded.granted_tools == ("goto", "read")
     assert reopened.get(scout.id, workspace_id="beta") is None
+    reopened.close()
 
 
 def test_companion_refuses_undeclared_browser_tools(tmp_path: Path) -> None:

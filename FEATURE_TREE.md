@@ -504,9 +504,10 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-9.2 | `api/auth.py` | 116 | **4** | ⚠️ |
 | P-9.3 | `api/email_delivery.py` — 12 routes | 500 | 16 | ✅ |
 | P-9.4 | `api/schemas.py` + `config.py` | 300 | — | ◐ |
-| P-9.5 | 22 React screens | 15,876 | 1 suite + 7 video suites | ◐ |
+| P-9.5 | 23 React screens | 15,876+ | shared UI suite + focused media/video suites | ◐ |
 | P-9.6 | **Every endpoint authorises and validates** | — | — | ⬜ S-06.02.02 |
 | P-9.7 | **Keyboard and screen-reader usable** | — | — | ⬜ S-06.02.05 |
+| P-9.8 | `meeting.py` + Meeting Notes screen | Local mic + shared system audio → Tier-A transcript; raw audio not stored | focused Python + browser tests | ◐ S-07.01.03 |
 
 Routes by area — `campaigns` 44, `ai` 39, `video-projects` 16, `sales` 14,
 `notion` 6, `trends` 5, `distribution` 5, and 39 others across smaller groups.

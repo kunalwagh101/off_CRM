@@ -334,3 +334,33 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+
+### DD-21 — A companion is policy over AgentRun, not a second executor · 2026-09-18
+
+**The tempting design.** Give every named agent its own runner and let
+`granted_tools` point at anything registered in `ai/tools.py`.
+
+**What was done instead.** A companion persists owner instructions, one approved
+memory scope and a subset of the browser runner's existing closed ten-verb
+vocabulary. `AgentRun` remains the sole executor and enforces the grant in host
+code after parsing the model decision and before touching the page.
+
+**Why.** The sandbox tool registry is not an `AgentRun` execution interface
+today. Treating it as one would turn a profile feature into an unreviewed tool
+orchestration system. Reusing the existing runner keeps pacing, human gates,
+trace, prompt-injection handling, provenance and budgets in one path.
+
+**Memory and prompt boundary.** Arbitrary companion instructions and scoped
+memory stay in the ordinary broker-scanned request payload. Only host-derived,
+validated browser-action names are added to the system prompt. Memory is framed
+as local data, not instructions.
+
+**Resume boundary.** The original trace stores the companion id and a stable
+fingerprint of its execution policy. Resume refuses if the companion is absent
+or its instructions, memory scope, tool grant, enabled state or workspace
+changed. A restart therefore cannot accidentally regain authority.
+
+**Cost.** Generic registered tools are not usable from companions yet. That is
+deliberate scope, not a hidden stub: a future story must define their execution,
+approval, argument and resume contracts explicitly.

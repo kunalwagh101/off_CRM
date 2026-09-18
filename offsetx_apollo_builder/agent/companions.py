@@ -10,6 +10,7 @@ matches the product language while preserving the runner's closed vocabulary.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -90,6 +91,24 @@ class CompanionRuntime:
 
 
 MemoryLoader = Callable[[str, str], str]
+
+
+def policy_fingerprint(profile: CompanionProfile) -> str:
+    """Stable hash of the execution policy that must survive resume."""
+    payload = json.dumps(
+        {
+            "id": profile.id,
+            "workspace_id": profile.workspace_id,
+            "instructions": profile.instructions,
+            "memory_scope": profile.memory_scope,
+            "granted_tools": list(profile.granted_tools),
+            "enabled": profile.enabled,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _clean_name(value: str) -> str:

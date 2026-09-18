@@ -166,6 +166,7 @@ def test_approved_memory_loader_never_reads_outside_scope_or_unapproved_items() 
                 "workspace_id": "alpha",
                 "scope": "campaign:one",
                 "approved_only": True,
+                "include_global": False,
                 "limit": 25,
                 "offset": 0,
             },

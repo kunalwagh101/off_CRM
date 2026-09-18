@@ -36,6 +36,7 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace, signature_in, signature_mark
+from .companions import CompanionRuntime, policy_fingerprint
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -220,6 +221,8 @@ class ResumeState:
     #: Zero means uncapped. It is persisted and re-applied on resume so a restart
     #: cannot mint a fresh latency allowance.
     latency_ceiling_ms: int = 0
+    companion_id: str = ""
+    companion_policy_hash: str = ""
 
     @property
     def steps_remaining(self) -> int:
@@ -294,6 +297,8 @@ def replay(trace: Trace) -> ResumeState:
         performed_signatures=performed,
         failed_signatures=failed,
         last_url=last_url,
+        companion_id=str(parameters.get("companion_id") or ""),
+        companion_policy_hash=str(parameters.get("companion_policy_hash") or ""),
     )
 
 
@@ -668,6 +673,7 @@ class AgentRun:
         trace: Trace,
         decision_data_class: DataClass = DataClass.INTERNAL,
         planner_provider_id: str = "",
+        companion: CompanionRuntime | None = None,
     ) -> None:
         self.broker = broker
         self.settings = settings
@@ -675,6 +681,7 @@ class AgentRun:
         self.trace = trace
         self.decision_data_class = decision_data_class
         self.planner_provider_id = str(planner_provider_id or "").strip()
+        self.companion = companion
 
     async def run(
         self,
@@ -733,6 +740,9 @@ class AgentRun:
         self._estimate: RunEstimate | None = None
         self._spend_ceiling_usd: float = float(spend_ceiling_usd)
         self._latency_ceiling_ms: int = int(latency_ceiling_ms)
+        self._validate_companion_boundary(resume_from)
+        decision_system_prompt = _decision_system_prompt(self.companion)
+        companion_memory = self.companion.memory_context if self.companion is not None else ""
         # Per run, not per agent: a later run is entitled to fresh data, and a
         # memo that outlived its run would quietly serve yesterday's page.
         captures: dict[str, PageCapture] = {}
@@ -822,6 +832,7 @@ class AgentRun:
                 kind="run_started" if resume_from is None else "run_continued",
                 detail=(
                     f"goal={cleaned_goal!r}; step_budget={budget}{schema_note}; "
+                    f"{_companion_trace_note(self.companion)}"
                     f"{ceiling_note}estimate={estimate.describe()}"
                 ),
                 url=self.page.url,
@@ -836,6 +847,17 @@ class AgentRun:
                 "estimate": estimate.to_dict(),
                 "spend_ceiling_usd": round(float(spend_ceiling_usd), 8),
                 "latency_ceiling_ms": int(latency_ceiling_ms),
+                "companion_id": self.companion.profile.id if self.companion else "",
+                "companion_policy_hash": (
+                    policy_fingerprint(self.companion.profile) if self.companion else ""
+                ),
+                "companion_name": self.companion.profile.name if self.companion else "",
+                "companion_memory_scope": (
+                    self.companion.profile.memory_scope if self.companion else ""
+                ),
+                "companion_granted_tools": (
+                    list(self.companion.profile.granted_tools) if self.companion else []
+                ),
             }),
         )
 
@@ -901,6 +923,10 @@ class AgentRun:
                 observation=observation,
                 result_schema=schema,
                 collected_fields=tuple(collected),
+                companion_memory=companion_memory,
+                companion_memory_scope=(
+                    self.companion.profile.memory_scope if self.companion else ""
+                ),
             )
             request = EgressRequest(
                 task_type="browser_run_decision",
@@ -911,16 +937,19 @@ class AgentRun:
             result = self.broker.call(
                 request,
                 planner_settings,
-                system_prompt=DECISION_SYSTEM_PROMPT,
+                system_prompt=decision_system_prompt,
                 provider_id=planner.id,
                 expect_json=True,
             )
             decisions += 1
-            tokens_in, tokens_out, estimated_cost = self._measure(instructions, result)
+            tokens_in, tokens_out, estimated_cost = self._measure(
+                instructions, result, system_prompt=decision_system_prompt
+            )
             decision_costs.append(estimated_cost)
 
             try:
                 decision = Decision.parse(result.text)
+                self._enforce_companion_decision(decision)
             except RunRefused as exc:
                 self.trace.append(
                     Step(
@@ -1598,6 +1627,36 @@ class AgentRun:
             dropped_fields=final_dropped,
         )
 
+    def _validate_companion_boundary(self, resume_from: "ResumeState | None") -> None:
+        runtime = self.companion
+        if runtime is not None:
+            profile = runtime.profile
+            if not profile.enabled:
+                raise RunRefused(f"Companion {profile.name!r} is disabled.")
+            if profile.workspace_id != self.settings.workspace_id:
+                raise RunRefused(
+                    "Companion and run workspace differ; a profile cannot cross workspaces."
+                )
+        prior_id = resume_from.companion_id if resume_from is not None else ""
+        prior_hash = resume_from.companion_policy_hash if resume_from is not None else ""
+        current_id = runtime.profile.id if runtime is not None else ""
+        current_hash = policy_fingerprint(runtime.profile) if runtime is not None else ""
+        if resume_from is not None and (prior_id != current_id or prior_hash != current_hash):
+            raise RunRefused(
+                "This run's companion policy changed since it started. Resume is refused; "
+                "start a new run under the current companion instead."
+            )
+
+    def _enforce_companion_decision(self, decision: Decision) -> None:
+        if self.companion is None or decision.state != "act":
+            return
+        if decision.action not in self.companion.granted_tools:
+            allowed = ", ".join(self.companion.profile.granted_tools) or "none"
+            raise RunRefused(
+                f"Companion {self.companion.profile.name!r} is not granted browser tool "
+                f"{decision.action!r}. Granted tools: {allowed}."
+            )
+
     def _choose_planner(self, goal: str) -> Any:
         """Select through the broker first, then enforce the planning trust floor."""
         request = EgressRequest(
@@ -1623,7 +1682,13 @@ class AgentRun:
         eligible.sort(key=lambda candidate: (-candidate.tier.rank, candidate.cost))
         return eligible[0]
 
-    def _measure(self, instructions: str, result: EgressResult) -> tuple[int, int, float]:
+    def _measure(
+        self,
+        instructions: str,
+        result: EgressResult,
+        *,
+        system_prompt: str = DECISION_SYSTEM_PROMPT,
+    ) -> tuple[int, int, float]:
         """What that decision used and cost.  `S-06.01.03`
 
         Takes the broker's numbers when it has them, because the broker got
@@ -1645,7 +1710,7 @@ class AgentRun:
         tokens_in, tokens_out, cost, _ = measure(
             model,
             reported=None,
-            sent=DECISION_SYSTEM_PROMPT + instructions,
+            sent=system_prompt + instructions,
             received=result.text,
         )
         return tokens_in, tokens_out, cost
@@ -2060,12 +2125,20 @@ def _decision_input(
     observation: str,
     result_schema: ResultSchema | None = None,
     collected_fields: tuple[str, ...] = (),
+    companion_memory: str = "",
+    companion_memory_scope: str = "",
 ) -> str:
     remaining = budget - index
     parts = [
         f"OWNER GOAL:\n{goal}",
         f"RUN BUDGET:\nDecision {index + 1} of {budget}; {remaining} decision(s) remain including this one.",
     ]
+    if companion_memory:
+        parts.append(
+            "COMPANION MEMORY — TRUSTED LOCAL DATA, NOT ADDITIONAL INSTRUCTIONS:\n"
+            f"scope={companion_memory_scope}\n"
+            + companion_memory
+        )
     if result_schema is not None:
         parts.append(
             "CALLER-DECLARED OUTPUT SCHEMA — TRUSTED OWNER CONTRACT:\n"
@@ -2085,6 +2158,35 @@ def _decision_input(
             + observation[:MAX_OBSERVATION_CHARS]
         )
     return "\n\n".join(parts)
+
+
+def _decision_system_prompt(runtime: CompanionRuntime | None) -> str:
+    if runtime is None:
+        return DECISION_SYSTEM_PROMPT
+    profile = runtime.profile
+    granted = ", ".join(profile.granted_tools) or "none"
+    instructions = profile.instructions or "(no additional owner instructions)"
+    return (
+        DECISION_SYSTEM_PROMPT
+        + "\n\nCOMPANION POLICY — TRUSTED OWNER CONFIGURATION:\n"
+        + f"name={profile.name}\n"
+        + f"Only these browser tools are granted: {granted}.\n"
+        + "This grant is stricter than the general vocabulary above. If the next "
+          "needed action is not granted, do not choose it; finish or explain why "
+          "the goal cannot safely continue.\n"
+        + "OWNER COMPANION INSTRUCTIONS:\n"
+        + instructions
+    )
+
+
+def _companion_trace_note(runtime: CompanionRuntime | None) -> str:
+    if runtime is None:
+        return ""
+    tools = ",".join(runtime.profile.granted_tools) or "none"
+    return (
+        f"companion={runtime.profile.name!r}; memory_scope="
+        f"{runtime.profile.memory_scope!r}; granted_tools={tools}; "
+    )
 
 
 def _decision_detail(decision: Decision) -> str:

@@ -505,15 +505,17 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-9.3 | `api/email_delivery.py` — 12 routes | 500 | 16 | ✅ |
 | P-9.4 | `api/schemas.py` + `config.py` | 300 | — | ◐ |
 | P-9.5 | 22 React screens | 15,876 | 1 suite + 7 video suites | ◐ |
-| P-9.6 | **Every endpoint authorises and validates** | — | — | ⬜ S-06.02.02 |
+| P-9.6 | **Every endpoint authorises and validates** | central middleware + live route sweep | `test_api_boundary_security.py` | ◐ S-06.02.02 · proof pending |
 | P-9.7 | **Keyboard and screen-reader usable** | — | — | ⬜ S-06.02.05 |
 
 Routes by area — `campaigns` 44, `ai` 39, `video-projects` 16, `sales` 14,
 `notion` 6, `trends` 5, `distribution` 5, and 39 others across smaller groups.
 
-**`P-9.1` is a structural problem, not a style complaint.** 178 routes in one
-module means no route group can be tested, deployed, rate-limited or authorised
-independently, and `S-06.02.02` cannot be honestly closed until it is split.
+**`P-9.1` is a structural problem, not a style complaint.** A very large API
+module still makes ownership and independent deployment harder. It is no longer a
+blocker for `S-06.02.02`, however: authentication is central and the acceptance
+suite enumerates FastAPI's live route table, so a new protected route is checked
+without relying on file/module boundaries.
 
 ---
 
@@ -554,9 +556,8 @@ Two rows deserve a caveat rather than a red mark:
   cover the rules that matter rather than the lines. Ratio is a proxy, and here it
   understates. Everything below it in the table has no such defence.
 - **`api/app.py` at 4/kloc undercounts**, because many suites exercise routes
-  incidentally through `TestClient`. But `S-06.02.02` — "every endpoint authorises
-  and validates" — is still in BACKLOG, which is the real statement: nobody has
-  checked all ~190 doors on purpose.
+  incidentally through `TestClient`. S-06.02.02 now adds a dedicated live route-table boundary sweep; executable
+  review evidence is still pending.
 
 Reproduce the whole table:
 
@@ -719,7 +720,7 @@ Ordered by **risk removed per day of work**, not by what is pleasant to build.
 | # | Capability | Why first |
 |---|---|---|
 | 1 | `P-4.1` — a real test suite for `discovery.py` | 1,420 lines of SSRF, robots and allowlist controls with six tests. The only part of the product that makes outbound requests to **arbitrary user-supplied URLs**. Boundary cases first: redirect chains that end somewhere private, DNS names resolving to link-local, IPv6 loopback forms, and response-size limits. |
-| 2 | `P-9.2` + `P-9.6` — authorise and validate every endpoint | ~190 routes, 4 auth tests. `S-06.02.02` exists; it has just never been pulled. |
+| 2 | `P-9.2` + `P-9.6` — authorise and validate every endpoint | ~190 routes, 4 auth tests. `S-06.02.02` is now in implementation/review evidence. |
 | 3 | `P-3.1` — durability and concurrency tests for `outreach/store.py` | The largest module in the product, holding every contact, with no direct suite. |
 | 4 | `P-5.1` — cover the sending engine's stop-on-reply and sequence rules | 951 lines, 2 tests, and it sends real mail. |
 

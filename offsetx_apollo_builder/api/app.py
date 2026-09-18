@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import os
+import re
 import threading
 import uuid
 from contextlib import asynccontextmanager, contextmanager
@@ -155,9 +156,16 @@ PUBLIC_API_EXACT = frozenset(
         ("POST", f"{API_PREFIX}/email-delivery/events/ses/sns"),
     }
 )
-PUBLIC_API_PREFIX_METHODS = (
-    ("GET", f"{API_PREFIX}/email/unsubscribe/"),
-    ("POST", f"{API_PREFIX}/email/unsubscribe/"),
+PUBLIC_API_DYNAMIC = frozenset(
+    {
+        ("GET", f"{API_PREFIX}/email/unsubscribe/{token}"),
+        ("POST", f"{API_PREFIX}/email/unsubscribe/{token}"),
+    }
+)
+_UNSUBSCRIBE_PUBLIC_PATH = re.compile(
+    rf"^{re.escape(API_PREFIX)}/email/unsubscribe/"
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.[A-Za-z0-9_-]{43}$"
 )
 
 
@@ -165,9 +173,10 @@ def _is_public_api_request(method: str, path: str) -> bool:
     verb = method.upper()
     if (verb, path) in PUBLIC_API_EXACT:
         return True
-    return any(
-        verb == allowed_method and path.startswith(prefix)
-        for allowed_method, prefix in PUBLIC_API_PREFIX_METHODS
+    unsubscribe_template = f"{API_PREFIX}/email/unsubscribe/{token}"
+    return (
+        (verb, unsubscribe_template) in PUBLIC_API_DYNAMIC
+        and _UNSUBSCRIBE_PUBLIC_PATH.fullmatch(path) is not None
     )
 
 

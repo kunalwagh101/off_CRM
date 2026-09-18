@@ -497,3 +497,32 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+---
+
+## Every API endpoint authorises and validates
+
+Run the focused boundary suite:
+
+```bash
+uv run pytest tests/test_api_boundary_security.py -q
+```
+
+The suite enumerates the live FastAPI route table rather than a copied endpoint
+list. It proves protected route/method pairs return `401` anonymously; a
+future method nested under the public unsubscribe prefix is still protected;
+malformed authenticated bodies do not reach handlers; typed query validation
+runs before business logic; spoofed identity/workspace headers grant no
+authority; and public login/unsubscribe/SNS boundaries reject bad input without
+stack traces.
+
+Interactive spot-check:
+
+```bash
+curl -i http://127.0.0.1:8766/api/v1/dashboard
+curl -i -H "Authorization: Bearer $OFFSETX_LOCAL_API_TOKEN" \
+  http://127.0.0.1:8766/api/v1/dashboard
+```
+
+The first request must be `401`; the second reaches the authenticated
+dashboard.
+

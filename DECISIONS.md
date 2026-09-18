@@ -334,3 +334,29 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+
+### DD-23 — A routine triggers AgentRun; it does not become another agent · 2026-09-18
+
+**The tempting design.** Put browser launch, planning, retries, result handling
+and scheduling into one background-worker class.
+
+**What was done instead.** The routine layer owns only durable definitions,
+schedule/event triggering, unattended-policy validation, event dedupe, overlap
+suppression and notification policy. An `AgentRunRoutineExecutor` adapts a
+routine into the existing `AgentRun.run()` contract. Browser/session/trace
+construction remains behind an injected run factory.
+
+**Why.** The repository already has one bounded execution engine with browser
+policy, spend/latency ceilings, trace evidence, human gates and result
+validation. Reimplementing any of that inside a scheduler creates two safety
+boundaries that will drift.
+
+**Notification rule.** A successful run with no result, findings or structured
+record stays silent. Outcomes requiring attention and execution failures notify.
+A notification-sink failure is recorded separately and never changes the
+underlying AgentRun status or causes the effectful run to be retried.
+
+**Cost.** The routine module does not decide how a deployment constructs its
+browser session. That is deliberate dependency inversion, not a fake execution
+path: production supplies the same AgentRun factory used by its attended runner.

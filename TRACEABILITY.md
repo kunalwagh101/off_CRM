@@ -52,6 +52,7 @@ the code exists and holds no stub).
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
+| R-45, R-46 | S-06.01.04 | 6 | `tests/test_agent_routines.py` written | Execute focused/full suites and independent board verifier before DONE |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
@@ -82,7 +83,7 @@ the code exists and holds no stub).
 | R-41, R-42 | S-06.01.01 | 1 | — | — |
 | R-43 | S-06.01.02 | 2 | — | — |
 | R-44 | S-06.01.03 | 2 | — | — |
-| R-45, R-46 | S-06.01.04 | 2 | — | — |
+
 | R-47 | S-06.01.05 | 2 | — | — |
 | R-29 | S-06.02.01 | 1 | — | — |
 | R-48 | S-06.02.02 | 2 | — | — |

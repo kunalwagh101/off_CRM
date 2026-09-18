@@ -59,7 +59,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-04.01.01 · Companions: persisted agent profiles
 - S-05.01.01 · A crawler with a frontier, not a loop
 - S-06.01.01 · Workspaces with their own keys and their own logins
-- S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.02.01 · No secret may enter a model prompt
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.05 · The UI is usable by keyboard and screen reader
@@ -72,7 +71,7 @@ _nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.01.04 · Routines that fire agent runs on a schedule or an event
 
 ## BLOCKED
 

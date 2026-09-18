@@ -497,3 +497,29 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+
+---
+
+## S-06.01.04 — prove schedules and events fire bounded AgentRun work
+
+Focused proof:
+
+```bash
+uv run pytest tests/test_agent_routines.py tests/test_browser_agent.py tests/test_agent_run.py -q
+```
+
+The routine suite proves creation-time refusal for attended-only domains,
+scheduled firing and rescheduling, durable event-id dedupe across restart,
+overlap suppression, empty-result no-notify behaviour, attention/error
+notifications, notification-failure isolation, and the adapter into the existing
+`AgentRun.run()` contract with step/spend/latency/result-schema limits.
+
+Then run the release evidence:
+
+```bash
+uv run pytest tests/ -q
+uv run python scripts/verify_board.py
+```
+
+Do not move the story to DONE unless those commands actually execute and pass.

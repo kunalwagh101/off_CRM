@@ -491,9 +491,34 @@ override, **so that** trust is granted at the size of the decision.
 **As an** owner, **I want** scheduled and event-triggered runs, **so that** the
 engine works when I am not there.
 - **Given** an attended-only domain, **when** a routine targets it, **then** the
-  routine is refused at creation, not at fire time.
-- **Given** a run that found nothing, **when** it ends, **then** it does not notify.
+  routine is refused at creation before anything is persisted.
+- **Given** a safe scheduled routine, **when** its due time arrives, **then** it
+  invokes the existing `AgentRun` contract once with the routine's start URL,
+  step budget, result schema, spend ceiling and latency ceiling, and then
+  reschedules from the actual fire time.
+- **Given** an event-triggered routine, **when** a named event is emitted, **then**
+  matching enabled routines fire; replaying the same event id after restart does
+  not run them twice.
+- **Given** a routine already executing, **when** the same routine is triggered
+  again, **then** the second fire returns `already_running` and starts no
+  overlapping AgentRun.
+- **Given** a run that completed with no result, findings or record, **when** it
+  ends, **then** it does not notify; a useful result or attention/error status
+  does notify.
+- **Given** persisted routines and trigger receipts, **when** the process
+  restarts, **then** definitions, schedule state and event dedupe survive.
 - **Dependencies:** S-02.02.01, S-02.01.04. **Size:** M. **Indicator:** useful notifications per week.
+  **Business value:** E-06.
+- **Tasks:** `T-06.01.04.a` durable routine store and validation;
+  `T-06.01.04.b` schedule/event dispatch and dedupe;
+  `T-06.01.04.c` AgentRun adapter and bounded settings;
+  `T-06.01.04.d` selective notification/overlap handling;
+  `T-06.01.04.e` acceptance evidence, docs and verifier review.
+
+**OUT_OF_SCOPE — S-06.01.04.** This story does not create a second browser
+launcher, planner or execution engine. Browser/session/trace construction stays
+behind the injected AgentRun factory. Organisation permissions belong to
+`S-06.01.02`; deployment/monitoring/rollback belongs to `S-06.01.05`.
 
 #### S-06.01.05 — Deployment, monitoring and rollback
 **As an** operator, **I want** a deployment path with health, logs and a way

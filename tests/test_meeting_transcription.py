@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from offsetx_apollo_builder.ai.broker import TranscriptResult, TranscriptWord
+from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.tiers import DataClass, TrustTier, tier_permits_class
 from offsetx_apollo_builder.api.app import MAX_MEETING_AUDIO_BYTES, create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -78,6 +79,27 @@ def test_meeting_data_class_is_tier_a_only():
     assert not tier_permits_class(TrustTier.B, DataClass.MEETING)
     assert not tier_permits_class(TrustTier.C, DataClass.MEETING)
     assert not tier_permits_class(TrustTier.D, DataClass.MEETING)
+
+def test_registry_routes_meeting_audio_only_to_mistral_voxtral():
+    registry = ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml")
+    permitted, rejected = registry.candidates_for(
+        DataClass.MEETING,
+        enabled_ids=("mistral", "openai", "groq"),
+        enabled_models={
+            "mistral": ("voxtral-mini-latest",),
+            "openai": ("whisper-1",),
+            "groq": ("whisper-large-v3",),
+        },
+        kind="transcribe",
+    )
+
+    assert [(item.id, item.model_id, item.tier) for item in permitted] == [
+        ("mistral", "voxtral-mini-latest", TrustTier.A)
+    ]
+    refused = {(item.get("provider_id"), item.get("model_id")): item["reason"] for item in rejected}
+    assert refused[("openai", "whisper-1")] == "tier_forbids_data_class"
+    assert refused[("groq", "whisper-large-v3")] == "tier_forbids_data_class"
+
 
 
 def test_loopback_upload_uses_meeting_class_and_never_stores_raw_audio(tmp_path):

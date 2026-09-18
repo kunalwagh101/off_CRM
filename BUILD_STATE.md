@@ -2057,7 +2057,7 @@ written from memory were wrong:
 
 ---
 
-### Keyboard and screen-reader accessibility — S-06.02.05 (2026-09-19, IN_PROGRESS)
+### Keyboard and screen-reader accessibility — S-06.02.05 (2026-09-19, IN_REVIEW)
 
 - [x] Shared dialogs have accessible names/descriptions, move focus inside,
       trap Tab/Shift+Tab, close on Escape and return focus to the opener.
@@ -2089,6 +2089,8 @@ written from memory were wrong:
 - [ ] Executable frontend test/build evidence is still pending. A clean
       checkout could not be run in the current execution container because it
       could not resolve github.com; this is not counted as a test result.
+      GitHub Actions run #818 and its failed-job retry also created a
+      `quality` job with zero executed steps and no logs (`D-63`).
 
 ## 4. Not built yet
 

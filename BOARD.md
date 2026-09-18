@@ -66,11 +66,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.02 · Every endpoint authorises and validates
+_nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.02.02 · Every endpoint authorises and validates
 
 ## BLOCKED
 

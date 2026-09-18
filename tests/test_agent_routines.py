@@ -276,6 +276,7 @@ def test_execution_failure_is_persisted_and_notified(tmp_path: Path) -> None:
     stored = service.store.get(routine.id)
     assert stored.last_status == "error"
     assert "provider temporarily unavailable" in stored.last_error
+    assert stored.notify_count == 1
     assert notified[0]["status"] == "error"
 
 
@@ -349,3 +350,26 @@ def test_notification_failure_does_not_change_successful_run_status(tmp_path: Pa
     assert stored.last_status == "completed"
     assert stored.notify_count == 0
     assert stored.last_error.startswith("notification:")
+
+
+def test_same_event_id_on_different_event_names_does_not_collide(tmp_path: Path) -> None:
+    calls = []
+    service = RoutineService(
+        RoutineStore(tmp_path / "routines.json"),
+        executor=lambda routine, trigger: calls.append(trigger.event_name)
+        or {"status": "completed", "result": "ok"},
+        clock=Clock(),
+    )
+    service.create(_event(event_name="import.completed", name="Import"))
+    service.create(_event(event_name="sync.completed", name="Sync"))
+
+    first = asyncio.run(
+        service.fire_event("import.completed", event_id="provider-event-1")
+    )
+    second = asyncio.run(
+        service.fire_event("sync.completed", event_id="provider-event-1")
+    )
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert calls == ["import.completed", "sync.completed"]

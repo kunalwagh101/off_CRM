@@ -188,7 +188,7 @@ test plan, and what it depends on.
 ### Finding what's working out there
 | Story | In one line |
 |---|---|
-| S-05.01.01 | A proper crawler that remembers politeness and revisits what changes |
+| S-05.01.01 | ◐ Durable frontier + adaptive revisit code/tests are on PR #21; CI runner has not executed them yet |
 | S-05.01.02 | Adding a new website to watch = one row, not new code |
 | S-05.01.03 | Take a competitor's hit post apart → rebuild the *shape*, not the content |
 

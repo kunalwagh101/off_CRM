@@ -81,6 +81,51 @@ def _assert_safe_4xx(response) -> None:
         assert marker not in lowered, response.text
 
 
+def test_cors_preflight_is_validated_by_cors_without_owner_credentials(tmp_path):
+    app = create_app(_settings(tmp_path))
+    with TestClient(app, raise_server_exceptions=False) as client:
+        allowed = client.options(
+            f"{API_PREFIX}/dashboard",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        assert allowed.status_code == 200, allowed.text
+        assert allowed.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+        denied = client.options(
+            f"{API_PREFIX}/dashboard",
+            headers={
+                "Origin": "https://attacker.example",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        assert denied.status_code == 400
+        assert "access-control-allow-origin" not in denied.headers
+
+        plain_options = client.options(f"{API_PREFIX}/dashboard")
+        assert plain_options.status_code == 401
+
+
+def test_exact_api_root_is_inside_the_protected_namespace(tmp_path):
+    app = create_app(_settings(tmp_path))
+    called: list[str] = []
+
+    @app.get("/api")
+    def api_root_probe():
+        called.append("handler")
+        return {"unexpected": True}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api")
+
+    assert response.status_code == 401
+    assert called == []
+
+
 def test_generated_api_docs_and_schema_are_owner_protected(tmp_path):
     settings = _settings(tmp_path)
     with TestClient(create_app(settings), raise_server_exceptions=False) as client:

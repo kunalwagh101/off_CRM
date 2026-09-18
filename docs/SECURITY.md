@@ -23,7 +23,7 @@
 - Records campaign events and provider identifiers for audit.
 - Encrypts exported backups with a user passphrase and verifies SQLite integrity before restore.
 - Keeps scheduled Gmail sending disabled until the operator enters the exact activation phrase.
-- Supports a single-user demo login with constant-time credential checks, throttled failures and a signed, secure, HTTP-only, SameSite session cookie.
+- Supports workspace-bound logins with constant-time credential checks, throttled failures and signed, secure, HTTP-only, SameSite session cookies; the legacy demo login remains the `local` workspace.
 - Protects API documentation behind the configured login and adds HSTS and restrictive browser permission headers for non-loopback deployments.
 - Applies per-provider data-minimisation policies before network calls.
 - Stores provider payload bodies only when explicitly enabled; metadata-only audit is the default.
@@ -55,13 +55,33 @@ Never commit:
 
 These paths are covered by `.gitignore`, but operators must still verify release archives.
 
+## Workspace credential boundary
+
+A login is bound to one signed `workspace_id`. That server-side identity selects
+AI provider settings/keys and browser connection/vault state. Workspace choice
+is never taken from a request header, query parameter or body. The local API
+token is intentionally bound to the `local` workspace.
+
+The AI broker is process-wide but provider-key lookup is not mutable shared
+state: each call scopes key resolution to `WorkspaceEgressSettings.workspace_id`
+using context-local state, so concurrent requests cannot switch the resolver
+under one another.
+
 ## Known deployment boundary
 
-This release remains a single-user application. The Render configuration is only for a disposable, password-protected demonstration with synthetic data and local outbox mode. It is not a multi-tenant hosted service.
+This increment provides workspace-specific logins, provider keys and browser
+session custody. It **does not yet make every CRM database row tenant-scoped**
+and it does not invent team roles/approval hierarchy. `S-06.01.02` owns the
+permission model; broader data tenancy must be explicitly traced before this is
+described as a general multi-tenant hosted CRM.
 
-Do not upload Gmail tokens, personal contacts, private expert material or live provider credentials to the free demo. The current Gmail OAuth flow is designed for a local desktop callback, not hosted authorization.
+The free Render configuration remains unsuitable for personal contacts, Gmail
+tokens, private expert material or live provider credentials. The current Gmail
+OAuth flow is still designed for a local desktop callback.
 
-If remote team access is later required, add authenticated tenancy, encrypted secret storage, a durable job queue, PostgreSQL and an audited deployment boundary before exposing the API.
+For remote team production, require the remaining permission/data-isolation
+stories, durable storage, deployment monitoring and rollback evidence before
+exposing customer data.
 
 ## Reporting a failure
 

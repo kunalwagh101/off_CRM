@@ -110,3 +110,29 @@ def test_legacy_demo_login_remains_bound_to_local_workspace(tmp_path: Path) -> N
         )
         assert response.status_code == 200
         assert response.json()["workspace_id"] == "local"
+
+
+@pytest.mark.parametrize(
+    ("workspace_logins", "message"),
+    [
+        ({"../escape": ("alice", "a" * 20)}, "Invalid workspace id"),
+        ({"alpha": ("", "a" * 20)}, "requires a username"),
+        ({"alpha": ("alice", "short")}, "password must contain at least 12 characters"),
+    ],
+)
+def test_workspace_config_refuses_invalid_identity_shapes(
+    tmp_path: Path,
+    workspace_logins: dict[str, tuple[str, str]],
+    message: str,
+) -> None:
+    settings = _settings(tmp_path)
+    settings.workspace_logins = workspace_logins
+    with pytest.raises(ValueError, match=message):
+        settings.validate()
+
+
+def test_workspace_login_env_rejects_invalid_json(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("OFFSETX_WORKSPACE_LOGINS", "{not-json")
+    monkeypatch.setenv("OFFSETX_SESSION_SECRET", "s" * 48)
+    with pytest.raises(ValueError, match="must be valid JSON"):
+        AppSettings.from_env(tmp_path)

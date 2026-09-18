@@ -48,6 +48,7 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-21 | 2026-09-18 | Keep crawl scheduling deterministic and local; do not add ML, Redis or a second crawler framework | SQLite is a single-host frontier today; a future multi-host crawler must move this boundary to shared storage |
 
 ---
 

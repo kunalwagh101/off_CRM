@@ -81,6 +81,21 @@ def _assert_safe_4xx(response) -> None:
         assert marker not in lowered, response.text
 
 
+def test_generated_api_docs_and_schema_are_owner_protected(tmp_path):
+    settings = _settings(tmp_path)
+    with TestClient(create_app(settings), raise_server_exceptions=False) as client:
+        for path in ("/api/docs", "/api/openapi.json"):
+            anonymous = client.get(path)
+            assert anonymous.status_code == 401
+            assert anonymous.json() == {"detail": "CRM login required"}
+
+            authorised = client.get(
+                path,
+                headers={"Authorization": f"Bearer {settings.api_token}"},
+            )
+            assert authorised.status_code == 200
+
+
 def test_dynamic_backend_routes_outside_api_are_only_explicit_health_checks(tmp_path):
     app = create_app(_settings(tmp_path))
     non_api = {

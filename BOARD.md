@@ -67,9 +67,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-07.01.04 · Reports and artifacts
+_nothing in flight_
 
 ## IN_REVIEW
+
+- S-07.01.04 · Reports and artifacts
 
 _nothing waiting_
 

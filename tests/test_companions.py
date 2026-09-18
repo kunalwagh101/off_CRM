@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from offsetx_apollo_builder.agent.companions import (
     CompanionError,
     CompanionStore,
+    approved_memory_loader,
 )
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -146,3 +147,27 @@ def test_companion_api_is_typed_persisted_and_owner_editable(tmp_path: Path) -> 
         assert deleted.status_code == 200
         assert deleted.json() == {"deleted": True}
         assert client.get(f"/api/v1/ai/companions/{companion_id}").status_code == 404
+
+
+def test_approved_memory_loader_never_reads_outside_scope_or_unapproved_items() -> None:
+    calls = []
+
+    class Backend:
+        def search_memory_items(self, query="", **filters):
+            calls.append((query, filters))
+            return ([{"content": "approved fact"}], 1)
+
+    loader = approved_memory_loader(Backend(), limit=25)
+    assert loader("alpha", "campaign:one") == "approved fact"
+    assert calls == [
+        (
+            "",
+            {
+                "workspace_id": "alpha",
+                "scope": "campaign:one",
+                "approved_only": True,
+                "limit": 25,
+                "offset": 0,
+            },
+        )
+    ]

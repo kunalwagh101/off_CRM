@@ -58,6 +58,50 @@ def test_provider_credentials_are_read_from_named_environment_only():
     assert session.calls[0][1]["headers"]["Authorization"] == "Bearer secret"
 
 
+def test_mistral_transcription_uses_its_documented_timestamp_shape():
+    session = _Session()
+    provider = create_provider(
+        ProviderConfig(
+            provider_type="openai_transcribe",
+            model="voxtral-mini-latest",
+            api_key_env="MISTRAL_API_KEY",
+            base_url="https://api.mistral.ai/v1",
+        ),
+        environ={"MISTRAL_API_KEY": "secret"},
+        session=session,
+    )
+
+    provider.transcribe(audio=b"audio", filename="meeting.webm", media_type="audio/webm")
+
+    url, call = session.calls[0]
+    fields = call["data"]
+    assert url == "https://api.mistral.ai/v1/audio/transcriptions"
+    assert ("model", "voxtral-mini-latest") in fields
+    assert ("timestamp_granularities[]", "word") in fields
+    assert ("timestamp_granularities[]", "segment") in fields
+    assert not any(key == "response_format" for key, _ in fields)
+
+
+def test_openai_style_transcription_keeps_verbose_json_for_word_timings():
+    session = _Session()
+    provider = create_provider(
+        ProviderConfig(
+            provider_type="openai_transcribe",
+            model="whisper-1",
+            api_key_env="OPENAI_API_KEY",
+            base_url="https://api.openai.com/v1",
+        ),
+        environ={"OPENAI_API_KEY": "secret"},
+        session=session,
+    )
+
+    provider.transcribe(audio=b"audio", filename="meeting.webm", media_type="audio/webm")
+
+    fields = session.calls[0][1]["data"]
+    assert ("response_format", "verbose_json") in fields
+    assert ("timestamp_granularities[]", "word") in fields
+
+
 def test_provider_url_validation_blocks_plain_remote_http_and_embedded_credentials():
     assert _validate_http_url("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/v1"
     with pytest.raises(ProviderError, match="loopback"):

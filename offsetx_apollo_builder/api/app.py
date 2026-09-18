@@ -29,6 +29,7 @@ from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
 from ..imagery.engine import ImageCampaignEngine
+from ..browser.page import ACTIONS
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
 from ..video.edits import OPERATIONS as VIDEO_OPERATIONS
@@ -106,6 +107,8 @@ from .schemas import (
     AutomationUpdate,
     BackupExport,
     CampaignCreate,
+    CompanionCreate,
+    CompanionUpdate,
     CampaignUpdate,
     ContactUpdate,
     DraftApprove,
@@ -318,6 +321,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.settings = resolved
         # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
+        app.state.companions = CompanionStore(resolved.data_dir / "companions.db")
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
         app.state.engine = OutreachEngine(
             resolved.database_path,
@@ -448,6 +452,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.video_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
+            app.state.companions.close()
 
     app = FastAPI(
         title="off_CRM",
@@ -2265,6 +2270,72 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     def _workspace_id(request: Request) -> str:
         return "local"
+
+    @app.get(f"{API_PREFIX}/ai/companions")
+    def ai_companions(request: Request, include_disabled: bool = Query(True)) -> dict[str, Any]:
+        workspace_id = _workspace_id(request)
+        items = request.app.state.companions.list(
+            workspace_id=workspace_id,
+            include_disabled=include_disabled,
+        )
+        return {
+            "items": [item.to_dict() for item in items],
+            "total": len(items),
+            "browser_tools": list(ACTIONS),
+        }
+
+    @app.post(f"{API_PREFIX}/ai/companions", status_code=201)
+    def ai_create_companion(body: CompanionCreate, request: Request) -> dict[str, Any]:
+        try:
+            profile = request.app.state.companions.create(
+                workspace_id=_workspace_id(request),
+                name=body.name,
+                instructions=body.instructions,
+                memory_scope=body.memory_scope,
+                granted_tools=body.granted_tools,
+                enabled=body.enabled,
+            )
+        except CompanionError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return profile.to_dict()
+
+    @app.get(f"{API_PREFIX}/ai/companions/{{companion_id}}")
+    def ai_get_companion(companion_id: str, request: Request) -> dict[str, Any]:
+        try:
+            return request.app.state.companions.require(
+                companion_id,
+                workspace_id=_workspace_id(request),
+            ).to_dict()
+        except CompanionError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.patch(f"{API_PREFIX}/ai/companions/{{companion_id}}")
+    def ai_update_companion(
+        companion_id: str,
+        body: CompanionUpdate,
+        request: Request,
+    ) -> dict[str, Any]:
+        try:
+            profile = request.app.state.companions.update(
+                companion_id,
+                workspace_id=_workspace_id(request),
+                **body.model_dump(exclude_unset=True),
+            )
+        except CompanionError as exc:
+            message = str(exc)
+            status = 404 if "not found" in message.lower() else 422
+            raise HTTPException(status_code=status, detail=message) from exc
+        return profile.to_dict()
+
+    @app.delete(f"{API_PREFIX}/ai/companions/{{companion_id}}")
+    def ai_delete_companion(companion_id: str, request: Request) -> dict[str, bool]:
+        deleted = request.app.state.companions.delete(
+            companion_id,
+            workspace_id=_workspace_id(request),
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Companion not found in this workspace.")
+        return {"deleted": True}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:

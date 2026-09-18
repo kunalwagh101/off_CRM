@@ -323,3 +323,29 @@ def test_agent_run_adapter_reuses_existing_run_contract(tmp_path: Path) -> None:
         "spend_ceiling_usd": 1.25,
         "latency_ceiling_ms": 2000,
     }
+
+
+def test_notification_failure_does_not_change_successful_run_status(tmp_path: Path) -> None:
+    def broken_notifier(routine, result, trigger):
+        raise RuntimeError("notification sink offline")
+
+    service = RoutineService(
+        RoutineStore(tmp_path / "routines.json"),
+        executor=lambda routine, trigger: {
+            "status": "completed",
+            "result": "useful finding",
+        },
+        notifier=broken_notifier,
+        clock=Clock(),
+    )
+    routine = service.create(_event())
+
+    result = asyncio.run(service.fire_event("import.completed", event_id="evt-notify"))[0]
+
+    assert result["status"] == "completed"
+    assert result["notified"] is False
+    assert "notification sink offline" in result["notification_error"]
+    stored = service.store.get(routine.id)
+    assert stored.last_status == "completed"
+    assert stored.notify_count == 0
+    assert stored.last_error.startswith("notification:")

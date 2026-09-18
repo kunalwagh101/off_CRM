@@ -876,3 +876,29 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+---
+
+## 2026-09-19 — S-06.02.05, keyboard and screen-reader accessibility (IN_PROGRESS)
+
+**What was cut.** Formal external WCAG certification is not claimed. The
+repository can enforce its own keyboard, semantics, focus and reduced-motion
+boundary, but independent browser/screen-reader conformance is a separate
+external acceptance activity.
+
+**What the estimate got wrong.** The shared modal and shell were the easy half.
+The real defects lived in page-specific interaction: AI controls visible only
+on mouse hover, a Sales card pretending an article was a button, and Video
+timeline editing that existed only as pointer dragging. The first AI refactor
+also introduced a recursive close helper (`D-61`), which is now itself guarded
+by a regression assertion.
+
+**What to change next time.** Accessibility work must inventory the complete
+shipped frontend, not sample components. Shared primitives should own focus and
+status behaviour, while every pointer-only product operation must map back to
+the same validated domain command for its keyboard equivalent. The recursive
+source gate makes new React screens enter that audit automatically.
+
+**Evidence state.** Implementation, source gate and focused unit tests are
+committed. Executable frontend test/build evidence is still pending, so this
+story remains IN_PROGRESS and is not DONE.
+

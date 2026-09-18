@@ -597,13 +597,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             if identity is not None
             else (DEFAULT_WORKSPACE if authenticated else "")
         )
-        return {
+        payload = {
             "configured": session_auth.enabled,
             "authenticated": authenticated,
             "username": identity.username if identity else "",
-            "workspace_id": workspace_id,
             "expires_at": identity.expires_at if identity else None,
         }
+        if authenticated:
+            payload["workspace_id"] = workspace_id
+        return payload
 
     @app.post(f"{API_PREFIX}/auth/login")
     def auth_login(body: DemoLogin, request: Request) -> Response:

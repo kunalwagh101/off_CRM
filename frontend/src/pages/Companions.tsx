@@ -124,7 +124,7 @@ export default function Companions() {
                 placeholder="Scout"
               />
             </Field>
-            <Field label="Memory scope" hint="Exactly one existing memory scope, for example global or campaign:acme.">
+            <Field label="Memory scope" hint="Exactly one memory scope name, for example global or campaign:acme.">
               <input
                 value={memoryScope}
                 onChange={(event) => setMemoryScope(event.target.value)}

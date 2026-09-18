@@ -14,6 +14,7 @@ needs without creating a database migration for a document-shaped object.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import uuid
@@ -104,7 +105,13 @@ class MeetingRecord:
                 end = float(word.get("end"))
             except (TypeError, ValueError) as exc:
                 raise MeetingError("Meeting word timing is malformed.") from exc
-            if not text or start < 0 or end < start:
+            if (
+                not text
+                or not math.isfinite(start)
+                or not math.isfinite(end)
+                or start < 0
+                or end < start
+            ):
                 raise MeetingError("Meeting word timing is malformed.")
             words.append({"word": text, "start": round(start, 3), "end": round(end, 3)})
         return cls(

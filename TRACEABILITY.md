@@ -76,7 +76,7 @@ the code exists and holds no stub).
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | — | — |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawler_frontier.py` (5 focused cases) | `offsetx_apollo_builder/crawler_frontier.py`, `offsetx_apollo_builder/discovery.py` |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
 | R-41, R-42 | S-06.01.01 | 1 | — | — |

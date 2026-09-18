@@ -142,6 +142,14 @@ class AppSettings:
             raise ValueError(
                 "OFFSETX_WORKSPACE_LOGINS requires OFFSETX_SESSION_SECRET"
             )
+        if (
+            self.session_secret
+            and not self.workspace_logins
+            and not (self.demo_username or self.demo_password)
+        ):
+            raise ValueError(
+                "OFFSETX_SESSION_SECRET requires a demo or workspace login"
+            )
         if self.demo_password and len(self.demo_password) < 12:
             raise ValueError("OFFSETX_DEMO_PASSWORD must contain at least 12 characters")
         if self.session_secret and len(self.session_secret) < 32:

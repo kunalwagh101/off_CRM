@@ -44,7 +44,6 @@ export default function Meetings() {
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState("");
   const [title, setTitle] = useState("");
-  const [language, setLanguage] = useState("");
   const [active, setActive] = useState<Meeting | null>(null);
   const [startedAt, setStartedAt] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -81,7 +80,6 @@ export default function Meetings() {
       const form = new FormData();
       form.append("file", blob, filenameFor(blob.type || capture.mimeType));
       form.append("title", title.trim());
-      form.append("language", language.trim());
       const result = await api.upload<Meeting>("/meetings/transcribe", form);
       setActive(result);
       setTitle("");
@@ -188,10 +186,6 @@ export default function Meetings() {
             <label className="field">
               <span>Meeting title</span>
               <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200} placeholder="Weekly sales call" disabled={recording} />
-            </label>
-            <label className="field">
-              <span>Language hint <small>(optional)</small></span>
-              <input value={language} onChange={(event) => setLanguage(event.target.value)} maxLength={20} placeholder="en" disabled={recording} />
             </label>
             <p className="muted-copy">
               Transcription is allowed only through a highest-trust Tier A provider configured in off_CRM. If none is available, the recording is refused rather than sent somewhere less trusted.

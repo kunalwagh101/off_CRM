@@ -2057,7 +2057,7 @@ written from memory were wrong:
 
 ---
 
-### Every endpoint authorises and validates — S-06.02.02 (2026-09-19, IN_PROGRESS)
+### Every endpoint authorises and validates — S-06.02.02 (2026-09-19, IN_REVIEW)
 
 - [x] Existing central API authentication is reused; no per-route decorator
       system or second auth stack was added.
@@ -2082,7 +2082,7 @@ written from memory were wrong:
       rate/token/signature/input validation and emit safe 4xx responses.
 - [x] Temporary one-shot delivery workflow/helper removed after the real
       implementation landed.
-- [ ] Executable evidence pending from PR #24 / GitHub Actions. Run #740
+- [ ] Executable evidence pending from PR #24 / GitHub Actions. Runs #740 and #778
       created the `quality` job but executed zero steps and exposed no log.
       Story remains non-DONE until focused regression, full Python regression,
       frontend tests/build and `scripts/verify_board.py` actually execute.

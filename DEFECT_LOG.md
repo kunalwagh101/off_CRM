@@ -84,6 +84,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
 | D-54 | 2026-09-19 | bug | medium | `/api/v1/auth/session` reported `authenticated: true` to an anonymous caller whenever session login was disabled, even though protected routes still required the API token | fixed · `S-06.02.02` |
 | D-55 | 2026-09-19 | security | high | Public API exemptions were path-wide, so a future sensitive HTTP method under a public prefix could silently inherit anonymous access | fixed · `S-06.02.02` |
+| D-56 | 2026-09-19 | bug | low | The first signed-token route-template patch used `{token}` as an f-string expression instead of literal `{{token}}`, which would fail at import time | fixed before review · `S-06.02.02`; route-template/runtime-path tests are now separate |
 
 ---
 

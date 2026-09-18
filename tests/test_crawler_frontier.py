@@ -121,6 +121,28 @@ def test_frontier_persists_budget_and_does_not_recrawl_not_due_seed(tmp_path):
     assert second_fetcher.calls[0] != first_fetcher.calls[0]
 
 
+def test_frontier_lease_prevents_two_workers_claiming_the_same_url(tmp_path):
+    path = tmp_path / "frontier.sqlite3"
+    validator = lambda value: validate_public_url(
+        value, allowed_domains=("example.com",)
+    )
+    first = CrawlFrontier(path, validator=validator)
+    second = CrawlFrontier(path, validator=validator)
+    try:
+        first.admit("https://example.com/work", 0)
+        claimed = first.claim_due(
+            allowed_domains=("example.com",), max_depth=0, limit=1
+        )
+        duplicate = second.claim_due(
+            allowed_domains=("example.com",), max_depth=0, limit=1
+        )
+        assert [entry.url for entry in claimed] == ["https://example.com/work"]
+        assert duplicate == []
+    finally:
+        first.close()
+        second.close()
+
+
 def test_frontier_never_admits_session_gated_platforms(tmp_path):
     path = tmp_path / "frontier.sqlite3"
     seed = "https://example.com/"

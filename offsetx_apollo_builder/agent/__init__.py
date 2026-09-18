@@ -9,10 +9,12 @@ from .result import (
     SourcedRecordValidation,
 )
 from .run import AgentRun, Decision, ResumeState, RunOutcome, RunRefused, replay
+from .routines import AgentRunRoutineExecutor, Routine, RoutineError, RoutineService, RoutineStore, Trigger
 from .watch import Progress, console
 
 __all__ = [
     "AgentRun",
+    "AgentRunRoutineExecutor",
     "console",
     "Decision",
     "Finding",
@@ -21,9 +23,14 @@ __all__ = [
     "RecordValidation",
     "ResultSchema",
     "ResultSchemaError",
+    "Routine",
+    "RoutineError",
+    "RoutineService",
+    "RoutineStore",
     "RunOutcome",
     "RunRefused",
     "ResumeState",
     "replay",
     "SourcedRecordValidation",
+    "Trigger",
 ]

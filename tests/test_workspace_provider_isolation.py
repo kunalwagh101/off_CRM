@@ -136,3 +136,33 @@ def test_concurrent_model_calls_use_the_callers_workspace_key(monkeypatch) -> No
         assert beta.result(timeout=10) == "B" * 24
 
     assert sorted(seen) == ["A" * 24, "B" * 24]
+
+
+def test_local_api_token_cannot_select_a_nonlocal_workspace(tmp_path: Path) -> None:
+    settings = AppSettings(
+        project_root=ROOT,
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        api_token="t" * 40,
+        allowed_hosts=("testserver",),
+    )
+    app = create_app(settings)
+    with TestClient(app) as client:
+        app.state.ai_workspaces.connect_provider(
+            "alpha",
+            "mistral",
+            api_key="A" * 24,
+        )
+        response = client.get(
+            "/api/v1/ai/providers",
+            headers={
+                "Authorization": "Bearer " + ("t" * 40),
+                "X-Workspace-ID": "alpha",
+            },
+        )
+        assert response.status_code == 200
+        row = next(item for item in response.json()["providers"] if item["id"] == "mistral")
+        assert row["connected"] is False
+        assert row["has_key"] is False

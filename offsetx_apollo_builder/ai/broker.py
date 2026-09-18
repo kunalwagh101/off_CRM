@@ -916,7 +916,7 @@ class EgressBroker:
                     findings=[item.to_dict() for item in report.findings],
                 )
 
-            prompt = str(payload.get("instructions") or request.instructions or "").strip()
+            prompt = str(payload.get("instructions") or "").strip()
             started = time.monotonic()
             status = "succeeded"
             error = ""

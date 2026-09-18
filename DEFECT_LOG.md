@@ -82,9 +82,11 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-53 | 2026-09-19 | process | medium | BOARD/DoR wording said any BLOCKED story froze all pulls, contradicting the WIP≤2 model and long-lived named external blockers | fixed process-wide — blocked story stays unpullable; unrelated READY work may proceed |
 | D-54 | 2026-09-19 | bug | medium | `/api/v1/auth/session` reported `authenticated: true` to an anonymous caller whenever session login was disabled, even though protected routes still required the API token | fixed · `S-06.02.02` |
 | D-55 | 2026-09-19 | security | high | Public API exemptions were path-wide, so a future sensitive HTTP method under a public prefix could silently inherit anonymous access | fixed · `S-06.02.02` |
 | D-56 | 2026-09-19 | bug | low | The first signed-token route-template patch used `{token}` as an f-string expression instead of literal `{{token}}`, which would fail at import time | fixed before review · `S-06.02.02`; route-template/runtime-path tests are now separate |
+| D-57 | 2026-09-19 | bug | medium | Auth middleware could reject a credential-less browser CORS preflight before the configured CORS policy validated it, making advertised cross-origin API access unusable | fixed · `S-06.02.02`; only genuine preflight reaches CORSMiddleware |
 
 ---
 

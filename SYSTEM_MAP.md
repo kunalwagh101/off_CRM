@@ -163,7 +163,7 @@ This is the biggest finished piece. It is a real video editor.
 
 ## 7. The Finder — what is happening out there
 
-**Where:** `discovery.py`, `research.py`, `dedupe.py`
+**Where:** `crawler_frontier.py`, `discovery.py`, `research.py`, `dedupe.py`
 
 | Part | What it does | State |
 |---|---|---|
@@ -171,7 +171,7 @@ This is the biggest finished piece. It is a real video editor.
 | Crawl4AI engine | Pages that need JavaScript | ◐ *installed by an optional extra* |
 | Safety rails | robots.txt, no internal addresses, social sites blocked for headless | ✅ |
 | `dedupe.py` | Stops the same company arriving twice under two names | ✅ |
-| **A real crawler** | A queue that remembers politeness and revisits what changes | ⬜ S-05.01.01 |
+| **A real crawler** | Durable due-URL frontier with leases, robots/crawl-delay reuse and change-driven revisits | ◐ S-05.01.01 · code/tests present; CI execution pending |
 | **Extraction packs** | Adding a new source = one row, not a new parser | ⬜ S-05.01.02 |
 | **Competitor teardown** | Take a hit post apart → shape, pacing, hook → rebuild it | ⬜ S-05.01.03 |
 

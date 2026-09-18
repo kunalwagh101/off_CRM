@@ -141,6 +141,12 @@ providers:
         cost_per_1m_input_usd: 0.20
         cost_per_1m_output_usd: 0.60
         good_at: [writing, classification, bulk]
+      # Batch speech-to-text. Official Mistral audio/transcriptions endpoint;
+      # token pricing does not apply, so token cost fields are intentionally absent.
+      - id: voxtral-mini-latest
+        kind: transcribe
+        good_at: [transcribe, multilingual, accurate]
+        model_origin: EU
     free_tier:
       requests_per_minute: 60
       requests_per_day: 1000000

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -216,3 +217,23 @@ def test_real_memory_backend_can_exclude_global_and_unapproved_items(tmp_path: P
         assert loaded == "SCOPED APPROVED"
         assert "GLOBAL SHOULD NOT APPEAR" not in loaded
         assert "SCOPED UNAPPROVED" not in loaded
+
+
+def test_companion_store_serializes_concurrent_worker_threads(tmp_path: Path) -> None:
+    store = CompanionStore(tmp_path / "companions.db")
+
+    def create(index: int) -> str:
+        return store.create(
+            workspace_id="local",
+            name=f"Worker {index}",
+            instructions="",
+            memory_scope=f"scope:{index}",
+            granted_tools=("read",),
+        ).id
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        ids = list(pool.map(create, range(24)))
+
+    assert len(set(ids)) == 24
+    assert len(store.list(workspace_id="local")) == 24
+    store.close()

@@ -52,7 +52,7 @@ offsetx-evals = "offsetx_apollo_builder.ai.eval_cli:main"
 offsetx-tools = "offsetx_apollo_builder.ai.tool_cli:main"
 offsetx-notebook = "offsetx_apollo_builder.notebook_cli:main"
 offsetx-db = "offsetx_apollo_builder.db_cli:main"
-offsetx-codegraph = "offsetx_apollo_builder.codegraph_cli:main"
+offsetx-codegraph = "offsetx_apollo_builder.codegraph_cli:main"\noffsetx-artifacts = "offsetx_apollo_builder.artifact_cli:main"
 offsetx-email-worker = "offsetx_apollo_builder.email_worker_cli:main"
 
 [project.urls]

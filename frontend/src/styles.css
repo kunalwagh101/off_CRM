@@ -469,7 +469,7 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .ai-chat-title:hover { color: var(--blue); }
 .ai-chat-active .ai-chat-title { color: var(--blue); font-weight: 750; }
 .ai-chat-actions { display: flex; gap: 1px; opacity: 0; transition: opacity 110ms; flex-shrink: 0; }
-.ai-chat-item:hover .ai-chat-actions { opacity: 1; }
+.ai-chat-item:hover .ai-chat-actions, .ai-chat-item:focus-within .ai-chat-actions { opacity: 1; }
 .ai-icon-btn { border: 0; background: transparent; padding: 4px 5px; border-radius: 5px; font-size: .72rem; cursor: pointer; color: var(--muted); line-height: 1; }
 .ai-icon-btn:hover { background: var(--border); }
 .ai-delete-btn:hover { background: #fee2e2; color: #dc2626; }

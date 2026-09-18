@@ -229,7 +229,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
           <nav className="mobile-nav" aria-label="Mobile navigation">
             {navigation.map((item) => <a key={item.page} className={page === item.page ? "nav-active" : ""} href={`#${item.page}`} aria-current={page === item.page ? "page" : undefined}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}
           </nav>
-          <main id="main-content" ref={mainRef} tabIndex={-1} className="page-content"><Screen /></main>
+          <main id="main-content" ref={mainRef} tabIndex={-1} className="page-content" aria-label={`${navigation.find((item) => item.page === page)?.label ?? "CRM"} content`}><Screen /></main>
         </div>
       </div>
       {toast ? <div className={`toast toast-${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"} aria-live={toast.tone === "error" ? "assertive" : "polite"} aria-atomic="true"><span aria-hidden="true">{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button></div> : null}

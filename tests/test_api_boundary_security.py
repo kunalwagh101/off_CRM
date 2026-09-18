@@ -107,6 +107,23 @@ def test_public_policy_points_only_at_live_declared_methods(tmp_path):
     assert PUBLIC_API_DYNAMIC <= live
 
 
+def test_anonymous_authentication_stops_before_route_handler(tmp_path):
+    app = create_app(_settings(tmp_path))
+    called: list[str] = []
+
+    @app.get(f"{API_PREFIX}/boundary-handler-probe")
+    def protected_probe():
+        called.append("handler")
+        return {"unexpected": True}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get(f"{API_PREFIX}/boundary-handler-probe")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "CRM login required"}
+    assert called == []
+
+
 def test_every_current_protected_api_route_rejects_anonymous_requests(tmp_path):
     app = create_app(_settings(tmp_path))
     checked: list[str] = []

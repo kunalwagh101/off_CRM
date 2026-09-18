@@ -497,3 +497,37 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+
+---
+
+## S-04.01.01 — prove companion policy survives execution and resume
+
+Focused backend proof:
+
+```bash
+uv run pytest tests/test_companions.py tests/test_companion_agent_run.py tests/test_agent_run.py -q
+```
+
+This must prove persistence, workspace isolation, approved-only memory-scope
+loading, default-deny browser-tool grants, pre-action refusal, disabled/profile
+workspace refusal and resume refusal after companion policy drift.
+
+Frontend proof:
+
+```bash
+cd frontend && npm test && npm run build
+```
+
+The Companions screen must expose create/edit/enable-disable/delete, memory scope
+and explicit browser-tool grants without introducing a second execution path.
+
+Release proof:
+
+```bash
+uv run pytest tests/ -q
+uv run python scripts/verify_board.py
+```
+
+Do not move S-04.01.01 to DONE until every command above actually executes and
+the independent verifier is green.

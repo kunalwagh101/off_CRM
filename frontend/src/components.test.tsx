@@ -155,3 +155,29 @@ describe("timeline units on the dashboard", () => {
     expect(ticksPerFrame("60")).toBe(1500);
   });
 });
+
+
+describe("companion profiles", () => {
+  const context = {
+    campaigns: [],
+    campaignId: "",
+    activeCampaign: null,
+    selectCampaign: () => undefined,
+    refreshCampaigns: () => undefined,
+    notify: () => undefined
+  };
+
+  it("renders the owner-controlled companion policy form", async () => {
+    const { default: Companions } = await import("./pages/Companions");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Companions />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Companions");
+    expect(html).toContain("Memory scope");
+    expect(html).toContain("Granted browser tools");
+    expect(html).toContain("default-deny");
+    expect(html).toContain("Enabled for new runs");
+  });
+});

@@ -44,7 +44,7 @@ model see this data*, and *what actually left the machine*.
 | `tools.py` | The AI names a tool. It cannot invent one | ✅ |
 | `log.py` | Every outbound call, recorded. This is what "local-first" is *proved* by | ✅ |
 | **Skills** | Playbooks fetched only when relevant, so a long procedure doesn't bloat every prompt | ⬜ S-04.01.02 |
-| **Companions** | Named agents with their own instructions and memory | ⬜ S-04.01.01 |
+| **Companions** | Persisted instructions, approved memory scope and enforced browser-tool grants over the existing runner | ◐ S-04.01.01 IN REVIEW |
 | **MCP client** | Borrow tools other people already built | ⬜ S-07.01.01 |
 
 > **Why this matters:** everything else in this document is safe *because* this

@@ -400,9 +400,36 @@ destroyed, **so that** leaving is as easy as joining.
 **As an** owner, **I want** named agents with their own instructions, memory
 scope and granted tools, **so that** "the one that posts" is a thing that exists
 rather than a prompt I retype.
-- **Given** a companion, **when** a run starts under it, **then** only its
-  granted tools and its memory scope are in play.
+- **Given** a companion profile, **when** it is created or edited, **then** its
+  name, owner instructions, one explicit memory scope, browser-tool grant and
+  enabled state persist and remain isolated to its workspace.
+- **Given** a run under a companion, **when** the planning prompt is built,
+  **then** only that companion's owner instructions and approved memory from its
+  declared scope are injected; memory is framed as local data, not instructions.
+- **Given** a planning decision requesting a browser tool the companion was not
+  granted, **when** the runner evaluates it, **then** the run refuses before any
+  browser action executes.
+- **Given** a disabled companion or a profile from another workspace, **when** a
+  run starts, **then** it refuses before planning or browser work.
+- **Given** a companion-backed run that is resumed, **when** its companion is
+  missing or its execution policy has changed, **then** resume refuses rather
+  than widening the original tool/memory boundary.
+- **Given** the owner UI, **when** companions are managed, **then** create, edit,
+  enable/disable and delete are available and the browser-tool grant is visible.
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** runs started from a companion.
+  **Business value:** E-04.
+- **Tasks:** `T-04.01.01.a` persist workspace-scoped profiles;
+  `T-04.01.01.b` bind instructions/memory/tool grants into AgentRun;
+  `T-04.01.01.c` persist policy identity across resume;
+  `T-04.01.01.d` expose typed CRUD API and management UI;
+  `T-04.01.01.e` add negative/security tests and delivery evidence.
+
+**OUT_OF_SCOPE — S-04.01.01.** Skills/procedure retrieval belongs to
+`S-04.01.02`; child agents belong to `S-04.01.03`; the named Scout/Maker/
+Poster/Analyst/Director presets belong to `S-04.01.04`. The existing sandbox
+tool registry is not silently made executable from `AgentRun`: this story's
+`granted_tools` are the runner's existing closed ten-verb browser vocabulary.
+A future generic-tool execution contract must enter the backlog explicitly.
 
 #### S-04.01.02 — Skills: procedures fetched on demand
 **As an** owner, **I want** playbooks stored separately from facts, **so that**

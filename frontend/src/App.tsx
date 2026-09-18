@@ -20,6 +20,7 @@ import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
 import Memory from "./pages/Memory";
 import Recall from "./pages/Recall";
+import Companions from "./pages/Companions";
 import Settings from "./pages/Settings";
 import type { AuthSession, Campaign, Paginated } from "./types";
 
@@ -41,6 +42,7 @@ const pages = {
   egress: Egress,
   memory: Memory,
   recall: Recall,
+  companions: Companions,
   ai: AI,
   settings: Settings
 };
@@ -51,6 +53,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "connectors", label: "Connectors", icon: "⚡" },
   { page: "egress", label: "What was sent", icon: "◉" },
   { page: "memory", label: "Memory", icon: "◈" },
+  { page: "companions", label: "Companions", icon: "◌" },
   { page: "recall", label: "Past emails", icon: "⟲" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },

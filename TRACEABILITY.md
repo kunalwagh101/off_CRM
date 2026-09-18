@@ -52,6 +52,7 @@ the code exists and holds no stub).
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
+| R-31, R-35 | S-04.01.01 | 6 | `tests/test_companions.py`, `tests/test_companion_agent_run.py`, `frontend/src/components.test.tsx` written | Focused/full Python suites, frontend test/build and independent board verifier must execute |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
@@ -72,7 +73,7 @@ the code exists and holds no stub).
 | R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
 | R-20 | S-02.02.04 | 1 | — | — |
-| R-31, R-35 | S-04.01.01 | 1 | — | — |
+
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |

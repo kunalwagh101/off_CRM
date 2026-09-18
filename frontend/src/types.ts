@@ -882,3 +882,22 @@ export type AIRunResult = {
   notes: string[];
   best_text: string;
 };
+
+
+export type CompanionProfile = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  instructions: string;
+  memory_scope: string;
+  granted_tools: string[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CompanionsPayload = {
+  items: CompanionProfile[];
+  total: number;
+  browser_tools: string[];
+};

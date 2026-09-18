@@ -48,6 +48,7 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-22 | 2026-09-19 | Public API access is granted to an exact HTTP method plus path/prefix, never to a path alone | Every intentionally public new method needs an explicit policy entry |
 
 ---
 
@@ -334,3 +335,23 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+### DD-22 — Public API access is method-specific · 2026-09-19
+
+**The obvious thing.** Keep a short list of public paths and prefixes. The
+middleware already had one.
+
+**What was done instead.** Keep the same central middleware, but include the
+HTTP method in every public exemption. A different method on the same path stays
+protected unless it is deliberately added.
+
+**Why.** Authentication exemptions are security policy, not routing
+convenience. A path-wide prefix lets a future admin action inherit anonymity
+without anyone explicitly approving that security decision.
+
+**Cost.** A legitimate new public method needs one extra policy entry.
+
+**What would make this wrong.** If the framework later provides route metadata
+that middleware can inspect before business logic and which expresses the same
+method-specific policy once, moving the declarations there would be cleaner.
+

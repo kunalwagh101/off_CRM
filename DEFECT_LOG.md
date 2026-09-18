@@ -82,6 +82,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-54 | 2026-09-18 | security | critical | API workspace selection was hard-coded to `local`, so separate logins could never isolate provider/browser credentials | fixed on feature branch · `S-06.01.01`, awaiting verification/merge |
+| D-55 | 2026-09-18 | security | critical | The process-wide AI broker's credential resolver was mutated per request, so concurrent workspaces could race and use the wrong provider key | fixed on feature branch · `S-06.01.01`, awaiting verification/merge |
+| D-56 | 2026-09-18 | gap | medium | The authenticated UI always displayed “Local workspace”, hiding the credential workspace actually in use | fixed on feature branch · `S-06.01.01`, awaiting verification/merge |
 
 ---
 
@@ -449,3 +452,46 @@ marketing homepage, a help article, a search results page.
 **Why it mattered.** This detector is allowed to stop a run. A detector that
 pauses on ordinary pages teaches the owner to ignore it, which is worse than not
 having one.
+
+
+### D-54 — Every authenticated request was still workspace `local` · 2026-09-18
+
+**What went wrong.** The AI/provider and browser stores already accepted a
+`workspace_id`, but the API helper that supplied it returned the literal
+`"local"` for every request. Adding a second login therefore changed who was
+signed in without changing which credential namespace the request could reach.
+
+**How it was found.** Tracing one authenticated request from signed cookie to
+`_workspace_id()` and then into `WorkspaceAISettingsStore` and
+`ConnectionStore`.
+
+**The fix.** The signed session now carries one workspace claim; request
+workspace authority is derived only from that verified identity. Headers, query
+parameters and bodies cannot choose a workspace. The local API token remains
+intentionally bound to `local`.
+
+### D-55 — Two workspaces could race one mutable provider-key resolver · 2026-09-18
+
+**What went wrong.** The application owns one process-wide `EgressBroker`.
+Several request helpers replaced `broker.credential_resolver` with a closure
+for the current workspace immediately before a call. Two requests running at
+the same time could therefore overwrite the resolver between selection and
+provider construction.
+
+**How it was found.** Looking for shared mutable state after the workspace-id
+audit, then enumerating every assignment to `credential_resolver`.
+
+**The fix.** The broker receives a stable two-argument workspace resolver once
+at startup. Each outbound call binds its own workspace with `ContextVar`
+scope only while resolving the provider key. No request mutates the process-wide
+resolver. A two-thread regression test forces both provider constructions to
+overlap.
+
+### D-56 — The UI lied about which credential workspace was active · 2026-09-18
+
+**What went wrong.** The sidebar rendered the literal “Local workspace” even
+for authenticated non-local sessions.
+
+**The fix.** The session response carries the verified workspace and the UI
+shows it as the provider/browser credential boundary. It deliberately does not
+claim the entire CRM database is tenant-isolated yet.

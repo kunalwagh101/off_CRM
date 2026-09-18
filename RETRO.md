@@ -878,7 +878,7 @@ fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 p
 
 ---
 
-## 2026-09-19 — S-06.02.05, keyboard and screen-reader accessibility (IN_PROGRESS)
+## 2026-09-19 — S-06.02.05, keyboard and screen-reader accessibility (IN_REVIEW)
 
 **What was cut.** Formal external WCAG certification is not claimed. The
 repository can enforce its own keyboard, semantics, focus and reduced-motion
@@ -899,6 +899,7 @@ the same validated domain command for its keyboard equivalent. The recursive
 source gate makes new React screens enter that audit automatically.
 
 **Evidence state.** Implementation, source gate and focused unit tests are
-committed. Executable frontend test/build evidence is still pending, so this
-story remains IN_PROGRESS and is not DONE.
+committed. GitHub Actions run #818 and its failed-job retry both stopped before
+step 1 with zero steps/no logs; the clean execution container also cannot
+resolve github.com. No test pass is claimed. The story is IN_REVIEW, not DONE.
 

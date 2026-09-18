@@ -86,6 +86,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-59 | 2026-09-19 | accessibility | medium | Sales lead cards made an `<article>` behave like a button with custom Enter/Space handling while nesting a status select inside it | fixed · `S-06.02.05` — editing is a native button and status movement remains a native select |
 | D-60 | 2026-09-19 | accessibility | high | Video timeline clips could only be moved or trimmed with pointer dragging | fixed · `S-06.02.05` — keyboard move/trim maps to the same validated `move_clip` / `trim_clip` operations |
 | D-61 | 2026-09-19 | bug | high | An accessibility refactor accidentally made AI `closePanel()` call itself recursively | fixed before review · `S-06.02.05`; regression assertion now requires the real state transition and forbids the recursive body |
+| D-62 | 2026-09-19 | product-copy | medium | The production login screen still called the product a demo and told users to use temporary Render credentials | fixed while auditing `S-06.02.05`; production copy now describes the installed workspace and local outbox without a demo claim |
 
 ---
 

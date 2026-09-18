@@ -67,11 +67,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.01.04 · Routines that fire agent runs on a schedule or an event
+_nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.01.04 · Routines that fire agent runs on a schedule or an event
 
 ## BLOCKED
 

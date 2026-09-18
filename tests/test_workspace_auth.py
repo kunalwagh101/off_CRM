@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import base64
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.auth import WorkspaceSessionAuth
+from offsetx_apollo_builder.api.config import AppSettings
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _settings(tmp_path: Path) -> AppSettings:
+    return AppSettings(
+        project_root=ROOT,
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        host="0.0.0.0",
+        workspace_logins={
+            "alpha": ("alice", "a" * 20),
+            "beta": ("bob", "b" * 20),
+        },
+        session_secret="s" * 48,
+        session_hours=2,
+        allowed_hosts=("testserver", "crm.test"),
+    )
+
+
+def test_workspace_session_is_signed_to_one_workspace() -> None:
+    auth = WorkspaceSessionAuth(
+        logins={"alpha": ("alice", "a" * 20), "beta": ("bob", "b" * 20)},
+        session_secret="x" * 48,
+        session_hours=1,
+    )
+    identity = auth.authenticate("alice", "a" * 20)
+    assert identity is not None
+    assert identity.workspace_id == "alpha"
+
+    token = auth.issue(identity, now=1000)
+    verified = auth.verify(token, now=1001)
+    assert verified is not None
+    assert verified.workspace_id == "alpha"
+
+    encoded, signature = token.split(".", 1)
+    raw = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+    changed = raw.replace("\nalpha\n", "\nbeta\n", 1)
+    changed_encoded = base64.urlsafe_b64encode(changed.encode()).rstrip(b"=").decode()
+    assert auth.verify(f"{changed_encoded}.{signature}", now=1001) is None
+
+
+def test_workspace_config_rejects_duplicate_usernames(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.workspace_logins["beta"] = ("alice", "c" * 20)
+    with pytest.raises(ValueError, match="configured more than once"):
+        settings.validate()
+
+
+def test_authenticated_session_reports_server_selected_workspace(tmp_path: Path) -> None:
+    with TestClient(create_app(_settings(tmp_path)), base_url="https://crm.test") as client:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"username": "alice", "password": "a" * 20},
+        )
+        assert response.status_code == 200
+        assert response.json()["workspace_id"] == "alpha"
+        session = client.get("/api/v1/auth/session").json()
+        assert session["authenticated"] is True
+        assert session["workspace_id"] == "alpha"

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **S-05.01.01 crawler frontier is implemented and awaiting executable CI evidence.**
+  Public discovery now persists crawl state in SQLite, leases due URLs so
+  concurrent workers do not duplicate claims, schedules recently changed pages
+  sooner than stable pages, backs failures off, and routes every admitted URL
+  through the existing public-web/session-gated safety policy. Five focused
+  acceptance/concurrency tests are in `tests/test_crawler_frontier.py`. GitHub
+  Actions runs 584 and 590 failed before creating any workflow step, so the
+  story remains IN_REVIEW rather than being falsely marked DONE.
+
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.
 - **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.
 - **Delivery failures were recorded instead of hidden.** `D-47` is dev-tooling-only: `npm audit --omit=dev` is clean while the full tree has four findings and is tracked by `S-06.02.16`. `D-48` tracks the missing DONE-dependency check under `S-06.02.17`. `D-49` records the rejected workflow-file push and the transport fix used to finish this story.

@@ -216,7 +216,7 @@ test plan, and what it depends on.
 |---|---|
 | S-07.01.01 | **MCP** — inherit tools other people already built |
 | S-07.01.02 | Proper Gmail / Sheets / Slack / HubSpot connections |
-| S-07.01.03 | Meeting notes with no bot joining the call |
+| S-07.01.03 | ◐ Local mic + shared system audio → private Tier-A transcript; implementation on PR #23, executable proof pending |
 | S-07.01.04 | Turn findings into a deck, a spreadsheet or a PDF |
 
 ---

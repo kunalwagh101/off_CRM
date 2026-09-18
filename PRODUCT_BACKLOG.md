@@ -715,7 +715,23 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 **so that** research ends in something I can send.
 - **Given** a run's findings, **when** a report is generated, **then** every
   claim in it links to a trace step.
+- **Given** the same verified findings, **when** XLSX, PPTX or PDF is requested,
+  **then** the chosen artifact is produced locally without another model call.
+- **Given** page-controlled text beginning with spreadsheet formula characters,
+  **when** an XLSX is opened, **then** it remains literal text rather than an
+  executable formula.
 - **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** reports produced per research run.
+- **Blocking risk:** PDF rendering depends on an installed Chrome/Chromium-family
+  browser; generation must fail with an actionable message if none is present.
+- **Business value:** E-04 — specialised agents end in a portable deliverable
+  rather than leaving the owner to reconstruct findings from trace files.
+- **Tasks:** T-07.01.04.a shared provenance-bound artifact model (<=1 day);
+  T-07.01.04.b XLSX/PPTX/PDF writers and local CLI (<=1 day);
+  T-07.01.04.c security/format/negative tests (<=1 day);
+  T-07.01.04.d demo, traceability, docs, retro and verifier evidence (<=1 day).
+- **Out of scope:** AI rewriting or summarising of verified findings; cloud
+  document publishing; collaborative editing; slide design templates; changing
+  the underlying run or provenance model.
 
 ### F-08.01 — Protected bulk email delivery  *(E-07)*
 

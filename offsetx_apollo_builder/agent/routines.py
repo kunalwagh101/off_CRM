@@ -478,18 +478,21 @@ class RoutineService:
                 else dict(raw or {})
             )
             status = str(result.get("status") or "completed")
-            notified = self._should_notify(result)
-            if notified and self.notifier is not None:
-                notice = self.notifier(routine, result, trigger)
-                if inspect.isawaitable(notice):
-                    await notice
+            should_notify = self._should_notify(result)
+            notified, notification_error = await self._notify(
+                routine, result, trigger, should_notify=should_notify
+            )
             latest = self.store.get(routine.id)
             self.store.put(
                 replace(
                     latest,
                     last_run_at=_now_iso(now),
                     last_status=status,
-                    last_error="",
+                    last_error=(
+                        f"notification: {notification_error}"[:1000]
+                        if notification_error
+                        else ""
+                    ),
                     run_count=latest.run_count + 1,
                     notify_count=latest.notify_count + (1 if notified else 0),
                     next_run_at=(
@@ -503,6 +506,7 @@ class RoutineService:
                 "routine_id": routine.id,
                 "status": status,
                 "notified": notified,
+                "notification_error": notification_error,
                 "result": result,
             }
         except Exception as exc:
@@ -522,19 +526,50 @@ class RoutineService:
                 )
             )
             result = {"status": "error", "error": str(exc)[:1000]}
-            if self.notifier is not None:
-                notice = self.notifier(routine, result, trigger)
-                if inspect.isawaitable(notice):
-                    await notice
+            notified, notification_error = await self._notify(
+                routine, result, trigger, should_notify=True
+            )
+            if notification_error:
+                latest = self.store.get(routine.id)
+                self.store.put(
+                    replace(
+                        latest,
+                        last_error=(
+                            f"{latest.last_error}; notification: {notification_error}"[:1000]
+                        ),
+                    )
+                )
             return {
                 "routine_id": routine.id,
                 "status": "error",
-                "notified": self.notifier is not None,
+                "notified": notified,
+                "notification_error": notification_error,
                 "result": result,
             }
         finally:
             with self._flight_lock:
                 self._in_flight.discard(routine.id)
+
+    async def _notify(
+        self,
+        routine: Routine,
+        result: Mapping[str, Any],
+        trigger: Trigger,
+        *,
+        should_notify: bool,
+    ) -> tuple[bool, str]:
+        if not should_notify or self.notifier is None:
+            return False, ""
+        try:
+            notice = self.notifier(routine, result, trigger)
+            if inspect.isawaitable(notice):
+                await notice
+            return True, ""
+        except Exception as exc:
+            # Notification delivery is observability, not execution. A Slack/
+            # inbox outage cannot rewrite a completed AgentRun into an error or
+            # cause the scheduler to retry an effectful run.
+            return False, str(exc)[:1000]
 
     @staticmethod
     def _should_notify(result: Mapping[str, Any]) -> bool:

@@ -1356,7 +1356,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         request: Request,
         file: UploadFile = File(...),
         title: str = Form(""),
-        language: str = Form(""),
     ) -> dict[str, Any]:
         _require_local_meeting_request(request)
         media_type = str(file.content_type or "").split(";", 1)[0].strip().lower()
@@ -1394,7 +1393,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 audio=audio,
                 media_type=media_type,
                 filename=Path(file.filename or "meeting.webm").name,
-                language=str(language or "").strip(),
+                language="",
             )
             record = state.meetings.save_transcript(
                 title=title,

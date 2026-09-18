@@ -2061,8 +2061,9 @@ written from memory were wrong:
 
 - [x] Existing central API authentication is reused; no per-route decorator
       system or second auth stack was added.
-- [x] Public exceptions are now HTTP-method-specific, so a future sensitive
-      method under a public-looking path is protected by default.
+- [x] Public exceptions are HTTP-method and exact-path-shape specific. Signed
+      unsubscribe URLs must match the UUID + 43-char HMAC shape, so a future
+      GET/POST `/email/unsubscribe/admin` path stays protected.
 - [x] The public set is deliberately small: metadata, session/login/logout,
       signed unsubscribe GET/POST and the signed SES/SNS callback.
 - [x] `/api/v1/auth/session` reports actual token/session authentication
@@ -2081,9 +2082,10 @@ written from memory were wrong:
       rate/token/signature/input validation and emit safe 4xx responses.
 - [x] Temporary one-shot delivery workflow/helper removed after the real
       implementation landed.
-- [ ] Executable evidence pending from PR #24 / GitHub Actions. Story remains
-      IN_PROGRESS until focused regression, full Python regression, frontend
-      tests/build and `scripts/verify_board.py` actually execute successfully.
+- [ ] Executable evidence pending from PR #24 / GitHub Actions. Run #740
+      created the `quality` job but executed zero steps and exposed no log.
+      Story remains non-DONE until focused regression, full Python regression,
+      frontend tests/build and `scripts/verify_board.py` actually execute.
 
 ## 4. Not built yet
 

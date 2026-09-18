@@ -2080,6 +2080,12 @@ written from memory were wrong:
       called DONE until the test command and board verifier actually run.
 - [x] D-51 was caught before review: a scripted metadata edit wrote a literal
       `\\n` into `pyproject.toml`; the committed file was re-read and fixed.
+- [x] Supplemental format probe: the exact PPTX package shape opened in
+      LibreOffice Impress and converted to PDF successfully.
+- [ ] Live PDF rendering is not certified in this container. Root Chromium
+      correctly refuses to run with its sandbox; a non-root probe did not
+      complete here. No `--no-sandbox` weakening was added to make the probe
+      pass.
 
 ## 4. Not built yet
 

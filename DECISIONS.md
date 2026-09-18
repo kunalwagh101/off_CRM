@@ -334,3 +334,32 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+
+### DD-21 — The security boundary is what the provider receives, not the object named payload · 2026-09-17
+
+**The obvious thing.** Keep scanning the dictionary returned by
+`build_payload`, because it is already allowlisted and every ordinary user
+field passes through it.
+
+**What was done instead.** Keep that scanner and extend the same fail-closed
+decision to every additional textual argument that crosses the provider
+boundary: the chat system prompt and transcription metadata. Image generation
+may use only the prompt that survived payload construction; it cannot fall back
+to raw request text.
+
+**Why.** A provider does not know which Python object a string came from. A
+credential in `system_prompt` is just as disclosed as one in the JSON body.
+Security controls therefore follow the network boundary rather than an internal
+type name.
+
+**Why not entropy-detect every opaque string.** High-entropy detection has a
+large false-positive surface and still cannot prove an arbitrary string is a
+credential. The strong controls remain vault separation and allowlist payload
+construction. The final scanner catches known credential shapes, secret field
+names and explicit assignments, and blocks rather than silently sanitising a
+programming error.
+
+**Cost.** A legitimate example containing a credential-shaped string can be
+refused. That is the safe direction: the caller must remove the secret-shaped
+material rather than acquire a bypass.

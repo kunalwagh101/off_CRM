@@ -876,3 +876,34 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+
+---
+
+## 2026-09-17 — S-06.02.01, secret-safe model egress
+
+**What was cut.** Nothing from the story. Existing vault separation,
+allowlist-built payloads and the single broker were reused rather than replaced.
+Arbitrary entropy guessing is explicitly outside the scanner contract because it
+would turn false positives into an undocumented business rule.
+
+**What the estimate got wrong.** Most of the control already existed and was
+well tested. The dangerous gap was smaller: the provider received text beside
+the object called “payload”, so the scanner protected only half of a chat
+request. Following the adapter arguments also exposed a raw-request fallback on
+the image path and unscanned transcription metadata.
+
+**What changed while reviewing the tests.** The first image regression used
+NVIDIA's default text model, which would never have exercised the image path.
+The test now explicitly enables `black-forest-labs/flux.1-dev`. This is exactly
+why tests must prove the path they claim to test rather than merely look
+plausible.
+
+**What to change next time.** For every egress control, enumerate the actual
+arguments at the network adapter boundary first. Then test that provider
+instantiation is unreachable on rejection. A green scanner over one internal
+object is not evidence that every outbound field was scanned.
+
+**Review state.** Implementation and regression tests are present, but GitHub
+Actions currently creates failed zero-step jobs. The story stays IN_REVIEW until
+the focused suite, full regression and independent verifier actually execute.

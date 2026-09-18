@@ -31,20 +31,26 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("aws_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
     ("bearer_header", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{20,}")),
+    ("basic_auth_header", re.compile(r"\bBasic\s+[A-Za-z0-9+/=]{12,}")),
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
     ("connection_string", re.compile(r"\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis)://\S+")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
     ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
     ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    ("secret_assignment", re.compile(r"\b(?:client[_ -]?secret|secret[_ -]?(?:key|access[_ -]?key)|api[_ -]?key|private[_ -]?key)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
 )
 
 #: Browser and OAuth credentials can be opaque and have no recognisable value
 #: shape at all. A credential-shaped field name is therefore itself enough to
-#: refuse the payload. These stay forbidden even at FULL policy.
+#: refuse the payload. These stay forbidden even at FULL policy. Field names
+#: are canonicalised first, so camelCase, kebab-case and acronyms cannot bypass
+#: the same deny rule by spelling the same field differently.
 _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "authorization",
+        "authorization_header",
+        "bearer_token",
         "cookie",
         "cookies",
         "credential",
@@ -57,8 +63,17 @@ _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
         "session_id",
         "session_token",
         "token",
+        "api_key",
+        "api_token",
+        "client_secret",
+        "oauth_token",
+        "private_key",
+        "secret",
+        "secret_key",
+        "secret_access_key",
         "access_token",
         "refresh_token",
+        "x_api_key",
     }
 )
 
@@ -104,7 +119,7 @@ _INTERNAL_FIELD_NAMES: frozenset[str] = frozenset(
     }
 )
 
-_ENV_VAR_RE = re.compile(r"\bOFFSETX_[A-Z0-9_]{3,}\b")
+_ENV_VAR_RE = re.compile(r"\b(?:OFFSETX|OFF_CRM)_[A-Z0-9_]{3,}\b")
 _FILE_PATH_RE = re.compile(r"(?:^|[\s\"'])(?:/(?:home|root|var|etc|Users)/[\w./-]{4,})")
 
 
@@ -155,6 +170,22 @@ def _mask(value: str, keep: int = 4) -> str:
     return text[:keep] + "…" + "*" * min(6, max(0, len(text) - keep))
 
 
+def _canonical_field_name(value: object) -> str:
+    """Map equivalent field spellings to one deny-list representation.
+
+    Security-sensitive records arrive from JavaScript, Python, provider SDKs
+    and JSON.  Those ecosystems spell the same field as ``clientSecret``,
+    ``client_secret`` or ``client-secret``. Exact string matching makes the
+    policy depend on casing style, so canonicalisation happens before either
+    secret-field or internal-field checks.
+    """
+    text = str(value or "").strip()
+    text = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", text)
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
+    text = re.sub(r"[^A-Za-z0-9]+", "_", text)
+    return text.strip("_").lower()
+
+
 def _walk(payload: Any, path: str = "$") -> Iterable[tuple[str, str, Any]]:
     """Yield ``(path, kind, value)`` for every key and leaf string in the tree."""
     if isinstance(payload, dict):
@@ -197,8 +228,9 @@ def scan_payload(
     # precisely when it holds a pasted email.
     for location, node_kind, value in _walk(payload):
         text = str(value)
+        field_name = _canonical_field_name(text) if node_kind == "key" else ""
 
-        if node_kind == "key" and text.lower() in _SECRET_FIELD_NAMES:
+        if node_kind == "key" and field_name in _SECRET_FIELD_NAMES:
             report.findings.append(
                 ScanFinding(
                     kind="credential",
@@ -265,7 +297,7 @@ def scan_payload(
             )
 
         if node_kind == "key":
-            if text.lower() in _INTERNAL_FIELD_NAMES:
+            if field_name in _INTERNAL_FIELD_NAMES:
                 report.findings.append(
                     ScanFinding(
                         kind="internal_field",

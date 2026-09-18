@@ -507,9 +507,44 @@ back, **so that** a bad release is a five-minute problem.
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
 #### S-06.02.01 — No secret may enter a model prompt
-- **Given** the payload builder, **when** any request is assembled, **then** a
-  scan for credential-shaped material passes.
+**As an** owner connecting external model providers, **I want** every piece of
+text crossing that provider boundary checked for credentials before the provider
+adapter exists, **so that** a prompt-building mistake cannot disclose a reusable
+secret.
+
+- **Given** a normal text-model call, **when** a credential appears in either the
+  constructed user payload or the separate system prompt, **then** the call is
+  refused before provider instantiation and the finding names the blocked
+  location.
+- **Given** any resolved data policy including `full`, **when** a known
+  credential shape, credential-shaped field name, or explicit secret assignment
+  is present, **then** it is blocked; `full` may widen business data but never
+  credentials.
+- **Given** equivalent field names such as `clientSecret`, `client-secret`,
+  `client_secret` or `x-api-key`, **when** scanned, **then** naming style
+  cannot bypass the deny rule.
+- **Given** image generation, **when** payload construction omits raw
+  instructions, **then** the image adapter receives no fallback text from the
+  unscanned request object.
+- **Given** transcription, **when** textual metadata such as filename, media
+  type or language contains credential-shaped material, **then** the request is
+  refused before the transcription provider is instantiated.
+- **Given** a blocked secret, **when** the finding is logged or returned, **then**
+  the reusable secret value itself is masked rather than copied into the audit
+  trail or error response.
 - **Dependencies:** S-03.02.02. **Size:** M. **Indicator:** scanner findings.
+  **Business value:** E-06.
+- **Tasks:** `T-06.02.01.a` inventory provider-bound text surfaces;
+  `T-06.02.01.b` close unscanned prompt/metadata paths;
+  `T-06.02.01.c` harden credential-shape matching;
+  `T-06.02.01.d` add fail-closed regression tests;
+  `T-06.02.01.e` record security evidence and independent verification.
+
+**OUT_OF_SCOPE — S-06.02.01.** Guessing whether every arbitrary unlabeled
+high-entropy string is a secret is not treated as a reliable security boundary.
+The primary controls remain vault separation and allowlist payload construction;
+this story adds a fail-closed scanner for credential shapes, credential field
+names and explicit assignments at the final provider boundary.
 
 #### S-06.02.02 — Every endpoint authorises and validates
 - **Given** any endpoint, **when** called without a session, **then** it refuses.

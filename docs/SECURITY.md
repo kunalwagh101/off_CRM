@@ -39,6 +39,27 @@
 - Uses optimistic card revisions to reject stale sales-board writes and records every sales lead create, edit and status change in an append-only event trail.
 - Calculates sales metrics server-side from validated SQLite records; browser-supplied earnings, rates and projections are never trusted.
 
+## AI provider egress secret gate
+
+All model-provider text crosses one fail-closed boundary in
+`offsetx_apollo_builder.ai.broker`. The allowlisted user payload is scanned
+immediately before the call, and provider-bound text that travels beside that
+payload is scanned too: the chat system prompt and transcription filename,
+media-type and language metadata. Image generation uses only the prompt that
+survived payload construction; it never falls back to raw request text.
+
+The scanner refuses known provider credentials, bearer/basic authorization
+values, private-key blocks, database connection strings, JWTs, cookie/password
+or token assignments, credential-shaped field names, and common API-key/client-
+secret assignments. Field names are canonicalised so snake_case, kebab-case and
+camelCase spellings receive the same decision. `DataPolicy.FULL` does not
+disable credential blocking.
+
+A blocked finding masks the matched value before it reaches an exception or
+audit record. Detection is deliberately a second line of defence, not a secret
+store: provider credentials remain outside model-visible state and payloads are
+constructed from explicit allowlists rather than copied from CRM records.
+
 ## Secrets
 
 Never commit:

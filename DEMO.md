@@ -497,3 +497,33 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+
+---
+
+## S-06.02.01 — prove no secret can cross a model-provider text boundary
+
+Focused security evidence:
+
+```bash
+uv run pytest tests/test_ai_secret_gate.py tests/test_ai_egress_wall.py -q
+```
+
+The focused suite must prove that a credential in the JSON payload, separate
+system prompt, image request path or transcription metadata is refused before a
+provider is instantiated; field-name spelling cannot bypass the deny list; FULL
+policy still blocks credentials; and a blocked finding does not reproduce the
+secret.
+
+Then run the full regression and the independent board gate:
+
+```bash
+uv run pytest tests/ -q
+cd frontend && npm test && npm run build
+uv run python scripts/verify_board.py
+```
+
+**Current review note (2026-09-17).** The code and focused tests exist, but
+GitHub Actions run 35220807796 created a failed quality job with no executable
+steps. That is not a passing or failing test result. Do not move this story to
+DONE until the commands above actually execute and the verifier is green.

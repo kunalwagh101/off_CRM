@@ -82,6 +82,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-51 | 2026-09-17 | security | critical | The egress scanner checked the constructed user payload but not the separate system prompt, so a credential in system instructions could reach a model provider | fixed on feature branch · `S-06.02.01`, awaiting verification/merge |
+| D-52 | 2026-09-17 | security | high | Secret field detection depended on exact snake_case spelling, so camelCase or kebab-case credential keys could bypass the deny list | fixed on feature branch · `S-06.02.01`, awaiting verification/merge |
+| D-53 | 2026-09-17 | process | high | GitHub Actions creates the quality job but assigns no executable steps, so security tests and the board verifier cannot run in CI | open · `S-06.01.05` |
 
 ---
 
@@ -449,3 +452,48 @@ marketing homepage, a help article, a search results page.
 **Why it mattered.** This detector is allowed to stop a run. A detector that
 pauses on ordinary pages teaches the owner to ignore it, which is worse than not
 having one.
+
+
+### D-51 — The scanner guarded only half of a chat request · 2026-09-17
+
+**What went wrong.** `EgressBroker.call` scanned the allowlisted JSON payload,
+then sent a separate `system_prompt` to the provider without scanning it. A
+provider key or bearer token accidentally interpolated into system instructions
+therefore crossed the same network boundary without touching the guard.
+
+**How it was found.** By tracing the exact arguments passed to
+`provider.generate` rather than assuming the object called “payload” was the
+whole request. The provider receives two prompt strings; only one was covered.
+
+**Why it mattered.** This was a reusable-secret exfiltration path in the single
+module that is supposed to be the product's AI egress gate.
+
+**The fix.** Scan every provider-bound text surface before provider
+instantiation and merge findings into the existing fail-closed path.
+
+### D-52 — A secret changed safety by changing naming style · 2026-09-17
+
+**What went wrong.** Credential field names were exact string matches. The same
+field written as `client_secret`, `client-secret` and `clientSecret` did not
+necessarily receive the same decision.
+
+**How it was found.** Adversarial tests varied only the spelling convention of
+the key while keeping the opaque value identical.
+
+**The fix.** Canonicalise field names before applying both the credential and
+internal-field deny lists, and add explicit assignment patterns for common API
+key/client-secret shapes.
+
+### D-53 — CI creates a job but never starts one · 2026-09-17
+
+**What went wrong.** GitHub Actions runs for this security branch complete as
+failed with no executable steps in the quality job. The same infrastructure
+failure also affected unrelated feature branches, so it is not evidence that
+this story's tests failed.
+
+**How it was found.** Inspecting workflow run 35220807796 and its quality job:
+the job has a failure conclusion and no steps/log payload to inspect.
+
+**Why it mattered.** The Definition of Done requires tests and the independent
+board verifier to actually run. Until execution is restored, this story can be
+implemented and reviewed but cannot truthfully enter DONE.

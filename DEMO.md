@@ -125,7 +125,7 @@ whole catalogue, which is what makes every look's slider trustworthy.
 
 ---
 
-## 4. The posting cap refuses to be argued with
+## 5. The posting cap refuses to be argued with
 
 ```bash
 python - <<'PY'
@@ -149,7 +149,7 @@ Expect the goal to want ~9.8/day and the suggestion to be held at your cap, with
 
 ---
 
-## 5. The browser agent, driving a real browser
+## 6. The browser agent, driving a real browser
 
 Needs Chrome, Edge, Brave or Chromium installed. Skips cleanly if none is.
 
@@ -192,7 +192,7 @@ agent says `click(4)` — it cannot write a selector and it cannot run code.
 
 ---
 
-## 6. Safety: what the agent refuses
+## 7. Safety: what the agent refuses
 
 ```bash
 python - <<'PY'
@@ -219,7 +219,7 @@ local file and the cloud metadata address refused always.
 
 ---
 
-## 7. Protected email refuses unsafe sends and survives worker failures
+## 8. Protected email refuses unsafe sends and survives worker failures
 
 This is the complete deterministic delivery slice: permission, suppression,
 durable claims, ambiguous-send quarantine, domain authentication, SES MIME,
@@ -235,7 +235,7 @@ so it does not expire with the calendar.
 
 ---
 
-## 8. The browser box: what it mounts, and what it refuses
+## 9. The browser box: what it mounts, and what it refuses
 
 The container the browser runs in. Print the exact `docker run` off_CRM would
 issue, and look for a path from your own machine in it:
@@ -308,7 +308,7 @@ resolve would do anyway.
 
 ---
 
-## 9. Sign in to a platform, and go looking for the password
+## 10. Sign in to a platform, and go looking for the password
 
 The login belongs to the person, not to off_CRM. off_CRM opens the page, waits,
 and reads back **whether it worked** — nothing else crosses.
@@ -396,7 +396,7 @@ another one against the same profile, and asks for the cookie back.
 
 ---
 
-## 10. The vault: one account key each, no secret in a model prompt
+## 11. The vault: one account key each, no secret in a model prompt
 
 This is the acceptance proof for `S-03.02.02`. It does not contact a real
 platform or AI provider. It proves the storage/key boundary, trusted CDP
@@ -422,7 +422,7 @@ back into Chrome. Neither path is available to a model.
 
 ---
 
-## 11. Revoke and forget: prove the session is really gone
+## 12. Revoke and forget: prove the session is really gone
 
 This is the acceptance and live-browser proof for `S-03.02.03`.
 
@@ -443,7 +443,7 @@ Gate 2 environment for this increment and ran the live Chromium assertion.
 
 ---
 
-## 12. The whole test suite
+## 13. The whole test suite
 
 ```bash
 uv run pytest tests/ -q
@@ -457,7 +457,7 @@ from this prose; the command's exit code is the authority.
 
 ---
 
-## 13. Production Run Loop: bounded decisions, broker-only AI, human gates
+## 14. Production Run Loop: bounded decisions, broker-only AI, human gates
 
 This is the deterministic production acceptance proof for `S-02.02.01`. It
 uses controlled page and broker doubles so it can assert the security boundaries

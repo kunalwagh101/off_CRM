@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Button, Modal, Progress, StatePanel, dialogTabTarget } from "./components";
+import { clipKeyboardCommand } from "./video/keyboard";
 
 describe("shared accessibility contract", () => {
   it("exposes progress values to assistive technology", () => {
@@ -46,6 +47,28 @@ describe("shared accessibility contract", () => {
     expect(dialogTabTarget(-1, 0, false)).toBe(0);
   });
 
+  it("maps keyboard timeline editing to the same validated operations as pointer dragging", () => {
+    const clip = { id: "clip-1", start: 100 };
+
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10)).toEqual({
+      operation: "move_clip",
+      payload: { clip_id: "clip-1", start: 110 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowLeft", 10, { shift: true })).toEqual({
+      operation: "move_clip",
+      payload: { clip_id: "clip-1", start: 0 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10, { alt: true })).toEqual({
+      operation: "trim_clip",
+      payload: { clip_id: "clip-1", head: 10 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10, { tail: true })).toEqual({
+      operation: "trim_clip",
+      payload: { clip_id: "clip-1", tail: -10 }
+    });
+    expect(clipKeyboardCommand(clip, "Enter", 10)).toBeNull();
+  });
+
   it("keeps the app shell keyboard and screen-reader landmarks explicit", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
     expect(source).toContain('className="skip-link" href="#main-content"');
@@ -61,5 +84,7 @@ describe("shared accessibility contract", () => {
     expect(css).toContain(".search-box input:focus-visible");
     expect(css).toContain("outline: 2.5px solid var(--blue)");
     expect(css).toContain("prefers-reduced-motion: reduce");
+    expect(css).toContain("animation-duration: .01ms !important");
+    expect(css).toContain("transition-duration: .01ms !important");
   });
 });

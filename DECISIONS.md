@@ -334,3 +334,29 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+
+### DD-22 — Workspace authority is signed identity, not request input · 2026-09-18
+
+**The tempting design.** Let callers send a workspace id in a header and use it
+to choose the provider-key and browser-session namespace.
+
+**What was done instead.** A login is configured for exactly one workspace and
+that workspace id is signed into the session cookie. Protected request handlers
+derive workspace authority from the verified cookie. The API token remains
+local-only. Headers, query parameters and bodies are never authority.
+
+**Why.** A workspace selector controlled by the caller is not tenancy; it is an
+IDOR switch. The existing stores were already correctly keyed by workspace, so
+the missing control was binding that key to authenticated identity.
+
+**Shared broker consequence.** The process-wide AI broker keeps one stable
+workspace-aware key resolver. Calls bind their workspace through a
+`ContextVar` only for provider construction. Per-request mutation of a shared
+resolver was removed because concurrency turns that pattern into cross-tenant
+secret leakage.
+
+**Cost.** Workspace credentials are deployment configuration rather than a
+self-service organisation-management UI. That is deliberate: roles and admin
+authority are unresolved in `S-06.01.02`, so this story will not invent who is
+allowed to create or manage another user's workspace.

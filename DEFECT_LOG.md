@@ -82,6 +82,12 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-58 | 2026-09-19 | accessibility | medium | AI chat row actions were visually hidden until mouse hover, so keyboard users could focus invisible Move/Delete controls | fixed · `S-06.02.05` — `:focus-within` exposes the actions and icon controls have accessible names |
+| D-59 | 2026-09-19 | accessibility | medium | Sales lead cards made an `<article>` behave like a button with custom Enter/Space handling while nesting a status select inside it | fixed · `S-06.02.05` — editing is a native button and status movement remains a native select |
+| D-60 | 2026-09-19 | accessibility | high | Video timeline clips could only be moved or trimmed with pointer dragging | fixed · `S-06.02.05` — keyboard move/trim maps to the same validated `move_clip` / `trim_clip` operations |
+| D-61 | 2026-09-19 | bug | high | An accessibility refactor accidentally made AI `closePanel()` call itself recursively | fixed before review · `S-06.02.05`; regression assertion now requires the real state transition and forbids the recursive body |
+| D-62 | 2026-09-19 | product-copy | medium | The production login screen still called the product a demo and told users to use temporary Render credentials | fixed while auditing `S-06.02.05`; production copy now describes the installed workspace and local outbox without a demo claim |
+| D-63 | 2026-09-19 | process | high | GitHub Actions run #818 and its failed-job retry both created the `quality` job but executed zero steps and exposed no logs, so repository evidence could not run | open · external CI execution failure; `S-06.02.05` remains IN_REVIEW rather than claiming DONE |
 
 ---
 

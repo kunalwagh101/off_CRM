@@ -550,9 +550,70 @@ silently keep consuming money or execution time beyond my chosen limits.
 - **Dependencies:** S-05.01.01. **Size:** M. **Indicator:** deletion requests unfulfilled.
 
 #### S-06.02.05 — The UI is usable by keyboard and screen reader
-- **Given** any interactive screen, **when** navigated by keyboard alone, **then**
-  every action is reachable and focus is visible.
-- **Dependencies:** none. **Size:** M. **Indicator:** accessibility audit findings.
+
+**User story.** As a user who navigates without a mouse or with assistive
+technology, I want every CRM screen and shared interaction to expose the same
+actions, state and feedback, so that the production UI does not depend on sight,
+pointer precision or animation.
+
+- **Given** any interactive element in the shipped frontend, **when** navigating
+  with Tab/Shift+Tab and activating with keyboard controls, **then** every action
+  is reachable through native interactive semantics and has a visible focus
+  indicator.
+- **Given** the application shell and each screen, **when** read by a screen
+  reader, **then** navigation landmarks, page headings, controls, fields,
+  tables/lists and status/error feedback expose useful accessible names and
+  relationships rather than icon/colour/position alone.
+- **Given** a modal dialog, **when** it opens, **then** focus moves inside it,
+  Tab/Shift+Tab stay within it, Escape closes it, and focus returns to the
+  element that opened it.
+- **Given** navigation between CRM screens, **when** the hash route changes,
+  **then** keyboard focus moves to the new main content region without hiding
+  the visible page heading from assistive technology.
+- **Given** loading, progress, toast, validation or asynchronous result state,
+  **when** that state changes, **then** assistive technology receives the
+  meaningful update with an appropriate live-region/role and no duplicate
+  decorative announcement.
+- **Given** a user who requests reduced motion, **when** the UI renders or
+  transitions, **then** non-essential animation and smooth scrolling are
+  suppressed without removing state or focus feedback.
+- **Given** a new screen or shared component, **when** it introduces a clickable
+  non-native element, an unnamed control/image, a hidden focus style, or another
+  known keyboard/screen-reader regression, **then** the accessibility audit test
+  fails before merge.
+
+**Dependencies:** none. **Blocking risk:** none. **Size:** M.
+**Indicator:** accessibility audit findings and keyboard-inaccessible actions —
+target zero for the shipped frontend. **Business value:** `E-06` — real users
+can operate the production CRM without a mouse or visual-only cues.
+
+##### T-06.02.05.a — Inventory the complete shipped frontend
+Audit the shell, every page module and shared component for interactive and
+semantic boundaries; do not sample only the dashboard.
+
+##### T-06.02.05.b — Fix shared keyboard/focus primitives
+Cover skip navigation, route focus, buttons, fields, progress, dialogs, toasts,
+loading/error state and reduced-motion behaviour centrally where possible.
+
+##### T-06.02.05.c — Remove page-level accessibility escapes
+Replace clickable non-native elements, unnamed controls/images and
+colour-only/status-only cues in individual screens.
+
+##### T-06.02.05.d — Add regression gates
+Add shared behavioural tests plus a repository-wide static accessibility audit
+over every shipped React source file so new obvious regressions fail review.
+
+##### T-06.02.05.e — Close evidence and documentation
+Update security/product maps, demo, changelog, traceability, defect/decision
+logs, retrospective and board evidence.
+
+### OUT_OF_SCOPE — S-06.02.05
+
+- Full WCAG certification by an external auditor. This story implements and
+  proves the product boundary; independent certification is a separate external
+  activity.
+- Visual redesign, branding changes or unrelated responsive-layout work.
+- Accessibility of third-party provider pages opened outside off_CRM.
 
 #### S-06.02.07 — An answered question stops blocking
 **As an** owner, **I want** a question I have decided to stop holding work back,

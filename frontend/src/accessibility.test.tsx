@@ -1,0 +1,101 @@
+import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { Button, Modal, Progress, StatePanel, dialogTabTarget } from "./components";
+import { clipKeyboardCommand } from "./video/keyboard";
+
+describe("shared accessibility contract", () => {
+  it("exposes progress values to assistive technology", () => {
+    const html = renderToStaticMarkup(<Progress value={112} />);
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-valuenow="100"');
+    expect(html).toContain('aria-valuemin="0"');
+    expect(html).toContain('aria-valuemax="100"');
+    expect(html).toContain('aria-valuetext="100 out of 100"');
+  });
+
+  it("marks busy buttons and loading states semantically", () => {
+    const button = renderToStaticMarkup(<Button busy>Save</Button>);
+    const loading = renderToStaticMarkup(
+      <StatePanel tone="loading" title="Loading" description="Fetching records" />
+    );
+    expect(button).toContain('aria-busy="true"');
+    expect(button).toContain("disabled");
+    expect(loading).toContain('role="status"');
+    expect(loading).toContain('aria-live="polite"');
+  });
+
+  it("gives dialogs stable accessible names and descriptions", () => {
+    const html = renderToStaticMarkup(
+      <Modal open title="Edit lead" description="Update the lead" onClose={() => undefined}>
+        <button>Save</button>
+      </Modal>
+    );
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toMatch(/aria-labelledby="[^"]+"/);
+    expect(html).toMatch(/aria-describedby="[^"]+"/);
+    expect(html).toContain('aria-label="Close dialog"');
+  });
+
+  it("wraps keyboard focus at both ends of a dialog", () => {
+    expect(dialogTabTarget(0, 3, true)).toBe(2);
+    expect(dialogTabTarget(2, 3, false)).toBe(0);
+    expect(dialogTabTarget(1, 3, false)).toBeNull();
+    expect(dialogTabTarget(-1, 3, false)).toBe(0);
+    expect(dialogTabTarget(-1, 3, true)).toBe(2);
+    expect(dialogTabTarget(-1, 0, false)).toBe(0);
+  });
+
+  it("maps keyboard timeline editing to the same validated operations as pointer dragging", () => {
+    const clip = { id: "clip-1", start: 100 };
+
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10)).toEqual({
+      operation: "move_clip",
+      payload: { clip_id: "clip-1", start: 110 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowLeft", 10, { shift: true })).toEqual({
+      operation: "move_clip",
+      payload: { clip_id: "clip-1", start: 0 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10, { alt: true })).toEqual({
+      operation: "trim_clip",
+      payload: { clip_id: "clip-1", head: 10 }
+    });
+    expect(clipKeyboardCommand(clip, "ArrowRight", 10, { tail: true })).toEqual({
+      operation: "trim_clip",
+      payload: { clip_id: "clip-1", tail: -10 }
+    });
+    expect(clipKeyboardCommand(clip, "Enter", 10)).toBeNull();
+  });
+
+  it("keeps the app shell keyboard and screen-reader landmarks explicit", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+    expect(source).toContain('className="skip-link" href="#main-content"');
+    expect(source).toContain('id="main-content"');
+    expect(source).toContain('aria-current={page === item.page ? "page" : undefined}');
+    expect(source).toContain('aria-live={toast.tone === "error" ? "assertive" : "polite"}');
+    expect(source).toContain('role={toast.tone === "error" ? "alert" : "status"}');
+    expect(source).toContain('aria-label={`${navigation.find((item) => item.page === page)?.label ?? "CRM"} content`}');
+  });
+
+  it("keeps the AI history drawer out of the tab order when closed and returns focus on close", () => {
+    const source = readFileSync(new URL("./pages/AI.tsx", import.meta.url), "utf8");
+    expect(source).toContain("inert={!panelOpen}");
+    expect(source).toContain("setPanelOpen(false);");
+    expect(source).not.toContain("function closePanel() {\n    const returnTarget = panelReturnFocusRef.current;\n    closePanel();");
+    expect(source).toContain("returnTarget?.focus()");
+  });
+
+  it("does not let legacy outline removal hide keyboard focus", () => {
+    const css = readFileSync(new URL("./accessibility.css", import.meta.url), "utf8");
+    expect(css).toContain(".campaign-switcher select:focus-visible");
+    expect(css).toContain(".search-box input:focus-visible");
+    expect(css).toContain("outline: 2.5px solid var(--blue)");
+    expect(css).toContain("prefers-reduced-motion: reduce");
+    expect(css).toContain("animation-duration: .01ms !important");
+    expect(css).toContain("transition-duration: .01ms !important");
+    const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(styles).toContain(".ai-chat-item:focus-within .ai-chat-actions");
+  });
+});

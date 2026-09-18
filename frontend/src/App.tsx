@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api, AUTH_REQUIRED_EVENT, getToken, setToken } from "./api";
 import { Button, Field, Modal } from "./components";
 import { AppContext } from "./context";
@@ -97,17 +97,17 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
   return (
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
-        <div className="login-brand"><span className="brand-symbol">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
-        <p className="eyebrow">Protected demo</p>
+        <div className="login-brand"><span className="brand-symbol" aria-hidden="true">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
+        <p className="eyebrow">Protected workspace</p>
         <h1 id="login-title">Sign in to the CRM</h1>
-        <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
+        <p className="login-copy">Use the workspace credentials configured for this installation.</p>
         <form className="form-stack" onSubmit={submit}>
           <Field label="Username"><input name="username" autoComplete="username" required autoFocus /></Field>
           <Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>
           {error ? <p className="login-error" role="alert">{error}</p> : null}
           <Button type="submit" busy={busy}>Sign in</Button>
         </form>
-        <p className="login-safety">Demo mode uses the local outbox. Gmail is not required.</p>
+        <p className="login-safety">The local outbox can be used without connecting Gmail.</p>
       </section>
     </main>
   );
@@ -119,6 +119,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenValue, setTokenValue] = useState(getToken());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" | "warning" } | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const campaignsResource = useResource(() => api.get<Paginated<Campaign>>("/campaigns?limit=200"), []);
   const campaigns = campaignsResource.data?.items ?? [];
   const activeCampaign = campaigns.find((campaign) => campaign.id === campaignId) ?? null;
@@ -129,6 +130,10 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
     if (!window.location.hash) window.location.hash = "dashboard";
     return () => window.removeEventListener("hashchange", handler);
   }, []);
+
+  useEffect(() => {
+    mainRef.current?.focus();
+  }, [page]);
 
   useEffect(() => {
     if (campaigns.length && !campaigns.some((campaign) => campaign.id === campaignId)) {
@@ -176,18 +181,23 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
 
   return (
     <AppContext.Provider value={context}>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <div className="app-shell">
         <aside className="sidebar">
           <a href="#dashboard" className="brand" aria-label="off_CRM home">
-            <span className="brand-symbol">OX</span>
+            <span className="brand-symbol" aria-hidden="true">OX</span>
             <span><strong>off_CRM</strong><small>Your outreach, your data</small></span>
           </a>
           <nav aria-label="Main navigation">
             {navigation.map((item) => (
               <div key={item.page}>
                 {item.group ? <p className="nav-group">{item.group}</p> : null}
-                <a className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}>
-                  <span className={`nav-icon nav-icon-${item.page}`}>{item.icon}</span>
+                <a
+                  className={page === item.page ? "nav-active" : ""}
+                  href={`#${item.page}`}
+                  aria-current={page === item.page ? "page" : undefined}
+                >
+                  <span className={`nav-icon nav-icon-${item.page}`} aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
                   {item.page === "drafts" && campaignsResource.data ? <small className="nav-count">Review</small> : null}
                 </a>
@@ -195,7 +205,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             ))}
           </nav>
           <div className="sidebar-footer">
-            <span className="local-dot" />
+            <span className="local-dot" aria-hidden="true" />
             <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
           </div>
         </aside>
@@ -207,22 +217,22 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
                 {!campaigns.length ? <option value="">No campaign</option> : null}
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </select>
-              {activeCampaign ? <span className={`status-dot status-${activeCampaign.status}`} title={activeCampaign.status} /> : null}
+              {activeCampaign ? <><span className={`status-dot status-${activeCampaign.status}`} aria-hidden="true" /><span className="sr-only">Campaign status: {activeCampaign.status}</span></> : null}
             </div>
             <div className="topbar-actions">
-              {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
+              {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span aria-hidden="true" />Backend ready</span>}
               {auth.configured ? <span className="session-user">{auth.username}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
               {auth.configured ? <button className="topbar-button logout-button" onClick={onLogout}>Log out</button> : null}
               <a className="topbar-button" href="/api/docs" target="_blank" rel="noreferrer" aria-label="Open API documentation">?</a>
             </div>
           </header>
           <nav className="mobile-nav" aria-label="Mobile navigation">
-            {navigation.map((item) => <a key={item.page} className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}><span>{item.icon}</span>{item.label}</a>)}
+            {navigation.map((item) => <a key={item.page} className={page === item.page ? "nav-active" : ""} href={`#${item.page}`} aria-current={page === item.page ? "page" : undefined}><span aria-hidden="true">{item.icon}</span>{item.label}</a>)}
           </nav>
-          <main className="page-content"><Screen /></main>
+          <main id="main-content" ref={mainRef} tabIndex={-1} className="page-content" aria-label={`${navigation.find((item) => item.page === page)?.label ?? "CRM"} content`}><Screen /></main>
         </div>
       </div>
-      {toast ? <div className={`toast toast-${toast.tone}`} role="status"><span>{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button></div> : null}
+      {toast ? <div className={`toast toast-${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"} aria-live={toast.tone === "error" ? "assertive" : "polite"} aria-atomic="true"><span aria-hidden="true">{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button></div> : null}
       <Modal open={tokenOpen} onClose={() => setTokenOpen(false)} title="Local API token" description="Only needed if OFFSETX_LOCAL_API_TOKEN is enabled in the backend.">
         <form className="form-stack" onSubmit={saveSessionToken}>
           <Field label="Token"><input type="password" value={tokenValue} onChange={(event) => setTokenValue(event.target.value)} autoComplete="off" autoFocus /></Field>
@@ -259,10 +269,10 @@ export default function App() {
   }
 
   if (error) {
-    return <main className="login-shell"><section className="login-card"><h1>CRM unavailable</h1><p className="login-error">{error}</p><Button onClick={() => window.location.reload()}>Retry</Button></section></main>;
+    return <main className="login-shell"><section className="login-card"><h1>CRM unavailable</h1><p className="login-error" role="alert">{error}</p><Button onClick={() => window.location.reload()}>Retry</Button></section></main>;
   }
   if (!auth) {
-    return <main className="login-shell"><div className="spinner spinner-large" aria-label="Loading CRM" /></main>;
+    return <main className="login-shell"><div className="loading-status" role="status" aria-live="polite"><span className="spinner spinner-large" aria-hidden="true" /><span className="sr-only">Loading CRM</span></div></main>;
   }
   if (auth.configured && !auth.authenticated) {
     return <LoginScreen onLogin={setAuth} />;

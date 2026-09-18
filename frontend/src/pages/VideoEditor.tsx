@@ -9,6 +9,7 @@ import { paintFrame, type AssetTable, type PixelStage } from "../video/render";
 import { EffectPipeline } from "../video/shaders/pipeline";
 import { ExportUnsupported, exportProject, exportSupport, loadAssets } from "../video/export";
 import { FootageLibrary } from "../video/footage";
+import { clipKeyboardCommand } from "../video/keyboard";
 
 /**
  * The editor.
@@ -577,6 +578,34 @@ export default function VideoEditor() {
     [pxPerTick, edit]
   );
 
+  const handleClipKey = useCallback(
+    (event: React.KeyboardEvent<HTMLElement>, clip: Clip) => {
+      if (!project) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelected(clip.id);
+        return;
+      }
+      const command = clipKeyboardCommand(
+        clip,
+        event.key,
+        ticksPerFrame(project.fps),
+        {
+          shift: event.shiftKey,
+          alt: event.altKey,
+          tail: event.ctrlKey || event.metaKey
+        }
+      );
+      if (!command) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSelected(clip.id);
+      void edit(command.operation, command.payload);
+    },
+    [project, edit]
+  );
+
   const refreshProject = useCallback(async () => {
     if (!state) return;
     setState(await api.get<ProjectState>(`/video-projects/${state.id}`));
@@ -980,12 +1009,14 @@ export default function VideoEditor() {
           <div className="veditor-zoom">
             <Button
               tone="ghost"
+              aria-label="Zoom timeline out"
               onClick={() => setZoom(ZOOM_STEPS[Math.max(0, ZOOM_STEPS.indexOf(zoom) - 1)] ?? 20)}
             >
               −
             </Button>
             <Button
               tone="ghost"
+              aria-label="Zoom timeline in"
               onClick={() =>
                 setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, ZOOM_STEPS.indexOf(zoom) + 1)] ?? 640)
               }
@@ -995,6 +1026,11 @@ export default function VideoEditor() {
           </div>
         }
       >
+        <p id="video-timeline-keyboard-help" className="sr-only">
+          Timeline keyboard controls: Tab to a clip. Arrow keys move it by one frame;
+          Shift plus Arrow moves ten frames; Alt plus Arrow trims the start; Control
+          or Command plus Arrow trims the end. Enter or Space selects the clip.
+        </p>
         <div
           className="vtimeline"
           onPointerDown={(event) => {
@@ -1020,19 +1056,25 @@ export default function VideoEditor() {
                   <strong>{track.name || track.kind}</strong>
                   <div>
                     <button
-                      title={track.hidden ? "Show" : "Hide"}
+                      type="button"
+                      aria-label={`${track.hidden ? "Show" : "Hide"} ${track.name || track.kind} track`}
+                      aria-pressed={track.hidden}
                       onClick={() => edit("set_track", { track_id: track.id, hidden: !track.hidden })}
                     >
                       {track.hidden ? "◌" : "◉"}
                     </button>
                     <button
-                      title={track.muted ? "Unmute" : "Mute"}
+                      type="button"
+                      aria-label={`${track.muted ? "Unmute" : "Mute"} ${track.name || track.kind} track`}
+                      aria-pressed={track.muted}
                       onClick={() => edit("set_track", { track_id: track.id, muted: !track.muted })}
                     >
                       {track.muted ? "⊘" : "♪"}
                     </button>
                     <button
-                      title={track.locked ? "Unlock" : "Lock"}
+                      type="button"
+                      aria-label={`${track.locked ? "Unlock" : "Lock"} ${track.name || track.kind} track`}
+                      aria-pressed={track.locked}
                       onClick={() => edit("set_track", { track_id: track.id, locked: !track.locked })}
                     >
                       {track.locked ? "🔒" : "🔓"}
@@ -1045,15 +1087,24 @@ export default function VideoEditor() {
                       key={clip.id}
                       className={`vclip vclip-${clip.kind} ${selected === clip.id ? "vclip-selected" : ""}`}
                       style={{ left: `${clip.start * pxPerTick}px`, width: `${clip.duration * pxPerTick}px` }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selected === clip.id}
+                      aria-label={`${clip.label || clip.text || clip.kind} clip at ${formatTimecode(clip.start)}, duration ${formatTimecode(clip.duration)}`}
+                      aria-describedby="video-timeline-keyboard-help"
+                      onFocus={() => setSelected(clip.id)}
+                      onKeyDown={(event) => handleClipKey(event, clip)}
                       onPointerDown={(event) => dragClip(event, clip, "move")}
                     >
                       <span
                         className="vclip-handle vclip-head"
+                        aria-hidden="true"
                         onPointerDown={(event) => dragClip(event, clip, "head")}
                       />
                       <span className="vclip-label">{clip.label || clip.text || clip.kind}</span>
                       <span
                         className="vclip-handle vclip-tail"
+                        aria-hidden="true"
                         onPointerDown={(event) => dragClip(event, clip, "tail")}
                       />
                     </div>
@@ -1165,7 +1216,12 @@ function Inspector({
         <ul className="vasset-grid">
           {assets.map((asset) => (
             <li key={asset.id}>
-              <button disabled={busy} onClick={() => onPlace(asset.id)} title={asset.model_id}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onPlace(asset.id)}
+                aria-label={`Place image from ${asset.model_id || "image generator"} on timeline`}
+              >
                 <img src={api.url(`/image-assets/${asset.id}/file`)} alt="" loading="lazy" />
               </button>
             </li>
@@ -1418,7 +1474,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy || index === 0}
-                    title="Earlier in the stack"
+                    aria-label="Move effect earlier in the stack"
                     onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index - 1 })}
                   >
                     ↑
@@ -1426,7 +1482,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy || index === stack.length - 1}
-                    title="Later in the stack"
+                    aria-label="Move effect later in the stack"
                     onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index + 1 })}
                   >
                     ↓
@@ -1434,7 +1490,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy}
-                    title="Remove"
+                    aria-label="Remove effect"
                     onClick={() => onEdit("remove_effect", { clip_id: clip.id, index })}
                   >
                     ×

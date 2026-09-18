@@ -497,3 +497,42 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+---
+
+## S-06.02.05 — keyboard and screen-reader acceptance
+
+Focused automated evidence:
+
+```bash
+npm test --prefix frontend -- src/accessibility.test.tsx src/accessibility-source.test.ts
+```
+
+Then run the whole frontend:
+
+```bash
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Manual keyboard acceptance on the shipped UI:
+
+1. Press Tab from the top of the app. The skip link must become visible and
+   Enter must move focus to the current main screen.
+2. Navigate the sidebar, topbar, page actions and forms without a mouse. Every
+   focused action must have a visible focus indicator.
+3. Open a shared modal. Focus must move inside; Tab/Shift+Tab must wrap; Escape
+   must close; focus must return to the opener.
+4. Open AI History & Projects. Its close control receives focus. Close it and
+   focus returns to the control that opened it. Hidden row actions must become
+   visible when their row receives keyboard focus.
+5. On Sales Tracker, Tab to a lead's **Edit** control and its status select;
+   neither action depends on clicking the card container.
+6. In Video Editor, Tab to a timeline clip. Arrow keys move one frame,
+   Shift+Arrow moves ten, Alt+Arrow trims the start, and Ctrl/Cmd+Arrow trims
+   the end. The same server edit path used by dragging must be called.
+7. Enable the operating system's reduced-motion preference and repeat
+   navigation. State and focus remain visible without non-essential animation.
+
+The repository evidence proves the implemented boundary. It does not by itself
+claim formal WCAG certification across every browser/screen-reader combination.
+

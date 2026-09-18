@@ -2057,6 +2057,41 @@ written from memory were wrong:
 
 ---
 
+### Keyboard and screen-reader accessibility — S-06.02.05 (2026-09-19, IN_REVIEW)
+
+- [x] Shared dialogs have accessible names/descriptions, move focus inside,
+      trap Tab/Shift+Tab, close on Escape and return focus to the opener.
+- [x] The app has a skip link, named navigation landmarks, `aria-current`,
+      route-change focus to a named main region and live toast/error/loading
+      semantics.
+- [x] A global `:focus-visible` floor overrides legacy outline removal for
+      keyboard users.
+- [x] Reduced-motion preference suppresses non-essential animation,
+      transitions and smooth scrolling without suppressing focus.
+- [x] The AI history drawer is inert and assistive-technology-hidden while
+      closed, focuses its close control when opened, returns focus on close,
+      names icon actions and reveals row actions on `:focus-within`.
+- [x] AI delete confirmation reuses the shared modal instead of maintaining a
+      second incomplete dialog implementation.
+- [x] Sales lead editing uses a native button; status movement remains a native
+      select instead of nesting controls inside a fake clickable article.
+- [x] Video timeline clips are keyboard focusable and expose move/trim/select
+      operations. Keyboard edits call the same validated `move_clip` and
+      `trim_clip` server operations as pointer dragging.
+- [x] Track visibility/mute/lock, effect-order/removal, timeline zoom and image
+      placement controls expose useful accessible names.
+- [x] A recursive source gate audits every shipped React source file for
+      obvious keyboard/screen-reader regressions, including future screens.
+- [x] Production login copy no longer describes the product as a temporary
+      Render demo (`D-62`).
+- [x] `docs/ACCESSIBILITY.md` documents the product boundary, keyboard
+      conventions, regression commands and certification limit.
+- [ ] Executable frontend test/build evidence is still pending. A clean
+      checkout could not be run in the current execution container because it
+      could not resolve github.com; this is not counted as a test result.
+      GitHub Actions run #818 and its failed-job retry also created a
+      `quality` job with zero executed steps and no logs (`D-63`).
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

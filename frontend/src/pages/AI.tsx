@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent, type KeyboardEvent } from "react";
 import { api } from "../api";
-import { Button } from "../components";
+import { Button, Modal } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIModesPayload, AIProvidersPayload } from "../types";
@@ -32,6 +32,8 @@ export default function AIPage() {
   const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan" | "image">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const panelCloseRef = useRef<HTMLButtonElement>(null);
+  const panelReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const chats = useResource(() => api.get<{ items: Chat[] }>("/ai/chats?limit=60"), []);
   const projects = useResource(() => api.get<{ items: Project[] }>("/ai/projects"), []);
@@ -127,13 +129,32 @@ export default function AIPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!panelOpen) return;
+    const frame = window.requestAnimationFrame(() => panelCloseRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [panelOpen]);
+
+  function openPanel() {
+    panelReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPanelOpen(true);
+  }
+
+  function closePanel() {
+    const returnTarget = panelReturnFocusRef.current;
+    setPanelOpen(false);
+    panelReturnFocusRef.current = null;
+    window.requestAnimationFrame(() => returnTarget?.focus());
+  }
+
   async function startChat() {
     setBusy("new-chat");
     try {
       const chat = await api.post<Chat>("/ai/chats", { title: "New chat" });
       setActiveChatId(chat.id);
       setMessages([]);
-      setPanelOpen(false);
+      closePanel();
       await chats.reload();
     } finally {
       setBusy("");
@@ -214,7 +235,7 @@ export default function AIPage() {
   function openChat(chat: Chat) {
     setActiveChatId(chat.id);
     setMessages([]);
-    setPanelOpen(false);
+    closePanel();
     setMovingChat(null);
   }
 
@@ -249,9 +270,10 @@ export default function AIPage() {
             <button
               type="button"
               className={panelOpen ? "ai-panel-toggle ai-panel-toggle-active" : "ai-panel-toggle"}
-              onClick={() => setPanelOpen((v) => !v)}
+              onClick={() => (panelOpen ? closePanel() : openPanel())}
               title={panelOpen ? "Close history" : "Open history & projects"}
               aria-expanded={panelOpen}
+              aria-controls="ai-history-panel"
             >
               <span className="ai-panel-toggle-icon">⊞</span>
               <span>History {totalChats > 0 ? `· ${totalChats}` : ""}</span>
@@ -261,7 +283,7 @@ export default function AIPage() {
 
         {/* How you want to work. Each tab states its trade-off so the choice
             never needs explaining twice. */}
-        <div className="ai-mode-tabs" role="tablist" aria-label="How to work">
+        <div className="ai-mode-tabs" role="group" aria-label="How to work">
           {([
             { key: "chat", label: "Chat", hint: "One model · fastest" },
             { key: "compare", label: "Compare", hint: "All models · pick the best" },
@@ -285,8 +307,7 @@ export default function AIPage() {
               <button
                 key={tab.key}
                 type="button"
-                role="tab"
-                aria-selected={workMode === tab.key}
+                aria-pressed={workMode === tab.key}
                 className={workMode === tab.key ? "ai-mode-tab ai-mode-tab-on" : "ai-mode-tab"}
                 onClick={() => setWorkMode(tab.key)}
                 disabled={disabled}
@@ -415,7 +436,7 @@ export default function AIPage() {
                 <Button onClick={startChat} busy={busy === "new-chat"}>Start a new chat</Button>
               )}
               {totalChats > 0 && (
-                <button type="button" className="ai-open-history" onClick={() => setPanelOpen(true)}>
+                <button type="button" className="ai-open-history" onClick={openPanel}>
                   Or open history to continue a previous chat →
                 </button>
               )}
@@ -428,12 +449,12 @@ export default function AIPage() {
 
       {/* ── Right panel: history + projects (slides in/out) ──────────────── */}
       {panelOpen && (
-        <div className="ai-panel-overlay" onClick={() => setPanelOpen(false)} aria-hidden="true" />
+        <div className="ai-panel-overlay" onClick={closePanel} aria-hidden="true" />
       )}
-      <aside className={panelOpen ? "ai-panel ai-panel-open" : "ai-panel"} aria-label="Chat history and projects">
+      <aside id="ai-history-panel" className={panelOpen ? "ai-panel ai-panel-open" : "ai-panel"} aria-label="Chat history and projects" aria-hidden={!panelOpen} inert={!panelOpen}>
         <div className="ai-panel-head">
           <strong>History &amp; Projects</strong>
-          <button type="button" className="ai-panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel">✕</button>
+          <button ref={panelCloseRef} type="button" className="ai-panel-close" onClick={closePanel} aria-label="Close history and projects">✕</button>
         </div>
 
         <div className="ai-panel-scroll">
@@ -445,8 +466,8 @@ export default function AIPage() {
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
                   <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move to project" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete chat" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn" aria-label={`Move ${chat.title} to project`} aria-expanded={movingChat === chat.id} onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" aria-label={`Delete ${chat.title}`} onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">
@@ -470,8 +491,8 @@ export default function AIPage() {
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
                   <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn" aria-label={`Move ${chat.title}`} aria-expanded={movingChat === chat.id} onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" aria-label={`Delete ${chat.title}`} onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">
@@ -495,9 +516,9 @@ export default function AIPage() {
           <div className="ai-panel-section">
             {showNewProject ? (
               <form className="ai-new-project-form" onSubmit={createProject}>
-                <input className="ai-new-project-input" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Project name" autoFocus />
+                <input className="ai-new-project-input" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Project name" aria-label="Project name" autoFocus />
                 <button type="submit" className="ai-new-project-btn">Create</button>
-                <button type="button" className="ai-new-project-cancel" onClick={() => setShowNewProject(false)}>✕</button>
+                <button type="button" className="ai-new-project-cancel" onClick={() => setShowNewProject(false)} aria-label="Cancel new project">✕</button>
               </form>
             ) : (
               <button type="button" className="ai-new-project-toggle" onClick={() => setShowNewProject(true)}>+ New project</button>
@@ -506,19 +527,17 @@ export default function AIPage() {
         </div>
       </aside>
 
-      {/* ── Delete confirmation ─────────────────────────────────────────── */}
-      {deleteConfirm && (
-        <div className="ai-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="ai-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <p className="ai-confirm-title">Delete this chat?</p>
-            <p className="ai-confirm-body">This permanently deletes the conversation and all its messages. It cannot be undone.</p>
-            <div className="button-row">
-              <Button tone="danger" onClick={() => deleteChat(deleteConfirm)}>Yes, delete</Button>
-              <Button tone="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            </div>
-          </div>
+      <Modal
+        open={Boolean(deleteConfirm)}
+        title="Delete this chat?"
+        description="This permanently deletes the conversation and all its messages. It cannot be undone."
+        onClose={() => setDeleteConfirm(null)}
+      >
+        <div className="button-row">
+          <Button tone="danger" onClick={() => deleteConfirm && deleteChat(deleteConfirm)}>Yes, delete</Button>
+          <Button tone="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

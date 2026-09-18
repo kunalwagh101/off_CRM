@@ -209,7 +209,7 @@ test plan, and what it depends on.
 | S-06.02.02 | Every endpoint checks who you are and what you sent |
 | S-06.02.03 | A job that costs too much stops itself |
 | S-06.02.04 | Delete someone's data and it's gone from **everywhere** |
-| S-06.02.05 | The whole app usable by keyboard and screen reader |
+| S-06.02.05 | ◐ Keyboard/screen-reader boundary implemented across shared UI, AI, Sales and Video; executable proof pending |
 
 ### Borrowing other people's work
 | Story | In one line |

@@ -1,4 +1,38 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ButtonHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode
+} from "react";
+
+const DIALOG_FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
+
+function dialogFocusable(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)).filter(
+    (element) => element.getAttribute("aria-hidden") !== "true"
+  );
+}
+
+export function dialogTabTarget(
+  currentIndex: number,
+  total: number,
+  backwards: boolean
+): number | null {
+  if (total <= 0) return 0;
+  if (currentIndex < 0) return backwards ? total - 1 : 0;
+  if (backwards && currentIndex === 0) return total - 1;
+  if (!backwards && currentIndex === total - 1) return 0;
+  return null;
+}
 
 export function Button({
   tone = "primary",
@@ -11,7 +45,12 @@ export function Button({
   busy?: boolean;
 }) {
   return (
-    <button className={`button button-${tone}`} disabled={disabled || busy} {...props}>
+    <button
+      className={`button button-${tone}`}
+      disabled={disabled || busy}
+      {...props}
+      aria-busy={busy || undefined}
+    >
       {busy ? <span className="spinner" aria-hidden="true" /> : null}
       {children}
     </button>
@@ -76,8 +115,14 @@ export function StatePanel({
   action?: ReactNode;
   tone?: "empty" | "error" | "loading";
 }) {
+  const role = tone === "error" ? "alert" : tone === "loading" ? "status" : undefined;
   return (
-    <div className={`state-panel state-${tone}`} role={tone === "error" ? "alert" : undefined}>
+    <div
+      className={`state-panel state-${tone}`}
+      role={role}
+      aria-live={tone === "loading" ? "polite" : undefined}
+      aria-atomic={tone === "loading" ? "true" : undefined}
+    >
       {tone === "loading" ? <span className="spinner spinner-large" aria-hidden="true" /> : null}
       <strong>{title}</strong>
       <p>{description}</p>
@@ -131,23 +176,73 @@ export function Modal({
   wide?: boolean;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
   useEffect(() => {
-    if (open) closeRef.current?.focus();
+    if (!open) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const frame = window.requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const explicit = dialog.querySelector<HTMLElement>("[autofocus]");
+      (explicit ?? closeRef.current ?? dialog).focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      returnFocusRef.current?.focus();
+      returnFocusRef.current = null;
+    };
   }, [open]);
+
+  function handleKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = dialogFocusable(dialog);
+    if (!focusable.length) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const current = document.activeElement instanceof HTMLElement
+      ? focusable.indexOf(document.activeElement)
+      : -1;
+    const target = dialogTabTarget(current, focusable.length, event.shiftKey);
+    if (target === null) return;
+    event.preventDefault();
+    focusable[target]?.focus();
+  }
+
   if (!open) return null;
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className={`modal ${wide ? "modal-wide" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
           <div>
-            <h2 id="modal-title">{title}</h2>
-            {description ? <p>{description}</p> : null}
+            <h2 id={titleId}>{title}</h2>
+            {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
           <button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Close dialog">
             ×
@@ -178,9 +273,18 @@ export function Field({
 }
 
 export function Progress({ value }: { value: number }) {
+  const normalised = Math.max(0, Math.min(100, value));
   return (
-    <div className="progress" aria-label={`Quality score ${value} out of 100`}>
-      <span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    <div
+      className="progress"
+      role="progressbar"
+      aria-label="Quality score"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={normalised}
+      aria-valuetext={`${normalised} out of 100`}
+    >
+      <span style={{ width: `${normalised}%` }} />
     </div>
   );
 }

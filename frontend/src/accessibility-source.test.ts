@@ -56,14 +56,18 @@ describe("repository-wide accessibility source gate", () => {
 
   it("requires custom tab stops to expose a semantic role and keyboard handler", () => {
     const violations: string[] = [];
-    const pattern = /<(div|span|li|tr|td|section|article)\b[^>]*\btabIndex=\{?0\}?[^>]*>/gs;
+    const pattern = /\btabIndex=\{?0\}?/g;
 
     for (const path of files) {
       const source = readFileSync(path, "utf8");
       for (const match of source.matchAll(pattern)) {
-        const openingTag = match[0];
-        if (!/\brole=/.test(openingTag) || !/\bonKeyDown=/.test(openingTag)) {
-          violations.push(`${relative(path)}: ${openingTag.replace(/\s+/g, " ").slice(0, 180)}`);
+        const index = match.index ?? 0;
+        // JSX event handlers contain =>, so a naive "read until >" parser cuts
+        // the opening tag at the arrow. Inspect the local element window
+        // instead; this is a guard for obvious regressions, not a JSX parser.
+        const window = source.slice(Math.max(0, index - 500), Math.min(source.length, index + 900));
+        if (!/\brole=/.test(window) || !/\bonKeyDown=/.test(window)) {
+          violations.push(`${relative(path)}: custom tab stop near byte ${index}`);
         }
       }
     }

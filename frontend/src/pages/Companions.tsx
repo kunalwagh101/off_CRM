@@ -173,7 +173,7 @@ export default function Companions() {
             <Button type="submit" busy={busy === "save"} disabled={!name.trim() || !memoryScope.trim()}>
               {editing ? "Save changes" : "Create companion"}
             </Button>
-            {editing ? <Button tone="ghost" onClick={reset}>Cancel</Button> : null}
+            {editing ? <Button type="button" tone="ghost" onClick={reset}>Cancel</Button> : null}
           </div>
         </form>
       </Panel>

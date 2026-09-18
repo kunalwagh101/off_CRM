@@ -454,7 +454,7 @@ export default function AIPage() {
       <aside id="ai-history-panel" className={panelOpen ? "ai-panel ai-panel-open" : "ai-panel"} aria-label="Chat history and projects" aria-hidden={!panelOpen} inert={!panelOpen}>
         <div className="ai-panel-head">
           <strong>History &amp; Projects</strong>
-          <button type="button" className="ai-panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel">✕</button>
+          <button ref={panelCloseRef} type="button" className="ai-panel-close" onClick={closePanel} aria-label="Close history and projects">✕</button>
         </div>
 
         <div className="ai-panel-scroll">

@@ -79,6 +79,20 @@ def _assert_safe_4xx(response) -> None:
         assert marker not in lowered, response.text
 
 
+def test_dynamic_backend_routes_outside_api_are_only_explicit_health_checks(tmp_path):
+    app = create_app(_settings(tmp_path))
+    non_api = {
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute) and not route.path.startswith("/api/")
+        for method in _methods(route)
+    }
+    assert non_api == {
+        ("GET", "/health/live"),
+        ("GET", "/health/ready"),
+    }
+
+
 def test_public_policy_points_only_at_live_declared_methods(tmp_path):
     app = create_app(_settings(tmp_path))
     live = {

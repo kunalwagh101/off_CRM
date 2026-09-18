@@ -62,6 +62,41 @@ def _trace(tmp_path: Path, *, value: str = "42", quote: str = "Employees: 42") -
     return trace
 
 
+
+
+
+def test_artifact_renderer_has_no_model_or_provider_transport():
+    import ast
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "offsetx_apollo_builder"
+        / "agent"
+        / "artifacts.py"
+    )
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    imports = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    imports.update(
+        node.module or ""
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+    )
+
+    assert not any(
+        name.startswith("offsetx_apollo_builder.ai") or ".ai." in name
+        for name in imports
+    )
+    assert not any(
+        token in source.read_text(encoding="utf-8")
+        for token in ("EgressBroker(", ".call(", "create_provider(")
+    )
+
+
 def test_xlsx_claim_links_to_the_exact_trace_step(tmp_path):
     trace = _trace(tmp_path)
     path = write_xlsx(trace)

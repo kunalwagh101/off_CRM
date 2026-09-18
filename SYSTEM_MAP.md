@@ -200,12 +200,12 @@ This is the next thing to build, and the decisions are now made:
 |---|---|---|
 | `db/` | SQLite locally, Postgres if you want. Same code | ✅ |
 | `api/` | ~4,100 lines of endpoints | ✅ |
-| Frontend | 17 screens: campaigns, contacts, drafts, images, video, posting, AI | ✅ |
+| Frontend | React screens for campaigns, contacts, drafts, images, video, posting, AI and operations | ✅ |
 | Workspaces | Every table already separates people. Your keys are yours | ◐ S-06.01.01 *(works; not surfaced in the UI)* |
 | **Permissions** | Global → per-tool → this-chat-only | ⬜ S-06.01.02 |
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |
 | **Deploy & rollback** | A way back when a release is bad | ⬜ S-06.01.05 |
-| **Keyboard / screen reader** | The UI usable without a mouse | ⬜ S-06.02.05 |
+| **Keyboard / screen reader** | Native controls, dialog/route focus, live status, reduced motion and keyboard video editing | ◐ S-06.02.05 · proof pending |
 
 ---
 

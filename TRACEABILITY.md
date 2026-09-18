@@ -90,7 +90,7 @@ the code exists and holds no stub).
 | R-51 | S-06.02.05 | 1 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
-| R-55 | S-07.01.03 | 1 | — | — |
+| R-55 | S-07.01.03 | 4 | `tests/test_meeting_transcription.py`, `frontend/src/meeting/capture.test.ts`, `frontend/src/components.test.tsx` | `offsetx_apollo_builder/meeting.py`, `offsetx_apollo_builder/api/app.py`, `offsetx_apollo_builder/ai/tiers.py`, `frontend/src/meeting/capture.ts`, `frontend/src/pages/Meetings.tsx` |
 | R-56 | S-07.01.04 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
 

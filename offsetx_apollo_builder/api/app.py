@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import os
 import threading
 import uuid
@@ -46,6 +47,7 @@ from ..video.timeline import (
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
+from ..meeting import MeetingError, MeetingStore
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
 from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
@@ -140,6 +142,30 @@ API_PREFIX = "/api/v1"
 LIVE_SEND_CONFIRMATION = "SEND LIVE EMAILS"
 CONTACT_UPLOAD_TYPES = {".csv", ".xlsx", ".xls"}
 EXPERT_UPLOAD_TYPES = {".md", ".txt"}
+MEETING_AUDIO_TYPES = {
+    "audio/webm", "audio/ogg", "audio/wav", "audio/x-wav", "audio/mp4",
+}
+MAX_MEETING_AUDIO_BYTES = 128 * 1024 * 1024
+
+
+def _loopback_host(value: object) -> bool:
+    """A literal loopback address or localhost, never a DNS name we resolve."""
+    text = str(value or "").strip().lower()
+    if text == "localhost":
+        return True
+    if text.startswith("[") and "]" in text:
+        text = text[1:text.index("]")]
+    elif text.count(":") == 1 and text.rsplit(":", 1)[1].isdigit():
+        text = text.rsplit(":", 1)[0]
+    # IPv6 zone ids are meaningful for link-local addresses but never needed
+    # for loopback. Removing one avoids treating a syntactically valid ::1%foo
+    # as a hostname.
+    text = text.split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(text).is_loopback
+    except ValueError:
+        return False
+
 
 
 class CampaignLocks:
@@ -302,7 +328,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(self), display-capture=(self), geolocation=()"
+        )
         if not loopback:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         response.headers["Content-Security-Policy"] = (
@@ -380,6 +408,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # title and an equivalent hook build a byte-identical payload, so a hit
         # would send them the same email.
         app.state.ai_cache = ResponseCache(resolved.data_dir / "ai_cache.db")
+        app.state.meetings = MeetingStore(resolved.data_dir / "meetings")
         app.state.ai_broker = EgressBroker(
             registry=app.state.ai_registry,
             credential_resolver=lambda provider_id: "",
@@ -1296,6 +1325,115 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "notes": report.notes,
             "direction": direction.to_dict(),
         }
+
+    # ── local meeting capture ─────────────────────────────────────────────
+
+    def _require_local_meeting_request(request: Request) -> None:
+        """Raw meeting audio may only cross a loopback HTTP boundary.
+
+        Authentication alone is not enough here. On a hosted off_CRM instance
+        the browser-to-server upload would itself make the recording leave the
+        owner's machine before the declared transcription provider saw it,
+        violating S-07.01.03 even if the server were trusted.
+        """
+        sent_host = (request.headers.get("host") or "").strip()
+        peer = request.client.host if request.client is not None else ""
+        if not (_loopback_host(sent_host) and _loopback_host(peer)):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "meeting_capture_local_only",
+                    "message": (
+                        "Meeting capture is local-only. Open off_CRM on localhost "
+                        "or 127.0.0.1 on this device; raw meeting audio is never "
+                        "relayed through a hosted off_CRM server."
+                    ),
+                },
+            )
+
+    @app.post(f"{API_PREFIX}/meetings/transcribe", status_code=201)
+    async def transcribe_meeting(
+        request: Request,
+        file: UploadFile = File(...),
+        title: str = Form(""),
+    ) -> dict[str, Any]:
+        _require_local_meeting_request(request)
+        media_type = str(file.content_type or "").split(";", 1)[0].strip().lower()
+        if media_type not in MEETING_AUDIO_TYPES:
+            raise HTTPException(
+                415,
+                detail={
+                    "error": "unsupported_meeting_audio",
+                    "message": "Meeting audio must be WebM, Ogg, WAV or MP4.",
+                },
+            )
+        declared = request.headers.get("content-length", "").strip()
+        if declared.isdigit() and int(declared) > MAX_MEETING_AUDIO_BYTES + 1024 * 1024:
+            raise HTTPException(413, detail="Meeting recording exceeds the 128 MiB limit.")
+        audio = await file.read(MAX_MEETING_AUDIO_BYTES + 1)
+        if not audio:
+            raise HTTPException(400, detail="Meeting recording is empty.")
+        if len(audio) > MAX_MEETING_AUDIO_BYTES:
+            raise HTTPException(413, detail="Meeting recording exceeds the 128 MiB limit.")
+
+        state = request.app.state
+        workspace_id = _workspace_id(request)
+        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+            workspace_id
+        )
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+        try:
+            result = state.ai_broker.call_transcript(
+                EgressRequest(
+                    task_type="meeting_transcription",
+                    data_class=DataClass.MEETING,
+                    instructions="",
+                ),
+                settings,
+                audio=audio,
+                media_type=media_type,
+                filename=Path(file.filename or "meeting.webm").name,
+                language="",
+            )
+            record = state.meetings.save_transcript(
+                title=title,
+                transcript=result.text,
+                words=[word.to_dict() for word in result.words],
+                language=result.language,
+                provider_id=result.provider_id,
+                provider_name=result.provider_name,
+                model_id=result.model_id,
+                duration_ms=result.duration_ms,
+                audio_bytes=result.audio_bytes,
+                log_id=result.log_id,
+            )
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+        except MeetingError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+        finally:
+            # The byte buffer is request-scoped only. It is never handed to the
+            # store and no temporary audio file is created.
+            audio = b""
+        return record.to_dict()
+
+    @app.get(f"{API_PREFIX}/meetings")
+    def list_meetings(
+        request: Request,
+        limit: int = Query(100, ge=1, le=500),
+    ) -> dict[str, Any]:
+        _require_local_meeting_request(request)
+        return {"items": request.app.state.meetings.list(limit=limit)}
+
+    @app.get(f"{API_PREFIX}/meetings/{{meeting_id}}")
+    def get_meeting(meeting_id: str, request: Request) -> dict[str, Any]:
+        _require_local_meeting_request(request)
+        try:
+            return request.app.state.meetings.get(meeting_id).to_dict()
+        except KeyError as exc:
+            raise HTTPException(404, detail="Meeting transcript not found.") from exc
+        except MeetingError as exc:
+            raise HTTPException(400, detail=str(exc)) from exc
 
     @app.get(f"{API_PREFIX}/video/effects")
     def video_effects() -> dict[str, Any]:

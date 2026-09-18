@@ -646,15 +646,20 @@ class OpenAITranscriptionProvider(_HttpProvider):
         if not audio:
             raise ProviderError("Transcription was given no audio")
 
-        fields: list[tuple[str, str]] = [
-            ("model", self.config.model),
-            # verbose_json is the only response format that carries timings at
-            # all. Without it the answer is a wall of text with no way to place
-            # any of it on a timeline.
-            ("response_format", "verbose_json"),
-            ("timestamp_granularities[]", "word"),
-            ("timestamp_granularities[]", "segment"),
-        ]
+        # OpenAI/Groq need verbose_json for timed words. Mistral's official
+        # /audio/transcriptions contract returns timestamped segments/words
+        # directly and does not document OpenAI's response_format field. Keep
+        # one adapter, but make the wire dialect explicit instead of sending an
+        # undocumented parameter and hoping the host ignores it.
+        fields: list[tuple[str, str]] = [("model", self.config.model)]
+        if urlparse(base_url).hostname != "api.mistral.ai":
+            fields.append(("response_format", "verbose_json"))
+        fields.extend(
+            [
+                ("timestamp_granularities[]", "word"),
+                ("timestamp_granularities[]", "segment"),
+            ]
+        )
         if language:
             fields.append(("language", language))
         if prompt:

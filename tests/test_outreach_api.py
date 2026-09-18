@@ -36,7 +36,7 @@ def test_complete_api_workflow_uses_local_outbox_by_default(tmp_path):
         health = client.get("/health/ready")
         assert health.status_code == 200
         assert health.headers["x-content-type-options"] == "nosniff"
-        assert health.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+        assert health.headers["permissions-policy"] == "camera=(), microphone=(self), display-capture=(self), geolocation=()"
         assert "default-src 'self'" in health.headers["content-security-policy"]
 
         created = client.post(

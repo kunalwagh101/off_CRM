@@ -21,6 +21,7 @@ import Egress from "./pages/Egress";
 import Memory from "./pages/Memory";
 import Recall from "./pages/Recall";
 import Settings from "./pages/Settings";
+import Meetings from "./pages/Meetings";
 import type { AuthSession, Campaign, Paginated } from "./types";
 
 const CAMPAIGN_KEY = "offsetx-active-campaign";
@@ -42,12 +43,14 @@ const pages = {
   memory: Memory,
   recall: Recall,
   ai: AI,
+  meetings: Meetings,
   settings: Settings
 };
 type Page = keyof typeof pages;
 
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
+  { page: "meetings", label: "Meeting notes", icon: "◉" },
   { page: "connectors", label: "Connectors", icon: "⚡" },
   { page: "egress", label: "What was sent", icon: "◉" },
   { page: "memory", label: "Memory", icon: "◈" },

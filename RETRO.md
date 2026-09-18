@@ -876,3 +876,35 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+---
+
+## 2026-09-19 — S-07.01.03, meeting transcription without a bot (IN_PROGRESS)
+
+**What was cut.** Nothing from the refined story. Speaker diarisation, calendar
+joins, auto-attendance, cloud recording, live captions and semantic
+summary/action-item generation were explicitly out of scope before
+implementation. The deliverable is a source transcript with word timings and
+audit metadata.
+
+**What the estimate got wrong.** Browser capture was not the hard part. The
+existing broker already knew how to transcribe audio, but its safety model made
+the important problem visible: a waveform cannot be scanned. The first secure
+design introduced a Tier-A-only meeting class, then exposed D-52 — there was no
+Tier-A transcription model declared, so the safe path would have been
+permanently unusable. Current Mistral documentation provided the real path:
+Voxtral on the same audio/transcriptions shape. The session-open audit also
+caught D-53, stale BOARD wording that made long-lived external blockers appear
+to freeze unrelated READY work.
+
+**What to change next time.** For any new media egress path, answer two questions
+before UI work: what sensitivity class can the bytes contain, and is there a
+real provider in that class that supports the required modality? A secure route
+with no executable provider is not a feature. Also re-read process prose against
+the verifier at session open; stale governance text is a defect even when the
+code checker is right.
+
+**Evidence state.** Focused tests and docs are committed, but GitHub Actions run
+#684 failed before step 1 and produced no executable result. This story must
+remain non-DONE until the locked focused/full/frontend/verifier commands
+actually execute successfully.
+

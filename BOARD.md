@@ -12,8 +12,7 @@ is not in this file, it did not happen.
 `DONE` items carry an indented evidence block. `BLOCKED` items carry an
 indented `blocked: <Q-nn or a named external dependency>`.
 
-**WIP limit: `IN_PROGRESS` ≤ 2.** Nothing is pulled while an item sits in
-`IN_PROGRESS` or `BLOCKED`.
+**WIP limit: `IN_PROGRESS` ≤ 2.** Pull only from `READY` while that limit has room. A `BLOCKED` item is never pulled; an unrelated `READY` item may proceed while an external blocker waits.
 
 ---
 
@@ -63,7 +62,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 - S-06.02.01 · No secret may enter a model prompt
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.05 · The UI is usable by keyboard and screen reader
-- S-07.01.03 · Meeting transcription with no bot in the call
 - S-07.01.04 · Reports and artifacts
 
 ## IN_PROGRESS
@@ -72,7 +70,7 @@ _nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-07.01.03 · Meeting transcription with no bot in the call
 
 ## BLOCKED
 

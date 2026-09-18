@@ -393,6 +393,8 @@ def describe_policy_for_class(policy: DataPolicy, data_class: DataClass) -> str:
     """One plain sentence for the UI: what will actually be sent."""
     if data_class is DataClass.PUBLIC:
         return "Public, non-personal content only. No person is named."
+    if data_class is DataClass.MEETING:
+        return "Raw meeting audio may reach only a highest-trust Tier A transcription provider."
     if policy is DataPolicy.STRICT:
         return "Category and question structure only. Nobody is identifiable."
     if policy is DataPolicy.PSEUDONYMOUS:

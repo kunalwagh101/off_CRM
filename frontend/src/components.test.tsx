@@ -96,6 +96,19 @@ describe("v0.12 additions", () => {
     expect(html).toContain("source of truth");
   });
 
+  it("meeting notes makes the local-only and no-bot boundary visible", async () => {
+    const { default: Meetings } = await import("./pages/Meetings");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Meetings />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Meeting notes");
+    expect(html).toContain("No bot joins the call");
+    expect(html).toContain("Local device required");
+    expect(html).toContain("Start recording");
+  });
+
   it("deliverability keeps bulk sending behind visible safety controls", async () => {
     const { default: Deliverability } = await import("./pages/Deliverability");
     const html = renderToStaticMarkup(

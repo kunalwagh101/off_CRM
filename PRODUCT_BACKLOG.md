@@ -706,9 +706,31 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 #### S-07.01.03 — Meeting transcription with no bot in the call
 **As an** owner, **I want** microphone and system audio captured locally,
 **so that** meetings become notes without a third party joining.
-- **Given** a capture, **when** it completes, **then** audio never leaves the
-  machine except through the declared transcription provider.
+- **Given** a supported browser on a loopback off_CRM origin, **when** the owner
+  grants microphone and screen/tab audio and starts capture, **then** the two
+  audio sources are mixed and recorded in the browser and no audio request is
+  sent before the owner stops the capture.
+- **Given** the selected screen/tab exposes no system-audio track, **when**
+  capture starts, **then** recording is refused with an actionable message
+  rather than silently producing microphone-only notes.
+- **Given** a completed capture, **when** it is submitted for transcription,
+  **then** the API refuses non-loopback clients/hosts, keeps no raw-audio file,
+  and the bytes may leave the machine only through a declared Tier-A
+  transcription provider.
+- **Given** transcription succeeds, **when** the result is saved, **then** the
+  private local record contains the transcript, word timings and provider/model
+  metadata but never the raw recording or provider secret.
 - **Dependencies:** S-03.01.01. **Size:** L. **Indicator:** meetings captured per week.
+- **Business value:** E-04 — specialised agents can turn a real conversation
+  into reusable local evidence without adding a meeting bot or another SaaS
+  participant.
+- **Tasks:** T-07.01.03.a meeting-audio trust boundary and local store (<=1 day);
+  T-07.01.03.b loopback-only transcription API (<=1 day);
+  T-07.01.03.c browser mic + system-audio capture and review UI (<=1 day);
+  T-07.01.03.d security, browser, API and regression evidence + docs/retro (<=1 day).
+- **Out of scope:** speaker diarisation; calendar joins; automatic meeting
+  attendance; cloud meeting recording; semantic summarisation/action-item
+  generation; live captions during the call.
 
 #### S-07.01.04 — Reports and artifacts
 **As an** owner, **I want** gathered data to become a deck, a sheet or a PDF,

@@ -200,7 +200,8 @@ This is the next thing to build, and the decisions are now made:
 |---|---|---|
 | `db/` | SQLite locally, Postgres if you want. Same code | ✅ |
 | `api/` | ~4,100 lines of endpoints | ✅ |
-| Frontend | 17 screens: campaigns, contacts, drafts, images, video, posting, AI | ✅ |
+| Frontend | React screens for campaigns, contacts, drafts, images, video, posting, AI and local meeting notes | ✅ |
+| Meeting notes | Browser-local mic + shared system audio → loopback API → Tier-A transcription → private transcript; no bot/raw recording store | ◐ S-07.01.03 · implementation present, executable proof pending |
 | Workspaces | Every table already separates people. Your keys are yours | ◐ S-06.01.01 *(works; not surfaced in the UI)* |
 | **Permissions** | Global → per-tool → this-chat-only | ⬜ S-06.01.02 |
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |

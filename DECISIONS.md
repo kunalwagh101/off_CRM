@@ -48,6 +48,7 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-23 | 2026-09-19 | Keyboard interaction must call the same validated domain operation as its pointer equivalent | Keyboard editing is frame-stepped rather than continuously dragged, but it cannot diverge into a second state path |
 
 ---
 
@@ -334,3 +335,24 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+### DD-23 — Keyboard and pointer paths share domain operations · 2026-09-19
+
+**The obvious thing.** Add separate keyboard-only timeline state or duplicate
+the drag logic in a key handler.
+
+**What was done instead.** Keyboard move/trim produces the same
+`move_clip` / `trim_clip` commands already used when pointer dragging ends.
+The server remains the only place that validates and commits the edit.
+
+**Why.** Accessibility is not a second product. If keyboard and pointer paths
+write different state, one of them eventually gains different validation,
+undo/redo behaviour or export results.
+
+**Cost.** Pointer dragging is continuous while keyboard editing is intentionally
+frame-stepped. Shift gives a ten-frame step for faster movement.
+
+**What would make this wrong.** A future timeline interaction whose pointer path
+cannot be represented by the existing validated operation contract. That would
+require extending the shared contract, not bypassing it for keyboard users.
+

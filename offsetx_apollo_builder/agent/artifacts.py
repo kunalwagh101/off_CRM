@@ -98,10 +98,11 @@ def _xml(value: object) -> str:
 
 
 def _cell(value: object) -> object:
-    """Literal spreadsheet value; never let page text become a formula."""
+    """Literal spreadsheet value; never let page text become executable."""
     if not isinstance(value, str):
         return value
-    return "'" + value if value.startswith(_FORMULA_PREFIXES) else value
+    text = _INVALID_XML.sub("\uFFFD", value)
+    return "'" + text if text.startswith(_FORMULA_PREFIXES) else text
 
 
 def _goal(trace: Trace) -> str:

@@ -2057,6 +2057,27 @@ written from memory were wrong:
 
 ---
 
+### Public discovery frontier — S-05.01.01 (2026-09-18, IN_REVIEW)
+
+- [x] The old per-run `deque` is gone from the production discovery path.
+- [x] `crawler_frontier.sqlite3` persists URL, depth, content hash, last
+      crawl/change, next due time, counters, last error and a short claim lease.
+- [x] Changed pages are due after one day; unchanged pages back off by observed
+      stability up to 30 days; failures back off separately up to one day.
+- [x] Claims are transactional and leased, so two processes sharing the file do
+      not intentionally take the same due URL. A dead worker's lease expires.
+- [x] Every seed/link still goes through the existing public URL policy before
+      persistence. Session-gated social domains lose even if mistakenly present
+      in an allow-list.
+- [x] Existing SafePublicFetcher/Crawl4AI robots, crawl-delay, SSRF, redirect and
+      size controls are reused rather than copied.
+- [x] Five focused tests cover robots + crawl delay, adaptive revisit cadence,
+      restart/budget persistence, concurrent claim exclusion and the social
+      boundary.
+- [ ] Locked repository test evidence is still missing. GitHub Actions runs 584
+      and 590 failed before creating a workflow step and expose no job log.
+      Under the Definition of Done this is IN_REVIEW, not DONE.
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

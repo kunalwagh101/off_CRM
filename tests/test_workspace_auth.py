@@ -170,3 +170,17 @@ def test_legacy_three_part_cookie_is_accepted_only_for_local_workspace() -> None
     assert identity is not None
     assert identity.workspace_id == "local"
     assert other.verify(token, now=1000) is None
+
+
+def test_session_secret_without_any_login_is_rejected(tmp_path: Path) -> None:
+    settings = AppSettings(
+        project_root=ROOT,
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        api_token="t" * 40,
+        session_secret="s" * 48,
+    )
+    with pytest.raises(ValueError, match="requires a demo or workspace login"):
+        settings.validate()

@@ -1112,9 +1112,9 @@ class EgressBroker:
             message = f"No transcription model produced a result. {detail}"
         elif request.data_class is DataClass.MEETING:
             message = (
-                "No permitted Tier A transcription model. Connect Mistral in "
-                "Connectors; meeting audio is intentionally never sent to a "
-                "lower-trust provider."
+                "No permitted Tier A transcription model. In Connectors, connect "
+                "Mistral and enable voxtral-mini-latest; meeting audio is "
+                "intentionally never sent to a lower-trust provider."
             )
         else:
             message = (

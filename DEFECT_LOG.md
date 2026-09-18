@@ -87,6 +87,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-60 | 2026-09-19 | accessibility | high | Video timeline clips could only be moved or trimmed with pointer dragging | fixed · `S-06.02.05` — keyboard move/trim maps to the same validated `move_clip` / `trim_clip` operations |
 | D-61 | 2026-09-19 | bug | high | An accessibility refactor accidentally made AI `closePanel()` call itself recursively | fixed before review · `S-06.02.05`; regression assertion now requires the real state transition and forbids the recursive body |
 | D-62 | 2026-09-19 | product-copy | medium | The production login screen still called the product a demo and told users to use temporary Render credentials | fixed while auditing `S-06.02.05`; production copy now describes the installed workspace and local outbox without a demo claim |
+| D-63 | 2026-09-19 | process | high | GitHub Actions run #818 and its failed-job retry both created the `quality` job but executed zero steps and exposed no logs, so repository evidence could not run | open · external CI execution failure; `S-06.02.05` remains IN_REVIEW rather than claiming DONE |
 
 ---
 

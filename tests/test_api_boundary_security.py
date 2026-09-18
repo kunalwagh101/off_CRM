@@ -38,21 +38,16 @@ def _api_routes(app) -> list[APIRoute]:
     ]
 
 
-UNSUBSCRIBE_TEMPLATE = f"{API_PREFIX}/email/unsubscribe/{token}"
+UNSUBSCRIBE_TEMPLATE = f"{API_PREFIX}/email/unsubscribe/{{token}}"
 UNSUBSCRIBE_STRUCTURAL_TOKEN = (
     "00000000-0000-4000-8000-000000000001."
     + "A" * 43
 )
 
 
-def _is_public(method: str, path: str) -> bool:
-    verb = method.upper()
-    if (verb, path) in PUBLIC_API_EXACT:
-        return True
-    return (
-        (verb, UNSUBSCRIBE_TEMPLATE) in PUBLIC_API_DYNAMIC
-        and path == f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}"
-    )
+def _is_public(method: str, route_template: str) -> bool:
+    key = (method.upper(), route_template)
+    return key in PUBLIC_API_EXACT or key in PUBLIC_API_DYNAMIC
 
 
 def _concrete_path(route: APIRoute) -> str:

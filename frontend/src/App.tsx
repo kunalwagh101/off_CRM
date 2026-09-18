@@ -98,16 +98,16 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
         <div className="login-brand"><span className="brand-symbol" aria-hidden="true">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
-        <p className="eyebrow">Protected demo</p>
+        <p className="eyebrow">Protected workspace</p>
         <h1 id="login-title">Sign in to the CRM</h1>
-        <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
+        <p className="login-copy">Use the workspace credentials configured for this installation.</p>
         <form className="form-stack" onSubmit={submit}>
           <Field label="Username"><input name="username" autoComplete="username" required autoFocus /></Field>
           <Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>
           {error ? <p className="login-error" role="alert">{error}</p> : null}
           <Button type="submit" busy={busy}>Sign in</Button>
         </form>
-        <p className="login-safety">Demo mode uses the local outbox. Gmail is not required.</p>
+        <p className="login-safety">The local outbox can be used without connecting Gmail.</p>
       </section>
     </main>
   );

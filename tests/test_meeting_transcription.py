@@ -8,7 +8,15 @@ from pathlib import Path
 import httpx
 import pytest
 
-from offsetx_apollo_builder.ai.broker import TranscriptResult, TranscriptWord
+from offsetx_apollo_builder.ai.broker import (
+    EgressBroker,
+    EgressRequest,
+    TranscriptResult,
+    TranscriptWord,
+    WorkspaceEgressSettings,
+)
+from offsetx_apollo_builder.ai.log import EgressLog
+from offsetx_apollo_builder.ai.quota import QuotaTracker
 from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.tiers import DataClass, TrustTier, tier_permits_class
 from offsetx_apollo_builder.api.app import MAX_MEETING_AUDIO_BYTES, create_app
@@ -100,6 +108,54 @@ def test_registry_routes_meeting_audio_only_to_mistral_voxtral():
     assert refused[("openai", "whisper-1")] == "tier_forbids_data_class"
     assert refused[("groq", "whisper-large-v3")] == "tier_forbids_data_class"
 
+
+
+def test_meeting_egress_log_never_copies_audio_or_transcript(tmp_path):
+    registry = ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml")
+    log = EgressLog(tmp_path / "egress.sqlite3")
+    broker = EgressBroker(
+        registry=registry,
+        credential_resolver=lambda provider_id: "k",
+        quota=QuotaTracker(tmp_path / "quota"),
+        logger=log.record,
+    )
+
+    class Stub:
+        def transcribe(self, **kwargs):
+            assert kwargs["audio"] == b"RAW-MEETING-SECRET"
+            return {
+                "text": "SECRET-TRANSCRIPT-TEXT",
+                "language": "en",
+                "words": [{"word": "SECRET", "start": 0.0, "end": 0.4}],
+            }
+
+    broker._instantiate = lambda candidate, adapter_override="": Stub()  # type: ignore[method-assign]
+    result = broker.call_transcript(
+        EgressRequest(
+            task_type="meeting_transcription",
+            data_class=DataClass.MEETING,
+            instructions="",
+        ),
+        WorkspaceEgressSettings(
+            workspace_id="local",
+            enabled_provider_ids=("mistral",),
+            enabled_models={"mistral": ("voxtral-mini-latest",)},
+        ),
+        audio=b"RAW-MEETING-SECRET",
+        media_type="audio/webm",
+        filename="meeting.webm",
+    )
+
+    record = log.get(result.log_id)
+    assert record is not None
+    serialized = json.dumps(record, ensure_ascii=False)
+    assert "RAW-MEETING-SECRET" not in serialized
+    assert "SECRET-TRANSCRIPT-TEXT" not in serialized
+    assert record["data_class"] == "meeting"
+    assert record["provider_id"] == "mistral"
+    assert record["model_id"] == "voxtral-mini-latest"
+    assert "audio bytes sent" in record["response_text"]
+    assert "words returned" in record["response_text"]
 
 
 def test_loopback_upload_uses_meeting_class_and_never_stores_raw_audio(tmp_path):

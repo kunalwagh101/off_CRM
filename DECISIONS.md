@@ -48,6 +48,7 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-21 | 2026-09-19 | Meeting audio is a dedicated Tier-A-only data class and may enter off_CRM only over loopback | A hosted off_CRM instance cannot transcribe meetings; the owner must run the capture surface on the meeting device |
 
 ---
 
@@ -334,3 +335,31 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+### DD-21 — Meeting audio never becomes ordinary campaign data · 2026-09-19
+
+**The obvious thing.** Reuse the existing caption transcription path and label a
+meeting recording as `campaign` audio. That would immediately make OpenAI and
+Groq transcription available.
+
+**What was done instead.** Add `DataClass.MEETING`, permit it only at Tier A,
+require both the HTTP Host and the actual peer to be loopback, and declare
+Mistral's verified `voxtral-mini-latest` transcription model as the usable
+Tier-A path.
+
+**Why.** The egress scanner cannot inspect a waveform. A meeting can contain
+customer identities, passwords, pricing or strategy regardless of how the bytes
+look. Treating it as campaign media would be a type lie that bypasses the safety
+property instead of satisfying it. A hosted off_CRM relay would also violate the
+story before the transcription provider was called, because the audio would
+already have left the owner's machine.
+
+**Cost.** Meeting capture is local-device-only and requires a Mistral connection
+with Voxtral enabled. OpenAI/Groq cannot be fallback providers for this data
+class, even if they are cheaper or already connected.
+
+**What would make this wrong.** A future local/self-hosted transcription model
+that is represented honestly as Tier A can be added to the registry without
+changing the boundary. Lowering the trust requirement would require an explicit
+new product/security decision, not a routing tweak.
+

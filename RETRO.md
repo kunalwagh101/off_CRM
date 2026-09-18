@@ -878,7 +878,7 @@ fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 p
 
 ---
 
-## 2026-09-19 — S-06.02.02, every endpoint authorises and validates (IN_PROGRESS)
+## 2026-09-19 — S-06.02.02, every endpoint authorises and validates (IN_REVIEW)
 
 **What was cut.** Nothing from the refined API-boundary story. Cross-workspace
 object ownership and role tiers were deliberately not absorbed because
@@ -898,6 +898,7 @@ from security acceptance unless the invariant genuinely depends on the
 structure.
 
 **Evidence state.** Implementation and focused tests are committed on PR #24.
-Executable CI/full regression/verifier evidence is still pending, so this story
-is not DONE.
+GitHub Actions runs #740 and #778 both failed before step 1: the `quality` job
+reported zero executed steps and no logs. Executable focused/full/frontend/
+verifier evidence is still pending, so this story is IN_REVIEW and not DONE.
 

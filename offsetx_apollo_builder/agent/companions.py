@@ -341,6 +341,7 @@ def approved_memory_loader(backend: Any, *, limit: int = 50) -> MemoryLoader:
             workspace_id=workspace_id,
             scope=scope,
             approved_only=True,
+            include_global=False,
             limit=bounded_limit,
             offset=0,
         )

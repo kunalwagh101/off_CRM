@@ -422,7 +422,7 @@ class RoutineService:
         name = str(event_name or "").strip()
         if not EVENT_NAME.fullmatch(name):
             raise RoutineError("Invalid event name")
-        if event_id and not self.store.remember_event(event_id):
+        if event_id and not self.store.remember_event(f"{name}:{event_id}"):
             return []
         trigger = Trigger(
             kind="event",
@@ -529,16 +529,20 @@ class RoutineService:
             notified, notification_error = await self._notify(
                 routine, result, trigger, should_notify=True
             )
-            if notification_error:
-                latest = self.store.get(routine.id)
-                self.store.put(
-                    replace(
-                        latest,
-                        last_error=(
-                            f"{latest.last_error}; notification: {notification_error}"[:1000]
-                        ),
-                    )
+            latest = self.store.get(routine.id)
+            self.store.put(
+                replace(
+                    latest,
+                    notify_count=latest.notify_count + (1 if notified else 0),
+                    last_error=(
+                        (
+                            f"{latest.last_error}; notification: {notification_error}"
+                        )[:1000]
+                        if notification_error
+                        else latest.last_error
+                    ),
                 )
+            )
             return {
                 "routine_id": routine.id,
                 "status": "error",

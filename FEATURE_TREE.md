@@ -506,7 +506,7 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-9.4 | `api/schemas.py` + `config.py` | 300 | — | ◐ |
 | P-9.5 | 22 React screens | 15,876 | 1 suite + 7 video suites | ◐ |
 | P-9.6 | **Every endpoint authorises and validates** | — | — | ⬜ S-06.02.02 |
-| P-9.7 | **Keyboard and screen-reader usable** | — | — | ⬜ S-06.02.05 |
+| P-9.7 | **Keyboard and screen-reader usable** | shared primitives + whole-source gate | `accessibility.test.tsx`, `accessibility-source.test.ts` | ◐ S-06.02.05 · proof pending |
 
 Routes by area — `campaigns` 44, `ai` 39, `video-projects` 16, `sales` 14,
 `notion` 6, `trends` 5, `distribution` 5, and 39 others across smaller groups.

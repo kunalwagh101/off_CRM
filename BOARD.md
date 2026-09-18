@@ -67,9 +67,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-05.01.01 · A crawler with a frontier, not a loop
+_nothing in flight_
 
 ## IN_REVIEW
+
+- S-05.01.01 · A crawler with a frontier, not a loop
 
 _nothing waiting_
 

@@ -156,7 +156,9 @@ def test_frontier_never_admits_session_gated_platforms(tmp_path):
         }
     )
     policy = CrawlPolicy(
-        allowed_domains=("example.com",),
+        # Deliberately include the social domains in the allow-list. The
+        # session-gated block must win even over operator allow-list input.
+        allowed_domains=("example.com", "linkedin.com", "instagram.com"),
         max_pages=1,
         max_depth=1,
         request_delay_seconds=0,

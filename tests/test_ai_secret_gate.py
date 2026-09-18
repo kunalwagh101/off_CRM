@@ -176,7 +176,12 @@ def test_image_prompt_never_falls_back_to_unscanned_request_text(
         data_class=DataClass.PUBLIC,
         instructions="api_key=opaque-but-private-value",
     )
-    result = broker.call_image(request, _settings("nvidia"))
+    image_settings = WorkspaceEgressSettings(
+        workspace_id="security-test",
+        enabled_provider_ids=("nvidia",),
+        enabled_models={"nvidia": ("black-forest-labs/flux.1-dev",)},
+    )
+    result = broker.call_image(request, image_settings)
 
     assert result.prompt == ""
     assert sent == [""]

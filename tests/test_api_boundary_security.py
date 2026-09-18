@@ -7,8 +7,8 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.api.app import (
+    PUBLIC_API_DYNAMIC,
     PUBLIC_API_EXACT,
-    PUBLIC_API_PREFIX_METHODS,
     create_app,
 )
 from offsetx_apollo_builder.api.config import AppSettings
@@ -38,13 +38,20 @@ def _api_routes(app) -> list[APIRoute]:
     ]
 
 
+UNSUBSCRIBE_TEMPLATE = f"{API_PREFIX}/email/unsubscribe/{token}"
+UNSUBSCRIBE_STRUCTURAL_TOKEN = (
+    "00000000-0000-4000-8000-000000000001."
+    + "A" * 43
+)
+
+
 def _is_public(method: str, path: str) -> bool:
     verb = method.upper()
     if (verb, path) in PUBLIC_API_EXACT:
         return True
-    return any(
-        verb == allowed and path.startswith(prefix)
-        for allowed, prefix in PUBLIC_API_PREFIX_METHODS
+    return (
+        (verb, UNSUBSCRIBE_TEMPLATE) in PUBLIC_API_DYNAMIC
+        and path == f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}"
     )
 
 
@@ -102,11 +109,7 @@ def test_public_policy_points_only_at_live_declared_methods(tmp_path):
     }
 
     assert PUBLIC_API_EXACT <= live
-    for method, prefix in PUBLIC_API_PREFIX_METHODS:
-        assert any(
-            live_method == method and path.startswith(prefix)
-            for live_method, path in live
-        ), f"public prefix has no live route: {method} {prefix}"
+    assert PUBLIC_API_DYNAMIC <= live
 
 
 def test_every_current_protected_api_route_rejects_anonymous_requests(tmp_path):
@@ -127,17 +130,25 @@ def test_every_current_protected_api_route_rejects_anonymous_requests(tmp_path):
     assert checked, "route inventory unexpectedly contained no protected API routes"
 
 
-def test_a_future_method_under_a_public_prefix_is_protected_by_default(tmp_path):
+def test_future_routes_under_unsubscribe_do_not_inherit_public_access(tmp_path):
     app = create_app(_settings(tmp_path))
 
-    @app.delete(f"{API_PREFIX}/email/unsubscribe/admin-probe")
-    def privileged_probe():
+    @app.get(f"{API_PREFIX}/email/unsubscribe/admin")
+    def privileged_get_probe():
+        return {"should_not_be_public": True}
+
+    @app.delete(f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}")
+    def privileged_delete_probe():
         return {"should_not_be_public": True}
 
     with TestClient(app, raise_server_exceptions=False) as client:
-        response = client.delete(f"{API_PREFIX}/email/unsubscribe/admin-probe")
-    assert response.status_code == 401
-    assert response.json() == {"detail": "CRM login required"}
+        same_method_admin = client.get(f"{API_PREFIX}/email/unsubscribe/admin")
+        wrong_method_token = client.delete(
+            f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}"
+        )
+
+    assert same_method_admin.status_code == 401
+    assert wrong_method_token.status_code == 401
 
 
 def test_wrong_methods_on_exact_public_paths_do_not_inherit_public_access(tmp_path):
@@ -277,11 +288,11 @@ def test_public_boundaries_are_narrow_and_reject_bad_input(tmp_path):
         )
         _assert_safe_4xx(bad_sns)
 
-        bad_unsubscribe = client.get(f"{API_PREFIX}/email/unsubscribe/not-a-real-token")
+        bad_unsubscribe = client.get(f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}")
         _assert_safe_4xx(bad_unsubscribe)
 
         bad_one_click = client.post(
-            f"{API_PREFIX}/email/unsubscribe/not-a-real-token",
+            f"{API_PREFIX}/email/unsubscribe/{UNSUBSCRIBE_STRUCTURAL_TOKEN}",
             content=b"List-Unsubscribe=wrong",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )

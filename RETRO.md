@@ -876,3 +876,28 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+---
+
+## 2026-09-19 — S-06.02.02, every endpoint authorises and validates (IN_PROGRESS)
+
+**What was cut.** Nothing from the refined API-boundary story. Cross-workspace
+object ownership and role tiers were deliberately not absorbed because
+`S-06.01.01` and `S-06.01.02` already own those identities and rules.
+
+**What the estimate got wrong.** Most authentication already existed. The real
+risk was proof and policy shape: public exemptions were path-wide, session
+status could lie on API-token-only installs, and no acceptance test enumerated
+the live router. The independent audit also found a second bypass class the
+scaffold missed: a new dynamic backend route outside `/api/` would not enter
+the auth middleware's protected namespace. The test now pins the only allowed
+non-API dynamic routes to the two health checks.
+
+**What to change next time.** For a cross-cutting invariant, test the framework's
+live registry instead of copying route names. Keep structural refactors separate
+from security acceptance unless the invariant genuinely depends on the
+structure.
+
+**Evidence state.** Implementation and focused tests are committed on PR #24.
+Executable CI/full regression/verifier evidence is still pending, so this story
+is not DONE.
+

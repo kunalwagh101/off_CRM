@@ -497,3 +497,47 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+---
+
+## 14. Meeting notes without a meeting bot
+
+First prove the deterministic security boundaries:
+
+```bash
+uv run pytest tests/test_meeting_transcription.py -q
+npm test --prefix frontend -- --run src/meeting/capture.test.ts src/components.test.tsx
+```
+
+Then run the normal product locally, open **Meeting notes**, and verify the
+human flow:
+
+1. The screen refuses a hosted origin.
+2. Without Mistral + `voxtral-mini-latest` enabled, Start is disabled and the
+   screen tells you exactly what to connect.
+3. Press **Start recording**. Grant microphone access. Choose a browser tab or
+   screen and enable **Share audio**.
+4. If you share a source with no audio track, capture must refuse rather than
+   record microphone-only.
+5. During recording, no transcription request is sent. Press **Cancel** and no
+   meeting transcript should appear.
+6. Start again, then press **Stop & transcribe**. The transcript appears in the
+   local library with provider/model and egress-log metadata.
+7. Inspect `<data-dir>/meetings`: it contains JSON transcript records, not
+   WebM/Ogg/WAV/MP4 recordings.
+8. Inspect the corresponding egress-log row: it records the meeting data class,
+   provider/model, audio byte count and returned word count, but neither the
+   recording nor transcript text.
+
+Full release evidence remains:
+
+```bash
+uv run pytest -q
+npm test --prefix frontend
+npm run build --prefix frontend
+uv run python scripts/verify_board.py
+```
+
+A live Mistral call is an environment-gated proof because it requires the
+owner's API key and real captured audio. Unit/contract evidence must still pass
+without any external provider.
+

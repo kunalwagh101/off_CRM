@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Local meeting transcription without a meeting bot is built for review**
+  (`S-07.01.03`). The browser mixes microphone plus explicitly shared
+  screen/tab audio and makes no network request until Stop. Raw audio is
+  accepted only over a loopback off_CRM connection, is never persisted, and
+  can reach only a Tier-A transcription provider. Mistral
+  `voxtral-mini-latest` is the declared Tier-A path; OpenAI/Groq are refused
+  for meeting audio. Private transcript records retain word timings and
+  provider/model audit metadata, while the egress log keeps only audio size and
+  returned-word count. Focused tests are committed; executable CI evidence is
+  still pending because GitHub Actions is failing before step 1.
+
+
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.
 - **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.
 - **Delivery failures were recorded instead of hidden.** `D-47` is dev-tooling-only: `npm audit --omit=dev` is clean while the full tree has four findings and is tracked by `S-06.02.16`. `D-48` tracks the missing DONE-dependency check under `S-06.02.17`. `D-49` records the rejected workflow-file push and the transport fix used to finish this story.

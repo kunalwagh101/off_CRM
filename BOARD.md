@@ -66,11 +66,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-07.01.03 · Meeting transcription with no bot in the call
+_nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-07.01.03 · Meeting transcription with no bot in the call
 
 ## BLOCKED
 

@@ -206,7 +206,7 @@ test plan, and what it depends on.
 | Story | In one line |
 |---|---|
 | S-06.02.01 | A scan proving no secret ever entered a prompt |
-| S-06.02.02 | Every endpoint checks who you are and what you sent |
+| S-06.02.02 | ◐ Fail-closed route/method auth + validation sweep built on PR #24; executable proof pending |
 | S-06.02.03 | A job that costs too much stops itself |
 | S-06.02.04 | Delete someone's data and it's gone from **everywhere** |
 | S-06.02.05 | The whole app usable by keyboard and screen reader |

@@ -82,9 +82,9 @@ judgement that it is obviously working.
 
 ## WIP limit
 
-`IN_PROGRESS` holds at most **2** items. Nothing new is pulled while an item is
-`IN_PROGRESS` or `BLOCKED` — finish it, or escalate it with a linked `Q-nn` or a
-named external dependency.
+`IN_PROGRESS` holds at most **2** items. Pull only from `READY` while that
+limit has room. An item in `BLOCKED` is never pulled; an unrelated `READY` item
+may proceed while a named external dependency waits.
 
 `BLOCKED` with no escalation is a process violation, and the verifier fails on it.
 

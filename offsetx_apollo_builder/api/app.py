@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import os
+import re
 import threading
 import uuid
 from contextlib import asynccontextmanager, contextmanager
@@ -140,6 +141,51 @@ API_PREFIX = "/api/v1"
 LIVE_SEND_CONFIRMATION = "SEND LIVE EMAILS"
 CONTACT_UPLOAD_TYPES = {".csv", ".xlsx", ".xls"}
 EXPERT_UPLOAD_TYPES = {".md", ".txt"}
+
+
+# Authentication is fail-closed for `/api/`. These are the only route+method
+# pairs intentionally reachable without an owner credential. The HTTP method is
+# part of the exemption so a future sensitive method on a public-looking path
+# does not silently inherit anonymous access.
+PUBLIC_API_EXACT = frozenset(
+    {
+        ("GET", f"{API_PREFIX}/meta"),
+        ("GET", f"{API_PREFIX}/auth/session"),
+        ("POST", f"{API_PREFIX}/auth/login"),
+        ("POST", f"{API_PREFIX}/auth/logout"),
+        ("POST", f"{API_PREFIX}/email-delivery/events/ses/sns"),
+    }
+)
+PUBLIC_API_DYNAMIC = frozenset(
+    {
+        ("GET", f"{API_PREFIX}/email/unsubscribe/{{token}}"),
+        ("POST", f"{API_PREFIX}/email/unsubscribe/{{token}}"),
+    }
+)
+_UNSUBSCRIBE_PUBLIC_PATH = re.compile(
+    rf"^{re.escape(API_PREFIX)}/email/unsubscribe/"
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.[A-Za-z0-9_-]{43}$"
+)
+
+
+def _is_public_api_request(method: str, path: str) -> bool:
+    verb = method.upper()
+    if (verb, path) in PUBLIC_API_EXACT:
+        return True
+    unsubscribe_template = f"{API_PREFIX}/email/unsubscribe/{{token}}"
+    return (
+        (verb, unsubscribe_template) in PUBLIC_API_DYNAMIC
+        and _UNSUBSCRIBE_PUBLIC_PATH.fullmatch(path) is not None
+    )
+
+
+def _is_cors_preflight(request: Request) -> bool:
+    return (
+        request.method.upper() == "OPTIONS"
+        and bool(request.headers.get("origin"))
+        and bool(request.headers.get("access-control-request-method"))
+    )
 
 
 class CampaignLocks:
@@ -503,23 +549,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
             )
 
-        public_paths = {
-            f"{API_PREFIX}/meta",
-            f"{API_PREFIX}/auth/session",
-            f"{API_PREFIX}/auth/login",
-            f"{API_PREFIX}/auth/logout",
-        }
-        public_prefixes = (
-            f"{API_PREFIX}/email/unsubscribe/",
-            f"{API_PREFIX}/email-delivery/events/ses/sns",
-        )
-        is_public = request.url.path in public_paths or request.url.path.startswith(
-            public_prefixes
-        )
+        is_public = _is_public_api_request(request.method, request.url.path)
+        cors_preflight = _is_cors_preflight(request)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
         # fail-open: with nothing configured, every route served 200 to anyone.
-        protected = request.url.path.startswith("/api/") and not is_public
+        # A browser preflight carries no owner credential. Let only a real CORS
+        # preflight reach CORSMiddleware; that middleware still validates the
+        # origin, requested method and requested headers before any route runs.
+        api_path = request.url.path == "/api" or request.url.path.startswith("/api/")
+        protected = api_path and not is_public and not cors_preflight
         if resolved.allow_unauthenticated:
             protected = False
         if protected and not (valid_api_token(request) or session_identity(request)):
@@ -592,7 +631,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         token_authenticated = valid_api_token(request)
         return {
             "configured": session_auth.enabled,
-            "authenticated": not session_auth.enabled or bool(identity) or token_authenticated,
+            "authenticated": bool(identity) or token_authenticated,
             "username": identity.username if identity else "",
             "expires_at": identity.expires_at if identity else None,
         }

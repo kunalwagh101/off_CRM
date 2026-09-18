@@ -512,10 +512,64 @@ back, **so that** a bad release is a five-minute problem.
 - **Dependencies:** S-03.02.02. **Size:** M. **Indicator:** scanner findings.
 
 #### S-06.02.02 — Every endpoint authorises and validates
-- **Given** any endpoint, **when** called without a session, **then** it refuses.
-- **Given** any body, **when** it is malformed, **then** the response is a 4xx
-  with a message and never a stack trace.
-- **Dependencies:** none. **Size:** M. **Indicator:** unauthenticated reachability.
+
+**User story.** As the CRM owner, I want every API boundary to authenticate,
+authorise and validate before business logic runs, so that malformed or
+unauthorised requests cannot read, mutate or trigger CRM state.
+
+- **Given** any protected API route and HTTP method, **when** it is called
+  without a valid owner credential, **then** it returns `401` before the route
+  handler executes.
+- **Given** a new protected route under `/api/`, **when** it is added without a
+  special exemption, **then** the central policy protects it by default; public
+  exemptions are explicit and method-specific.
+- **Given** any protected endpoint with a request body, **when** malformed input
+  is sent with a valid credential, **then** FastAPI/Pydantic rejects it with a
+  4xx before the route handler executes.
+- **Given** caller-supplied identity/workspace-like headers or a wrong token,
+  **when** no valid owner credential is present, **then** they grant no
+  authority and the request is refused.
+- **Given** an intentionally public boundary (metadata, login/session/logout,
+  signed unsubscribe, or SES/SNS webhook), **when** it is called, **then** only
+  its declared HTTP method is public and its own token/signature/input control
+  still rejects invalid input.
+- **Given** an unauthorised or malformed request, **when** it is rejected,
+  **then** the response is a 4xx with a useful message and contains no Python
+  traceback or internal stack path.
+
+**Dependencies:** none. **Blocking risk:** object-level workspace/resource
+ownership does not exist in the current single-owner product; `S-06.01.01`
+owns multi-workspace login and isolation and remains a separate vertical slice.
+**Size:** M. **Indicator:** unauthenticated reachability and pre-handler rejection
+coverage. **Business value:** `E-06` — the product can be run safely in
+production without an API boundary becoming the easiest path around its controls.
+
+##### T-06.02.02.a — Inventory and classify every current API route
+Enumerate registered `/api/` route+method pairs and make public exceptions explicit.
+
+##### T-06.02.02.b — Make public exemptions fail closed
+Reuse the central middleware; narrow exemptions by HTTP method instead of adding
+per-route auth wrappers.
+
+##### T-06.02.02.c — Prove validation happens before business logic
+Exercise every protected body-bearing route with malformed authenticated input.
+
+##### T-06.02.02.d — Add negative/security regression coverage
+Cover anonymous, wrong-token, spoofed-identity, malformed-body, public-boundary
+and no-stack-trace paths.
+
+##### T-06.02.02.e — Close documentation and evidence
+Update security docs, traceability, demo, changelog, defect/decision logs, board
+evidence and retrospective.
+
+### OUT_OF_SCOPE — S-06.02.02
+
+- Multi-user/workspace ownership and cross-workspace object authorisation:
+  `S-06.01.01` defines those identities and storage boundaries; inventing them
+  here would silently absorb another READY story.
+- Role/permission tiers: `S-06.01.02` owns that business rule.
+- New OAuth/provider authentication schemes: existing owner token/session
+  mechanisms are hardened rather than replaced.
 
 #### S-06.02.03 — Cost and latency budgets per run
 **As an** owner running unattended work, **I want** each run to respect the

@@ -2057,6 +2057,36 @@ written from memory were wrong:
 
 ---
 
+### Every endpoint authorises and validates — S-06.02.02 (2026-09-19, IN_REVIEW)
+
+- [x] Existing central API authentication is reused; no per-route decorator
+      system or second auth stack was added.
+- [x] Public exceptions are HTTP-method and exact-path-shape specific. Signed
+      unsubscribe URLs must match the UUID + 43-char HMAC shape, so a future
+      GET/POST `/email/unsubscribe/admin` path stays protected.
+- [x] The public set is deliberately small: metadata, session/login/logout,
+      signed unsubscribe GET/POST and the signed SES/SNS callback.
+- [x] `/api/v1/auth/session` reports actual token/session authentication
+      instead of treating “session login disabled” as “authenticated”.
+- [x] A live FastAPI route-table test sweeps every protected route/method and
+      requires anonymous calls to fail `401`.
+- [x] A namespace guard allows dynamic backend routes outside `/api/` only for
+      the two explicit health checks, preventing a future `/debug` or
+      `/admin` route from silently escaping the protected namespace.
+- [x] Every protected body-bearing route is exercised with malformed
+      authenticated JSON while its handler is replaced with a trap; rejection
+      must happen before business logic.
+- [x] Typed query validation is separately proven before handler execution.
+- [x] Wrong tokens and spoofed user/workspace headers grant no authority.
+- [x] Public login, SNS and unsubscribe boundaries retain their own
+      rate/token/signature/input validation and emit safe 4xx responses.
+- [x] Temporary one-shot delivery workflow/helper removed after the real
+      implementation landed.
+- [ ] Executable evidence pending from PR #24 / GitHub Actions. Runs #740 and #778
+      created the `quality` job but executed zero steps and exposed no log.
+      Story remains non-DONE until focused regression, full Python regression,
+      frontend tests/build and `scripts/verify_board.py` actually execute.
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

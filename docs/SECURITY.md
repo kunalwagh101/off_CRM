@@ -66,3 +66,21 @@ If remote team access is later required, add authenticated tenancy, encrypted se
 ## Reporting a failure
 
 Pause the affected campaign first. Preserve the local database, event log and provider message IDs. Do not delete a failed-send record until the Gmail state is confirmed.
+
+## API boundary contract (`S-06.02.02`)
+
+The API is fail-closed. Every `/api/` route requires the configured owner token
+or signed owner session unless the exact route **and HTTP method** is in the
+small public policy in `api/app.py`.
+
+Public today means only metadata, login/session/logout, one-click unsubscribe
+GET/POST, and the SES/SNS webhook. Public does not mean trusted:
+unsubscribe authorises with its signed token; the SES/SNS webhook verifies the
+AWS envelope and configured topic; login is rate-limited; malformed inputs are
+rejected before business logic.
+
+The current product has one owner authority domain. This story does not invent
+cross-workspace object ownership or role tiers. `S-06.01.01` owns workspace
+identity/isolation and `S-06.01.02` owns role/permission tiers. Those checks can
+sit underneath this already fail-closed boundary when those stories land.
+

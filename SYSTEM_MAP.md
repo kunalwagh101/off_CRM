@@ -200,6 +200,7 @@ This is the next thing to build, and the decisions are now made:
 |---|---|---|
 | `db/` | SQLite locally, Postgres if you want. Same code | ✅ |
 | `api/` | ~4,100 lines of endpoints | ✅ |
+| API boundary | Protected `/api/` routes fail closed; public methods are explicit and route-registry tested | ◐ S-06.02.02 · proof pending |
 | Frontend | 17 screens: campaigns, contacts, drafts, images, video, posting, AI | ✅ |
 | Workspaces | Every table already separates people. Your keys are yours | ◐ S-06.01.01 *(works; not surfaced in the UI)* |
 | **Permissions** | Global → per-tool → this-chat-only | ⬜ S-06.01.02 |

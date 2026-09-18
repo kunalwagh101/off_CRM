@@ -142,6 +142,35 @@ CONTACT_UPLOAD_TYPES = {".csv", ".xlsx", ".xls"}
 EXPERT_UPLOAD_TYPES = {".md", ".txt"}
 
 
+# Authentication is fail-closed for `/api/`. These are the only route+method
+# pairs intentionally reachable without an owner credential. The HTTP method is
+# part of the exemption so a future sensitive method on a public-looking path
+# does not silently inherit anonymous access.
+PUBLIC_API_EXACT = frozenset(
+    {
+        ("GET", f"{API_PREFIX}/meta"),
+        ("GET", f"{API_PREFIX}/auth/session"),
+        ("POST", f"{API_PREFIX}/auth/login"),
+        ("POST", f"{API_PREFIX}/auth/logout"),
+        ("POST", f"{API_PREFIX}/email-delivery/events/ses/sns"),
+    }
+)
+PUBLIC_API_PREFIX_METHODS = (
+    ("GET", f"{API_PREFIX}/email/unsubscribe/"),
+    ("POST", f"{API_PREFIX}/email/unsubscribe/"),
+)
+
+
+def _is_public_api_request(method: str, path: str) -> bool:
+    verb = method.upper()
+    if (verb, path) in PUBLIC_API_EXACT:
+        return True
+    return any(
+        verb == allowed_method and path.startswith(prefix)
+        for allowed_method, prefix in PUBLIC_API_PREFIX_METHODS
+    )
+
+
 class CampaignLocks:
     def __init__(self) -> None:
         self._guard = threading.Lock()
@@ -503,19 +532,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
             )
 
-        public_paths = {
-            f"{API_PREFIX}/meta",
-            f"{API_PREFIX}/auth/session",
-            f"{API_PREFIX}/auth/login",
-            f"{API_PREFIX}/auth/logout",
-        }
-        public_prefixes = (
-            f"{API_PREFIX}/email/unsubscribe/",
-            f"{API_PREFIX}/email-delivery/events/ses/sns",
-        )
-        is_public = request.url.path in public_paths or request.url.path.startswith(
-            public_prefixes
-        )
+        is_public = _is_public_api_request(request.method, request.url.path)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
         # fail-open: with nothing configured, every route served 200 to anyone.
@@ -592,7 +609,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         token_authenticated = valid_api_token(request)
         return {
             "configured": session_auth.enabled,
-            "authenticated": not session_auth.enabled or bool(identity) or token_authenticated,
+            "authenticated": bool(identity) or token_authenticated,
             "username": identity.username if identity else "",
             "expires_at": identity.expires_at if identity else None,
         }

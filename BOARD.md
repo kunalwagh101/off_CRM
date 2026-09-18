@@ -67,11 +67,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-04.01.01 · Companions: persisted agent profiles
+_nothing in flight_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-04.01.01 · Companions: persisted agent profiles
 
 ## BLOCKED
 

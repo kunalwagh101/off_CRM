@@ -93,6 +93,36 @@ RoutineExecutor = Callable[[Routine, Trigger], Any]
 RoutineNotifier = Callable[[Routine, Mapping[str, Any], Trigger], Any]
 
 
+class AgentRunRoutineExecutor:
+    """Adapt a routine to the existing AgentRun execution contract.
+
+    `run_factory` owns browser/session/trace construction and returns an
+    AgentRun instance. This adapter owns only the routine-specific inputs.
+    """
+
+    def __init__(self, run_factory: Callable[[Routine, Trigger], Any]) -> None:
+        self.run_factory = run_factory
+
+    async def __call__(self, routine: Routine, trigger: Trigger) -> Mapping[str, Any]:
+        agent = self.run_factory(routine, trigger)
+        if inspect.isawaitable(agent):
+            agent = await agent
+        page = getattr(agent, "page", None)
+        if page is None or not hasattr(page, "goto"):
+            raise RoutineError("Routine run factory did not return an AgentRun with a Page")
+        await page.goto(routine.start_url)
+        outcome = await agent.run(
+            routine.goal,
+            step_budget=routine.step_budget,
+            result_schema=routine.result_schema or None,
+            spend_ceiling_usd=routine.spend_ceiling_usd,
+            latency_ceiling_ms=routine.latency_ceiling_ms,
+        )
+        if hasattr(outcome, "to_dict") and callable(outcome.to_dict):
+            return outcome.to_dict()
+        return dict(outcome or {})
+
+
 def _now_iso(now: float | None = None) -> str:
     stamp = time.time() if now is None else float(now)
     return datetime.fromtimestamp(stamp, tz=timezone.utc).isoformat()

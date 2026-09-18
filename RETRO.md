@@ -5,6 +5,25 @@ and what to change next time. Appended, never edited.
 
 ---
 
+## 2026-09-18 — S-05.01.01 crawler frontier (IN_REVIEW)
+
+**What was cut.** Nothing from the story. Session-gated crawling, extraction
+packs and competitor-post analysis were not cuts; they are explicitly outside
+this story and remain forbidden / S-05.01.02 / S-05.01.03.
+
+**What the estimate got wrong.** The crawler already had the difficult request
+safety. The missing production work was scheduling state and concurrency, not a
+new crawler engine. The unexpected blocker was evidence infrastructure: GitHub
+Actions runs 584 and 590 created a failed job with zero steps and no job log, so
+the repository test command could not run.
+
+**What to change next time.** Treat the safe fetch path as the asset and add
+state around it, rather than replacing it. For any story whose DONE gate depends
+on remote CI, check that the runner can start before the final evidence pass.
+The board remains IN_REVIEW until an executable locked test run exists.
+
+---
+
 ## 2026-08-25 — Phases 1-3, the delivery process itself
 
 **What was cut.** Nothing was cut. One thing was *added* against my own plan:

@@ -38,7 +38,32 @@ Expect: `x S-01.02.03 names code 'offsetx_apollo_builder/video/imaginary.py', wh
 
 ---
 
-## 2. A topic becomes a finished video
+## 2. Prove the crawler remembers what is due
+
+Run the focused acceptance slice:
+
+```bash
+uv run pytest tests/test_crawler_frontier.py -q
+```
+
+The five cases prove: robots.txt + crawl-delay enforcement, month-stable pages
+back off further than a page changed yesterday, crawl budget survives process
+restart, a lease prevents two workers claiming one URL, and LinkedIn/Instagram
+cannot enter the frontier even if an operator mistakenly allow-lists them.
+
+The durable frontier is created on the first real discovery run at:
+
+```text
+<OFFSETX_DATA_DIR>/crawler_frontier.sqlite3
+```
+
+Inspect it with SQLite if you want the scheduler's reason for every URL:
+`last_crawled_at`, `last_changed_at`, `next_due_at`, counters, last error
+and lease expiry are stored as ordinary columns.
+
+---
+
+## 3. A topic becomes a finished video
 
 The line the whole editor exists for. No timeline is touched by a human.
 
@@ -70,7 +95,7 @@ duration.
 
 ---
 
-## 3. The effects catalogue, and the promise it makes
+## 4. The effects catalogue, and the promise it makes
 
 ```bash
 python - <<'PY'

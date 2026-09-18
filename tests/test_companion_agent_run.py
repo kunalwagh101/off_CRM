@@ -140,9 +140,11 @@ def test_companion_instructions_and_only_declared_memory_scope_reach_planner(tmp
     assert outcome.status == "completed"
     assert loaded == [("local", "campaign:acme")]
     assert len(broker.calls) == 1
-    assert "Never click. Read evidence and summarise." in broker.calls[0]["system_prompt"]
+    assert "Never click. Read evidence and summarise." not in broker.calls[0]["system_prompt"]
     assert "Only these browser tools are granted: read." in broker.calls[0]["system_prompt"]
     prompt = broker.calls[0]["request"].instructions
+    assert "COMPANION OWNER INSTRUCTIONS" in prompt
+    assert "Never click. Read evidence and summarise." in prompt
     assert "scope=campaign:acme" in prompt
     assert "APPROVED MEMORY: carbon buyer prefers concise notes" in prompt
     assert page.actions == []

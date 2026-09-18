@@ -47,6 +47,7 @@ from ..video.timeline import (
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
+from ..agent.companions import CompanionError, CompanionStore
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
 from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup

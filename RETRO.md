@@ -876,3 +876,31 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+
+---
+
+## 2026-09-18 — S-06.01.04, scheduled and event-triggered AgentRun routines
+
+**What was cut.** Nothing from the trigger/execution contract. A second browser
+launcher, planner or role system was explicitly not added; those would duplicate
+existing boundaries or absorb other stories.
+
+**What the estimate got wrong.** The scheduling mechanics were the easy part.
+The important production work was around them: refusing attended-only domains
+before persistence, surviving process restart, deduplicating repeated event
+delivery, preventing one routine from overlapping itself, and keeping a broken
+notification sink from changing a successful run into an apparent failure.
+
+**What changed during review.** The first notification path sat inside the same
+try/except as execution. That meant a Slack/inbox outage could rewrite a
+successful AgentRun as `error` and then attempt another notification. Delivery
+is now a separate result with its own error evidence.
+
+**What to change next time.** For background automation, enumerate duplicate,
+restart, overlap and downstream-observability failure before writing the happy
+path. The timer itself is rarely the dangerous part.
+
+**Process note.** Repository reconnaissance and initial implementation preceded
+the board transition on this branch. The board was corrected during the same
+work session; this note preserves the real ordering rather than rewriting it.

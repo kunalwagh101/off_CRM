@@ -157,24 +157,19 @@ class CompanionStore:
         self.path = Path(database_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._local = threading.local()
-        with self.connection() as conn:
-            conn.executescript(SCHEMA)
+        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        with self._lock, self._conn:
+            self._conn.executescript(SCHEMA)
 
     def connection(self) -> sqlite3.Connection:
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            conn = sqlite3.connect(self.path, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn = conn
-        return conn
+        """The one store connection; every operation is serialized by _lock."""
+        return self._conn
 
     def close(self) -> None:
-        conn = getattr(self._local, "conn", None)
-        if conn is not None:
-            conn.close()
-            self._local.conn = None
+        with self._lock:
+            self._conn.close()
 
     def create(
         self,
@@ -280,10 +275,11 @@ class CompanionStore:
         return self.require(companion_id, workspace_id=workspace_id)
 
     def get(self, companion_id: str, *, workspace_id: str) -> CompanionProfile | None:
-        row = self.connection().execute(
-            "SELECT * FROM agent_companions WHERE id = ? AND workspace_id = ?",
-            (str(companion_id), str(workspace_id)),
-        ).fetchone()
+        with self._lock:
+            row = self.connection().execute(
+                "SELECT * FROM agent_companions WHERE id = ? AND workspace_id = ?",
+                (str(companion_id), str(workspace_id)),
+            ).fetchone()
         return _from_row(row) if row is not None else None
 
     def require(self, companion_id: str, *, workspace_id: str) -> CompanionProfile:
@@ -300,7 +296,8 @@ class CompanionStore:
         if not include_disabled:
             sql += " AND enabled = 1"
         sql += " ORDER BY name_key, id"
-        rows = self.connection().execute(sql, params).fetchall()
+        with self._lock:
+            rows = self.connection().execute(sql, params).fetchall()
         return [_from_row(row) for row in rows]
 
     def delete(self, companion_id: str, *, workspace_id: str) -> bool:

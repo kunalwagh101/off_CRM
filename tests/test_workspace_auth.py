@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 from pathlib import Path
 
 import pytest
@@ -136,3 +138,35 @@ def test_workspace_login_env_rejects_invalid_json(tmp_path, monkeypatch) -> None
     monkeypatch.setenv("OFFSETX_SESSION_SECRET", "s" * 48)
     with pytest.raises(ValueError, match="must be valid JSON"):
         AppSettings.from_env(tmp_path)
+
+
+def test_legacy_three_part_cookie_is_accepted_only_for_local_workspace() -> None:
+    from offsetx_apollo_builder.api.auth import DemoSessionAuth
+
+    secret = "z" * 48
+    raw = "legacy\n4600\nold-nonce".encode()
+    encoded = base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+    signature = base64.urlsafe_b64encode(
+        hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).digest()
+    ).rstrip(b"=").decode()
+    token = f"{encoded}.{signature}"
+
+    local = DemoSessionAuth(
+        username="legacy",
+        password="l" * 20,
+        session_secret=secret,
+        session_hours=1,
+        workspace_id="local",
+    )
+    other = DemoSessionAuth(
+        username="legacy",
+        password="l" * 20,
+        session_secret=secret,
+        session_hours=1,
+        workspace_id="alpha",
+    )
+
+    identity = local.verify(token, now=1000)
+    assert identity is not None
+    assert identity.workspace_id == "local"
+    assert other.verify(token, now=1000) is None

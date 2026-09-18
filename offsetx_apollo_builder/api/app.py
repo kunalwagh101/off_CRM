@@ -2276,9 +2276,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         intentionally local-only. No header, query parameter or request body may
         select another workspace.
         """
-        explicit = getattr(request, "workspace_id", "")
-        if explicit:
-            return str(explicit)
+        if isinstance(request, _TimerScope):
+            return request.workspace_id
         identity = session_identity(request)
         if identity is not None:
             return identity.workspace_id

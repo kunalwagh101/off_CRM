@@ -2057,7 +2057,7 @@ written from memory were wrong:
 
 ---
 
-### Reports and artifacts — S-07.01.04 (2026-09-18, IN_PROGRESS)
+### Reports and artifacts — S-07.01.04 (2026-09-18, IN_REVIEW)
 
 - [x] Existing verified trace findings are the only content source. Artifact
       generation has no broker/provider/model route.
@@ -2078,6 +2078,8 @@ written from memory were wrong:
 - [ ] Locked executable evidence is pending. GitHub Actions is still creating
       failed quality jobs with zero workflow steps, so this story cannot be
       called DONE until the test command and board verifier actually run.
+- [x] D-51 was caught before review: a scripted metadata edit wrote a literal
+      `\\n` into `pyproject.toml`; the committed file was re-read and fixed.
 
 ## 4. Not built yet
 

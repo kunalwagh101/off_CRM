@@ -82,11 +82,11 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
     setError("");
     const data = new FormData(event.currentTarget);
     try {
-      const result = await api.post<{ authenticated: boolean; username: string }>("/auth/login", {
+      const result = await api.post<{ authenticated: boolean; username: string; workspace_id: string }>("/auth/login", {
         username: String(data.get("username") ?? ""),
         password: String(data.get("password") ?? "")
       });
-      onLogin({ configured: true, authenticated: result.authenticated, username: result.username, expires_at: null });
+      onLogin({ configured: true, authenticated: result.authenticated, username: result.username, workspace_id: result.workspace_id, expires_at: null });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed");
     } finally {
@@ -196,7 +196,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
           </nav>
           <div className="sidebar-footer">
             <span className="local-dot" />
-            <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
+            <div><strong>Workspace: {auth.workspace_id || "local"}</strong><small>Provider & browser credentials</small></div>
           </div>
         </aside>
         <div className="app-main">
@@ -211,7 +211,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             </div>
             <div className="topbar-actions">
               {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
-              {auth.configured ? <span className="session-user">{auth.username}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
+              {auth.configured ? <span className="session-user">{auth.username} · {auth.workspace_id || "local"}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
               {auth.configured ? <button className="topbar-button logout-button" onClick={onLogout}>Log out</button> : null}
               <a className="topbar-button" href="/api/docs" target="_blank" rel="noreferrer" aria-label="Open API documentation">?</a>
             </div>
@@ -233,7 +233,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   );
 }
 
-const EMPTY_AUTH: AuthSession = { configured: false, authenticated: false, username: "", expires_at: null };
+const EMPTY_AUTH: AuthSession = { configured: false, authenticated: false, username: "", workspace_id: "", expires_at: null };
 
 export default function App() {
   const [auth, setAuth] = useState<AuthSession | null>(null);
@@ -244,7 +244,7 @@ export default function App() {
     api.get<AuthSession>("/auth/session")
       .then((session) => { if (active) setAuth(session); })
       .catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : "Backend unavailable"); });
-    const requireLogin = () => setAuth((current) => current?.configured ? { ...current, authenticated: false, username: "" } : current);
+    const requireLogin = () => setAuth((current) => current?.configured ? { ...current, authenticated: false, username: "", workspace_id: "" } : current);
     window.addEventListener(AUTH_REQUIRED_EVENT, requireLogin);
     return () => { active = false; window.removeEventListener(AUTH_REQUIRED_EVENT, requireLogin); };
   }, []);

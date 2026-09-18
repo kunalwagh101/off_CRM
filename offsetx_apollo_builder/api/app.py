@@ -95,11 +95,11 @@ from ..ai import (
 from ..ai.context import ContextLayer
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
-from ..ai.workspace import WorkspaceAISettingsStore
+from ..ai.workspace import DEFAULT_WORKSPACE, WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
-from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
+from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceSessionAuth
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
 from .schemas import (
@@ -176,10 +176,11 @@ class _TimerScope:
     every engine while it is half done.
     """
 
-    __slots__ = ("app",)
+    __slots__ = ("app", "workspace_id")
 
-    def __init__(self, app: Any) -> None:
+    def __init__(self, app: Any, workspace_id: str = DEFAULT_WORKSPACE) -> None:
         self.app = app
+        self.workspace_id = workspace_id
 
 def _ai_chat(request: Request) -> AIChatService:
     return request.app.state.ai_chat
@@ -263,9 +264,8 @@ def _idempotent(
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved = settings or AppSettings.from_env()
     resolved.validate()
-    session_auth = DemoSessionAuth(
-        username=resolved.demo_username,
-        password=resolved.demo_password,
+    session_auth = WorkspaceSessionAuth(
+        logins=resolved.configured_workspace_logins(),
         session_secret=resolved.session_secret,
         session_hours=resolved.session_hours,
     )
@@ -280,7 +280,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     if not (resolved.api_token or session_auth.enabled or resolved.allow_unauthenticated):
         raise ValueError(
             "off_CRM will not start without authentication. Set "
-            "OFFSETX_LOCAL_API_TOKEN, configure the demo login, or start through "
+            "OFFSETX_LOCAL_API_TOKEN, configure a workspace login, or start through "
             "run_offsetx_web.py, which provisions a local token for you."
         )
     host_allowlist = resolved.host_allowlist()
@@ -383,6 +383,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_broker = EgressBroker(
             registry=app.state.ai_registry,
             credential_resolver=lambda provider_id: "",
+            workspace_credential_resolver=app.state.ai_workspaces.key_for,
             quota=app.state.ai_quota,
             logger=app.state.ai_egress_log.record,
             cache=app.state.ai_cache,
@@ -590,17 +591,26 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def auth_session(request: Request) -> dict[str, Any]:
         identity = session_identity(request)
         token_authenticated = valid_api_token(request)
-        return {
+        authenticated = resolved.allow_unauthenticated or bool(identity) or token_authenticated
+        workspace_id = (
+            identity.workspace_id
+            if identity is not None
+            else (DEFAULT_WORKSPACE if authenticated else "")
+        )
+        payload = {
             "configured": session_auth.enabled,
-            "authenticated": not session_auth.enabled or bool(identity) or token_authenticated,
+            "authenticated": authenticated,
             "username": identity.username if identity else "",
             "expires_at": identity.expires_at if identity else None,
         }
+        if authenticated:
+            payload["workspace_id"] = workspace_id
+        return payload
 
     @app.post(f"{API_PREFIX}/auth/login")
     def auth_login(body: DemoLogin, request: Request) -> Response:
         if not session_auth.enabled:
-            raise HTTPException(status_code=404, detail="Demo login is not configured")
+            raise HTTPException(status_code=404, detail="Workspace login is not configured")
         client_key = request.client.host if request.client else "unknown"
         if not login_limiter.allowed(client_key):
             return JSONResponse(
@@ -608,17 +618,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 content={"detail": "Too many login attempts. Try again in five minutes."},
                 headers={"Retry-After": "300"},
             )
-        if not session_auth.authenticate(body.username, body.password):
+        identity = session_auth.authenticate(body.username, body.password)
+        if identity is None:
             login_limiter.failed(client_key)
             raise HTTPException(status_code=401, detail="Invalid username or password")
         login_limiter.clear(client_key)
         response = JSONResponse(
-            content={"authenticated": True, "username": resolved.demo_username}
+            content={
+                "authenticated": True,
+                "username": identity.username,
+                "workspace_id": identity.workspace_id,
+            }
         )
         response.set_cookie(
             SESSION_COOKIE,
-            session_auth.issue(),
-            max_age=session_auth.session_seconds,
+            session_auth.issue(identity),
+            max_age=resolved.session_hours * 60 * 60,
             httponly=True,
             secure=not loopback,
             samesite="strict",
@@ -1027,9 +1042,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         return ImageCampaignEngine(
             store=state.image_store,
             broker=state.ai_broker,
@@ -1145,9 +1157,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         settings = state.ai_workspaces.egress_settings(workspace_id)
 
         def transcriber(**kwargs: Any) -> Any:
@@ -1714,9 +1723,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         state = request.app.state
         workspace_id = _workspace_id(request)
         settings = state.ai_workspaces.egress_settings(workspace_id)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         data_class = DataClass.CAMPAIGN if angle.strip() else DataClass.PUBLIC
 
         def writer(kind: str, prompt: str) -> str:
@@ -2264,7 +2270,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
 
     def _workspace_id(request: Request) -> str:
-        return "local"
+        """Workspace authority comes only from authenticated server-side state.
+
+        A signed session carries its workspace claim. The local API token is
+        intentionally local-only. No header, query parameter or request body may
+        select another workspace.
+        """
+        if isinstance(request, _TimerScope):
+            return request.workspace_id
+        identity = session_identity(request)
+        if identity is not None:
+            return identity.workspace_id
+        if valid_api_token(request) or resolved.allow_unauthenticated:
+            return DEFAULT_WORKSPACE
+        raise HTTPException(status_code=401, detail="CRM login required")
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
@@ -2277,7 +2296,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         requested_class = str(body.get("data_class", "campaign")).strip().lower()
         if requested_class not in {"public", "campaign"}:
@@ -2543,7 +2561,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         raw_mode = str(body.get("mode", "simple")).strip().lower()
         if raw_mode not in {item.value for item in RunMode}:
@@ -2647,7 +2664,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         prompt = str(body.get("prompt", "")).strip()[:4000]
         if not prompt:
@@ -2742,7 +2758,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
         egress = layer.rewrite_request(
             score,
             winner=layer.winner(workspace_id) if body.get("use_winner", True) else None,

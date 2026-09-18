@@ -52,6 +52,7 @@ the code exists and holds no stub).
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
+| R-41, R-42 | S-06.01.01 | 6 | `tests/test_workspace_auth.py`, `tests/test_workspace_provider_isolation.py`, `tests/test_workspace_browser_isolation.py` written | Execute focused/full suites, frontend tests/build and independent board verifier |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
@@ -79,7 +80,7 @@ the code exists and holds no stub).
 | R-36, R-37, R-40 | S-05.01.01 | 3 | — | — |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
-| R-41, R-42 | S-06.01.01 | 1 | — | — |
+
 | R-43 | S-06.01.02 | 2 | — | — |
 | R-44 | S-06.01.03 | 2 | — | — |
 | R-45, R-46 | S-06.01.04 | 2 | — | — |

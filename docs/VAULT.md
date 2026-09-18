@@ -169,3 +169,16 @@ cd frontend && npm ci && npm test && npm run build
 The broader adversarial guarantee `S-06.02.01 — No secret may enter a model prompt` remains its own backlog story. This increment strengthens the shared egress scanner and directly proves browser credential shapes, but does not silently claim the entire future adversarial suite is complete.
 
 The vault currently manages cookie-based browser session material. It does not claim to export every possible browser-origin persistence mechanism such as arbitrary IndexedDB/localStorage application state. The supported platforms' current connection contract is cookie/session based; if a platform later requires another persistence mechanism, that is a new requirement and must enter change control rather than being silently added here.
+
+## Workspace isolation
+
+The vault key is not just `platform_id`; it is the authenticated
+`workspace_id` plus platform/account identity. Two workspaces can therefore
+hold separate sessions for the same platform without sharing ciphertext,
+wrapped account keys or connection records.
+
+`S-06.01.01` wires that existing storage property to authentication: the API
+derives the workspace only from a verified signed session (or the local-only API
+token), never from a caller-supplied workspace header/query/body value. The
+workspace isolation acceptance suite is
+`tests/test_workspace_browser_isolation.py`.

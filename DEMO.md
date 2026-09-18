@@ -497,3 +497,31 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+
+---
+
+## S-06.01.01 — prove workspace login, key and browser-session isolation
+
+Focused proof:
+
+```bash
+uv run pytest tests/test_workspace_auth.py tests/test_workspace_provider_isolation.py tests/test_workspace_browser_isolation.py tests/test_api_auth.py tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
+```
+
+The suite must show two signed logins resolving different workspaces, tampered
+workspace claims failing signature verification, spoofed workspace headers doing
+nothing, provider settings/keys staying separate, concurrent calls through one
+broker receiving the correct workspace key, and browser connection/vault state
+remaining separate for the same platform.
+
+Then run the release evidence:
+
+```bash
+uv run pytest tests/ -q
+cd frontend && npm test && npm run build
+uv run python scripts/verify_board.py
+```
+
+Do not mark this story DONE until those commands actually execute and the board
+verifier is green.

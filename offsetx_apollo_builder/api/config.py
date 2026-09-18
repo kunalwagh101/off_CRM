@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import secrets
 import stat
 from dataclasses import dataclass, field
@@ -10,6 +12,46 @@ from pathlib import Path
 def _resolved(value: str | Path, root: Path) -> Path:
     path = Path(value).expanduser()
     return path.resolve() if path.is_absolute() else (root / path).resolve()
+
+
+_WORKSPACE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+
+
+def _workspace_logins(value: str) -> dict[str, tuple[str, str]]:
+    """Parse workspace credentials from a deployment secret.
+
+    Shape:
+      {"acme": {"username": "alice", "password": "..."}, ...}
+
+    The setting is deliberately credentials-only. Workspace permissions and
+    organisation policy belong to S-06.01.02 rather than being invented here.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("OFFSETX_WORKSPACE_LOGINS must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("OFFSETX_WORKSPACE_LOGINS must be a JSON object")
+
+    parsed: dict[str, tuple[str, str]] = {}
+    for raw_workspace_id, raw_login in payload.items():
+        workspace_id = str(raw_workspace_id or "").strip().lower()
+        if not _WORKSPACE_ID_RE.fullmatch(workspace_id):
+            raise ValueError(
+                "Workspace ids in OFFSETX_WORKSPACE_LOGINS must start with a letter "
+                "or digit and contain only letters, digits, dot, dash or underscore"
+            )
+        if not isinstance(raw_login, dict):
+            raise ValueError(
+                f"Workspace {workspace_id!r} login must be an object with username and password"
+            )
+        username = str(raw_login.get("username") or "").strip()
+        password = str(raw_login.get("password") or "")
+        parsed[workspace_id] = (username, password)
+    return parsed
 
 
 @dataclass(slots=True)
@@ -24,6 +66,7 @@ class AppSettings:
     api_token: str = ""
     demo_username: str = ""
     demo_password: str = ""
+    workspace_logins: dict[str, tuple[str, str]] = field(default_factory=dict)
     session_secret: str = ""
     session_hours: int = 8
     max_upload_bytes: int = 10 * 1024 * 1024
@@ -61,6 +104,7 @@ class AppSettings:
             api_token=os.getenv("OFFSETX_LOCAL_API_TOKEN", "").strip(),
             demo_username=os.getenv("OFFSETX_DEMO_USERNAME", "").strip(),
             demo_password=os.getenv("OFFSETX_DEMO_PASSWORD", ""),
+            workspace_logins=_workspace_logins(os.getenv("OFFSETX_WORKSPACE_LOGINS", "")),
             session_secret=os.getenv("OFFSETX_SESSION_SECRET", ""),
             session_hours=int(os.getenv("OFFSETX_SESSION_HOURS", "8")),
             max_upload_bytes=int(
@@ -89,20 +133,55 @@ class AppSettings:
     def validate(self) -> None:
         loopback = self.host in {"127.0.0.1", "localhost", "::1"}
         demo_values = (self.demo_username, self.demo_password, self.session_secret)
-        if any(demo_values) and not all(demo_values):
+        if any((self.demo_username, self.demo_password)) and not all(demo_values):
             raise ValueError(
                 "Demo login requires OFFSETX_DEMO_USERNAME, OFFSETX_DEMO_PASSWORD, "
                 "and OFFSETX_SESSION_SECRET"
+            )
+        if self.workspace_logins and not self.session_secret:
+            raise ValueError(
+                "OFFSETX_WORKSPACE_LOGINS requires OFFSETX_SESSION_SECRET"
+            )
+        if (
+            self.session_secret
+            and not self.workspace_logins
+            and not (self.demo_username or self.demo_password)
+        ):
+            raise ValueError(
+                "OFFSETX_SESSION_SECRET requires a demo or workspace login"
             )
         if self.demo_password and len(self.demo_password) < 12:
             raise ValueError("OFFSETX_DEMO_PASSWORD must contain at least 12 characters")
         if self.session_secret and len(self.session_secret) < 32:
             raise ValueError("OFFSETX_SESSION_SECRET must contain at least 32 characters")
+
+        usernames: set[str] = set()
+        if self.demo_username:
+            usernames.add(self.demo_username)
+            if "local" in self.workspace_logins:
+                raise ValueError(
+                    "The local workspace is already configured by OFFSETX_DEMO_USERNAME; "
+                    "do not also define 'local' in OFFSETX_WORKSPACE_LOGINS"
+                )
+        for workspace_id, (username, password) in self.workspace_logins.items():
+            if not _WORKSPACE_ID_RE.fullmatch(workspace_id):
+                raise ValueError(f"Invalid workspace id: {workspace_id!r}")
+            if not username:
+                raise ValueError(f"Workspace {workspace_id!r} requires a username")
+            if len(password) < 12:
+                raise ValueError(
+                    f"Workspace {workspace_id!r} password must contain at least 12 characters"
+                )
+            if username in usernames:
+                raise ValueError(
+                    f"Workspace username {username!r} is configured more than once"
+                )
+            usernames.add(username)
         if self.api_token and len(self.api_token) < 32:
             raise ValueError("OFFSETX_LOCAL_API_TOKEN must contain at least 32 characters")
-        if not (self.api_token or self.demo_login_enabled or self.allow_unauthenticated):
+        if not (self.api_token or self.workspace_login_enabled or self.allow_unauthenticated):
             raise ValueError(
-                "off_CRM requires an API token or complete demo login settings. "
+                "off_CRM requires an API token or complete workspace login settings. "
                 "This applies on 127.0.0.1 too: an unauthenticated local API is "
                 "readable by every other process and user on the machine, and by "
                 "any web page that can rebind a hostname to loopback. Run through "
@@ -133,7 +212,7 @@ class AppSettings:
         "can reach my API", which is the gap a browser extension, another user
         account, or a DNS-rebinding page sits in.
         """
-        if self.api_token or self.demo_login_enabled or self.allow_unauthenticated:
+        if self.api_token or self.workspace_login_enabled or self.allow_unauthenticated:
             return self.api_token
         self.data_dir.mkdir(parents=True, exist_ok=True)
         path = self.data_dir / self.TOKEN_FILENAME
@@ -176,6 +255,17 @@ class AppSettings:
     @property
     def demo_login_enabled(self) -> bool:
         return bool(self.demo_username and self.demo_password and self.session_secret)
+
+    def configured_workspace_logins(self) -> dict[str, tuple[str, str]]:
+        """All login credentials, with the legacy demo login bound to local."""
+        logins = dict(self.workspace_logins)
+        if self.demo_login_enabled:
+            logins["local"] = (self.demo_username, self.demo_password)
+        return logins
+
+    @property
+    def workspace_login_enabled(self) -> bool:
+        return bool(self.session_secret and self.configured_workspace_logins())
 
     def prepare(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)

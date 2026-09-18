@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping
 
@@ -344,6 +346,7 @@ def read_transcript_words(answer: Mapping[str, Any]) -> list[TranscriptWord]:
 
 #: ``(provider_id) -> api_key``.  Returning "" means "no credential stored".
 CredentialResolver = Callable[[str], str]
+WorkspaceCredentialResolver = Callable[[str, str], str]
 
 #: Called once per outbound attempt with the full record.  The API layer points
 #: this at the egress log so the owner can inspect exactly what was sent.
@@ -358,6 +361,7 @@ class EgressBroker:
         *,
         registry: ProviderRegistry,
         credential_resolver: CredentialResolver,
+        workspace_credential_resolver: WorkspaceCredentialResolver | None = None,
         quota: QuotaTracker | None = None,
         logger: EgressLogger | None = None,
         timeout_seconds: int = 60,
@@ -373,6 +377,10 @@ class EgressBroker:
         #: a cache lookup must not become a way to skip the policy checks.
         self.cache = cache
         self.credential_resolver = credential_resolver
+        self.workspace_credential_resolver = workspace_credential_resolver
+        self._credential_workspace: ContextVar[str] = ContextVar(
+            f"off_crm_egress_workspace_{id(self)}", default="local"
+        )
         self.quota = quota
         self.logger = logger
         self.timeout_seconds = timeout_seconds
@@ -686,7 +694,8 @@ class EgressBroker:
             # used even when `_instantiate` is what failed.
             provider: Any = None
             try:
-                provider = self._instantiate(candidate)
+                with self._credential_scope(settings.workspace_id):
+                    provider = self._instantiate(candidate)
                 raw = provider.generate(
                     system_prompt=system_prompt,
                     user_prompt=json.dumps(payload, ensure_ascii=False),
@@ -885,7 +894,8 @@ class EgressBroker:
             error = ""
             images: list[str] = []
             try:
-                provider = self._instantiate(candidate, adapter_override="openai_image")
+                with self._credential_scope(settings.workspace_id):
+                    provider = self._instantiate(candidate, adapter_override="openai_image")
                 images = provider.generate_images(prompt=prompt)
             except Exception as exc:  # noqa: BLE001 - recorded, then failover
                 status = "failed"
@@ -1036,7 +1046,8 @@ class EgressBroker:
             error = ""
             answer: dict[str, Any] = {}
             try:
-                provider = self._instantiate(candidate, adapter_override="openai_transcribe")
+                with self._credential_scope(settings.workspace_id):
+                    provider = self._instantiate(candidate, adapter_override="openai_transcribe")
                 answer = provider.transcribe(
                     audio=audio,
                     filename=filename,
@@ -1120,9 +1131,31 @@ class EgressBroker:
 
     # ── internals ───────────────────────────────────────────────────────────
 
+    @contextmanager
+    def _credential_scope(self, workspace_id: str):
+        """Bind provider-key resolution to one call without shared mutation.
+
+        The broker is a process-wide object and requests may run concurrently.
+        A ContextVar keeps each thread/task on the workspace named by the
+        call's resolved settings, while preserving the old single-argument
+        resolver for non-web callers and existing tests.
+        """
+        token = self._credential_workspace.set(str(workspace_id or "local"))
+        try:
+            yield
+        finally:
+            self._credential_workspace.reset(token)
+
+    def _credential_for(self, provider_id: str) -> str:
+        if self.workspace_credential_resolver is not None:
+            return self.workspace_credential_resolver(
+                self._credential_workspace.get(), provider_id
+            )
+        return self.credential_resolver(provider_id)
+
     def _instantiate(self, candidate: ResolvedProvider, *, adapter_override: str = "") -> Any:
         entry = candidate.entry
-        api_key = self.credential_resolver(candidate.id)
+        api_key = self._credential_for(candidate.id)
         env_name = f"OFFSETX_AI_{candidate.id.upper()}_KEY"
 
         # Per-model request options from config: max_tokens, temperature, and

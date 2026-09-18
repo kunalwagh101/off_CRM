@@ -876,3 +876,33 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+
+---
+
+## 2026-09-18 — S-06.01.01, workspace credential isolation
+
+**What was cut.** Nothing from the accepted credential/session boundary. Full
+CRM-row tenancy and organisation roles were explicitly not absorbed: the next
+permission/data stories need their own business rules.
+
+**What the estimate got wrong.** The storage layer was already mostly correct.
+Provider settings, provider keys, browser connection records and encrypted
+browser sessions all accepted a workspace id. The dangerous part was the glue:
+the API always returned `local`, and the shared broker changed its key resolver
+per request. The second problem only becomes visible when two workspaces run at
+the same time.
+
+**What changed during review.** The UI still said “Local workspace” after the
+backend gained real workspace identity. That was corrected to show the verified
+credential workspace while deliberately avoiding a claim that all CRM rows are
+tenant-isolated.
+
+**What to change next time.** For tenancy work, audit authority propagation
+before adding storage tables. A table keyed by workspace is not isolation if the
+request can choose the key, and a correct resolver is not isolation if a shared
+object can be mutated between concurrent calls.
+
+**Process note.** Implementation reconnaissance started before the branch board
+move was committed. The repository state was corrected immediately and this note
+records the ordering rather than pretending the ceremony happened first.

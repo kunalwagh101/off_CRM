@@ -136,3 +136,56 @@ def test_transcription_metadata_is_scanned_before_provider_instantiation(
 
     assert any(item["kind"] == "credential" for item in excinfo.value.findings)
     assert any(item.get("location") == "$.filename" for item in excinfo.value.findings)
+
+
+def test_image_prompt_never_falls_back_to_unscanned_request_text(
+    broker: EgressBroker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The provider receives only the prompt that survived payload construction.
+
+    A future payload policy may deliberately omit instructions.  The image path
+    must not then reach back to the raw request and bypass the scanner.
+    """
+    from offsetx_apollo_builder.ai import broker as broker_module
+
+    sent: list[str] = []
+
+    class _ImageProvider:
+        def generate_images(self, *, prompt: str) -> list[str]:
+            sent.append(prompt)
+            return ["image"]
+
+    monkeypatch.setattr(
+        broker_module,
+        "build_payload",
+        lambda request, policy, **kwargs: {
+            "schema_version": 1,
+            "task": "image",
+            "recipient_token": "RECIPIENT_1",
+            "sender_token": "SENDER",
+        },
+    )
+    monkeypatch.setattr(
+        broker,
+        "_instantiate",
+        lambda candidate, adapter_override="": _ImageProvider(),
+    )
+
+    request = EgressRequest(
+        task_type="image",
+        data_class=DataClass.PUBLIC,
+        instructions="api_key=opaque-but-private-value",
+    )
+    result = broker.call_image(request, _settings("nvidia"))
+
+    assert result.prompt == ""
+    assert sent == [""]
+
+
+def test_secret_samples_are_masked_in_findings() -> None:
+    secret = "sk-abcdefghijklmnop1234567890"
+    report = scan_payload({"instructions": f"use {secret}"})
+    assert not report.clean
+    rendered = str(report.to_dict())
+    assert secret not in rendered
+    assert "sk-a" in rendered

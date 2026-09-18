@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from offsetx_apollo_builder.agent.routines import (
+    AgentRunRoutineExecutor,
     RoutineError,
     RoutineService,
     RoutineStore,
@@ -276,3 +277,49 @@ def test_execution_failure_is_persisted_and_notified(tmp_path: Path) -> None:
     assert stored.last_status == "error"
     assert "provider temporarily unavailable" in stored.last_error
     assert notified[0]["status"] == "error"
+
+
+def test_agent_run_adapter_reuses_existing_run_contract(tmp_path: Path) -> None:
+    calls = []
+
+    class Page:
+        async def goto(self, url: str):
+            calls.append(("goto", url))
+
+    class Outcome:
+        def to_dict(self):
+            return {"status": "completed", "result": "found it"}
+
+    class Agent:
+        page = Page()
+
+        async def run(self, goal: str, **kwargs):
+            calls.append(("run", goal, kwargs))
+            return Outcome()
+
+    service = RoutineService(
+        RoutineStore(tmp_path / "routines.json"),
+        executor=AgentRunRoutineExecutor(lambda routine, trigger: Agent()),
+        clock=Clock(),
+    )
+    routine = service.create(
+        _event(
+            goal="Find the release note",
+            step_budget=7,
+            result_schema=["headline"],
+            spend_ceiling_usd=1.25,
+            latency_ceiling_ms=2000,
+        )
+    )
+
+    result = asyncio.run(service.fire_event("import.completed", event_id="evt-agent"))
+
+    assert result[0]["status"] == "completed"
+    assert calls[0] == ("goto", "https://example.com/source")
+    assert calls[1][0:2] == ("run", "Find the release note")
+    assert calls[1][2] == {
+        "step_budget": 7,
+        "result_schema": ("headline",),
+        "spend_ceiling_usd": 1.25,
+        "latency_ceiling_ms": 2000,
+    }

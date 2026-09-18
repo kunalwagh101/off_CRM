@@ -76,6 +76,15 @@ describe("shared accessibility contract", () => {
     expect(source).toContain('aria-current={page === item.page ? "page" : undefined}');
     expect(source).toContain('aria-live={toast.tone === "error" ? "assertive" : "polite"}');
     expect(source).toContain('role={toast.tone === "error" ? "alert" : "status"}');
+    expect(source).toContain('aria-label={`${navigation.find((item) => item.page === page)?.label ?? "CRM"} content`}');
+  });
+
+  it("keeps the AI history drawer out of the tab order when closed and returns focus on close", () => {
+    const source = readFileSync(new URL("./pages/AI.tsx", import.meta.url), "utf8");
+    expect(source).toContain("inert={!panelOpen}");
+    expect(source).toContain("setPanelOpen(false);");
+    expect(source).not.toContain("function closePanel() {\n    const returnTarget = panelReturnFocusRef.current;\n    closePanel();");
+    expect(source).toContain("returnTarget?.focus()");
   });
 
   it("does not let legacy outline removal hide keyboard focus", () => {
@@ -86,5 +95,7 @@ describe("shared accessibility contract", () => {
     expect(css).toContain("prefers-reduced-motion: reduce");
     expect(css).toContain("animation-duration: .01ms !important");
     expect(css).toContain("transition-duration: .01ms !important");
+    const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(styles).toContain(".ai-chat-item:focus-within .ai-chat-actions");
   });
 });

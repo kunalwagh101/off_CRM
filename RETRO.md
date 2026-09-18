@@ -876,3 +876,33 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+
+---
+
+## 2026-09-18 — S-04.01.01, persisted companions
+
+**What was cut.** Nothing from the accepted profile/run boundary. Skills,
+sub-agents, the five named role presets and generic sandbox-tool execution remain
+their own stories rather than being smuggled into this one.
+
+**What the estimate got wrong.** Persistence was the easy part. The real
+security work was making a profile an execution boundary: host-enforced browser
+tool grants, approved-only memory scope, and policy identity that survives
+resume. Without the last one, restarting a run could silently widen authority.
+
+**What changed during review.** The first implementation put arbitrary owner
+companion instructions into the dynamic system prompt. Main's central
+system-prompt egress hardening is still in another unmerged story, so this branch
+was changed to keep arbitrary companion text on the broker-scanned normal
+payload path. The system prompt now contains only validated action names and
+host-authored policy text.
+
+**What to change next time.** When adding persisted agent configuration, trace
+every field all the way to the provider and all the way across restart before
+calling the data model finished. Persistence without enforcement is a settings
+screen, not an agent boundary.
+
+**Process note.** Reconnaissance and initial implementation preceded the board
+move commit. The board was corrected to IN_PROGRESS during the work and this
+retro records the ordering instead of pretending the ceremony happened first.

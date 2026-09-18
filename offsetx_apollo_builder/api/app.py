@@ -158,8 +158,8 @@ PUBLIC_API_EXACT = frozenset(
 )
 PUBLIC_API_DYNAMIC = frozenset(
     {
-        ("GET", f"{API_PREFIX}/email/unsubscribe/{token}"),
-        ("POST", f"{API_PREFIX}/email/unsubscribe/{token}"),
+        ("GET", f"{API_PREFIX}/email/unsubscribe/{{token}}"),
+        ("POST", f"{API_PREFIX}/email/unsubscribe/{{token}}"),
     }
 )
 _UNSUBSCRIBE_PUBLIC_PATH = re.compile(
@@ -173,7 +173,7 @@ def _is_public_api_request(method: str, path: str) -> bool:
     verb = method.upper()
     if (verb, path) in PUBLIC_API_EXACT:
         return True
-    unsubscribe_template = f"{API_PREFIX}/email/unsubscribe/{token}"
+    unsubscribe_template = f"{API_PREFIX}/email/unsubscribe/{{token}}"
     return (
         (verb, unsubscribe_template) in PUBLIC_API_DYNAMIC
         and _UNSUBSCRIBE_PUBLIC_PATH.fullmatch(path) is not None

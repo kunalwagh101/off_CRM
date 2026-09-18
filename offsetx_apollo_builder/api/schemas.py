@@ -17,6 +17,22 @@ class DemoLogin(StrictModel):
     password: str = Field(min_length=1, max_length=500)
 
 
+class CompanionCreate(StrictModel):
+    name: str = Field(min_length=2, max_length=80)
+    instructions: str = Field(default="", max_length=8000)
+    memory_scope: str = Field(min_length=1, max_length=200)
+    granted_tools: list[str] = Field(default_factory=list, max_length=10)
+    enabled: bool = True
+
+
+class CompanionUpdate(StrictModel):
+    name: str | None = Field(default=None, min_length=2, max_length=80)
+    instructions: str | None = Field(default=None, max_length=8000)
+    memory_scope: str | None = Field(default=None, min_length=1, max_length=200)
+    granted_tools: list[str] | None = Field(default=None, max_length=10)
+    enabled: bool | None = None
+
+
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     # Free text rather than a Literal on purpose: the registry in

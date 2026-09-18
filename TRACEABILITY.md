@@ -87,7 +87,7 @@ the code exists and holds no stub).
 | R-29 | S-06.02.01 | 1 | — | — |
 | R-48 | S-06.02.02 | 2 | — | — |
 | R-50 | S-06.02.04 | 1 | — | — |
-| R-51 | S-06.02.05 | 7 | — | — |
+| R-51 | S-06.02.05 | 7 | `frontend/src/accessibility.test.tsx`, `frontend/src/accessibility-source.test.ts` | `frontend/src/App.tsx`, `frontend/src/components.tsx`, `frontend/src/accessibility.css`, `frontend/src/pages/AI.tsx`, `frontend/src/pages/SalesTracker.tsx`, `frontend/src/pages/VideoEditor.tsx`, `frontend/src/video/keyboard.ts`, `docs/ACCESSIBILITY.md` |
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-55 | S-07.01.03 | 1 | — | — |

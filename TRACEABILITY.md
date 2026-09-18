@@ -85,7 +85,7 @@ the code exists and holds no stub).
 | R-45, R-46 | S-06.01.04 | 2 | — | — |
 | R-47 | S-06.01.05 | 2 | — | — |
 | R-29 | S-06.02.01 | 1 | — | — |
-| R-48 | S-06.02.02 | 6 | — | — |
+| R-48 | S-06.02.02 | 6 | `tests/test_api_boundary_security.py` | `offsetx_apollo_builder/api/app.py`, `docs/SECURITY.md` |
 | R-50 | S-06.02.04 | 1 | — | — |
 | R-51 | S-06.02.05 | 1 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |

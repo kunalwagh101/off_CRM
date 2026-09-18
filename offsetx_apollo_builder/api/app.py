@@ -2295,7 +2295,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         requested_class = str(body.get("data_class", "campaign")).strip().lower()
         if requested_class not in {"public", "campaign"}:
@@ -2561,7 +2560,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         raw_mode = str(body.get("mode", "simple")).strip().lower()
         if raw_mode not in {item.value for item in RunMode}:
@@ -2665,7 +2663,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         prompt = str(body.get("prompt", "")).strip()[:4000]
         if not prompt:
@@ -2760,7 +2757,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
         egress = layer.rewrite_request(
             score,
             winner=layer.winner(workspace_id) if body.get("use_winner", True) else None,

@@ -1009,12 +1009,14 @@ export default function VideoEditor() {
           <div className="veditor-zoom">
             <Button
               tone="ghost"
+              aria-label="Zoom timeline out"
               onClick={() => setZoom(ZOOM_STEPS[Math.max(0, ZOOM_STEPS.indexOf(zoom) - 1)] ?? 20)}
             >
               −
             </Button>
             <Button
               tone="ghost"
+              aria-label="Zoom timeline in"
               onClick={() =>
                 setZoom(ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, ZOOM_STEPS.indexOf(zoom) + 1)] ?? 640)
               }

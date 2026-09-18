@@ -341,6 +341,7 @@ that catches us lying about what is finished.
 | P-10.5 | `codegraph.py` | Graphify wrapper with the semantic path switched **off** | 33 | — |
 | P-10.6 | `scripts/verify_board.py` | **The lie detector.** Re-runs every DONE claim's test and fails on any failure | 29 | S-06.02.06 ✅ |
 | P-10.7 | question lifecycle | An answered question unblocks; a deleted one does not | 29 | S-06.02.07 ✅ |
+| P-10.8 | `agent/artifacts.py` + `artifact_cli.py` | Verified trace findings → XLSX / PPTX / PDF, no second model call | 10 focused | S-07.01.04 ◐ |
 
 **`P-10.6` is the most important 300 lines in the repository** and it deserves a
 plain explanation: anybody can write the word DONE. This script reads `BOARD.md`,

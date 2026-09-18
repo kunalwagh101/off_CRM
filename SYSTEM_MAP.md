@@ -201,6 +201,7 @@ This is the next thing to build, and the decisions are now made:
 | `db/` | SQLite locally, Postgres if you want. Same code | ✅ |
 | `api/` | ~4,100 lines of endpoints | ✅ |
 | Frontend | 17 screens: campaigns, contacts, drafts, images, video, posting, AI | ✅ |
+| Report artifacts | Verified run findings → XLSX / PPTX / PDF, with trace-step provenance and no second model call | ◐ S-07.01.04 · code/tests present; executable evidence pending |
 | Workspaces | Every table already separates people. Your keys are yours | ◐ S-06.01.01 *(works; not surfaced in the UI)* |
 | **Permissions** | Global → per-tool → this-chat-only | ⬜ S-06.01.02 |
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |

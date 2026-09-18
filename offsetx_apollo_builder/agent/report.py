@@ -109,7 +109,7 @@ def _text(value: object) -> str:
     return html.escape(str(value if value is not None else ""), quote=True)
 
 
-def _findings(trace: Trace) -> list[dict[str, Any]]:
+def findings(trace: Trace) -> list[dict[str, Any]]:
     """Every accepted fact, read back out of its capture artefact."""
     found = []
     for step in trace.read():
@@ -184,7 +184,7 @@ def render(trace: Trace) -> str:
     steps = list(trace.read())
     summary = trace.summary()
     ending = _ending(steps)
-    facts = _findings(trace)
+    facts = findings(trace)
     goal = _goal(trace)
     status = ending.kind if ending else ("unfinished" if steps else "empty")
 

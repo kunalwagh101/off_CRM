@@ -1,5 +1,27 @@
 # Retro
 
+## 2026-09-18 — S-07.01.04 reports and artifacts (IN_REVIEW)
+
+**What was cut.** Nothing from the story. Cloud publishing, collaborative
+editing, branded slide templates and AI rewriting were explicitly outside this
+slice before implementation; they were not silently dropped.
+
+**What the estimate got wrong.** The core was smaller than expected because the
+hard provenance work already existed in `Trace` and `agent/report.py`. The
+risk moved to packaging and format boundaries instead: formula injection in
+spreadsheets, XML escaping in PPTX, browser availability for PDF, and a scripted
+edit that wrote a literal `\\n` into `pyproject.toml` (D-51). GitHub Actions
+also continued to fail before allocating any workflow step, so code can be
+reviewed but cannot honestly be called DONE.
+
+**What to change next time.** Reuse verified data directly and never send it
+through a second model just to change format. After any scripted metadata edit,
+re-read the committed file before moving on. Check remote-runner allocation
+early, because an unavailable evidence environment is a process blocker even
+when implementation is complete.
+
+---
+
 Three lines per increment: what was cut, what the estimate got wrong,
 and what to change next time. Appended, never edited.
 

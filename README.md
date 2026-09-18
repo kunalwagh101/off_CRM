@@ -221,6 +221,7 @@ Provider registry examples are under `config/`. Connected provider profiles and 
 | `offsetx-notebook` | Export a privacy-controlled research notebook bundle. |
 | `offsetx-db` | Inspect and copy supported database boundaries. |
 | `offsetx-codegraph` | Build or verify the source-only code graph. |
+| `offsetx-artifacts` | Turn one verified agent run into XLSX, PPTX or PDF. |
 | `offsetx-email-worker` | Process durable local or Amazon SES email jobs. |
 
 Use `uv run <command> --help` for the complete options.

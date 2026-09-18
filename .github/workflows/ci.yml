@@ -46,6 +46,7 @@ jobs:
           uv run offsetx-notebook --help
           uv run offsetx-db --help
           uv run offsetx-codegraph --help
+          uv run offsetx-artifacts --help
           uv run offsetx-email-worker --help
       - name: Run Vault acceptance evidence
         run: uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q

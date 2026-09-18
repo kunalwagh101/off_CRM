@@ -48,6 +48,7 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-21 | 2026-09-18 | Report artifacts are deterministic renderers: no second model call; XLSX reuses openpyxl, PPTX uses the small OOXML subset directly, PDF prints the existing safe HTML through installed Chromium | PPTX is intentionally plain and PDF requires a Chromium-family browser; branded templates or server-only PDF would justify a document library later |
 
 ---
 

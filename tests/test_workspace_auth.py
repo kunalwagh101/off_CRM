@@ -71,3 +71,42 @@ def test_authenticated_session_reports_server_selected_workspace(tmp_path: Path)
         session = client.get("/api/v1/auth/session").json()
         assert session["authenticated"] is True
         assert session["workspace_id"] == "alpha"
+
+
+def test_workspace_login_env_prevents_local_token_autoprovision(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "OFFSETX_WORKSPACE_LOGINS",
+        '{"alpha":{"username":"alice","password":"' + ("a" * 20) + '"}}',
+    )
+    monkeypatch.setenv("OFFSETX_SESSION_SECRET", "s" * 48)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_LOCAL_API_TOKEN", raising=False)
+    monkeypatch.delenv("OFFSETX_DEMO_USERNAME", raising=False)
+    monkeypatch.delenv("OFFSETX_DEMO_PASSWORD", raising=False)
+
+    settings = AppSettings.from_env(tmp_path)
+    assert settings.workspace_logins == {"alpha": ("alice", "a" * 20)}
+    assert settings.api_token == ""
+    assert not (settings.data_dir / settings.TOKEN_FILENAME).exists()
+
+
+def test_legacy_demo_login_remains_bound_to_local_workspace(tmp_path: Path) -> None:
+    settings = AppSettings(
+        project_root=ROOT,
+        database_path=tmp_path / "outreach.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        host="0.0.0.0",
+        demo_username="legacy",
+        demo_password="l" * 20,
+        session_secret="s" * 48,
+        allowed_hosts=("testserver", "crm.test"),
+    )
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"username": "legacy", "password": "l" * 20},
+        )
+        assert response.status_code == 200
+        assert response.json()["workspace_id"] == "local"

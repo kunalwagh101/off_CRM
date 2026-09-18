@@ -465,9 +465,37 @@ reproducing the content.
 #### S-06.01.01 — Workspaces with their own keys and their own logins
 **As a** team member, **I want** my own provider keys and my own platform
 sessions, **so that** my work and my credentials are mine.
-- **Given** two workspaces, **when** either reads keys or sessions, **then**
-  neither can reach the other's.
+- **Given** two configured workspace logins, **when** each signs in, **then** the
+  signed session identifies exactly one server-selected workspace and changing a
+  header, query or body value cannot switch it.
+- **Given** two workspaces with different AI provider keys, **when** either reads
+  provider configuration or makes a provider call, **then** it can resolve only
+  its own key; concurrent calls through the shared broker cannot swap keys.
+- **Given** two workspaces with browser connection/session state for the same
+  platform, **when** either reads or restores that state, **then** it sees only
+  its own connection record and encrypted vault material.
+- **Given** the legacy single demo login, **when** it authenticates, **then** it
+  remains bound to the `local` workspace; the local API token is also
+  local-only and cannot select another workspace.
+- **Given** workspace login configuration with an invalid workspace id, missing
+  username, short password or duplicate username, **when** the application
+  validates configuration, **then** startup fails rather than creating an
+  ambiguous identity boundary.
+- **Given** any workspace login, **when** its session cookie is modified to name
+  another workspace, **then** signature verification fails.
 - **Dependencies:** S-03.02.02. **Size:** M. **Indicator:** distinct workspaces in weekly use.
+  **Business value:** E-06.
+- **Tasks:** `T-06.01.01.a` bind signed sessions to a workspace;
+  `T-06.01.01.b` derive workspace authority server-side;
+  `T-06.01.01.c` make provider-key resolution concurrency-safe;
+  `T-06.01.01.d` prove browser/provider isolation;
+  `T-06.01.01.e` document deployment and verification evidence.
+
+**OUT_OF_SCOPE — S-06.01.01.** This story isolates authentication identity,
+provider keys, AI workspace settings and browser session material. It does not
+invent organisation roles or approval hierarchy (`S-06.01.02`), per-workspace
+scheduled routines (`S-06.01.04`), or claim that every CRM row is already a
+multi-tenant record. Those require their own explicit data/permission contracts.
 
 #### S-06.01.02 — Three-level permissions
 **As an** owner, **I want** a global mode, a per-tool rule and a chat-scoped

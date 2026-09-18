@@ -2057,6 +2057,39 @@ written from memory were wrong:
 
 ---
 
+### Meeting transcription without a bot — S-07.01.03 (2026-09-19, IN_PROGRESS)
+
+- [x] Browser-native capture mixes microphone plus explicitly shared
+      screen/tab audio. The display video track is never recorded.
+- [x] Capture refuses a share with no system-audio track instead of silently
+      producing microphone-only notes.
+- [x] Recording makes no network request before Stop; Cancel discards the
+      in-browser chunks and uploads nothing.
+- [x] Raw audio enters off_CRM only through a loopback Host **and** loopback
+      peer. Hosted off_CRM instances are refused before the body is read.
+- [x] Added `DataClass.MEETING`; only Tier A may receive it.
+- [x] Verified Mistral's official `/v1/audio/transcriptions` capability and
+      declared `voxtral-mini-latest` as the Tier-A meeting transcriber in both
+      registry copies. OpenAI/Groq remain forbidden for meeting audio.
+- [x] Meeting Notes stays disabled until Mistral is connected with Voxtral
+      explicitly enabled. The app does not silently change the owner's model
+      selection.
+- [x] Raw recording bytes are request-memory only and are never accepted by
+      `MeetingStore`. Saved JSON contains transcript, word timings and
+      provider/model/audit metadata only.
+- [x] Transcript files are atomic and private (`0600`, directory `0700`
+      where supported); ids are closed-format and cannot traverse paths.
+- [x] Non-finite, negative and reversed word timings are refused.
+- [x] The egress log is tested with secret markers: neither raw audio nor
+      transcript text may appear; only byte count and returned-word count do.
+- [x] Same-origin microphone/display capture is explicitly allowed by
+      Permissions-Policy; camera and geolocation remain denied.
+- [x] Focused backend, browser-capture and UI smoke tests are committed.
+- [ ] Executable evidence is pending. GitHub Actions run #684 created the
+      `quality` job but executed zero workflow steps and exposed no log. Until
+      focused tests, frontend tests/build, full regression and
+      `scripts/verify_board.py` actually run, this story cannot be DONE.
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

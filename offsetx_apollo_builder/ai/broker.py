@@ -1108,15 +1108,20 @@ class EgressBroker:
         detail = "; ".join(
             f"{item['provider_id']}: {item.get('detail', item['status'])}" for item in attempts
         )
-        raise NoPermittedProvider(
-            f"No transcription model produced a result. {detail}"
-            if attempts
-            else (
+        if attempts:
+            message = f"No transcription model produced a result. {detail}"
+        elif request.data_class is DataClass.MEETING:
+            message = (
+                "No permitted Tier A transcription model. Connect Mistral in "
+                "Connectors; meeting audio is intentionally never sent to a "
+                "lower-trust provider."
+            )
+        else:
+            message = (
                 "No permitted transcription model. Enable one in Connectors — "
                 "Groq hosts Whisper on the same key as its chat models."
-            ),
-            considered=rejected + attempts,
-        )
+            )
+        raise NoPermittedProvider(message, considered=rejected + attempts)
 
     # ── internals ───────────────────────────────────────────────────────────
 

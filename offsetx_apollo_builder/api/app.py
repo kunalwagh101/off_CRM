@@ -180,6 +180,14 @@ def _is_public_api_request(method: str, path: str) -> bool:
     )
 
 
+def _is_cors_preflight(request: Request) -> bool:
+    return (
+        request.method.upper() == "OPTIONS"
+        and bool(request.headers.get("origin"))
+        and bool(request.headers.get("access-control-request-method"))
+    )
+
+
 class CampaignLocks:
     def __init__(self) -> None:
         self._guard = threading.Lock()
@@ -542,10 +550,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         is_public = _is_public_api_request(request.method, request.url.path)
+        cors_preflight = _is_cors_preflight(request)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
         # fail-open: with nothing configured, every route served 200 to anyone.
-        protected = request.url.path.startswith("/api/") and not is_public
+        # A browser preflight carries no owner credential. Let only a real CORS
+        # preflight reach CORSMiddleware; that middleware still validates the
+        # origin, requested method and requested headers before any route runs.
+        api_path = request.url.path == "/api" or request.url.path.startswith("/api/")
+        protected = api_path and not is_public and not cors_preflight
         if resolved.allow_unauthenticated:
             protected = False
         if protected and not (valid_api_token(request) or session_identity(request)):

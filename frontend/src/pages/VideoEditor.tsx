@@ -9,6 +9,7 @@ import { paintFrame, type AssetTable, type PixelStage } from "../video/render";
 import { EffectPipeline } from "../video/shaders/pipeline";
 import { ExportUnsupported, exportProject, exportSupport, loadAssets } from "../video/export";
 import { FootageLibrary } from "../video/footage";
+import { clipKeyboardCommand } from "../video/keyboard";
 
 /**
  * The editor.
@@ -31,37 +32,6 @@ const TRACK_HEIGHT = 56;
 /** Width of the sticky track header. Must match `.vtrack-head` in styles.css —
  *  the playhead and the click-to-scrub arithmetic are measured from its edge. */
 const HEAD_WIDTH = 120;
-
-export type ClipKeyboardCommand =
-  | { operation: "move_clip"; payload: { clip_id: string; start: number } }
-  | { operation: "trim_clip"; payload: { clip_id: string; head?: number; tail?: number } };
-
-export function clipKeyboardCommand(
-  clip: Pick<Clip, "id" | "start">,
-  key: string,
-  frameTicks: number,
-  modifiers: { shift?: boolean; alt?: boolean; tail?: boolean } = {}
-): ClipKeyboardCommand | null {
-  if (key !== "ArrowLeft" && key !== "ArrowRight") return null;
-  const direction = key === "ArrowLeft" ? -1 : 1;
-  const step = Math.max(1, frameTicks) * (modifiers.shift ? 10 : 1);
-  if (modifiers.alt) {
-    return {
-      operation: "trim_clip",
-      payload: { clip_id: clip.id, head: direction * step }
-    };
-  }
-  if (modifiers.tail) {
-    return {
-      operation: "trim_clip",
-      payload: { clip_id: clip.id, tail: -direction * step }
-    };
-  }
-  return {
-    operation: "move_clip",
-    payload: { clip_id: clip.id, start: Math.max(0, clip.start + direction * step) }
-  };
-}
 
 type ImageAsset = { id: string; width: number; height: number; media_type: string; model_id: string };
 type MediaItem = {

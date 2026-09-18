@@ -70,7 +70,7 @@ async def _request(
                 f"{API}/meetings/transcribe",
                 headers=headers,
                 files={"file": ("meeting.webm", b"webm-audio", "audio/webm;codecs=opus")},
-                data={"title": "Monday product call", "language": "en"},
+                data={"title": "Monday product call"},
             )
 
 
@@ -247,6 +247,23 @@ def test_saved_meeting_can_be_listed_and_read_but_not_path_traversed(tmp_path):
     assert store.get(record.id).transcript == "One two"
     with pytest.raises(MeetingError):
         store.get("../../secrets")
+
+
+def test_non_finite_word_timing_is_refused(tmp_path):
+    store = MeetingStore(tmp_path / "meetings")
+    with pytest.raises(MeetingError, match="timing"):
+        store.save_transcript(
+            title="Bad timing",
+            transcript="One",
+            words=[{"word": "One", "start": float("nan"), "end": 1.0}],
+            language="",
+            provider_id="p",
+            provider_name="Provider",
+            model_id="m",
+            duration_ms=1,
+            audio_bytes=1,
+            log_id="log",
+        )
 
 
 def test_raw_audio_never_appears_in_the_saved_json_shape(tmp_path):

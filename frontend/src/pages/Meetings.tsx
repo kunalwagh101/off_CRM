@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Badge, Button, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
+import type { AIProvidersPayload } from "../types";
 import { meetingCaptureSupport, startMeetingCapture, type MeetingCapture } from "../meeting/capture";
 
 type MeetingSummary = {
@@ -39,6 +40,7 @@ function filenameFor(type: string): string {
 export default function Meetings() {
   const { notify } = useApp();
   const meetings = useResource(() => api.get<{ items: MeetingSummary[] }>("/meetings?limit=100"), []);
+  const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
   const captureRef = useRef<MeetingCapture | null>(null);
   const endingRef = useRef(false);
   const [recording, setRecording] = useState(false);
@@ -50,7 +52,14 @@ export default function Meetings() {
 
   const localOrigin = isLoopbackBrowser();
   const support = meetingCaptureSupport();
-  const canStart = localOrigin && support.supported && !busy && !recording;
+  const mistral = providers.data?.providers.find((provider) => provider.id === "mistral");
+  const transcriberReady = Boolean(
+    mistral?.connected &&
+      mistral.enabled &&
+      mistral.effective_tier === "A" &&
+      mistral.model_ids.includes("voxtral-mini-latest")
+  );
+  const canStart = localOrigin && support.supported && transcriberReady && !busy && !recording;
 
   useEffect(() => {
     if (!recording || !startedAt) return;
@@ -162,6 +171,16 @@ export default function Meetings() {
           )
         }
       />
+
+      {localOrigin && support.supported && !providers.loading && !transcriberReady ? (
+        <div className="danger-note" role="alert">
+          <strong>Tier A transcription is not configured</strong>
+          <p>
+            Open <a href="#connectors">Connectors</a>, connect Mistral, then enable the
+            <code> voxtral-mini-latest </code> model. Meeting audio is not allowed to fall back to OpenAI, Groq or another lower-trust provider.
+          </p>
+        </div>
+      ) : null}
 
       {!localOrigin ? (
         <div className="danger-note" role="alert">

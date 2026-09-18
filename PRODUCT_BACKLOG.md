@@ -443,6 +443,18 @@ without being rewritten.
 - **Given** the frontier, **when** it is inspected, **then** it contains no
   session-gated platform.
 - **Dependencies:** S-02.01.04. **Size:** L. **Indicator:** useful pages per crawl-hour.
+- **Blocking risk:** crawler state must survive process restarts without allowing
+  two workers to claim the same URL or weakening the existing public-URL policy.
+- **Business value:** E-05 — spend a fixed crawl budget on fresh evidence rather
+  than repeatedly fetching pages that have stayed unchanged.
+- **Tasks:** T-05.01.01.a persist and lease the frontier (<=1 day);
+  T-05.01.01.b wire adaptive revisits into the existing guarded fetch path
+  (<=1 day); T-05.01.01.c acceptance, concurrency and regression evidence
+  (<=1 day); T-05.01.01.d docs, demo, traceability and verifier certification
+  (<=1 day).
+- **Out of scope:** authenticated/session-gated crawling (forbidden by R-40);
+  extraction packs (S-05.01.02); competitor-post analysis (S-05.01.03);
+  search-engine/source discovery beyond the supplied run allow-list.
 
 #### S-05.01.02 — Extraction packs as declared data
 **As an** owner, **I want** site-shaped extraction to be rows rather than

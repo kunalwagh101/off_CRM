@@ -1692,13 +1692,17 @@ class OutreachStore:
         kind: str = "",
         approved_only: bool = False,
         workspace_id: str = "local",
+        include_global: bool = True,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
         where = ["workspace_id = ?"]
         params: list[Any] = [workspace_id]
         if scope:
-            where.append("scope IN ('global', ?)")
+            if include_global:
+                where.append("scope IN ('global', ?)")
+            else:
+                where.append("scope = ?")
             params.append(scope)
         if kind:
             where.append("kind = ?")

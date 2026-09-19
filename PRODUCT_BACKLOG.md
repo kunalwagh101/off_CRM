@@ -457,20 +457,71 @@ without being rewritten.
   search-engine/source discovery beyond the supplied run allow-list.
 
 #### S-05.01.02 — Extraction packs as declared data
-**As an** owner, **I want** site-shaped extraction to be rows rather than
-parsers, **so that** adding a source is configuration.
-- **Given** a new source, **when** a pack is added, **then** no code changes.
+**As an** owner, **I want** site-shaped extraction to be declared as validated
+data rather than new parser code, **so that** a new public source can be added
+without a code release.
+- **Given** a valid extraction-pack row for an allowed public domain, **when** a
+  matching page is parsed, **then** its declared record selector and field
+  selectors produce normalized `DiscoveredPerson` values without changing
+  Python code.
+- **Given** a pack with an unknown field, invalid selector shape, duplicate id,
+  duplicate domain match, or unsupported extraction mode, **when** the registry
+  loads, **then** it fails closed with a precise validation error and installs
+  none of that invalid registry.
+- **Given** a page whose domain has no extraction pack, **when** it is parsed,
+  **then** the existing generic JSON-LD extraction path still runs unchanged.
+- **Given** an extraction pack, **when** it is inspected, **then** it contains
+  data only: CSS selectors plus bounded text/attribute extraction rules, never
+  Python, templates, JavaScript, arbitrary expressions, network calls, or
+  executable hooks.
 - **Dependencies:** S-05.01.01. **Size:** M. **Indicator:** sources added per code change.
+- **Blocking risk:** a configuration system can accidentally become a second
+  executable parser language; pack loading must remain declarative, bounded and
+  validated before any page is processed.
+- **Business value:** E-05 — reduce the cost and lead time of onboarding public
+  research sources while keeping one reviewed crawler/parser implementation.
+- **Tasks:** T-05.01.02.a define and validate the pack schema/registry (<=1 day);
+  T-05.01.02.b apply a matching pack inside the existing Scrapling parse path
+  with JSON-LD fallback (<=1 day); T-05.01.02.c configuration, negative and
+  regression tests proving a source is added by data only (<=1 day);
+  T-05.01.02.d docs, demo, traceability and verifier evidence (<=1 day).
+- **Out of scope:** remote pack download; arbitrary code/template execution;
+  authenticated/session-gated scraping; replacing the existing crawler safety
+  policy; AI/LLM extraction; competitor-post analysis (S-05.01.03).
 
 #### S-05.01.03 — Take a competitor post apart and rebuild the shape
-**As an** owner, **I want** a high-performing post reduced to its structure —
-shape, pacing, hook, look — **so that** the engine reproduces what works without
-reproducing the content.
-- **Given** a public post, **when** it is analysed, **then** the output is a
-  recipe reference and parameters, never copied media.
-- **Given** an analysis, **when** it produces a project, **then** that project
-  enters the review queue like any other.
+**As an** owner, **I want** a high-performing public post reduced to reusable
+structure — shape, pacing, hook and look — **so that** the engine can learn from
+what works without copying the competitor's content.
+- **Given** a public competitor post that passes the existing public-source
+  policy, **when** it is analysed, **then** the result contains a known recipe
+  reference, bounded structural parameters, source/provenance metadata and
+  performance signals, but no copied frame, audio asset, caption, transcript or
+  other source media.
+- **Given** the same normalized public-post facts, **when** analysis is repeated,
+  **then** the structural recipe output is deterministic unless an explicitly
+  versioned analysis rule changes.
+- **Given** a teardown result, **when** it is turned into a project, **then** it
+  reuses the existing assembly/recipe path and enters the existing human review
+  queue; it cannot publish, schedule, or bypass approval.
+- **Given** a session-gated, private, unsupported or insufficient-evidence
+  source, **when** analysis is requested, **then** it is refused or returned as
+  insufficient evidence rather than fabricating a recipe.
 - **Dependencies:** S-05.01.02, S-01.03.02. **Size:** L. **Indicator:** performance of derived pieces.
+- **Blocking risk:** competitive inspiration can silently become media copying
+  or model guesswork; the stored contract must contain only structural facts,
+  provenance and bounded recipe parameters.
+- **Business value:** E-05 — turn observed public performance into repeatable
+  creative hypotheses while preserving human review and avoiding copied media.
+- **Tasks:** T-05.01.03.a define the structure-only teardown contract and
+  deterministic mapping to existing recipes (<=1 day); T-05.01.03.b connect
+  public performance/source facts to that analyser (<=1 day);
+  T-05.01.03.c create projects through the existing assembly/review path and
+  prove no media/copy crosses the boundary (<=1 day); T-05.01.03.d negative,
+  provenance, review-gate, docs and verifier evidence (<=1 day).
+- **Out of scope:** downloading/storing competitor media; cloning captions,
+  transcripts, music, voices or frames; bypassing human review; automated
+  publishing; authenticated/session-gated competitor collection.
 
 ### F-06.01 — Team and production  *(E-06)*
 
@@ -557,9 +608,38 @@ silently keep consuming money or execution time beyond my chosen limits.
   T-06.02.03.c demo, traceability, evidence and verifier certification (<=1 day).
 
 #### S-06.02.04 — Data deletion and subject access
-- **Given** a request to delete a person's data, **when** it is executed, **then**
-  it is removed from every store including traces and crawl caches.
+**As an** operator handling a person's privacy request, **I want** one
+transactional inventory-driven deletion/export path, **so that** personal data
+is not left behind in a forgotten store.
+- **Given** an identified person, **when** a subject-access request is executed,
+  **then** every registered store reports the matching records/artifacts it
+  holds with store name, record class and provenance, without exposing another
+  subject's data.
+- **Given** a confirmed deletion request, **when** it succeeds, **then** the
+  person's data is removed from every registered mutable store including CRM
+  research/discovery records, crawler URL/cache state that identifies the
+  subject, trace captures/screenshots and generated subject-specific artifacts,
+  and a non-personal deletion receipt records what store classes were cleared.
+- **Given** any registered store fails deletion, **when** the operation runs,
+  **then** the request is not reported complete: the receipt names the failed
+  store, retry is safe/idempotent, and no false success is returned.
 - **Dependencies:** S-05.01.01. **Size:** M. **Indicator:** deletion requests unfulfilled.
+- **Blocking risk:** personal data is spread across SQL rows plus filesystem
+  trace/capture artifacts; a hard-coded deletion list will drift as new stores
+  are added.
+- **Business value:** E-06 — make privacy operations auditable and reliable
+  enough for real customer use instead of relying on manual database/file
+  cleanup.
+- **Tasks:** T-06.02.04.a define one store inventory/subject-match contract and
+  enumerate current personal-data stores (<=1 day); T-06.02.04.b implement
+  subject access plus idempotent deletion adapters using existing transactions
+  and filesystem primitives (<=1 day); T-06.02.04.c cross-store failure,
+  isolation and retry tests (<=1 day); T-06.02.04.d docs, rollback/receipt,
+  demo, traceability and verifier evidence (<=1 day).
+- **Out of scope:** choosing automatic retention duration (Q-07 remains a
+  separate owner decision); deleting legally required non-personal audit
+  receipts; weakening append-only traces before an explicit confirmed privacy
+  operation; cloud-provider deletion APIs not yet connected to off_CRM.
 
 #### S-06.02.05 — The UI is usable by keyboard and screen reader
 - **Given** any interactive screen, **when** navigated by keyboard alone, **then**

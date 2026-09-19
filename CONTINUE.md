@@ -2,27 +2,35 @@
 
 ## Current handoff — 2026-09-20
 
-- Working implementation branch: `feature/next-three-implementation`.
-- Owner explicitly authorised build-ahead with verification deferred; DD-22
-  records that downstream work may reach IN_REVIEW but never DONE ahead of its
-  dependencies.
-- Four stories are currently IN_REVIEW: `S-05.01.01` crawler frontier,
-  `S-05.01.02` extraction packs, `S-05.01.03` structure-only competitor
-  teardown, and `S-06.02.04` subject access/deletion.
-- The requested three new features are implemented. Their focused suites are
-  `tests/test_extraction_packs.py`, `tests/test_competitor_teardown.py` and
-  `tests/test_privacy.py`.
-- Do not move any of them to DONE without running their DEMO.md commands, the
-  full regression and `uv run python scripts/verify_board.py`. Owner-side
-  acceptance is intentionally scheduled for a later dedicated verification
-  pass.
-- Privacy coverage includes CRM/discovery/delivery data, redacted sent-mail
-  recall, AI context/egress, crawler state, whole matching trace runs, explicitly
-  tagged generated artifacts, residual CRM metadata and application-owned CSV
-  queues/exports. Q-07 still owns automatic retention duration.
-- Local clone/test execution was not available in this ChatGPT runtime because
-  outbound DNS to github.com is blocked. Do not convert authored tests into
-  claimed pass evidence.
+- Working branch: `feature/next-three-batch-2`, stacked on
+  `feature/next-three-implementation`.
+- Owner-authorised build-ahead remains governed by DD-22: implementation may
+  reach IN_REVIEW; verification/dependency debt may not be renamed DONE.
+- The requested second batch is fully implemented and in IN_REVIEW:
+  `S-03.02.05` platform-as-data, `S-02.02.02` PLAN.md, and
+  `S-04.01.01` persisted companions.
+- Previous IN_REVIEW stories remain unchanged:
+  `S-05.01.01`, `S-05.01.02`, `S-05.01.03`, `S-06.02.04`.
+- No story is currently IN_PROGRESS.
+- Focused verification commands are in DEMO.md. Do not invent pass counts.
+- Platform declarations now live in `browser/platforms.json`; identity,
+  policy and default budgets consume the same validated row.
+- Every AgentRun now has one `PLAN.md`, reads it fresh before each model
+  decision and captures that exact version in the immutable trace.
+- Companion profiles live transactionally in the existing `ai_tools.db`,
+  have exact memory scopes, expose only granted enabled tools, and enforce the
+  grant again at tool execution. Authenticated API CRUD/context/memory routes
+  are wired.
+- Companion profile text is the ninth registered privacy-store adapter.
+- Backup restore closes/reopens ToolRegistry and CompanionRegistry so restored
+  tool/companion state is not attached to a stale SQLite connection.
+- D-59 through D-64 were found and fixed during this batch.
+- The next READY story on the board is `S-06.01.01 — Workspaces with their own
+  keys and their own logins`. Do not pull it unless the owner asks for more
+  features.
+- Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
+- Dedicated owner/testing pass is still deferred. Run focused suites, full
+  regression and `uv run python scripts/verify_board.py` before promotion.
 
 
 ---

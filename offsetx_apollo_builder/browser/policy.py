@@ -45,6 +45,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
+from .platforms import default_registry
+
 #: Actions that change something outside the browser. Every one of these gets a
 #: countdown before it fires, whatever site it is on.
 SENSITIVE_ACTIONS = frozenset({"submit", "send", "delete", "purchase", "publish", "upload"})
@@ -96,72 +98,26 @@ OPEN_WEB = DomainRule(
 #: allowed to look at your own feed. They are slowed to human pace and kept out
 #: of unattended runs, which is where the difference between "using a computer"
 #: and "operating a scraper" actually lies.
+def _declared_platform_rules() -> tuple[DomainRule, ...]:
+    rules: list[DomainRule] = []
+    for item in default_registry().all():
+        for domain in item.domains:
+            rules.append(
+                DomainRule(
+                    suffix=domain,
+                    label=item.label,
+                    min_seconds_between_actions=item.min_seconds_between_actions,
+                    unattended=item.unattended,
+                    refuse=item.refuse,
+                    confirm=item.confirm,
+                    note=item.policy_note or item.note,
+                )
+            )
+    return tuple(rules)
+
+
 RULES: tuple[DomainRule, ...] = (
-    DomainRule(
-        suffix="linkedin.com",
-        label="LinkedIn",
-        min_seconds_between_actions=6.0,
-        unattended=False,
-        refuse=("bulk_export",),
-        confirm=("send", "submit", "connect"),
-        note=(
-            "Your session, your account, your risk. Automated collection breaches "
-            "the User Agreement and the penalty is permanent restriction, so this "
-            "runs at reading pace and never on a schedule. Profile data about "
-            "people in the EU or UK is personal data — having a lawful basis for "
-            "holding it is your job, not the browser's."
-        ),
-    ),
-    DomainRule(
-        suffix="instagram.com",
-        label="Instagram",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-        note=(
-            "Same shape as LinkedIn. The Business Discovery API is the supported "
-            "route for competitor data and needs no session at all — prefer it."
-        ),
-    ),
-    DomainRule(
-        suffix="facebook.com",
-        label="Facebook",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="tiktok.com",
-        label="TikTok",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="x.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="twitter.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="youtube.com",
-        label="YouTube",
-        min_seconds_between_actions=1.0,
-        unattended=True,
-        note=(
-            "The Data API serves public video and channel data properly and is "
-            "already wired in `distribution/trends.py`. Drive the site only for "
-            "what the API does not expose."
-        ),
-    ),
+    *_declared_platform_rules(),
     DomainRule(
         suffix="mail.google.com",
         label="Gmail",

@@ -37,6 +37,7 @@ REQUIRED_PRIVACY_STORES = (
     "ai_egress",
     "subject_artifacts",
     "structured_exports",
+    "companion_profiles",
     "crawler_frontier",
     "browser_traces",
     "outreach_crm",
@@ -590,6 +591,92 @@ class OutreachPrivacyAdapter:
                         )
                 counts[table] = len(rows)
         return counts
+
+
+class CompanionProfilePrivacyAdapter:
+    """Personal data embedded in persisted companion names/instructions."""
+
+    name = "companion_profiles"
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        clause, params = _token_clause(("name", "instructions"), subject)
+        if not clause:
+            return []
+        connection = sqlite3.connect(self.path, timeout=5)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=5000")
+        try:
+            rows = connection.execute(
+                f"""
+                SELECT id, workspace_id, name, instructions, memory_scope,
+                       granted_tool_ids, enabled, created_at, updated_at
+                FROM agent_companions
+                WHERE workspace_id = ? AND ({clause})
+                """,
+                (subject.workspace_id, *params),
+            ).fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.OperationalError as exc:
+            if "no such table" in str(exc).lower():
+                return []
+            raise
+        finally:
+            connection.close()
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "companion_profile",
+                "strong identifier in persisted companion name/instructions",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows = self._rows(subject)
+        if not rows:
+            return {"companion_profiles": 0}
+        connection = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=5000")
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            for row in rows:
+                name = str(row["name"])
+                redacted_name = _redact_subject_text(name, subject)
+                if redacted_name != name:
+                    # Avoid collisions between two redacted human-labelled profiles.
+                    redacted_name = f"Companion {str(row['id'])[:8]}"
+                connection.execute(
+                    """
+                    UPDATE agent_companions
+                    SET name = ?, instructions = ?, updated_at = ?
+                    WHERE id = ? AND workspace_id = ?
+                    """,
+                    (
+                        redacted_name,
+                        _redact_subject_text(row["instructions"], subject),
+                        _now(),
+                        str(row["id"]),
+                        subject.workspace_id,
+                    ),
+                )
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
+        return {"companion_profiles": len(rows)}
 
 
 class CrawlerPrivacyAdapter:
@@ -1293,6 +1380,7 @@ class PrivacyService:
             StructuredExportPrivacyAdapter(
                 (root, Path(export_dir)) if export_dir is not None else (root,)
             ),
+            CompanionProfilePrivacyAdapter(root / "ai_tools.db"),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),
             # Deliberately last. Once CRM ids are gone, redacted recall rows

@@ -1,0 +1,255 @@
+{
+  "version": 1,
+  "platforms": [
+    {
+      "id": "linkedin",
+      "aliases": [],
+      "label": "LinkedIn",
+      "login_url": "https://www.linkedin.com/login",
+      "home_url": "https://www.linkedin.com/feed/",
+      "signed_in": [
+        "my network",
+        "messaging",
+        "start a post",
+        "my items"
+      ],
+      "signed_out": [
+        "sign in",
+        "join now",
+        "new to linkedin"
+      ],
+      "domains": [
+        "linkedin.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 6,
+        "unattended": false,
+        "refuse": [
+          "bulk_export"
+        ],
+        "confirm": [
+          "send",
+          "submit",
+          "connect"
+        ],
+        "note": "Your session, your account, your risk. Automated collection is attended-only and paced at reading speed."
+      },
+      "budget": {
+        "actions_per_hour": 30,
+        "actions_per_day": 120
+      },
+      "note": "Attended only. The agent may read as you when you ask it to and never on a schedule."
+    },
+    {
+      "id": "instagram",
+      "aliases": [],
+      "label": "Instagram",
+      "login_url": "https://www.instagram.com/accounts/login/",
+      "home_url": "https://www.instagram.com/",
+      "signed_in": [
+        "home",
+        "new post",
+        "profile",
+        "direct"
+      ],
+      "signed_out": [
+        "log in",
+        "sign up",
+        "forgot password"
+      ],
+      "domains": [
+        "instagram.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 5,
+        "unattended": false,
+        "refuse": [],
+        "confirm": [
+          "send",
+          "submit",
+          "publish"
+        ],
+        "note": "Prefer the supported Business Discovery API for competitor data."
+      },
+      "budget": {
+        "actions_per_hour": 25,
+        "actions_per_day": 100
+      },
+      "note": "The Business Discovery API is the supported route for competitor data."
+    },
+    {
+      "id": "facebook",
+      "aliases": [],
+      "label": "Facebook",
+      "login_url": "https://www.facebook.com/login/",
+      "home_url": "https://www.facebook.com/",
+      "signed_in": [
+        "your profile",
+        "create",
+        "notifications"
+      ],
+      "signed_out": [
+        "log in",
+        "create new account",
+        "forgotten password"
+      ],
+      "domains": [
+        "facebook.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 5,
+        "unattended": false,
+        "refuse": [],
+        "confirm": [
+          "send",
+          "submit",
+          "publish"
+        ],
+        "note": ""
+      },
+      "budget": {
+        "actions_per_hour": 25,
+        "actions_per_day": 100
+      },
+      "note": ""
+    },
+    {
+      "id": "youtube",
+      "aliases": [],
+      "label": "YouTube",
+      "login_url": "https://accounts.google.com/ServiceLogin?service=youtube",
+      "home_url": "https://www.youtube.com/",
+      "signed_in": [
+        "account menu",
+        "create",
+        "subscriptions"
+      ],
+      "signed_out": [
+        "sign in"
+      ],
+      "domains": [
+        "youtube.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 1,
+        "unattended": true,
+        "refuse": [],
+        "confirm": [],
+        "note": "Prefer the Data API for public video and channel data."
+      },
+      "budget": {
+        "actions_per_hour": 60,
+        "actions_per_day": 400
+      },
+      "note": "Drive the site only for work the Data API does not expose."
+    },
+    {
+      "id": "x",
+      "aliases": [
+        "twitter"
+      ],
+      "label": "X",
+      "login_url": "https://x.com/i/flow/login",
+      "home_url": "https://x.com/home",
+      "signed_in": [
+        "post",
+        "home timeline",
+        "account menu"
+      ],
+      "signed_out": [
+        "sign in",
+        "create account"
+      ],
+      "domains": [
+        "x.com",
+        "twitter.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 4,
+        "unattended": false,
+        "refuse": [],
+        "confirm": [
+          "send",
+          "submit",
+          "publish"
+        ],
+        "note": ""
+      },
+      "budget": {
+        "actions_per_hour": 40,
+        "actions_per_day": 200
+      },
+      "note": ""
+    },
+    {
+      "id": "tiktok",
+      "aliases": [],
+      "label": "TikTok",
+      "login_url": "https://www.tiktok.com/login",
+      "home_url": "https://www.tiktok.com/foryou",
+      "signed_in": [
+        "upload",
+        "inbox",
+        "profile"
+      ],
+      "signed_out": [
+        "log in",
+        "sign up"
+      ],
+      "domains": [
+        "tiktok.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 5,
+        "unattended": false,
+        "refuse": [],
+        "confirm": [
+          "send",
+          "submit",
+          "publish"
+        ],
+        "note": ""
+      },
+      "budget": {
+        "actions_per_hour": 25,
+        "actions_per_day": 100
+      },
+      "note": ""
+    },
+    {
+      "id": "reddit",
+      "aliases": [],
+      "label": "Reddit",
+      "login_url": "https://www.reddit.com/login/",
+      "home_url": "https://www.reddit.com/",
+      "signed_in": [
+        "create post",
+        "chat",
+        "advertise"
+      ],
+      "signed_out": [
+        "log in",
+        "sign up"
+      ],
+      "domains": [
+        "reddit.com"
+      ],
+      "policy": {
+        "min_seconds_between_actions": 4,
+        "unattended": false,
+        "refuse": [],
+        "confirm": [
+          "send",
+          "submit",
+          "publish"
+        ],
+        "note": "Session activity is attended-only; prefer public/API access where available."
+      },
+      "budget": {
+        "actions_per_hour": 40,
+        "actions_per_day": 200
+      },
+      "note": "Declared entirely in the platform registry; no Reddit-specific Python path."
+    }
+  ]
+}

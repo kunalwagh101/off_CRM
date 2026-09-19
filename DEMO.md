@@ -580,3 +580,57 @@ DELETE SUBJECT DATA
 These three sections describe the commands to run during the dedicated
 verification pass. No pass count is recorded here until those commands actually
 execute.
+
+
+---
+
+## S-03.02.05 — one platform row drives three controls
+
+```bash
+uv run pytest tests/test_browser_platform_registry.py tests/test_browser_signin.py tests/test_browser_budget.py -q
+```
+
+Then inspect the packaged registry:
+
+```bash
+python - <<'PY'
+from offsetx_apollo_builder.browser.platforms import default_registry
+from offsetx_apollo_builder.browser.identity import platform
+from offsetx_apollo_builder.browser.budget import Budget
+from offsetx_apollo_builder.browser.policy import rule_for
+
+p = platform("reddit")
+print(p.to_dict())
+print(Budget.for_platform("reddit").to_dict())
+print(rule_for("https://www.reddit.com/r/python"))
+print([x.id for x in default_registry().all()])
+PY
+```
+
+The important property is not the output value; it is that Reddit has no
+Reddit-specific branch in identity, budget or policy code.
+
+## S-02.02.02 — edit PLAN.md and change the next decision
+
+```bash
+uv run pytest tests/test_agent_plan.py tests/test_agent_run.py tests/test_agent_resume.py -q
+```
+
+The focused case edits the live run's PLAN.md after decision one. Decision two
+must receive the edited text. Deleting PLAN.md mid-run must stop before another
+model call. Every decision also stores the exact plan version it saw as its
+private trace capture.
+
+## S-04.01.01 — persisted companions stay inside their grants
+
+```bash
+uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q
+```
+
+The suite proves persistence, workspace isolation, unique memory scopes,
+approved-memory-only recall, immediate removal of disabled tools, execution-time
+denial of an ungranted tool, authenticated companion API behaviour, companion
+profile privacy deletion and backup/restore reopening of the tool/companion DB.
+
+No pass count is written here until the dedicated verification pass actually
+executes these commands.

@@ -206,7 +206,24 @@ This is the next thing to build, and the decisions are now made:
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |
 | **Deploy & rollback** | A way back when a release is bad | ⬜ S-06.01.05 |
 | **Keyboard / screen reader** | The UI usable without a mouse | ⬜ S-06.02.05 |
-| **Subject access / deletion** | Authenticated eight-store inventory, preview, exact confirmation and retry-safe deletion | ◐ S-06.02.04 · implementation/tests present, verification pending |
+| **Subject access / deletion** | Authenticated nine-store inventory, preview, exact confirmation and retry-safe deletion, including companion profile text | ◐ S-06.02.04 · implementation/tests present, verification pending |
+
+---
+
+## 9A. Agent identity, memory and steering
+
+| Part | What it does | State |
+|---|---|---|
+| Browser platform registry | One packaged row drives sign-in signals, domain policy and account budgets; Reddit is the data-only acceptance case | ◐ S-03.02.05 · IN_REVIEW |
+| PLAN.md | Exactly one editable plan per run; model reads it fresh before every decision and trace captures the version actually seen | ◐ S-02.02.02 · IN_REVIEW |
+| Companions | Persisted named profiles with exact memory scope, owner-granted tools and authenticated CRUD/context API | ◐ S-04.01.01 · IN_REVIEW |
+| Interrupt / steer / resume | Mid-run control beyond editing PLAN.md | ⬜ S-02.02.03 |
+| Skills | Long reusable procedures fetched on demand | ⬜ S-04.01.02 |
+| Sub-agents | Context-isolated children with bounded depth/fan-out | ⬜ S-04.01.03 |
+
+The important boundary: a companion does not create a second AI or tool system.
+It narrows the existing broker/tool/memory systems. An ungranted tool is blocked
+again at execution time, not merely hidden from the model.
 
 ---
 

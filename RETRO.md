@@ -5,6 +5,60 @@ and what to change next time. Appended, never edited.
 
 ---
 
+## 2026-09-20 — S-03.02.05 platform registry (IN_REVIEW)
+
+**What was cut.** Nothing from the story. Runtime owner overrides and remote
+platform-policy downloads were deliberately not added; the requested capability
+is a reviewed built-in declaration, not an untrusted plugin channel.
+
+**What the estimate got wrong.** The registry itself was small. The value came
+from reading all three old constants first: Reddit already existed in the
+budget table but not identity/policy (D-59), proving that the duplication had
+already drifted.
+
+**What to change next time.** When three controls share a noun, search whether
+they also share a source of truth. If not, treat the first mismatch as a defect,
+not as three independent configuration choices.
+
+---
+
+## 2026-09-20 — S-02.02.02 PLAN.md (IN_REVIEW)
+
+**What was cut.** The separate interrupt/steer/resume controller remains
+S-02.02.03. PLAN.md itself is complete for this slice: one file, owner-editable,
+fresh-read before every decision, legacy-run compatible and auditable.
+
+**What the estimate got wrong.** "Single source of truth" creates an audit
+question: if the plan is mutable, how do we later prove what decision three
+actually saw? The answer was not a version database; the existing append-only
+trace already had private captured-text artefacts, so each decision stores the
+plan text it consumed.
+
+**What to change next time.** Separate current truth from historical evidence.
+Do not make an append-only audit log editable just because the current state
+needs to be editable.
+
+---
+
+## 2026-09-20 — S-04.01.01 companions (IN_REVIEW)
+
+**What was cut.** Skills, sub-agents and the three-level permission UI remain
+their own stories. A companion stores and enforces only what this story owns:
+identity, instructions, exact memory scope and granted existing tools.
+
+**What the estimate got wrong.** The first persistence draft used JSON because
+the record looked small. Review caught that process-local locking could lose
+updates with multiple server workers (D-60), so profiles moved into the existing
+ToolRegistry SQLite DB. That review then exposed the real integration surface:
+privacy inventory and backup restore both had to know the new store existed.
+
+**What to change next time.** A "small settings file" stops being small the
+moment two processes may write it or privacy/backup must reason about it. Put
+security-relevant persisted identity beside the transactional control data it
+governs.
+
+---
+
 ## 2026-09-20 — S-05.01.02 extraction packs (IN_REVIEW)
 
 **What was cut.** Nothing from the declared slice. Remote packs, executable

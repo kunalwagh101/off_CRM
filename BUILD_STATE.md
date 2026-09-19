@@ -8,8 +8,8 @@ new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-09-20
-Branch: `feature/next-three-implementation`
-Tests: the three new focused suites are authored but **not yet claimed passing**. This ChatGPT runtime cannot resolve github.com for a clean local clone, and current remote Actions infrastructure has been failing before workflow step 1. Historical pass counts below remain historical evidence only.
+Branch: `feature/next-three-batch-2`
+Tests: both build-ahead batches have focused suites authored but **not yet claimed passing**. Remote Actions status is checked separately at close-out; historical pass counts below remain historical evidence only.
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm
 package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
@@ -30,6 +30,35 @@ The long-standing `test_discovery.py::test_scrapling_parser…` failure was neve
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
+
+## 2026-09-20 — second next-three implementation batch
+
+Three additional READY stories were implemented sequentially and moved to
+IN_REVIEW under DD-22:
+
+- `S-03.02.05`: `browser/platforms.json` + validator now drive identity,
+  domain policy and default budgets from one declaration. Reddit demonstrates
+  data-only onboarding. No browser verb or executable plugin surface was added.
+- `S-02.02.02`: `agent/plan.py` gives each trace run exactly one PLAN.md,
+  read fresh before every broker decision. Owner edits affect the next call;
+  the exact consumed plan version is captured in that decision's trace artefact.
+- `S-04.01.01`: `agent/companions.py` persists profiles as rows inside the
+  existing ToolRegistry SQLite DB. Runtime uses only the companion's exact
+  approved-memory scope and enabled granted tools; tool execution enforces the
+  grant again. Authenticated CRUD/context/memory endpoints are wired.
+
+Integration review found D-59 through D-64. The important corrections were:
+replace process-local JSON companion storage with transactional SQLite; register
+companion profile text with privacy deletion; and close/reconstruct tool and
+companion stores around backup restore.
+
+Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
+
+Verification remains deferred by owner instruction. Focused commands are
+recorded in DEMO.md and TRACEABILITY.md; do not promote these stories to DONE
+without executing them, full regression and the board verifier.
+
+---
 
 ## 2026-09-20 — next three implementations complete, verification deferred
 

@@ -279,6 +279,7 @@ bandit, 34 failure-classification, 33 abstraction, 31 tools, 30 recall.
 | P-2.10 | `failures.py` + `errors.py` | What kind of failure this was, and what to do about it | 34 |
 | P-2.11 | `context.py` | Context assembly under a budget | 20 |
 | P-2.12 | `discovery.py` | Asks a provider which models its key actually reaches | — |
+| P-2.13 | `agent/companions.py` + `ai/tools.py` + CRM memory | Persisted named agents with exact memory scope and execution-time tool grants | `test_agent_companions.py` · IN_REVIEW S-04.01.01 |
 
 **The design decision worth understanding:** `P-2.5` only ever allocates between
 variants a **human approved**. The bandit optimises *within* a fence, it does not
@@ -341,7 +342,7 @@ that catches us lying about what is finished.
 | P-10.5 | `codegraph.py` | Graphify wrapper with the semantic path switched **off** | 33 | — |
 | P-10.6 | `scripts/verify_board.py` | **The lie detector.** Re-runs every DONE claim's test and fails on any failure | 29 | S-06.02.06 ✅ |
 | P-10.7 | question lifecycle | An answered question unblocks; a deleted one does not | 29 | S-06.02.07 ✅ |
-| P-10.8 | `privacy.py` | One inventory for subject access + confirmed idempotent deletion across CRM, recall, AI context/egress, crawler, traces, tagged artifacts and CSV exports/queues | `test_privacy.py` | S-06.02.04 ◐ IN_REVIEW |
+| P-10.8 | `privacy.py` | One inventory for subject access + confirmed idempotent deletion across CRM, recall, AI context/egress, companion profiles, crawler, traces, tagged artifacts and CSV exports/queues | `test_privacy.py` | S-06.02.04 ◐ IN_REVIEW |
 
 **`P-10.6` is the most important 300 lines in the repository** and it deserves a
 plain explanation: anybody can write the word DONE. This script reads `BOARD.md`,
@@ -483,15 +484,15 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-8.4 | `policy.py` — per-domain pace, attended-only, refusal | 36 | S-02.01.04 ✅ |
 | P-8.5 | `trace.py` — append-only, no way to remove a step | 36 | S-02.01.05 ✅ |
 | P-8.6 | `session.py` — attach to a real browser; stale-lock recovery | 36 | — |
-| P-8.7 | `identity.py` + `signin.py` — six platforms; **no function accepts a password** | 21 | S-03.02.01 ✅ |
+| P-8.7 | `platforms.json` + `identity.py` + `signin.py` + policy/budget wiring — platform is declared data; **no function accepts a password** | `test_browser_platform_registry.py` + existing identity suites | S-03.02.05 ◐ IN_REVIEW |
 | P-8.8 | **The vault** — per-account key, OS keychain / passphrase fallback | 15 focused | S-03.02.02 ✅ |
 | P-8.9 | **Revoke and forget** — clear vaulted cookies, destroy account envelope, trace the act | 6 focused incl. live Chromium | S-03.02.03 ✅ |
 | P-8.10 | **The run loop** — goal → bounded sequence of actions | — | ⬜ S-02.02.01 |
-| P-8.11 | **PLAN.md as memory** | — | ⬜ S-02.02.02 |
+| P-8.11 | `agent/plan.py` — one owner-editable PLAN.md per run, fresh-read before each decision, exact version captured in trace | `test_agent_plan.py` | ◐ S-02.02.02 · IN_REVIEW |
 | P-8.12 | **Interrupt, steer, resume** | — | ⬜ S-02.02.03 |
 | P-8.13 | **Safety countdowns** | — | ⬜ S-02.02.04 |
 
-**The honest summary:** off_CRM now has safe browser hands and a complete managed session lifecycle: attended login → protected per-account vault → destructive revoke/forget. It still has no will. Every individual motion works, but nothing yet decides which motion to make from a goal. `P-8.10` is now the next dependency-contiguous autonomy feature and remains the highest-leverage unbuilt thing in this pillar.
+**The honest summary:** off_CRM now has safe browser hands and a complete managed session lifecycle: attended login → protected per-account vault → destructive revoke/forget. It still has no will. Every individual motion works, but nothing yet decides which motion to make from a goal. `P-8.10` is already delivered as the run loop. PLAN.md is now implemented on top of it and is in review; interrupt/steer/resume remains the next missing control in this pillar.
 
 ---
 

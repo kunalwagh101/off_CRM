@@ -16,8 +16,9 @@ The important work is in the boundaries around that loop:
 * an observed claim then survives only when deterministic host code finds its
   value and supporting quote in that captured text.
 
-PLAN.md, steering/resume and countdown continuation are separate backlog stories.
-They are intentionally not smuggled into this slice.
+The mutable steering plan lives in PLAN.md beside the trace. The file is read
+fresh before every decision and the exact plan version seen by each model call
+is captured as that decision step's private trace artefact.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace, signature_in, signature_mark
+from .plan import MAX_PLAN_CHARS, PlanError, RunPlan
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -673,6 +675,7 @@ class AgentRun:
         self.settings = settings
         self.page = page
         self.trace = trace
+        self.plan = RunPlan(trace.directory)
         self.decision_data_class = decision_data_class
         self.planner_provider_id = str(planner_provider_id or "").strip()
 
@@ -706,6 +709,12 @@ class AgentRun:
         cleaned_goal, budget = _validate_start(goal, step_budget)
         latency_ceiling = _validate_latency_ceiling(latency_ceiling_ms)
         schema = coerce_result_schema(result_schema)
+        try:
+            # Also creates the plan for a legacy trace being resumed for the
+            # first time after S-02.02.02. Existing owner edits are never overwritten.
+            self.plan.ensure(cleaned_goal)
+        except PlanError as exc:
+            raise RunRefused(str(exc)) from exc
         # Attached for the length of this run and put back afterwards, so a
         # watcher cannot outlive the thing it was watching.  `S-11.04.02`
         previous_listener = self.trace.listener
@@ -893,8 +902,13 @@ class AgentRun:
                     projected_usd=projected_usd,
                 )
 
+            try:
+                current_plan = self.plan.read()
+            except PlanError as exc:
+                raise RunRefused(str(exc)) from exc
             instructions = _decision_input(
                 goal=cleaned_goal,
+                plan=current_plan,
                 index=index,
                 budget=budget,
                 snapshot=snapshot.render(),
@@ -934,7 +948,8 @@ class AgentRun:
                         tokens_in=tokens_in,
                         tokens_out=tokens_out,
                         estimated_cost_usd=estimated_cost,
-                    )
+                    ),
+                    captured_text=current_plan,
                 )
                 return self._outcome(
                     "refused", cleaned_goal, budget, decisions, actions, str(exc), schema=schema
@@ -951,7 +966,8 @@ class AgentRun:
                     tokens_in=tokens_in,
                     tokens_out=tokens_out,
                     estimated_cost_usd=estimated_cost,
-                )
+                ),
+                captured_text=current_plan,
             )
 
             latency_ms = int(self.trace.summary().get("took_ms", 0) or 0)
@@ -2054,6 +2070,7 @@ def _validate_start(goal: str, step_budget: int) -> tuple[str, int]:
 def _decision_input(
     *,
     goal: str,
+    plan: str,
     index: int,
     budget: int,
     snapshot: str,
@@ -2064,6 +2081,7 @@ def _decision_input(
     remaining = budget - index
     parts = [
         f"OWNER GOAL:\n{goal}",
+        "OWNER-EDITABLE RUN PLAN — TRUSTED LOCAL INSTRUCTIONS:\n" + plan[:MAX_PLAN_CHARS],
         f"RUN BUDGET:\nDecision {index + 1} of {budget}; {remaining} decision(s) remain including this one.",
     ]
     if result_schema is not None:

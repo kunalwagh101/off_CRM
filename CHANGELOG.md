@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **S-05.01.02, S-05.01.03 and S-06.02.04 are implemented and in review.** Extraction packs are now validated JSON data over the existing Scrapling path; competitor teardown deterministically maps public structural/performance facts into existing video recipes and the existing human review queue without accepting copied media; privacy operations now use one authenticated inventory for subject access and confirmed, retry-safe deletion across CRM/discovery/delivery data, redacted mail recall, AI context and egress, crawler state, traces, tagged generated artifacts, and application-owned CSV queues/exports. Focused acceptance suites are authored in `tests/test_extraction_packs.py`, `tests/test_competitor_teardown.py`, and `tests/test_privacy.py`. They remain IN_REVIEW until executable test/verifier evidence and the owner's later acceptance pass are complete. Review also caught and fixed D-53 through D-55 before owner testing.
+
 - **S-05.01.01 crawler frontier is implemented and awaiting executable CI evidence.**
   Public discovery now persists crawl state in SQLite, leases due URLs so
   concurrent workers do not duplicate claims, schedules recently changed pages

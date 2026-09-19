@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from ..ai.workspace import atomic_json
+from .platforms import budget_map
 
 #: Actions that touch the platform and therefore cost budget. `read`,
 #: `screenshot` and `wait_for` are absent on purpose: they observe what is
@@ -53,17 +54,8 @@ COSTED_ACTIONS = ("goto", "click", "type", "select", "scroll", "press", "back")
 #: on, because the cost of being wrong is asymmetric: too low wastes a run, too
 #: high loses the account. The owner can raise them per account and owns that
 #: decision; nothing here raises itself.
-DEFAULT_BUDGETS: dict[str, tuple[int, int]] = {
-    #  platform:      (per hour, per day)
-    "linkedin": (30, 120),
-    "instagram": (25, 100),
-    "facebook": (25, 100),
-    "tiktok": (25, 100),
-    "x": (40, 200),
-    "twitter": (40, 200),
-    "youtube": (60, 400),
-    "reddit": (40, 200),
-}
+DEFAULT_BUDGETS: dict[str, tuple[int, int]] = budget_map()
+
 
 #: Anything not named above. Not unlimited — an unknown platform is the one
 #: whose enforcement we understand least.

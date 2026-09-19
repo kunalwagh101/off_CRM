@@ -87,6 +87,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-53 | 2026-09-20 | bug | medium | The first competitor-teardown API route escaped its path parameter incorrectly, so FastAPI would not bind campaign_id | fixed during `S-05.01.03` source review |
 | D-54 | 2026-09-20 | bug | high | The first privacy token matcher declared a two-character SQL LIKE escape, which SQLite would reject at runtime | fixed during `S-06.02.04` portability review |
 | D-55 | 2026-09-20 | gap | high | Restoring a backup replaces the CRM engine, but the new privacy service would still point at the old closed store | fixed during `S-06.02.04` lifecycle review |
+| D-56 | 2026-09-20 | bug | medium | Competitor teardown used Python truthiness, so the string `"false"` counted as true and could select the wrong recipe | fixed during `S-05.01.03` input review |
+| D-57 | 2026-09-20 | security | high | The first privacy API draft accepted a caller-supplied workspace id instead of binding deletion/access to the authenticated workspace | fixed during `S-06.02.04` authz review |
+| D-58 | 2026-09-20 | gap | high | The first privacy inventory missed residual discovery/audit JSON and personal rows in application-owned CSV queues/exports | fixed during `S-06.02.04` store-coverage review |
 
 ---
 

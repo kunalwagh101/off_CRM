@@ -154,6 +154,33 @@ def _placeholders(values: Iterable[Any]) -> str:
     return ",".join("?" for _ in materialized)
 
 
+def _like_token(value: str) -> str:
+    """Literal LIKE pattern for exact strong identifiers embedded in text/JSON."""
+    escaped = str(value).lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _token_clause(columns: Iterable[str], subject: SubjectIdentity) -> tuple[str, tuple[Any, ...]]:
+    tokens = subject.tokens
+    clauses: list[str] = []
+    params: list[Any] = []
+    for column in columns:
+        for token in tokens:
+            clauses.append(f"lower({column}) LIKE ? ESCAPE '\\\\'")
+            params.append(_like_token(token))
+    return " OR ".join(clauses), tuple(params)
+
+
+def _scrub_subject(value: object, subject: SubjectIdentity) -> str:
+    """Keep operational errors useful without preserving the deleted identifiers."""
+    text = str(value or "")
+    for token in sorted(subject.tokens, key=len, reverse=True):
+        if token:
+            text = text.replace(token, "[subject]")
+            text = text.replace(token.lower(), "[subject]")
+    return text[:1000]
+
+
 class OutreachPrivacyAdapter:
     """Structured CRM/discovery/research records linked by strong identifiers."""
 
@@ -331,6 +358,56 @@ class OutreachPrivacyAdapter:
             add("research_observation", observations, "research observation for subject entity")
 
         add("sales_lead", sales, "sales_leads exact email/stable id")
+
+        # Personal data that is not structurally attached to a contact row still
+        # needs the same access/deletion inventory. These tables have either an
+        # exact recipient email column or bounded text/JSON written by this app.
+        direct_specs = (
+            ("email_contact_permissions", ("email",), "email_permission"),
+            ("email_suppressions", ("email",), "email_suppression"),
+            ("email_unsubscribe_tokens", ("email",), "unsubscribe_token"),
+            ("email_send_jobs", ("to_email",), "email_send_job"),
+            ("email_delivery_events", ("recipient_email",), "email_delivery_event"),
+            ("memory_items", ("content", "metadata_json"), "memory_item"),
+            ("provider_calls", ("request_json", "response_json", "error"), "provider_call"),
+            ("ai_messages", ("content",), "ai_chat_message"),
+            ("sales_setter_activity", ("notes",), "sales_activity_note"),
+        )
+        for table, columns, record_class in direct_specs:
+            clause, params = _token_clause(columns, subject)
+            if not clause:
+                continue
+            workspace_sql = ""
+            workspace_params: tuple[Any, ...] = ()
+            if table in {"memory_items", "provider_calls", "sales_setter_activity"}:
+                workspace_sql = "workspace_id = ? AND "
+                workspace_params = (subject.workspace_id,)
+            rows = [
+                dict(row)
+                for row in self.store.connection.execute(
+                    f"SELECT * FROM {table} WHERE {workspace_sql}({clause})",
+                    (*workspace_params, *params),
+                ).fetchall()
+            ]
+            add(record_class, rows, f"{table} exact strong identifier in owned fields")
+
+        # If any message in a chat mentions the subject, remove/access the whole
+        # chat. Assistant replies can repeat the same fact without repeating the
+        # exact identifier, and retaining half a conversation is a privacy leak.
+        clause, params = _token_clause(("content",), subject)
+        if clause:
+            chats = [
+                dict(row)
+                for row in self.store.connection.execute(
+                    f"""
+                    SELECT c.* FROM ai_chats c
+                    WHERE c.workspace_id = ?
+                      AND c.id IN (SELECT chat_id FROM ai_messages WHERE {clause})
+                    """,
+                    (subject.workspace_id, *params),
+                ).fetchall()
+            ]
+            add("ai_chat", chats, "chat contains a message matching a strong identifier")
         return records
 
     def delete(self, subject: SubjectIdentity) -> dict[str, int]:
@@ -342,11 +419,47 @@ class OutreachPrivacyAdapter:
         sales = self._sales(subject)
         sales_ids = tuple(str(row["id"]) for row in sales)
 
+        direct_specs = (
+            ("email_contact_permissions", ("email",)),
+            ("email_suppressions", ("email",)),
+            ("email_unsubscribe_tokens", ("email",)),
+            ("email_send_jobs", ("to_email",)),
+            ("email_delivery_events", ("recipient_email",)),
+            ("memory_items", ("content", "metadata_json")),
+            ("provider_calls", ("request_json", "response_json", "error")),
+            ("sales_setter_activity", ("notes",)),
+        )
+        direct_matches: dict[str, tuple[str, tuple[Any, ...], str, tuple[Any, ...]]] = {}
+        for table, columns in direct_specs:
+            clause, params = _token_clause(columns, subject)
+            if not clause:
+                continue
+            workspace_sql = ""
+            workspace_params: tuple[Any, ...] = ()
+            if table in {"memory_items", "provider_calls", "sales_setter_activity"}:
+                workspace_sql = "workspace_id = ? AND "
+                workspace_params = (subject.workspace_id,)
+            direct_matches[table] = (clause, params, workspace_sql, workspace_params)
+
+        chat_clause, chat_params = _token_clause(("content",), subject)
+        chat_ids: tuple[str, ...] = ()
+        if chat_clause:
+            rows = self.store.connection.execute(
+                f"""
+                SELECT DISTINCT c.id FROM ai_chats c
+                JOIN ai_messages m ON m.chat_id = c.id
+                WHERE c.workspace_id = ? AND ({chat_clause})
+                """,
+                (subject.workspace_id, *chat_params),
+            ).fetchall()
+            chat_ids = tuple(str(row["id"]) for row in rows)
+
         counts = {
             "contacts": len(contact_ids),
             "discovery_candidates": len(candidate_ids),
             "research_entities": len(entity_ids),
             "sales_leads": len(sales_ids),
+            "ai_chats": len(chat_ids),
         }
         with self.store.transaction(immediate=True) as conn:
             if contact_ids:
@@ -369,6 +482,17 @@ class OutreachPrivacyAdapter:
                     f"DELETE FROM sales_leads WHERE workspace_id = ? AND id IN ({_placeholders(sales_ids)})",
                     (subject.workspace_id, *sales_ids),
                 )
+            if chat_ids:
+                conn.execute(
+                    f"DELETE FROM ai_chats WHERE workspace_id = ? AND id IN ({_placeholders(chat_ids)})",
+                    (subject.workspace_id, *chat_ids),
+                )
+            for table, (clause, params, workspace_sql, workspace_params) in direct_matches.items():
+                cursor = conn.execute(
+                    f"DELETE FROM {table} WHERE {workspace_sql}({clause})",
+                    (*workspace_params, *params),
+                )
+                counts[table] = int(cursor.rowcount or 0)
         return counts
 
 

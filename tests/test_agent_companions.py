@@ -294,3 +294,70 @@ def test_companion_api_is_authenticated_persistent_and_memory_scoped(tmp_path):
             headers=headers,
         )
         assert refused.status_code == 400
+
+
+def test_backup_restore_reopens_companion_and_tool_store(tmp_path):
+    token = "r" * 40
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        host="127.0.0.1",
+        api_token=token,
+        allowed_hosts=("testserver",),
+    )
+    headers = {"X-Offsetx-Token": token}
+    passphrase = "restore-companion-test-passphrase"
+    with TestClient(create_app(settings)) as client:
+        created = client.post(
+            "/api/v1/companions",
+            json={"name": "Restored", "instructions": "Survive the backup."},
+            headers=headers,
+        )
+        assert created.status_code == 201
+        companion_id = created.json()["id"]
+
+        backup = client.post(
+            "/api/v1/backups/export",
+            json={"passphrase": passphrase},
+            headers=headers,
+        )
+        assert backup.status_code == 200
+
+        deleted = client.delete(
+            f"/api/v1/companions/{companion_id}", headers=headers
+        )
+        assert deleted.status_code == 200
+        assert client.get(
+            f"/api/v1/companions/{companion_id}", headers=headers
+        ).status_code == 404
+
+        restored = client.post(
+            "/api/v1/backups/restore",
+            files={
+                "file": (
+                    "backup.oxbackup",
+                    backup.content,
+                    "application/octet-stream",
+                )
+            },
+            data={"passphrase": passphrase},
+            headers=headers,
+        )
+        assert restored.status_code == 200
+
+        profile = client.get(
+            f"/api/v1/companions/{companion_id}", headers=headers
+        )
+        assert profile.status_code == 200
+        assert profile.json()["name"] == "Restored"
+
+        # The post-restore registry is live, not a stale connection to the old DB.
+        context = client.post(
+            f"/api/v1/companions/{companion_id}/context",
+            json={},
+            headers=headers,
+        )
+        assert context.status_code == 200

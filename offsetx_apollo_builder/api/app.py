@@ -997,6 +997,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         automation = request.app.state.automation
         await automation.stop()
         current_engine = request.app.state.engine
+        request.app.state.privacy.close()
         current_engine.close()
         try:
             for suffix in ("-wal", "-shm"):
@@ -1012,6 +1013,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 template_counter=request.app.state.ai_context,
                 mail_archive=request.app.state.ai_recall,
             )
+            request.app.state.privacy = PrivacyService.for_local(
+                request.app.state.engine.store,
+                data_dir=settings.data_dir,
+                ai_context=request.app.state.ai_context,
+                ai_recall=request.app.state.ai_recall,
+                ai_egress=request.app.state.ai_egress_log,
+            )
             return result
         finally:
             if getattr(request.app.state, "engine", None) is current_engine:
@@ -1019,6 +1027,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     settings.database_path,
                     template_counter=request.app.state.ai_context,
                     mail_archive=request.app.state.ai_recall,
+                )
+                request.app.state.privacy = PrivacyService.for_local(
+                    request.app.state.engine.store,
+                    data_dir=settings.data_dir,
+                    ai_context=request.app.state.ai_context,
+                    ai_recall=request.app.state.ai_recall,
+                    ai_egress=request.app.state.ai_egress_log,
                 )
             await automation.start()
             request.app.state.maintenance_lock.release()

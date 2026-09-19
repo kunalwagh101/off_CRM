@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from .. import __version__
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
+from ..competitor_teardown import CompetitorTeardownError, analyse_public_post
 from ..distribution.automation import ContentAutomationService
 from ..distribution.pacing import decide as pacing_decide
 from ..distribution.pacing import platform_ceiling as pacing_ceiling
@@ -1295,6 +1296,38 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "beats": report.beats,
             "notes": report.notes,
             "direction": direction.to_dict(),
+        }
+
+    @app.post(
+        f"{API_PREFIX}/campaigns/{campaign_id}/video-projects/competitor-teardown",
+        status_code=201,
+    )
+    def competitor_teardown_video_project(
+        campaign_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Public structural facts -> declared recipe -> our material -> review queue."""
+        try:
+            teardown = analyse_public_post(dict(body.get("facts") or {}))
+        except CompetitorTeardownError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        state, report = _video(request).assemble_from_competitor_teardown(
+            campaign_id,
+            teardown,
+            name=str(body.get("name") or ""),
+            asset_ids=list(body["asset_ids"]) if body.get("asset_ids") is not None else None,
+            media_ids=list(body["media_ids"]) if body.get("media_ids") is not None else None,
+            music_id=str(body.get("music_id") or ""),
+            voice_id=str(body.get("voice_id") or ""),
+            preset=str(body.get("preset") or "vertical"),
+            fps=str(body.get("fps") or "30"),
+            seed=int(body.get("seed") or 0),
+        )
+        return {
+            **state.to_dict(),
+            "beats": report.beats,
+            "notes": report.notes,
+            "teardown": teardown.to_dict(),
         }
 
     @app.get(f"{API_PREFIX}/video/effects")

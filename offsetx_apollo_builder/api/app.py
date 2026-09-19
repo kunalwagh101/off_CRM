@@ -1299,7 +1299,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(
-        f"{API_PREFIX}/campaigns/{campaign_id}/video-projects/competitor-teardown",
+        f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects/competitor-teardown",
         status_code=201,
     )
     def competitor_teardown_video_project(

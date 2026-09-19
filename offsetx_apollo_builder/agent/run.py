@@ -709,10 +709,9 @@ class AgentRun:
         latency_ceiling = _validate_latency_ceiling(latency_ceiling_ms)
         schema = coerce_result_schema(result_schema)
         try:
-            if resume_from is None:
-                self.plan.ensure(cleaned_goal)
-            else:
-                self.plan.read()
+            # Also creates the plan for a legacy trace being resumed for the
+            # first time after S-02.02.02. Existing owner edits are never overwritten.
+            self.plan.ensure(cleaned_goal)
         except PlanError as exc:
             raise RunRefused(str(exc)) from exc
         # Attached for the length of this run and put back afterwards, so a

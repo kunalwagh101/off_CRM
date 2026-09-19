@@ -11,8 +11,7 @@ An item may be pulled only when **all** of these hold:
 
 - [ ] Acceptance criteria are written as Given/When/Then and each one is
       machine-testable. "Works well" is not an acceptance criterion.
-- [ ] Every upstream dependency is `DONE`, or the dependency is named and the
-      item sits in `BLOCKED` instead.
+- [ ] Every upstream dependency is `DONE`, **unless the owner explicitly authorises build-ahead because the upstream implementation is code-complete in `IN_REVIEW` and only verification is deferred.** A build-ahead story may be implemented and moved to `IN_REVIEW`, but it may not enter `DONE` until every declared upstream dependency is `DONE`. Without that explicit owner instruction, the normal DONE-or-BLOCKED rule applies.
 - [ ] The data and contracts it touches are known — schema, endpoint shape,
       file format. Not "we will see when we get there".
 - [ ] **No open question is filed against it.** An item with an unanswered

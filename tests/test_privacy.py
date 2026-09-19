@@ -413,3 +413,84 @@ def test_privacy_api_is_authenticated_and_requires_preview_confirmation(tmp_path
         assert deleted.status_code == 200
         assert deleted.json()["complete"] is True
         assert store.get_contact(contact_id) is None
+
+
+def test_csv_queue_rows_and_residual_metadata_are_removed(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    export_dir = tmp_path / "exports"
+    (data_dir / "poi_file_queue" / "inbox").mkdir(parents=True)
+    export_dir.mkdir()
+
+    queue = data_dir / "poi_file_queue" / "inbox" / "people.csv"
+    queue.write_text(
+        "name,email,url\nAlice,alice@example.com,https://example.com/alice\n"
+        "Bob,bob@example.com,https://example.com/bob\n",
+        encoding="utf-8",
+    )
+    exported = export_dir / "contacts.csv"
+    exported.write_text(
+        "email,status\nalice@example.com,new\nbob@example.com,new\n",
+        encoding="utf-8",
+    )
+
+    campaign = store.create_campaign(name="Residual privacy", daily_send_limit=10)
+    run_id = store.create_discovery_run(
+        campaign_id=campaign,
+        seed_urls=["https://example.com/alice"],
+        allowed_domains=["example.com"],
+        category="other",
+        route="other",
+        max_pages=1,
+        max_depth=0,
+        obey_robots=True,
+        objective_prompt="research alice@example.com",
+        plan={"source": "https://example.com/alice"},
+    )
+    store.add_event(
+        campaign,
+        "privacy_fixture",
+        {"subject": "alice@example.com", "keep": "operational history"},
+    )
+    store.save_idempotency(
+        "privacy-fixture",
+        "one",
+        {"email": "alice@example.com"},
+    )
+
+    service = PrivacyService.for_local(
+        store, data_dir=data_dir, export_dir=export_dir
+    )
+    try:
+        subject = _subject("alice@example.com", "https://example.com/alice")
+        access = service.access(subject)
+        stores = {item["store"]: item for item in access["stores"]}
+        assert stores["structured_exports"]["count"] == 2
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+
+        assert "alice@example.com" not in queue.read_text(encoding="utf-8-sig")
+        assert "bob@example.com" in queue.read_text(encoding="utf-8-sig")
+        assert "alice@example.com" not in exported.read_text(encoding="utf-8-sig")
+        assert "bob@example.com" in exported.read_text(encoding="utf-8-sig")
+
+        run = store.connection.execute(
+            "SELECT objective_prompt, seed_urls_json, plan_json FROM discovery_runs WHERE id = ?",
+            (run_id,),
+        ).fetchone()
+        assert "alice@example.com" not in str(dict(run))
+        assert "https://example.com/alice" not in str(dict(run))
+        event = store.connection.execute(
+            "SELECT payload_json FROM campaign_events WHERE event_type = 'privacy_fixture'"
+        ).fetchone()
+        assert "alice@example.com" not in str(event["payload_json"])
+        assert store.connection.execute(
+            "SELECT COUNT(*) AS n FROM idempotency_records WHERE scope = 'privacy-fixture'"
+        ).fetchone()["n"] == 0
+    finally:
+        service.close()
+        store.close()

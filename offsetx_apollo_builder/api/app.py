@@ -47,6 +47,12 @@ from ..video.timeline import (
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
+from ..privacy import (
+    DELETE_CONFIRMATION,
+    PrivacyError,
+    PrivacyService,
+    SubjectIdentity,
+)
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
 from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
@@ -202,6 +208,10 @@ def _discovery(request: Request) -> DiscoveryService:
         data_dir=settings.data_dir,
         fetcher_factory=getattr(request.app.state, "discovery_fetcher_factory", None),
     )
+
+
+def _privacy(request: Request) -> PrivacyService:
+    return request.app.state.privacy
 
 
 def _mail_provider(settings: AppSettings, mode: str, confirmation: str = "") -> Any:
@@ -406,6 +416,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolve_database_target(default=resolved.data_dir / "video.db"),
             renders_dir=resolved.data_dir / "video_renders",
         )
+        app.state.privacy = PrivacyService.for_local(
+            app.state.engine.store,
+            data_dir=resolved.data_dir,
+            ai_context=app.state.ai_context,
+            ai_recall=app.state.ai_recall,
+            ai_egress=app.state.ai_egress_log,
+        )
         app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
@@ -442,6 +459,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         finally:
             await app.state.automation.stop()
             await app.state.content_automation.stop()
+            app.state.privacy.close()
             app.state.engine.close()
             app.state.ai_egress_log.close()
             app.state.image_store.close()
@@ -3047,6 +3065,50 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         run_id: str, body: DiscoverySelection, request: Request
     ) -> dict[str, Any]:
         return _discovery(request).queue_for_apollo(run_id, body.candidate_ids)
+
+    @app.post(f"{API_PREFIX}/privacy/subject-access")
+    def privacy_subject_access(
+        body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Inventory one verified subject across every registered personal-data store."""
+        try:
+            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            return _privacy(request).access(subject)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/privacy/deletion-preview", status_code=201)
+    def privacy_deletion_preview(
+        body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        """Create the exact inventory that a later confirmed deletion will execute."""
+        try:
+            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            return _privacy(request).preview(subject)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/privacy/deletions/{{request_id}}")
+    def privacy_delete_subject(
+        request_id: str,
+        body: dict[str, Any],
+        request: Request,
+    ) -> dict[str, Any]:
+        """Execute/retry one previewed deletion. Never invent confirmation."""
+        try:
+            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            return _privacy(request).delete(
+                request_id,
+                subject,
+                confirmation=str(body.get("confirmation") or ""),
+            )
+        except PrivacyError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get(f"{API_PREFIX}/privacy/deletion-confirmation")
+    def privacy_deletion_confirmation() -> dict[str, str]:
+        """Expose the destructive confirmation phrase without weakening the gate."""
+        return {"confirmation": DELETE_CONFIRMATION}
 
     @app.get(f"{API_PREFIX}/research/graph")
     def research_graph(

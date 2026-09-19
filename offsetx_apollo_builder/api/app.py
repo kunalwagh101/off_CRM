@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..agent.companions import CompanionError, CompanionRegistry
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..competitor_teardown import CompetitorTeardownError, analyse_public_post
@@ -98,6 +99,7 @@ from ..ai import (
     ProviderRegistry,
     QuotaTracker,
     RegistryError,
+    ToolRegistry,
 )
 from ..ai.context import ContextLayer
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
@@ -348,6 +350,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             template_counter=app.state.ai_context,
             mail_archive=app.state.ai_recall,
         )
+        app.state.ai_tools = ToolRegistry(resolved.data_dir / "ai_tools.db")
+        app.state.companions = CompanionRegistry(
+            resolved.data_dir,
+            tools=app.state.ai_tools,
+            memory_backend=app.state.engine.store,
+        )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
         app.state.campaign_locks = CampaignLocks()
@@ -474,6 +482,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             await app.state.automation.stop()
             await app.state.content_automation.stop()
             app.state.privacy.close()
+            app.state.ai_tools.close()
             app.state.engine.close()
             app.state.ai_egress_log.close()
             app.state.image_store.close()
@@ -899,6 +908,121 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
+    @app.get(f"{API_PREFIX}/companions")
+    def list_companions(request: Request) -> dict[str, Any]:
+        workspace_id = _workspace_id(request)
+        return {
+            "items": [
+                item.to_dict()
+                for item in request.app.state.companions.list(
+                    workspace_id=workspace_id
+                )
+            ]
+        }
+
+    @app.post(f"{API_PREFIX}/companions", status_code=201)
+    def create_companion(body: dict[str, Any], request: Request) -> dict[str, Any]:
+        try:
+            profile = request.app.state.companions.create(
+                workspace_id=_workspace_id(request),
+                name=str(body.get("name") or ""),
+                instructions=str(body.get("instructions") or ""),
+                granted_tool_ids=body.get("granted_tool_ids") or (),
+                memory_scope=str(body.get("memory_scope") or ""),
+            )
+        except CompanionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return profile.to_dict()
+
+    @app.get(f"{API_PREFIX}/companions/{{companion_id}}")
+    def get_companion(companion_id: str, request: Request) -> dict[str, Any]:
+        profile = request.app.state.companions.get(
+            companion_id, workspace_id=_workspace_id(request)
+        )
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Companion not found")
+        return profile.to_dict()
+
+    @app.patch(f"{API_PREFIX}/companions/{{companion_id}}")
+    def update_companion(
+        companion_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        try:
+            profile = request.app.state.companions.update(
+                companion_id,
+                workspace_id=_workspace_id(request),
+                name=body["name"] if "name" in body else None,
+                instructions=body["instructions"] if "instructions" in body else None,
+                granted_tool_ids=(
+                    body["granted_tool_ids"]
+                    if "granted_tool_ids" in body
+                    else None
+                ),
+                memory_scope=(
+                    body["memory_scope"] if "memory_scope" in body else None
+                ),
+                enabled=body["enabled"] if "enabled" in body else None,
+            )
+        except CompanionError as exc:
+            status = 404 if "does not exist" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        return profile.to_dict()
+
+    @app.delete(f"{API_PREFIX}/companions/{{companion_id}}")
+    def delete_companion(companion_id: str, request: Request) -> dict[str, str]:
+        deleted = request.app.state.companions.delete(
+            companion_id, workspace_id=_workspace_id(request)
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Companion not found")
+        return {"status": "deleted"}
+
+    @app.post(f"{API_PREFIX}/companions/{{companion_id}}/context")
+    def companion_context(
+        companion_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, Any]:
+        limit = body.get("memory_limit", 8)
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise HTTPException(
+                status_code=400, detail="memory_limit must be an integer"
+            )
+        try:
+            return request.app.state.companions.start(
+                companion_id,
+                workspace_id=_workspace_id(request),
+                memory_query=str(body.get("memory_query") or ""),
+                memory_limit=limit,
+            ).to_dict()
+        except CompanionError as exc:
+            status = 404 if "does not exist" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/companions/{{companion_id}}/memory", status_code=201)
+    def companion_memory(
+        companion_id: str, body: dict[str, Any], request: Request
+    ) -> dict[str, str]:
+        approved = body.get("approved", False)
+        if not isinstance(approved, bool):
+            raise HTTPException(status_code=400, detail="approved must be true or false")
+        tags = body.get("tags") or []
+        if not isinstance(tags, list):
+            raise HTTPException(status_code=400, detail="tags must be a list")
+        try:
+            memory_id = request.app.state.companions.remember(
+                companion_id,
+                workspace_id=_workspace_id(request),
+                content=str(body.get("content") or ""),
+                kind=str(body.get("kind") or "companion_fact"),
+                tags=[str(item) for item in tags],
+                approved=approved,
+            )
+        except CompanionError as exc:
+            status = 404 if "does not exist" in str(exc) else 400
+            raise HTTPException(status_code=status, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"id": memory_id}
+
     @app.get(f"{API_PREFIX}/memory/stats")
     def memory_stats(request: Request) -> dict[str, Any]:
         return _engine(request).store.memory_stats()
@@ -1034,6 +1158,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 ai_recall=request.app.state.ai_recall,
                 ai_egress=request.app.state.ai_egress_log,
                 export_dir=settings.export_dir,
+            )
+            request.app.state.companions.rebind_memory(
+                request.app.state.engine.store
             )
             return result
         finally:

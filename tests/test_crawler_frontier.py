@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+import threading
+import time
 
 import pytest
 
@@ -174,3 +176,65 @@ def test_frontier_never_admits_session_gated_platforms(tmp_path):
     assert seed in urls
     assert "https://example.com/about" in urls
     assert all("linkedin.com" not in url and "instagram.com" not in url for url in urls)
+
+
+def test_frontier_spaces_different_urls_on_same_host_across_crawler_processes(tmp_path):
+    path = tmp_path / "frontier.sqlite3"
+    policy = CrawlPolicy(
+        allowed_domains=("example.com",),
+        max_pages=1,
+        max_depth=0,
+        request_delay_seconds=0,
+    )
+    starts: list[float] = []
+    starts_lock = threading.Lock()
+
+    class PacedFetcher:
+        def __init__(self) -> None:
+            self.pacer = None
+
+        def set_host_pacer(self, pacer):
+            self.pacer = pacer
+
+        def fetch(self, url: str) -> ParsedPage:
+            assert self.pacer is not None
+            self.pacer("example.com", 0.08)
+            with starts_lock:
+                starts.append(time.monotonic())
+            return _page(url)
+
+    first = PublicWebCrawler(policy, PacedFetcher(), frontier_path=path)
+    second = PublicWebCrawler(policy, PacedFetcher(), frontier_path=path)
+    barrier = threading.Barrier(3)
+    errors: list[BaseException] = []
+
+    def run(crawler: PublicWebCrawler, seed: str) -> None:
+        try:
+            barrier.wait()
+            crawler.crawl([seed])
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(
+            target=run,
+            args=(first, "https://example.com/one"),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=run,
+            args=(second, "https://example.com/two"),
+            daemon=True,
+        ),
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert errors == []
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(starts) == 2
+    starts.sort()
+    assert starts[1] - starts[0] >= 0.06

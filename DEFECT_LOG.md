@@ -84,6 +84,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
 | D-51 | 2026-09-19 | bug | high | Separate crawler processes could claim different URLs on one host and bypass the shared crawl-delay clock | code fixed · `S-05.01.01`; executable evidence pending |
 | D-52 | 2026-09-19 | process | medium | TRACEABILITY.md disagreed with BOARD.md about S-05.01.01 and S-08.01.05 state | fixed during `S-05.01.01` review |
+| D-53 | 2026-09-20 | bug | medium | The first competitor-teardown API route escaped its path parameter incorrectly, so FastAPI would not bind campaign_id | fixed during `S-05.01.03` source review |
+| D-54 | 2026-09-20 | bug | high | The first privacy token matcher declared a two-character SQL LIKE escape, which SQLite would reject at runtime | fixed during `S-06.02.04` portability review |
+| D-55 | 2026-09-20 | gap | high | Restoring a backup replaces the CRM engine, but the new privacy service would still point at the old closed store | fixed during `S-06.02.04` lifecycle review |
 
 ---
 

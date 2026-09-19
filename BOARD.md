@@ -27,7 +27,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation
 - S-04.01.04 · The five roles, wired to what already exists
-- S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-06.01.02 · Three-level permissions
 - S-06.01.05 · Deployment, monitoring and rollback
 - S-06.02.04 · Data deletion and subject access
@@ -66,10 +65,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-05.01.02 · Extraction packs as declared data
+- S-05.01.03 · Take a competitor post apart and rebuild the shape
 
 ## IN_REVIEW
 
+- S-05.01.02 · Extraction packs as declared data
 - S-05.01.01 · A crawler with a frontier, not a loop
 
 _nothing waiting_

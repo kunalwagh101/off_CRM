@@ -1048,13 +1048,20 @@ class PrivacyService:
         *,
         adapters: Iterable[PrivacyAdapter],
         requests: PrivacyRequestStore,
+        owned_resources: Iterable[Any] = (),
     ) -> None:
         materialized = tuple(adapters)
         names = [adapter.name for adapter in materialized]
         if len(names) != len(set(names)):
             raise PrivacyError("Privacy adapter names must be unique")
+        if "outreach_crm" in names and names[-1] != "outreach_crm":
+            raise PrivacyError(
+                "outreach_crm must be the final privacy adapter so retry identifiers "
+                "survive every auxiliary-store cleanup"
+            )
         self.adapters = materialized
         self.requests = requests
+        self._owned_resources = tuple(owned_resources)
 
     @classmethod
     def for_local(
@@ -1062,19 +1069,72 @@ class PrivacyService:
         outreach: OutreachStore,
         *,
         data_dir: Path | str,
+        ai_context: ContextLayer | None = None,
+        ai_recall: SentMailIndex | None = None,
+        ai_egress: EgressLog | None = None,
     ) -> "PrivacyService":
         root = Path(data_dir)
+        owned: list[Any] = []
+        if ai_context is None:
+            ai_context = ContextLayer(root / "ai_context.db")
+            owned.append(ai_context)
+        if ai_recall is None:
+            ai_recall = SentMailIndex(root / "ai_recall.db")
+            owned.append(ai_recall)
+        if ai_egress is None:
+            ai_egress = EgressLog(root / "ai_egress.db")
+            owned.append(ai_egress)
+        artifacts = SubjectArtifactPrivacyAdapter(
+            root, root / "subject_artifacts.sqlite3"
+        )
+        owned.append(artifacts)
+        adapters: tuple[PrivacyAdapter, ...] = (
+            SentMailPrivacyAdapter(ai_recall, outreach),
+            AIContextPrivacyAdapter(ai_context),
+            AIEgressPrivacyAdapter(ai_egress),
+            artifacts,
+            CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
+            TracePrivacyAdapter(root),
+            # Deliberately last. Once CRM ids are gone, redacted recall rows
+            # cannot be joined back to the person for a later retry.
+            OutreachPrivacyAdapter(outreach),
+        )
+        names = tuple(adapter.name for adapter in adapters)
+        if names != REQUIRED_PRIVACY_STORES:
+            raise PrivacyError(
+                "Privacy store registry drifted from REQUIRED_PRIVACY_STORES"
+            )
         return cls(
-            adapters=(
-                OutreachPrivacyAdapter(outreach),
-                CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
-                TracePrivacyAdapter(root),
-            ),
+            adapters=adapters,
             requests=PrivacyRequestStore(root / "privacy_requests.sqlite3"),
+            owned_resources=owned,
         )
 
     def close(self) -> None:
         self.requests.close()
+        for resource in reversed(self._owned_resources):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
+
+    def register_artifact(
+        self,
+        subject: SubjectIdentity,
+        path: Path | str,
+        *,
+        record_class: str,
+    ) -> str:
+        adapter = next(
+            (
+                item
+                for item in self.adapters
+                if isinstance(item, SubjectArtifactPrivacyAdapter)
+            ),
+            None,
+        )
+        if adapter is None:
+            raise PrivacyError("Subject artifact registry is unavailable")
+        return adapter.register(subject, path, record_class=record_class)
 
     def access(self, subject: SubjectIdentity) -> dict[str, Any]:
         stores: list[dict[str, Any]] = []
@@ -1122,6 +1182,19 @@ class PrivacyService:
             previous = prior.get(store_name)
             if previous and previous["status"] == "success":
                 continue
+
+            # CRM deletion is the irreversible identity anchor. If an auxiliary
+            # store failed, keep those CRM ids intact so the exact same preview
+            # can be retried safely instead of losing its join keys.
+            if store_name == "outreach_crm" and failures:
+                self.requests.set_result(
+                    request_id,
+                    store_name,
+                    status="pending",
+                    error="waiting for auxiliary privacy stores to succeed",
+                )
+                continue
+
             adapter = adapter_by_name.get(store_name)
             if adapter is None:
                 self.requests.set_result(
@@ -1139,7 +1212,7 @@ class PrivacyService:
                     request_id,
                     store_name,
                     status="failed",
-                    error=str(exc),
+                    error=_scrub_subject(exc, subject),
                 )
                 failures.append(store_name)
             else:

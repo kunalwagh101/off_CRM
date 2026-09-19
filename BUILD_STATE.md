@@ -7,9 +7,9 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
-Branch: `main`
-Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
+Last updated: 2026-09-20
+Branch: `feature/next-three-implementation`
+Tests: the three new focused suites are authored but **not yet claimed passing**. This ChatGPT runtime cannot resolve github.com for a clean local clone, and current remote Actions infrastructure has been failing before workflow step 1. Historical pass counts below remain historical evidence only.
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm
 package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
@@ -31,21 +31,36 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
-## 2026-09-19 — crawler review and next-three refinement
+## 2026-09-20 — next three implementations complete, verification deferred
 
-`S-05.01.01` is still IN_REVIEW. The durable frontier implementation was
-reviewed beyond its original same-URL lease test; that review found D-51:
-different crawler processes could hit different URLs on one host while keeping
-separate crawl-delay clocks. The frontier now owns a transactional per-host
-request slot shared through SQLite, and a sixth focused test covers it.
+The owner explicitly authorised build-ahead (DD-22): implementation may
+continue across code-complete IN_REVIEW dependencies, but no downstream story
+may be called DONE ahead of its evidence/dependency chain.
 
-The code is not being promoted to DONE because the current GitHub Actions jobs
-fail before workflow step 1 and provide no executable test evidence.
+The requested batch is implemented and all three stories are IN_REVIEW:
 
-The next three candidates have been reverse-engineered and refined in the
-backlog, with architecture docs committed. They remain BACKLOG because their
-dependency gates have not opened. This is deliberate: refinement is allowed;
-coding a BACKLOG item is not.
+- **S-05.01.02 — extraction packs.** Validated repository-controlled JSON
+  declares domain, record selector and bounded text/attribute fields. It reuses
+  Scrapling and the existing URL/robots/SSRF path; no executable plugin or AI
+  extractor was introduced. Generic JSON-LD remains the fallback.
+- **S-05.01.03 — competitor teardown.** Normalized public structural/performance
+  facts map deterministically to an existing video recipe. Copied media/caption/
+  transcript fields are rejected. Projects use our own material and enter the
+  existing human review queue.
+- **S-06.02.04 — subject access/deletion.** Authenticated, workspace-bound access
+  and confirmed deletion use one eight-adapter inventory covering CRM/research/
+  delivery data, recall, AI context/egress, tagged artifacts, CSV queues/exports,
+  crawler state and trace runs. Partial failures stay partial and retry safely;
+  CRM identity rows delete last.
+
+Review found and fixed D-53 through D-58 before owner testing. Focused tests are
+in `tests/test_extraction_packs.py`, `tests/test_competitor_teardown.py` and
+`tests/test_privacy.py`.
+
+Do not promote these stories from IN_REVIEW until the dedicated verification
+pass runs the DEMO.md commands, the full regression and
+`uv run python scripts/verify_board.py`.
+
 
 ---
 

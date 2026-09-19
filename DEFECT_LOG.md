@@ -449,3 +449,24 @@ marketing homepage, a help article, a search results page.
 **Why it mattered.** This detector is allowed to stop a run. A detector that
 pauses on ordinary pages teaches the owner to ignore it, which is worse than not
 having one.
+
+### D-46 — Two crawler processes can outrun one host's crawl delay · 2026-09-19
+
+**What went wrong.** The durable frontier leases URLs, not hosts. That correctly
+prevents two workers from fetching the same URL, but two processes can still
+claim two different due URLs on the same host at the same time. The existing
+crawl-delay clock lives inside each fetcher process, so those two processes do
+not share it.
+
+**How it was found.** During the S-05.01.01 review, by tracing the full
+frontier → claim → fetch path instead of treating the same-URL lease test as
+proof of host-level politeness. `claim_due()` has no host pacing state, while
+`SafePublicFetcher.last_request_at` is process-local.
+
+**Why it matters.** S-05.01.01 explicitly promises that a host's robots.txt and
+crawl delay are honoured. A multi-process deployment could satisfy the current
+tests and still send requests closer together than the host asked for.
+
+**Status.** Open under S-05.01.01. The story remains IN_REVIEW. It must not move
+to DONE until the host-level pace is durable/shared, has a concurrency test that
+uses different URLs on the same host, and the repository evidence command runs.

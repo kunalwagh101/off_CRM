@@ -52,6 +52,8 @@ replace process-local JSON companion storage with transactional SQLite; register
 companion profile text with privacy deletion; and close/reconstruct tool and
 companion stores around backup restore.
 
+Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
+
 Verification remains deferred by owner instruction. Focused commands are
 recorded in DEMO.md and TRACEABILITY.md; do not promote these stories to DONE
 without executing them, full regression and the board verifier.

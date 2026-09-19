@@ -1176,6 +1176,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     ai_context=request.app.state.ai_context,
                     ai_recall=request.app.state.ai_recall,
                     ai_egress=request.app.state.ai_egress_log,
+                    export_dir=settings.export_dir,
+                )
+                request.app.state.companions.rebind_memory(
+                    request.app.state.engine.store
                 )
             await automation.start()
             request.app.state.maintenance_lock.release()

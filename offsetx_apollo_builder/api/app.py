@@ -1136,6 +1136,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         await automation.stop()
         current_engine = request.app.state.engine
         request.app.state.privacy.close()
+        request.app.state.ai_tools.close()
         current_engine.close()
         try:
             for suffix in ("-wal", "-shm"):
@@ -1151,6 +1152,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 template_counter=request.app.state.ai_context,
                 mail_archive=request.app.state.ai_recall,
             )
+            request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
+            request.app.state.companions = CompanionRegistry(
+                settings.data_dir,
+                tools=request.app.state.ai_tools,
+                memory_backend=request.app.state.engine.store,
+            )
             request.app.state.privacy = PrivacyService.for_local(
                 request.app.state.engine.store,
                 data_dir=settings.data_dir,
@@ -1158,9 +1165,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 ai_recall=request.app.state.ai_recall,
                 ai_egress=request.app.state.ai_egress_log,
                 export_dir=settings.export_dir,
-            )
-            request.app.state.companions.rebind_memory(
-                request.app.state.engine.store
             )
             return result
         finally:
@@ -1170,6 +1174,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     template_counter=request.app.state.ai_context,
                     mail_archive=request.app.state.ai_recall,
                 )
+                request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
+                request.app.state.companions = CompanionRegistry(
+                    settings.data_dir,
+                    tools=request.app.state.ai_tools,
+                    memory_backend=request.app.state.engine.store,
+                )
                 request.app.state.privacy = PrivacyService.for_local(
                     request.app.state.engine.store,
                     data_dir=settings.data_dir,
@@ -1177,9 +1187,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     ai_recall=request.app.state.ai_recall,
                     ai_egress=request.app.state.ai_egress_log,
                     export_dir=settings.export_dir,
-                )
-                request.app.state.companions.rebind_memory(
-                    request.app.state.engine.store
                 )
             await automation.start()
             request.app.state.maintenance_lock.release()

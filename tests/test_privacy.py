@@ -391,6 +391,13 @@ def test_privacy_api_is_authenticated_and_requires_preview_confirmation(tmp_path
         assert access.status_code == 200
         assert access.json()["total_records"] >= 1
 
+        cross_workspace = client.post(
+            "/api/v1/privacy/subject-access",
+            json={"subject": {"workspace_id": "other", "emails": ["alice@example.com"]}},
+            headers=headers,
+        )
+        assert cross_workspace.status_code == 403
+
         preview = client.post(
             "/api/v1/privacy/deletion-preview", json=payload, headers=headers
         )

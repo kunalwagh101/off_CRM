@@ -90,6 +90,11 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-56 | 2026-09-20 | bug | medium | Competitor teardown used Python truthiness, so the string `"false"` counted as true and could select the wrong recipe | fixed during `S-05.01.03` input review |
 | D-57 | 2026-09-20 | security | high | The first privacy API draft accepted a caller-supplied workspace id instead of binding deletion/access to the authenticated workspace | fixed during `S-06.02.04` authz review |
 | D-58 | 2026-09-20 | gap | high | The first privacy inventory missed residual discovery/audit JSON and personal rows in application-owned CSV queues/exports | fixed during `S-06.02.04` store-coverage review |
+| D-59 | 2026-09-20 | gap | medium | Reddit had a browser action budget but no identity or policy declaration, so one platform existed in one control and not the others | fixed · `S-03.02.05` single platform registry |
+| D-60 | 2026-09-20 | data-loss | high | The first companion persistence draft used process-local locking over JSON, so two server processes could overwrite each other's profile updates | fixed before review · `S-04.01.01` moved profiles into transactional SQLite |
+| D-61 | 2026-09-20 | bug | high | Backup-restore fallback could replace the CRM engine without rebinding companion memory, leaving companions pointed at a closed store | fixed during `S-04.01.01` lifecycle review |
+| D-62 | 2026-09-20 | gap | high | Adding persisted companion instructions created a new personal-data store that was not initially registered in subject deletion | fixed before review · companion profiles added to privacy inventory |
+| D-63 | 2026-09-20 | bug | medium | The backup-restore fallback rebuilt privacy without the configured export directory, so CSV export deletion coverage could silently shrink after a failed restore | fixed during second-batch lifecycle review |
 
 ---
 

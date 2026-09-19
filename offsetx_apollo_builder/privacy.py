@@ -28,12 +28,15 @@ from .outreach.store import OutreachStore
 DELETE_CONFIRMATION = "DELETE SUBJECT DATA"
 MAX_TRACE_BYTES = 10 * 1024 * 1024
 MAX_TRACE_FILES = 10_000
+MAX_STRUCTURED_FILES = 5_000
+MAX_STRUCTURED_FILE_BYTES = 25 * 1024 * 1024
 
 REQUIRED_PRIVACY_STORES = (
     "sent_mail_recall",
     "ai_context",
     "ai_egress",
     "subject_artifacts",
+    "structured_exports",
     "crawler_frontier",
     "browser_traces",
     "outreach_crm",
@@ -1008,6 +1011,115 @@ class SubjectArtifactPrivacyAdapter:
         return {"artifact_rows": len(rows), "artifact_files": deleted_files}
 
 
+class StructuredExportPrivacyAdapter:
+    """Exact-token cleanup for CSV exports/queues under application-owned roots.
+
+    CSVs are row stores too. A queue/export may contain several people, so the
+    whole file is not deleted: only rows containing a verified strong subject
+    identifier are removed and the file is atomically replaced.
+    """
+
+    name = "structured_exports"
+
+    def __init__(self, roots: Iterable[Path | str]) -> None:
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for value in roots:
+            root = Path(value)
+            try:
+                resolved = root.resolve()
+            except OSError:
+                continue
+            key = str(resolved)
+            if key not in seen:
+                seen.add(key)
+                unique.append(resolved)
+        self.roots = tuple(unique)
+
+    def _files(self) -> list[tuple[Path, Path]]:
+        found: list[tuple[Path, Path]] = []
+        for root in self.roots:
+            if not root.exists() or root.is_symlink():
+                continue
+            for path in root.rglob("*.csv"):
+                if len(found) >= MAX_STRUCTURED_FILES:
+                    raise PrivacyError("Structured-export inventory exceeded the safe file limit")
+                try:
+                    resolved = path.resolve()
+                    size = path.stat().st_size
+                except OSError:
+                    continue
+                if path.is_symlink() or root not in resolved.parents:
+                    continue
+                if size > MAX_STRUCTURED_FILE_BYTES:
+                    raise PrivacyError(f"Structured export exceeds the safe scan size: {resolved}")
+                found.append((root, resolved))
+        return found
+
+    @staticmethod
+    def _row_matches(row: list[str], subject: SubjectIdentity) -> bool:
+        tokens = tuple(token.lower() for token in subject.tokens if token)
+        return any(token in str(cell).lower() for cell in row for token in tokens)
+
+    @staticmethod
+    def _read(path: Path) -> list[list[str]]:
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                return [list(row) for row in csv.reader(handle)]
+        except (OSError, UnicodeError, csv.Error) as exc:
+            raise PrivacyError(f"Could not safely read structured export {path}") from exc
+
+    def _matches(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        matches: list[dict[str, Any]] = []
+        for root, path in self._files():
+            rows = self._read(path)
+            for index, row in enumerate(rows, start=1):
+                if self._row_matches(row, subject):
+                    matches.append(
+                        {
+                            "root": str(root),
+                            "path": str(path.relative_to(root)),
+                            "row": index,
+                            "values": row,
+                        }
+                    )
+        return matches
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._matches(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "csv_row",
+                "verified strong identifier in application-owned CSV row",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows_deleted = 0
+        files_changed = 0
+        for root, path in self._files():
+            rows = self._read(path)
+            kept = [row for row in rows if not self._row_matches(row, subject)]
+            removed = len(rows) - len(kept)
+            if not removed:
+                continue
+            temporary = path.with_name(f".{path.name}.privacy-{uuid.uuid4().hex}.tmp")
+            try:
+                with temporary.open("w", encoding="utf-8-sig", newline="") as handle:
+                    csv.writer(handle).writerows(kept)
+                    handle.flush()
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+            rows_deleted += removed
+            files_changed += 1
+        return {"csv_rows": rows_deleted, "csv_files": files_changed}
+
+
 class PrivacyRequestStore:
     """Non-personal request/receipt ledger used for safe retry."""
 
@@ -1152,6 +1264,7 @@ class PrivacyService:
         ai_context: ContextLayer | None = None,
         ai_recall: SentMailIndex | None = None,
         ai_egress: EgressLog | None = None,
+        export_dir: Path | str | None = None,
     ) -> "PrivacyService":
         root = Path(data_dir)
         owned: list[Any] = []
@@ -1173,6 +1286,9 @@ class PrivacyService:
             AIContextPrivacyAdapter(ai_context),
             AIEgressPrivacyAdapter(ai_egress),
             artifacts,
+            StructuredExportPrivacyAdapter(
+                (root, Path(export_dir)) if export_dir is not None else (root,)
+            ),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),
             # Deliberately last. Once CRM ids are gone, redacted recall rows

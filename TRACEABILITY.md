@@ -53,7 +53,7 @@ the code exists and holds no stub).
 |---|---|---|---|---|
 | R-38 | S-05.01.02 | 4 | `extraction_packs.py` + config registry + `tests/test_extraction_packs.py` committed and wired into existing Scrapling discovery path | `uv run pytest tests/test_extraction_packs.py tests/test_discovery.py -q`, full regression, owner review and board verifier |
 | R-39 | S-05.01.03 | 4 | deterministic structure-only analyser + existing recipe/assembly/review wiring + `tests/test_competitor_teardown.py` committed | `uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tests/test_video_review.py -q`, full regression, owner review and verifier |
-| R-50 | S-06.02.04 | 3 | authenticated subject-access/deletion API + seven-store inventory + retry-safe deletion + `tests/test_privacy.py` committed | `uv run pytest tests/test_privacy.py tests/test_api_auth.py -q`, full regression, owner privacy review and verifier |
+| R-50 | S-06.02.04 | 3 | authenticated subject-access/deletion API + eight-store inventory + retry-safe deletion + `tests/test_privacy.py` committed | `uv run pytest tests/test_privacy.py tests/test_api_auth.py -q`, full regression, owner privacy review and verifier |
 | R-36, R-37, R-40 | S-05.01.01 | 3 | durable frontier + shared host pacing + 6 focused acceptance/concurrency cases committed | `uv run pytest tests/test_crawler_frontier.py -q`, full regression, and board verifier must execute; current GitHub Actions jobs fail before step 1 |
 
 ## Ready — decision and dependencies resolved, not yet pulled

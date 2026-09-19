@@ -31,6 +31,7 @@ from urllib.robotparser import RobotFileParser
 import requests
 
 from .crawler_frontier import CrawlFrontier
+from .extraction_packs import ExtractionPackRegistry, ExtractionRule
 from .dedupe import (
     ExclusionSet,
     build_exclusion_set,
@@ -309,9 +310,13 @@ def _person_from_jsonld(item: dict[str, Any], page_title: str) -> DiscoveredPers
 
 
 class ScraplingPageParser:
-    """Parse bounded HTML with Scrapling's selector engine, without its stealth fetchers."""
+    """Parse bounded HTML with generic JSON-LD plus optional declarative packs."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        pack_registry: ExtractionPackRegistry | None = None,
+    ) -> None:
         try:
             from scrapling.parser import Selector
         except ImportError as exc:  # pragma: no cover - deployment configuration guard
@@ -319,6 +324,99 @@ class ScraplingPageParser:
                 "Scrapling is not installed. Install the project dependencies and retry."
             ) from exc
         self.selector_class = Selector
+        self.pack_registry = pack_registry or ExtractionPackRegistry.empty()
+
+    @staticmethod
+    def _extract_rule(record: Any, rule: ExtractionRule) -> str:
+        if rule.mode == "attr":
+            value = record.css(f"{rule.selector}::attr({rule.attribute})").get()
+            return clean_text(value)
+        matches = record.css(rule.selector)
+        if not matches:
+            return ""
+        return clean_text(str(matches[0].get_all_text(separator=" ", strip=True)))
+
+    def _people_from_pack(
+        self,
+        page: Any,
+        *,
+        url: str,
+        page_title: str,
+    ) -> list[DiscoveredPerson] | None:
+        pack = self.pack_registry.match(url)
+        if pack is None:
+            return None
+        people: list[DiscoveredPerson] = []
+        for record in page.css(pack.record_selector):
+            values = {
+                name: self._extract_rule(record, rule)
+                for name, rule in pack.fields.items()
+            }
+            full_name = values.get("full_name", "")
+            first_name = values.get("first_name", "")
+            last_name = values.get("last_name", "")
+            if not full_name:
+                full_name = f"{first_name} {last_name}".strip()
+            if not full_name:
+                continue
+            if not first_name:
+                parts = full_name.split()
+                first_name = parts[0]
+                last_name = " ".join(parts[1:])
+
+            company_url = values.get("company_url", "")
+            if company_url:
+                company_url = canonical_url(urljoin(url, company_url))
+            company_domain = normalize_domain(company_url) if company_url else ""
+
+            linkedin_url = values.get("linkedin_url", "")
+            if linkedin_url:
+                linkedin_url = canonical_url(urljoin(url, linkedin_url))
+            email = values.get("email", "").removeprefix("mailto:").strip().lower()
+            title = values.get("title", "")
+            company = values.get("company", "")
+            country = values.get("country", "")
+            public_hook = values.get("public_hook", "")[:800]
+            if not public_hook and title and company:
+                public_hook = f"{full_name} is publicly listed as {title} at {company}."
+            elif not public_hook and page_title:
+                public_hook = f"{full_name} is publicly listed on {page_title}."
+
+            social_handles = normalized_social_handles(
+                [linkedin_url] if linkedin_url else []
+            )
+            signals = sum(
+                bool(value)
+                for value in (title, company, linkedin_url, email, public_hook)
+            )
+            confidence = min(0.95, 0.50 + signals * 0.08)
+            people.append(
+                DiscoveredPerson(
+                    full_name=full_name,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                    company=company,
+                    company_domain=company_domain,
+                    title=title,
+                    country=country,
+                    linkedin_url=linkedin_url,
+                    public_hook=public_hook,
+                    confidence=round(confidence, 2),
+                    social_handles=social_handles,
+                    evidence={
+                        "format": "extraction_pack",
+                        "pack_id": pack.id,
+                        "fields": {
+                            key: value
+                            for key, value in values.items()
+                            if key != "email" and value
+                        },
+                        "social_handles": social_handles,
+                    },
+                )
+            )
+        return people
 
     def parse(self, content: bytes, url: str) -> ParsedPage:
         page = self.selector_class(
@@ -340,16 +438,20 @@ class ScraplingPageParser:
             if joined not in links:
                 links.append(joined)
 
+        packed = self._people_from_pack(page, url=url, page_title=title)
         people: list[DiscoveredPerson] = []
-        for raw in page.css('script[type="application/ld+json"]::text').getall():
-            try:
-                payload = json.loads(str(raw).strip())
-            except (TypeError, ValueError, json.JSONDecodeError):
-                continue
-            for item in _iter_json_objects(payload):
-                person = _person_from_jsonld(item, title)
-                if person:
-                    people.append(person)
+        if packed is not None:
+            people = packed
+        else:
+            for raw in page.css('script[type="application/ld+json"]::text').getall():
+                try:
+                    payload = json.loads(str(raw).strip())
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    continue
+                for item in _iter_json_objects(payload):
+                    person = _person_from_jsonld(item, title)
+                    if person:
+                        people.append(person)
         return ParsedPage(
             url=url,
             title=title,
@@ -951,15 +1053,21 @@ class DiscoveryService:
         self.project_root = Path(project_root)
         self.data_dir = Path(data_dir)
         self.fetcher_factory = fetcher_factory
+        self.extraction_packs = ExtractionPackRegistry.from_file(
+            self.project_root / "config" / "extraction_packs.json",
+            missing_ok=True,
+        )
 
     def _fetcher(self, policy: CrawlPolicy, engine: str) -> PageFetcher:
         if self.fetcher_factory is not None:
             return self.fetcher_factory(policy)
+        parser = ScraplingPageParser(pack_registry=self.extraction_packs)
         if engine == "safe_http":
-            return SafePublicFetcher(policy)
+            return SafePublicFetcher(policy, parser=parser)
         if engine == "crawl4ai_public_js":
             return Crawl4AIPageFetcher(
                 policy,
+                parser=parser,
                 base_directory=self.data_dir / "crawler_runtime",
             )
         raise ValueError("Discovery engine must be safe_http or crawl4ai_public_js")

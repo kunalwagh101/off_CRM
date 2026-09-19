@@ -58,6 +58,15 @@ the code exists and holds no stub).
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
 | R-75 | S-03.02.05 | 2 | — | — |
+| R-18 | S-02.02.02 | 2 | — | — |
+| R-31, R-35 | S-04.01.01 | 1 | — | — |
+| R-41, R-42 | S-06.01.01 | 1 | — | — |
+| R-45, R-46 | S-06.01.04 | 2 | — | — |
+| R-29 | S-06.02.01 | 1 | — | — |
+| R-48 | S-06.02.02 | 2 | — | — |
+| R-51 | S-06.02.05 | 1 | — | — |
+| R-55 | S-07.01.03 | 1 | — | — |
+| R-56 | S-07.01.04 | 1 | — | — |
 
 ## Blocked externally — engineering is waiting on access
 
@@ -71,28 +80,17 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
-| R-20 | S-02.02.04 | 1 | — | — |
-| R-31, R-35 | S-04.01.01 | 1 | — | — |
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
-| R-41, R-42 | S-06.01.01 | 1 | — | — |
 | R-43 | S-06.01.02 | 2 | — | — |
-| R-44 | S-06.01.03 | 2 | — | — |
-| R-45, R-46 | S-06.01.04 | 2 | — | — |
 | R-47 | S-06.01.05 | 2 | — | — |
-| R-29 | S-06.02.01 | 1 | — | — |
-| R-48 | S-06.02.02 | 2 | — | — |
 | R-50 | S-06.02.04 | 1 | — | — |
-| R-51 | S-06.02.05 | 1 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
-| R-55 | S-07.01.03 | 1 | — | — |
-| R-56 | S-07.01.04 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
 
 ## Deferred — cut, with the trigger to bring it back
@@ -166,6 +164,8 @@ the slice depends on. Change control is about scope, not about bugs.
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
+| R-20 | S-02.02.04 | 1 | `tests/test_browser_countdown.py` | `browser/countdown.py`, `browser/page.py` |
+| R-44 | S-06.01.03 | 2 | `tests/test_ai_cost_ledger.py` | `ai/broker.py`, `ai/registry.py`, `outreach/providers.py`, `agent/run.py`, `agent/report.py` |
 | R-63, R-71 | S-08.01.05 | 3 | `tests/test_email_delivery.py`, `frontend/src/components.test.tsx` | `api/email_delivery.py`, `frontend/src/pages/Deliverability.tsx` |
 | R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |

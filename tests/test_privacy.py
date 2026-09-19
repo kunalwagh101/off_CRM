@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.ai.context import ContextLayer
 from offsetx_apollo_builder.ai.log import EgressLog
 from offsetx_apollo_builder.ai.recall import Redactor, SentMailIndex
@@ -357,3 +361,55 @@ def test_crm_identity_anchor_waits_when_an_auxiliary_store_fails(tmp_path):
         assert anchor.calls == 1
     finally:
         service.close()
+
+
+def test_privacy_api_is_authenticated_and_requires_preview_confirmation(tmp_path):
+    token = "p" * 40
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "api-crm.db",
+        data_dir=tmp_path / "api-data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        host="127.0.0.1",
+        api_token=token,
+        allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        store = client.app.state.engine.store
+        contact_id = store.upsert_contact(
+            ContactInput(full_name="Alice Example", email="alice@example.com")
+        )
+        payload = {"subject": {"emails": ["alice@example.com"]}}
+
+        assert client.post("/api/v1/privacy/subject-access", json=payload).status_code == 401
+        headers = {"X-Offsetx-Token": token}
+
+        access = client.post(
+            "/api/v1/privacy/subject-access", json=payload, headers=headers
+        )
+        assert access.status_code == 200
+        assert access.json()["total_records"] >= 1
+
+        preview = client.post(
+            "/api/v1/privacy/deletion-preview", json=payload, headers=headers
+        )
+        assert preview.status_code == 201
+        request_id = preview.json()["request_id"]
+
+        refused = client.post(
+            f"/api/v1/privacy/deletions/{request_id}",
+            json={**payload, "confirmation": "yes"},
+            headers=headers,
+        )
+        assert refused.status_code == 400
+        assert store.get_contact(contact_id) is not None
+
+        deleted = client.post(
+            f"/api/v1/privacy/deletions/{request_id}",
+            json={**payload, "confirmation": DELETE_CONFIRMATION},
+            headers=headers,
+        )
+        assert deleted.status_code == 200
+        assert deleted.json()["complete"] is True
+        assert store.get_contact(contact_id) is None

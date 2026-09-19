@@ -5,6 +5,61 @@ and what to change next time. Appended, never edited.
 
 ---
 
+## 2026-09-20 — S-05.01.02 extraction packs (IN_REVIEW)
+
+**What was cut.** Nothing from the declared slice. Remote packs, executable
+plugins/templates, authenticated scraping and AI extraction stay explicitly out
+of scope; the generic JSON-LD path remains the fallback.
+
+**What the estimate got wrong.** The new code was smaller than a parser-plugin
+system because the existing Scrapling parser already owned the right boundary.
+The important work was making configuration fail closed: fixed fields, fixed
+modes, bounded selectors, duplicate-domain refusal and all-or-nothing loading.
+
+**What to change next time.** When “make it configurable” is requested, first
+write down what configuration is forbidden to execute. Data that can become
+code is a plugin system with a softer name.
+
+---
+
+## 2026-09-20 — S-05.01.03 competitor teardown (IN_REVIEW)
+
+**What was cut.** Copied media was not cut; it was forbidden by the story from
+the start. No frame, audio, caption or transcript enters the derived project.
+No AI classifier was added because no evaluation evidence says it beats a
+deterministic baseline.
+
+**What the estimate got wrong.** Most of the product path already existed:
+recipes, assembly, project storage and the human review queue. The first API
+route patch also escaped the path parameter wrongly (D-53); source review caught
+it before owner testing.
+
+**What to change next time.** Competitive “intelligence” should start as a
+measurable transformation of public facts into an existing product contract.
+Only add a model after a fixed evaluation set proves the deterministic mapping
+is the limiting factor.
+
+---
+
+## 2026-09-20 — S-06.02.04 subject access and deletion (IN_REVIEW)
+
+**What was cut.** Automatic retention duration is still Q-07 and remains an
+owner decision. External cloud/provider deletion APIs that off_CRM does not
+control are not falsely reported as complete.
+
+**What the estimate got wrong.** Personal data lived in more places than the CRM
+tables: redacted sent-mail recall, AI context/egress logs, crawler state,
+append-only traces, generated artifacts, residual discovery/audit metadata and
+CSV queues/exports. Review also found a SQLite LIKE escape bug (D-54) and a
+backup-restore lifecycle bug that would leave privacy bound to a closed store
+(D-55).
+
+**What to change next time.** Every new persistent store that can hold personal
+data must register in the privacy inventory when it is introduced. Deletion is
+not a cleanup script; it is a product-wide storage contract.
+
+---
+
 ## 2026-09-18 — S-05.01.01 crawler frontier (IN_REVIEW)
 
 **What was cut.** Nothing from the story. Session-gated crawling, extraction

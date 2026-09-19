@@ -117,3 +117,8 @@ def test_teardown_builds_with_our_material_and_enters_existing_review_queue(tmp_
         assert {clip.asset_id for clip in report.project.tracks[0].clips} == {"ours"}
     finally:
         store.close()
+
+
+def test_boolean_facts_are_not_truthy_strings():
+    with pytest.raises(CompetitorTeardownError, match="before_after must be true or false"):
+        analyse_public_post(facts(before_after="false"))

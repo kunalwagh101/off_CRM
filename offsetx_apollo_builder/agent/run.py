@@ -36,6 +36,7 @@ from ..ai.tiers import DataClass, TrustTier
 from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace, signature_in, signature_mark
+from .plan import MAX_PLAN_CHARS, PlanError, RunPlan
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -673,6 +674,7 @@ class AgentRun:
         self.settings = settings
         self.page = page
         self.trace = trace
+        self.plan = RunPlan(trace.directory)
         self.decision_data_class = decision_data_class
         self.planner_provider_id = str(planner_provider_id or "").strip()
 
@@ -706,6 +708,13 @@ class AgentRun:
         cleaned_goal, budget = _validate_start(goal, step_budget)
         latency_ceiling = _validate_latency_ceiling(latency_ceiling_ms)
         schema = coerce_result_schema(result_schema)
+        try:
+            if resume_from is None:
+                self.plan.ensure(cleaned_goal)
+            else:
+                self.plan.read()
+        except PlanError as exc:
+            raise RunRefused(str(exc)) from exc
         # Attached for the length of this run and put back afterwards, so a
         # watcher cannot outlive the thing it was watching.  `S-11.04.02`
         previous_listener = self.trace.listener
@@ -893,8 +902,13 @@ class AgentRun:
                     projected_usd=projected_usd,
                 )
 
+            try:
+                current_plan = self.plan.read()
+            except PlanError as exc:
+                raise RunRefused(str(exc)) from exc
             instructions = _decision_input(
                 goal=cleaned_goal,
+                plan=current_plan,
                 index=index,
                 budget=budget,
                 snapshot=snapshot.render(),
@@ -2054,6 +2068,7 @@ def _validate_start(goal: str, step_budget: int) -> tuple[str, int]:
 def _decision_input(
     *,
     goal: str,
+    plan: str,
     index: int,
     budget: int,
     snapshot: str,
@@ -2064,6 +2079,7 @@ def _decision_input(
     remaining = budget - index
     parts = [
         f"OWNER GOAL:\n{goal}",
+        "OWNER-EDITABLE RUN PLAN — TRUSTED LOCAL INSTRUCTIONS:\n" + plan[:MAX_PLAN_CHARS],
         f"RUN BUDGET:\nDecision {index + 1} of {budget}; {remaining} decision(s) remain including this one.",
     ]
     if result_schema is not None:

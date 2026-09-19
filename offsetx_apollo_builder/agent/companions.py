@@ -177,7 +177,7 @@ class CompanionRegistry:
 
     @staticmethod
     def _tool_ids(values: Iterable[str]) -> tuple[str, ...]:
-        if isinstance(values, (str, bytes)):
+        if not isinstance(values, (list, tuple)):
             raise CompanionError("granted_tool_ids must be a list of tool ids")
         result = tuple(
             dict.fromkeys(

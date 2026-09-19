@@ -28,6 +28,7 @@
 - The next READY story on the board is `S-06.01.01 — Workspaces with their own
   keys and their own logins`. Do not pull it unless the owner asks for more
   features.
+- Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
 - Dedicated owner/testing pass is still deferred. Run focused suites, full
   regression and `uv run python scripts/verify_board.py` before promotion.
 

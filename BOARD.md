@@ -61,10 +61,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-04.01.01 · Companions: persisted agent profiles
+_nothing in flight_
 
 ## IN_REVIEW
 
+- S-04.01.01 · Companions: persisted agent profiles
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-03.02.05 · A platform is a row, not a code change
 - S-06.02.04 · Data deletion and subject access

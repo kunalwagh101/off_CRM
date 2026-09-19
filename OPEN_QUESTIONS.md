@@ -98,7 +98,9 @@ it means a migration and a permission re-evaluation, not a redesign.
 
 ---
 
-### Q-05 — Does a competitor analysis reproduce structure only, or media? *(blocks S-05.01.03)*
+### Q-05 — Does a competitor analysis reproduce structure only, or media? *(formerly blocked S-05.01.03)*
+
+**Status:** answered · **Decision:** structure only; no copied frames, audio, captions, transcripts or source media. · **Basis:** the existing S-05.01.03 backlog contract already says “recipe reference and parameters, never copied media”; refinement makes that existing rule machine-testable rather than inventing a new business rule.
 
 **Ambiguity.** "Extract the post and recreate it" has two readings. Reproducing
 *structure* — pacing, hook shape, look, length — is ordinary competitive
@@ -138,6 +140,8 @@ clear message rather than a weak model driving a logged-in session.
 ---
 
 ### Q-07 — What happens to a trace after the run ends? *(affects S-02.01.05, S-06.02.04)*
+
+**Scope note:** this remains unanswered for automatic retention. It does not block S-06.02.04's explicit subject-access/deletion operation: that story will delete data only after an explicit confirmed privacy request. No default retention duration is being invented.
 
 **Ambiguity.** A trace holds screenshots of whatever the agent was looking at.
 On a logged-in session that is mail, a CRM, possibly a customer's personal data.

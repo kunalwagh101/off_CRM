@@ -11,8 +11,8 @@
   one host while keeping separate crawl-delay clocks. The frontier now stores
   a transactional per-host next-request slot and the existing safe fetchers
   reserve it before requests. Six focused acceptance/concurrency tests are in
-  `tests/test_crawler_frontier.py`. GitHub Actions runs 827 and 828 again
-  failed before creating workflow step 1, so the story remains IN_REVIEW
+  `tests/test_crawler_frontier.py`. Repeated latest GitHub Actions push/PR runs still fail before
+  creating workflow step 1, so the story remains IN_REVIEW
   rather than being falsely marked DONE.
 
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.

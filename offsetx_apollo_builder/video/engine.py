@@ -229,6 +229,46 @@ class VideoEditorEngine:
         state = ProjectState(record=record, project=report.project, can_undo=False, can_redo=False)
         return state, report
 
+    def assemble_from_competitor_teardown(
+        self,
+        campaign_id: str,
+        teardown: Any,
+        *,
+        name: str = "",
+        asset_ids: list[str] | None = None,
+        media_ids: list[str] | None = None,
+        music_id: str = "",
+        voice_id: str = "",
+        preset: str = "vertical",
+        fps: str = "30",
+        seed: int = 0,
+    ) -> tuple[ProjectState, assembly.AssemblyReport]:
+        """Build our own project from a structure-only competitor teardown.
+
+        The teardown contributes only a declared recipe and target length.
+        Every visual/audio id still comes from this campaign's own approved
+        material; source media and source copy are not accepted by this method.
+        """
+        from ..competitor_teardown import CompetitorTeardown
+
+        if not isinstance(teardown, CompetitorTeardown):
+            raise TypeError("teardown must be a validated CompetitorTeardown")
+        return self.assemble(
+            campaign_id,
+            recipe=teardown.recipe_id,
+            target_ticks=teardown.target_ticks,
+            name=name or "Competitive structure study",
+            lines=[],
+            asset_ids=asset_ids,
+            media_ids=media_ids,
+            music_id=music_id,
+            voice_id=voice_id,
+            preset=preset,
+            fps=fps,
+            seed=seed,
+            origin="competitor_teardown",
+        )
+
     def direct_and_assemble(
         self,
         campaign_id: str,

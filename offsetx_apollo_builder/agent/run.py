@@ -16,8 +16,9 @@ The important work is in the boundaries around that loop:
 * an observed claim then survives only when deterministic host code finds its
   value and supporting quote in that captured text.
 
-PLAN.md, steering/resume and countdown continuation are separate backlog stories.
-They are intentionally not smuggled into this slice.
+The mutable steering plan lives in PLAN.md beside the trace. The file is read
+fresh before every decision and the exact plan version seen by each model call
+is captured as that decision step's private trace artefact.
 """
 
 from __future__ import annotations
@@ -947,7 +948,8 @@ class AgentRun:
                         tokens_in=tokens_in,
                         tokens_out=tokens_out,
                         estimated_cost_usd=estimated_cost,
-                    )
+                    ),
+                    captured_text=current_plan,
                 )
                 return self._outcome(
                     "refused", cleaned_goal, budget, decisions, actions, str(exc), schema=schema
@@ -964,7 +966,8 @@ class AgentRun:
                     tokens_in=tokens_in,
                     tokens_out=tokens_out,
                     estimated_cost_usd=estimated_cost,
-                )
+                ),
+                captured_text=current_plan,
             )
 
             latency_ms = int(self.trace.summary().get("took_ms", 0) or 0)

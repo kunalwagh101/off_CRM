@@ -53,6 +53,9 @@ wastes a session when nobody can answer it.
 | DD-23 | 2026-09-20 | Extraction packs are validated JSON data over the existing Scrapling parser; no parser plugins, templates, code or AI | DOM changes require pack maintenance and semantic extraction is intentionally absent |
 | DD-24 | 2026-09-20 | Competitor teardown starts as deterministic structure mapping into the existing recipe/assembly/review path | It cannot infer subjective creative intent; adding AI later requires measured eval evidence |
 | DD-25 | 2026-09-20 | Explicit privacy deletion removes a whole matching trace run and deletes CRM identity data last | A run containing mixed subjects can lose unrelated trace context, but append-only audit history is never silently rewritten |
+| DD-26 | 2026-09-20 | Browser platform identity, pacing and default budgets come from one packaged validated registry | Changing a built-in platform declaration requires a code/config release rather than a runtime admin edit |
+| DD-27 | 2026-09-20 | PLAN.md is mutable steering state, while every model decision captures the exact plan version it saw into the append-only trace | The same plan text exists once as current state and again as historical evidence |
+| DD-28 | 2026-09-20 | Companions are rows in the existing tool-registry SQLite DB, with exact memory scopes and execution-time tool-grant checks | Companion persistence is coupled to the local tool-control database until the broader workspace storage story moves it |
 
 ---
 
@@ -395,3 +398,41 @@ failed auxiliary cleanup can be retried with the same join keys.
 
 **Cost:** a mixed-subject run can lose unrelated trace context. **Revisit when:**
 traces gain a cryptographically safe subject-partitioned storage format.
+
+
+### DD-26 — One platform registry owns the moving pieces · 2026-09-20
+
+Identity signals, domains/pacing and default account budgets used to be three
+Python constants. Reddit was already present in the budget table and absent from
+the other two, proving that drift was not theoretical. A packaged JSON registry
+now owns all three and is validated all-or-nothing at load time.
+
+**Cost:** editing built-in platform policy is a release, not an admin-panel
+change. **Revisit when:** platform policy needs owner-specific runtime overrides;
+those overrides should layer on top of this baseline rather than duplicate it.
+
+### DD-27 — PLAN.md is mutable; the trace records what was seen · 2026-09-20
+
+There is exactly one current PLAN.md in a run directory and the model reads it
+fresh before every decision. The owner can edit it directly to steer the next
+decision. The exact text seen by each decision is copied into that decision's
+private trace capture, preserving auditability without turning the trace into a
+second editable plan.
+
+**Cost:** historical plan versions consume small extra run storage. **Revisit
+when:** plans become large enough that content-addressed snapshots materially
+reduce storage without making audit inspection harder.
+
+### DD-28 — A companion narrows existing capabilities · 2026-09-20
+
+A companion does not own a second model/tool/memory engine. It stores a name,
+instructions, one exact memory scope and owner-granted tool IDs. Runtime starts
+by intersecting those grants with tools that still exist and are enabled, and
+tool execution checks the grant again.
+
+Profiles live in the existing ToolRegistry SQLite database. This gives durable
+transactions and multi-process writer safety without adding another storage
+mechanism.
+
+**Cost:** the companion table shares the tool-control DB. **Revisit when:** a
+future workspace storage migration moves both tools and companions together.

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -138,6 +139,67 @@ class CrawlFrontier:
             ON crawl_frontier(host, next_due_at)
             """
         )
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS crawl_host_pace (
+                host TEXT PRIMARY KEY,
+                next_slot_at REAL NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+    def reserve_host_slot(
+        self,
+        host: str,
+        delay_seconds: float,
+        *,
+        now_epoch: float | None = None,
+    ) -> float:
+        """Reserve the next request start for one host across all processes.
+
+        The reservation is committed before sleeping, so two workers arriving
+        together cannot both observe the same free slot. A crashed worker can
+        waste at most one delay interval; it cannot make the crawler impolite.
+        """
+        normalized = str(host).strip().lower().rstrip(".")
+        if not normalized:
+            raise ValueError("Host pacing requires a hostname")
+        delay = max(0.0, float(delay_seconds))
+        now = time.time() if now_epoch is None else float(now_epoch)
+        with self._lock:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self.connection.execute(
+                    "SELECT next_slot_at FROM crawl_host_pace WHERE host = ?",
+                    (normalized,),
+                ).fetchone()
+                previous = float(row["next_slot_at"]) if row is not None else now
+                slot_at = max(now, previous)
+                self.connection.execute(
+                    """
+                    INSERT INTO crawl_host_pace (host, next_slot_at, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(host) DO UPDATE SET
+                        next_slot_at = excluded.next_slot_at,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        normalized,
+                        slot_at + delay,
+                        _iso(datetime.fromtimestamp(now, tz=timezone.utc)),
+                    ),
+                )
+                self.connection.execute("COMMIT")
+            except BaseException:
+                self.connection.execute("ROLLBACK")
+                raise
+        return max(0.0, slot_at - now)
+
+    def wait_for_host(self, host: str, delay_seconds: float) -> None:
+        wait_seconds = self.reserve_host_slot(host, delay_seconds)
+        if wait_seconds > 0:
+            time.sleep(wait_seconds)
 
     def close(self) -> None:
         with self._lock:

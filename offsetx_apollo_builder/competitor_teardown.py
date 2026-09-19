@@ -7,6 +7,7 @@ accepts competitor media/captions/transcripts.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Mapping
 
 from .discovery import validate_public_url
@@ -39,6 +40,8 @@ class CompetitorTeardownError(ValueError):
 
 
 def _non_negative_number(value: Any, *, name: str) -> float:
+    if isinstance(value, bool):
+        raise CompetitorTeardownError(f"{name} must be a number")
     try:
         number = float(value or 0)
     except (TypeError, ValueError) as exc:
@@ -46,6 +49,21 @@ def _non_negative_number(value: Any, *, name: str) -> float:
     if number < 0:
         raise CompetitorTeardownError(f"{name} cannot be negative")
     return number
+
+
+def _non_negative_integer(value: Any, *, name: str) -> int:
+    number = _non_negative_number(value, name=name)
+    if not float(number).is_integer():
+        raise CompetitorTeardownError(f"{name} must be a whole number")
+    return int(number)
+
+
+def _boolean(value: Any, *, name: str) -> bool:
+    if value in (None, ""):
+        return False
+    if not isinstance(value, bool):
+        raise CompetitorTeardownError(f"{name} must be true or false")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,16 +120,20 @@ def analyse_public_post(facts: Mapping[str, Any]) -> CompetitorTeardown:
     observed_at = str(facts.get("observed_at") or "").strip()
     if not observed_at:
         raise CompetitorTeardownError("observed_at is required for provenance")
+    try:
+        datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise CompetitorTeardownError("observed_at must be an ISO-8601 timestamp") from exc
 
     duration = _non_negative_number(facts.get("duration_seconds"), name="duration_seconds")
     if duration < 3 or duration > 600:
         raise CompetitorTeardownError("duration_seconds must be between 3 and 600")
 
     cuts = _non_negative_number(facts.get("cuts_per_minute"), name="cuts_per_minute")
-    list_items = int(_non_negative_number(facts.get("list_items"), name="list_items"))
+    list_items = _non_negative_integer(facts.get("list_items"), name="list_items")
     opening = _non_negative_number(facts.get("opening_seconds"), name="opening_seconds")
-    before_after = bool(facts.get("before_after", False))
-    demo = bool(facts.get("demo", False))
+    before_after = _boolean(facts.get("before_after", False), name="before_after")
+    demo = _boolean(facts.get("demo", False), name="demo")
     motion = str(facts.get("visual_motion") or "").strip().lower()
     if motion and motion not in _VISUAL_MOTION:
         raise CompetitorTeardownError("visual_motion must be low, medium or high")

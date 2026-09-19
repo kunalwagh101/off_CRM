@@ -341,6 +341,7 @@ that catches us lying about what is finished.
 | P-10.5 | `codegraph.py` | Graphify wrapper with the semantic path switched **off** | 33 | — |
 | P-10.6 | `scripts/verify_board.py` | **The lie detector.** Re-runs every DONE claim's test and fails on any failure | 29 | S-06.02.06 ✅ |
 | P-10.7 | question lifecycle | An answered question unblocks; a deleted one does not | 29 | S-06.02.07 ✅ |
+| P-10.8 | `privacy.py` | One inventory for subject access + confirmed idempotent deletion across CRM, recall, AI context/egress, crawler, traces and tagged artifacts | `test_privacy.py` | S-06.02.04 ◐ IN_REVIEW |
 
 **`P-10.6` is the most important 300 lines in the repository** and it deserves a
 plain explanation: anybody can write the word DONE. This script reads `BOARD.md`,
@@ -396,9 +397,9 @@ evidence for why they matter, and not adding the same company twice.
 | P-4.3 | `dedupe.py` — same company, two names | 217 | 3 | ⚠️ |
 | P-4.4 | `scoring.py` | 60 | 2 | ◐ |
 | P-4.5 | `research.py` | 209 | — | ◐ |
-| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, politeness, change-driven revisit | 392 + wiring | 5 focused | ◐ S-05.01.01 · IN_REVIEW |
-| P-4.7 | **Extraction packs** — a new source is one row, not a new parser | — | — | ⬜ S-05.01.02 |
-| P-4.8 | **Competitor teardown** — take a hit post apart, rebuild the shape | — | — | ⬜ S-05.01.03 |
+| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, shared host pacing, change-driven revisit | 454 + wiring | 6 focused | ◐ S-05.01.01 · IN_REVIEW |
+| P-4.7 | `extraction_packs.py` + `config/extraction_packs.json` — a new source is declared data, not a parser | implemented + parser wiring | `test_extraction_packs.py` | ◐ S-05.01.02 · IN_REVIEW |
+| P-4.8 | `competitor_teardown.py` + existing video recipes/assembler/review — rebuild structure, never source media | implemented + API wiring | `test_competitor_teardown.py` | ◐ S-05.01.03 · IN_REVIEW |
 
 `P-4.1` carries the SSRF controls, the robots.txt honouring and the domain
 allowlist — **security-critical code, 1,420 lines, six tests.**

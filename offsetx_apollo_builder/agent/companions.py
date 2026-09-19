@@ -19,7 +19,7 @@ from typing import Any, Iterable, Sequence
 from ..ai.errors import PolicyViolation
 from ..ai.sandbox import SandboxPolicy, SandboxWorkspace
 from ..ai.tiers import DataClass
-from ..ai.tools import RegisteredTool, ToolRegistry, ToolRun
+from ..ai.tools import ToolRegistry, ToolRun
 from ..ai.workspace import atomic_json
 from ..outreach.models import to_utc_iso
 
@@ -104,6 +104,11 @@ class CompanionRegistry:
         self.tools = tools
         self.memory = memory_backend
         self._lock = self._lock_for(self.path)
+
+    def rebind_memory(self, memory_backend: Any) -> None:
+        """Rebind after a CRM database restore without changing profile storage."""
+        self.memory = memory_backend
+
 
     @classmethod
     def _lock_for(cls, path: Path) -> threading.RLock:

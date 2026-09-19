@@ -82,6 +82,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-51 | 2026-09-19 | bug | high | Separate crawler processes could claim different URLs on one host and bypass the shared crawl-delay clock | code fixed · `S-05.01.01`; executable evidence pending |
+| D-52 | 2026-09-19 | process | medium | TRACEABILITY.md disagreed with BOARD.md about S-05.01.01 and S-08.01.05 state | fixed during `S-05.01.01` review |
 
 ---
 
@@ -449,3 +451,24 @@ marketing homepage, a help article, a search results page.
 **Why it mattered.** This detector is allowed to stop a run. A detector that
 pauses on ordinary pages teaches the owner to ignore it, which is worse than not
 having one.
+
+### D-51 — Two crawler processes can outrun one host's crawl delay · 2026-09-19
+
+**What went wrong.** The durable frontier leases URLs, not hosts. That correctly
+prevents two workers from fetching the same URL, but two processes can still
+claim two different due URLs on the same host at the same time. The existing
+crawl-delay clock lives inside each fetcher process, so those two processes do
+not share it.
+
+**How it was found.** During the S-05.01.01 review, by tracing the full
+frontier → claim → fetch path instead of treating the same-URL lease test as
+proof of host-level politeness. `claim_due()` has no host pacing state, while
+`SafePublicFetcher.last_request_at` is process-local.
+
+**Why it matters.** S-05.01.01 explicitly promises that a host's robots.txt and
+crawl delay are honoured. A multi-process deployment could satisfy the current
+tests and still send requests closer together than the host asked for.
+
+**Status.** Code fixed under S-05.01.01; executable evidence is still pending. The story remains IN_REVIEW. It must not move
+to DONE until the host-level pace is durable/shared, has a concurrency test that
+uses different URLs on the same host, and the repository evidence command runs.

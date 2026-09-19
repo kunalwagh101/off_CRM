@@ -21,7 +21,6 @@ import tempfile
 import threading
 import time
 import uuid
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,6 +30,7 @@ from urllib.robotparser import RobotFileParser
 
 import requests
 
+from .crawler_frontier import CrawlFrontier
 from .dedupe import (
     ExclusionSet,
     build_exclusion_set,
@@ -370,14 +370,19 @@ class SafePublicFetcher:
         session: requests.Session | None = None,
         parser: ScraplingPageParser | None = None,
         resolver: Callable[..., Any] = socket.getaddrinfo,
+        host_pacer: Callable[[str, float], None] | None = None,
     ) -> None:
         self.policy = policy
         self.session = session or requests.Session()
         self.session.trust_env = False
         self.parser = parser or ScraplingPageParser()
         self.resolver = resolver
+        self.host_pacer = host_pacer
         self.robots: dict[str, tuple[RobotFileParser, float]] = {}
         self.last_request_at: dict[str, float] = {}
+
+    def set_host_pacer(self, pacer: Callable[[str, float], None]) -> None:
+        self.host_pacer = pacer
 
     def _assert_public_dns(self, url: str) -> None:
         parsed = urlsplit(url)
@@ -402,6 +407,9 @@ class SafePublicFetcher:
 
     def _delay(self, host: str, extra_delay: float = 0) -> None:
         delay = max(self.policy.request_delay_seconds, extra_delay)
+        if self.host_pacer is not None:
+            self.host_pacer(host, delay)
+            return
         remaining = self.last_request_at.get(host, 0) + delay - time.monotonic()
         if remaining > 0:
             time.sleep(remaining)
@@ -527,6 +535,7 @@ class Crawl4AIPageFetcher:
         parser: ScraplingPageParser | None = None,
         resolver: Callable[..., Any] = socket.getaddrinfo,
         base_directory: Path | None = None,
+        host_pacer: Callable[[str, float], None] | None = None,
     ) -> None:
         runtime_root = Path(base_directory or tempfile.gettempdir())
         runtime_root.mkdir(parents=True, exist_ok=True)
@@ -539,7 +548,12 @@ class Crawl4AIPageFetcher:
             ) from exc
         self.policy = policy
         self.parser = parser or ScraplingPageParser()
-        self.guard = SafePublicFetcher(policy, parser=self.parser, resolver=resolver)
+        self.guard = SafePublicFetcher(
+            policy,
+            parser=self.parser,
+            resolver=resolver,
+            host_pacer=host_pacer,
+        )
         self._loop = asyncio.new_event_loop()
         self._crawler = AsyncWebCrawler(
             config=BrowserConfig(
@@ -582,6 +596,9 @@ class Crawl4AIPageFetcher:
             verbose=False,
         )
         self._started = False
+
+    def set_host_pacer(self, pacer: Callable[[str, float], None]) -> None:
+        self.guard.set_host_pacer(pacer)
 
     async def _assert_route(self, request_url: str, resource_type: str) -> None:
         parsed = urlsplit(request_url)
@@ -718,36 +735,32 @@ class PublicWebCrawler:
         fetcher: PageFetcher,
         *,
         fetcher_factory: Callable[[], PageFetcher] | None = None,
+        frontier_path: Path | str | None = None,
     ) -> None:
         self.policy = policy
         self.fetcher = fetcher
         self.fetcher_factory = fetcher_factory
         self.rate_limiter = DomainRateLimiter(policy.request_delay_seconds)
-
-    def _validated_seed_queue(
-        self, seed_urls: Sequence[str]
-    ) -> tuple[deque[tuple[str, int]], set[str]]:
-        queue: deque[tuple[str, int]] = deque()
-        queued: set[str] = set()
-        for seed in seed_urls:
-            url = validate_public_url(
-                seed,
+        self.frontier = CrawlFrontier(
+            frontier_path or ":memory:",
+            validator=lambda value: validate_public_url(
+                value,
                 allowed_domains=self.policy.allowed_domains,
                 blocked_domains=self.policy.blocked_domains,
-            )
-            if url not in queued:
-                queue.append((url, 0))
-                queued.add(url)
-        return queue, queued
+            ),
+        )
+        self._bind_host_pacer(self.fetcher)
 
-    def _enqueue_links(
-        self,
-        page: ParsedPage,
-        depth: int,
-        queue: deque[tuple[str, int]],
-        queued: set[str],
-        seen: set[str],
-    ) -> None:
+    def _bind_host_pacer(self, fetcher: PageFetcher) -> None:
+        setter = getattr(fetcher, "set_host_pacer", None)
+        if callable(setter):
+            setter(self.frontier.wait_for_host)
+
+    def _admit_seeds(self, seed_urls: Sequence[str]) -> None:
+        for seed in seed_urls:
+            self.frontier.admit(seed, 0)
+
+    def _admit_links(self, page: ParsedPage, depth: int) -> None:
         if depth >= self.policy.max_depth:
             return
         for link in page.links:
@@ -755,58 +768,59 @@ class PublicWebCrawler:
             if any(path.endswith(suffix) for suffix in SKIPPED_FILE_SUFFIXES):
                 continue
             try:
-                allowed = validate_public_url(
-                    link,
-                    allowed_domains=self.policy.allowed_domains,
-                    blocked_domains=self.policy.blocked_domains,
-                )
+                self.frontier.admit(link, depth + 1)
             except ValueError:
+                # Off-domain, private and session-gated links never enter the frontier.
                 continue
-            if allowed not in seen and allowed not in queued:
-                queue.append((allowed, depth + 1))
-                queued.add(allowed)
+
+    def _claim(self, limit: int):
+        return self.frontier.claim_due(
+            allowed_domains=self.policy.allowed_domains,
+            max_depth=self.policy.max_depth,
+            limit=limit,
+        )
 
     def crawl(self, seed_urls: Sequence[str]) -> CrawlResult:
+        self._admit_seeds(seed_urls)
         workers = max(1, int(self.policy.parallel_workers))
-        if workers > 1 and self.fetcher_factory is not None:
-            return self._crawl_parallel(seed_urls, workers)
-        return self._crawl_sequential(seed_urls)
-
-    def _crawl_sequential(self, seed_urls: Sequence[str]) -> CrawlResult:
-        result = CrawlResult()
-        queue, queued = self._validated_seed_queue(seed_urls)
-        seen: set[str] = set()
         try:
-            while queue and len(result.pages) < self.policy.max_pages:
-                url, depth = queue.popleft()
-                if url in seen:
-                    continue
-                seen.add(url)
+            if workers > 1 and self.fetcher_factory is not None:
+                return self._crawl_parallel(workers)
+            return self._crawl_sequential()
+        finally:
+            self.frontier.close()
+
+    def _crawl_sequential(self) -> CrawlResult:
+        result = CrawlResult()
+        try:
+            while len(result.pages) < self.policy.max_pages:
+                entries = self._claim(1)
+                if not entries:
+                    break
+                entry = entries[0]
                 try:
-                    page = self.fetcher.fetch(url)
+                    page = self.fetcher.fetch(entry.url)
                 except (DiscoveryFetchError, ValueError, requests.RequestException) as exc:
-                    result.errors.append({"url": url, "error": clean_text(exc)[:500]})
+                    self.frontier.record_failure(entry.url, exc)
+                    result.errors.append({"url": entry.url, "error": clean_text(exc)[:500]})
                     continue
+                self.frontier.record_success(entry.url, page.content_sha256)
                 result.pages.append(page)
-                self._enqueue_links(page, depth, queue, queued, seen)
+                self._admit_links(page, entry.depth)
         finally:
             close = getattr(self.fetcher, "close", None)
             if callable(close):
                 close()
         return result
 
-    def _crawl_parallel(self, seed_urls: Sequence[str], workers: int) -> CrawlResult:
-        """Breadth-first crawl in waves of up to `workers` concurrent fetches.
+    def _crawl_parallel(self, workers: int) -> CrawlResult:
+        """Claim due pages in bounded waves and fetch different hosts in parallel.
 
-        Each worker thread owns its own fetcher instance (fetchers keep
-        session and event-loop state, so they are never shared). The shared
-        DomainRateLimiter keeps the per-domain request rate identical to the
-        sequential crawl, so parallelism speeds up multi-domain runs without
-        hammering any single site.
+        Frontier leases make a claimed URL temporarily unavailable to another
+        crawler process. Each worker owns its own fetcher because Requests
+        sessions and browser event loops are not shared safely across threads.
         """
         result = CrawlResult()
-        queue, queued = self._validated_seed_queue(seed_urls)
-        seen: set[str] = set()
         thread_fetchers: dict[int, PageFetcher] = {}
         fetcher_lock = threading.Lock()
         assert self.fetcher_factory is not None
@@ -817,28 +831,23 @@ class PublicWebCrawler:
                 fetcher = thread_fetchers.get(ident)
                 if fetcher is None:
                     fetcher = self.fetcher_factory()
+                    self._bind_host_pacer(fetcher)
                     thread_fetchers[ident] = fetcher
             self.rate_limiter.wait_turn(url)
             return fetcher.fetch(url)
 
         try:
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                while queue and len(result.pages) < self.policy.max_pages:
-                    wave: list[tuple[str, int]] = []
+                while len(result.pages) < self.policy.max_pages:
                     budget = self.policy.max_pages - len(result.pages)
-                    while queue and len(wave) < min(workers, budget):
-                        url, depth = queue.popleft()
-                        if url in seen:
-                            continue
-                        seen.add(url)
-                        wave.append((url, depth))
-                    if not wave:
-                        continue
+                    entries = self._claim(min(workers, budget))
+                    if not entries:
+                        break
                     futures = {
-                        pool.submit(fetch_one, url): (url, depth) for url, depth in wave
+                        pool.submit(fetch_one, entry.url): entry for entry in entries
                     }
                     for future in as_completed(futures):
-                        url, depth = futures[future]
+                        entry = futures[future]
                         try:
                             page = future.result()
                         except (
@@ -846,13 +855,14 @@ class PublicWebCrawler:
                             ValueError,
                             requests.RequestException,
                         ) as exc:
+                            self.frontier.record_failure(entry.url, exc)
                             result.errors.append(
-                                {"url": url, "error": clean_text(exc)[:500]}
+                                {"url": entry.url, "error": clean_text(exc)[:500]}
                             )
                             continue
-                        if len(result.pages) < self.policy.max_pages:
-                            result.pages.append(page)
-                            self._enqueue_links(page, depth, queue, queued, seen)
+                        self.frontier.record_success(entry.url, page.content_sha256)
+                        result.pages.append(page)
+                        self._admit_links(page, entry.depth)
         finally:
             for fetcher in thread_fetchers.values():
                 close = getattr(fetcher, "close", None)
@@ -1042,6 +1052,7 @@ class DiscoveryService:
                 policy,
                 self._fetcher(policy, engine),
                 fetcher_factory=lambda: self._fetcher(policy, engine),
+                frontier_path=self.data_dir / "crawler_frontier.sqlite3",
             ).crawl(validated_seeds)
             exclusion = self._exclusions()
             seen: set[str] = set()
@@ -1099,8 +1110,8 @@ class DiscoveryService:
                             break
                 if target_reached:
                     break
-            status = "completed" if crawl.pages and not crawl.errors else "partial"
-            if not crawl.pages:
+            status = "completed" if not crawl.errors else "partial"
+            if not crawl.pages and crawl.errors:
                 status = "failed"
             return self.store.finish_discovery_run(
                 run_id,

@@ -51,11 +51,22 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
-| R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | durable frontier + shared host pacing + 6 focused acceptance/concurrency cases committed | `uv run pytest tests/test_crawler_frontier.py -q`, full regression, and board verifier must execute; current GitHub Actions jobs fail before step 1 |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
-*(Empty. No story is promoted automatically just because another story finished.)*
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-75 | S-03.02.05 | 2 | — | — |
+| R-18 | S-02.02.02 | 2 | — | — |
+| R-31, R-35 | S-04.01.01 | 1 | — | — |
+| R-41, R-42 | S-06.01.01 | 1 | — | — |
+| R-45, R-46 | S-06.01.04 | 2 | — | — |
+| R-29 | S-06.02.01 | 1 | — | — |
+| R-48 | S-06.02.02 | 2 | — | — |
+| R-51 | S-06.02.05 | 1 | — | — |
+| R-55 | S-07.01.03 | 1 | — | — |
+| R-56 | S-07.01.04 | 1 | — | — |
 
 ## Blocked externally — engineering is waiting on access
 
@@ -69,29 +80,17 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
-| R-20 | S-02.02.04 | 1 | — | — |
-| R-31, R-35 | S-04.01.01 | 1 | — | — |
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | — | — |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
-| R-41, R-42 | S-06.01.01 | 1 | — | — |
 | R-43 | S-06.01.02 | 2 | — | — |
-| R-44 | S-06.01.03 | 2 | — | — |
-| R-45, R-46 | S-06.01.04 | 2 | — | — |
 | R-47 | S-06.01.05 | 2 | — | — |
-| R-29 | S-06.02.01 | 1 | — | — |
-| R-48 | S-06.02.02 | 2 | — | — |
 | R-50 | S-06.02.04 | 1 | — | — |
-| R-51 | S-06.02.05 | 1 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
-| R-55 | S-07.01.03 | 1 | — | — |
-| R-56 | S-07.01.04 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
 
 ## Deferred — cut, with the trigger to bring it back
@@ -102,12 +101,12 @@ the code exists and holds no stub).
 
 ## The honest reading of this table
 
-**71 requirements, zero orphans. 26 stories are DONE, 1 is IN_REVIEW, 0 are
-READY, 3 are externally BLOCKED and 24 are planned in BACKLOG.**
+Board column counts are deliberately not copied into this file. The board
+verifier recomputes authoritative counts and acceptance coverage from the
+repository; duplicated hand-written totals are exactly the kind of state that
+drifts.
 
-The board verifier recomputes the authoritative counts and acceptance coverage
-from the repository. The prose here is a readable snapshot, not a substitute
-for `uv run python scripts/verify_board.py`.
+Run `uv run python scripts/verify_board.py` for the current counts.
 
 ### Gaps that were open, and are now closed
 
@@ -154,9 +153,6 @@ the slice depends on. Change control is about scope, not about bugs.
 
 - **Frontend tests are not named in most evidence blocks.** The video work has
   real frontend coverage, but most story evidence commands do not reach it.
-- **S-08.01.05 remains `IN_REVIEW`** until its now-green frontend evidence is
-  promoted through that story's own acceptance/evidence update; this increment
-  does not silently absorb an unrelated board transition.
 - **S-06.02.01 remains planned.** S-03.02.02 directly proves browser credential
   shapes cannot enter a provider payload, but the broader adversarial
   no-secret-in-any-prompt suite remains its own story and is not silently
@@ -168,6 +164,9 @@ the slice depends on. Change control is about scope, not about bugs.
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
+| R-20 | S-02.02.04 | 1 | `tests/test_browser_countdown.py` | `browser/countdown.py`, `browser/page.py` |
+| R-44 | S-06.01.03 | 2 | `tests/test_ai_cost_ledger.py` | `ai/broker.py`, `ai/registry.py`, `outreach/providers.py`, `agent/run.py`, `agent/report.py` |
+| R-63, R-71 | S-08.01.05 | 3 | `tests/test_email_delivery.py`, `frontend/src/components.test.tsx` | `api/email_delivery.py`, `frontend/src/pages/Deliverability.tsx` |
 | R-17 | S-02.02.01 | 2 | `tests/test_agent_run.py` | `agent/run.py`, `browser/trace.py` |
 | R-21, R-22, R-23 | S-03.01.01 | 2 | `tests/test_browser_box.py` | `browser/box.py`, `browser/guard.py` |
 | R-24 | S-03.01.02 | 1 | `tests/test_ai_sandbox.py`, `tests/test_browser_box.py` | `ai/sandbox.py` |

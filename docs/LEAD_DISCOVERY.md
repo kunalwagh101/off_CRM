@@ -42,6 +42,29 @@ directories, public biographies and public research pages. A search API adapter
 or supplied competitor URLs are required to expand a prompt into 100 unrelated
 competitor websites.
 
+## Durable frontier and revisit scheduling
+
+Discovery runs no longer rebuild a throwaway URL queue. Accepted public URLs are
+persisted in `<OFFSETX_DATA_DIR>/crawler_frontier.sqlite3` with their content
+hash, last crawl/change timestamps, next due time, failure state and a short
+claim lease.
+
+Changed pages become due after one day. Repeatedly unchanged pages back off
+using observed stability, capped at 30 days. Failed pages use bounded
+exponential retry backoff. A fixed `max_pages` budget therefore goes to URLs
+that are actually due instead of repeatedly spending requests on a seed that
+was just crawled.
+
+Claims use an expiring SQLite lease, so two crawler processes sharing the same
+data directory cannot intentionally claim the same URL at the same time. A
+crashed worker does not strand a URL permanently because the lease expires.
+
+Every seed and discovered link still passes through the existing
+`validate_public_url()` policy before it can enter the frontier; the frontier
+does not create a second security policy. See
+`docs/architecture/CRAWLER_FRONTIER.md` for the data model, rollback and
+scaling boundary.
+
 ## Social-platform boundary
 
 LinkedIn, Instagram, Facebook, Threads, TikTok and X are blocked crawler targets.

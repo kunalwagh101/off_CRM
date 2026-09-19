@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from offsetx_apollo_builder.agent.companions import CompanionRegistry
+from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.ai.context import ContextLayer
@@ -500,4 +502,46 @@ def test_csv_queue_rows_and_residual_metadata_are_removed(tmp_path):
         ).fetchone()["n"] == 0
     finally:
         service.close()
+        store.close()
+
+
+def test_subject_deletion_scrubs_companion_profile_text(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    tools = ToolRegistry(data_dir / "ai_tools.db")
+    companions = CompanionRegistry(data_dir, tools=tools, memory_backend=store)
+    alice = companions.create(
+        workspace_id="local",
+        name="Research companion",
+        instructions="Research alice@example.com and preserve only sourced facts.",
+    )
+    bob = companions.create(
+        workspace_id="local",
+        name="Unrelated companion",
+        instructions="Research public market data.",
+    )
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com")
+        access = service.access(subject)
+        companion_store = next(
+            item for item in access["stores"] if item["store"] == "companion_profiles"
+        )
+        assert companion_store["count"] == 1
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+
+        updated_alice = companions.require(alice.id, workspace_id="local")
+        unchanged_bob = companions.require(bob.id, workspace_id="local")
+        assert "alice@example.com" not in updated_alice.instructions
+        assert "[deleted-subject]" in updated_alice.instructions
+        assert unchanged_bob.instructions == "Research public market data."
+    finally:
+        service.close()
+        tools.close()
         store.close()

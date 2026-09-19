@@ -51,7 +51,6 @@ declare is DONE, and no open question is filed against any of them. They had
 been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
-- S-02.02.02 · PLAN.md as the single source of truth
 - S-04.01.01 · Companions: persisted agent profiles
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
@@ -63,10 +62,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-03.02.05 · A platform is a row, not a code change
+- S-02.02.02 · PLAN.md as the single source of truth
 
 ## IN_REVIEW
 
+- S-03.02.05 · A platform is a row, not a code change
 - S-06.02.04 · Data deletion and subject access
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-05.01.02 · Extraction packs as declared data

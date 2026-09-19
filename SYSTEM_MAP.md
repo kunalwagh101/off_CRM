@@ -172,8 +172,8 @@ This is the biggest finished piece. It is a real video editor.
 | Safety rails | robots.txt, no internal addresses, social sites blocked for headless | ✅ |
 | `dedupe.py` | Stops the same company arriving twice under two names | ✅ |
 | **A real crawler** | Durable due-URL frontier with leases, robots/crawl-delay reuse and change-driven revisits | ◐ S-05.01.01 · code/tests present; CI execution pending |
-| **Extraction packs** | Adding a new source = one row, not a new parser | ⬜ S-05.01.02 |
-| **Competitor teardown** | Take a hit post apart → shape, pacing, hook → rebuild it | ⬜ S-05.01.03 |
+| **Extraction packs** | Validated JSON rows over the existing Scrapling parser; unmatched pages keep JSON-LD fallback | ◐ S-05.01.02 · implementation/tests present, verification pending |
+| **Competitor teardown** | Public structural/performance facts → existing recipe → our material → existing human review queue; copied media refused | ◐ S-05.01.03 · implementation/tests present, verification pending |
 
 ---
 
@@ -206,6 +206,7 @@ This is the next thing to build, and the decisions are now made:
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |
 | **Deploy & rollback** | A way back when a release is bad | ⬜ S-06.01.05 |
 | **Keyboard / screen reader** | The UI usable without a mouse | ⬜ S-06.02.05 |
+| **Subject access / deletion** | Authenticated eight-store inventory, preview, exact confirmation and retry-safe deletion | ◐ S-06.02.04 · implementation/tests present, verification pending |
 
 ---
 
@@ -223,19 +224,15 @@ This is the next thing to build, and the decisions are now made:
 
 ## The honest scoreboard
 
-```
-Built and tested        20 stories      44% of all acceptance criteria
-Built, proof pending     1 story        deliverability dashboard
-Ready to start           3 stories      the vault and the box
-Waiting in the backlog  26 stories
-Blocked externally       3 stories      platform access and reviews
-Deferred                 1 story        with a reason and a trigger
+Board counts are not copied into this map because duplicated hand-written state
+drifts. The current status is always recomputed from `BOARD.md`:
+
+```bash
+uv run python scripts/verify_board.py
 ```
 
-**Roughly two-thirds of the *hard* engineering is done** — the timeline, the
-effects, the export, the AI safety layer, the browser hands. What is left is
-mostly *connecting* work: the loop that makes the parts act on their own, and
-the vault that makes it safe to let them.
+As of this implementation branch, S-05.01.01, S-05.01.02, S-05.01.03 and
+S-06.02.04 are all IN_REVIEW. None is claimed DONE without executable evidence.
 
 ### The three things only you can unblock
 

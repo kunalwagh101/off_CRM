@@ -38,7 +38,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-- S-03.02.05 · A platform is a row, not a code change
 
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
@@ -64,7 +63,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-03.02.05 · A platform is a row, not a code change
 
 ## IN_REVIEW
 

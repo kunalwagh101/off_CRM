@@ -30,16 +30,17 @@ contract:
 Use existing store transactions and standard filesystem operations. Do not build
 a new persistence layer.
 
-The implemented inventory has eight named adapters:
+The implemented inventory has nine named adapters:
 
 1. redacted sent-mail recall;
 2. AI task context;
 3. exact AI egress audit records;
 4. explicitly tagged generated subject artifacts;
 5. application-owned CSV queues/exports;
-6. crawler frontier/cache URLs where the subject itself is identifiable;
-7. browser trace runs, including screenshots/captures when that run matches;
-8. CRM/discovery/delivery/research/sales records, including residual discovery
+6. persisted companion profile names/instructions;
+7. crawler frontier/cache URLs where the subject itself is identifiable;
+8. browser trace runs, including screenshots/captures when that run matches;
+9. CRM/discovery/delivery/research/sales records, including residual discovery
    and audit JSON.
 
 CRM identity rows are intentionally last. If an auxiliary cleanup fails, the

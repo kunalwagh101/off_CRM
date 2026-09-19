@@ -95,6 +95,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-61 | 2026-09-20 | bug | high | Backup-restore fallback could replace the CRM engine without rebinding companion memory, leaving companions pointed at a closed store | fixed during `S-04.01.01` lifecycle review |
 | D-62 | 2026-09-20 | gap | high | Adding persisted companion instructions created a new personal-data store that was not initially registered in subject deletion | fixed before review · companion profiles added to privacy inventory |
 | D-63 | 2026-09-20 | bug | medium | The backup-restore fallback rebuilt privacy without the configured export directory, so CSV export deletion coverage could silently shrink after a failed restore | fixed during second-batch lifecycle review |
+| D-64 | 2026-09-20 | data-loss | high | Backup restore could replace `ai_tools.db` while ToolRegistry still held an open SQLite connection, leaving tools/companions attached to pre-restore state | fixed during `S-04.01.01` lifecycle review; registry is closed and reconstructed around restore |
 
 ---
 

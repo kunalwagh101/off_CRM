@@ -168,6 +168,8 @@ class CompanionRegistry:
 
     @staticmethod
     def _tool_ids(values: Iterable[str]) -> tuple[str, ...]:
+        if isinstance(values, (str, bytes)):
+            raise CompanionError("granted_tool_ids must be a list of tool ids")
         result = tuple(dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip()))
         if len(result) > MAX_TOOLS:
             raise CompanionError(f"A companion may grant at most {MAX_TOOLS} tools")
@@ -299,6 +301,8 @@ class CompanionRegistry:
                 raise CompanionError(
                     f"Memory scope {next_scope!r} already belongs to another companion"
                 )
+            if enabled is not None and not isinstance(enabled, bool):
+                raise CompanionError("enabled must be true or false")
             profile = Companion(
                 id=current.id,
                 workspace_id=workspace,
@@ -336,6 +340,8 @@ class CompanionRegistry:
         profile = self.require(companion_id, workspace_id=workspace_id)
         if not profile.enabled:
             raise CompanionError(f"Companion {profile.name!r} is disabled")
+        if isinstance(memory_limit, bool) or not isinstance(memory_limit, int):
+            raise CompanionError("memory_limit must be an integer between 0 and 50")
         if memory_limit < 0 or memory_limit > 50:
             raise CompanionError("memory_limit must be between 0 and 50")
 

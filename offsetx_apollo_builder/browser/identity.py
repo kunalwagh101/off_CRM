@@ -54,6 +54,7 @@ from typing import Any, Iterable
 from ..ai.workspace import atomic_json
 from .budget import Budget, BudgetLedger
 from .perceive import Snapshot
+from .platforms import Platform, PlatformRegistryError, default_registry, platform_map
 
 #: Never stored, never accepted as an argument, never logged. The test
 #: `test_no_function_here_accepts_a_credential` reads this list and checks every
@@ -64,101 +65,7 @@ FORBIDDEN_FIELDS = (
 )
 
 
-@dataclass(frozen=True)
-class Platform:
-    """One place a person can sign in to, and how to tell whether they have.
-
-    The signals are **accessible names**, not CSS selectors, for the reason
-    `perceive.py` gives at length: a class name changes on the next deploy and a
-    button still says "Sign in". They are matched case-insensitively against the
-    page's accessibility tree.
-    """
-
-    id: str
-    label: str
-    #: Where a person goes to sign in. Opened for them; never submitted by us.
-    login_url: str
-    #: A page that looks different depending on whether they are signed in.
-    home_url: str
-    #: Names that appear **only** when signed in.
-    signed_in: tuple[str, ...]
-    #: Names that appear **only** when signed out. These win ties.
-    signed_out: tuple[str, ...]
-    note: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "login_url": self.login_url,
-            "home_url": self.home_url,
-            "note": self.note,
-        }
-
-
-#: The six the owner named. LinkedIn is first because Q-03 chose it: it is the
-#: one with no usable CRM API, so the browser is necessary there rather than
-#: merely convenient.
-PLATFORMS: dict[str, Platform] = {
-    platform.id: platform
-    for platform in (
-        Platform(
-            id="linkedin",
-            label="LinkedIn",
-            login_url="https://www.linkedin.com/login",
-            home_url="https://www.linkedin.com/feed/",
-            signed_in=("my network", "messaging", "start a post", "my items"),
-            signed_out=("sign in", "join now", "new to linkedin"),
-            note=(
-                "Attended only. The agent may read as you when you ask it to and "
-                "never on a schedule — see `policy.py`. Automated collection "
-                "breaches the User Agreement and the penalty falls on your account."
-            ),
-        ),
-        Platform(
-            id="instagram",
-            label="Instagram",
-            login_url="https://www.instagram.com/accounts/login/",
-            home_url="https://www.instagram.com/",
-            signed_in=("home", "new post", "profile", "direct"),
-            signed_out=("log in", "sign up", "forgot password"),
-            note="The Business Discovery API is the supported route for competitor data.",
-        ),
-        Platform(
-            id="facebook",
-            label="Facebook",
-            login_url="https://www.facebook.com/login/",
-            home_url="https://www.facebook.com/",
-            signed_in=("your profile", "create", "notifications"),
-            signed_out=("log in", "create new account", "forgotten password"),
-        ),
-        Platform(
-            id="youtube",
-            label="YouTube",
-            login_url="https://accounts.google.com/ServiceLogin?service=youtube",
-            home_url="https://www.youtube.com/",
-            signed_in=("account menu", "create", "subscriptions"),
-            signed_out=("sign in",),
-            note="The Data API serves public data properly. Drive the site only for what it does not expose.",
-        ),
-        Platform(
-            id="x",
-            label="X",
-            login_url="https://x.com/i/flow/login",
-            home_url="https://x.com/home",
-            signed_in=("post", "home timeline", "account menu"),
-            signed_out=("sign in", "create account"),
-        ),
-        Platform(
-            id="tiktok",
-            label="TikTok",
-            login_url="https://www.tiktok.com/login",
-            home_url="https://www.tiktok.com/foryou",
-            signed_in=("upload", "inbox", "profile"),
-            signed_out=("log in", "sign up"),
-        ),
-    )
-}
+PLATFORMS: dict[str, Platform] = platform_map()
 
 
 class UnknownPlatform(ValueError):
@@ -166,12 +73,10 @@ class UnknownPlatform(ValueError):
 
 
 def platform(platform_id: str) -> Platform:
-    key = str(platform_id or "").strip().lower()
-    if key not in PLATFORMS:
-        raise UnknownPlatform(
-            f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(PLATFORMS))}."
-        )
-    return PLATFORMS[key]
+    try:
+        return default_registry().get(platform_id)
+    except PlatformRegistryError as exc:
+        raise UnknownPlatform(str(exc)) from exc
 
 
 def _now() -> str:

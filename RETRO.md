@@ -13,14 +13,19 @@ this story and remain forbidden / S-05.01.02 / S-05.01.03.
 
 **What the estimate got wrong.** The crawler already had the difficult request
 safety. The missing production work was scheduling state and concurrency, not a
-new crawler engine. The unexpected blocker was evidence infrastructure: GitHub
-Actions runs 584 and 590 created a failed job with zero steps and no job log, so
-the repository test command could not run.
+new crawler engine. Review then found one more concurrency boundary: URL leases
+prevent duplicate URLs but do not stop two processes hitting different URLs on
+one host with separate pace clocks (`D-51`). That is now fixed with a durable
+per-host request slot. The remaining blocker is evidence infrastructure: GitHub
+Actions runs 827 and 828 still fail before workflow step 1, so the repository
+test command has not executed.
 
 **What to change next time.** Treat the safe fetch path as the asset and add
-state around it, rather than replacing it. For any story whose DONE gate depends
-on remote CI, check that the runner can start before the final evidence pass.
-The board remains IN_REVIEW until an executable locked test run exists.
+state around it, rather than replacing it. Any concurrency review must test both
+same-resource exclusion and shared-resource policy: different URLs can still
+share one host-level rate limit. For any story whose DONE gate depends on remote
+CI, check that the runner can start before the final evidence pass. The board
+remains IN_REVIEW until an executable locked test run exists.
 
 ---
 

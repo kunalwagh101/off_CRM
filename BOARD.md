@@ -64,10 +64,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.04 · Data deletion and subject access
+_nothing in flight_
 
 ## IN_REVIEW
 
+- S-06.02.04 · Data deletion and subject access
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.01 · A crawler with a frontier, not a loop

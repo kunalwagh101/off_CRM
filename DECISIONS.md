@@ -49,6 +49,7 @@ wastes a session when nobody can answer it.
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
 | DD-21 | 2026-09-18 | Keep crawl scheduling deterministic and local; do not add ML, Redis or a second crawler framework | SQLite is a single-host frontier today; a future multi-host crawler must move this boundary to shared storage |
+| DD-22 | 2026-09-20 | Owner-authorized build-ahead may consume a code-complete upstream story in IN_REVIEW, but downstream work also stops at IN_REVIEW until the dependency chain is verified | More review debt can accumulate before the owner's dedicated verification pass |
 
 ---
 
@@ -335,3 +336,26 @@ overrun is explicit in the trace and `RunOutcome`, never hidden.
 
 **What would make this wrong.** Every effectful provider/browser operation gaining
 an idempotency or cancellation contract that proves whether the effect happened.
+
+
+### DD-22 — Build ahead, never certify ahead · 2026-09-20
+
+**The normal rule.** A story enters READY only after every dependency is DONE.
+
+**The owner's explicit change.** The owner wants implementation to continue in
+batches and will run a dedicated verification pass later. When an upstream
+story is code-complete and only verification is deferred, an explicitly named
+downstream story may therefore be built on top of it.
+
+**Guardrail.** This changes implementation flow, not truth. The downstream
+story may move only as far as IN_REVIEW. It cannot be DONE while any declared
+dependency is unfinished. Automated/unit/static checks should still be run when
+the available execution environment permits them; owner-side acceptance is not
+invented.
+
+**Cost.** Several stories can accumulate in review at once, so a defect in an
+early slice can create rework in later slices.
+
+**What would make this wrong.** If the upstream contract itself is still
+ambiguous or changing, build-ahead stops. This exception is for deferred
+verification, not unresolved design.

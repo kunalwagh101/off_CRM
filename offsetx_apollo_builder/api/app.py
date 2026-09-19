@@ -214,6 +214,19 @@ def _privacy(request: Request) -> PrivacyService:
     return request.app.state.privacy
 
 
+def _privacy_subject(body: dict[str, Any], request: Request) -> SubjectIdentity:
+    payload = dict(body.get("subject") or {})
+    workspace_id = _workspace_id(request)
+    supplied = str(payload.get("workspace_id") or "").strip()
+    if supplied and supplied != workspace_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Privacy requests cannot cross the authenticated workspace boundary",
+        )
+    payload["workspace_id"] = workspace_id
+    return SubjectIdentity.from_mapping(payload)
+
+
 def _mail_provider(settings: AppSettings, mode: str, confirmation: str = "") -> Any:
     if mode == "local":
         return LocalOutboxProvider(settings.data_dir / "mail")
@@ -3089,7 +3102,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Inventory one verified subject across every registered personal-data store."""
         try:
-            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            subject = _privacy_subject(body, request)
             return _privacy(request).access(subject)
         except PrivacyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3100,7 +3113,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Create the exact inventory that a later confirmed deletion will execute."""
         try:
-            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            subject = _privacy_subject(body, request)
             return _privacy(request).preview(subject)
         except PrivacyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3113,7 +3126,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Execute/retry one previewed deletion. Never invent confirmation."""
         try:
-            subject = SubjectIdentity.from_mapping(dict(body.get("subject") or {}))
+            subject = _privacy_subject(body, request)
             return _privacy(request).delete(
                 request_id,
                 subject,

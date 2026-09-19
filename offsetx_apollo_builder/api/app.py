@@ -422,6 +422,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ai_context=app.state.ai_context,
             ai_recall=app.state.ai_recall,
             ai_egress=app.state.ai_egress_log,
+            export_dir=resolved.export_dir,
         )
         app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
@@ -1019,6 +1020,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 ai_context=request.app.state.ai_context,
                 ai_recall=request.app.state.ai_recall,
                 ai_egress=request.app.state.ai_egress_log,
+                export_dir=settings.export_dir,
             )
             return result
         finally:

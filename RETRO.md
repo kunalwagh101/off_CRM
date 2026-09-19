@@ -17,7 +17,7 @@ new crawler engine. Review then found one more concurrency boundary: URL leases
 prevent duplicate URLs but do not stop two processes hitting different URLs on
 one host with separate pace clocks (`D-51`). That is now fixed with a durable
 per-host request slot. The remaining blocker is evidence infrastructure: GitHub
-Actions runs 827 and 828 still fail before workflow step 1, so the repository
+Actions push/PR runs still fail before workflow step 1, so the repository
 test command has not executed.
 
 **What to change next time.** Treat the safe fetch path as the asset and add

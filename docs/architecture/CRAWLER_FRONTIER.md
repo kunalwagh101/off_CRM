@@ -49,6 +49,7 @@ crawl_frontier.sqlite3
   next due time
   failure counters
   expiring claim lease
+  per-host next request slot
         |
         v
 claim only due rows within current run's allowed domains + depth
@@ -76,6 +77,14 @@ until the lease expires. Success and failure both clear the lease. If a worker
 dies, the lease expires and the URL becomes recoverable rather than remaining
 stuck forever.
 
+URL leases are not enough for politeness: two processes can claim two different
+URLs on one host. The same SQLite file therefore also owns
+`crawl_host_pace`. Before a request starts, the fetcher transactionally
+reserves that host's next request slot, commits the new deadline, then sleeps
+outside the transaction if needed. Two processes arriving together cannot both
+observe the same free slot. A crashed worker can waste one delay interval, but
+cannot make the crawler run faster than the configured/robots floor.
+
 SQLite is deliberate here because off_CRM is still local-first and already uses
 SQLite for its local operational stores. A distributed queue would add an
 external service without solving a present requirement. If this crawler becomes
@@ -85,8 +94,9 @@ dedicated scheduler.
 ## Politeness and security
 
 The frontier does **not** copy request policy. It injects every URL through the
-existing `validate_public_url()` path and the existing fetchers remain
-responsible for robots.txt and crawl-delay enforcement. This keeps one security
+existing `validate_public_url()` path. The existing fetchers still parse
+robots.txt and decide the applicable crawl delay; they now reserve that delay
+through the frontier's shared per-host clock. This keeps one security/politeness
 policy rather than two versions that can drift.
 
 Session-gated platforms are therefore rejected before insertion. Links to them
@@ -95,8 +105,9 @@ targets.
 
 ## Persistence, migration and rollback
 
-There is no migration of the main CRM database. The frontier database is
-created lazily on first crawl with `CREATE TABLE IF NOT EXISTS`.
+There is no migration of the main CRM database. The frontier database and its
+URL/frontier plus host-pacing tables are created lazily on first crawl with
+`CREATE TABLE IF NOT EXISTS`.
 
 Rollback is safe: older code ignores `crawler_frontier.sqlite3`. Keeping the
 file preserves scheduling history for a later re-upgrade. Deleting it is also

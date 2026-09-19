@@ -18,11 +18,24 @@ from pathlib import Path
 from typing import Any, Iterable, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
+from .ai.context import ContextLayer
+from .ai.log import EgressLog
+from .ai.recall import SentMailIndex
 from .outreach.store import OutreachStore
 
 DELETE_CONFIRMATION = "DELETE SUBJECT DATA"
 MAX_TRACE_BYTES = 10 * 1024 * 1024
 MAX_TRACE_FILES = 10_000
+
+REQUIRED_PRIVACY_STORES = (
+    "sent_mail_recall",
+    "ai_context",
+    "ai_egress",
+    "subject_artifacts",
+    "crawler_frontier",
+    "browser_traces",
+    "outreach_crm",
+)
 
 
 class PrivacyError(ValueError):
@@ -635,6 +648,284 @@ class TracePrivacyAdapter:
                 shutil.rmtree(run)
                 deleted += 1
         return {"trace_runs": deleted}
+
+
+class SentMailPrivacyAdapter:
+    """Redacted recall still keeps the CRM membership id and must be forgettable."""
+
+    name = "sent_mail_recall"
+
+    def __init__(self, recall: SentMailIndex, outreach: OutreachStore) -> None:
+        self.recall = recall
+        self.outreach = outreach
+
+    def _membership_ids(self, subject: SubjectIdentity) -> tuple[str, ...]:
+        contacts = OutreachPrivacyAdapter(self.outreach)._contacts(subject)
+        contact_ids = tuple(str(row["id"]) for row in contacts)
+        if not contact_ids:
+            return ()
+        rows = self.outreach.connection.execute(
+            f"SELECT id FROM campaign_contacts WHERE contact_id IN ({_placeholders(contact_ids)})",
+            contact_ids,
+        ).fetchall()
+        return _uniq(str(row["id"]) for row in rows)
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        memberships = self._membership_ids(subject)
+        if not memberships:
+            return []
+        return [
+            dict(row)
+            for row in self.recall.connection.execute(
+                f"""
+                SELECT message_id, workspace_id, campaign_id, campaign_contact_id,
+                       template_id, variant_id, stage, category, route, sent_at
+                FROM sent_mail
+                WHERE workspace_id = ?
+                  AND campaign_contact_id IN ({_placeholders(memberships)})
+                """,
+                (subject.workspace_id, *memberships),
+            ).fetchall()
+        ]
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "redacted_sent_mail",
+                "sent-mail index linked by campaign_contact_id",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        memberships = self._membership_ids(subject)
+        deleted = sum(self.recall.forget_contact(item) for item in memberships)
+        return {"redacted_sent_mail": deleted}
+
+
+class AIContextPrivacyAdapter:
+    """Delete task-state rows whose owned context contains a strong identifier."""
+
+    name = "ai_context"
+
+    def __init__(self, context: ContextLayer) -> None:
+        self.context = context
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        clause, params = _token_clause(
+            ("title", "steps", "decisions", "facts", "summary"), subject
+        )
+        if not clause:
+            return []
+        rows = self.context.connection.execute(
+            f"SELECT * FROM ai_task_state WHERE workspace_id = ? AND ({clause})",
+            (subject.workspace_id, *params),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "agent_task_state",
+                "strong identifier embedded in locally owned task context",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows = self._rows(subject)
+        ids = tuple(str(row["id"]) for row in rows)
+        if not ids:
+            return {"agent_task_state": 0}
+        cursor = self.context.connection.execute(
+            f"DELETE FROM ai_task_state WHERE workspace_id = ? AND id IN ({_placeholders(ids)})",
+            (subject.workspace_id, *ids),
+        )
+        return {"agent_task_state": int(cursor.rowcount or 0)}
+
+
+class AIEgressPrivacyAdapter:
+    """Exact outbound provider payload/response audit rows containing the subject."""
+
+    name = "ai_egress"
+
+    def __init__(self, egress: EgressLog) -> None:
+        self.egress = egress
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        clause, params = _token_clause(
+            ("payload", "payload_summary", "response_text", "findings", "error"),
+            subject,
+        )
+        if not clause:
+            return []
+        rows = self.egress.connection.execute(
+            f"SELECT * FROM ai_egress_log WHERE workspace_id = ? AND ({clause})",
+            (subject.workspace_id, *params),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "ai_egress_record",
+                "strong identifier in exact outbound/returned AI audit material",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows = self._rows(subject)
+        ids = tuple(str(row["id"]) for row in rows)
+        if not ids:
+            return {"ai_egress_records": 0}
+        with self.egress.connection.transaction() as conn:
+            cursor = conn.execute(
+                f"DELETE FROM ai_egress_log WHERE workspace_id = ? AND id IN ({_placeholders(ids)})",
+                (subject.workspace_id, *ids),
+            )
+        return {"ai_egress_records": int(cursor.rowcount or 0)}
+
+
+class SubjectArtifactPrivacyAdapter:
+    """Files explicitly tagged as belonging to one subject.
+
+    Image/video/distribution stores do not have a safe subject key today. A
+    filename or prompt search would be destructive guesswork. Any workflow that
+    creates a subject-specific file registers it here at creation time, giving
+    deletion an exact, auditable key rather than fuzzy matching.
+    """
+
+    name = "subject_artifacts"
+
+    def __init__(self, data_root: Path | str, database_path: Path | str) -> None:
+        self.root = Path(data_root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.path = Path(database_path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.connection = sqlite3.connect(
+            self.path, check_same_thread=False, isolation_level=None, timeout=5
+        )
+        self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode = WAL")
+        self.connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS subject_artifacts (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                subject_fingerprint TEXT NOT NULL,
+                record_class TEXT NOT NULL,
+                relative_path TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(workspace_id, subject_fingerprint, relative_path)
+            );
+            CREATE INDEX IF NOT EXISTS ix_subject_artifacts_subject
+            ON subject_artifacts(workspace_id, subject_fingerprint);
+            """
+        )
+
+    def close(self) -> None:
+        self.connection.close()
+
+    def _safe_file(self, path: Path | str) -> Path:
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = self.root / candidate
+        resolved_root = self.root.resolve()
+        resolved = candidate.resolve()
+        if resolved_root not in resolved.parents or resolved == resolved_root:
+            raise PrivacyError("Subject artifact must live under the application data directory")
+        if candidate.is_symlink() or (resolved.exists() and not resolved.is_file()):
+            raise PrivacyError("Subject artifact must be a regular non-symlink file")
+        return resolved
+
+    def register(
+        self,
+        subject: SubjectIdentity,
+        path: Path | str,
+        *,
+        record_class: str,
+    ) -> str:
+        resolved = self._safe_file(path)
+        if not resolved.exists():
+            raise PrivacyError("Cannot register a subject artifact that does not exist")
+        artifact_id = str(uuid.uuid4())
+        relative = str(resolved.relative_to(self.root.resolve()))
+        self.connection.execute(
+            """
+            INSERT INTO subject_artifacts(
+                id, workspace_id, subject_fingerprint, record_class, relative_path, created_at
+            ) VALUES(?,?,?,?,?,?)
+            ON CONFLICT(workspace_id, subject_fingerprint, relative_path) DO UPDATE SET
+                record_class=excluded.record_class
+            """,
+            (
+                artifact_id,
+                subject.workspace_id,
+                subject.fingerprint,
+                str(record_class or "artifact")[:100],
+                relative,
+                _now(),
+            ),
+        )
+        row = self.connection.execute(
+            """
+            SELECT id FROM subject_artifacts
+            WHERE workspace_id = ? AND subject_fingerprint = ? AND relative_path = ?
+            """,
+            (subject.workspace_id, subject.fingerprint, relative),
+        ).fetchone()
+        return str(row["id"]) if row else artifact_id
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT id, workspace_id, record_class, relative_path, created_at
+            FROM subject_artifacts
+            WHERE workspace_id = ? AND subject_fingerprint = ?
+            """,
+            (subject.workspace_id, subject.fingerprint),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "generated_subject_artifact",
+                "artifact explicitly registered to subject fingerprint",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows = self._rows(subject)
+        deleted_files = 0
+        for row in rows:
+            path = self._safe_file(str(row["relative_path"]))
+            if path.exists():
+                path.unlink()
+                deleted_files += 1
+        self.connection.execute(
+            "DELETE FROM subject_artifacts WHERE workspace_id = ? AND subject_fingerprint = ?",
+            (subject.workspace_id, subject.fingerprint),
+        )
+        return {"artifact_rows": len(rows), "artifact_files": deleted_files}
 
 
 class PrivacyRequestStore:

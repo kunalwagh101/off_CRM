@@ -6,6 +6,7 @@ a deletion receipt stores only counts/status — never the data it just removed.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -185,13 +186,17 @@ def _token_clause(columns: Iterable[str], subject: SubjectIdentity) -> tuple[str
     return " OR ".join(clauses), tuple(params)
 
 
-def _scrub_subject(value: object, subject: SubjectIdentity) -> str:
-    """Keep operational errors useful without preserving the deleted identifiers."""
+def _redact_subject_text(value: object, subject: SubjectIdentity) -> str:
     text = str(value or "")
     for token in sorted(subject.tokens, key=len, reverse=True):
         if token:
-            text = re.sub(re.escape(token), "[subject]", text, flags=re.IGNORECASE)
-    return text[:1000]
+            text = re.sub(re.escape(token), "[deleted-subject]", text, flags=re.IGNORECASE)
+    return text
+
+
+def _scrub_subject(value: object, subject: SubjectIdentity) -> str:
+    """Keep operational errors useful without preserving the deleted identifiers."""
+    return _redact_subject_text(value, subject)[:1000]
 
 
 class OutreachPrivacyAdapter:
@@ -404,6 +409,31 @@ class OutreachPrivacyAdapter:
             ]
             add(record_class, rows, f"{table} exact strong identifier in owned fields")
 
+        # Historical/control rows can carry the subject without a direct FK.
+        # They are inventoried separately because destructive cleanup differs:
+        # run/event history is redacted in place, while cache/chunk rows are removed.
+        residual_specs = (
+            (
+                "discovery_runs",
+                ("objective_prompt", "plan_json", "seed_urls_json", "allowed_domains_json", "errors_json"),
+                "discovery_run_metadata",
+            ),
+            ("campaign_events", ("payload_json",), "campaign_event_payload"),
+            ("idempotency_records", ("response_json",), "idempotency_response"),
+            ("expert_chunks", ("content", "source_ref", "source_url"), "expert_chunk"),
+        )
+        for table, columns, record_class in residual_specs:
+            clause, params = _token_clause(columns, subject)
+            if not clause:
+                continue
+            rows = [
+                dict(row)
+                for row in self.store.connection.execute(
+                    f"SELECT * FROM {table} WHERE {clause}", params
+                ).fetchall()
+            ]
+            add(record_class, rows, f"{table} strong identifier in retained text/JSON")
+
         # If any message in a chat mentions the subject, remove/access the whole
         # chat. Assistant replies can repeat the same fact without repeating the
         # exact identifier, and retaining half a conversation is a privacy leak.
@@ -467,6 +497,30 @@ class OutreachPrivacyAdapter:
             ).fetchall()
             chat_ids = tuple(str(row["id"]) for row in rows)
 
+        residual_specs = (
+            (
+                "discovery_runs",
+                ("objective_prompt", "plan_json", "seed_urls_json", "allowed_domains_json", "errors_json"),
+                "redact",
+            ),
+            ("campaign_events", ("payload_json",), "redact"),
+            ("idempotency_records", ("response_json",), "delete"),
+            ("expert_chunks", ("content", "source_ref", "source_url"), "delete"),
+        )
+        residual_matches: dict[str, tuple[tuple[str, ...], str, list[dict[str, Any]]]] = {}
+        for table, columns, action in residual_specs:
+            clause, params = _token_clause(columns, subject)
+            if not clause:
+                continue
+            rows = [
+                dict(row)
+                for row in self.store.connection.execute(
+                    f"SELECT * FROM {table} WHERE {clause}", params
+                ).fetchall()
+            ]
+            if rows:
+                residual_matches[table] = (columns, action, rows)
+
         counts = {
             "contacts": len(contact_ids),
             "discovery_candidates": len(candidate_ids),
@@ -506,6 +560,32 @@ class OutreachPrivacyAdapter:
                     (*workspace_params, *params),
                 )
                 counts[table] = int(cursor.rowcount or 0)
+
+            for table, (columns, action, rows) in residual_matches.items():
+                if action == "delete":
+                    if table == "idempotency_records":
+                        keys = tuple((str(row["scope"]), str(row["request_key"])) for row in rows)
+                        for scope, request_key in keys:
+                            conn.execute(
+                                "DELETE FROM idempotency_records WHERE scope = ? AND request_key = ?",
+                                (scope, request_key),
+                            )
+                    else:
+                        ids = tuple(str(row["id"]) for row in rows)
+                        if ids:
+                            conn.execute(
+                                f"DELETE FROM {table} WHERE id IN ({_placeholders(ids)})",
+                                ids,
+                            )
+                else:
+                    for row in rows:
+                        values = [_redact_subject_text(row.get(column), subject) for column in columns]
+                        assignments = ", ".join(f"{column} = ?" for column in columns)
+                        conn.execute(
+                            f"UPDATE {table} SET {assignments} WHERE id = ?",
+                            (*values, str(row["id"])),
+                        )
+                counts[table] = len(rows)
         return counts
 
 

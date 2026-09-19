@@ -50,6 +50,9 @@ wastes a session when nobody can answer it.
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
 | DD-21 | 2026-09-18 | Keep crawl scheduling deterministic and local; do not add ML, Redis or a second crawler framework | SQLite is a single-host frontier today; a future multi-host crawler must move this boundary to shared storage |
 | DD-22 | 2026-09-20 | Owner-authorized build-ahead may consume a code-complete upstream story in IN_REVIEW, but downstream work also stops at IN_REVIEW until the dependency chain is verified | More review debt can accumulate before the owner's dedicated verification pass |
+| DD-23 | 2026-09-20 | Extraction packs are validated JSON data over the existing Scrapling parser; no parser plugins, templates, code or AI | DOM changes require pack maintenance and semantic extraction is intentionally absent |
+| DD-24 | 2026-09-20 | Competitor teardown starts as deterministic structure mapping into the existing recipe/assembly/review path | It cannot infer subjective creative intent; adding AI later requires measured eval evidence |
+| DD-25 | 2026-09-20 | Explicit privacy deletion removes a whole matching trace run and deletes CRM identity data last | A run containing mixed subjects can lose unrelated trace context, but append-only audit history is never silently rewritten |
 
 ---
 
@@ -359,3 +362,36 @@ early slice can create rework in later slices.
 **What would make this wrong.** If the upstream contract itself is still
 ambiguous or changing, build-ahead stops. This exception is for deferred
 verification, not unresolved design.
+
+
+### DD-23 — Extraction configuration stays data · 2026-09-20
+
+A new source declares domains, one record selector and bounded text/attribute
+rules in JSON. The existing Scrapling parser executes those selectors after the
+existing URL/robots/SSRF boundary. Python callbacks, templates, JavaScript,
+remote packs and model extraction are refused.
+
+**Cost:** a changed DOM can break a pack. **Revisit when:** stable public pages
+cannot be represented with bounded selectors and measured semantic extraction
+beats the deterministic baseline.
+
+### DD-24 — Competitive analysis is structural and deterministic first · 2026-09-20
+
+Normalized public facts map to an existing recipe and bounded shape parameters.
+No competitor media, caption, transcript or audio crosses into a project. The
+project then uses our own material and the existing human review queue.
+
+**Cost:** it does not claim to know why a post worked. **Revisit when:** a fixed
+evaluation set shows an AI structural classifier materially improves recipe
+selection without leaking source content or bypassing review.
+
+### DD-25 — Delete the matching trace run; do not edit history · 2026-09-20
+
+Trace JSONL is append-only by design. A privacy deletion that rewrites selected
+lines would turn that guarantee into a lie, so a run containing a verified
+subject identifier is deleted as one filesystem unit, including screenshots and
+captures. Auxiliary stores delete first; CRM identity rows delete last so a
+failed auxiliary cleanup can be retried with the same join keys.
+
+**Cost:** a mixed-subject run can lose unrelated trace context. **Revisit when:**
+traces gain a cryptographically safe subject-partitioned storage format.

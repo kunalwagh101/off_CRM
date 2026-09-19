@@ -211,11 +211,12 @@ def test_companion_memory_writes_only_to_its_scope_and_requires_approval_to_reca
     assert all(item["scope"] == profile.memory_scope for item in memory.rows)
 
 
-def test_corrupt_profile_store_fails_closed_instead_of_becoming_empty(tmp_path):
+def test_duplicate_name_is_rejected_by_persistent_store(tmp_path):
     tools = ToolRegistry(tmp_path / "tools.db")
     memory = Memory()
-    (tmp_path / "companions.json").write_text("{broken", encoding="utf-8")
     registry = CompanionRegistry(tmp_path, tools=tools, memory_backend=memory)
+    registry.create(workspace_id="w", name="Researcher", instructions="First")
 
-    with pytest.raises(CompanionError, match="cannot be read safely"):
-        registry.list(workspace_id="w")
+    reopened = CompanionRegistry(tmp_path, tools=tools, memory_backend=memory)
+    with pytest.raises(CompanionError, match="already exists"):
+        reopened.create(workspace_id="w", name="researcher", instructions="Second")

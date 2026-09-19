@@ -1038,6 +1038,7 @@ class StructuredExportPrivacyAdapter:
 
     def _files(self) -> list[tuple[Path, Path]]:
         found: list[tuple[Path, Path]] = []
+        seen_files: set[str] = set()
         for root in self.roots:
             if not root.exists() or root.is_symlink():
                 continue
@@ -1051,6 +1052,9 @@ class StructuredExportPrivacyAdapter:
                     continue
                 if path.is_symlink() or root not in resolved.parents:
                     continue
+                if str(resolved) in seen_files:
+                    continue
+                seen_files.add(str(resolved))
                 if size > MAX_STRUCTURED_FILE_BYTES:
                     raise PrivacyError(f"Structured export exceeds the safe scan size: {resolved}")
                 found.append((root, resolved))

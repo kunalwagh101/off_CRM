@@ -6,10 +6,14 @@
   Public discovery now persists crawl state in SQLite, leases due URLs so
   concurrent workers do not duplicate claims, schedules recently changed pages
   sooner than stable pages, backs failures off, and routes every admitted URL
-  through the existing public-web/session-gated safety policy. Five focused
-  acceptance/concurrency tests are in `tests/test_crawler_frontier.py`. GitHub
-  Actions runs 584 and 590 failed before creating any workflow step, so the
-  story remains IN_REVIEW rather than being falsely marked DONE.
+  through the existing public-web/session-gated safety policy. Review found
+  and fixed `D-51`: separate crawler processes could claim different URLs on
+  one host while keeping separate crawl-delay clocks. The frontier now stores
+  a transactional per-host next-request slot and the existing safe fetchers
+  reserve it before requests. Six focused acceptance/concurrency tests are in
+  `tests/test_crawler_frontier.py`. GitHub Actions runs 827 and 828 again
+  failed before creating workflow step 1, so the story remains IN_REVIEW
+  rather than being falsely marked DONE.
 
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.
 - **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.

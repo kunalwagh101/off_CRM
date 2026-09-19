@@ -1,24 +1,29 @@
 # CONTINUE — the handoff prompt
 
-## Current handoff — 2026-09-19
+## Current handoff — 2026-09-20
 
-- Active increment: `S-05.01.01` remains **IN_REVIEW** on
-  `feature/s-05-01-01-crawler-frontier`.
-- Code review found and fixed D-51, the cross-process same-host crawl-delay
-  defect. Six focused acceptance/concurrency cases now exist.
-- GitHub Actions still creates the quality job and fails before workflow step 1,
-  so the locked evidence command has not executed and the story must not be
-  called DONE.
-- The next three agreed candidates are fully refined, not pulled:
+- Working implementation branch: `feature/next-three-implementation`.
+- Owner explicitly authorised build-ahead with verification deferred; DD-22
+  records that downstream work may reach IN_REVIEW but never DONE ahead of its
+  dependencies.
+- Four stories are currently IN_REVIEW: `S-05.01.01` crawler frontier,
   `S-05.01.02` extraction packs, `S-05.01.03` structure-only competitor
   teardown, and `S-06.02.04` subject access/deletion.
-- Their architecture is in
-  `docs/architecture/EXTRACTION_PACKS.md`,
-  `docs/architecture/COMPETITOR_TEARDOWN.md`, and
-  `docs/architecture/DATA_DELETION.md`.
-- Do not move S-05.01.02 to READY until S-05.01.01 is DONE. Do not pull
-  S-05.01.03 until S-05.01.02 is DONE. Q-07 remains unanswered for automatic
-  retention; S-06.02.04 does not invent a retention duration.
+- The requested three new features are implemented. Their focused suites are
+  `tests/test_extraction_packs.py`, `tests/test_competitor_teardown.py` and
+  `tests/test_privacy.py`.
+- Do not move any of them to DONE without running their DEMO.md commands, the
+  full regression and `uv run python scripts/verify_board.py`. Owner-side
+  acceptance is intentionally scheduled for a later dedicated verification
+  pass.
+- Privacy coverage includes CRM/discovery/delivery data, redacted sent-mail
+  recall, AI context/egress, crawler state, whole matching trace runs, explicitly
+  tagged generated artifacts, residual CRM metadata and application-owned CSV
+  queues/exports. Q-07 still owns automatic retention duration.
+- Local clone/test execution was not available in this ChatGPT runtime because
+  outbound DNS to github.com is blocked. Do not convert authored tests into
+  claimed pass evidence.
+
 
 ---
 

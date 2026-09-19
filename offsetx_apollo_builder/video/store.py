@@ -179,7 +179,7 @@ REVIEW_VERDICTS = ("waiting", "pushed", "ignored")
 #: point of the queue is to score the thing that made it, and "the assembler
 #: with a recipe I picked" and "the model chose everything" are not the same
 #: claim.
-REVIEW_ORIGINS = ("assemble", "direct", "manual")
+REVIEW_ORIGINS = ("assemble", "direct", "manual", "competitor_teardown")
 
 
 def _now() -> str:

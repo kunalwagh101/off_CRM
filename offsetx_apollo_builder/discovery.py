@@ -370,14 +370,19 @@ class SafePublicFetcher:
         session: requests.Session | None = None,
         parser: ScraplingPageParser | None = None,
         resolver: Callable[..., Any] = socket.getaddrinfo,
+        host_pacer: Callable[[str, float], None] | None = None,
     ) -> None:
         self.policy = policy
         self.session = session or requests.Session()
         self.session.trust_env = False
         self.parser = parser or ScraplingPageParser()
         self.resolver = resolver
+        self.host_pacer = host_pacer
         self.robots: dict[str, tuple[RobotFileParser, float]] = {}
         self.last_request_at: dict[str, float] = {}
+
+    def set_host_pacer(self, pacer: Callable[[str, float], None]) -> None:
+        self.host_pacer = pacer
 
     def _assert_public_dns(self, url: str) -> None:
         parsed = urlsplit(url)
@@ -402,6 +407,9 @@ class SafePublicFetcher:
 
     def _delay(self, host: str, extra_delay: float = 0) -> None:
         delay = max(self.policy.request_delay_seconds, extra_delay)
+        if self.host_pacer is not None:
+            self.host_pacer(host, delay)
+            return
         remaining = self.last_request_at.get(host, 0) + delay - time.monotonic()
         if remaining > 0:
             time.sleep(remaining)
@@ -527,6 +535,7 @@ class Crawl4AIPageFetcher:
         parser: ScraplingPageParser | None = None,
         resolver: Callable[..., Any] = socket.getaddrinfo,
         base_directory: Path | None = None,
+        host_pacer: Callable[[str, float], None] | None = None,
     ) -> None:
         runtime_root = Path(base_directory or tempfile.gettempdir())
         runtime_root.mkdir(parents=True, exist_ok=True)
@@ -539,7 +548,12 @@ class Crawl4AIPageFetcher:
             ) from exc
         self.policy = policy
         self.parser = parser or ScraplingPageParser()
-        self.guard = SafePublicFetcher(policy, parser=self.parser, resolver=resolver)
+        self.guard = SafePublicFetcher(
+            policy,
+            parser=self.parser,
+            resolver=resolver,
+            host_pacer=host_pacer,
+        )
         self._loop = asyncio.new_event_loop()
         self._crawler = AsyncWebCrawler(
             config=BrowserConfig(
@@ -582,6 +596,9 @@ class Crawl4AIPageFetcher:
             verbose=False,
         )
         self._started = False
+
+    def set_host_pacer(self, pacer: Callable[[str, float], None]) -> None:
+        self.guard.set_host_pacer(pacer)
 
     async def _assert_route(self, request_url: str, resource_type: str) -> None:
         parsed = urlsplit(request_url)
@@ -732,6 +749,12 @@ class PublicWebCrawler:
                 blocked_domains=self.policy.blocked_domains,
             ),
         )
+        self._bind_host_pacer(self.fetcher)
+
+    def _bind_host_pacer(self, fetcher: PageFetcher) -> None:
+        setter = getattr(fetcher, "set_host_pacer", None)
+        if callable(setter):
+            setter(self.frontier.wait_for_host)
 
     def _admit_seeds(self, seed_urls: Sequence[str]) -> None:
         for seed in seed_urls:
@@ -808,6 +831,7 @@ class PublicWebCrawler:
                 fetcher = thread_fetchers.get(ident)
                 if fetcher is None:
                     fetcher = self.fetcher_factory()
+                    self._bind_host_pacer(fetcher)
                     thread_fetchers[ident] = fetcher
             self.rate_limiter.wait_turn(url)
             return fetcher.fetch(url)

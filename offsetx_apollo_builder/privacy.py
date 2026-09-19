@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 import threading
@@ -179,7 +180,7 @@ def _token_clause(columns: Iterable[str], subject: SubjectIdentity) -> tuple[str
     params: list[Any] = []
     for column in columns:
         for token in tokens:
-            clauses.append(f"lower({column}) LIKE ? ESCAPE '\\\\'")
+            clauses.append(f"lower({column}) LIKE ? ESCAPE '\\'")
             params.append(_like_token(token))
     return " OR ".join(clauses), tuple(params)
 
@@ -189,8 +190,7 @@ def _scrub_subject(value: object, subject: SubjectIdentity) -> str:
     text = str(value or "")
     for token in sorted(subject.tokens, key=len, reverse=True):
         if token:
-            text = text.replace(token, "[subject]")
-            text = text.replace(token.lower(), "[subject]")
+            text = re.sub(re.escape(token), "[subject]", text, flags=re.IGNORECASE)
     return text[:1000]
 
 

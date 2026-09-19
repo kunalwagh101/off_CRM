@@ -1,16 +1,14 @@
 """Persisted companion profiles with isolated memory and tool grants.
 
 A companion is configuration around existing capabilities, not another agent
-engine. The profile stores its instructions, one exact memory scope and the IDs
-of owner-pinned tools it may use. Runtime resolution re-checks every grant
-against the current ToolRegistry, so disabling/removing a tool takes effect
-immediately.
+engine. Profiles live as rows beside the existing owner-pinned tool registry,
+so profile updates and grants inherit SQLite's transactional/concurrent-writer
+behaviour instead of creating another JSON persistence mechanism.
 """
 from __future__ import annotations
 
-import json
 import re
-import threading
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,13 +18,32 @@ from ..ai.errors import PolicyViolation
 from ..ai.sandbox import SandboxPolicy, SandboxWorkspace
 from ..ai.tiers import DataClass
 from ..ai.tools import ToolRegistry, ToolRun
-from ..ai.workspace import atomic_json
 from ..outreach.models import to_utc_iso
 
 _NAME = re.compile(r"^[^\x00\r\n]{1,100}$")
 _SCOPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$")
 MAX_INSTRUCTIONS = 12_000
 MAX_TOOLS = 100
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS agent_companions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    memory_scope TEXT NOT NULL,
+    granted_tool_ids TEXT NOT NULL DEFAULT '[]',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_companions_name
+    ON agent_companions(workspace_id, lower(name));
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_companions_memory_scope
+    ON agent_companions(workspace_id, memory_scope);
+CREATE INDEX IF NOT EXISTS ix_agent_companions_workspace
+    ON agent_companions(workspace_id, enabled, name);
+"""
 
 
 class CompanionError(ValueError):
@@ -59,17 +76,29 @@ class Companion:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "Companion":
+    def from_row(cls, row: Any) -> "Companion":
+        import json
+
+        try:
+            granted = json.loads(str(row["granted_tool_ids"] or "[]"))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise CompanionError(
+                f"Companion {row['id']!r} has corrupt granted_tool_ids"
+            ) from exc
+        if not isinstance(granted, list):
+            raise CompanionError(
+                f"Companion {row['id']!r} has corrupt granted_tool_ids"
+            )
         return cls(
-            id=str(raw["id"]),
-            workspace_id=str(raw["workspace_id"]),
-            name=str(raw["name"]),
-            instructions=str(raw["instructions"]),
-            memory_scope=str(raw["memory_scope"]),
-            granted_tool_ids=tuple(str(item) for item in raw.get("granted_tool_ids", [])),
-            enabled=bool(raw.get("enabled", True)),
-            created_at=str(raw.get("created_at") or ""),
-            updated_at=str(raw.get("updated_at") or ""),
+            id=str(row["id"]),
+            workspace_id=str(row["workspace_id"]),
+            name=str(row["name"]),
+            instructions=str(row["instructions"]),
+            memory_scope=str(row["memory_scope"]),
+            granted_tool_ids=tuple(str(item) for item in granted),
+            enabled=bool(row["enabled"]),
+            created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
         )
 
 
@@ -90,9 +119,6 @@ class CompanionContext:
 class CompanionRegistry:
     """Workspace-scoped companion persistence and runtime enforcement."""
 
-    _locks: dict[str, threading.RLock] = {}
-    _locks_guard = threading.Lock()
-
     def __init__(
         self,
         data_dir: Path | str,
@@ -100,37 +126,20 @@ class CompanionRegistry:
         tools: ToolRegistry,
         memory_backend: Any,
     ) -> None:
-        self.path = Path(data_dir) / "companions.json"
+        self.data_dir = Path(data_dir)
         self.tools = tools
         self.memory = memory_backend
-        self._lock = self._lock_for(self.path)
+        conn = self.tools.connection()
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.executescript(SCHEMA)
+        try:
+            self.tools.path.chmod(0o600)
+        except OSError:
+            pass
 
     def rebind_memory(self, memory_backend: Any) -> None:
         """Rebind after a CRM database restore without changing profile storage."""
         self.memory = memory_backend
-
-
-    @classmethod
-    def _lock_for(cls, path: Path) -> threading.RLock:
-        key = str(path.resolve())
-        with cls._locks_guard:
-            return cls._locks.setdefault(key, threading.RLock())
-
-    def _document(self) -> dict[str, Any]:
-        if not self.path.exists():
-            return {"version": 1, "workspaces": {}}
-        try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise CompanionError(
-                f"Companion registry at {self.path} cannot be read safely"
-            ) from exc
-        if not isinstance(raw, dict) or raw.get("version") != 1:
-            raise CompanionError("Companion registry has an unsupported format")
-        workspaces = raw.get("workspaces")
-        if not isinstance(workspaces, dict):
-            raise CompanionError("Companion registry workspaces must be an object")
-        return raw
 
     @staticmethod
     def _workspace(value: str) -> str:
@@ -170,7 +179,13 @@ class CompanionRegistry:
     def _tool_ids(values: Iterable[str]) -> tuple[str, ...]:
         if isinstance(values, (str, bytes)):
             raise CompanionError("granted_tool_ids must be a list of tool ids")
-        result = tuple(dict.fromkeys(str(item or "").strip() for item in values if str(item or "").strip()))
+        result = tuple(
+            dict.fromkeys(
+                str(item or "").strip()
+                for item in values
+                if str(item or "").strip()
+            )
+        )
         if len(result) > MAX_TOOLS:
             raise CompanionError(f"A companion may grant at most {MAX_TOOLS} tools")
         return result
@@ -182,15 +197,10 @@ class CompanionRegistry:
                     f"Tool {tool_id!r} is not registered in workspace {workspace_id!r}"
                 )
 
-    def _rows(self, document: dict[str, Any], workspace_id: str) -> dict[str, Any]:
-        workspaces = document["workspaces"]
-        rows = workspaces.get(workspace_id)
-        if rows is None:
-            rows = {}
-            workspaces[workspace_id] = rows
-        if not isinstance(rows, dict):
-            raise CompanionError(f"Companion workspace {workspace_id!r} is corrupt")
-        return rows
+    @staticmethod
+    def _encode_tools(tool_ids: Sequence[str]) -> str:
+        import json
+        return json.dumps(list(tool_ids), separators=(",", ":"))
 
     def create(
         self,
@@ -203,38 +213,54 @@ class CompanionRegistry:
     ) -> Companion:
         workspace = self._workspace(workspace_id)
         identifier = uuid.uuid4().hex
+        profile_name = self._name(name)
+        profile_instructions = self._instructions(instructions)
         scope = self._scope(memory_scope or f"companion:{identifier}")
-        tools = self._tool_ids(granted_tool_ids)
-        self._validate_tools(workspace, tools)
+        tool_ids = self._tool_ids(granted_tool_ids)
+        self._validate_tools(workspace, tool_ids)
         now = to_utc_iso()
-        profile = Companion(
-            id=identifier,
-            workspace_id=workspace,
-            name=self._name(name),
-            instructions=self._instructions(instructions),
-            memory_scope=scope,
-            granted_tool_ids=tools,
-            enabled=True,
-            created_at=now,
-            updated_at=now,
-        )
-        with self._lock:
-            document = self._document()
-            rows = self._rows(document, workspace)
-            if any(str(row.get("name", "")).casefold() == profile.name.casefold() for row in rows.values() if isinstance(row, dict)):
-                raise CompanionError(f"A companion named {profile.name!r} already exists")
-            if any(str(row.get("memory_scope", "")) == scope for row in rows.values() if isinstance(row, dict)):
-                raise CompanionError(f"Memory scope {scope!r} already belongs to another companion")
-            rows[identifier] = profile.to_dict()
-            atomic_json(self.path, document)
-        return profile
+        conn = self.tools.connection()
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO agent_companions(
+                        id, workspace_id, name, instructions, memory_scope,
+                        granted_tool_ids, enabled, created_at, updated_at
+                    ) VALUES(?,?,?,?,?,?,1,?,?)
+                    """,
+                    (
+                        identifier,
+                        workspace,
+                        profile_name,
+                        profile_instructions,
+                        scope,
+                        self._encode_tools(tool_ids),
+                        now,
+                        now,
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            message = str(exc).lower()
+            if "memory_scope" in message:
+                raise CompanionError(
+                    f"Memory scope {scope!r} already belongs to another companion"
+                ) from exc
+            raise CompanionError(
+                f"A companion named {profile_name!r} already exists"
+            ) from exc
+        return self.require(identifier, workspace_id=workspace)
 
     def get(self, companion_id: str, *, workspace_id: str) -> Companion | None:
         workspace = self._workspace(workspace_id)
-        with self._lock:
-            rows = self._rows(self._document(), workspace)
-            raw = rows.get(str(companion_id))
-        return Companion.from_dict(raw) if isinstance(raw, dict) else None
+        row = self.tools.connection().execute(
+            """
+            SELECT * FROM agent_companions
+            WHERE id = ? AND workspace_id = ?
+            """,
+            (str(companion_id), workspace),
+        ).fetchone()
+        return Companion.from_row(row) if row is not None else None
 
     def require(self, companion_id: str, *, workspace_id: str) -> Companion:
         profile = self.get(companion_id, workspace_id=workspace_id)
@@ -246,14 +272,15 @@ class CompanionRegistry:
 
     def list(self, *, workspace_id: str) -> list[Companion]:
         workspace = self._workspace(workspace_id)
-        with self._lock:
-            rows = self._rows(self._document(), workspace)
-            values = [
-                Companion.from_dict(raw)
-                for raw in rows.values()
-                if isinstance(raw, dict)
-            ]
-        return sorted(values, key=lambda item: (item.name.casefold(), item.id))
+        rows = self.tools.connection().execute(
+            """
+            SELECT * FROM agent_companions
+            WHERE workspace_id = ?
+            ORDER BY lower(name), id
+            """,
+            (workspace,),
+        ).fetchall()
+        return [Companion.from_row(row) for row in rows]
 
     def update(
         self,
@@ -267,66 +294,69 @@ class CompanionRegistry:
         enabled: bool | None = None,
     ) -> Companion:
         workspace = self._workspace(workspace_id)
-        with self._lock:
-            document = self._document()
-            rows = self._rows(document, workspace)
-            raw = rows.get(str(companion_id))
-            if not isinstance(raw, dict):
-                raise CompanionError(f"Companion {companion_id!r} does not exist")
-            current = Companion.from_dict(raw)
-            next_name = current.name if name is None else self._name(name)
-            next_instructions = (
-                current.instructions if instructions is None else self._instructions(instructions)
-            )
-            next_scope = current.memory_scope if memory_scope is None else self._scope(memory_scope)
-            next_tools = (
-                current.granted_tool_ids
-                if granted_tool_ids is None
-                else self._tool_ids(granted_tool_ids)
-            )
-            self._validate_tools(workspace, next_tools)
-            if any(
-                key != current.id
-                and isinstance(row, dict)
-                and str(row.get("name", "")).casefold() == next_name.casefold()
-                for key, row in rows.items()
-            ):
-                raise CompanionError(f"A companion named {next_name!r} already exists")
-            if any(
-                key != current.id
-                and isinstance(row, dict)
-                and str(row.get("memory_scope", "")) == next_scope
-                for key, row in rows.items()
-            ):
+        current = self.require(companion_id, workspace_id=workspace)
+        next_name = current.name if name is None else self._name(name)
+        next_instructions = (
+            current.instructions
+            if instructions is None
+            else self._instructions(instructions)
+        )
+        next_scope = (
+            current.memory_scope
+            if memory_scope is None
+            else self._scope(memory_scope)
+        )
+        next_tools = (
+            current.granted_tool_ids
+            if granted_tool_ids is None
+            else self._tool_ids(granted_tool_ids)
+        )
+        self._validate_tools(workspace, next_tools)
+        if enabled is not None and not isinstance(enabled, bool):
+            raise CompanionError("enabled must be true or false")
+        conn = self.tools.connection()
+        try:
+            with conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE agent_companions
+                    SET name = ?, instructions = ?, memory_scope = ?,
+                        granted_tool_ids = ?, enabled = ?, updated_at = ?
+                    WHERE id = ? AND workspace_id = ?
+                    """,
+                    (
+                        next_name,
+                        next_instructions,
+                        next_scope,
+                        self._encode_tools(next_tools),
+                        int(current.enabled if enabled is None else enabled),
+                        to_utc_iso(),
+                        current.id,
+                        workspace,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise CompanionError(f"Companion {companion_id!r} does not exist")
+        except sqlite3.IntegrityError as exc:
+            message = str(exc).lower()
+            if "memory_scope" in message:
                 raise CompanionError(
                     f"Memory scope {next_scope!r} already belongs to another companion"
-                )
-            if enabled is not None and not isinstance(enabled, bool):
-                raise CompanionError("enabled must be true or false")
-            profile = Companion(
-                id=current.id,
-                workspace_id=workspace,
-                name=next_name,
-                instructions=next_instructions,
-                memory_scope=next_scope,
-                granted_tool_ids=next_tools,
-                enabled=current.enabled if enabled is None else bool(enabled),
-                created_at=current.created_at,
-                updated_at=to_utc_iso(),
-            )
-            rows[current.id] = profile.to_dict()
-            atomic_json(self.path, document)
-        return profile
+                ) from exc
+            raise CompanionError(
+                f"A companion named {next_name!r} already exists"
+            ) from exc
+        return self.require(current.id, workspace_id=workspace)
 
     def delete(self, companion_id: str, *, workspace_id: str) -> bool:
         workspace = self._workspace(workspace_id)
-        with self._lock:
-            document = self._document()
-            rows = self._rows(document, workspace)
-            existed = rows.pop(str(companion_id), None) is not None
-            if existed:
-                atomic_json(self.path, document)
-            return existed
+        conn = self.tools.connection()
+        with conn:
+            cursor = conn.execute(
+                "DELETE FROM agent_companions WHERE id = ? AND workspace_id = ?",
+                (str(companion_id), workspace),
+            )
+        return cursor.rowcount > 0
 
     def start(
         self,
@@ -345,15 +375,15 @@ class CompanionRegistry:
         if memory_limit < 0 or memory_limit > 50:
             raise CompanionError("memory_limit must be between 0 and 50")
 
-        tools: list[dict[str, Any]] = []
+        tool_rows: list[dict[str, Any]] = []
         for tool_id in profile.granted_tool_ids:
             tool = self.tools.get(tool_id, workspace_id=workspace_id)
             if tool is not None and tool.enabled:
-                tools.append(tool.catalogue_entry())
+                tool_rows.append(tool.catalogue_entry())
 
-        memory: list[dict[str, Any]] = []
+        memory_rows: list[dict[str, Any]] = []
         if memory_limit:
-            memory, _ = self.memory.search_memory_items(
+            memory_rows, _ = self.memory.search_memory_items(
                 str(memory_query or ""),
                 workspace_id=workspace_id,
                 scope=profile.memory_scope,
@@ -363,8 +393,8 @@ class CompanionRegistry:
             )
         return CompanionContext(
             profile=profile,
-            tools=tuple(tools),
-            memory=tuple(memory),
+            tools=tuple(tool_rows),
+            memory=tuple(memory_rows),
         )
 
     def remember(

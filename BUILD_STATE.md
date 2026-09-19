@@ -31,6 +31,24 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
+## 2026-09-19 — crawler review and next-three refinement
+
+`S-05.01.01` is still IN_REVIEW. The durable frontier implementation was
+reviewed beyond its original same-URL lease test; that review found D-51:
+different crawler processes could hit different URLs on one host while keeping
+separate crawl-delay clocks. The frontier now owns a transactional per-host
+request slot shared through SQLite, and a sixth focused test covers it.
+
+The code is not being promoted to DONE because the current GitHub Actions jobs
+fail before workflow step 1 and provide no executable test evidence.
+
+The next three candidates have been reverse-engineered and refined in the
+backlog, with architecture docs committed. They remain BACKLOG because their
+dependency gates have not opened. This is deliberate: refinement is allowed;
+coding a BACKLOG item is not.
+
+---
+
 ---
 
 ## 0. Session setup

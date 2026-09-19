@@ -1,5 +1,28 @@
 # CONTINUE — the handoff prompt
 
+## Current handoff — 2026-09-19
+
+- Active increment: `S-05.01.01` remains **IN_REVIEW** on
+  `feature/s-05-01-01-crawler-frontier`.
+- Code review found and fixed D-51, the cross-process same-host crawl-delay
+  defect. Six focused acceptance/concurrency cases now exist.
+- GitHub Actions still creates the quality job and fails before workflow step 1,
+  so the locked evidence command has not executed and the story must not be
+  called DONE.
+- The next three agreed candidates are fully refined, not pulled:
+  `S-05.01.02` extraction packs, `S-05.01.03` structure-only competitor
+  teardown, and `S-06.02.04` subject access/deletion.
+- Their architecture is in
+  `docs/architecture/EXTRACTION_PACKS.md`,
+  `docs/architecture/COMPETITOR_TEARDOWN.md`, and
+  `docs/architecture/DATA_DELETION.md`.
+- Do not move S-05.01.02 to READY until S-05.01.01 is DONE. Do not pull
+  S-05.01.03 until S-05.01.02 is DONE. Q-07 remains unanswered for automatic
+  retention; S-06.02.04 does not invent a retention duration.
+
+---
+
+
 **What this is.** Paste the block below into a fresh Claude Code session — or
 any capable coding AI — and it will pick up exactly where the last one stopped,
 without you re-explaining anything.

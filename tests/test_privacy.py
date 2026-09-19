@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from offsetx_apollo_builder.ai.context import ContextLayer
+from offsetx_apollo_builder.ai.log import EgressLog
+from offsetx_apollo_builder.ai.recall import Redactor, SentMailIndex
 from offsetx_apollo_builder.browser.trace import Step, Trace
 from offsetx_apollo_builder.crawler_frontier import CrawlFrontier
 from offsetx_apollo_builder.outreach.models import ContactInput
 from offsetx_apollo_builder.outreach.store import OutreachStore
 from offsetx_apollo_builder.privacy import (
     DELETE_CONFIRMATION,
+    REQUIRED_PRIVACY_STORES,
     PrivacyAdapter,
     PrivacyError,
     PrivacyRecord,
@@ -186,5 +190,170 @@ def test_identity_must_match_the_preview(tmp_path):
             assert "do not match" in str(exc)
         else:
             raise AssertionError("a different subject must not reuse a deletion preview")
+    finally:
+        service.close()
+
+
+def test_runtime_inventory_covers_all_declared_personal_data_stores(tmp_path):
+    store = _store(tmp_path)
+    service = PrivacyService.for_local(store, data_dir=tmp_path / "data")
+    try:
+        assert tuple(adapter.name for adapter in service.adapters) == REQUIRED_PRIVACY_STORES
+        assert service.adapters[-1].name == "outreach_crm"
+    finally:
+        service.close()
+        store.close()
+
+
+def test_auxiliary_ai_recall_and_delivery_data_are_deleted_before_crm_anchor(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    context = ContextLayer(data_dir / "ai_context.db")
+    recall = SentMailIndex(data_dir / "ai_recall.db")
+    egress = EgressLog(data_dir / "ai_egress.db")
+    try:
+        contact_id = store.upsert_contact(
+            ContactInput(full_name="Alice Example", email="alice@example.com")
+        )
+        campaign_id = store.create_campaign(name="Privacy auxiliary", daily_send_limit=10)
+        membership_id, _ = store.add_contact_to_campaign(campaign_id, contact_id)
+
+        recall.index_message(
+            {
+                "id": "msg-alice",
+                "direction": "outbound",
+                "campaign_contact_id": membership_id,
+                "subject": "Hello Alice",
+                "body": "A safe sent message",
+                "sent_at": "2026-09-20T00:00:00+00:00",
+            },
+            redactor=Redactor(),
+            campaign_id=campaign_id,
+        )
+        context.start_task(
+            title="Follow up alice@example.com",
+            steps=["read public page"],
+        )
+        egress.record(
+            provider_id="fixture",
+            task_type="privacy-test",
+            status="ok",
+            payload={"public_fact": "alice@example.com"},
+            response_text="about alice@example.com",
+        )
+        store.connection.execute(
+            """
+            INSERT INTO email_suppressions(
+                email, active, reason, source, provider_event_id, created_at, updated_at
+            ) VALUES(?,1,'complaint','fixture','evt-1',?,?)
+            """,
+            ("alice@example.com", "2026-09-20T00:00:00+00:00", "2026-09-20T00:00:00+00:00"),
+        )
+
+        service = PrivacyService.for_local(
+            store,
+            data_dir=data_dir,
+            ai_context=context,
+            ai_recall=recall,
+            ai_egress=egress,
+        )
+        try:
+            subject = _subject("alice@example.com")
+            access = service.access(subject)
+            stores = {item["store"]: item["count"] for item in access["stores"]}
+            assert stores["sent_mail_recall"] == 1
+            assert stores["ai_context"] == 1
+            assert stores["ai_egress"] == 1
+            assert stores["outreach_crm"] >= 2
+
+            preview = service.preview(subject)
+            receipt = service.delete(
+                preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+            )
+            assert receipt["complete"] is True
+            assert recall.connection.execute(
+                "SELECT COUNT(*) AS n FROM sent_mail"
+            ).fetchone()["n"] == 0
+            assert context.connection.execute(
+                "SELECT COUNT(*) AS n FROM ai_task_state"
+            ).fetchone()["n"] == 0
+            assert egress.connection.execute(
+                "SELECT COUNT(*) AS n FROM ai_egress_log"
+            ).fetchone()["n"] == 0
+            assert store.connection.execute(
+                "SELECT COUNT(*) AS n FROM email_suppressions WHERE email = ?",
+                ("alice@example.com",),
+            ).fetchone()["n"] == 0
+            assert store.get_contact(contact_id) is None
+            assert "alice@example.com" not in str(receipt)
+        finally:
+            service.close()
+    finally:
+        context.close()
+        recall.close()
+        egress.close()
+        store.close()
+
+
+def test_registered_subject_artifact_is_deleted_without_touching_other_file(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    alice_file = data_dir / "alice-report.txt"
+    bob_file = data_dir / "bob-report.txt"
+    alice_file.write_text("subject-specific output", encoding="utf-8")
+    bob_file.write_text("unrelated output", encoding="utf-8")
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        alice = _subject("alice@example.com")
+        service.register_artifact(alice, alice_file, record_class="generated_report")
+        preview = service.preview(alice)
+        receipt = service.delete(
+            preview["request_id"], alice, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+        assert not alice_file.exists()
+        assert bob_file.exists()
+    finally:
+        service.close()
+        store.close()
+
+
+class AnchorAdapter:
+    name = "outreach_crm"
+
+    def __init__(self):
+        self.calls = 0
+
+    def find(self, subject):
+        return []
+
+    def delete(self, subject):
+        self.calls += 1
+        return {"anchor": 1}
+
+
+def test_crm_identity_anchor_waits_when_an_auxiliary_store_fails(tmp_path):
+    flaky = FlakyAdapter()
+    anchor = AnchorAdapter()
+    service = PrivacyService(
+        adapters=(flaky, anchor),
+        requests=PrivacyRequestStore(tmp_path / "privacy.db"),
+    )
+    try:
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+        first = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert first["complete"] is False
+        assert anchor.calls == 0
+
+        second = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert second["complete"] is True
+        assert anchor.calls == 1
     finally:
         service.close()

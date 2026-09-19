@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
+from fastapi.testclient import TestClient
+
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
 import pytest
 
 from offsetx_apollo_builder.agent.companions import CompanionError, CompanionRegistry
@@ -220,3 +225,72 @@ def test_duplicate_name_is_rejected_by_persistent_store(tmp_path):
     reopened = CompanionRegistry(tmp_path, tools=tools, memory_backend=memory)
     with pytest.raises(CompanionError, match="already exists"):
         reopened.create(workspace_id="w", name="researcher", instructions="Second")
+
+
+def test_companion_api_is_authenticated_persistent_and_memory_scoped(tmp_path):
+    token = "c" * 40
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data",
+        export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist",
+        host="127.0.0.1",
+        api_token=token,
+        allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/v1/companions").status_code == 401
+        headers = {"X-Offsetx-Token": token}
+
+        created = client.post(
+            "/api/v1/companions",
+            json={
+                "name": "Sales Sally",
+                "instructions": "Qualify leads carefully.",
+                "granted_tool_ids": [],
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201
+        profile = created.json()
+        assert profile["memory_scope"] == f"companion:{profile['id']}"
+
+        memory = client.post(
+            f"/api/v1/companions/{profile['id']}/memory",
+            json={"content": "Use MEDDIC", "approved": True},
+            headers=headers,
+        )
+        assert memory.status_code == 201
+
+        client.app.state.engine.store.add_memory_item(
+            workspace_id="local",
+            scope="global",
+            kind="fact",
+            content="GLOBAL SHOULD NOT LEAK",
+            approved=True,
+            confidence=1.0,
+            source_type="test",
+        )
+        context = client.post(
+            f"/api/v1/companions/{profile['id']}/context",
+            json={},
+            headers=headers,
+        )
+        assert context.status_code == 200
+        payload = context.json()
+        assert [item["content"] for item in payload["memory"]] == ["Use MEDDIC"]
+        assert payload["tools"] == []
+
+        disabled = client.patch(
+            f"/api/v1/companions/{profile['id']}",
+            json={"enabled": False},
+            headers=headers,
+        )
+        assert disabled.status_code == 200
+        refused = client.post(
+            f"/api/v1/companions/{profile['id']}/context",
+            json={},
+            headers=headers,
+        )
+        assert refused.status_code == 400

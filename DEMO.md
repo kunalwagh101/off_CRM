@@ -524,3 +524,59 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+
+---
+
+## S-05.01.02 — extraction packs are data
+
+Run the focused contract:
+
+```bash
+uv run pytest tests/test_extraction_packs.py tests/test_discovery.py -q
+```
+
+Then inspect the production registry:
+
+```bash
+cat config/extraction_packs.json
+```
+
+A source is added by a JSON row containing domains, one record selector and
+bounded text/attribute field selectors. There is no Python/plugin/template/AI
+hook in the pack format. An unmatched source still follows the existing
+JSON-LD parser.
+
+## S-05.01.03 — competitor structure, not competitor content
+
+```bash
+uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tests/test_video_review.py -q
+```
+
+The focused cases prove that the same public facts map to the same existing
+recipe, copied caption/transcript/audio/frame/media fields are rejected,
+session-gated sources are refused, missing evidence is not guessed, and a
+derived project uses our campaign material and enters the existing human review
+queue with origin `competitor_teardown`.
+
+## S-06.02.04 — subject access and deletion
+
+```bash
+uv run pytest tests/test_privacy.py tests/test_api_auth.py -q
+```
+
+The suite exercises cross-subject isolation, authenticated API access, exact
+destructive confirmation, retry after one store fails, deletion of crawler and
+trace copies, AI context/egress and redacted-mail recall, registered generated
+artifacts, residual CRM metadata, and row-level cleanup of application-owned
+CSV queues/exports.
+
+The destructive confirmation is intentionally explicit:
+
+```text
+DELETE SUBJECT DATA
+```
+
+These three sections describe the commands to run during the dedicated
+verification pass. No pass count is recorded here until those commands actually
+execute.

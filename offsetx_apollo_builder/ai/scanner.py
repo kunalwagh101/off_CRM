@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from .tiers import DataPolicy
 
@@ -329,3 +329,42 @@ def scan_payload(
         unique.append(finding)
     report.findings = unique
     return report
+
+
+
+def scan_model_input(
+    payload: dict[str, Any],
+    *,
+    system_prompt: str = "",
+    transport_text: Mapping[str, str] | None = None,
+    policy: DataPolicy = DataPolicy.MINIMAL,
+    owner_domains: Iterable[str] = (),
+    owner_addresses: Iterable[str] = (),
+    allow_addresses: bool = False,
+) -> ScanReport:
+    """Scan every piece of text the model/provider can see before provider I/O.
+
+    The payload is allowlist-built user content. Some provider APIs also receive
+    text outside that JSON object: a system prompt for chat, or filename and
+    language metadata for transcription. Those channels are part of the egress
+    boundary too and must not bypass the same credential scanner.
+
+    Provider API keys are deliberately absent: they authenticate the transport
+    and are never model-visible input.
+    """
+    envelope: dict[str, Any] = {"payload": payload}
+    if str(system_prompt or ""):
+        envelope["system_prompt"] = str(system_prompt)
+    if transport_text:
+        envelope["transport_text"] = {
+            str(key): str(value)
+            for key, value in transport_text.items()
+            if str(value or "")
+        }
+    return scan_payload(
+        envelope,
+        policy=policy,
+        owner_domains=owner_domains,
+        owner_addresses=owner_addresses,
+        allow_addresses=allow_addresses,
+    )

@@ -6,15 +6,18 @@ import threading
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from datetime import date
+from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Iterator
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from .. import __version__
 from ..agent.companions import CompanionError, CompanionRegistry
@@ -55,6 +58,8 @@ from ..video.timeline import (
 from ..db import resolve_target as resolve_database_target
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
+from ..meetings import MeetingError, MeetingStore, MeetingTranscriber, MeetingTranscriptionError
+from ..meetings.service import MAX_MEETING_CHUNK_BYTES
 from ..privacy import (
     DELETE_CONFIRMATION,
     PrivacyError,
@@ -150,6 +155,7 @@ from .schemas import (
     TemplateImport,
     MemoryApproval,
     MemoryCreate,
+    MeetingCreate,
     NotionExportRequest,
     NotionSettingsUpdate,
     WorkspaceCreate,
@@ -365,7 +371,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), geolocation=(), microphone=(self), display-capture=(self)"
+            if loopback
+            else "camera=(), geolocation=(), microphone=(), display-capture=()"
+        )
         if not loopback:
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         response.headers["Content-Security-Policy"] = (
@@ -472,6 +482,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 workspaces=app.state.ai_workspaces,
                 broker_factory=routine_broker,
             ),
+        )
+
+        app.state.meeting_store = MeetingStore(
+            resolved.data_dir / "meeting_transcripts.db"
+        )
+        app.state.meeting_transcriber = MeetingTranscriber(
+            store=app.state.meeting_store,
+            workspaces=app.state.ai_workspaces,
+            broker_factory=routine_broker,
         )
         app.state.image_store = ImageStore(
             resolved.data_dir / "imagery.db",
@@ -2715,6 +2734,192 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         if valid_api_token(request) or resolved.allow_unauthenticated:
             return "local"
         raise HTTPException(status_code=401, detail="CRM login required")
+
+
+    def _require_local_capture_origin(request: Request) -> None:
+        """Meeting audio is accepted only from this machine's own browser.
+
+        A hosted deployment receiving the bytes would violate S-07.01.03 before
+        the transcription provider was even called. Loopback binding plus a
+        loopback browser Origin makes the local boundary explicit and testable.
+        """
+        if not loopback:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Meeting capture is local-only. Run off_CRM on localhost so "
+                    "raw audio goes only from this machine to the declared "
+                    "transcription provider."
+                ),
+            )
+        origin = str(request.headers.get("origin") or "").strip()
+        try:
+            origin_host = (urlsplit(origin).hostname or "").lower()
+        except ValueError:
+            origin_host = ""
+        if origin_host not in {"localhost", "127.0.0.1", "::1"}:
+            raise HTTPException(
+                status_code=403,
+                detail="Meeting capture requires a localhost browser origin",
+            )
+
+    def _meeting_transcription_choices(request: Request) -> list[dict[str, Any]]:
+        workspace_id = _workspace_id(request)
+        state = request.app.state
+        description = state.ai_workspaces.describe(workspace_id)
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+        broker = state.ai_broker.with_credential_resolver(
+            state.ai_workspaces.credential_resolver(workspace_id)
+        )
+        choices: list[dict[str, Any]] = []
+        for provider in description["providers"]:
+            if not (
+                provider.get("connected")
+                and provider.get("enabled")
+                and provider.get("has_key")
+            ):
+                continue
+            for model in provider.get("available_models") or []:
+                if str(model.get("kind") or "chat") != "transcribe":
+                    continue
+                candidate_settings = replace(
+                    settings,
+                    enabled_models={
+                        **settings.enabled_models,
+                        str(provider["id"]): (str(model["id"]),),
+                    },
+                )
+                try:
+                    candidates, _ = broker.plan(
+                        EgressRequest(
+                            task_type="meeting_transcription",
+                            data_class=DataClass.CAMPAIGN,
+                            instructions="Transcribe meeting audio.",
+                            task_tags=("transcribe", "meeting"),
+                        ),
+                        candidate_settings,
+                        provider_id=str(provider["id"]),
+                        kind="transcribe",
+                    )
+                except (PolicyViolation, NoPermittedProvider, RegistryError):
+                    candidates = []
+                if not candidates:
+                    continue
+                choices.append({
+                    "provider_id": str(provider["id"]),
+                    "provider_name": str(provider["name"]),
+                    "flag": str(provider.get("flag") or ""),
+                    "model_id": str(model["id"]),
+                    "tier": str(model.get("tier") or provider.get("effective_tier") or ""),
+                })
+        return choices
+
+    @app.get(f"{API_PREFIX}/meetings/capabilities")
+    def meeting_capabilities(request: Request) -> dict[str, Any]:
+        return {
+            "local_server": loopback,
+            "requires_local_browser": True,
+            "max_chunk_bytes": MAX_MEETING_CHUNK_BYTES,
+            "chunk_seconds": 30,
+            "providers": _meeting_transcription_choices(request),
+        }
+
+    @app.get(f"{API_PREFIX}/meetings")
+    def meetings(
+        request: Request,
+        limit: int = Query(50, ge=1, le=200),
+    ) -> dict[str, Any]:
+        items = request.app.state.meeting_store.list(
+            workspace_id=_workspace_id(request),
+            limit=limit,
+        )
+        return {"items": items, "total": len(items)}
+
+    @app.get(f"{API_PREFIX}/meetings/{{meeting_id}}")
+    def meeting(meeting_id: str, request: Request) -> dict[str, Any]:
+        workspace_id = _workspace_id(request)
+        try:
+            item = request.app.state.meeting_store.require(
+                meeting_id, workspace_id=workspace_id
+            )
+            item["chunks"] = request.app.state.meeting_store.chunks(
+                meeting_id, workspace_id=workspace_id
+            )
+            return item
+        except MeetingError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/meetings", status_code=201)
+    def create_meeting(body: MeetingCreate, request: Request) -> dict[str, Any]:
+        _require_local_capture_origin(request)
+        try:
+            return request.app.state.meeting_store.create(
+                workspace_id=_workspace_id(request),
+                title=body.title,
+                provider_id=body.provider_id,
+                model_id=body.model_id,
+                language=body.language,
+            )
+        except MeetingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/meetings/{{meeting_id}}/chunks")
+    async def transcribe_meeting_chunk(
+        meeting_id: str,
+        request: Request,
+        file: UploadFile = File(...),
+        sequence: int = Form(..., ge=0),
+        provider_id: str = Form("", max_length=80),
+        model_id: str = Form("", max_length=240),
+        language: str = Form("", max_length=32),
+    ) -> dict[str, Any]:
+        # Guard before reading a single audio byte from the request.
+        _require_local_capture_origin(request)
+        workspace_id = _workspace_id(request)
+        try:
+            request.app.state.meeting_store.require(
+                meeting_id, workspace_id=workspace_id
+            )
+        except MeetingError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        content = await file.read(MAX_MEETING_CHUNK_BYTES + 1)
+        if len(content) > MAX_MEETING_CHUNK_BYTES:
+            raise HTTPException(status_code=413, detail="Meeting audio chunk is too large")
+        try:
+            return await run_in_threadpool(
+                request.app.state.meeting_transcriber.transcribe_chunk,
+                workspace_id=workspace_id,
+                meeting_id=meeting_id,
+                sequence=sequence,
+                audio=content,
+                media_type=str(file.content_type or "audio/webm"),
+                provider_id=provider_id,
+                model_id=model_id,
+                language=language,
+            )
+        except (MeetingTranscriptionError, MeetingError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
+
+    @app.post(f"{API_PREFIX}/meetings/{{meeting_id}}/complete")
+    def complete_meeting(meeting_id: str, request: Request) -> dict[str, Any]:
+        _require_local_capture_origin(request)
+        try:
+            return request.app.state.meeting_store.complete(
+                meeting_id, workspace_id=_workspace_id(request)
+            )
+        except MeetingError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.delete(f"{API_PREFIX}/meetings/{{meeting_id}}")
+    def delete_meeting(meeting_id: str, request: Request) -> dict[str, bool]:
+        deleted = request.app.state.meeting_store.delete(
+            meeting_id, workspace_id=_workspace_id(request)
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+        return {"deleted": True}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:

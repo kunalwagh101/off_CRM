@@ -389,6 +389,33 @@ class EgressBroker:
         self._failures: dict[str, int] = {}
         self._open_until: dict[str, float] = {}
 
+    def with_credential_resolver(
+        self, credential_resolver: CredentialResolver
+    ) -> "EgressBroker":
+        """Return a request/workspace-bound broker without mutating this one.
+
+        Quota, cache, logger and circuit-breaker state remain shared. Credentials
+        do not: the returned broker owns the resolver it was created with. This
+        is the important multi-workspace property — two concurrent requests can
+        never race by overwriting a process-global resolver.
+        """
+        bound = EgressBroker(
+            registry=self.registry,
+            credential_resolver=credential_resolver,
+            quota=self.quota,
+            logger=self.logger,
+            timeout_seconds=self.timeout_seconds,
+            failure_threshold=self.failure_threshold,
+            cooldown_seconds=self.cooldown_seconds,
+            cache=self.cache,
+            max_retries=self.max_retries,
+            deadline_seconds=self.deadline_seconds,
+        )
+        bound._lock = self._lock
+        bound._failures = self._failures
+        bound._open_until = self._open_until
+        return bound
+
     # ── candidate selection ─────────────────────────────────────────────────
 
     def plan(

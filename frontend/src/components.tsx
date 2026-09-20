@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 export function Button({
   tone = "primary",
@@ -131,23 +131,69 @@ export function Modal({
   wide?: boolean;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
   useEffect(() => {
-    if (open) closeRef.current?.focus();
-  }, [open]);
+    if (!open) return;
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((item) => !item.hasAttribute("hidden") && item.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) {
+        event.preventDefault();
+        closeRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      const target = returnFocusRef.current;
+      window.requestAnimationFrame(() => target?.focus());
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
+        ref={dialogRef}
         className={`modal ${wide ? "modal-wide" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
           <div>
-            <h2 id="modal-title">{title}</h2>
-            {description ? <p>{description}</p> : null}
+            <h2 id={titleId}>{title}</h2>
+            {description ? <p id={descriptionId}>{description}</p> : null}
           </div>
           <button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Close dialog">
             ×
@@ -178,9 +224,17 @@ export function Field({
 }
 
 export function Progress({ value }: { value: number }) {
+  const bounded = Math.max(0, Math.min(100, value));
   return (
-    <div className="progress" aria-label={`Quality score ${value} out of 100`}>
-      <span style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    <div
+      className="progress"
+      role="progressbar"
+      aria-label={`Quality score ${bounded} out of 100`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={bounded}
+    >
+      <span style={{ width: `${bounded}%` }} />
     </div>
   );
 }

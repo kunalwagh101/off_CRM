@@ -212,7 +212,12 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
                 {!campaigns.length ? <option value="">No campaign</option> : null}
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </select>
-              {activeCampaign ? <span className={`status-dot status-${activeCampaign.status}`} aria-label={`Campaign status: ${activeCampaign.status}`} /> : null}
+              {activeCampaign ? (
+                <>
+                  <span className={`status-dot status-${activeCampaign.status}`} aria-hidden="true" />
+                  <span className="sr-only">Campaign status: {activeCampaign.status}</span>
+                </>
+              ) : null}
             </div>
             <div className="topbar-actions">
               {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}

@@ -27,7 +27,25 @@ BACKUP_FILES = (
     "provider_secrets.enc",
     ".provider_master.key",
     "automation.json",
+    "ai_workspaces.json",
+    "ai_provider_keys.enc",
+    ".ai_master.key",
 )
+BACKUP_SQLITE_FILES = (
+    "ai_tools.db",
+    "workspace_auth.db",
+    "agent_routines.db",
+)
+ALL_BACKUP_FILES = (*BACKUP_FILES, *BACKUP_SQLITE_FILES)
+PRIVATE_BACKUP_FILES = {
+    ".provider_master.key",
+    "provider_secrets.enc",
+    ".ai_master.key",
+    "ai_provider_keys.enc",
+    "workspace_auth.db",
+    "ai_tools.db",
+    "agent_routines.db",
+}
 
 
 def _key(passphrase: str, salt: bytes) -> bytes:
@@ -86,7 +104,7 @@ def create_encrypted_backup(
                         "created_at": to_utc_iso(),
                         "database": "outreach.db",
                         "included_local_settings": [
-                            name for name in BACKUP_FILES if (data / name).is_file()
+                            name for name in ALL_BACKUP_FILES if (data / name).is_file()
                         ],
                         "excluded": ["Gmail OAuth tokens", "local mail inbox/outbox"],
                     },
@@ -98,6 +116,16 @@ def create_encrypted_backup(
                 source = data / name
                 if source.is_file():
                     archive.write(source, f"settings/{name}")
+            # SQLite files are copied through SQLite's online backup API rather
+            # than byte-copied while another connection may have a WAL open.
+            for name in BACKUP_SQLITE_FILES:
+                source = data / name
+                if not source.is_file():
+                    continue
+                snapshot = Path(temporary_dir) / name
+                _sqlite_copy(source, snapshot)
+                _integrity(snapshot)
+                archive.write(snapshot, f"settings/{name}")
         salt = secrets.token_bytes(16)
         encrypted = Fernet(_key(passphrase, salt)).encrypt(archive_buffer.getvalue())
         return MAGIC + salt + encrypted
@@ -151,11 +179,11 @@ def restore_encrypted_backup(
             database.parent.mkdir(parents=True, exist_ok=True)
             names = {member.filename for member in archive.infolist()}
             database_existed = database.exists()
-            settings_existed = {name: (data / name).is_file() for name in BACKUP_FILES}
+            settings_existed = {name: (data / name).is_file() for name in ALL_BACKUP_FILES}
             safety_directory.mkdir(parents=True, exist_ok=False)
             if database_existed:
                 shutil.copy2(database, safety_directory / "outreach.db")
-            for name in BACKUP_FILES:
+            for name in ALL_BACKUP_FILES:
                 current = data / name
                 if current.is_file():
                     shutil.copy2(current, safety_directory / name)
@@ -163,7 +191,7 @@ def restore_encrypted_backup(
                 replacement = database.with_suffix(database.suffix + ".restore")
                 shutil.copy2(restored_database, replacement)
                 os.replace(replacement, database)
-                for name in BACKUP_FILES:
+                for name in ALL_BACKUP_FILES:
                     archive_name = f"settings/{name}"
                     if archive_name not in names:
                         continue
@@ -171,8 +199,10 @@ def restore_encrypted_backup(
                     destination = data / name
                     replacement = destination.with_name(destination.name + ".restore")
                     replacement.write_bytes(archive.read(archive_name))
+                    if name in BACKUP_SQLITE_FILES:
+                        _integrity(replacement)
                     os.replace(replacement, destination)
-                    if name in {".provider_master.key", "provider_secrets.enc"}:
+                    if name in PRIVATE_BACKUP_FILES:
                         try:
                             destination.chmod(0o600)
                         except OSError:
@@ -184,7 +214,7 @@ def restore_encrypted_backup(
                     shutil.copy2(saved_database, database)
                 elif not database_existed:
                     database.unlink(missing_ok=True)
-                for name in BACKUP_FILES:
+                for name in ALL_BACKUP_FILES:
                     saved = safety_directory / name
                     if saved.exists():
                         shutil.copy2(saved, data / name)

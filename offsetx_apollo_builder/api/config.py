@@ -120,6 +120,7 @@ class AppSettings:
 
     #: Where an auto-provisioned local token lives. Beside the data it protects.
     TOKEN_FILENAME = "local_api_token"
+    SESSION_SECRET_FILENAME = "workspace_session_secret"
 
     def ensure_api_token(self) -> str:
         """Give a local install a token instead of an error.
@@ -152,6 +153,36 @@ class AppSettings:
             handle.write(token)
         self.api_token = token
         return token
+
+
+    def ensure_session_secret(self) -> str:
+        """Persist a private signing key for workspace session cookies.
+
+        Explicit OFFSETX_SESSION_SECRET wins. Token-only local installs get a
+        stable generated secret so an owner can add workspace logins later
+        without invalidating every cookie on restart.
+        """
+        if self.session_secret:
+            return self.session_secret
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        path = self.data_dir / self.SESSION_SECRET_FILENAME
+        try:
+            existing = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            existing = ""
+        if len(existing) >= 32:
+            self.session_secret = existing
+            return existing
+        value = secrets.token_urlsafe(48)
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            stat.S_IRUSR | stat.S_IWUSR,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(value)
+        self.session_secret = value
+        return value
 
     def host_allowlist(self) -> frozenset[str]:
         """Host header values this server answers to.

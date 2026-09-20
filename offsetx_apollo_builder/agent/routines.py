@@ -698,15 +698,20 @@ class RoutineService:
                 raise RoutineError("Workspace lease heartbeat did not start")
             done, _ = await asyncio.wait(
                 {runner_task, heartbeat},
-                return_when=asyncio.FIRST_EXCEPTION,
+                return_when=asyncio.FIRST_COMPLETED,
             )
-            if heartbeat in done and heartbeat.exception() is not None:
+            if heartbeat in done:
                 runner_task.cancel()
                 try:
                     await runner_task
                 except BaseException:
                     pass
-                raise heartbeat.exception()
+                error = heartbeat.exception()
+                if error is not None:
+                    raise error
+                raise RoutineError(
+                    "Workspace lease heartbeat stopped before the routine finished"
+                )
             execution = await runner_task
         except Exception as exc:
             self.store.finish_run(run_id, error=str(exc))

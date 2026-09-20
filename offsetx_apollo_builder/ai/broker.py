@@ -50,7 +50,7 @@ from .registry import (
     ResolvedProvider,
     price_tokens,
 )
-from .scanner import scan_payload
+from .scanner import scan_model_input
 from .tiers import (
     MAILBOX_UNLOCK_PHRASE,
     DataClass,
@@ -603,8 +603,9 @@ class EgressBroker:
             )
 
             # 4. Scan — block and alert, never silently redact.
-            report = scan_payload(
+            report = scan_model_input(
                 payload,
+                system_prompt=system_prompt,
                 policy=candidate.policy,
                 owner_domains=settings.owner_domains,
                 owner_addresses=settings.owner_addresses,
@@ -854,7 +855,7 @@ class EgressBroker:
                 candidate.policy,
                 abstract_shape=settings.abstract_business_shape,
             )
-            report = scan_payload(
+            report = scan_model_input(
                 payload,
                 policy=candidate.policy,
                 owner_domains=settings.owner_domains,
@@ -1005,8 +1006,13 @@ class EgressBroker:
                 candidate.policy,
                 abstract_shape=settings.abstract_business_shape,
             )
-            report = scan_payload(
+            report = scan_model_input(
                 payload,
+                transport_text={
+                    "filename": filename,
+                    "media_type": media_type,
+                    "language": language,
+                },
                 policy=candidate.policy,
                 owner_domains=settings.owner_domains,
                 owner_addresses=settings.owner_addresses,

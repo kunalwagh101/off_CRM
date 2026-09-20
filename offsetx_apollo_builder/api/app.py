@@ -108,7 +108,7 @@ from ..ai.workspace import WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
-from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
+from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
 from .schemas import (
@@ -142,6 +142,8 @@ from .schemas import (
     MemoryCreate,
     NotionExportRequest,
     NotionSettingsUpdate,
+    WorkspaceCreate,
+    WorkspaceUpdate,
 )
 
 
@@ -289,11 +291,17 @@ def _idempotent(
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved = settings or AppSettings.from_env()
     resolved.validate()
-    session_auth = DemoSessionAuth(
-        username=resolved.demo_username,
-        password=resolved.demo_password,
+    resolved.prepare()
+    resolved.ensure_session_secret()
+    workspace_auth = WorkspaceAuthStore(
+        resolved.data_dir / "workspace_auth.db",
         session_secret=resolved.session_secret,
         session_hours=resolved.session_hours,
+    )
+    workspace_auth.bootstrap(
+        username=resolved.demo_username,
+        password=resolved.demo_password,
+        workspace_id="local",
     )
     login_limiter = LoginAttemptLimiter()
     loopback = resolved.host in {"127.0.0.1", "localhost", "::1"}
@@ -303,7 +311,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     # can reach the port. Loopback is not an exemption: an unauthenticated local
     # API is readable by every other process and user on the machine, and by any
     # page that can rebind a hostname to 127.0.0.1.
-    if not (resolved.api_token or session_auth.enabled or resolved.allow_unauthenticated):
+    if not (resolved.api_token or workspace_auth.enabled or resolved.allow_unauthenticated):
         raise ValueError(
             "off_CRM will not start without authentication. Set "
             "OFFSETX_LOCAL_API_TOKEN, configure the demo login, or start through "
@@ -321,7 +329,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return hmac.compare_digest(supplied, resolved.api_token)
 
     def session_identity(request: Request):
-        return session_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
+        return workspace_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
 
     def security_headers(response: Response) -> Response:
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -633,16 +641,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         identity = session_identity(request)
         token_authenticated = valid_api_token(request)
         return {
-            "configured": session_auth.enabled,
-            "authenticated": not session_auth.enabled or bool(identity) or token_authenticated,
+            "configured": workspace_auth.enabled,
+            "authenticated": bool(identity) or token_authenticated or resolved.allow_unauthenticated,
             "username": identity.username if identity else "",
+            "workspace_id": (
+                identity.workspace_id
+                if identity
+                else ("local" if token_authenticated or resolved.allow_unauthenticated else "")
+            ),
             "expires_at": identity.expires_at if identity else None,
         }
 
     @app.post(f"{API_PREFIX}/auth/login")
     def auth_login(body: DemoLogin, request: Request) -> Response:
-        if not session_auth.enabled:
-            raise HTTPException(status_code=404, detail="Demo login is not configured")
+        if not workspace_auth.enabled:
+            raise HTTPException(status_code=404, detail="Workspace login is not configured")
         client_key = request.client.host if request.client else "unknown"
         if not login_limiter.allowed(client_key):
             return JSONResponse(
@@ -650,17 +663,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 content={"detail": "Too many login attempts. Try again in five minutes."},
                 headers={"Retry-After": "300"},
             )
-        if not session_auth.authenticate(body.username, body.password):
+        identity = workspace_auth.authenticate(body.username, body.password)
+        if identity is None:
             login_limiter.failed(client_key)
             raise HTTPException(status_code=401, detail="Invalid username or password")
         login_limiter.clear(client_key)
         response = JSONResponse(
-            content={"authenticated": True, "username": resolved.demo_username}
+            content={
+                "authenticated": True,
+                "username": identity.username,
+                "workspace_id": identity.workspace_id,
+            }
         )
         response.set_cookie(
             SESSION_COOKIE,
-            session_auth.issue(),
-            max_age=session_auth.session_seconds,
+            workspace_auth.issue(identity),
+            max_age=workspace_auth.session_seconds,
             httponly=True,
             secure=not loopback,
             samesite="strict",
@@ -679,6 +697,55 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             path="/",
         )
         return response
+
+
+    def require_workspace_admin(request: Request) -> None:
+        if not valid_api_token(request):
+            raise HTTPException(
+                status_code=403,
+                detail="Workspace administration requires the install API token",
+            )
+
+    @app.get(f"{API_PREFIX}/workspaces")
+    def list_workspaces(request: Request) -> dict[str, Any]:
+        require_workspace_admin(request)
+        return {"items": workspace_auth.list_accounts()}
+
+    @app.post(f"{API_PREFIX}/workspaces", status_code=201)
+    def create_workspace(body: WorkspaceCreate, request: Request) -> dict[str, Any]:
+        require_workspace_admin(request)
+        try:
+            identity = workspace_auth.create(
+                username=body.username,
+                workspace_id=body.workspace_id,
+                password=body.password,
+            )
+        except WorkspaceAuthError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {
+            "username": identity.username,
+            "workspace_id": identity.workspace_id,
+            "enabled": True,
+        }
+
+    @app.patch(f"{API_PREFIX}/workspaces/{username}")
+    def update_workspace(
+        username: str, body: WorkspaceUpdate, request: Request
+    ) -> dict[str, Any]:
+        require_workspace_admin(request)
+        if body.password is None and body.enabled is None:
+            raise HTTPException(status_code=400, detail="No workspace change supplied")
+        try:
+            if body.password is not None:
+                workspace_auth.set_password(username, body.password)
+            if body.enabled is not None:
+                workspace_auth.set_enabled(username, body.enabled)
+        except WorkspaceAuthError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return next(
+            item for item in workspace_auth.list_accounts()
+            if item["username"] == username
+        )
 
     @app.get(f"{API_PREFIX}/dashboard")
     def dashboard(request: Request) -> dict[str, Any]:
@@ -2483,7 +2550,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
 
     def _workspace_id(request: Request) -> str:
-        return "local"
+        identity = session_identity(request)
+        if identity is not None:
+            return identity.workspace_id
+        if valid_api_token(request) or resolved.allow_unauthenticated:
+            return "local"
+        raise HTTPException(status_code=401, detail="CRM login required")
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:

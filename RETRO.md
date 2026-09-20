@@ -1009,3 +1009,28 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+
+---
+
+## 2026-09-20 — workspace isolation, routines and the prompt boundary
+
+**What was cut.** Nothing from the three acceptance contracts. They remain
+IN_REVIEW because the repository has no executable CI/status run attached to
+this branch head; static inspection is not DONE evidence.
+
+**What the estimate got wrong.** The dangerous defects were not in the new
+surface area. Workspace storage was already mostly keyed correctly, but the API
+still selected `local`, and several request paths mutated one shared broker's
+credential resolver. Under concurrency that could cross workspace credentials.
+The prompt scanner already looked strong, but `system_prompt` and transcription
+metadata sat outside the object it scanned. Routines looked like “a timer around
+AgentRun”, but safe unattended execution also needed event dedupe, workspace
+browser serialization, crash-expiring leases, container cleanup, recovery and a
+machine-readable definition of “useful”.
+
+**What to change next time.** For multi-tenant work, search for mutable process-
+global state before adding tenant IDs to tables. For egress controls, enumerate
+the bytes/fields the provider actually receives rather than the object the code
+happens to call “payload”. For unattended automation, define notification truth
+from verified structured output, never by interpreting model prose.

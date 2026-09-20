@@ -38,6 +38,8 @@ REQUIRED_PRIVACY_STORES = (
     "subject_artifacts",
     "structured_exports",
     "companion_profiles",
+    "agent_routines",
+    "workspace_accounts",
     "crawler_frontier",
     "browser_traces",
     "outreach_crm",
@@ -677,6 +679,203 @@ class CompanionProfilePrivacyAdapter:
         finally:
             connection.close()
         return {"companion_profiles": len(rows)}
+
+
+class AgentRoutinePrivacyAdapter:
+    """Owner routines and their result summaries can carry strong identifiers."""
+
+    name = "agent_routines"
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+
+    def _connection(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.path, timeout=5)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=5000")
+        return connection
+
+    def _matches(self, subject: SubjectIdentity) -> dict[str, list[dict[str, Any]]]:
+        empty = {"routines": [], "runs": [], "notifications": []}
+        if not self.path.exists():
+            return empty
+        clauses = {
+            "routines": _token_clause(("name", "goal", "target_url", "event_name"), subject),
+            "runs": _token_clause(("summary", "error"), subject),
+            "notifications": _token_clause(("summary",), subject),
+        }
+        connection = self._connection()
+        try:
+            found: dict[str, list[dict[str, Any]]] = {}
+            queries = {
+                "routines": "SELECT * FROM agent_routines WHERE workspace_id = ? AND ({})",
+                "runs": "SELECT * FROM agent_routine_runs WHERE workspace_id = ? AND ({})",
+                "notifications": (
+                    "SELECT * FROM agent_routine_notifications "
+                    "WHERE workspace_id = ? AND ({})"
+                ),
+            }
+            for key, (clause, params) in clauses.items():
+                if not clause:
+                    found[key] = []
+                    continue
+                try:
+                    rows = connection.execute(
+                        queries[key].format(clause),
+                        (subject.workspace_id, *params),
+                    ).fetchall()
+                except sqlite3.OperationalError as exc:
+                    if "no such table" in str(exc).lower():
+                        return empty
+                    raise
+                found[key] = [dict(row) for row in rows]
+            return found
+        finally:
+            connection.close()
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        matches = self._matches(subject)
+        items = [
+            {"table": table, **row}
+            for table, rows in matches.items()
+            for row in rows
+        ]
+        return (
+            [PrivacyRecord(
+                self.name,
+                "agent_routine_state",
+                "strong identifier in routine definition/result/notification text",
+                items,
+            )]
+            if items
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        matches = self._matches(subject)
+        if not any(matches.values()):
+            return {"routines": 0, "routine_runs": 0, "routine_notifications": 0}
+        routine_ids = {str(row["id"]) for row in matches["routines"]}
+        run_ids = {str(row["id"]) for row in matches["runs"]}
+        notification_ids = {str(row["id"]) for row in matches["notifications"]}
+
+        connection = self._connection()
+        connection.isolation_level = None
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            # A matching routine owns its history/notifications; remove the
+            # whole automation rather than leave a scheduled task whose goal
+            # was just redacted into something semantically different.
+            if routine_ids:
+                placeholders = _placeholders(routine_ids)
+                owned_runs = connection.execute(
+                    f"SELECT id FROM agent_routine_runs WHERE routine_id IN ({placeholders})",
+                    tuple(routine_ids),
+                ).fetchall()
+                run_ids.update(str(row["id"]) for row in owned_runs)
+                connection.execute(
+                    f"DELETE FROM agent_routine_notifications WHERE routine_id IN ({placeholders})",
+                    tuple(routine_ids),
+                )
+            if run_ids:
+                placeholders = _placeholders(run_ids)
+                connection.execute(
+                    f"DELETE FROM agent_routine_notifications WHERE routine_run_id IN ({placeholders})",
+                    tuple(run_ids),
+                )
+                connection.execute(
+                    f"DELETE FROM agent_routine_runs WHERE id IN ({placeholders})",
+                    tuple(run_ids),
+                )
+            if notification_ids:
+                placeholders = _placeholders(notification_ids)
+                connection.execute(
+                    f"DELETE FROM agent_routine_notifications WHERE id IN ({placeholders})",
+                    tuple(notification_ids),
+                )
+            if routine_ids:
+                placeholders = _placeholders(routine_ids)
+                connection.execute(
+                    f"DELETE FROM agent_routines WHERE id IN ({placeholders})",
+                    tuple(routine_ids),
+                )
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
+        return {
+            "routines": len(routine_ids),
+            "routine_runs": len(run_ids),
+            "routine_notifications": len(notification_ids),
+        }
+
+
+class WorkspaceAccountPrivacyAdapter:
+    """Workspace usernames that are themselves verified subject identifiers."""
+
+    name = "workspace_accounts"
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+
+    def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        if not self.path.exists() or not subject.emails:
+            return []
+        connection = sqlite3.connect(self.path, timeout=5)
+        connection.row_factory = sqlite3.Row
+        try:
+            try:
+                rows = connection.execute(
+                    f"""
+                    SELECT username, workspace_id, enabled, created_at, updated_at
+                    FROM workspace_users
+                    WHERE workspace_id = ?
+                      AND lower(username) IN ({_placeholders(subject.emails)})
+                    """,
+                    (subject.workspace_id, *subject.emails),
+                ).fetchall()
+            except sqlite3.OperationalError as exc:
+                if "no such table" in str(exc).lower():
+                    return []
+                raise
+            return [dict(row) for row in rows]
+        finally:
+            connection.close()
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        rows = self._rows(subject)
+        return (
+            [PrivacyRecord(
+                self.name,
+                "workspace_login",
+                "verified subject email used as workspace login username",
+                rows,
+            )]
+            if rows
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        rows = self._rows(subject)
+        if not rows:
+            return {"workspace_accounts": 0}
+        usernames = tuple(str(row["username"]) for row in rows)
+        connection = sqlite3.connect(self.path, timeout=5)
+        try:
+            cursor = connection.execute(
+                f"""
+                DELETE FROM workspace_users
+                WHERE workspace_id = ?
+                  AND username IN ({_placeholders(usernames)})
+                """,
+                (subject.workspace_id, *usernames),
+            )
+            connection.commit()
+            return {"workspace_accounts": int(cursor.rowcount or 0)}
+        finally:
+            connection.close()
 
 
 class CrawlerPrivacyAdapter:
@@ -1381,6 +1580,8 @@ class PrivacyService:
                 (root, Path(export_dir)) if export_dir is not None else (root,)
             ),
             CompanionProfilePrivacyAdapter(root / "ai_tools.db"),
+            AgentRoutinePrivacyAdapter(root / "agent_routines.db"),
+            WorkspaceAccountPrivacyAdapter(root / "workspace_auth.db"),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),
             # Deliberately last. Once CRM ids are gone, redacted recall rows

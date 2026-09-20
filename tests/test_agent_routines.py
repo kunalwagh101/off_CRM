@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -277,3 +278,38 @@ def test_event_api_records_no_notification_when_runner_found_nothing(tmp_path):
         )
         assert notifications.status_code == 200
         assert notifications.json()["items"] == []
+
+
+
+def test_plain_no_updates_prose_cannot_become_a_notification():
+    outcome = SimpleNamespace(
+        status="completed",
+        run_id="run-none",
+        result="No updates found.",
+        message="Goal completed.",
+        record={},
+        findings={},
+        to_dict=lambda: {"status": "completed", "result": "No updates found."},
+    )
+
+    execution = RoutineExecution.from_agent_outcome(outcome)
+
+    assert execution.useful is False
+    assert execution.summary == ""
+
+
+def test_verified_notification_field_is_the_only_real_run_output_that_notifies():
+    outcome = SimpleNamespace(
+        status="completed",
+        run_id="run-useful",
+        result="Model prose is not trusted for notification.",
+        message="Goal completed.",
+        record={"notification": "Version 2.0 is now public."},
+        findings={"notification": object()},
+        to_dict=lambda: {"status": "completed"},
+    )
+
+    execution = RoutineExecution.from_agent_outcome(outcome)
+
+    assert execution.useful is True
+    assert execution.summary == "Version 2.0 is now public."

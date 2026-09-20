@@ -50,6 +50,14 @@ class AgentRoutineEvent(StrictModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+
+class MeetingCreate(StrictModel):
+    title: str = Field(min_length=1, max_length=200)
+    provider_id: str = Field(default="", max_length=80)
+    model_id: str = Field(default="", max_length=240)
+    language: str = Field(default="", max_length=32)
+
+
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     # Free text rather than a Literal on purpose: the registry in

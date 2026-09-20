@@ -58,10 +58,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.01 · No secret may enter a model prompt
+_nothing in flight_
 
 ## IN_REVIEW
 
+- S-06.02.01 · No secret may enter a model prompt
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-04.01.01 · Companions: persisted agent profiles

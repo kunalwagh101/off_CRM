@@ -2229,3 +2229,60 @@ python -m pytest tests/test_ai_api.py -v           # 15 API cases
 
 Then in the app: **Connectors** → connect a provider → **What was sent** →
 Inspect any row. The payload shown is byte-for-byte what left the machine.
+
+
+---
+
+### Workspace isolation — S-06.01.01 (2026-09-20, IN_REVIEW)
+
+- [x] Replaced the single hard-coded `local` browser-login identity with a
+      persistent workspace account store. Passwords are scrypt hashes; signed
+      cookies bind username + workspace + expiry + session version.
+- [x] Provider keys and browser session vaults remain encrypted and keyed by
+      workspace. Password rotation/disable increments session version so old
+      cookies stop working.
+- [x] Workspace administration requires the install API token. Ordinary
+      workspace sessions cannot create or alter another workspace.
+- [x] Removed the shared mutable `ai_broker.credential_resolver`. Every request
+      now gets a credential-bound broker view; shared quota/cache/log/circuit
+      state remains shared without sharing credentials.
+- [x] Backup/privacy coverage now includes workspace auth and encrypted workspace
+      AI state.
+- [x] Focused regression tests are committed in
+      `tests/test_workspace_isolation.py`, including concurrent credential
+      isolation.
+- [ ] Executable locked test/full-regression/verifier evidence is not available
+      on this branch head yet, so the story stays IN_REVIEW.
+
+### Agent routines — S-06.01.04 (2026-09-20, IN_REVIEW)
+
+- [x] Durable interval and event declarations persist in
+      `agent_routines.db`; duplicate scheduler/event deliveries are claimed
+      transactionally.
+- [x] Creation checks `check_navigation(..., unattended=True)`, so an
+      attended-only target is refused before it can be scheduled.
+- [x] Routine browser use is serialized per workspace with a renewable
+      cross-process lease and named Docker containers are explicitly removed.
+- [x] A routine notification requires the existing AgentRun provenance system
+      to return a verified `notification` finding. Plain model prose such as
+      “No updates found” cannot create a notification.
+- [x] Routine state participates in encrypted backup and subject-access/deletion.
+- [x] Focused acceptance tests are committed in `tests/test_agent_routines.py`.
+- [ ] Executable locked test/full-regression/verifier evidence is still missing;
+      story stays IN_REVIEW.
+
+### Prompt secret boundary — S-06.02.01 (2026-09-20, IN_REVIEW)
+
+- [x] Audit found a real bypass: `system_prompt` was provider-visible but was
+      outside `scan_payload`. Transcription filename/media type/language were
+      also outside the scanned payload object.
+- [x] Added `scan_model_input`, which scans the constructed payload plus every
+      separately transmitted model/provider-visible text field.
+- [x] Text, image and transcription broker paths all scan before provider
+      instantiation/I/O. Transport API keys remain transport credentials and are
+      never inserted into model-visible input.
+- [x] Adversarial tests plant credential material in payload, system prompt,
+      image prompt and transcription metadata and assert the provider is never
+      instantiated.
+- [ ] Executable locked test/full-regression/verifier evidence is still missing;
+      story stays IN_REVIEW.

@@ -90,6 +90,12 @@ CREATE TABLE IF NOT EXISTS agent_routine_notifications (
 );
 CREATE INDEX IF NOT EXISTS ix_agent_routine_notifications_workspace
     ON agent_routine_notifications(workspace_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_routine_workspace_leases (
+    workspace_id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    expires_at REAL NOT NULL
+);
 """
 
 
@@ -540,6 +546,55 @@ class RoutineStore:
             )
         return identifier
 
+    def acquire_workspace_lease(
+        self,
+        workspace_id: str,
+        owner: str,
+        *,
+        now: float | None = None,
+        lease_seconds: int = 30 * 60,
+    ) -> bool:
+        workspace = self._workspace(workspace_id)
+        timestamp = time.time() if now is None else float(now)
+        expires = timestamp + max(60, int(lease_seconds))
+        conn = self.connection()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT owner, expires_at FROM agent_routine_workspace_leases WHERE workspace_id = ?",
+                (workspace,),
+            ).fetchone()
+            if row is not None and float(row["expires_at"]) > timestamp and str(row["owner"]) != owner:
+                conn.rollback()
+                return False
+            conn.execute(
+                """
+                INSERT INTO agent_routine_workspace_leases(workspace_id, owner, expires_at)
+                VALUES(?,?,?)
+                ON CONFLICT(workspace_id) DO UPDATE SET
+                    owner = excluded.owner,
+                    expires_at = excluded.expires_at
+                """,
+                (workspace, str(owner), expires),
+            )
+            conn.commit()
+            return True
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def release_workspace_lease(self, workspace_id: str, owner: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                DELETE FROM agent_routine_workspace_leases
+                WHERE workspace_id = ? AND owner = ?
+                """,
+                (self._workspace(workspace_id), str(owner)),
+            )
+
     def notifications(
         self, *, workspace_id: str, unread_only: bool = False, limit: int = 100
     ) -> list[dict[str, Any]]:
@@ -599,7 +654,21 @@ class RoutineService:
         )
         if run_id is None:
             return {"routine_id": routine.id, "status": "duplicate", "notified": False}
+        lease_owner = f"{os.getpid()}:{run_id}"
+        lease_deadline = time.monotonic() + 30 * 60
+        acquired = False
         try:
+            while time.monotonic() < lease_deadline:
+                if self.store.acquire_workspace_lease(
+                    routine.workspace_id, lease_owner
+                ):
+                    acquired = True
+                    break
+                await asyncio.sleep(1.0)
+            if not acquired:
+                raise RoutineError(
+                    "Another routine is still using this workspace browser after 30 minutes"
+                )
             execution = await self.runner(routine, dict(payload or {}))
         except Exception as exc:
             self.store.finish_run(run_id, error=str(exc))
@@ -610,6 +679,11 @@ class RoutineService:
                 "error": str(exc)[:1000],
                 "notified": False,
             }
+        finally:
+            if acquired:
+                self.store.release_workspace_lease(
+                    routine.workspace_id, lease_owner
+                )
         self.store.finish_run(run_id, execution=execution)
         notified = False
         if execution.useful:
@@ -741,9 +815,12 @@ class RoutineAgentExecutor:
         log_path = Path(log.name)
         process: subprocess.Popen[Any] | None = None
         session = None
+        container_name = f"offcrm-routine-{uuid.uuid4().hex[:16]}"
+        command = box.command(chrome_args=("--headless=new",))
+        command[2:2] = ["--name", container_name]
         try:
             process = subprocess.Popen(
-                box.command(chrome_args=("--headless=new",)),
+                command,
                 stdout=subprocess.DEVNULL,
                 stderr=log,
                 start_new_session=True,
@@ -807,6 +884,19 @@ class RoutineAgentExecutor:
                         process.kill()
                     except Exception:
                         pass
+            # docker run can outlive its client if the client is interrupted.
+            # Name the container and remove it explicitly so a logged-in
+            # unattended browser is never left running after a routine ends.
+            try:
+                subprocess.run(
+                    ["docker", "rm", "-f", container_name],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                )
+            except Exception:
+                pass
             try:
                 log.close()
             finally:

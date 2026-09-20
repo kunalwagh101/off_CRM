@@ -117,7 +117,7 @@ from .recall import (
     strip_quoted_thread,
 )
 from .registry import ProviderEntry, ProviderOverride, ProviderRegistry, ResolvedProvider
-from .scanner import ScanFinding, ScanReport, scan_payload
+from .scanner import ScanFinding, ScanReport, scan_model_input, scan_payload
 from .tiers import (
     MAILBOX_UNLOCK_PHRASE,
     POLICY_ORDER,
@@ -242,6 +242,7 @@ __all__ = [
     "describe_policy_for_class",
     "describe_tier",
     "policy_ceiling_for_tier",
+    "scan_model_input",
     "scan_payload",
     "tier_for_jurisdiction",
     "strip_quoted_thread",

@@ -29,6 +29,27 @@ class WorkspaceUpdate(StrictModel):
     enabled: bool | None = None
 
 
+
+class AgentRoutineCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    goal: str = Field(min_length=1, max_length=4000)
+    target_url: str = Field(min_length=8, max_length=2000)
+    trigger_type: Literal["interval", "event"]
+    interval_seconds: int = Field(default=0, ge=0, le=30 * 24 * 60 * 60)
+    event_name: str = Field(default="", max_length=100)
+    step_budget: int = Field(default=10, ge=1, le=50)
+    enabled: bool = True
+
+
+class AgentRoutineUpdate(StrictModel):
+    enabled: bool
+
+
+class AgentRoutineEvent(StrictModel):
+    event_id: str = Field(default="", max_length=200)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     # Free text rather than a Literal on purpose: the registry in

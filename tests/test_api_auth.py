@@ -33,6 +33,7 @@ def test_demo_login_uses_secure_session_cookie_and_logout(tmp_path):
             "configured": True,
             "authenticated": False,
             "username": "",
+            "workspace_id": "",
             "expires_at": None,
         }
         assert client.get("/api/v1/dashboard").status_code == 401

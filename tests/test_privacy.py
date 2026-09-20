@@ -5,6 +5,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.agent.companions import CompanionRegistry
+from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineService, RoutineStore
+from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -544,4 +546,102 @@ def test_subject_deletion_scrubs_companion_profile_text(tmp_path):
     finally:
         service.close()
         tools.close()
+        store.close()
+
+
+
+def test_privacy_deletes_subject_routines_and_result_notifications(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    routines = RoutineStore(data_dir / "agent_routines.db")
+    alice = routines.create(
+        workspace_id="local",
+        name="Alice watch",
+        goal="Watch public updates about alice@example.com",
+        target_url="https://example.com/alice",
+        trigger_type="event",
+        event_name="source.changed",
+    )
+    bob = routines.create(
+        workspace_id="local",
+        name="Market watch",
+        goal="Watch public market releases",
+        target_url="https://example.com/market",
+        trigger_type="event",
+        event_name="market.changed",
+    )
+
+    run_id = routines.begin_run(
+        alice, trigger_type="event", trigger_key="fixture:alice"
+    )
+    assert run_id is not None
+    execution = RoutineExecution(
+        status="completed",
+        useful=True,
+        agent_run_id="agent-alice",
+        summary="Useful update about alice@example.com",
+    )
+    routines.finish_run(run_id, execution=execution)
+    routines.notify(alice, run_id, execution)
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com", "https://example.com/alice")
+        access = service.access(subject)
+        routine_store = next(
+            item for item in access["stores"] if item["store"] == "agent_routines"
+        )
+        assert routine_store["count"] >= 1
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+        assert routines.get(alice.id, workspace_id="local") is None
+        assert routines.get(bob.id, workspace_id="local") is not None
+        assert routines.runs(workspace_id="local", routine_id=alice.id) == []
+        assert routines.notifications(workspace_id="local") == []
+    finally:
+        service.close()
+        store.close()
+
+
+def test_privacy_removes_workspace_login_when_username_is_subject_email(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    auth = WorkspaceAuthStore(
+        data_dir / "workspace_auth.db",
+        session_secret="privacy-session-secret-" + "x" * 32,
+        session_hours=8,
+    )
+    auth.create(
+        username="alice@example.com",
+        workspace_id="local",
+        password="alice-password-123",
+    )
+    auth.create(
+        username="bob@example.com",
+        workspace_id="other",
+        password="bob-password-456",
+    )
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com")
+        access = service.access(subject)
+        account_store = next(
+            item for item in access["stores"] if item["store"] == "workspace_accounts"
+        )
+        assert account_store["count"] == 1
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+        assert auth.authenticate("alice@example.com", "alice-password-123") is None
+        assert auth.authenticate("bob@example.com", "bob-password-456") is not None
+    finally:
+        service.close()
         store.close()

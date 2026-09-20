@@ -133,6 +133,8 @@ export function Modal({
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const titleId = useId();
   const descriptionId = useId();
 
@@ -145,7 +147,7 @@ export function Modal({
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialogRef.current) return;
@@ -176,7 +178,7 @@ export function Modal({
       const target = returnFocusRef.current;
       window.requestAnimationFrame(() => target?.focus());
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (

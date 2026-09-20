@@ -17,6 +17,13 @@ class DemoLogin(StrictModel):
     password: str = Field(min_length=1, max_length=500)
 
 
+
+class WorkspaceCreate(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    workspace_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
+    password: str = Field(min_length=12, max_length=500)
+
+
 class CampaignCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     # Free text rather than a Literal on purpose: the registry in

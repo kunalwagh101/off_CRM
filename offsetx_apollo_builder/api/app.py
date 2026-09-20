@@ -11,6 +11,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Iterator
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -158,6 +159,25 @@ from .schemas import (
 
 API_PREFIX = "/api/v1"
 LIVE_SEND_CONFIRMATION = "SEND LIVE EMAILS"
+
+# Public API surface is a closed set. Tests enumerate every registered route and
+# fail if a new /api endpoint becomes public merely because somebody edited the
+# middleware condition. Health probes live outside /api and expose no customer
+# data; the frontend shell/static assets also live outside this API boundary.
+PUBLIC_API_PATHS: frozenset[str] = frozenset({
+    f"{API_PREFIX}/meta",
+    f"{API_PREFIX}/auth/session",
+    f"{API_PREFIX}/auth/login",
+    f"{API_PREFIX}/auth/logout",
+})
+PUBLIC_API_PREFIXES: tuple[str, ...] = (
+    f"{API_PREFIX}/email/unsubscribe/",
+    f"{API_PREFIX}/email-delivery/events/ses/sns",
+)
+PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({
+    "/health/live",
+    "/health/ready",
+})
 CONTACT_UPLOAD_TYPES = {".csv", ".xlsx", ".xls"}
 EXPERT_UPLOAD_TYPES = {".md", ".txt"}
 
@@ -581,18 +601,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
             )
 
-        public_paths = {
-            f"{API_PREFIX}/meta",
-            f"{API_PREFIX}/auth/session",
-            f"{API_PREFIX}/auth/login",
-            f"{API_PREFIX}/auth/logout",
-        }
-        public_prefixes = (
-            f"{API_PREFIX}/email/unsubscribe/",
-            f"{API_PREFIX}/email-delivery/events/ses/sns",
-        )
-        is_public = request.url.path in public_paths or request.url.path.startswith(
-            public_prefixes
+        is_public = (
+            request.url.path in PUBLIC_API_PATHS
+            or request.url.path.startswith(PUBLIC_API_PREFIXES)
         )
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
@@ -605,6 +616,33 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
             )
         return security_headers(await call_next(request))
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(
+        _: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # Pydantic/FastAPI errors are client input failures, not server crashes.
+        # Return bounded field/type information and never echo request bodies,
+        # which may contain credentials or other sensitive material.
+        errors: list[dict[str, Any]] = []
+        for item in exc.errors()[:50]:
+            location = [
+                str(part)
+                for part in item.get("loc", ())
+                if str(part) not in {"body"}
+            ]
+            errors.append({
+                "location": location,
+                "message": str(item.get("msg") or "Invalid value")[:500],
+                "type": str(item.get("type") or "validation_error")[:120],
+            })
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "Request validation failed",
+                "errors": errors,
+            },
+        )
 
     @app.exception_handler(KeyError)
     async def not_found(_: Request, exc: KeyError) -> JSONResponse:

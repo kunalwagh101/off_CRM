@@ -438,14 +438,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
         def routine_broker(workspace_id: str) -> EgressBroker:
-            return EgressBroker(
-                registry=app.state.ai_registry,
-                credential_resolver=app.state.ai_workspaces.credential_resolver(
-                    workspace_id
-                ),
-                quota=app.state.ai_quota,
-                logger=app.state.ai_egress_log.record,
-                cache=app.state.ai_cache,
+            return app.state.ai_broker.with_credential_resolver(
+                app.state.ai_workspaces.credential_resolver(workspace_id)
             )
 
         app.state.agent_routine_store = RoutineStore(
@@ -1408,12 +1402,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
+        broker = state.ai_broker.with_credential_resolver(
+            state.ai_workspaces.credential_resolver(workspace_id)
         )
         return ImageCampaignEngine(
             store=state.image_store,
-            broker=state.ai_broker,
+            broker=broker,
             settings_resolver=state.ai_workspaces.egress_settings,
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
             workspace_id=workspace_id,
@@ -1526,13 +1520,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
+        broker = state.ai_broker.with_credential_resolver(
+            state.ai_workspaces.credential_resolver(workspace_id)
         )
         settings = state.ai_workspaces.egress_settings(workspace_id)
 
         def transcriber(**kwargs: Any) -> Any:
-            return state.ai_broker.call_transcript(
+            return broker.call_transcript(
                 EgressRequest(
                     task_type="video_transcription",
                     data_class=DataClass.CAMPAIGN,
@@ -1552,7 +1546,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             clip is laid, so a hostile topic can at most pick a different one of
             the declared shapes.
             """
-            return state.ai_broker.call(
+            return broker.call(
                 EgressRequest(
                     task_type="video_direction",
                     data_class=DataClass.PUBLIC,
@@ -2127,13 +2121,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         state = request.app.state
         workspace_id = _workspace_id(request)
         settings = state.ai_workspaces.egress_settings(workspace_id)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
+        broker = state.ai_broker.with_credential_resolver(
+            state.ai_workspaces.credential_resolver(workspace_id)
         )
         data_class = DataClass.CAMPAIGN if angle.strip() else DataClass.PUBLIC
 
         def writer(kind: str, prompt: str) -> str:
-            result = state.ai_broker.call(
+            result = broker.call(
                 EgressRequest(
                     task_type=f"trend_{kind}",
                     data_class=data_class,
@@ -2695,7 +2689,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+        broker = broker.with_credential_resolver(
+            workspaces.credential_resolver(workspace_id)
+        )
 
         requested_class = str(body.get("data_class", "campaign")).strip().lower()
         if requested_class not in {"public", "campaign"}:
@@ -2961,7 +2957,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+        broker = broker.with_credential_resolver(
+            workspaces.credential_resolver(workspace_id)
+        )
 
         raw_mode = str(body.get("mode", "simple")).strip().lower()
         if raw_mode not in {item.value for item in RunMode}:
@@ -3065,7 +3063,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+        broker = broker.with_credential_resolver(
+            workspaces.credential_resolver(workspace_id)
+        )
 
         prompt = str(body.get("prompt", "")).strip()[:4000]
         if not prompt:
@@ -3160,7 +3160,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
+        broker = broker.with_credential_resolver(
+            workspaces.credential_resolver(workspace_id)
+        )
         egress = layer.rewrite_request(
             score,
             winner=layer.winner(workspace_id) if body.get("use_winner", True) else None,

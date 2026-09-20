@@ -552,7 +552,7 @@ class RoutineStore:
         owner: str,
         *,
         now: float | None = None,
-        lease_seconds: int = 30 * 60,
+        lease_seconds: int = 180,
     ) -> bool:
         workspace = self._workspace(workspace_id)
         timestamp = time.time() if now is None else float(now)
@@ -657,19 +657,57 @@ class RoutineService:
         lease_owner = f"{os.getpid()}:{run_id}"
         lease_deadline = time.monotonic() + 30 * 60
         acquired = False
+        heartbeat: asyncio.Task[None] | None = None
+        heartbeat_stop = asyncio.Event()
+
+        async def keep_lease_alive() -> None:
+            while not heartbeat_stop.is_set():
+                try:
+                    await asyncio.wait_for(heartbeat_stop.wait(), timeout=60.0)
+                    return
+                except asyncio.TimeoutError:
+                    pass
+                if not self.store.acquire_workspace_lease(
+                    routine.workspace_id, lease_owner, lease_seconds=180
+                ):
+                    raise RoutineError(
+                        "Lost the workspace browser lease while the routine was running"
+                    )
+
         try:
             while time.monotonic() < lease_deadline:
                 if self.store.acquire_workspace_lease(
-                    routine.workspace_id, lease_owner
+                    routine.workspace_id, lease_owner, lease_seconds=180
                 ):
                     acquired = True
+                    heartbeat = asyncio.create_task(
+                        keep_lease_alive(),
+                        name=f"routine-lease-{routine.id[:8]}",
+                    )
                     break
                 await asyncio.sleep(1.0)
             if not acquired:
                 raise RoutineError(
                     "Another routine is still using this workspace browser after 30 minutes"
                 )
-            execution = await self.runner(routine, dict(payload or {}))
+            runner_task = asyncio.create_task(
+                self.runner(routine, dict(payload or {})),
+                name=f"routine-run-{routine.id[:8]}",
+            )
+            if heartbeat is None:
+                raise RoutineError("Workspace lease heartbeat did not start")
+            done, _ = await asyncio.wait(
+                {runner_task, heartbeat},
+                return_when=asyncio.FIRST_EXCEPTION,
+            )
+            if heartbeat in done and heartbeat.exception() is not None:
+                runner_task.cancel()
+                try:
+                    await runner_task
+                except BaseException:
+                    pass
+                raise heartbeat.exception()
+            execution = await runner_task
         except Exception as exc:
             self.store.finish_run(run_id, error=str(exc))
             return {
@@ -680,6 +718,12 @@ class RoutineService:
                 "notified": False,
             }
         finally:
+            heartbeat_stop.set()
+            if heartbeat is not None:
+                try:
+                    await heartbeat
+                except BaseException:
+                    pass
             if acquired:
                 self.store.release_workspace_lease(
                     routine.workspace_id, lease_owner

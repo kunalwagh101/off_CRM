@@ -728,7 +728,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "enabled": True,
         }
 
-    @app.patch(f"{API_PREFIX}/workspaces/{username}")
+    @app.patch(f"{API_PREFIX}/workspaces/{{username}}")
     def update_workspace(
         username: str, body: WorkspaceUpdate, request: Request
     ) -> dict[str, Any]:

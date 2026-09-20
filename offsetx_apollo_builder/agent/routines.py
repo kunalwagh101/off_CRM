@@ -260,12 +260,9 @@ class RoutineStore:
         if kind not in {"interval", "event"}:
             raise RoutineError("trigger_type must be 'interval' or 'event'")
         if kind == "interval":
-            if isinstance(interval_seconds, bool):
+            if isinstance(interval_seconds, bool) or not isinstance(interval_seconds, int):
                 raise RoutineError("interval_seconds must be an integer")
-            try:
-                interval = int(interval_seconds)
-            except (TypeError, ValueError) as exc:
-                raise RoutineError("interval_seconds must be an integer") from exc
+            interval = interval_seconds
             if interval < MIN_INTERVAL_SECONDS or interval > MAX_INTERVAL_SECONDS:
                 raise RoutineError(
                     f"interval_seconds must be between {MIN_INTERVAL_SECONDS} "
@@ -281,12 +278,9 @@ class RoutineStore:
 
     @staticmethod
     def _budget(value: int) -> int:
-        if isinstance(value, bool):
+        if isinstance(value, bool) or not isinstance(value, int):
             raise RoutineError("step_budget must be an integer")
-        try:
-            number = int(value)
-        except (TypeError, ValueError) as exc:
-            raise RoutineError("step_budget must be an integer") from exc
+        number = value
         if number < 1 or number > MAX_STEP_BUDGET:
             raise RoutineError(f"step_budget must be between 1 and {MAX_STEP_BUDGET}")
         return number

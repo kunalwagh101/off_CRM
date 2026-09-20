@@ -1165,7 +1165,11 @@ function Inspector({
         <ul className="vasset-grid">
           {assets.map((asset) => (
             <li key={asset.id}>
-              <button disabled={busy} onClick={() => onPlace(asset.id)} title={asset.model_id}>
+              <button
+                disabled={busy}
+                onClick={() => onPlace(asset.id)}
+                aria-label={`Place image from ${asset.model_id || "approved generator"} on the timeline`}
+              >
                 <img src={api.url(`/image-assets/${asset.id}/file`)} alt="" loading="lazy" />
               </button>
             </li>

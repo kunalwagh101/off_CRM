@@ -501,7 +501,7 @@ export default function AIPage() {
                   <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
                     <button type="button" className="ai-icon-btn" aria-label={`Move ${chat.title}`} onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" aria-label={`Delete ${chat.title}`} onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">

@@ -21,6 +21,8 @@ describe("shared production UI", () => {
     expect(html).toContain("Draft review");
     expect(html).toContain("Human approval is required.");
     expect(html).toContain("Quality score 92 out of 100");
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-valuenow="92"');
     expect(html).toContain("badge-success");
   });
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 
 from fastapi.testclient import TestClient
 
@@ -278,3 +279,74 @@ def test_backup_restores_workspace_keys_logins_and_routines_together(tmp_path):
         assert client.app.state.agent_routine_store.get(
             routine.id, workspace_id="alpha"
         ) is not None
+
+
+
+def test_bound_brokers_never_share_workspace_credentials_under_concurrency(
+    tmp_path, monkeypatch
+):
+    from offsetx_apollo_builder.ai.broker import EgressBroker
+    from offsetx_apollo_builder.ai.quota import QuotaTracker
+    from offsetx_apollo_builder.ai.registry import ProviderRegistry
+    from offsetx_apollo_builder.ai import broker as broker_module
+
+    base = EgressBroker(
+        registry=ProviderRegistry(Path.cwd() / "config" / "providers.yaml"),
+        credential_resolver=lambda _provider_id: "",
+        quota=QuotaTracker(tmp_path / "quota"),
+    )
+    alpha = base.with_credential_resolver(
+        lambda provider_id: "ALPHA-KEY" if provider_id == "mistral" else ""
+    )
+    beta = base.with_credential_resolver(
+        lambda provider_id: "BETA-KEY" if provider_id == "mistral" else ""
+    )
+
+    candidate = base.registry.resolve("mistral")
+    barrier = threading.Barrier(2)
+    seen: list[str] = []
+    seen_lock = threading.Lock()
+
+    def fake_create_provider(config, *, environ):
+        barrier.wait(timeout=5)
+        key = str(environ.get(config.api_key_env) or "")
+        with seen_lock:
+            seen.append(key)
+        return object()
+
+    monkeypatch.setattr(broker_module, "create_provider", fake_create_provider)
+
+    failures: list[BaseException] = []
+
+    def instantiate(bound):
+        try:
+            bound._instantiate(candidate)
+        except BaseException as exc:
+            failures.append(exc)
+
+    left = threading.Thread(target=instantiate, args=(alpha,))
+    right = threading.Thread(target=instantiate, args=(beta,))
+    left.start()
+    right.start()
+    left.join(timeout=10)
+    right.join(timeout=10)
+
+    assert not failures
+    assert sorted(seen) == ["ALPHA-KEY", "BETA-KEY"]
+    assert base.credential_resolver("mistral") == ""
+    assert alpha.credential_resolver("mistral") == "ALPHA-KEY"
+    assert beta.credential_resolver("mistral") == "BETA-KEY"
+
+    # Operational protection is shared even though credentials are not.
+    assert alpha._lock is base._lock
+    assert beta._lock is base._lock
+    assert alpha._failures is base._failures
+    assert beta._open_until is base._open_until
+
+
+def test_api_never_mutates_the_shared_ai_broker_credential_resolver():
+    from offsetx_apollo_builder.api import app as app_module
+
+    source = Path(app_module.__file__).read_text(encoding="utf-8")
+    assert ".credential_resolver =" not in source
+    assert "with_credential_resolver(" in source

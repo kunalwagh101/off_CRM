@@ -22,7 +22,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterable, Mapping
+from typing import Any, Awaitable, Callable, Mapping
 from urllib.parse import urlsplit
 
 from ..ai import DataClass, EgressBroker
@@ -174,12 +174,12 @@ class RoutineExecution:
         useful = bool(
             outcome.findings
             or outcome.record
-            or str(outcome.result or "").strip()
         )
-        summary = str(outcome.result or outcome.message or "").strip()[:2000]
+        verified = str((outcome.record or {}).get("notification") or "").strip()
+        summary = verified[:2000]
         return cls(
             status=outcome.status,
-            useful=useful and outcome.status == "completed",
+            useful=bool(verified) and useful and outcome.status == "completed",
             agent_run_id=outcome.run_id,
             summary=summary,
             result=outcome.to_dict(),
@@ -894,7 +894,7 @@ class RoutineAgentExecutor:
             # isolated container. open_session therefore attaches; it does not
             # start a host browser or touch a host profile.
             session = await open_session(profile_dir="", port=port)
-            target_id, session_id = await session.new_tab("about:blank")
+            _target_id, session_id = await session.new_tab("about:blank")
             page = Page(
                 connection=session.connection,
                 session_id=session_id,
@@ -916,7 +916,14 @@ class RoutineAgentExecutor:
                 trace=trace,
                 decision_data_class=DataClass.INTERNAL,
             )
-            outcome = await agent.run(goal, step_budget=routine.step_budget)
+            # A routine may notify only from a source-verified page finding.
+            # "No updates found" prose is therefore not a notification, and a
+            # model-invented update cannot pass the existing provenance check.
+            outcome = await agent.run(
+                goal,
+                step_budget=routine.step_budget,
+                result_schema=("notification",),
+            )
             return RoutineExecution.from_agent_outcome(outcome)
         finally:
             if session is not None:

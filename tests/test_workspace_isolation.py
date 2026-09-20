@@ -199,3 +199,82 @@ def test_workspace_admin_routes_are_not_available_to_a_workspace_session(tmp_pat
             },
         )
         assert response.status_code == 403
+
+
+
+def test_backup_restores_workspace_keys_logins_and_routines_together(tmp_path):
+    settings = _settings(tmp_path)
+    headers = {"X-Offsetx-Token": ADMIN_TOKEN}
+    passphrase = "workspace-recovery-passphrase"
+
+    with TestClient(create_app(settings)) as client:
+        created = client.post(
+            "/api/v1/workspaces",
+            headers=headers,
+            json={
+                "username": "alice",
+                "workspace_id": "alpha",
+                "password": "alice-password-123",
+            },
+        )
+        assert created.status_code == 201
+
+        client.app.state.ai_workspaces.set_key(
+            "alpha", "mistral", "ALPHA-KEY-BEFORE-BACKUP"
+        )
+        routine = client.app.state.agent_routine_store.create(
+            workspace_id="alpha",
+            name="alpha-release-watch",
+            goal="Watch the public release page.",
+            target_url="https://example.com/releases",
+            trigger_type="event",
+            event_name="release.changed",
+        )
+
+        backup = client.post(
+            "/api/v1/backups/export",
+            headers=headers,
+            json={"passphrase": passphrase},
+        )
+        assert backup.status_code == 200
+
+        assert client.patch(
+            "/api/v1/workspaces/alice",
+            headers=headers,
+            json={"password": "alice-password-after-backup"},
+        ).status_code == 200
+        client.app.state.ai_workspaces.set_key(
+            "alpha", "mistral", "ALPHA-KEY-AFTER-BACKUP"
+        )
+        assert client.app.state.agent_routine_store.delete(
+            routine.id, workspace_id="alpha"
+        )
+
+        restored = client.post(
+            "/api/v1/backups/restore",
+            headers=headers,
+            files={
+                "file": (
+                    "workspace.oxbackup",
+                    backup.content,
+                    "application/octet-stream",
+                )
+            },
+            data={"passphrase": passphrase},
+        )
+        assert restored.status_code == 200
+
+        auth = WorkspaceAuthStore(
+            settings.data_dir / "workspace_auth.db",
+            session_secret=settings.session_secret,
+            session_hours=settings.session_hours,
+        )
+        assert auth.authenticate("alice", "alice-password-123") is not None
+        assert auth.authenticate("alice", "alice-password-after-backup") is None
+        assert (
+            client.app.state.ai_workspaces.key_for("alpha", "mistral")
+            == "ALPHA-KEY-BEFORE-BACKUP"
+        )
+        assert client.app.state.agent_routine_store.get(
+            routine.id, workspace_id="alpha"
+        ) is not None

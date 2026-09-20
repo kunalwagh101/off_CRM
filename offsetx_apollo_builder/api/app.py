@@ -17,6 +17,12 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..agent.companions import CompanionError, CompanionRegistry
+from ..agent.routines import (
+    RoutineAgentExecutor,
+    RoutineError,
+    RoutineService,
+    RoutineStore,
+)
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..competitor_teardown import CompetitorTeardownError, analyse_public_post
@@ -113,6 +119,9 @@ from .config import AppSettings
 from .email_delivery import build_email_delivery_router
 from .schemas import (
     AutomationUpdate,
+    AgentRoutineCreate,
+    AgentRoutineUpdate,
+    AgentRoutineEvent,
     BackupExport,
     CampaignCreate,
     CampaignUpdate,
@@ -427,6 +436,29 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             logger=app.state.ai_egress_log.record,
             cache=app.state.ai_cache,
         )
+
+        def routine_broker(workspace_id: str) -> EgressBroker:
+            return EgressBroker(
+                registry=app.state.ai_registry,
+                credential_resolver=app.state.ai_workspaces.credential_resolver(
+                    workspace_id
+                ),
+                quota=app.state.ai_quota,
+                logger=app.state.ai_egress_log.record,
+                cache=app.state.ai_cache,
+            )
+
+        app.state.agent_routine_store = RoutineStore(
+            resolved.data_dir / "agent_routines.db"
+        )
+        app.state.agent_routines = RoutineService(
+            app.state.agent_routine_store,
+            runner=RoutineAgentExecutor(
+                data_dir=resolved.data_dir,
+                workspaces=app.state.ai_workspaces,
+                broker_factory=routine_broker,
+            ),
+        )
         app.state.image_store = ImageStore(
             resolved.data_dir / "imagery.db",
             assets_dir=resolved.data_dir / "image_assets",
@@ -484,11 +516,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         await app.state.automation.start()
         await app.state.content_automation.start()
+        await app.state.agent_routines.start()
         try:
             yield
         finally:
             await app.state.automation.stop()
             await app.state.content_automation.stop()
+            await app.state.agent_routines.stop()
             app.state.privacy.close()
             app.state.ai_tools.close()
             app.state.engine.close()
@@ -1131,6 +1165,96 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         return _engine(request).store.set_memory_approval(memory_id, body.approved)
 
+    @app.get(f"{API_PREFIX}/agent-routines")
+    def list_agent_routines(request: Request) -> dict[str, Any]:
+        items = request.app.state.agent_routine_store.list(
+            workspace_id=_workspace_id(request)
+        )
+        return {"items": [item.to_dict() for item in items]}
+
+    @app.post(f"{API_PREFIX}/agent-routines", status_code=201)
+    def create_agent_routine(
+        body: AgentRoutineCreate, request: Request
+    ) -> dict[str, Any]:
+        try:
+            routine = request.app.state.agent_routine_store.create(
+                workspace_id=_workspace_id(request),
+                name=body.name,
+                goal=body.goal,
+                target_url=body.target_url,
+                trigger_type=body.trigger_type,
+                interval_seconds=body.interval_seconds,
+                event_name=body.event_name,
+                step_budget=body.step_budget,
+                enabled=body.enabled,
+            )
+        except RoutineError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return routine.to_dict()
+
+    @app.patch(f"{API_PREFIX}/agent-routines/{{routine_id}}")
+    def update_agent_routine(
+        routine_id: str, body: AgentRoutineUpdate, request: Request
+    ) -> dict[str, Any]:
+        try:
+            return request.app.state.agent_routine_store.set_enabled(
+                routine_id,
+                body.enabled,
+                workspace_id=_workspace_id(request),
+            ).to_dict()
+        except RoutineError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.delete(f"{API_PREFIX}/agent-routines/{{routine_id}}")
+    def delete_agent_routine(routine_id: str, request: Request) -> dict[str, bool]:
+        deleted = request.app.state.agent_routine_store.delete(
+            routine_id, workspace_id=_workspace_id(request)
+        )
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Routine not found")
+        return {"deleted": True}
+
+    @app.post(f"{API_PREFIX}/agent-routines/events/{{event_name}}")
+    async def emit_agent_routine_event(
+        event_name: str, body: AgentRoutineEvent, request: Request
+    ) -> dict[str, Any]:
+        try:
+            results = await request.app.state.agent_routines.emit(
+                event_name,
+                workspace_id=_workspace_id(request),
+                payload=body.payload,
+                event_id=body.event_id,
+            )
+        except RoutineError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"results": results, "total": len(results)}
+
+    @app.get(f"{API_PREFIX}/agent-routine-runs")
+    def agent_routine_runs(
+        request: Request,
+        routine_id: str = Query("", max_length=64),
+        limit: int = Query(100, ge=1, le=500),
+    ) -> dict[str, Any]:
+        items = request.app.state.agent_routine_store.runs(
+            workspace_id=_workspace_id(request),
+            routine_id=routine_id,
+            limit=limit,
+        )
+        return {"items": items, "total": len(items)}
+
+    @app.get(f"{API_PREFIX}/agent-routine-notifications")
+    def agent_routine_notifications(
+        request: Request,
+        unread_only: bool = Query(False),
+        limit: int = Query(100, ge=1, le=500),
+    ) -> dict[str, Any]:
+        items = request.app.state.agent_routine_store.notifications(
+            workspace_id=_workspace_id(request),
+            unread_only=unread_only,
+            limit=limit,
+        )
+        return {"items": items, "total": len(items)}
+
     @app.get(f"{API_PREFIX}/automation")
     def automation_status(request: Request) -> dict[str, Any]:
         return request.app.state.automation.status()
@@ -1200,7 +1324,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         if not request.app.state.maintenance_lock.acquire(blocking=False):
             raise HTTPException(status_code=409, detail="Maintenance is already running")
         automation = request.app.state.automation
+        agent_routines = request.app.state.agent_routines
         await automation.stop()
+        await agent_routines.stop()
         current_engine = request.app.state.engine
         request.app.state.privacy.close()
         request.app.state.ai_tools.close()
@@ -1256,6 +1382,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     export_dir=settings.export_dir,
                 )
             await automation.start()
+            await agent_routines.start()
             request.app.state.maintenance_lock.release()
 
     @app.get(f"{API_PREFIX}/campaigns")

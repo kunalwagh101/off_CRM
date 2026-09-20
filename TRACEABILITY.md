@@ -51,6 +51,9 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-41, R-42 | S-06.01.01 | 1 | persistent workspace-bound scrypt logins + session invalidation + isolated encrypted provider keys/browser vaults + immutable per-workspace broker credentials; `tests/test_workspace_isolation.py` committed | `uv run pytest tests/test_workspace_isolation.py tests/test_api_auth.py tests/test_ai_api.py tests/test_browser_vault.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
+| R-45, R-46 | S-06.01.04 | 2 | durable interval/event routines + creation-time unattended refusal + dedupe + renewable workspace browser lease + verified-finding-only notifications; `tests/test_agent_routines.py` committed | `uv run pytest tests/test_agent_routines.py tests/test_agent_run.py tests/test_agent_provenance.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
+| R-29 | S-06.02.01 | 1 | one `scan_model_input` boundary covers payload, system prompt and transcription metadata before text/image/transcription provider I/O; adversarial `tests/test_ai_prompt_secret_scan.py` committed | `uv run pytest tests/test_ai_prompt_secret_scan.py tests/test_ai_egress_wall.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
 | R-75 | S-03.02.05 | 2 | packaged validated `browser/platforms.json` drives identity, policy and budgets; Reddit added data-only; `tests/test_browser_platform_registry.py` committed | `uv run pytest tests/test_browser_platform_registry.py tests/test_browser_signin.py tests/test_browser_budget.py -q`, full regression, owner review and verifier |
 | R-18 | S-02.02.02 | 2 | one `PLAN.md` per trace run, fresh-read before every decision, exact plan version captured in trace; `tests/test_agent_plan.py` committed | `uv run pytest tests/test_agent_plan.py tests/test_agent_run.py tests/test_agent_resume.py -q`, full regression, owner review and verifier |
 | R-31, R-35 | S-04.01.01 | 1 | transactional companion rows + exact memory scopes + runtime tool grant enforcement + authenticated CRUD/context API; `tests/test_agent_companions.py` committed | `uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q`, full regression, owner review and verifier |
@@ -63,9 +66,6 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-41, R-42 | S-06.01.01 | 1 | — | — |
-| R-45, R-46 | S-06.01.04 | 2 | — | — |
-| R-29 | S-06.02.01 | 1 | — | — |
 | R-48 | S-06.02.02 | 2 | — | — |
 | R-51 | S-06.02.05 | 1 | — | — |
 | R-55 | S-07.01.03 | 1 | — | — |
@@ -153,10 +153,9 @@ the slice depends on. Change control is about scope, not about bugs.
 
 - **Frontend tests are not named in most evidence blocks.** The video work has
   real frontend coverage, but most story evidence commands do not reach it.
-- **S-06.02.01 remains planned.** S-03.02.02 directly proves browser credential
-  shapes cannot enter a provider payload, but the broader adversarial
-  no-secret-in-any-prompt suite remains its own story and is not silently
-  claimed here.
+- **S-06.02.01 is built and IN_REVIEW.** The broader adversarial boundary now
+  covers payload, system prompt and transcription metadata across every provider
+  path. Executable locked-suite/CI evidence is still required before DONE.
 
 ---
 

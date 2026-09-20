@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.agent.companions import CompanionRegistry
-from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineService, RoutineStore
+from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineStore
 from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app

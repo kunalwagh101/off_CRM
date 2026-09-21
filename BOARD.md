@@ -55,10 +55,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-07.01.03 · Meeting transcription with no bot in the call
 
 ## IN_REVIEW
 
+- S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.01 · No secret may enter a model prompt
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event

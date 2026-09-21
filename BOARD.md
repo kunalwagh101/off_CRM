@@ -58,6 +58,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.01 · No secret may enter a model prompt

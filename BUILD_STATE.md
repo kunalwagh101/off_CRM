@@ -7,9 +7,11 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-20
-Branch: `feature/next-three-batch-2`
-Tests: both build-ahead batches have focused suites authored but **not yet claimed passing**. Remote Actions status is checked separately at close-out; historical pass counts below remain historical evidence only.
+Last updated: 2026-09-22
+Branch: `feature/next-three-batch-4`
+Tests: build-ahead focused suites are authored but the newest stories are **not
+yet claimed passing**. Exact remote CI evidence is recorded at close-out; older
+DONE evidence below remains historical evidence only.
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm
 package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
@@ -30,6 +32,32 @@ The long-standing `test_discovery.py::test_scrapling_parser…` failure was neve
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
+
+## 2026-09-22 — API, accessibility and local meeting batch
+
+Three READY stories were implemented sequentially and moved to IN_REVIEW:
+
+- `S-06.02.02`: one default-deny API middleware boundary plus a closed public
+  bootstrap/signed-callback allowlist; route-enumerating auth tests and
+  secret-safe request-validation errors cover the registered API surface.
+- `S-06.02.05`: shared skip/focus/live-region/modal behaviour plus keyboard
+  alternatives on custom interactions and recursive TSX accessibility
+  contracts.
+- `S-07.01.03`: browser-local microphone + shared system/tab audio mixing,
+  MediaRecorder chunks, loopback-only capture mutations, one immutable
+  transcription provider/model per meeting, transcript-only persistence,
+  privacy deletion and encrypted backup/restore.
+
+Meeting review found D-65 through D-67: chunk requests could have changed the
+declared provider/model; the new transcript DB initially was not registered with
+privacy/backup; and capture failure paths could leave screen sharing active or
+an unfinished meeting with no recovery UI. All three were corrected before
+review.
+
+Owner/manual verification is still required for the real local meeting capture
+and keyboard/screen-reader pass. No story in this section is DONE.
+
+---
 
 ## 2026-09-20 — second next-three implementation batch
 

@@ -51,6 +51,9 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-48 | S-06.02.02 | 2 | closed public-route allowlist + global auth middleware + secret-safe validation handler + exhaustive registered-route/body contract in `tests/test_api_boundary_contract.py` | `uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q`, full regression, owner API review and verifier |
+| R-51 | S-06.02.05 | 1 | skip navigation/current-page/live regions + focus-trapped/restoring modal + global focus-visible/reduced-motion + keyboard alternatives across AI/Sales/Video + recursive repo-wide `tests/test_frontend_accessibility_contract.py` | `uv run pytest tests/test_frontend_accessibility_contract.py -q && npm test --prefix frontend && npm run build --prefix frontend`, owner keyboard/screen-reader pass and verifier |
+| R-55 | S-07.01.03 | 1 | localhost-only mic+system-audio MediaRecorder capture, transient raw chunks, immutable declared transcription provider/model, governed broker egress, transcript privacy/backup; `tests/test_meeting_transcription.py` committed | `uv run pytest tests/test_meeting_transcription.py tests/test_privacy.py -q && npm test --prefix frontend && npm run build --prefix frontend`, real localhost browser capture/manual audio check, full regression and verifier |
 | R-41, R-42 | S-06.01.01 | 1 | persistent workspace-bound scrypt logins + session invalidation + isolated encrypted provider keys/browser vaults + immutable per-workspace broker credentials; `tests/test_workspace_isolation.py` committed | `uv run pytest tests/test_workspace_isolation.py tests/test_api_auth.py tests/test_ai_api.py tests/test_browser_vault.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
 | R-45, R-46 | S-06.01.04 | 2 | durable interval/event routines + creation-time unattended refusal + dedupe + renewable workspace browser lease + verified-finding-only notifications; `tests/test_agent_routines.py` committed | `uv run pytest tests/test_agent_routines.py tests/test_agent_run.py tests/test_agent_provenance.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
 | R-29 | S-06.02.01 | 1 | one `scan_model_input` boundary covers payload, system prompt and transcription metadata before text/image/transcription provider I/O; adversarial `tests/test_ai_prompt_secret_scan.py` committed | `uv run pytest tests/test_ai_prompt_secret_scan.py tests/test_ai_egress_wall.py -q`, full regression, owner review and verifier; no CI run is attached to branch head |
@@ -59,16 +62,13 @@ the code exists and holds no stub).
 | R-31, R-35 | S-04.01.01 | 1 | transactional companion rows + exact memory scopes + runtime tool grant enforcement + authenticated CRUD/context API; `tests/test_agent_companions.py` committed | `uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q`, full regression, owner review and verifier |
 | R-38 | S-05.01.02 | 4 | `extraction_packs.py` + config registry + `tests/test_extraction_packs.py` committed and wired into existing Scrapling discovery path | `uv run pytest tests/test_extraction_packs.py tests/test_discovery.py -q`, full regression, owner review and board verifier |
 | R-39 | S-05.01.03 | 4 | deterministic structure-only analyser + existing recipe/assembly/review wiring + `tests/test_competitor_teardown.py` committed | `uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tests/test_video_review.py -q`, full regression, owner review and verifier |
-| R-50 | S-06.02.04 | 3 | authenticated subject-access/deletion API + nine-store inventory + retry-safe deletion + `tests/test_privacy.py` committed | `uv run pytest tests/test_privacy.py tests/test_api_auth.py -q`, full regression, owner privacy review and verifier |
+| R-50 | S-06.02.04 | 3 | authenticated subject-access/deletion API + twelve-store inventory + retry-safe deletion + `tests/test_privacy.py` committed | `uv run pytest tests/test_privacy.py tests/test_api_auth.py -q`, full regression, owner privacy review and verifier |
 | R-36, R-37, R-40 | S-05.01.01 | 3 | durable frontier + shared host pacing + 6 focused acceptance/concurrency cases committed | `uv run pytest tests/test_crawler_frontier.py -q`, full regression, and board verifier must execute; current GitHub Actions jobs fail before step 1 |
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-48 | S-06.02.02 | 2 | — | — |
-| R-51 | S-06.02.05 | 1 | — | — |
-| R-55 | S-07.01.03 | 1 | — | — |
 | R-56 | S-07.01.04 | 1 | — | — |
 
 ## Blocked externally — engineering is waiting on access

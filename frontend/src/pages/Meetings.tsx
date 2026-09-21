@@ -72,6 +72,7 @@ export default function Meetings() {
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState("");
   const [captureError, setCaptureError] = useState("");
+  const [needsFinalize, setNeedsFinalize] = useState(false);
   const [selected, setSelected] = useState<Meeting | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -124,7 +125,8 @@ export default function Meetings() {
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const form = new FormData();
-      form.append("file", blob, `meeting-${meetingId}-chunk-${sequence}.webm`);
+      const extension = blob.type.startsWith("audio/ogg") ? "ogg" : "webm";
+      form.append("file", blob, `meeting-${meetingId}-chunk-${sequence}.${extension}`);
       form.append("sequence", String(sequence));
       form.append("provider_id", providerId);
       form.append("model_id", modelId);
@@ -157,6 +159,10 @@ export default function Meetings() {
 
   async function startCapture() {
     const caps = capabilities.data;
+    if (needsFinalize) {
+      setCaptureError("Finish or discard the previous meeting before starting another.");
+      return;
+    }
     if (!caps) return;
     if (!localBrowser() || !caps.local_server) {
       setCaptureError("Meeting capture is local-only. Open off_CRM from localhost.");
@@ -181,6 +187,7 @@ export default function Meetings() {
         video: true,
         audio: true
       });
+      displayRef.current = display;
       const systemTrack = display.getAudioTracks()[0];
       if (!systemTrack) {
         display.getTracks().forEach((track) => track.stop());
@@ -194,8 +201,10 @@ export default function Meetings() {
         },
         video: false
       });
+      microphoneRef.current = microphone;
 
       const context = new AudioContext();
+      audioContextRef.current = context;
       await context.resume();
       const destination = context.createMediaStreamDestination();
 
@@ -216,9 +225,6 @@ export default function Meetings() {
         language: language.trim()
       });
 
-      displayRef.current = display;
-      microphoneRef.current = microphone;
-      audioContextRef.current = context;
       meetingIdRef.current = created.id;
       sequenceRef.current = 0;
       pendingRef.current.clear();
@@ -278,6 +284,7 @@ export default function Meetings() {
       const recovered = await retryPending();
       if (!recovered) {
         setRecording(false);
+        setNeedsFinalize(true);
         releaseCapture();
         return;
       }
@@ -286,6 +293,9 @@ export default function Meetings() {
         const completed = await api.post<Meeting>(`/meetings/${meetingId}/complete`, {});
         setSelected(completed);
       }
+      pendingRef.current.clear();
+      meetingIdRef.current = "";
+      setNeedsFinalize(false);
       setRecording(false);
       releaseCapture();
       meetings.reload();
@@ -296,6 +306,50 @@ export default function Meetings() {
       releaseCapture();
     } finally {
       stoppingRef.current = false;
+      setBusy("");
+    }
+  }
+
+  async function finalizePendingMeeting() {
+    if (!meetingIdRef.current || !needsFinalize) return;
+    setBusy("finalizing");
+    setCaptureError("");
+    try {
+      const recovered = await retryPending();
+      if (!recovered) return;
+      const completed = await api.post<Meeting>(
+        `/meetings/${meetingIdRef.current}/complete`,
+        {}
+      );
+      setSelected(completed);
+      pendingRef.current.clear();
+      meetingIdRef.current = "";
+      setNeedsFinalize(false);
+      meetings.reload();
+      notify("Meeting transcription finished.", "success");
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : "Could not finish meeting");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function discardPendingMeeting() {
+    const meetingId = meetingIdRef.current;
+    if (!meetingId) return;
+    setBusy("discarding");
+    try {
+      await api.delete(`/meetings/${meetingId}`);
+      pendingRef.current.clear();
+      meetingIdRef.current = "";
+      setNeedsFinalize(false);
+      setCaptureError("");
+      setSelected(null);
+      meetings.reload();
+      notify("Unfinished meeting discarded. No raw audio was stored.", "success");
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : "Could not discard meeting");
+    } finally {
       setBusy("");
     }
   }
@@ -337,9 +391,16 @@ export default function Meetings() {
         title={recording ? "Recording locally" : "Start a meeting"}
         subtitle="Your browser mixes microphone + shared system audio. Only short audio chunks leave this machine, through the transcription provider you select."
         action={
-          recording
-            ? <Button tone="danger" busy={busy === "stopping"} onClick={() => void stopCapture()}>Stop meeting</Button>
-            : <Button busy={busy === "starting"} onClick={() => void startCapture()}>Start local capture</Button>
+          recording ? (
+            <Button tone="danger" busy={busy === "stopping"} onClick={() => void stopCapture()}>Stop meeting</Button>
+          ) : needsFinalize ? (
+            <div className="page-actions">
+              <Button tone="ghost" busy={busy === "discarding"} onClick={() => void discardPendingMeeting()}>Discard unfinished</Button>
+              <Button busy={busy === "finalizing"} onClick={() => void finalizePendingMeeting()}>Retry & finish</Button>
+            </div>
+          ) : (
+            <Button busy={busy === "starting"} onClick={() => void startCapture()}>Start local capture</Button>
+          )
         }
       >
         {capabilities.loading ? <StatePanel title="Checking capture support" description="Reading local-browser and transcription-provider capabilities." tone="loading" /> : null}

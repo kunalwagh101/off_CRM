@@ -1034,3 +1034,53 @@ global state before adding tenant IDs to tables. For egress controls, enumerate
 the bytes/fields the provider actually receives rather than the object the code
 happens to call “payload”. For unattended automation, define notification truth
 from verified structured output, never by interpreting model prose.
+
+
+---
+
+## 2026-09-22 — S-06.02.02 API boundary (IN_REVIEW)
+
+**What was cut.** No customer-data route was exempted. Login/session bootstrap,
+signed unsubscribe and signed provider callbacks remain deliberately public
+because requiring an existing CRM session would make those protocols
+impossible; DD-29 records that exception rather than hiding it.
+
+**What the estimate got wrong.** Route-by-route decorators were the wrong unit.
+The repository has over two hundred routes and the only scalable proof is to
+enumerate what FastAPI actually registered and make privacy the default
+middleware state.
+
+**What to change next time.** Test the framework's runtime route table, not a
+hand-maintained endpoint inventory. New routes should inherit the boundary
+without somebody remembering a security checklist.
+
+## 2026-09-22 — S-06.02.05 accessibility (IN_REVIEW)
+
+**What was cut.** Nothing from keyboard reachability. A real screen-reader pass
+remains owner/manual verification, so the story stays IN_REVIEW rather than
+pretending static source checks can hear what a screen reader announces.
+
+**What the estimate got wrong.** Accessibility was not one screen. The useful
+work was in the shared shell/modal plus a repository-wide rule that prevents the
+same pointer-only/focus defects returning on the next page.
+
+**What to change next time.** Build with native elements first and make unusual
+interactions prove a keyboard path in a recursive test.
+
+## 2026-09-22 — S-07.01.03 local meeting transcription (IN_REVIEW)
+
+**What was cut.** Raw-audio archives, hosted capture, meeting bots and speaker
+diarisation are explicitly outside this slice. The promised local mic+system
+capture, declared-provider transcription and transcript persistence were not
+cut.
+
+**What the estimate got wrong.** The backend transcriber was not the product.
+The acceptance criterion is custody of real audio, so the browser capture path,
+cleanup on denied permissions, retry of transient failed chunks, immutable
+provider selection, privacy inventory and backup recovery were all part of the
+same vertical slice.
+
+**What to change next time.** For media features, trace the bytes from hardware
+permission to final persistence. Saying "we don't store audio" is not enough
+until failure paths prove capture stops and temporary chunks have an explicit
+lifecycle.

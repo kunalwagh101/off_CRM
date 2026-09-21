@@ -35,6 +35,7 @@ BACKUP_SQLITE_FILES = (
     "ai_tools.db",
     "workspace_auth.db",
     "agent_routines.db",
+    "meeting_transcripts.db",
 )
 ALL_BACKUP_FILES = (*BACKUP_FILES, *BACKUP_SQLITE_FILES)
 PRIVATE_BACKUP_FILES = {
@@ -45,6 +46,7 @@ PRIVATE_BACKUP_FILES = {
     "workspace_auth.db",
     "ai_tools.db",
     "agent_routines.db",
+    "meeting_transcripts.db",
 }
 
 

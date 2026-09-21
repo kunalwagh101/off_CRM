@@ -97,6 +97,10 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-63 | 2026-09-20 | bug | medium | The backup-restore fallback rebuilt privacy without the configured export directory, so CSV export deletion coverage could silently shrink after a failed restore | fixed during second-batch lifecycle review |
 | D-64 | 2026-09-20 | data-loss | high | Backup restore could replace `ai_tools.db` while ToolRegistry still held an open SQLite connection, leaving tools/companions attached to pre-restore state | fixed during `S-04.01.01` lifecycle review; registry is closed and reconstructed around restore |
 
+| D-65 | 2026-09-22 | security | high | Meeting creation declared a transcription provider/model but chunk upload could supply a different pair, allowing later requests to redirect raw audio to another connected provider | fixed before S-07.01.03 review; meeting provider/model are immutable and mismatch is refused before broker I/O |
+| D-66 | 2026-09-22 | privacy/recovery | high | The new meeting transcript database was initially outside subject-access/deletion and encrypted backup coverage | fixed before S-07.01.03 review; meeting transcripts are a registered privacy store and SQLite-safe backup member |
+| D-67 | 2026-09-22 | privacy/reliability | high | Local screen sharing was not owned by cleanup until after meeting creation, so a denied microphone or failed API create could leave screen capture active; failed final chunks also had no recovery path | fixed before S-07.01.03 review; streams are owned immediately and unfinished chunks expose retry/discard |
+
 ---
 
 ## What these add up to

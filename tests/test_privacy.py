@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from offsetx_apollo_builder.agent.companions import CompanionRegistry
 from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineStore
 from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
-from offsetx_apollo_builder.meetings.store import MeetingStore
+from offsetx_apollo_builder.meetings.store import MeetingError, MeetingStore
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -678,7 +678,7 @@ def test_privacy_deletes_matching_meeting_transcript_without_touching_other_meet
         )
         assert receipt["complete"] is True
 
-        with pytest.raises(Exception):
+        with pytest.raises(MeetingError, match="not found"):
             meetings.require(alice["id"], workspace_id="local")
         assert meetings.require(bob["id"], workspace_id="local")["title"] == "General market call"
     finally:

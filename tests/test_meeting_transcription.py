@@ -132,7 +132,12 @@ def test_chunk_sequence_cannot_be_reused_for_different_audio(tmp_path):
         workspaces=_Workspaces(),
         broker_factory=lambda _workspace_id: broker,
     )
-    meeting = store.create(workspace_id="alpha", title="Call")
+    meeting = store.create(
+        workspace_id="alpha",
+        title="Call",
+        provider_id="whisper",
+        model_id="whisper-1",
+    )
 
     service.transcribe_chunk(
         workspace_id="alpha",
@@ -191,7 +196,11 @@ def test_meeting_mutation_api_requires_loopback_browser_origin(tmp_path):
         remote = client.post(
             "/api/v1/meetings",
             headers={**auth, "Origin": "https://crm.example.com"},
-            json={"title": "Remote capture must fail"},
+            json={
+                "title": "Remote capture must fail",
+                "provider_id": "whisper",
+                "model_id": "whisper-1",
+            },
         )
         assert remote.status_code == 403
         assert "localhost" in remote.json()["detail"].lower()
@@ -199,7 +208,11 @@ def test_meeting_mutation_api_requires_loopback_browser_origin(tmp_path):
         local = client.post(
             "/api/v1/meetings",
             headers={**auth, "Origin": "http://localhost:5173"},
-            json={"title": "Local capture"},
+            json={
+                "title": "Local capture",
+                "provider_id": "whisper",
+                "model_id": "whisper-1",
+            },
         )
         assert local.status_code == 201
         meeting_id = local.json()["id"]
@@ -221,7 +234,11 @@ def test_hosted_backend_refuses_meeting_capture_even_with_local_origin(tmp_path)
                 "X-Offsetx-Token": TOKEN,
                 "Origin": "http://localhost:5173",
             },
-            json={"title": "Must stay local"},
+            json={
+                "title": "Must stay local",
+                "provider_id": "whisper",
+                "model_id": "whisper-1",
+            },
         )
         assert response.status_code == 403
         assert "local-only" in response.json()["detail"].lower()
@@ -293,3 +310,34 @@ def test_encrypted_backup_restores_meeting_transcript_state(tmp_path):
         assert client.app.state.meeting_store.require(
             meeting["id"], workspace_id="local"
         )["title"] == "Durable meeting transcript"
+
+
+
+def test_chunk_cannot_redirect_audio_to_a_different_provider(tmp_path):
+    store = MeetingStore(tmp_path / "meeting_transcripts.db")
+    broker = _Broker()
+    service = MeetingTranscriber(
+        store=store,
+        workspaces=_Workspaces(),
+        broker_factory=lambda _workspace_id: broker,
+    )
+    meeting = store.create(
+        workspace_id="alpha",
+        title="Provider-bound call",
+        provider_id="whisper",
+        model_id="whisper-1",
+    )
+
+    with pytest.raises(MeetingTranscriptionError, match="cannot change"):
+        service.transcribe_chunk(
+            workspace_id="alpha",
+            meeting_id=meeting["id"],
+            sequence=0,
+            audio=b"private meeting audio",
+            media_type="audio/webm",
+            provider_id="other-provider",
+            model_id="other-model",
+        )
+
+    assert broker.calls == []
+    assert store.chunks(meeting["id"], workspace_id="alpha") == []

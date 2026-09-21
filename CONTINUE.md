@@ -1,36 +1,39 @@
 # CONTINUE — the handoff prompt
 
-## Current handoff — 2026-09-20
+## Current handoff — 2026-09-22
 
-- Working branch: `feature/next-three-batch-2`, stacked on
-  `feature/next-three-implementation`.
-- Owner-authorised build-ahead remains governed by DD-22: implementation may
-  reach IN_REVIEW; verification/dependency debt may not be renamed DONE.
-- The requested second batch is fully implemented and in IN_REVIEW:
-  `S-03.02.05` platform-as-data, `S-02.02.02` PLAN.md, and
-  `S-04.01.01` persisted companions.
-- Previous IN_REVIEW stories remain unchanged:
-  `S-05.01.01`, `S-05.01.02`, `S-05.01.03`, `S-06.02.04`.
-- No story is currently IN_PROGRESS.
-- Focused verification commands are in DEMO.md. Do not invent pass counts.
-- Platform declarations now live in `browser/platforms.json`; identity,
-  policy and default budgets consume the same validated row.
-- Every AgentRun now has one `PLAN.md`, reads it fresh before each model
-  decision and captures that exact version in the immutable trace.
-- Companion profiles live transactionally in the existing `ai_tools.db`,
-  have exact memory scopes, expose only granted enabled tools, and enforce the
-  grant again at tool execution. Authenticated API CRUD/context/memory routes
-  are wired.
-- Companion profile text is the ninth registered privacy-store adapter.
-- Backup restore closes/reopens ToolRegistry and CompanionRegistry so restored
-  tool/companion state is not attached to a stale SQLite connection.
-- D-59 through D-64 were found and fixed during this batch.
-- The next READY story on the board is `S-06.01.01 — Workspaces with their own
-  keys and their own logins`. Do not pull it unless the owner asks for more
-  features.
-- Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
-- Dedicated owner/testing pass is still deferred. Run focused suites, full
-  regression and `uv run python scripts/verify_board.py` before promotion.
+- Working branch: `feature/next-three-batch-4`, stacked on
+  `feature/next-three-batch-3`.
+- DD-22 still governs build-ahead: implementation may reach IN_REVIEW;
+  verification/dependency debt may not be renamed DONE.
+- This requested batch is fully implemented and IN_REVIEW:
+  `S-06.02.02` API authorization/validation,
+  `S-06.02.05` keyboard/screen-reader accessibility, and
+  `S-07.01.03` local meeting transcription.
+- Previous build-ahead stories remain IN_REVIEW. No story is IN_PROGRESS.
+- BOARD.md currently has 13 IN_REVIEW, 1 READY, 3 BLOCKED and 0 DEFERRED.
+- The only READY story is `S-07.01.04 — Reports and artifacts`. Do not pull it
+  unless the owner asks for more features.
+- API privacy is default-deny. Public exceptions are the closed bootstrap /
+  signed-callback list in app.py and are covered by
+  `tests/test_api_boundary_contract.py`.
+- Accessibility is guarded recursively by
+  `tests/test_frontend_accessibility_contract.py`; real keyboard/screen-reader
+  owner acceptance remains pending.
+- Meetings are local-only: loopback backend + loopback browser Origin.
+  Meetings.tsx mixes mic + shared system/tab audio locally with Web Audio,
+  MediaRecorder keeps chunks transient in browser memory, and raw audio is never
+  persisted by off_CRM.
+- A meeting's transcription provider/model is immutable after creation. A chunk
+  cannot redirect raw audio to another provider/model.
+- `meeting_transcripts.db` participates in encrypted backup and the 12-store
+  privacy inventory.
+- D-65 through D-67 were found and fixed during meeting hardening.
+- Focused verification commands and the real meeting capture walkthrough are in
+  DEMO.md. Do not invent pass counts.
+- Before promoting anything to DONE: run focused suites, full Python/frontend
+  regression, owner/manual checks where named, then
+  `uv run python scripts/verify_board.py`.
 
 
 ---

@@ -110,3 +110,51 @@ def test_no_pointer_only_generic_click_targets_remain_in_core_shells():
             flags=re.DOTALL,
         )
         assert matches == [], (relative, matches)
+
+
+
+def test_all_frontend_click_targets_have_a_keyboard_path():
+    offenders: list[str] = []
+    for path in FRONTEND.rglob("*.tsx"):
+        source = path.read_text(encoding="utf-8")
+        for match in re.finditer(
+            r"<(div|span|li|section|article|tr|td)\b[^>]*\bonClick\s*=.*?>",
+            source,
+            flags=re.DOTALL,
+        ):
+            tag = match.group(0)
+            # A backdrop may be mouse convenience only when it is explicitly
+            # absent from the accessibility tree; the same surface must expose
+            # an Escape/close button elsewhere (AI drawer is covered separately).
+            if 'aria-hidden="true"' in tag:
+                continue
+            offenders.append(
+                f"{path.relative_to(ROOT)}: {re.sub(r'\s+', ' ', tag)[:160]}"
+            )
+    assert offenders == []
+
+
+def test_no_positive_tab_order_exists_anywhere_in_frontend():
+    offenders: list[str] = []
+    for path in FRONTEND.rglob("*.tsx"):
+        source = path.read_text(encoding="utf-8")
+        if re.search(r"\btabIndex\s*=\s*\{?\s*[1-9]\d*", source):
+            offenders.append(str(path.relative_to(ROOT)))
+    assert offenders == []
+
+
+def test_fake_role_buttons_require_keyboard_handlers_everywhere():
+    offenders: list[str] = []
+    for path in FRONTEND.rglob("*.tsx"):
+        source = path.read_text(encoding="utf-8")
+        for match in re.finditer(
+            r"<[^>]+\brole\s*=\s*[\"']button[\"'][^>]*>",
+            source,
+            flags=re.DOTALL,
+        ):
+            tag = match.group(0)
+            if "onKeyDown=" not in tag and "onKeyUp=" not in tag:
+                offenders.append(
+                    f"{path.relative_to(ROOT)}: {re.sub(r'\s+', ' ', tag)[:160]}"
+                )
+    assert offenders == []

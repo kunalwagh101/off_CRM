@@ -30,7 +30,7 @@ contract:
 Use existing store transactions and standard filesystem operations. Do not build
 a new persistence layer.
 
-The implemented inventory has nine named adapters:
+The implemented inventory has twelve named adapters:
 
 1. redacted sent-mail recall;
 2. AI task context;
@@ -38,10 +38,13 @@ The implemented inventory has nine named adapters:
 4. explicitly tagged generated subject artifacts;
 5. application-owned CSV queues/exports;
 6. persisted companion profile names/instructions;
-7. crawler frontier/cache URLs where the subject itself is identifiable;
-8. browser trace runs, including screenshots/captures when that run matches;
-9. CRM/discovery/delivery/research/sales records, including residual discovery
-   and audit JSON.
+7. durable agent routine definitions/results;
+8. workspace login identities when the username is the verified subject;
+9. derived meeting transcript/timing metadata (raw meeting audio is never stored);
+10. crawler frontier/cache URLs where the subject itself is identifiable;
+11. browser trace runs, including screenshots/captures when that run matches;
+12. CRM/discovery/delivery/research/sales records, including residual discovery
+    and audit JSON.
 
 CRM identity rows are intentionally last. If an auxiliary cleanup fails, the
 stable CRM join keys survive so the same deletion plan can be retried safely.
@@ -98,7 +101,10 @@ Required evidence:
 - registry coverage test fails when a known personal-data store is omitted;
 - CSV queues/exports remove only matching rows and preserve unrelated rows;
 - residual discovery/audit JSON no longer retains the strong subject token;
-- a cross-workspace privacy request is refused.
+- a cross-workspace privacy request is refused;
+- matching routine state is removed without touching unrelated routines;
+- a matching workspace login identity is removed;
+- matching meeting transcript metadata is removed without touching other meetings.
 
 ## Rollback
 

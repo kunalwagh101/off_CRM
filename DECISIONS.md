@@ -436,3 +436,41 @@ mechanism.
 
 **Cost:** the companion table shares the tool-control DB. **Revisit when:** a
 future workspace storage migration moves both tools and companions together.
+
+
+### DD-29 — API privacy is default-deny; bootstrap and signed callbacks are explicit exceptions · 2026-09-22
+
+All `/api/` routes are private unless they are in the closed public path/prefix
+allowlist. Login/session bootstrap, signed unsubscribe and signed SES/SNS
+callbacks cannot require an existing CRM session by definition; they are the
+explicit exceptions and their own authentication/signature rules still apply.
+
+**Cost:** adding a genuinely public endpoint requires an explicit allowlist edit
+and a boundary-test change. **Why:** the alternative is a route becoming public
+because somebody forgot to add an auth decorator.
+
+### DD-30 — Accessibility is enforced as a frontend invariant, not a page checklist · 2026-09-22
+
+The shared shell owns skip navigation, visible focus, current-page state, live
+feedback and modal focus management. A recursive repository test rejects
+pointer-only generic click targets, positive tab order and fake role-buttons
+without keyboard handlers across every TSX screen.
+
+**Cost:** unusual custom controls need a real semantic/keyboard contract rather
+than a quick div+click implementation. That is intentional.
+
+### DD-31 — Meeting audio is transient and provider-bound · 2026-09-22
+
+Meeting capture exists only on a loopback backend reached from a loopback browser
+Origin. The browser locally mixes microphone plus shared system/tab audio and
+holds chunks in memory until they are sent through the existing governed
+transcription broker. Raw audio is never stored by off_CRM.
+
+The transcription provider/model is frozen when the meeting record is created;
+later chunks cannot redirect audio to a different provider. Only derived
+transcript/timing/provenance metadata is persisted.
+
+**Cost:** capture cannot run from the hosted CRM and a browser must support
+system-audio sharing. Failed chunks must be retried while the capture page still
+holds them in memory. **Revisit when:** a native desktop capture process can
+provide the same or stronger local custody with an inspectable permission model.

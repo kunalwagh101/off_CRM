@@ -575,10 +575,19 @@ back, **so that** a bad release is a five-minute problem.
 - **Dependencies:** S-03.02.02. **Size:** M. **Indicator:** scanner findings.
 
 #### S-06.02.02 — Every endpoint authorises and validates
-- **Given** any endpoint, **when** called without a session, **then** it refuses.
+- **Given** any API endpoint outside the documented closed public bootstrap /
+  signed-callback allowlist, **when** called without an authenticated session or
+  install token, **then** it refuses before business logic runs.
 - **Given** any body, **when** it is malformed, **then** the response is a 4xx
-  with a message and never a stack trace.
+  with a bounded message, never a stack trace and never an echo of sensitive
+  request-body content.
 - **Dependencies:** none. **Size:** M. **Indicator:** unauthenticated reachability.
+- **Business value:** E-06 — one forgotten route cannot silently become a
+  customer-data bypass.
+- **Blocking risk:** login/session bootstrap and externally signed
+  unsubscribe/provider callbacks cannot require an already-existing CRM
+  session. DD-29 records the explicit default-deny exception rule rather than
+  hiding that necessary boundary in middleware.
 
 #### S-06.02.03 — Cost and latency budgets per run
 **As an** owner running unattended work, **I want** each run to respect the
@@ -799,8 +808,17 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 **As an** owner, **I want** microphone and system audio captured locally,
 **so that** meetings become notes without a third party joining.
 - **Given** a capture, **when** it completes, **then** audio never leaves the
-  machine except through the declared transcription provider.
+  machine except through the transcription provider/model declared when that
+  meeting began, raw audio is not persisted by off_CRM, and the derived
+  transcript remains workspace-scoped.
 - **Dependencies:** S-03.01.01. **Size:** L. **Indicator:** meetings captured per week.
+- **Business value:** E-04 — turn real conversations into usable notes without
+  adding a meeting bot or creating a raw-recording store.
+- **Blocking risk:** browser system-audio capture varies by browser/OS and
+  requires the user to explicitly share audio.
+- **Out of scope:** raw-audio archival, cloud-hosted capture, speaker
+  diarisation, automatic meeting-bot attendance and bypassing browser capture
+  permission prompts.
 
 #### S-07.01.04 — Reports and artifacts
 **As an** owner, **I want** gathered data to become a deck, a sheet or a PDF,

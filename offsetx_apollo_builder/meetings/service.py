@@ -63,6 +63,23 @@ class MeetingTranscriber:
                 f"Meeting audio chunk exceeds {MAX_MEETING_CHUNK_BYTES} bytes"
             )
         normalized_type = self.normalize_media_type(media_type)
+        meeting = self.store.require(meeting_id, workspace_id=workspace_id)
+        declared_provider = str(meeting.get("provider_id") or "").strip()
+        declared_model = str(meeting.get("model_id") or "").strip()
+        if not declared_provider or not declared_model:
+            raise MeetingTranscriptionError(
+                "Meeting has no declared transcription provider/model"
+            )
+        supplied_provider = str(provider_id or "").strip()
+        supplied_model = str(model_id or "").strip()
+        if supplied_provider and supplied_provider != declared_provider:
+            raise MeetingTranscriptionError(
+                "A meeting chunk cannot change the declared transcription provider"
+            )
+        if supplied_model and supplied_model != declared_model:
+            raise MeetingTranscriptionError(
+                "A meeting chunk cannot change the declared transcription model"
+            )
         digest = audio_digest(audio)
         state, chunk = self.store.claim_chunk(
             meeting_id=meeting_id,
@@ -89,11 +106,10 @@ class MeetingTranscriber:
 
         try:
             settings = self.workspaces.egress_settings(workspace_id)
-            if model_id and provider_id:
-                settings.enabled_models = {
-                    **settings.enabled_models,
-                    provider_id: (model_id,),
-                }
+            settings.enabled_models = {
+                **settings.enabled_models,
+                declared_provider: (declared_model,),
+            }
             broker = self.broker_factory(workspace_id)
             result: TranscriptResult = broker.call_transcript(
                 EgressRequest(
@@ -110,7 +126,7 @@ class MeetingTranscriber:
                 media_type=normalized_type,
                 filename=f"meeting-{meeting_id}-chunk-{sequence}.webm",
                 language=str(language or "").strip()[:32],
-                provider_id=str(provider_id or "").strip(),
+                provider_id=declared_provider,
             )
             words = [item.to_dict() for item in result.words]
             meeting = self.store.complete_chunk(

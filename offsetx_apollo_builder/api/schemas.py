@@ -53,8 +53,8 @@ class AgentRoutineEvent(StrictModel):
 
 class MeetingCreate(StrictModel):
     title: str = Field(min_length=1, max_length=200)
-    provider_id: str = Field(default="", max_length=80)
-    model_id: str = Field(default="", max_length=240)
+    provider_id: str = Field(min_length=1, max_length=80)
+    model_id: str = Field(min_length=1, max_length=240)
     language: str = Field(default="", max_length=32)
 
 

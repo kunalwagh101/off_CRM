@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from offsetx_apollo_builder.agent.companions import CompanionRegistry
 from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineStore
 from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
+from offsetx_apollo_builder.meetings.store import MeetingStore
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -642,6 +643,44 @@ def test_privacy_removes_workspace_login_when_username_is_subject_email(tmp_path
         assert receipt["complete"] is True
         assert auth.authenticate("alice@example.com", "alice-password-123") is None
         assert auth.authenticate("bob@example.com", "bob-password-456") is not None
+    finally:
+        service.close()
+        store.close()
+
+
+
+def test_privacy_deletes_matching_meeting_transcript_without_touching_other_meetings(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    meetings = MeetingStore(data_dir / "meeting_transcripts.db")
+    alice = meetings.create(
+        workspace_id="local",
+        title="Call with alice@example.com",
+    )
+    bob = meetings.create(
+        workspace_id="local",
+        title="General market call",
+    )
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com")
+        access = service.access(subject)
+        meeting_store = next(
+            item for item in access["stores"]
+            if item["store"] == "meeting_transcripts"
+        )
+        assert meeting_store["count"] == 1
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+
+        with pytest.raises(Exception):
+            meetings.require(alice["id"], workspace_id="local")
+        assert meetings.require(bob["id"], workspace_id="local")["title"] == "General market call"
     finally:
         service.close()
         store.close()

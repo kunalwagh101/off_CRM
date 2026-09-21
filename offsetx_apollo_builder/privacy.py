@@ -40,6 +40,7 @@ REQUIRED_PRIVACY_STORES = (
     "companion_profiles",
     "agent_routines",
     "workspace_accounts",
+    "meeting_transcripts",
     "crawler_frontier",
     "browser_traces",
     "outreach_crm",
@@ -878,6 +879,97 @@ class WorkspaceAccountPrivacyAdapter:
             connection.close()
 
 
+class MeetingTranscriptPrivacyAdapter:
+    """Meeting titles/transcripts are personal-data-bearing derived text.
+
+    Raw audio is intentionally absent: the meeting feature never persists it.
+    A strong subject match removes the whole meeting and chunk transcript
+    history so redaction cannot leave timing/provenance fragments behind.
+    """
+
+    name = "meeting_transcripts"
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+
+    def _meeting_ids(self, subject: SubjectIdentity) -> set[str]:
+        if not self.path.exists():
+            return set()
+        meeting_clause, meeting_params = _token_clause(("title", "transcript"), subject)
+        chunk_clause, chunk_params = _token_clause(("transcript", "error"), subject)
+        if not meeting_clause and not chunk_clause:
+            return set()
+        connection = sqlite3.connect(self.path, timeout=5)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=5000")
+        try:
+            ids: set[str] = set()
+            try:
+                if meeting_clause:
+                    rows = connection.execute(
+                        f"""
+                        SELECT id FROM meetings
+                        WHERE workspace_id = ? AND ({meeting_clause})
+                        """,
+                        (subject.workspace_id, *meeting_params),
+                    ).fetchall()
+                    ids.update(str(row["id"]) for row in rows)
+                if chunk_clause:
+                    rows = connection.execute(
+                        f"""
+                        SELECT DISTINCT meeting_id FROM meeting_chunks
+                        WHERE workspace_id = ? AND ({chunk_clause})
+                        """,
+                        (subject.workspace_id, *chunk_params),
+                    ).fetchall()
+                    ids.update(str(row["meeting_id"]) for row in rows)
+            except sqlite3.OperationalError as exc:
+                if "no such table" in str(exc).lower():
+                    return set()
+                raise
+            return ids
+        finally:
+            connection.close()
+
+    def find(self, subject: SubjectIdentity) -> list[PrivacyRecord]:
+        ids = sorted(self._meeting_ids(subject))
+        return (
+            [PrivacyRecord(
+                self.name,
+                "meeting_transcript",
+                "strong identifier in meeting title or derived transcript text",
+                [{"meeting_id": item} for item in ids],
+            )]
+            if ids
+            else []
+        )
+
+    def delete(self, subject: SubjectIdentity) -> dict[str, int]:
+        ids = sorted(self._meeting_ids(subject))
+        if not ids:
+            return {"meeting_transcripts": 0}
+        connection = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        try:
+            connection.execute("PRAGMA busy_timeout=5000")
+            connection.execute("BEGIN IMMEDIATE")
+            placeholders = _placeholders(ids)
+            connection.execute(
+                f"DELETE FROM meeting_chunks WHERE workspace_id = ? AND meeting_id IN ({placeholders})",
+                (subject.workspace_id, *ids),
+            )
+            cursor = connection.execute(
+                f"DELETE FROM meetings WHERE workspace_id = ? AND id IN ({placeholders})",
+                (subject.workspace_id, *ids),
+            )
+            connection.execute("COMMIT")
+            return {"meeting_transcripts": int(cursor.rowcount or 0)}
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
+
+
 class CrawlerPrivacyAdapter:
     """Exact subject URLs from the durable crawl frontier/cache."""
 
@@ -1582,6 +1674,7 @@ class PrivacyService:
             CompanionProfilePrivacyAdapter(root / "ai_tools.db"),
             AgentRoutinePrivacyAdapter(root / "agent_routines.db"),
             WorkspaceAccountPrivacyAdapter(root / "workspace_auth.db"),
+            MeetingTranscriptPrivacyAdapter(root / "meeting_transcripts.db"),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),
             # Deliberately last. Once CRM ids are gone, redacted recall rows

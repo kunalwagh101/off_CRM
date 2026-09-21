@@ -634,3 +634,58 @@ profile privacy deletion and backup/restore reopening of the tool/companion DB.
 
 No pass count is written here until the dedicated verification pass actually
 executes these commands.
+
+
+---
+
+## S-06.02.02 — every private API route refuses unauthenticated access
+
+```bash
+uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q
+```
+
+The contract enumerates FastAPI's registered routes. Private `/api/` methods
+must return 401 without credentials. The only public exceptions are the closed
+bootstrap/signed-callback list. Broken JSON and wrong body shapes must return
+4xx without stack traces or echoing a planted secret.
+
+## S-06.02.05 — keyboard and screen-reader contract
+
+```bash
+uv run pytest tests/test_frontend_accessibility_contract.py -q
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Owner pass to do later: start from the browser address bar, use only
+Tab/Shift+Tab/Enter/Space/Escape through navigation, modals, AI drawer, Sales
+moves and video controls; then repeat core screens with a screen reader. Focus
+must remain visible and no required action may need a mouse.
+
+## S-07.01.03 — local meeting capture with no bot
+
+Engineering checks:
+
+```bash
+uv run pytest tests/test_meeting_transcription.py tests/test_privacy.py -q
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Owner/live check:
+
+1. run off_CRM on localhost;
+2. connect an allowed transcription provider;
+3. open **Meetings** and choose the provider/model;
+4. click **Start local capture**;
+5. share a tab/screen **with audio** and permit the microphone;
+6. play remote/system speech and speak locally;
+7. stop the meeting and inspect the transcript;
+8. confirm there is no stored raw recording file and the meeting record names
+   the provider/model chosen before capture.
+
+A hosted/non-loopback backend or non-loopback browser Origin must refuse capture.
+A later chunk trying to change provider/model must also be refused before
+provider I/O.
+
+No pass count is recorded here until these commands actually execute.

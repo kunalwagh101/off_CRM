@@ -252,3 +252,44 @@ def test_frontend_capture_uses_local_mic_system_audio_and_media_recorder():
     assert "localStorage" not in source
     assert "indexedDB" not in source
     assert "FileSystem" not in source
+
+
+
+def test_encrypted_backup_restores_meeting_transcript_state(tmp_path):
+    settings = _settings(tmp_path)
+    headers = {"X-Offsetx-Token": TOKEN}
+    passphrase = "meeting-backup-passphrase"
+
+    with TestClient(create_app(settings)) as client:
+        meeting = client.app.state.meeting_store.create(
+            workspace_id="local",
+            title="Durable meeting transcript",
+        )
+
+        backup = client.post(
+            "/api/v1/backups/export",
+            headers=headers,
+            json={"passphrase": passphrase},
+        )
+        assert backup.status_code == 200
+
+        assert client.app.state.meeting_store.delete(
+            meeting["id"], workspace_id="local"
+        )
+
+        restored = client.post(
+            "/api/v1/backups/restore",
+            headers=headers,
+            files={
+                "file": (
+                    "meeting.oxbackup",
+                    backup.content,
+                    "application/octet-stream",
+                )
+            },
+            data={"passphrase": passphrase},
+        )
+        assert restored.status_code == 200
+        assert client.app.state.meeting_store.require(
+            meeting["id"], workspace_id="local"
+        )["title"] == "Durable meeting transcript"

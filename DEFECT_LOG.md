@@ -104,6 +104,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-69 | 2026-09-22 | accessibility | medium | Hash navigation changed the visible screen without moving keyboard/screen-reader focus, and one hover-only tooltip was not exposed on keyboard focus | fixed · S-06.02.05 shared main-focus management and focus-within tooltip path |
 | D-70 | 2026-09-22 | process | medium | S-06.02.02 appeared twice in BOARD.md IN_REVIEW after sequential state updates, making board counts untrustworthy | fixed during batch-4 close-out; duplicate removed before handoff |
 | D-71 | 2026-09-23 | bug | high | A persisted crawler URL rejected by the current policy could consume the claim limit forever and starve valid due URLs behind it | code fixed · `S-05.01.01`; executable evidence pending |
+| D-72 | 2026-09-23 | bug | high | Extraction-pack CSS selectors were length-checked but never syntax-checked, so malformed config could load and fail only when a page was parsed | code fixed · `S-05.01.02`; executable evidence pending |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -128,6 +129,27 @@ row and removes the forbidden one. The repository test
 `test_claim_due_removes_a_persisted_url_rejected_by_current_policy` is committed,
 but GitHub Actions still fails before workflow step 1, so S-05.01.01 remains
 IN_REVIEW.
+
+
+### D-72 — Malformed extraction selectors loaded as valid config · 2026-09-23
+
+**What went wrong.** The extraction-pack registry bounded selector strings but
+did not parse-check them. A malformed selector such as `div[` therefore passed
+registry loading and failed later only when Scrapling parsed a matching page.
+That violated S-05.01.02's fail-closed configuration criterion.
+
+**How it was found.** CHECK-mode cold review compared the story acceptance
+criteria with `ExtractionPack.from_data()`, `ExtractionRule.from_data()` and
+the real `ScraplingPageParser` consumers.
+
+**The fix.** Registry loading now validates selectors with Scrapling's own CSS
+parser, the same parser used at runtime. Packs may select elements only; the
+runtime continues to own text/attribute extraction. No second CSS grammar or
+new dependency was added.
+
+**Evidence status.** Regression tests for malformed record selectors, malformed
+field selectors and pack-supplied pseudo-elements are committed. GitHub Actions
+still fails before workflow step 1, so S-05.01.02 remains IN_REVIEW.
 
 ---
 

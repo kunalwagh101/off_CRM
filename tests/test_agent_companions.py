@@ -12,6 +12,7 @@ import pytest
 from offsetx_apollo_builder.agent.companions import CompanionError, CompanionRegistry
 from offsetx_apollo_builder.ai.errors import PolicyViolation
 from offsetx_apollo_builder.ai.tools import ToolRegistry
+from offsetx_apollo_builder.outreach.store import OutreachStore
 
 
 SHA = "a" * 40
@@ -93,6 +94,36 @@ def test_run_context_contains_only_its_granted_tools_and_memory_scope(tmp_path):
     assert [tool["id"] for tool in context.tools] == [granted.id]
     assert [item["content"] for item in context.memory] == ["Use MEDDIC"]
     assert context.profile.instructions == "Qualify leads conservatively."
+
+
+def test_production_memory_backend_keeps_global_memory_out_of_companion_run(tmp_path):
+    tools = ToolRegistry(tmp_path / "tools.db")
+    store = OutreachStore(tmp_path / "crm.db")
+    store.initialize()
+    registry = CompanionRegistry(tmp_path, tools=tools, memory_backend=store)
+    profile = registry.create(
+        workspace_id="w",
+        name="Scoped",
+        instructions="Use only my scoped memory.",
+    )
+    store.add_memory_item(
+        workspace_id="w",
+        scope="global",
+        kind="fact",
+        content="GLOBAL MUST NOT ENTER COMPANION",
+        approved=True,
+    )
+    store.add_memory_item(
+        workspace_id="w",
+        scope=profile.memory_scope,
+        kind="fact",
+        content="COMPANION ONLY",
+        approved=True,
+    )
+
+    context = registry.start(profile.id, workspace_id="w")
+
+    assert [item["content"] for item in context.memory] == ["COMPANION ONLY"]
 
 
 def test_default_memory_scope_is_unique_and_companion_owned(tmp_path):

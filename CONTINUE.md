@@ -362,10 +362,11 @@ Reviewed in this order:
 3. S-06.01.04 — Routines that fire agent runs on a schedule/event.
 
 Cold-review results:
-- **D-79 / S-06.02.01:** generic credential assignments such as
-  `api_key=...` and `client_secret=...` were not guaranteed to trip the
-  scanner unless the value matched a known vendor token. Added a generic
-  assignment rule plus pre-provider-instantiation regressions.
+- **D-79 / S-06.02.01:** generic credential assignments/field names such as
+  `api_key` and `client_secret` were not guaranteed to trip the scanner
+  unless the value matched a known vendor token. Added a generic assignment
+  rule, structural field-name deny-list coverage and pre-provider-instantiation
+  regressions.
 - **D-80 / S-06.01.01:** per-instance thread locks did not serialize shared
   JSON/encrypted-key read-modify-replace operations across processes. Added a
   cross-process SQLite write lock while retaining existing atomic replacement.

@@ -7,7 +7,7 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 Branch: `feature/next-three-batch-4`
 Tests: build-ahead focused suites are authored but the newest stories are **not
 yet claimed passing**. Exact remote CI evidence is recorded at close-out; older
@@ -32,6 +32,35 @@ The long-standing `test_discovery.py::test_scrapling_parser…` failure was neve
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
+
+
+## 2026-09-23 — CHECK review of S-06.02.04, S-04.01.01 and S-02.02.02
+
+The three requested stories were already code-complete and IN_REVIEW, so CHECK
+mode audited acceptance criteria against production consumers rather than
+restarting discovery.
+
+- **S-06.02.04 / D-76:** a partial privacy retry cached old successful stores.
+  Retry now re-inventories prior successes and re-deletes if matching subject
+  data reappeared. The unchanged-success case still avoids a redundant delete.
+- **S-04.01.01 / D-77:** the companion fixture used exact memory scope, but the
+  real CRM store merges `global` into scoped searches. The shared store keeps
+  that historical default for existing callers; companions explicitly use
+  exact scope only. The regression now uses the real `OutreachStore`.
+- **S-02.02.02 / D-78:** resume could recreate a deleted managed PLAN.md and
+  lose owner edits. An empty private `.PLAN.managed` marker distinguishes a
+  genuinely legacy run from managed state; managed plan loss now refuses.
+
+Work orders:
+- `docs/work-orders/S-06.02.04-retry-revalidation.md`
+- `docs/work-orders/S-04.01.01-exact-memory-scope.md`
+- `docs/work-orders/S-02.02.02-plan-loss.md`
+
+Executable proof is still unavailable because S-06.02.18 / D-75 prevents GitHub
+Actions from acquiring a runner. No story is promoted to DONE without focused
+tests, full regression and the board verifier.
+
+---
 
 ## 2026-09-22 — API, accessibility and local meeting batch
 

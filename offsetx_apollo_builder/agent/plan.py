@@ -22,13 +22,19 @@ class RunPlan:
     def __init__(self, run_directory: Path | str) -> None:
         self.directory = Path(run_directory)
         self.path = self.directory / "PLAN.md"
+        self.marker_path = self.directory / ".PLAN.managed"
 
     def ensure(self, goal: str) -> Path:
-        """Create the one plan for a new run, never overwrite an owner edit."""
+        """Create the one plan for a new/legacy run, never replace a managed one."""
         self.directory.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             self.read()
+            self._mark_managed()
             return self.path
+        if os.path.lexists(self.marker_path):
+            raise PlanError(
+                f"{self.path} is missing. The run will not regenerate a managed PLAN.md."
+            )
         text = (
             "# PLAN\n\n"
             f"## Goal\n{str(goal).strip()}\n\n"
@@ -38,7 +44,28 @@ class RunPlan:
             "- [ ] Stop when the goal is complete; do not create extra work.\n"
         )
         self._atomic_create(text)
+        self._mark_managed()
         return self.path
+
+    def _mark_managed(self) -> None:
+        """Record that this run has owned PLAN state without storing plan content."""
+        if os.path.lexists(self.marker_path):
+            if self.marker_path.is_symlink() or not self.marker_path.is_file():
+                raise PlanError("PLAN.md management marker is unsafe")
+            return
+        try:
+            fd = os.open(
+                self.marker_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+        except FileExistsError:
+            if self.marker_path.is_symlink() or not self.marker_path.is_file():
+                raise PlanError("PLAN.md management marker is unsafe")
+        except OSError as exc:
+            raise PlanError("PLAN.md management marker cannot be created safely") from exc
+        else:
+            os.close(fd)
 
     def _atomic_create(self, text: str) -> None:
         if len(text) > MAX_PLAN_CHARS:

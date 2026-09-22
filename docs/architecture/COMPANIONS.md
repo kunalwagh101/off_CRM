@@ -13,7 +13,8 @@ Each row stores:
 - enabled state and timestamps.
 
 The default memory scope is `companion:<companion-id>`, so two companions do
-not share memory accidentally.
+not share memory accidentally. Global CRM memory is not inherited implicitly;
+a companion sees only the exact scope recorded on its profile.
 
 ## Storage
 
@@ -33,7 +34,8 @@ concurrent writers.
 `CompanionRegistry.start()` resolves the exact context for a run:
 
 1. load the profile inside the authenticated workspace;
-2. read approved memory only from that exact memory scope;
+2. read approved memory only from that exact memory scope; the CRM memory
+   store's normal global+scope merge is explicitly disabled for companion runs;
 3. intersect granted tool ids with tools that still exist and are enabled;
 4. return only those tools and that memory.
 

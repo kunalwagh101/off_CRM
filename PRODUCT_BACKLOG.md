@@ -100,6 +100,20 @@ govern the pre-process CRM code and have **not been approved by the owner**.
 They are deliberately skipped here so the numbers cannot collide whichever way
 that decision goes.)*
 
+### E-12 — off_CRM plans the go-to-market itself, and learns from what happens
+**Owner:** the product. **Value hypothesis:** the owner describes the product
+once and sets a goal; the system chooses which campaigns to run, fits them inside
+what is actually connected, and — once they have run — says in a fixed order
+where the plan is going wrong and writes the next version from the measured
+numbers. The owner's time moves from *designing* campaigns to *approving* them.
+**Leading indicator:** plans applied, and plan versions whose assumptions were
+replaced by measured rates. Design: `docs/architecture/GTM_ENGINE.md`.
+
+*(ID block. E-12 artifacts use R-120–R-149, DD-40–DD-59, D-80–D-99, Q-20–Q-39
+and S-06.02.20 onward. On 2026-09-22 the branch `feature/next-three-batch-4` was
+using numbers up to R-102, DD-28, D-70, Q-07 and S-06.02.17 in parallel; a
+separate block means neither side collides with the other when they merge.)*
+
 ---
 
 ## 2. Features and stories
@@ -658,6 +672,27 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-69 | Signed, idempotent provider feedback turns complaints and hard bounces into suppression | S-08.01.04 |
 | R-70 | Delivery health thresholds pause unsafe campaigns and require an explicit resume | S-08.01.04 |
 | R-71 | Operators can inspect preflight and health, and live SES queueing requires exact confirmation | S-08.01.05 |
+| R-120 | The owner records what the product is, who it is for, the problem, the proof, the offer and the forbidden claims, once | S-12.01.01 |
+| R-121 | Product input is validated with a readable refusal; an address or a bad URL cannot be saved | S-12.01.01 |
+| R-122 | A product change raises its version, and a plan records the version it was written against | S-12.01.01, S-12.02.01 |
+| R-123 | A campaign links to one product, and its email templates and post captions use that product | S-12.01.02 |
+| R-124 | Nothing the brain writes may contain one of the product's forbidden claims | S-12.01.01, S-12.02.01, S-12.02.03 |
+| R-125 | A goal becomes a plan chosen only from declared channels, sources and shapes | S-12.02.01 |
+| R-126 | A plan never proposes more volume than the connected identities and accounts carry | S-12.02.01 |
+| R-127 | Plans send email only on the targeted-outreach stream | S-12.02.01 |
+| R-128 | With no permitted model the brain still plans and reviews, by rules, and says so | S-12.02.01, S-12.02.03 |
+| R-129 | Product details never travel in a system prompt, and never below the provider's data policy | S-12.02.01 |
+| R-130 | Applying a plan creates paused campaigns and sends nothing by itself | S-12.02.02 |
+| R-131 | A review reads real numbers and diagnoses in a fixed order, the pipe before the copy | S-12.02.03 |
+| R-132 | No volume increase while delivery is unhealthy, and no copy verdict without enough data | S-12.02.03 |
+| R-133 | A review becomes the next plan version, and applying it updates the same campaigns | S-12.02.04 |
+| R-134 | The brain learns where it went wrong: measured rates replace assumed ones | S-12.02.04 |
+| R-135 | The video director uses the product without widening the system-prompt gap | S-12.01.03 |
+| R-136 | The brain drafts against the world's best practice and the owner's own winners | S-12.02.05 |
+| R-137 | A demo video travels in the email, stored encrypted on the owner's Google Drive for now | F-12.03 |
+| R-138 | off_CRM drives external GTM tools — Apollo, Hunter, Clay, Mailchimp — as their GTM engineer | F-12.04 |
+| R-139 | A plan's audience compiles into an Apollo search with its credit cost shown first | F-12.05 |
+| R-140 | The verifier distinguishes a shallow clone from a missing commit | S-06.02.20 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1191,6 +1226,213 @@ from a claim to the code that satisfies it cannot quietly rot.
   `uv run pytest` against an unsynced venv while the rest used `python -m
   pytest`. It looked exactly like a code defect for several minutes. A lie
   detector that can cry wolf gets ignored.
+
+#### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
+**As an** owner, **I want** the verifier to say "this clone is shallow" when that
+is the reason a recorded commit cannot be found, **so that** an environment gap
+never looks like thirty falsified DONE claims.
+- **Given** a shallow clone that lacks a recorded commit, **when** the verifier
+  runs, **then** it fails with a message naming the shallow clone and
+  `git fetch --unshallow`, not one saying the commit does not exist.
+- **Given** the CI workflow, **when** it checks out the repository, **then** it
+  fetches full history so the ancestry rule can run there.
+- **Dependencies:** S-06.02.12. **Size:** S. **Indicator:** verifier failures
+  caused by the environment rather than the board — target zero.
+- **Why:** `D-80`. A cloud session started shallow on 2026-09-22 and 32 DONE
+  stories appeared to cite commits that do not exist. They all exist upstream.
+
+---
+
+### F-12.01 — One source of truth about the product  *(E-12)*
+
+The product described once, versioned, and read by everything that writes for a
+campaign linked to it.
+
+#### S-12.01.01 — The owner records the product once
+**As an** owner, **I want** to write down what my product is, who it is for, the
+problem, the proof, the offer and what must never be claimed, once, **so that**
+everything the system writes starts from the same truth.
+- **Given** the required fields, **when** a product is created, **then** it is
+  stored at version 1 and reads back identically.
+- **Given** a missing or out-of-bounds required field, a website that is not
+  `http(s)`, or more list items than the bound, **when** it is saved, **then**
+  it is refused with a sentence naming the field.
+- **Given** an email address anywhere in the product, **when** it is saved,
+  **then** it is refused before it can reach a model.
+- **Given** an existing product, **when** it is edited, **then** its version
+  rises by exactly one.
+- **Given** a forbidden claim, **when** text is checked, **then** the phrase is
+  found case-insensitively as a whole phrase — including one ending in `%` —
+  and not inside a longer word.
+- **Given** a product in one workspace, **when** another workspace reads, edits
+  or deletes it, **then** the answer is not found.
+- **Given** the Product screen, **when** it renders, **then** the required
+  fields and the forbidden-claims box are present.
+- **Dependencies:** none. **Size:** M. **Indicator:** products with every
+  required field filled.
+
+#### S-12.01.02 — Everything that writes for a campaign uses its product
+**As an** owner, **I want** each campaign linked to a product, and its emails
+and post captions to use that product, **so that** my channels stop telling
+three different stories.
+- **Given** a product and campaigns, **when** the owner sets the product's
+  campaigns, **then** each campaign is linked to exactly one product and the new
+  set replaces the old one.
+- **Given** an email template using `{product_offer}` and a campaign linked to a
+  product, **when** a draft is created, **then** the placeholder is filled from
+  the product.
+- **Given** a campaign with no product, **when** a draft is created from a
+  template using a product placeholder, **then** it renders empty rather than
+  failing, and templates without product placeholders render exactly as before.
+- **Given** a rendered draft containing one of the linked product's forbidden
+  claims, **when** it is audited, **then** the audit flags the claim.
+- **Given** a distribution campaign linked to a product and no angle, **when**
+  the trend pipeline runs over HTTP or from the automation timer, **then** the
+  product one-liner is the angle **and** the writer's data class is `campaign`.
+- **Given** an explicit angle, **when** the pipeline runs, **then** the explicit
+  angle wins over the product.
+- **Dependencies:** S-12.01.01. **Size:** M. **Indicator:** campaigns linked to
+  a product.
+
+#### S-12.01.03 — The video director uses the product
+**As an** owner, **I want** directed videos to speak in my product's voice,
+**so that** video tells the same story as email.
+- **Given** a video campaign linked to a product, **when** the director runs,
+  **then** the product text travels in classified request fields, the request
+  is `campaign` class, and nothing owner-typed is in the system prompt.
+- **Given** any director call, **when** the egress log is read, **then** it
+  shows everything that left, the system prompt included.
+- **Dependencies:** S-12.01.02. **Size:** M. **Indicator:** model calls carrying
+  owner text outside the payload — target zero.
+- **Why:** `D-81`. Wiring the product into today's `style` argument would carry
+  campaign material to tier C, unlogged.
+
+### F-12.02 — The strategy brain  *(E-12)*
+
+A goal in; a plan chosen from declared options and fitted to real capacity;
+paused campaigns; a review in a fixed order; the next version from measured
+numbers.
+
+#### S-12.02.01 — A goal becomes a checked plan that fits what is connected
+**As an** owner, **I want** to set a goal for a product and get a plan back,
+**so that** I approve a strategy instead of designing campaigns by hand.
+- **Given** a model reply naming a channel kind or an audience source outside
+  the vocabulary, **when** it is parsed, **then** the plan is refused by name
+  with the known values.
+- **Given** a reply proposing more email volume than the connected identities
+  carry, or more posts than the accounts allow, **when** it is parsed, **then**
+  the volume is clamped and a note says so.
+- **Given** a reply whose angle contains one of the product's forbidden claims,
+  **when** it is parsed, **then** the angle is removed, a note names the claim,
+  and no stored plan contains the phrase.
+- **Given** any plan with an email channel, **when** it is parsed or built,
+  **then** the email stream is `targeted_outreach`.
+- **Given** the system prompt the brain sends, **when** it is built, **then** it
+  contains no text from the product.
+- **Given** the request the brain sends, **when** it is built, **then** its data
+  class is `campaign`, the one-liner is the positioning line and the rest of the
+  product is in campaign notes.
+- **Given** no permitted model, **when** a plan is drafted, **then** a
+  rules-based plan is returned with a note saying why.
+- **Given** a `replies` goal, **when** a plan is drafted, **then** its
+  feasibility is arithmetic the owner can reproduce by hand.
+- **Given** an unknown goal kind, a target or horizon out of bounds, or an
+  unknown product, **when** it is submitted, **then** it is refused with a
+  sentence.
+- **Given** the Strategy screen, **when** it renders, **then** the goal form and
+  the capacity panel are present.
+- **Dependencies:** S-12.01.01. **Size:** L. **Indicator:** plans drafted per
+  product.
+
+#### S-12.02.02 — An approved plan becomes paused campaigns, and nothing sends by itself
+**As an** owner, **I want** Apply to turn a plan into real campaigns that wait
+for me, **so that** a strategy becomes work without anything going out behind
+my back.
+- **Given** a draft plan, **when** it is applied, **then** one campaign per
+  channel exists, each paused, each linked to the product and the plan.
+- **Given** an email channel, **when** it is applied, **then** its campaign
+  carries the plan's daily volume, window, weekdays, timezone, hypothesis and
+  per-message approval.
+- **Given** a `views` goal with a distribution channel, **when** it is applied,
+  **then** the distribution campaign has a views goal with the plan's deadline.
+- **Given** a plan that is not a draft, **when** apply is called, **then** it is
+  refused and nothing is created.
+- **Given** an apply, **when** it returns, **then** it lists next steps, each
+  naming an existing screen, and no contact is imported and nothing is spent.
+- **Dependencies:** S-12.02.01. **Size:** M. **Indicator:** plans applied.
+
+#### S-12.02.03 — The brain says where it is going wrong, in a fixed order
+**As an** owner, **I want** the plan reviewed against real numbers, **so that**
+I fix what is actually broken instead of rewriting emails that never arrived.
+- **Given** an email channel whose delivery health is breached, **when** it is
+  reviewed, **then** the finding is `delivery_unhealthy` whatever the reply
+  rate, and raising volume is not permitted.
+- **Given** each earlier condition in the order — paused, no contacts, drafts
+  waiting, under volume — **when** it is reviewed, **then** that finding wins
+  over every later one.
+- **Given** fewer than 20 contacted, **when** it is reviewed, **then** the
+  finding is `insufficient_data` and no copy remedy is offered.
+- **Given** enough contacted, **when** the 90% interval sits wholly below,
+  wholly above or across the assumed rate, **then** the finding is
+  `behind_target`, `ahead_of_target` or `inconclusive`, and `inconclusive`
+  states how many more sends would decide it.
+- **Given** a distribution channel, **when** it is reviewed, **then** the
+  finding follows `pacing.decide()`'s action.
+- **Given** a model reply proposing a remedy the finding does not permit, a
+  channel not in the plan, or a proposal containing a forbidden claim, **when**
+  it is parsed, **then** that remedy is dropped with a note.
+- **Given** no permitted model, **when** it is reviewed, **then** each finding
+  gets its first permitted remedy and a note says why.
+- **Given** a review, **when** it is stored, **then** the measurements it read
+  are stored with it.
+- **Dependencies:** S-12.02.02. **Size:** L. **Indicator:** reviews whose first
+  finding is not about copy.
+
+#### S-12.02.04 — A review becomes the next version of the plan
+**As an** owner, **I want** the next plan written from what the last one
+measured, **so that** the system learns from where it went wrong.
+- **Given** an applied plan with a review and at least 20 contacted, **when** it
+  is revised, **then** a draft at the next version exists whose parent is the
+  plan and whose assumed reply rate is the measured one.
+- **Given** fewer than 20 contacted, **when** it is revised, **then** the
+  assumption is carried forward and a note says why.
+- **Given** a revision that is applied, **when** it runs, **then** the same
+  campaigns are updated rather than new ones created, a channel it dropped is
+  paused, and the previous version is superseded.
+- **Given** a plan with no review, **when** revise is called, **then** it is
+  refused.
+- **Dependencies:** S-12.02.03. **Size:** M. **Indicator:** plan versions whose
+  assumption is a measured rate.
+
+#### S-12.02.05 — The brain drafts against the expert corpus and the owner's winners
+**As an** owner, **I want** plans written with the world's best practice and my
+own winning templates in view, **so that** the brain starts from what works.
+- **Given** an imported expert library and a judged winning template, **when** a
+  plan is drafted, **then** both travel as reference material in classified
+  fields, and the `gtm_plan` eval suite scores the brain with and without them.
+- **Given** fewer than 30 cases in `gtm_plan`, **when** the comparison runs,
+  **then** it reports that no verdict is trustworthy yet.
+- **Dependencies:** S-12.02.04. **Size:** L. **Indicator:** plan-suite score
+  with the corpus against without it.
+
+### F-12.03 — Video in the email  *(E-12, next milestone)*
+
+A plan's email carries a demo video, stored encrypted on the owner's Google
+Drive for now (`Q-20`), played through a per-recipient page off_CRM serves, with
+watch time flowing back into the review beside replies. No stories until this
+milestone opens — detail written earlier is fiction.
+
+### F-12.04 — off_CRM drives the GTM tools the owner already pays for  *(E-12, later milestone)*
+
+Apollo, Hunter, Clay, Mailchimp and their kind become tools the brain can plan
+with and operate through their official APIs: the GTM engineer Clay needs, run
+by off_CRM. No stories until opened.
+
+### F-12.05 — A plan's audience becomes a search  *(E-12, later milestone)*
+
+The audience a plan names compiles into an Apollo search payload and a
+discovery objective, with the credit cost shown before anything is spent. No
+stories until opened.
 
 ---
 

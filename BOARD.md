@@ -35,6 +35,19 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
 
+*(E-12, opened 2026-09-22 — the GTM engine. Each waits on the story before it;
+`S-12.01.03` also waits on `D-81`. `S-06.02.20` is the fix for `D-80` and could
+be pulled today; it is not pulled because the owner asked for Phase 1 and 2.)*
+
+- S-12.01.02 · Everything that writes for a campaign uses its product
+- S-12.01.03 · The video director uses the product
+- S-12.02.01 · A goal becomes a checked plan that fits what is connected
+- S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
+- S-12.02.03 · The brain says where it is going wrong, in a fixed order
+- S-12.02.04 · A review becomes the next version of the plan
+- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
+- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
+
 ## READY
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
@@ -69,7 +82,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+- S-12.01.01 · The owner records the product once
 
 ## IN_REVIEW
 

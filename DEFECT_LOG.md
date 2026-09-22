@@ -77,6 +77,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-43 | 2026-09-11 | data-loss | high | The budget ledger lost two thirds of its writes under concurrency — the lock was per object, the file was shared | fixed · `S-11.05.01` |
 | D-44 | 2026-09-12 | process | high | The rule that an open question blocks READY had never fired — the parser threw away the line the story is named on | fixed · `S-06.02.11` |
 | D-45 | 2026-09-12 | process | medium | A `git reset --hard` used to tidy up a live check destroyed an hour of uncommitted work | fixed · `S-06.02.12` |
+| D-80 | 2026-09-22 | process | high | In a shallow clone the verifier says every recorded commit is "not a commit in this repository at all", and CI checks out shallow — so once runners are available the ancestry rule turns every CI run red for a reason that has nothing to do with the board. Found when a cloud session started shallow and 32 DONE stories looked falsified; `git fetch --unshallow` made the board green | open · S-06.02.20 |
+| D-81 | 2026-09-22 | security | medium | The video director puts the owner's typed house style in the system prompt, which the broker neither logs nor classifies — a `public` request can carry owner text to a tier C model and the egress log does not show it. Found while tracing where product details could safely travel; the GTM engine was designed around it rather than through it | open · S-12.01.03 |
 
 ---
 

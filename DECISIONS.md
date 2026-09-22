@@ -47,6 +47,15 @@ wastes a session when nobody can answer it.
 | DD-17 | 2026-09-11 | An unattended run may not use a countdown at all | The attended and unattended paths through the gate are different code |
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
+| DD-40 | 2026-09-22 | The strategy brain picks channels, sources and shapes from declared lists; a model never writes a campaign structure | A strategy the vocabulary cannot express cannot be proposed until someone adds a registry row |
+| DD-41 | 2026-09-22 | Product details travel only in classified request fields, never in a system prompt and never in `instructions` | At a `minimal` policy the model sees only the one-liner and the plan is thinner — the plan says so |
+| DD-42 | 2026-09-22 | Apply creates campaigns paused, imports nobody and spends no Apollo credit | One more deliberate step per campaign before anything runs |
+| DD-43 | 2026-09-22 | A plan's goal is replies or views only | An owner who thinks in meetings translates to replies until meetings link back to campaigns |
+| DD-44 | 2026-09-22 | Plans send email only on the targeted-outreach stream | A genuine opt-in list cannot be planned for from this screen |
+| DD-45 | 2026-09-22 | A review stops at the first thing wrong, in a fixed order, the pipe before the copy | A campaign with two problems shows them one review at a time |
+| DD-46 | 2026-09-22 | Campaign-to-product links live in a table `gtm` owns, not a new column on `campaigns` | The campaigns screen cannot join to products in SQL; it has to ask `gtm` |
+| DD-47 | 2026-09-22 | The review reuses `sales.py`'s Wilson interval and `pacing.decide()` instead of copying them | `gtm.review` depends on two modules it does not own; their own tests pin the arithmetic |
+| DD-48 | 2026-09-22 | A forbidden claim in a model's plan removes that field; it does not refuse the whole plan | The owner can receive a plan with a named gap instead of no plan |
 
 ---
 

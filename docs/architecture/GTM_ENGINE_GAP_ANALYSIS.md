@@ -148,27 +148,61 @@ another.
 
 ---
 
-## Four disagreements with the stated plan
+## Four places to push back on the stated plan
 
-### Fine-tuning on top marketers' videos is the wrong first move
+### Fine-tune if you want — just not first
 
-**Copy is not the bottleneck.** Senders failing the 2026 bulk rules see 22–34%
-of mail routed to spam; compliant senders average ~89% inbox placement. If a
-third of the mail never arrives, better copy is being applied to the two-thirds
-that did.
+*Narrowed twice on 2026-09-22 after the owner's replies, recorded rather than
+quietly rewritten. The sourcing objection is **removed**: the owner states the
+training data will be licensed properly, which settles it. The deliverability
+objection is **narrowed** to three items (below) because the owner was right
+that the pacing machinery exists. The sequencing objection is **settled by
+agreement**: the owner intends to build the adapter last, which is the
+recommendation. What survives is one condition.*
 
-**Training on other people's videos is real legal exposure.** Reading them to
-write an internal playbook is normal. Putting transcripts of copyrighted
-material into weights is a different act with a different risk profile.
+**Copy is not the bottleneck — but the pipe is mostly built.** Senders failing
+the 2026 bulk rules see 22–34% of mail routed to spam; compliant senders average
+~89% inbox placement. Verified in code: `send_window_start`/`send_window_end`
+enforced in `deliverability/preflight.py`, cross-path daily caps, per-lane rate
+and backoff, `email_sending_identities` with stream isolation and per-identity
+`ses_identity`, campaign health thresholds with auto-pause. Three items remain,
+two named in `EMAIL_DELIVERY.md` itself:
 
-**The sequence is backwards.** The 2026 consensus is Prompt → RAG →
-eval-driven selection → *then possibly* a LoRA adapter. Fine-tuning shapes form,
-not facts, and needs several hundred examples in exact production format plus an
-owner for the adapter for 12+ months with quarterly revalidation.
+1. **Automatic warm-up scheduling — §236 says "not built."** A fresh sending
+   domain opened at volume is throttled however good the send window is.
+2. **Identity-wide reputation aggregation — §237.** The health threshold is
+   *per campaign*. Three campaigns sharing one domain each stay under the line
+   while the domain burns. That is specifically the multi-domain failure mode,
+   so it matters more here than for a single-domain sender.
+3. **Live validation** — SES mailbox simulator, real signed SNS,
+   production-domain SPF/DKIM/DMARC. Still listed as required.
 
-off_CRM already has the expensive half — the eval harness and the verify loop.
-What it lacks is a scored corpus and a rubric. Build those. Then a fine-tune can
-be *measured* to be worth it instead of assumed.
+**The throttle is built; the speedometer is not.** Grepping the repository for
+`postmaster`, `inbox_placement` and `seed_list` returns nothing. Everything
+above controls *how much* is sent. Nothing measures *where it lands*. Bounces
+and complaints return through signed SNS, which is good, but bounce + complaint
+is not inbox placement: mail is accepted (no bounce), nobody complains about
+mail they never saw (no complaint), and it sits in spam. **Complaint rate
+structurally cannot detect spam-foldering** — that blind spot is the 22–34%
+figure. Google Postmaster Tools plus a small seed-list check closes it in days,
+and upgrades the existing auto-pause from reactive to predictive.
+
+**Build the adapter last — agreed.** The 2026 sequence is Prompt → RAG →
+eval-driven selection → *then* a LoRA. Style transfer is a legitimate use of
+fine-tuning; it needs several hundred examples in exact production format plus
+an owner for the adapter for 12+ months with quarterly revalidation. Last is the
+right slot.
+
+**The one condition on "at the end".** The *corpus* cannot also wait until the
+end. If the scored examples and the rubric are deferred alongside the adapter,
+then on the day the fine-tune starts there is nothing to train on and no way to
+tell whether it helped. The corpus must accumulate from day one — every send,
+every reply, every draft the verify loop repaired, every disappointing case —
+labelled as it happens and written into `config/evals.yaml`. The eval harness
+ships with seven cases and the CLI already warns on every `list` that thirty is
+the floor; that warning is this problem wearing a different hat.
+
+**Defer the fine-tune. Do not defer the labelling.**
 
 ### "Guaranteed good hit rate" is not achievable
 

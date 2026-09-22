@@ -306,8 +306,13 @@ def _privacy(request: Request) -> PrivacyService:
     return request.app.state.privacy
 
 
-def _privacy_subject(body: dict[str, Any], request: Request) -> SubjectIdentity:
-    payload = dict(body.get("subject") or {})
+def _privacy_subject(body: Any, request: Request) -> SubjectIdentity:
+    subject_value = body.get("subject") if hasattr(body, "get") else None
+    payload = (
+        subject_value.model_dump()
+        if hasattr(subject_value, "model_dump")
+        else dict(subject_value or {})
+    )
     workspace_id = _workspace_id(request)
     supplied = str(payload.get("workspace_id") or "").strip()
     if supplied and supplied != workspace_id:

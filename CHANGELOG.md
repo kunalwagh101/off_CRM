@@ -4,10 +4,9 @@
 
 
 - **CHECK-mode hardening closed D-79 through D-81 across the next production
-  review batch.** S-06.02.01 now blocks generic credential assignments such as
-  `api_key=...`, `client_secret=...`, `secret_key=...` and
-  `api_secret=...` before provider I/O even when the value has no known vendor
-  prefix. S-06.01.01 now serializes workspace AI settings/key read-modify-write
+  review batch.** S-06.02.01 now blocks generic credential assignments and field names such as
+  `api_key`, `client_secret`, `secret_key` and `api_secret` before
+  provider I/O even when the value has no known vendor prefix. S-06.01.01 now serializes workspace AI settings/key read-modify-write
   operations across processes while retaining atomic file replacement, and its
   username validator now rejects the intended control characters instead of
   ordinary letters/digits. S-06.01.04 was cold-reviewed end to end; its

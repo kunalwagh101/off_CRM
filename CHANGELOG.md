@@ -16,8 +16,10 @@
   and fixed `D-51`: separate crawler processes could claim different URLs on
   one host while keeping separate crawl-delay clocks. The frontier now stores
   a transactional per-host next-request slot and the existing safe fetchers
-  reserve it before requests. Six focused acceptance/concurrency tests are in
-  `tests/test_crawler_frontier.py`. Repeated latest GitHub Actions push/PR runs still fail before
+  reserve it before requests. Seven focused acceptance/concurrency tests are in
+  `tests/test_crawler_frontier.py`. A 2026-09-23 CHECK-mode cold review also
+  fixed D-71: a persisted URL rejected by the current policy could otherwise
+  consume the claim window repeatedly and starve valid due URLs behind it. Repeated latest GitHub Actions push/PR runs still fail before
   creating workflow step 1, so the story remains IN_REVIEW
   rather than being falsely marked DONE.
 

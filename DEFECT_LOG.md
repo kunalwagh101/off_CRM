@@ -105,6 +105,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-70 | 2026-09-22 | process | medium | S-06.02.02 appeared twice in BOARD.md IN_REVIEW after sequential state updates, making board counts untrustworthy | fixed during batch-4 close-out; duplicate removed before handoff |
 | D-71 | 2026-09-23 | bug | high | A persisted crawler URL rejected by the current policy could consume the claim limit forever and starve valid due URLs behind it | code fixed · `S-05.01.01`; executable evidence pending |
 | D-72 | 2026-09-23 | bug | high | Extraction-pack CSS selectors were length-checked but never syntax-checked, so malformed config could load and fail only when a page was parsed | code fixed · `S-05.01.02`; executable evidence pending |
+| D-73 | 2026-09-23 | bug | high | Competitor numeric evidence accepted NaN/Infinity, allowing later timeline crashes or non-finite performance records | code fixed · `S-05.01.03`; executable evidence pending |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -150,6 +151,25 @@ new dependency was added.
 **Evidence status.** Regression tests for malformed record selectors, malformed
 field selectors and pack-supplied pseudo-elements are committed. GitHub Actions
 still fails before workflow step 1, so S-05.01.02 remains IN_REVIEW.
+
+
+### D-73 — Competitor evidence accepted NaN and Infinity · 2026-09-23
+
+**What went wrong.** `_non_negative_number()` converted values with `float()`
+and checked only `number < 0`. IEEE NaN is not less than zero, so it passed.
+Infinity passed too. A NaN duration could then crash timeline tick conversion;
+non-finite performance metrics could survive into stored/API evidence.
+
+**How it was found.** CHECK-mode cold review of S-05.01.03 followed every
+accepted numeric fact through recipe selection, arithmetic and serialization.
+
+**The fix.** The shared numeric validator now requires `math.isfinite()`
+before the existing non-negative check. No recipe threshold or business rule
+changed.
+
+**Evidence status.** Regression cases for NaN duration and infinite views are
+committed. GitHub Actions still fails before workflow step 1, so S-05.01.03
+remains IN_REVIEW.
 
 ---
 

@@ -65,10 +65,6 @@ def _bounded_text(value: Any, *, label: str, limit: int) -> str:
 
 def _validated_css_selector(value: Any, *, label: str) -> str:
     selector = _bounded_text(value, label=label, limit=MAX_SELECTOR_CHARS)
-    if "::" in selector:
-        raise ExtractionPackError(
-            f"{label} must select elements, not CSS pseudo-elements"
-        )
     try:
         from scrapling.parser import Selector
 
@@ -80,9 +76,15 @@ def _validated_css_selector(value: Any, *, label: str) -> str:
             adaptive=False,
         )
         probe.css(selector)
+        # Packs declare element selectors. Text/attribute extraction belongs to
+        # the bounded rule contract below. Asking the same parser to append an
+        # attribute pseudo-element rejects an already-terminal ::text/::attr
+        # selector without us inventing a second CSS grammar.
+        probe.css(f"{selector}::attr(data-validation)")
     except Exception as exc:
         raise ExtractionPackError(
-            f"{label} is an invalid CSS selector: {selector!r}"
+            f"{label} is an invalid CSS selector or does not select elements: "
+            f"{selector!r}"
         ) from exc
     return selector
 

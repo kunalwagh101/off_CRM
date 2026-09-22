@@ -1373,6 +1373,35 @@ impossible delivery history.
   dependencies are not DONE — target zero.
 
 
+#### S-06.02.18 — Restore executable CI runner capacity
+**As an** owner, **I want** the repository evidence workflow to receive an
+actual runner, **so that** focused tests, the full regression suite and the board
+verifier can execute before any story is certified DONE.
+- **Given** the current private repository and `.github/workflows/ci.yml`,
+  **when** a push or pull-request run starts, **then** the `quality` job reaches
+  at least runner setup/checkout and exposes workflow steps and logs.
+- **Given** the hosted job cannot acquire a runner because of an account,
+  repository or GitHub Actions service restriction, **when** the failure is
+  inspected, **then** the blocker is recorded explicitly and no application
+  story uses that run as passing evidence.
+- **Given** GitHub-hosted execution is unavailable but an approved self-hosted
+  runner is intentionally configured, **when** the same locked commands run,
+  **then** the evidence contract remains unchanged; runner choice may not weaken
+  tests or the verifier.
+- **Dependencies:** none. **Size:** S. **Indicator:** CI jobs with zero workflow
+  steps — target zero.
+- **Blocking risk:** this is account/service infrastructure, not application
+  code. The repository connector cannot inspect the owner's Actions billing,
+  budgets or repository Actions policy.
+- **Tasks:** verify owner Billing & licensing → Actions usage/budgets/payment
+  state; verify repository Settings → Actions → General; if both are clean,
+  provide GitHub Support the failing run/job IDs and timestamps; re-run the
+  unchanged locked workflow only after runner capacity is restored.
+- **Out of scope:** weakening/removing tests, changing DONE evidence rules,
+  making the private production repository public to obtain free hosted
+  minutes, or silently switching to an untrusted runner.
+
+
 ---
 
 ## 3b. Amendments to shipped definitions

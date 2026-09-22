@@ -9,7 +9,7 @@ import pytest
 from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.workspace import WorkspaceAISettingsStore
 from offsetx_apollo_builder.api.app import create_app
-from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
+from offsetx_apollo_builder.api.auth import WorkspaceAuthError, WorkspaceAuthStore
 from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.browser.vault import SessionVault
 
@@ -82,7 +82,7 @@ def test_workspace_username_validation_refuses_control_characters(tmp_path, user
         session_hours=8,
     )
 
-    with pytest.raises(Exception, match="username"):
+    with pytest.raises(WorkspaceAuthError, match="username"):
         auth.create(
             username=username,
             workspace_id="valid-workspace",

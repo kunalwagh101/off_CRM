@@ -122,9 +122,10 @@ def test_independent_workspace_stores_do_not_lose_concurrent_provider_updates(
             return document
 
         monkeypatch.setattr(store, "_document", wrapped)
+        return original
 
-    synchronize_the_old_two_read_path(first)
-    synchronize_the_old_two_read_path(second)
+    first_document = synchronize_the_old_two_read_path(first)
+    second_document = synchronize_the_old_two_read_path(second)
 
     def connect(store, workspace_id, key):
         try:
@@ -150,6 +151,8 @@ def test_independent_workspace_stores_do_not_lose_concurrent_provider_updates(
 
     assert not one.is_alive() and not two.is_alive()
     assert errors == []
+    monkeypatch.setattr(first, "_document", first_document)
+    monkeypatch.setattr(second, "_document", second_document)
     assert first.raw("alpha")["providers"]["mistral"]["enabled"] is True
     assert first.raw("beta")["providers"]["mistral"]["enabled"] is True
     assert first.key_for("alpha", "mistral") == "ALPHA-CONCURRENT-KEY"

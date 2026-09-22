@@ -28,7 +28,9 @@ from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
+from ..gtm.service import GtmService
 from ..gtm.store import GtmStore
+from ..gtm.strategy import ModelUnavailable
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
@@ -94,6 +96,7 @@ from ..ai import (
     RegistryError,
 )
 from ..ai.context import ContextLayer
+from ..ai.errors import AIModuleError
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
 from ..ai.workspace import WorkspaceAISettingsStore
@@ -578,6 +581,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             campaign_of=lambda request, campaign_id: _engine(request).store.get_campaign(
                 campaign_id
             ),
+            service_of=lambda request: _gtm(request),
         )
     )
 
@@ -2330,6 +2334,62 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     def _workspace_id(request: Request) -> str:
         return "local"
+
+    def _gtm(request: Request) -> GtmService:
+        """The strategy brain for this request's workspace.  `E-12`
+
+        ``ask`` is the one model call it makes, built the way the video
+        director's is, with three differences that are the point of it:
+
+        - **Campaign class.** The product is the owner's material; tier C and D
+          may not see it, and the broker already knows what each tier may receive.
+        - **The product in classified fields** — one-liner as the positioning
+          line, the rest as campaign notes — so each provider's data policy
+          decides how much of it leaves (DD-41). The system prompt is code-only.
+        - **Every broker refusal becomes ``ModelUnavailable``**, so "no model
+          connected" gives the owner the rules plan and the reason, never a 500.
+          Anything that is not a broker refusal still surfaces: a bug should not
+          be disguised as a missing key.
+        """
+        state = request.app.state
+        workspace_id = _workspace_id(request)
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+
+        def ask(
+            *,
+            system_prompt: str,
+            task_type: str,
+            positioning_line: str,
+            campaign_notes: str,
+            instructions: str,
+        ) -> Any:
+            state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+                workspace_id
+            )
+            try:
+                return state.ai_broker.call(
+                    EgressRequest(
+                        task_type=task_type,
+                        data_class=DataClass.CAMPAIGN,
+                        instructions=instructions,
+                        positioning_line=positioning_line,
+                        campaign_notes=campaign_notes,
+                    ),
+                    settings,
+                    system_prompt=system_prompt,
+                    expect_json=True,
+                )
+            except AIModuleError as exc:
+                raise ModelUnavailable(str(exc)) from exc
+
+        return GtmService(
+            state.gtm_store,
+            workspace_id=workspace_id,
+            identities=lambda: state.email_delivery.store.list_identities(),
+            accounts=lambda: state.distribution_store.list_accounts(workspace_id=workspace_id),
+            apollo_ready=lambda: bool(os.getenv("APOLLO_API_KEY", "").strip()),
+            ask=ask,
+        )
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:

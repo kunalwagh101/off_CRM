@@ -405,8 +405,11 @@ row below that applies.
 \* only when the context layer reports a weak template.
 
 `raise_volume` is **never** permitted while delivery is unhealthy — row 3 stops
-the walk before row 5 or 8 can offer it. `inconclusive` says how many more sends
-would tell a halving of the rate apart (`ai/bandit.sends_needed`).
+the walk before row 5 or 8 can offer it. `inconclusive` says how many people,
+contacted at the rate measured so far, would make the same interval exclude the
+assumption — one statistic for the verdict and for the wait, not two.
+(`ai/bandit.sends_needed` answers a two-variant question, and importing anything
+from `ai/` imports the broker.)
 
 **Distribution** reuses `distribution/pacing.decide()` rather than a second copy
 of its arithmetic:

@@ -54,7 +54,7 @@ wastes a session when nobody can answer it.
 | DD-44 | 2026-09-22 | Plans send email only on the targeted-outreach stream | A genuine opt-in list cannot be planned for from this screen |
 | DD-45 | 2026-09-22 | A review stops at the first thing wrong, in a fixed order, the pipe before the copy | A campaign with two problems shows them one review at a time |
 | DD-46 | 2026-09-22 | Campaign-to-product links live in a table `gtm` owns, not a new column on `campaigns` | The campaigns screen cannot join to products in SQL; it has to ask `gtm` |
-| DD-47 | 2026-09-22 | The review reuses `sales.py`'s Wilson interval and `pacing.decide()` instead of copying them | `gtm.review` depends on two modules it does not own; their own tests pin the arithmetic |
+| DD-47 | 2026-09-22 | The review imports `pacing.decide()` but repeats `sales.py`'s ten-line Wilson interval, pinned equal by a drift test | Importing `outreach.sales` runs `outreach/__init__`, which pulls the whole engine and pandas into a pure module; the price is a copy a test must hold equal |
 | DD-48 | 2026-09-22 | A forbidden claim in a model's plan removes that field; it does not refuse the whole plan | The owner can receive a plan with a named gap instead of no plan |
 
 ---

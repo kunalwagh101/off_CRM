@@ -10,10 +10,12 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from ..gtm.products import ProductInvalid
-from ..gtm.store import GtmStore, ProductConflict
+from ..gtm.service import GtmService
+from ..gtm.store import GtmStore, PlanStateError, ProductConflict
+from ..gtm.strategy import RequestInvalid
 
 #: How the router learns the workspace. Passed in rather than decided here, so
 #: this surface follows whatever rule the rest of the API uses.
@@ -22,6 +24,10 @@ WorkspaceOf = Callable[[Request], str]
 #: How the router reads a campaign: raises ``KeyError`` when there is none.
 #: Campaigns live in the CRM store, which this module does not own.
 CampaignOf = Callable[[Request, str], dict[str, Any]]
+
+#: The strategy brain for a request's workspace, built by the app with the
+#: readers and the one model call it needs.
+ServiceOf = Callable[[Request], GtmService]
 
 #: A checklist longer than this is not a person ticking boxes.
 MAX_LINKS = 200
@@ -68,6 +74,17 @@ def _conflict(exc: Exception) -> HTTPException:
     return HTTPException(409, detail={"error": "conflict", "message": _sentence(str(exc))})
 
 
+def _wrong_state(exc: PlanStateError) -> HTTPException:
+    return HTTPException(409, detail={"error": "wrong_state", "message": _sentence(str(exc))})
+
+
+def _invalid_request(exc: RequestInvalid) -> HTTPException:
+    return HTTPException(
+        422,
+        detail={"error": "invalid_request", "field": exc.field, "message": _sentence(str(exc))},
+    )
+
+
 def _object(body: Any) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise _invalid(ProductInvalid("product", "A product must be an object of named fields."))
@@ -89,7 +106,9 @@ def _link_view(request: Request, campaign_of: CampaignOf, campaign_id: str) -> d
     }
 
 
-def build_gtm_router(*, workspace_of: WorkspaceOf, campaign_of: CampaignOf) -> APIRouter:
+def build_gtm_router(
+    *, workspace_of: WorkspaceOf, campaign_of: CampaignOf, service_of: ServiceOf
+) -> APIRouter:
     router = APIRouter(prefix="/api/v1/gtm")
 
     # ── products (S-12.01.01) ───────────────────────────────────────────────
@@ -187,5 +206,45 @@ def build_gtm_router(*, workspace_of: WorkspaceOf, campaign_of: CampaignOf) -> A
         except KeyError as exc:
             raise _not_found(exc) from exc
         return {"items": [_link_view(request, campaign_of, campaign_id) for campaign_id in linked]}
+
+    # ── the strategy brain (S-12.02.01) ─────────────────────────────────────
+
+    @router.get("/envelope")
+    def envelope(request: Request) -> dict[str, Any]:
+        """Capacity, vocabulary and defaults — what a plan will be fitted inside."""
+        return service_of(request).describe()
+
+    @router.post("/plans", status_code=201)
+    def draft_plan(request: Request, body: Any = Body(...)) -> dict[str, Any]:
+        if not isinstance(body, dict):
+            raise _invalid_request(
+                RequestInvalid("request", "A plan request must be an object of named fields.")
+            )
+        try:
+            return service_of(request).draft_plan(body)
+        except RequestInvalid as exc:
+            raise _invalid_request(exc) from exc
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+
+    @router.get("/plans")
+    def list_plans(request: Request, product_id: str = Query("", max_length=64)) -> dict[str, Any]:
+        return {"items": service_of(request).list_plans(product_id=product_id)}
+
+    @router.get("/plans/{plan_id}")
+    def get_plan(plan_id: str, request: Request) -> dict[str, Any]:
+        try:
+            return service_of(request).get_plan(plan_id)
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+
+    @router.post("/plans/{plan_id}/discard")
+    def discard_plan(plan_id: str, request: Request) -> dict[str, Any]:
+        try:
+            return service_of(request).discard_plan(plan_id)
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+        except PlanStateError as exc:
+            raise _wrong_state(exc) from exc
 
     return router

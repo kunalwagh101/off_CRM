@@ -54,6 +54,35 @@ CREATE TABLE IF NOT EXISTS gtm_campaign_links (
 );
 CREATE INDEX IF NOT EXISTS idx_gtm_links_product
 ON gtm_campaign_links(product_id, workspace_id);
+
+-- A plan and every revision of it. `root_id` is the first version's id, so a
+-- line of revisions is one query. The product is copied in, never looked up
+-- later: a plan read next month must show what it was written against.
+CREATE TABLE IF NOT EXISTS gtm_plans (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    root_id TEXT NOT NULL,
+    parent_id TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    product_snapshot_json TEXT NOT NULL,
+    product_version INTEGER NOT NULL,
+    envelope_json TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    feasibility_json TEXT NOT NULL,
+    notes_json TEXT NOT NULL,
+    source TEXT NOT NULL,
+    provider_id TEXT NOT NULL DEFAULT '',
+    model_id TEXT NOT NULL DEFAULT '',
+    policy TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    applied_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_gtm_plans_product
+ON gtm_plans(workspace_id, product_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_gtm_plans_root ON gtm_plans(root_id, version);
 """
 
 #: The text columns written before the JSON lists, in table order.
@@ -66,6 +95,17 @@ def _now() -> str:
 
 class ProductConflict(RuntimeError):
     """The product changed between reading it and writing the edit."""
+
+
+class PlanStateError(RuntimeError):
+    """A plan asked to do something its status does not allow."""
+
+
+#: draft -> applied | discarded; applied -> superseded. Nothing leaves the
+#: last two. Checked in the UPDATE itself, so two requests cannot both win.
+PLAN_STATUSES = ("draft", "applied", "superseded", "discarded")
+
+_PLAN_JSON = ("request", "product_snapshot", "envelope", "plan", "feasibility", "notes")
 
 
 class GtmStore:
@@ -275,3 +315,141 @@ class GtmStore:
             (str(campaign_id or ""), workspace_id),
         ).fetchone()
         return self._product(row) if row else None
+
+    # ── plans (S-12.02.01) ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _plan(row: Mapping[str, Any]) -> dict[str, Any]:
+        item = dict(row)
+        plan: dict[str, Any] = {
+            key: item[key]
+            for key in ("id", "workspace_id", "product_id", "root_id", "parent_id", "status",
+                        "source", "provider_id", "model_id", "policy", "created_at", "applied_at")
+        }
+        plan["version"] = int(item["version"])
+        plan["product_version"] = int(item["product_version"])
+        for key in _PLAN_JSON:
+            plan[key] = json.loads(item[f"{key}_json"])
+        return plan
+
+    def create_plan(
+        self,
+        workspace_id: str,
+        *,
+        product: Mapping[str, Any],
+        request: Mapping[str, Any],
+        envelope: Mapping[str, Any],
+        plan: Mapping[str, Any],
+        feasibility: Mapping[str, Any],
+        notes: list[str],
+        source: str,
+        provider_id: str = "",
+        model_id: str = "",
+        policy: str = "",
+        parent: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Store a draft. With ``parent`` it is the next version of that line."""
+        plan_id = str(uuid.uuid4())
+        with self.connection.transaction() as db:
+            if parent is None:
+                root_id, parent_id, version = plan_id, "", 1
+            else:
+                root_id, parent_id = str(parent["root_id"]), str(parent["id"])
+                row = db.execute(
+                    "SELECT MAX(version) AS latest FROM gtm_plans WHERE root_id = ?", (root_id,)
+                ).fetchone()
+                version = int(dict(row)["latest"] or 0) + 1
+            db.execute(
+                "INSERT INTO gtm_plans (id, workspace_id, product_id, root_id, parent_id, "
+                "version, status, request_json, product_snapshot_json, product_version, "
+                "envelope_json, plan_json, feasibility_json, notes_json, source, provider_id, "
+                "model_id, policy, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    plan_id,
+                    workspace_id,
+                    str(product["id"]),
+                    root_id,
+                    parent_id,
+                    version,
+                    json.dumps(dict(request)),
+                    json.dumps(dict(product)),
+                    int(product["version"]),
+                    json.dumps(dict(envelope)),
+                    json.dumps(dict(plan)),
+                    json.dumps(dict(feasibility)),
+                    json.dumps(list(notes)),
+                    source,
+                    provider_id,
+                    model_id,
+                    policy,
+                    _now(),
+                ),
+            )
+        return self.get_plan(plan_id, workspace_id)
+
+    def get_plan(self, plan_id: str, workspace_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM gtm_plans WHERE id = ? AND workspace_id = ?", (plan_id, workspace_id)
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Plan not found: {plan_id}")
+        return self._plan(row)
+
+    def list_plans(self, workspace_id: str, *, product_id: str = "") -> list[dict[str, Any]]:
+        if product_id:
+            rows = self.connection.execute(
+                "SELECT * FROM gtm_plans WHERE workspace_id = ? AND product_id = ? "
+                "ORDER BY created_at DESC, version DESC",
+                (workspace_id, product_id),
+            ).fetchall()
+        else:
+            rows = self.connection.execute(
+                "SELECT * FROM gtm_plans WHERE workspace_id = ? ORDER BY created_at DESC, version DESC",
+                (workspace_id,),
+            ).fetchall()
+        return [self._plan(row) for row in rows]
+
+    def move_plan(
+        self,
+        plan_id: str,
+        workspace_id: str,
+        *,
+        allowed_from: tuple[str, ...],
+        to: str,
+        db: Database | None = None,
+    ) -> None:
+        """Change a plan's status only from an allowed one, atomically.
+
+        The condition is in the UPDATE, so of two requests racing to apply the
+        same draft exactly one wins and the other is told why.
+        """
+        if to not in PLAN_STATUSES:
+            raise ValueError(f"Unknown plan status {to!r}.")
+        target = db or self.connection
+        placeholders = ", ".join("?" for _ in allowed_from)
+        applied = ", applied_at = ?" if to == "applied" else ""
+        params: list[Any] = [to]
+        if applied:
+            params.append(_now())
+        params += [plan_id, workspace_id, *allowed_from]
+        cursor = target.execute(
+            f"UPDATE gtm_plans SET status = ?{applied} WHERE id = ? AND workspace_id = ? "
+            f"AND status IN ({placeholders})",
+            params,
+        )
+        if getattr(cursor, "rowcount", 1) == 0:
+            current = self._read_status(target, plan_id, workspace_id)
+            raise PlanStateError(
+                f"This plan is {current}, so it cannot become {to}. Only a plan that is "
+                f"{' or '.join(allowed_from)} can."
+            )
+
+    def _read_status(self, db: Database, plan_id: str, workspace_id: str) -> str:
+        row = db.execute(
+            "SELECT status FROM gtm_plans WHERE id = ? AND workspace_id = ?", (plan_id, workspace_id)
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Plan not found: {plan_id}")
+        return str(dict(row)["status"])
+

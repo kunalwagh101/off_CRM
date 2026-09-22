@@ -910,3 +910,87 @@ export type GtmProductLink = {
   kind: string;
   exists: boolean;
 };
+
+/** Capacity a plan is fitted inside — `gtm/strategy.py` `Envelope`. */
+export type GtmEnvelope = {
+  email_identities: number;
+  email_unverified: string[];
+  email_daily_capacity: number;
+  per_identity_daily_cap: number;
+  platforms: string[];
+  post_daily_capacity: number;
+  apollo_ready: boolean;
+  blockers: string[];
+};
+
+export type GtmDescribe = {
+  envelope: GtmEnvelope;
+  vocabulary: {
+    kinds: string[];
+    goal_kinds: string[];
+    sources: string[];
+    company_sizes: string[];
+    platforms: string[];
+    recipe_families: string[];
+    roles: string[];
+    weekdays: string[];
+  };
+  defaults: { assumed_reply_rate: number; per_identity_daily_cap: number; horizon_days: number };
+};
+
+export type GtmChannel = {
+  kind: string;
+  role: string;
+  angle: string;
+  hypothesis: string;
+  daily_volume?: number;
+  send_window?: string[];
+  weekdays?: string;
+  timezone?: string;
+  stream?: string;
+  platforms?: string[];
+  recipe_family?: string;
+};
+
+export type GtmPlan = {
+  id: string;
+  product_id: string;
+  root_id: string;
+  parent_id: string;
+  version: number;
+  status: "draft" | "applied" | "superseded" | "discarded";
+  source: "model" | "rules";
+  provider_id: string;
+  model_id: string;
+  policy: string;
+  created_at: string;
+  applied_at: string | null;
+  product_version: number;
+  product_stale: boolean;
+  product_deleted: boolean;
+  request: {
+    goal_kind: string;
+    goal_target: number;
+    horizon_days: number;
+    contact_budget: number;
+    channels: string[];
+    assumed_reply_rate: number;
+    per_identity_daily_cap: number;
+  };
+  product_snapshot: GtmProduct;
+  envelope: GtmEnvelope;
+  plan: {
+    summary: string;
+    audience: {
+      description: string;
+      source: string;
+      titles: string[];
+      industries: string[];
+      company_sizes: string[];
+      regions: string[];
+    };
+    channels: GtmChannel[];
+  };
+  feasibility: { kind: string; feasible: boolean | null; explanation: string };
+  notes: string[];
+};

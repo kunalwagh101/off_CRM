@@ -183,4 +183,21 @@ describe("the GTM engine", () => {
     expect(html).toContain("Campaigns that speak for this product");
     expect(html).toContain("Save the product first");
   });
+
+  it("the strategy screen shows the goal form and what is connected before any plan", async () => {
+    const { default: Strategy } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Strategy />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Plan the go-to-market");
+    expect(html).toContain("What is connected");
+    for (const label of ["Product", "Goal", "Target", "Days", "New contacts", "Channels"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain("Draft a plan");
+    // The honest promise, where the owner decides.
+    expect(html).toContain("nothing sends");
+  });
 });

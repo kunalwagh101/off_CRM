@@ -544,9 +544,10 @@ cat config/extraction_packs.json
 ```
 
 A source is added by a JSON row containing domains, one record selector and
-bounded text/attribute field selectors. There is no Python/plugin/template/AI
-hook in the pack format. An unmatched source still follows the existing
-JSON-LD parser.
+bounded text/attribute field selectors. Registry loading also parse-checks every
+CSS selector with Scrapling itself; malformed selectors fail before a page is
+processed. There is no Python/plugin/template/AI hook in the pack format. An
+unmatched source still follows the existing JSON-LD parser.
 
 ## S-05.01.03 — competitor structure, not competitor content
 

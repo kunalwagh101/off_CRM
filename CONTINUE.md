@@ -293,3 +293,22 @@ Required closure order remains:
 3. S-05.01.03 — only after 02 is DONE; run teardown/video suites, full regression, verifier.
 
 No scope was silently deferred. No story was promoted to DONE without evidence.
+
+
+### External evidence blocker — S-06.02.18
+
+Do not burn more application commits trying to fix a failure that happens before
+workflow step 1. On run 1205 / 35779093017, manual retry attempt 2 created
+`quality` job 106939339831 and it completed failure with `steps=null` and no
+logs. The workflow still targets standard `ubuntu-latest` and starts with
+`actions/checkout@v4`.
+
+Tracked as D-75 → S-06.02.18 and BLOCKED externally. The owner-side checks are:
+1. GitHub Billing & licensing: Actions usage/budgets/payment state.
+2. Repository Settings → Actions → General: Actions/runner policy.
+3. If both are clean, provide GitHub Support the run/job IDs above because the
+   failure is runner provisioning before repository code executes.
+
+Do not weaken tests, DONE evidence or repository privacy to work around this.
+Once runner capacity exists, close the evidence chain in order:
+S-05.01.01 → S-05.01.02 → S-05.01.03.

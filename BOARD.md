@@ -77,6 +77,9 @@ _nothing waiting_
 
 ## BLOCKED
 
+- S-06.02.18 · Restore executable CI runner capacity
+  blocked: external — GitHub-hosted `ubuntu-latest` jobs are created but fail before runner allocation with zero steps/no logs. Owner must inspect Actions billing/budgets/payment state and repository Actions policy; if those are clean, GitHub Support must resolve hosted-runner provisioning.
+
 - S-01.05.01 · Publish to YouTube through the official API
   blocked: external — a Google Cloud project with YouTube Data API v3 enabled, and OAuth consent for the channel. Only the owner can create it.
 - S-01.05.02 · One adapter contract for the remaining platforms

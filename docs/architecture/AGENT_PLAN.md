@@ -9,12 +9,16 @@ Every agent trace directory owns exactly one current file:
 ```
 
 `agent/plan.py` creates it when a run starts and never overwrites an existing
-owner edit. Legacy trace directories receive one on first resume.
+owner edit. A private empty `.PLAN.managed` marker records only that this run
+has entered PLAN management; it contains no instructions and is not a second
+source of truth. Legacy trace directories receive a plan on first managed
+resume and existing legacy PLAN.md files are adopted without rewriting them.
 
 Immediately before every model decision, `AgentRun` reads PLAN.md fresh from
-disk. There is deliberately no plan cache. If the file is missing, empty,
-oversized, unreadable, non-UTF8 or replaced by a symlink, the run refuses to
-continue rather than using stale memory.
+disk. There is deliberately no plan cache. If the file is missing after the run
+has been marked as managed, empty, oversized, unreadable, non-UTF8 or replaced
+by a symlink, the run refuses to continue rather than regenerating or using
+stale memory.
 
 ## Steering and audit
 

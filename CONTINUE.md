@@ -16,7 +16,9 @@
   unless the owner asks for more features.
 - API privacy is default-deny. Public exceptions are the closed bootstrap /
   signed-callback list in app.py and are covered by
-  `tests/test_api_boundary_contract.py`.
+  `tests/test_api_boundary_contract.py`. The 54 formerly raw JSON bodies now
+  use strict Pydantic request contracts; only the internal privacy helper still
+  accepts a generic mapping.
 - Accessibility is guarded recursively by
   `tests/test_frontend_accessibility_contract.py`; real keyboard/screen-reader
   owner acceptance remains pending.
@@ -28,7 +30,7 @@
   cannot redirect raw audio to another provider/model.
 - `meeting_transcripts.db` participates in encrypted backup and the 12-store
   privacy inventory.
-- D-65 through D-67 were found and fixed during meeting hardening.
+- D-65 through D-70 were found and fixed across meeting, API, accessibility and board close-out hardening.
 - Focused verification commands and the real meeting capture walkthrough are in
   DEMO.md. Do not invent pass counts.
 - Before promoting anything to DONE: run focused suites, full Python/frontend

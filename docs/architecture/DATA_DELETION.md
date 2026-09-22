@@ -69,7 +69,9 @@ transaction. The production contract is therefore:
 3. execute each adapter idempotently;
 4. record per-store result;
 5. return complete only if every required adapter succeeded;
-6. retry only failed/incomplete adapters safely.
+6. on retry, re-inventory an adapter before reusing an earlier success; if
+   matching data has reappeared, delete it again;
+7. retry failed/incomplete adapters safely.
 
 The deletion receipt contains store names, counts/classes, timestamps and
 errors. It must not preserve the deleted personal data itself.
@@ -97,6 +99,8 @@ Required evidence:
 - crawler subject URLs are removed without deleting unrelated frontier rows;
 - one adapter failure returns incomplete and names that adapter;
 - retry is idempotent and finishes the same plan;
+- a store that succeeded earlier is re-inventoried, so newly reappeared subject
+  data cannot hide behind a stale success receipt;
 - receipt contains no deleted payload;
 - registry coverage test fails when a known personal-data store is omitted;
 - CSV queues/exports remove only matching rows and preserve unrelated rows;

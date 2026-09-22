@@ -108,6 +108,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-73 | 2026-09-23 | bug | high | Competitor numeric evidence accepted NaN/Infinity, allowing later timeline crashes or non-finite performance records | code fixed · `S-05.01.03`; executable evidence pending |
 | D-74 | 2026-09-23 | bug | medium | A removed/renamed video recipe leaked UnknownRecipe out of competitor teardown, turning catalogue drift into an API 500 | code fixed · `S-05.01.03`; executable evidence pending |
 | D-75 | 2026-09-23 | process | high | GitHub-hosted CI repeatedly creates the quality job but fails before runner allocation with zero steps/no logs, blocking every repository evidence gate | open · `S-06.02.18` |
+| D-76 | 2026-09-23 | bug | high | A partial privacy-deletion retry trusted an old per-store success without checking whether matching personal data had been written again | code fixed · `S-06.02.04`; executable evidence pending |
+| D-77 | 2026-09-23 | security | high | Companion runtime asked for its own memory scope, but the production CRM memory search silently merged global memory into that result | code fixed · `S-04.01.01`; executable evidence pending |
+| D-78 | 2026-09-23 | data-loss | high | Resume could regenerate a deleted managed PLAN.md from the original goal, silently losing the owner's edited steering state | code fixed · `S-02.02.02`; executable evidence pending |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -215,6 +218,68 @@ code-complete story must remain IN_REVIEW.
 application code: account Actions billing/budgets/payment state, repository
 Actions policy, or GitHub-hosted runner provisioning/service state. Tests and
 DONE rules will not be weakened to work around it.
+
+
+### D-76 — Partial privacy retry could certify stale success · 2026-09-23
+
+**What went wrong.** A store marked successful on the first deletion attempt was
+skipped on every retry. If another store failed and matching personal data was
+written again into the successful store before retry, the retry could clear the
+failed store and report the whole request complete while the new row survived.
+
+**How it was found.** CHECK-mode failure-path review of S-06.02.04 followed the
+persisted receipt across two attempts instead of testing only an unchanged
+fixture.
+
+**The fix.** Historical success is reusable only after the same adapter's
+read-only `find(subject)` inventory proves that store is still clean. If data
+reappeared, deletion runs again. A failed re-inventory or missing adapter is a
+failed store, never a cached success. CRM remains last.
+
+**Evidence status.** The regression
+`test_partial_retry_rechecks_previously_successful_stores_before_completion`
+is committed. Executable repository evidence is still blocked by D-75, so the
+story remains IN_REVIEW.
+
+
+### D-77 — Global memory leaked into companion runtime context · 2026-09-23
+
+**What went wrong.** `CompanionRegistry.start()` requested the companion's
+exact scope, but the production `OutreachStore.search_memory_items()` defines a
+scoped query as `global OR requested scope`. The companion unit fixture used
+exact-scope semantics, so tests and production disagreed.
+
+**How it was found.** CHECK-mode blast-radius review replaced the fake-memory
+assumption with the actual memory store contract.
+
+**The fix.** The shared search keeps its historic behaviour by default through
+`include_global=True`. Companion runtime explicitly passes
+`include_global=False`, so only approved items from the exact companion scope
+are returned. Existing API memory searches keep their prior semantics.
+
+**Evidence status.** A regression using the real `OutreachStore` is committed.
+Executable evidence is blocked by D-75; S-04.01.01 remains IN_REVIEW.
+
+
+### D-78 — Resume could recreate a lost owner-edited PLAN.md · 2026-09-23
+
+**What went wrong.** `AgentRun.run()` calls `RunPlan.ensure()` on both start
+and resume. If a managed run lost PLAN.md between processes, `ensure()` treated
+it like a pre-feature legacy run and recreated the original boilerplate from the
+owner goal. Any steering edits were silently lost.
+
+**How it was found.** CHECK-mode restart-path review compared the documented
+"missing PLAN refuses" contract with the actual resume call path.
+
+**The fix.** Managed run directories carry an empty private
+`.PLAN.managed` sentinel. It contains no instructions and is not a second
+source of truth. Existing PLAN.md files without the marker are adopted
+non-destructively for migration. A marker with a missing PLAN.md now fails
+closed instead of regenerating content.
+
+**Evidence status.** Regressions cover lost managed plans and adoption of an
+existing legacy plan. Executable evidence remains blocked by D-75, so
+S-02.02.02 stays IN_REVIEW.
 
 ---
 

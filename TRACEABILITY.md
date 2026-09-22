@@ -78,6 +78,7 @@ the code exists and holds no stub).
 | R-58 | S-01.05.01 | Owner-created Google Cloud project, YouTube Data API v3 and channel OAuth consent |
 | R-59 | S-01.05.02 | Meta review, TikTok audit and LinkedIn partner access |
 | R-60 | S-01.05.03 | S-01.05.01 and its Google Cloud access |
+| R-103 | S-06.02.18 | GitHub-hosted runner allocation/account Actions state; owner settings or GitHub Support action required |
 
 ## Planned — story and criteria written, nothing built
 

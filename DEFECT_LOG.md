@@ -106,6 +106,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-71 | 2026-09-23 | bug | high | A persisted crawler URL rejected by the current policy could consume the claim limit forever and starve valid due URLs behind it | code fixed · `S-05.01.01`; executable evidence pending |
 | D-72 | 2026-09-23 | bug | high | Extraction-pack CSS selectors were length-checked but never syntax-checked, so malformed config could load and fail only when a page was parsed | code fixed · `S-05.01.02`; executable evidence pending |
 | D-73 | 2026-09-23 | bug | high | Competitor numeric evidence accepted NaN/Infinity, allowing later timeline crashes or non-finite performance records | code fixed · `S-05.01.03`; executable evidence pending |
+| D-74 | 2026-09-23 | bug | medium | A removed/renamed video recipe leaked UnknownRecipe out of competitor teardown, turning catalogue drift into an API 500 | code fixed · `S-05.01.03`; executable evidence pending |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -170,6 +171,26 @@ changed.
 **Evidence status.** Regression cases for NaN duration and infinite views are
 committed. GitHub Actions still fails before workflow step 1, so S-05.01.03
 remains IN_REVIEW.
+
+
+### D-74 — Missing teardown recipe leaked an internal exception · 2026-09-23
+
+**What went wrong.** The deterministic analyser correctly called the canonical
+recipe registry, but an `UnknownRecipe` from that registry was not translated
+to the teardown domain error caught by the API. Catalogue drift could therefore
+turn a controlled refusal into a 500.
+
+**How it was found.** Final S-05.01.03 failure-path review compared the
+architecture's explicit “recipe cannot be resolved” refusal with the actual
+exception boundary.
+
+**The fix.** Catch `recipes.UnknownRecipe` exactly and re-raise
+`CompetitorTeardownError` with the original catalogue reason. Unrelated errors
+still surface normally.
+
+**Evidence status.** A monkeypatched catalogue-drift regression is committed.
+Executable repository evidence remains unavailable because Actions fails before
+workflow step 1.
 
 ---
 

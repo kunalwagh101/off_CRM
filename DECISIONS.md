@@ -491,3 +491,21 @@ derivable from the trace's current state.
 run directories. **Revisit when:** run metadata gains a durable versioned
 manifest that can carry the same managed-state fact without becoming another
 editable plan.
+
+
+### DD-33 — Serialize workspace file writes without migrating the store · 2026-09-23
+
+S-06.01.01 keeps its existing JSON settings document and Fernet-encrypted key
+document. Their complete read-modify-replace write windows are serialized across
+processes by a tiny SQLite lock file using `BEGIN IMMEDIATE`; atomic replacement
+still protects each target file from torn writes.
+
+This is deliberately narrower than migrating workspace AI settings into a new
+database during a CHECK repair. The data formats, API contracts, backup payloads
+and readers remain unchanged.
+
+**Cost:** one small lock database lives beside the workspace AI files, and write
+availability now depends on obtaining that local SQLite lock. **Revisit when:**
+workspace settings themselves move to the shared production database; at that
+point the database transaction becomes the write lock and this sidecar can be
+deleted while the application is stopped.

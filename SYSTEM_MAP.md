@@ -177,20 +177,21 @@ This is the biggest finished piece. It is a real video editor.
 
 ---
 
-## 8. The Vault — your logins  ⬜ **none of this exists yet**
+## 8. The Vault — your logins  ✅ / ◐
 
-This is the next thing to build, and the decisions are now made:
+The browser credential lifecycle is implemented; multi-workspace surfacing and
+dedicated verification remain in review where noted:
 
 | Part | The decision you just approved | ID |
 |---|---|---|
-| Browser box | A container with internet but **no path to your files** | S-03.01.01 |
-| Allow-list | Deny by default when unattended; allow-with-policy when you are watching | S-03.01.01 (Q-02) |
-| Logging in | You sign into **LinkedIn first**, inside the box | S-03.02.01 (Q-03) |
-| Passwords | **Never stored. Anywhere.** You type them yourself | S-03.02.01 |
-| Session keys | Encrypted, one key per account | S-03.02.02 |
-| Master key | OS keychain, passphrase as fallback | S-03.02.02 (Q-01) |
-| The AI's view | It **never sees a cookie.** It says "click 7"; the browser has the secret | S-03.02.02 |
-| Disconnecting | Removes the session for good | S-03.02.03 |
+| Browser box | A container with internet but **no path to your files** | ✅ S-03.01.01 |
+| Allow-list | Deny by default when unattended; allow-with-policy when you are watching | ✅ S-03.01.01 |
+| Logging in | Human signs in inside the isolated browser; passwords never enter model/tools | ✅ S-03.02.01 |
+| Passwords | **Never stored. Anywhere.** You type them yourself | ✅ S-03.02.01 |
+| Session keys | Encrypted, one key per account | ✅ S-03.02.02 |
+| Master key | OS keychain, passphrase as fallback | ✅ S-03.02.02 |
+| The AI's view | It **never sees a cookie.** It names bounded browser actions; the browser owns the secret | ✅ S-03.02.02 |
+| Disconnecting | Removes the session for good | ✅ S-03.02.03 |
 
 ---
 
@@ -200,13 +201,15 @@ This is the next thing to build, and the decisions are now made:
 |---|---|---|
 | `db/` | SQLite locally, Postgres if you want. Same code | ✅ |
 | `api/` | ~4,100 lines of endpoints | ✅ |
-| Frontend | 17 screens: campaigns, contacts, drafts, images, video, posting, AI | ✅ |
+| Frontend | Production screens for CRM, AI, content, posting and local meeting capture | ✅ / ◐ |
 | Workspaces | Every table already separates people. Your keys are yours | ◐ S-06.01.01 *(works; not surfaced in the UI)* |
 | **Permissions** | Global → per-tool → this-chat-only | ⬜ S-06.01.02 |
 | **Cost estimate** | What a run will cost, *before* it runs | ⬜ S-06.01.03 |
 | **Deploy & rollback** | A way back when a release is bad | ⬜ S-06.01.05 |
-| **Keyboard / screen reader** | The UI usable without a mouse | ⬜ S-06.02.05 |
-| **Subject access / deletion** | Authenticated nine-store inventory, preview, exact confirmation and retry-safe deletion, including companion profile text | ◐ S-06.02.04 · implementation/tests present, verification pending |
+| **Keyboard / screen reader** | Shared focus/navigation semantics + repo-wide keyboard contract | ◐ S-06.02.05 · IN_REVIEW |
+| **API boundary** | Private-by-default middleware, explicit public exceptions, sanitized validation and route enumeration | ◐ S-06.02.02 · IN_REVIEW |
+| **Meeting transcription** | Local mic + system audio → transient chunks → declared provider; transcript only persisted | ◐ S-07.01.03 · IN_REVIEW |
+| **Subject access / deletion** | Authenticated twelve-store inventory, preview, exact confirmation and retry-safe deletion, including companion profile text | ◐ S-06.02.04 · implementation/tests present, verification pending |
 
 ---
 
@@ -248,8 +251,10 @@ drifts. The current status is always recomputed from `BOARD.md`:
 uv run python scripts/verify_board.py
 ```
 
-As of this implementation branch, S-05.01.01, S-05.01.02, S-05.01.03 and
-S-06.02.04 are all IN_REVIEW. None is claimed DONE without executable evidence.
+The current implementation branch has multiple owner-authorised build-ahead
+stories in IN_REVIEW, including the API boundary, accessibility and local
+meeting-transcription batch. Exact counts come only from BOARD.md / the verifier;
+none is claimed DONE without executable evidence.
 
 ### The three things only you can unblock
 

@@ -1,36 +1,41 @@
 # CONTINUE — the handoff prompt
 
-## Current handoff — 2026-09-20
+## Current handoff — 2026-09-22
 
-- Working branch: `feature/next-three-batch-2`, stacked on
-  `feature/next-three-implementation`.
-- Owner-authorised build-ahead remains governed by DD-22: implementation may
-  reach IN_REVIEW; verification/dependency debt may not be renamed DONE.
-- The requested second batch is fully implemented and in IN_REVIEW:
-  `S-03.02.05` platform-as-data, `S-02.02.02` PLAN.md, and
-  `S-04.01.01` persisted companions.
-- Previous IN_REVIEW stories remain unchanged:
-  `S-05.01.01`, `S-05.01.02`, `S-05.01.03`, `S-06.02.04`.
-- No story is currently IN_PROGRESS.
-- Focused verification commands are in DEMO.md. Do not invent pass counts.
-- Platform declarations now live in `browser/platforms.json`; identity,
-  policy and default budgets consume the same validated row.
-- Every AgentRun now has one `PLAN.md`, reads it fresh before each model
-  decision and captures that exact version in the immutable trace.
-- Companion profiles live transactionally in the existing `ai_tools.db`,
-  have exact memory scopes, expose only granted enabled tools, and enforce the
-  grant again at tool execution. Authenticated API CRUD/context/memory routes
-  are wired.
-- Companion profile text is the ninth registered privacy-store adapter.
-- Backup restore closes/reopens ToolRegistry and CompanionRegistry so restored
-  tool/companion state is not attached to a stale SQLite connection.
-- D-59 through D-64 were found and fixed during this batch.
-- The next READY story on the board is `S-06.01.01 — Workspaces with their own
-  keys and their own logins`. Do not pull it unless the owner asks for more
-  features.
-- Remote Actions close-out evidence: run 971 (`35470919395`) on HEAD `dbe9d7fd2` created one `quality` job, failed in ~2 seconds with `steps: []`, `runner_id: 0` and no runner name. No repository command executed, so this is infrastructure evidence, not a failing product test.
-- Dedicated owner/testing pass is still deferred. Run focused suites, full
-  regression and `uv run python scripts/verify_board.py` before promotion.
+- Working branch: `feature/next-three-batch-4`, stacked on
+  `feature/next-three-batch-3`.
+- DD-22 still governs build-ahead: implementation may reach IN_REVIEW;
+  verification/dependency debt may not be renamed DONE.
+- This requested batch is fully implemented and IN_REVIEW:
+  `S-06.02.02` API authorization/validation,
+  `S-06.02.05` keyboard/screen-reader accessibility, and
+  `S-07.01.03` local meeting transcription.
+- Previous build-ahead stories remain IN_REVIEW. No story is IN_PROGRESS.
+- BOARD.md currently has 13 IN_REVIEW, 1 READY, 3 BLOCKED and 0 DEFERRED.
+- The only READY story is `S-07.01.04 — Reports and artifacts`. Do not pull it
+  unless the owner asks for more features.
+- API privacy is default-deny. Public exceptions are the closed bootstrap /
+  signed-callback list in app.py and are covered by
+  `tests/test_api_boundary_contract.py`. The 54 formerly raw JSON bodies now
+  use strict Pydantic request contracts; only the internal privacy helper still
+  accepts a generic mapping.
+- Accessibility is guarded recursively by
+  `tests/test_frontend_accessibility_contract.py`; real keyboard/screen-reader
+  owner acceptance remains pending.
+- Meetings are local-only: loopback backend + loopback browser Origin.
+  Meetings.tsx mixes mic + shared system/tab audio locally with Web Audio,
+  MediaRecorder keeps chunks transient in browser memory, and raw audio is never
+  persisted by off_CRM.
+- A meeting's transcription provider/model is immutable after creation. A chunk
+  cannot redirect raw audio to another provider/model.
+- `meeting_transcripts.db` participates in encrypted backup and the 12-store
+  privacy inventory.
+- D-65 through D-70 were found and fixed across meeting, API, accessibility and board close-out hardening.
+- Focused verification commands and the real meeting capture walkthrough are in
+  DEMO.md. Do not invent pass counts.
+- Before promoting anything to DONE: run focused suites, full Python/frontend
+  regression, owner/manual checks where named, then
+  `uv run python scripts/verify_board.py`.
 
 
 ---
@@ -247,3 +252,141 @@ is in `OPEN_QUESTIONS.md`, and whether any of it is true is answered by
 
 That is the whole point of the process. **The prompt is short because the
 repository is honest.**
+
+## 2026-09-23 — CHECK-mode cold review of the S-05.01.01 → S-05.01.03 chain
+
+Mode: CHECK. Role: captain/architect. The latest working stack is
+`feature/next-three-batch-4`; do not use stale `main` as delivery truth.
+
+The owner asked to finish the next three dependency-contiguous stories. Their
+implementations were already IN_REVIEW, so this pass did not invent another
+feature batch. It cold-reviewed the existing acceptance contracts and found four
+real defects:
+
+- **D-71 / S-05.01.01:** a persisted URL rejected by current policy could keep
+  consuming `claim_due(limit=1)` and starve valid due work. The stale row is
+  now removed transactionally and selection continues.
+- **D-72 / S-05.01.02:** malformed CSS selectors were never syntax-validated at
+  registry load. Extraction packs now validate selector syntax/element shape
+  with Scrapling itself before installation.
+- **D-73 / S-05.01.03:** NaN/Infinity passed the non-negative numeric validator.
+  All numeric evidence now requires finite values.
+- **D-74 / S-05.01.03:** recipe-catalogue drift leaked `UnknownRecipe` and
+  could become an API 500. It is now translated to the controlled teardown
+  domain error.
+
+Work orders and RED regression tests are committed under `docs/work-orders/`
+and the focused test files. CHANGELOG, BUILD_STATE, DEFECT_LOG, DEMO,
+FEATURE_TREE/TRACEABILITY where relevant were updated.
+
+**Do not mark these stories DONE yet.** Their required commands still have not
+executed. On final review head `2e39ffeb9106b110e63c65ea4a636e03c2e39ee4`,
+GitHub Actions run **1202 / 35779005783** created job
+`106919379455 quality` and failed with **zero steps and no logs**. This is the
+same runner-allocation failure seen on earlier heads, not a passing or failing
+repository test.
+
+Required closure order remains:
+
+1. S-05.01.01 — run focused crawler suite, full regression, verifier; then DONE.
+2. S-05.01.02 — only after 01 is DONE; run extraction/discovery suite, full regression, verifier.
+3. S-05.01.03 — only after 02 is DONE; run teardown/video suites, full regression, verifier.
+
+No scope was silently deferred. No story was promoted to DONE without evidence.
+
+
+### External evidence blocker — S-06.02.18
+
+Do not burn more application commits trying to fix a failure that happens before
+workflow step 1. On run 1205 / 35779093017, manual retry attempt 2 created
+`quality` job 106939339831 and it completed failure with `steps=null` and no
+logs. The workflow still targets standard `ubuntu-latest` and starts with
+`actions/checkout@v4`.
+
+Tracked as D-75 → S-06.02.18 and BLOCKED externally. The owner-side checks are:
+1. GitHub Billing & licensing: Actions usage/budgets/payment state.
+2. Repository Settings → Actions → General: Actions/runner policy.
+3. If both are clean, provide GitHub Support the run/job IDs above because the
+   failure is runner provisioning before repository code executes.
+
+Do not weaken tests, DONE evidence or repository privacy to work around this.
+Once runner capacity exists, close the evidence chain in order:
+S-05.01.01 → S-05.01.02 → S-05.01.03.
+
+
+### 2026-09-23 — next-three CHECK hardening: D-76 to D-78
+
+Governing prompt was re-read from `kunalwagh101/prompt/README.md`. Mode stayed
+CHECK; methodology Kanban; active role captain/architect. The requested stories
+were already IN_REVIEW, so work compared acceptance criteria against production
+consumers instead of restarting discovery.
+
+Order reviewed:
+1. S-06.02.04 — Data deletion and subject access.
+2. S-04.01.01 — Companions: persisted agent profiles.
+3. S-02.02.02 — PLAN.md as the single source of truth.
+
+Cold-review fixes:
+- **D-76 / S-06.02.04:** partial deletion retries now re-inventory historical
+  successes; newly reappeared data is deleted before completion can be issued.
+  Regression: `test_partial_retry_rechecks_previously_successful_stores_before_completion`.
+- **D-77 / S-04.01.01:** production `OutreachStore` was merging global memory
+  into scoped companion searches. `search_memory_items(include_global=True)`
+  preserves the old default, while companion runtime passes false. Regression
+  uses the real CRM store, not the simplified fake.
+- **D-78 / S-02.02.02:** a deleted managed PLAN.md could be regenerated on
+  resume. `.PLAN.managed` now distinguishes managed state from genuinely
+  legacy runs; managed plan loss refuses, existing legacy plans migrate without
+  rewrite. DD-32 records the design.
+
+Work orders:
+- `docs/work-orders/S-06.02.04-retry-revalidation.md`
+- `docs/work-orders/S-04.01.01-exact-memory-scope.md`
+- `docs/work-orders/S-02.02.02-plan-loss.md`
+
+Do **not** mark any of the three DONE yet. Focused tests, full regression and
+`uv run python scripts/verify_board.py` still need executable output.
+S-06.02.18 / D-75 remains the external blocker: hosted Actions jobs fail before
+runner allocation with zero steps/no logs. Once runner capacity is restored,
+verify these three in dependency-valid order and only then promote the board.
+
+
+### 2026-09-23 — security/workspace/routines CHECK hardening
+
+The governing prompt was re-read from `kunalwagh101/prompt/README.md`.
+Mode: CHECK. Methodology: Kanban. Role/tier: captain/architect.
+
+Reviewed in this order:
+1. S-06.02.01 — No secret may enter a model prompt.
+2. S-06.01.01 — Workspaces with their own keys and logins.
+3. S-06.01.04 — Routines that fire agent runs on a schedule/event.
+
+Cold-review results:
+- **D-79 / S-06.02.01:** generic credential assignments/field names such as
+  `api_key` and `client_secret` were not guaranteed to trip the scanner
+  unless the value matched a known vendor token. Added a generic assignment
+  rule, structural field-name deny-list coverage and pre-provider-instantiation
+  regressions.
+- **D-80 / S-06.01.01:** per-instance thread locks did not serialize shared
+  JSON/encrypted-key read-modify-replace operations across processes. Added a
+  cross-process SQLite write lock while retaining existing atomic replacement.
+  Regression uses two independent store instances and forces the old overlap.
+- **D-81 / S-06.01.01:** the username regex double-escaped NUL/CR/LF and rejected
+  ordinary r/n/x/0 characters. Corrected the pattern and added valid/invalid
+  username regressions.
+- **S-06.01.04:** declaration policy, workspace/event isolation, dedupe,
+  renewable workspace lease, AgentRun provenance and notification persistence
+  were traced end to end. No additional code defect was found against its two
+  backlog acceptance criteria; no speculative change was made.
+
+Work orders:
+- `docs/work-orders/S-06.02.01-generic-secret-scan.md`
+- `docs/work-orders/S-06.01.01-cross-process-settings.md`
+- `docs/work-orders/S-06.01.01-username-validation.md`
+
+DD-33 records why a local SQLite lock was used instead of migrating the settings
+store during a defect repair.
+
+Do not promote these stories to DONE until the focused commands in DEMO.md,
+full regression and `uv run python scripts/verify_board.py` actually execute.
+S-06.02.18 / D-75 remains the external GitHub-hosted-runner blocker.

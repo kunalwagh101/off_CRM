@@ -47,11 +47,36 @@ def test_source_copy_or_media_fields_are_refused(field):
         analyse_public_post(payload)
 
 
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("duration_seconds", "nan"),
+        ("views", "inf"),
+    ],
+)
+def test_non_finite_numeric_evidence_is_refused(field, value):
+    with pytest.raises(CompetitorTeardownError, match="finite number"):
+        analyse_public_post(facts(**{field: value}))
+
+
 def test_session_gated_source_is_refused():
     with pytest.raises(CompetitorTeardownError, match="Automated crawling is disabled"):
         analyse_public_post(
             facts(source_url="https://www.linkedin.com/posts/private-session")
         )
+
+
+
+def test_missing_declared_recipe_is_a_controlled_teardown_failure(monkeypatch):
+    from offsetx_apollo_builder.video import recipes
+
+    def missing(_recipe_id: str):
+        raise recipes.UnknownRecipe("recipe catalogue drift")
+
+    monkeypatch.setattr(recipes, "recipe", missing)
+    with pytest.raises(CompetitorTeardownError, match="recipe catalogue drift"):
+        analyse_public_post(facts())
 
 
 def test_missing_structure_is_insufficient_evidence_not_a_guess():

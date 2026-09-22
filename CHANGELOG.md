@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+
+- **CHECK-mode hardening closed D-79 through D-81 across the next production
+  review batch.** S-06.02.01 now blocks generic credential assignments and field names such as
+  `api_key`, `client_secret`, `secret_key` and `api_secret` before
+  provider I/O even when the value has no known vendor prefix. S-06.01.01 now serializes workspace AI settings/key read-modify-write
+  operations across processes while retaining atomic file replacement, and its
+  username validator now rejects the intended control characters instead of
+  ordinary letters/digits. S-06.01.04 was cold-reviewed end to end; its
+  attended-target refusal and verified-notification-only path match the backlog
+  contract, so no speculative code change was added. Focused regressions are
+  committed; executable evidence remains blocked before CI step 1, so all three
+  stories remain IN_REVIEW.
+
+
+- **CHECK-mode hardening closed D-76, D-77 and D-78 across the next-three
+  review batch.** S-06.02.04 now re-inventories a previously successful privacy
+  store before trusting its old receipt on retry, so newly written subject data
+  cannot survive behind stale success. S-04.01.01 now disables the CRM memory
+  store's implicit global-memory merge for companion runs, preserving exact
+  memory scope in production as well as tests. S-02.02.02 now marks directories
+  once PLAN management begins and refuses to regenerate a missing managed
+  PLAN.md, preserving owner steering across restart. Focused regressions are
+  committed; executable evidence remains blocked before CI step 1, so all three
+  stories remain IN_REVIEW.
+
+- **S-05.01.03 now fails cleanly if its mapped recipe disappears.** Catalogue
+  `UnknownRecipe` is translated at the teardown boundary into the controlled
+  domain error already handled by the API, closing D-74 without changing recipe
+  selection or the catalogue itself. The story remains IN_REVIEW pending
+  executable evidence.
+
+- **S-05.01.03 competitor evidence now rejects NaN and Infinity.** The shared
+  numeric validator requires finite values before applying the existing
+  non-negative rule, preventing malformed duration from crashing timeline tick
+  conversion and preventing non-finite performance evidence from escaping.
+  This closes D-73. Repository execution evidence is still blocked before CI
+  step 1, so the story remains IN_REVIEW.
+
+- **S-05.01.02 extraction-pack configuration now fails closed on malformed CSS.**
+  The registry validates record and field selectors with Scrapling's own parser
+  before installing a pack and rejects pack-supplied pseudo-elements, leaving
+  text/attribute extraction under the existing bounded rule contract. This
+  closes D-72. Executable repository evidence is still blocked before CI step 1,
+  so the story remains IN_REVIEW.
+
+- **Security/accessibility/local-meetings batch implemented: S-06.02.02, S-06.02.05 and S-07.01.03 are IN_REVIEW.** The API is private by default with a closed bootstrap/signed-callback exception list, route-enumerating auth coverage and validation responses that do not echo secret request bodies. The frontend now has shared skip/focus/live-region/modal semantics plus repo-wide keyboard contracts and keyboard equivalents for pointer interactions. Meeting capture now mixes microphone + shared system/tab audio locally, records transient 30-second chunks in browser memory, permits capture only through a loopback backend + loopback browser Origin, freezes the declared transcription provider/model for the whole meeting, persists transcript/timing/provenance only, and registers meeting transcripts with encrypted backup and subject deletion. Review and close-out found and fixed D-65 through D-70 before owner testing. Focused suites are authored but are not claimed passing until executable evidence exists.
+
 - **Second build-ahead batch implemented: S-03.02.05, S-02.02.02 and S-04.01.01 are IN_REVIEW.** Browser platform identity, pacing and default budgets now come from one validated packaged registry; Reddit is the data-only acceptance case. Every agent run now owns exactly one editable `PLAN.md`, read fresh before every model decision, with the exact plan version captured into the append-only trace. Companions are persisted transactional rows beside the existing ToolRegistry, with exact memory scopes, authenticated CRUD/context endpoints and execution-time tool-grant enforcement. Companion profile text is also registered with subject deletion. Focused suites are authored in `tests/test_browser_platform_registry.py`, `tests/test_agent_plan.py` and `tests/test_agent_companions.py`; owner/executable verification remains intentionally deferred, so none is marked DONE. Review found and fixed D-59 through D-64, including platform-control drift, unsafe JSON concurrency, privacy-store drift and backup-restore SQLite lifecycle errors.
 
 - **S-05.01.02, S-05.01.03 and S-06.02.04 are implemented and in review.** Extraction packs are now validated JSON data over the existing Scrapling path; competitor teardown deterministically maps public structural/performance facts into existing video recipes and the existing human review queue without accepting copied media; privacy operations now use one authenticated inventory for subject access and confirmed, retry-safe deletion across CRM/discovery/delivery data, redacted mail recall, AI context and egress, crawler state, traces, tagged generated artifacts, and application-owned CSV queues/exports. Focused acceptance suites are authored in `tests/test_extraction_packs.py`, `tests/test_competitor_teardown.py`, and `tests/test_privacy.py`. They remain IN_REVIEW until executable test/verifier evidence and the owner's later acceptance pass are complete. Review also caught and fixed D-53 through D-55 before owner testing.
@@ -14,8 +61,10 @@
   and fixed `D-51`: separate crawler processes could claim different URLs on
   one host while keeping separate crawl-delay clocks. The frontier now stores
   a transactional per-host next-request slot and the existing safe fetchers
-  reserve it before requests. Six focused acceptance/concurrency tests are in
-  `tests/test_crawler_frontier.py`. Repeated latest GitHub Actions push/PR runs still fail before
+  reserve it before requests. Seven focused acceptance/concurrency tests are in
+  `tests/test_crawler_frontier.py`. A 2026-09-23 CHECK-mode cold review also
+  fixed D-71: a persisted URL rejected by the current policy could otherwise
+  consume the claim window repeatedly and starve valid due URLs behind it. Repeated latest GitHub Actions push/PR runs still fail before
   creating workflow step 1, so the story remains IN_REVIEW
   rather than being falsely marked DONE.
 

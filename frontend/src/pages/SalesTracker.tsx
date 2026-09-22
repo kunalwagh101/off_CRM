@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useMemo, useState, type DragEvent, type FormEvent } from "react";
 import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel, StatCard } from "../components";
 import { useApp } from "../context";
@@ -274,20 +274,19 @@ function SalesCard({
   onMove: (status: SalesLeadStatus) => void;
   onDragStart: (event: DragEvent<HTMLElement>) => void;
 }) {
-  function keyEdit(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      onEdit();
-    }
-  }
   return (
-    <article className={`sales-card ${lead.leak_flags.length ? "sales-card-leak" : ""}`} draggable onDragStart={onDragStart} onClick={onEdit} onKeyDown={keyEdit} tabIndex={0} aria-label={`Edit ${lead.lead_name}`}>
-      <div className="sales-card-head"><span className="sales-avatar">{leadInitials(lead)}</span><div><strong>{lead.lead_name}</strong><small>{lead.company || "No company"}</small></div><span className="drag-handle" title="Drag to move">⠿</span></div>
+    <article className={`sales-card ${lead.leak_flags.length ? "sales-card-leak" : ""}`} draggable onDragStart={onDragStart} aria-label={lead.lead_name}>
+      <div className="sales-card-head">
+        <span className="sales-avatar" aria-hidden="true">{leadInitials(lead)}</span>
+        <div><strong>{lead.lead_name}</strong><small>{lead.company || "No company"}</small></div>
+        <button type="button" className="sales-card-edit" onClick={onEdit} aria-label={`Edit ${lead.lead_name}`}>Edit</button>
+        <span className="drag-handle" aria-hidden="true">⠿</span>
+      </div>
       <div className="sales-card-meta"><span>{lead.source || "Direct"}</span>{lead.setter_name ? <span>S · {lead.setter_name}</span> : null}{lead.closer_name ? <span>C · {lead.closer_name}</span> : null}</div>
       {lead.meeting_at ? <div className={`sales-card-line ${lead.booking_lag_alert ? "danger-text" : ""}`}><span>Meeting</span><strong>{formatDate(lead.meeting_at)}</strong></div> : null}
       {lead.total_deal_value > 0 ? <div className="sales-card-money"><span>Deal</span><strong>{formatSalesMoney(lead.total_deal_value, currency)}</strong><small>{formatSalesMoney(lead.cash_collected, currency)} collected</small></div> : null}
       {lead.leak_flags.length ? <div className="leak-tags">{lead.leak_flags.map((flag) => <span key={flag}>{LEAK_LABELS[flag]}</span>)}</div> : null}
-      <div className="card-status-control" onClick={(event) => event.stopPropagation()}>
+      <div className="card-status-control">
         <select aria-label={`Move ${lead.lead_name}`} value={lead.lead_status} onChange={(event) => onMove(event.target.value as SalesLeadStatus)}>{meta.statuses.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
         <span>Rev {lead.revision}</span>
       </div>

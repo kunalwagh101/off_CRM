@@ -1689,6 +1689,7 @@ class OutreachStore:
         query: str = "",
         *,
         scope: str = "",
+        include_global: bool = True,
         kind: str = "",
         approved_only: bool = False,
         workspace_id: str = "local",
@@ -1698,7 +1699,7 @@ class OutreachStore:
         where = ["workspace_id = ?"]
         params: list[Any] = [workspace_id]
         if scope:
-            where.append("scope IN ('global', ?)")
+            where.append("scope IN ('global', ?)" if include_global else "scope = ?")
             params.append(scope)
         if kind:
             where.append("kind = ?")

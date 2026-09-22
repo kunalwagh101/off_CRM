@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Badge, PageHeader, Progress, StatCard } from "./components";
-import { LoginScreen } from "./App";
+import { Badge, Button, PageHeader, Progress, StatePanel, StatCard } from "./components";
+import { LoginScreen, focusMainContent } from "./App";
 import { AppContext } from "./context";
 import { stageLabel } from "./hooks";
 import SalesTracker, { formatSalesMoney } from "./pages/SalesTracker";
@@ -21,6 +23,8 @@ describe("shared production UI", () => {
     expect(html).toContain("Draft review");
     expect(html).toContain("Human approval is required.");
     expect(html).toContain("Quality score 92 out of 100");
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-valuenow="92"');
     expect(html).toContain("badge-success");
   });
 
@@ -153,5 +157,78 @@ describe("timeline units on the dashboard", () => {
   it("keeps every offered frame rate exact", () => {
     expect(ticksPerFrame("30")).toBe(3000);
     expect(ticksPerFrame("60")).toBe(1500);
+  });
+});
+
+
+describe("keyboard and screen-reader contract", () => {
+  function tsxFiles(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return tsxFiles(path);
+      return entry.name.endsWith(".tsx") ? [path] : [];
+    });
+  }
+
+  it("shared busy/loading states expose assistive semantics", () => {
+    const button = renderToStaticMarkup(<Button busy>Save</Button>);
+    const loading = renderToStaticMarkup(
+      <StatePanel tone="loading" title="Loading" description="Please wait." />
+    );
+    expect(button).toContain('aria-busy="true"');
+    expect(button).toContain("disabled");
+    expect(loading).toContain('role="status"');
+    expect(loading).toContain('aria-live="polite"');
+    expect(loading).toContain('aria-busy="true"');
+  });
+
+  it("page navigation moves programmatic focus to main content", () => {
+    let focused = false;
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    (globalThis as Record<string, unknown>).window = {
+      requestAnimationFrame: (callback: () => void) => {
+        callback();
+        return 1;
+      }
+    };
+    (globalThis as Record<string, unknown>).document = {
+      getElementById: (id: string) =>
+        id === "main-content" ? { focus: () => { focused = true; } } : null
+    };
+    try {
+      focusMainContent();
+      expect(focused).toBe(true);
+    } finally {
+      (globalThis as Record<string, unknown>).window = previousWindow;
+      (globalThis as Record<string, unknown>).document = previousDocument;
+    }
+  });
+
+  it("uses native interactive elements instead of click-only divs/spans", () => {
+    const offenders: string[] = [];
+    const missingAlt: string[] = [];
+    for (const path of tsxFiles(join(process.cwd(), "src"))) {
+      if (path.endsWith("components.test.tsx")) continue;
+      const source = readFileSync(path, "utf-8");
+      if (/<(?:div|span|li|tr|td|article|section)\b[^>]*\bonClick\s*=/gs.test(source)) {
+        offenders.push(path);
+      }
+      if (/\brole\s*=\s*["']button["']/.test(source)) {
+        offenders.push(path + " (role=button)");
+      }
+      for (const match of source.matchAll(/<img\b([^>]*)>/gs)) {
+        if (!/\balt\s*=/.test(match[1])) missingAlt.push(path);
+      }
+    }
+    expect(offenders).toEqual([]);
+    expect(missingAlt).toEqual([]);
+  });
+
+  it("keeps a visible global focus indicator and keyboard-visible hover content", () => {
+    const css = readFileSync(join(process.cwd(), "src", "styles.css"), "utf-8");
+    expect(css).toContain(":focus-visible");
+    expect(css).toContain("outline: 3px solid");
+    expect(css).toContain(".catalog-card-wrapper:focus-within .catalog-tooltip");
   });
 });

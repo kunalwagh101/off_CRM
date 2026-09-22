@@ -161,6 +161,36 @@ def test_plan_is_never_cached_and_an_unsafe_plan_is_refused(tmp_path):
         plan.read()
 
 
+def test_managed_run_refuses_to_regenerate_a_deleted_plan(tmp_path):
+    plan = RunPlan(tmp_path / "managed-run")
+    plan.ensure("original goal")
+    plan.path.write_text(
+        "# PLAN\n\n## Checklist\n- [ ] OWNER EDIT THAT MUST NOT BE LOST\n",
+        encoding="utf-8",
+    )
+    plan.path.unlink()
+
+    with pytest.raises(PlanError, match="missing"):
+        plan.ensure("original goal")
+
+    assert not plan.path.exists()
+
+
+def test_existing_legacy_plan_is_adopted_without_overwriting_owner_text(tmp_path):
+    run_dir = tmp_path / "legacy-with-plan"
+    run_dir.mkdir()
+    (run_dir / "PLAN.md").write_text(
+        "# PLAN\n- [ ] owner text from before managed markers",
+        encoding="utf-8",
+    )
+    plan = RunPlan(run_dir)
+
+    plan.ensure("different goal")
+
+    assert plan.read() == "# PLAN\n- [ ] owner text from before managed markers"
+    assert plan.marker_path.is_file()
+
+
 def test_legacy_run_directory_gets_one_plan_without_overwriting_existing_edit(tmp_path):
     trace = Trace.open(tmp_path / "traces", run_id="legacy-run")
     plan = RunPlan(trace.directory)

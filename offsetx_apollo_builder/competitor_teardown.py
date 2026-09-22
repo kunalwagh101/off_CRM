@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import math
 from typing import Any, Mapping
 
 from .discovery import validate_public_url
@@ -46,6 +47,8 @@ def _non_negative_number(value: Any, *, name: str) -> float:
         number = float(value or 0)
     except (TypeError, ValueError) as exc:
         raise CompetitorTeardownError(f"{name} must be a number") from exc
+    if not math.isfinite(number):
+        raise CompetitorTeardownError(f"{name} must be a finite number")
     if number < 0:
         raise CompetitorTeardownError(f"{name} cannot be negative")
     return number
@@ -162,7 +165,10 @@ def analyse_public_post(facts: Mapping[str, Any]) -> CompetitorTeardown:
         recipe_id = "hook_hold_payoff"
         hook_class = "direct_hook"
 
-    recipes.recipe(recipe_id)
+    try:
+        recipes.recipe(recipe_id)
+    except recipes.UnknownRecipe as exc:
+        raise CompetitorTeardownError(str(exc)) from exc
     pacing = "fast" if cuts >= 30 else "steady" if cuts and cuts <= 12 else "medium"
     if not cuts:
         pacing = "medium"

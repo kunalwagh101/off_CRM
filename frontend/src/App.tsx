@@ -19,6 +19,7 @@ import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
 import Memory from "./pages/Memory";
+import Meetings from "./pages/Meetings";
 import Recall from "./pages/Recall";
 import Settings from "./pages/Settings";
 import type { AuthSession, Campaign, Paginated } from "./types";
@@ -40,6 +41,7 @@ const pages = {
   connectors: Connectors,
   egress: Egress,
   memory: Memory,
+  meetings: Meetings,
   recall: Recall,
   ai: AI,
   settings: Settings
@@ -51,6 +53,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "connectors", label: "Connectors", icon: "⚡" },
   { page: "egress", label: "What was sent", icon: "◉" },
   { page: "memory", label: "Memory", icon: "◈" },
+  { page: "meetings", label: "Meetings", icon: "🎙" },
   { page: "recall", label: "Past emails", icon: "⟲" },
   { page: "dashboard", label: "Overview", icon: "⌂", group: "Workspace" },
   { page: "campaigns", label: "Campaigns", icon: "◫" },
@@ -70,6 +73,12 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
 function currentPage(): Page {
   const value = window.location.hash.replace(/^#\/?/, "") as Page;
   return value in pages ? value : "dashboard";
+}
+
+export function focusMainContent() {
+  window.requestAnimationFrame(() => {
+    document.getElementById("main-content")?.focus();
+  });
 }
 
 export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
@@ -131,6 +140,10 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   }, []);
 
   useEffect(() => {
+    focusMainContent();
+  }, [page]);
+
+  useEffect(() => {
     if (campaigns.length && !campaigns.some((campaign) => campaign.id === campaignId)) {
       setCampaignId(campaigns[0].id);
       localStorage.setItem(CAMPAIGN_KEY, campaigns[0].id);
@@ -176,6 +189,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
 
   return (
     <AppContext.Provider value={context}>
+      <a className="skip-link" href="#main-content" onClick={focusMainContent}>Skip to main content</a>
       <div className="app-shell">
         <aside className="sidebar">
           <a href="#dashboard" className="brand" aria-label="off_CRM home">
@@ -186,8 +200,12 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             {navigation.map((item) => (
               <div key={item.page}>
                 {item.group ? <p className="nav-group">{item.group}</p> : null}
-                <a className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}>
-                  <span className={`nav-icon nav-icon-${item.page}`}>{item.icon}</span>
+                <a
+                  className={page === item.page ? "nav-active" : ""}
+                  href={`#${item.page}`}
+                  aria-current={page === item.page ? "page" : undefined}
+                >
+                  <span className={`nav-icon nav-icon-${item.page}`} aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
                   {item.page === "drafts" && campaignsResource.data ? <small className="nav-count">Review</small> : null}
                 </a>
@@ -195,7 +213,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             ))}
           </nav>
           <div className="sidebar-footer">
-            <span className="local-dot" />
+            <span className="local-dot" aria-hidden="true" />
             <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
           </div>
         </aside>
@@ -207,7 +225,12 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
                 {!campaigns.length ? <option value="">No campaign</option> : null}
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </select>
-              {activeCampaign ? <span className={`status-dot status-${activeCampaign.status}`} title={activeCampaign.status} /> : null}
+              {activeCampaign ? (
+                <>
+                  <span className={`status-dot status-${activeCampaign.status}`} aria-hidden="true" />
+                  <span className="sr-only">Campaign status: {activeCampaign.status}</span>
+                </>
+              ) : null}
             </div>
             <div className="topbar-actions">
               {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
@@ -217,12 +240,31 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             </div>
           </header>
           <nav className="mobile-nav" aria-label="Mobile navigation">
-            {navigation.map((item) => <a key={item.page} className={page === item.page ? "nav-active" : ""} href={`#${item.page}`}><span>{item.icon}</span>{item.label}</a>)}
+            {navigation.map((item) => (
+              <a
+                key={item.page}
+                className={page === item.page ? "nav-active" : ""}
+                href={`#${item.page}`}
+                aria-current={page === item.page ? "page" : undefined}
+              >
+                <span aria-hidden="true">{item.icon}</span>{item.label}
+              </a>
+            ))}
           </nav>
-          <main className="page-content"><Screen /></main>
+          <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content"><Screen /></main>
         </div>
       </div>
-      {toast ? <div className={`toast toast-${toast.tone}`} role="status"><span>{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button></div> : null}
+      {toast ? (
+        <div
+          className={`toast toast-${toast.tone}`}
+          role={toast.tone === "error" ? "alert" : "status"}
+          aria-live={toast.tone === "error" ? "assertive" : "polite"}
+        >
+          <span aria-hidden="true">{toast.tone === "success" ? "✓" : toast.tone === "error" ? "!" : "i"}</span>
+          {toast.message}
+          <button onClick={() => setToast(null)} aria-label="Dismiss notification">×</button>
+        </div>
+      ) : null}
       <Modal open={tokenOpen} onClose={() => setTokenOpen(false)} title="Local API token" description="Only needed if OFFSETX_LOCAL_API_TOKEN is enabled in the backend.">
         <form className="form-stack" onSubmit={saveSessionToken}>
           <Field label="Token"><input type="password" value={tokenValue} onChange={(event) => setTokenValue(event.target.value)} autoComplete="off" autoFocus /></Field>

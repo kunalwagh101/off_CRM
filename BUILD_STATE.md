@@ -7,9 +7,11 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-20
-Branch: `feature/next-three-batch-2`
-Tests: both build-ahead batches have focused suites authored but **not yet claimed passing**. Remote Actions status is checked separately at close-out; historical pass counts below remain historical evidence only.
+Last updated: 2026-09-23
+Branch: `feature/next-three-batch-4`
+Tests: build-ahead focused suites are authored but the newest stories are **not
+yet claimed passing**. Exact remote CI evidence is recorded at close-out; older
+DONE evidence below remains historical evidence only.
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm
 package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
@@ -30,6 +32,99 @@ The long-standing `test_discovery.py::test_scrapling_parser…` failure was neve
 a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 `requirements.txt`, so any environment installed from the latter lacked it. The
 session-start hook installs via `uv sync --extra dev` and the test passes.
+
+
+
+## 2026-09-23 — CHECK review of S-06.02.01, S-06.01.01 and S-06.01.04
+
+The governing README was re-read first. Mode stayed CHECK, methodology Kanban,
+role captain/architect. These stories were already IN_REVIEW, so this pass
+audited production consumers and failure paths instead of creating new scope.
+
+- **S-06.02.01 / D-79:** the scanner covered vendor-specific credential shapes
+  but not generic assignments/field names such as `api_key=opaque-value` or
+  `client_secret`. A bounded assignment rule plus the structural secret-field
+  deny-list now block those values before provider instantiation.
+- **S-06.01.01 / D-80:** `WorkspaceAISettingsStore` used per-instance thread
+  locks around shared JSON/encrypted-key files. Concurrent processes could lose
+  another workspace's update. Complete write windows now serialize through a
+  standard-library SQLite write lock while the existing atomic replace remains.
+- **S-06.01.01 / D-81:** the username regex double-escaped NUL/CR/LF and rejected
+  normal characters such as r/n/x/0. The intended control-character regex and
+  regressions are committed.
+- **S-06.01.04:** cold review traced declaration → scheduler/event match →
+  workspace lease → AgentRun → verified `notification` record → persistence.
+  The two acceptance criteria remain enforced at production boundaries; no new
+  code change was justified.
+
+Work orders:
+- `docs/work-orders/S-06.02.01-generic-secret-scan.md`
+- `docs/work-orders/S-06.01.01-cross-process-settings.md`
+- `docs/work-orders/S-06.01.01-username-validation.md`
+
+The new workspace lock file contains no customer/settings/key data and requires
+no migration. Rollback can remove the lock file while the application is
+stopped; the existing JSON/encrypted-key formats are unchanged.
+
+Executable proof is still unavailable because S-06.02.18 / D-75 prevents
+GitHub-hosted jobs from reaching workflow step 1. None of these stories moves to
+DONE without focused tests, full regression and the board verifier.
+
+---
+
+## 2026-09-23 — CHECK review of S-06.02.04, S-04.01.01 and S-02.02.02
+
+The three requested stories were already code-complete and IN_REVIEW, so CHECK
+mode audited acceptance criteria against production consumers rather than
+restarting discovery.
+
+- **S-06.02.04 / D-76:** a partial privacy retry cached old successful stores.
+  Retry now re-inventories prior successes and re-deletes if matching subject
+  data reappeared. The unchanged-success case still avoids a redundant delete.
+- **S-04.01.01 / D-77:** the companion fixture used exact memory scope, but the
+  real CRM store merges `global` into scoped searches. The shared store keeps
+  that historical default for existing callers; companions explicitly use
+  exact scope only. The regression now uses the real `OutreachStore`.
+- **S-02.02.02 / D-78:** resume could recreate a deleted managed PLAN.md and
+  lose owner edits. An empty private `.PLAN.managed` marker distinguishes a
+  genuinely legacy run from managed state; managed plan loss now refuses.
+
+Work orders:
+- `docs/work-orders/S-06.02.04-retry-revalidation.md`
+- `docs/work-orders/S-04.01.01-exact-memory-scope.md`
+- `docs/work-orders/S-02.02.02-plan-loss.md`
+
+Executable proof is still unavailable because S-06.02.18 / D-75 prevents GitHub
+Actions from acquiring a runner. No story is promoted to DONE without focused
+tests, full regression and the board verifier.
+
+---
+
+## 2026-09-22 — API, accessibility and local meeting batch
+
+Three READY stories were implemented sequentially and moved to IN_REVIEW:
+
+- `S-06.02.02`: one default-deny API middleware boundary plus a closed public
+  bootstrap/signed-callback allowlist; route-enumerating auth tests and
+  secret-safe request-validation errors cover the registered API surface.
+- `S-06.02.05`: shared skip/focus/live-region/modal behaviour plus keyboard
+  alternatives on custom interactions and recursive TSX accessibility
+  contracts.
+- `S-07.01.03`: browser-local microphone + shared system/tab audio mixing,
+  MediaRecorder chunks, loopback-only capture mutations, one immutable
+  transcription provider/model per meeting, transcript-only persistence,
+  privacy deletion and encrypted backup/restore.
+
+Batch review found D-65 through D-70. Meeting hardening fixed provider/model
+redirection, privacy/backup registration and capture cleanup/recovery. API
+hardening replaced 54 raw JSON request bodies with strict contracts. Accessibility
+hardening fixed page-change focus and a hover-only tooltip. Close-out also found
+and removed a duplicated S-06.02.02 board row before handoff.
+
+Owner/manual verification is still required for the real local meeting capture
+and keyboard/screen-reader pass. No story in this section is DONE.
+
+---
 
 ## 2026-09-20 — second next-three implementation batch
 
@@ -72,10 +167,21 @@ The requested batch is implemented and all three stories are IN_REVIEW:
   declares domain, record selector and bounded text/attribute fields. It reuses
   Scrapling and the existing URL/robots/SSRF path; no executable plugin or AI
   extractor was introduced. Generic JSON-LD remains the fallback.
+  CHECK-mode cold review on 2026-09-23 found D-72: malformed CSS selectors
+  previously loaded successfully and could fail only during page parsing. The
+  registry now validates selectors with Scrapling itself before installation,
+  and pack selectors cannot supply text/attribute pseudo-elements.
 - **S-05.01.03 — competitor teardown.** Normalized public structural/performance
   facts map deterministically to an existing video recipe. Copied media/caption/
   transcript fields are rejected. Projects use our own material and enter the
   existing human review queue.
+  CHECK-mode cold review on 2026-09-23 found D-73: NaN/Infinity could pass the
+  non-negative numeric validator and later crash tick conversion or contaminate
+  performance evidence. All numeric facts now reject non-finite values before
+  recipe selection or arithmetic.
+  The same review found D-74: a removed/renamed declared recipe escaped as
+  `UnknownRecipe` and would become an API 500. Recipe resolution now fails as a
+  controlled `CompetitorTeardownError`, preserving the catalogue reason.
 - **S-06.02.04 — subject access/deletion.** Authenticated, workspace-bound access
   and confirmed deletion use one eight-adapter inventory covering CRM/research/
   delivery data, recall, AI context/egress, tagged artifacts, CSV queues/exports,
@@ -2133,12 +2239,34 @@ written from memory were wrong:
       in an allow-list.
 - [x] Existing SafePublicFetcher/Crawl4AI robots, crawl-delay, SSRF, redirect and
       size controls are reused rather than copied.
-- [x] Five focused tests cover robots + crawl delay, adaptive revisit cadence,
-      restart/budget persistence, concurrent claim exclusion and the social
-      boundary.
+- [x] Seven focused tests cover robots + crawl delay, adaptive revisit cadence,
+      restart/budget persistence, concurrent claim exclusion, stale-policy
+      revalidation without queue starvation, the social boundary and shared
+      cross-process host pacing.
+- [x] CHECK-mode cold review on 2026-09-23 found and fixed D-71:
+      a persisted URL rejected by the current policy could repeatedly consume
+      the claim limit and starve valid due work behind it. The regression test
+      is committed; no public interface or schema changed.
 - [ ] Locked repository test evidence is still missing. GitHub Actions runs 584
       and 590 failed before creating a workflow step and expose no job log.
       Under the Definition of Done this is IN_REVIEW, not DONE.
+
+
+### CI evidence infrastructure — S-06.02.18 (2026-09-23, BLOCKED)
+
+- [x] Workflow source reviewed: the `quality` job targets standard
+      `ubuntu-latest`; step 1 is `actions/checkout@v4`.
+- [x] Current head re-run attempted. Run 1205 / 35779093017, attempt 2,
+      created job 106939339831 and failed before runner allocation.
+- [x] Jobs API evidence: `steps = null`, `logs_url = null`; no repository
+      command executed.
+- [x] Application/test changes are not a valid fix for a failure that occurs
+      before step 1.
+- [ ] Owner-side Actions billing/budget/payment and repository Actions policy
+      must be checked. If clean, GitHub Support must investigate hosted-runner
+      provisioning.
+- [ ] After runner capacity is restored, execute the locked closure chain:
+      S-05.01.01 → S-05.01.02 → S-05.01.03.
 
 ## 4. Not built yet
 

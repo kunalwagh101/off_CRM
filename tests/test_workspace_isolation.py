@@ -4,11 +4,12 @@ from pathlib import Path
 import threading
 
 from fastapi.testclient import TestClient
+import pytest
 
 from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.workspace import WorkspaceAISettingsStore
 from offsetx_apollo_builder.api.app import create_app
-from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
+from offsetx_apollo_builder.api.auth import WorkspaceAuthError, WorkspaceAuthStore
 from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.browser.vault import SessionVault
 
@@ -56,6 +57,39 @@ def test_two_workspace_logins_resolve_to_different_workspace_ids(tmp_path):
     assert auth.verify(auth.issue(bob)).workspace_id == "beta"
 
 
+@pytest.mark.parametrize("username", ["nora", "xavier", "user0"])
+def test_workspace_username_validation_accepts_normal_characters(tmp_path, username):
+    auth = WorkspaceAuthStore(
+        tmp_path / f"{username}.db",
+        session_secret=SESSION_SECRET,
+        session_hours=8,
+    )
+    identity = auth.create(
+        username=username,
+        workspace_id=f"ws-{username}".replace("_", "-"),
+        password="valid-password-123",
+    )
+
+    assert identity.username == username
+    assert auth.authenticate(username, "valid-password-123") is not None
+
+
+@pytest.mark.parametrize("username", ["bad\nname", "bad\x00name"])
+def test_workspace_username_validation_refuses_control_characters(tmp_path, username):
+    auth = WorkspaceAuthStore(
+        tmp_path / "invalid-user.db",
+        session_secret=SESSION_SECRET,
+        session_hours=8,
+    )
+
+    with pytest.raises(WorkspaceAuthError, match="username"):
+        auth.create(
+            username=username,
+            workspace_id="valid-workspace",
+            password="valid-password-123",
+        )
+
+
 def test_password_rotation_invalidates_existing_workspace_sessions(tmp_path):
     auth = WorkspaceAuthStore(
         tmp_path / "auth.db",
@@ -93,6 +127,70 @@ def test_provider_keys_are_encrypted_and_workspace_isolated(tmp_path):
     )
     assert b"ALPHA-PROVIDER-SECRET" not in raw
     assert b"BETA-PROVIDER-SECRET" not in raw
+
+
+def test_independent_workspace_stores_do_not_lose_concurrent_provider_updates(
+    tmp_path, monkeypatch
+):
+    data_dir = tmp_path / "ai"
+    first = WorkspaceAISettingsStore(data_dir, ProviderRegistry())
+    second = WorkspaceAISettingsStore(data_dir, ProviderRegistry())
+    barrier = threading.Barrier(2)
+    errors = []
+
+    def synchronize_the_old_two_read_path(store):
+        original = store._document
+        state = {"calls": 0}
+        guard = threading.Lock()
+
+        def wrapped():
+            document = original()
+            with guard:
+                state["calls"] += 1
+                call_number = state["calls"]
+            # Before the fix connect_provider() performed one read via raw()
+            # and a second read inside save(). Force both stores to take that
+            # second snapshot before either replaces the shared document.
+            if call_number == 2:
+                barrier.wait(timeout=5)
+            return document
+
+        monkeypatch.setattr(store, "_document", wrapped)
+        return original
+
+    first_document = synchronize_the_old_two_read_path(first)
+    second_document = synchronize_the_old_two_read_path(second)
+
+    def connect(store, workspace_id, key):
+        try:
+            store.connect_provider(
+                workspace_id,
+                "mistral",
+                api_key=key,
+                model_id="mistral-small-latest",
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    one = threading.Thread(
+        target=connect, args=(first, "alpha", "ALPHA-CONCURRENT-KEY")
+    )
+    two = threading.Thread(
+        target=connect, args=(second, "beta", "BETA-CONCURRENT-KEY")
+    )
+    one.start()
+    two.start()
+    one.join(timeout=10)
+    two.join(timeout=10)
+
+    assert not one.is_alive() and not two.is_alive()
+    assert errors == []
+    monkeypatch.setattr(first, "_document", first_document)
+    monkeypatch.setattr(second, "_document", second_document)
+    assert first.raw("alpha")["providers"]["mistral"]["enabled"] is True
+    assert first.raw("beta")["providers"]["mistral"]["enabled"] is True
+    assert first.key_for("alpha", "mistral") == "ALPHA-CONCURRENT-KEY"
+    assert first.key_for("beta", "mistral") == "BETA-CONCURRENT-KEY"
 
 
 def test_browser_sessions_are_workspace_isolated_for_the_same_platform(tmp_path, monkeypatch):

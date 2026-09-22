@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.agent.companions import CompanionRegistry
 from offsetx_apollo_builder.agent.routines import RoutineExecution, RoutineStore
 from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
+from offsetx_apollo_builder.meetings.store import MeetingError, MeetingStore
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -145,6 +147,56 @@ class StableAdapter:
     def delete(self, subject):
         self.calls += 1
         return {"fixture": 0}
+
+
+class ReappearingAdapter:
+    name = "reappearing"
+
+    def __init__(self):
+        self.rows = [{"id": "first"}]
+        self.calls = 0
+
+    def find(self, subject):
+        if not self.rows:
+            return []
+        return [PrivacyRecord(self.name, "fixture", "test", list(self.rows))]
+
+    def delete(self, subject):
+        self.calls += 1
+        deleted = len(self.rows)
+        self.rows.clear()
+        return {"fixture": deleted}
+
+
+def test_partial_retry_rechecks_previously_successful_stores_before_completion(tmp_path):
+    reappearing = ReappearingAdapter()
+    flaky = FlakyAdapter()
+    requests = PrivacyRequestStore(tmp_path / "privacy.db")
+    service = PrivacyService(adapters=(reappearing, flaky), requests=requests)
+    try:
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+
+        first = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert first["complete"] is False
+        assert reappearing.calls == 1
+        assert reappearing.rows == []
+
+        # Personal data can be written again while another store is waiting for
+        # retry. A stale success receipt must not let this new row survive.
+        reappearing.rows.append({"id": "written-after-first-attempt"})
+
+        second = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+
+        assert second["complete"] is True
+        assert reappearing.calls == 2
+        assert reappearing.rows == []
+    finally:
+        service.close()
 
 
 def test_failed_store_never_reports_global_success_and_retry_is_idempotent(tmp_path):
@@ -642,6 +694,44 @@ def test_privacy_removes_workspace_login_when_username_is_subject_email(tmp_path
         assert receipt["complete"] is True
         assert auth.authenticate("alice@example.com", "alice-password-123") is None
         assert auth.authenticate("bob@example.com", "bob-password-456") is not None
+    finally:
+        service.close()
+        store.close()
+
+
+
+def test_privacy_deletes_matching_meeting_transcript_without_touching_other_meetings(tmp_path):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    meetings = MeetingStore(data_dir / "meeting_transcripts.db")
+    alice = meetings.create(
+        workspace_id="local",
+        title="Call with alice@example.com",
+    )
+    bob = meetings.create(
+        workspace_id="local",
+        title="General market call",
+    )
+
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com")
+        access = service.access(subject)
+        meeting_store = next(
+            item for item in access["stores"]
+            if item["store"] == "meeting_transcripts"
+        )
+        assert meeting_store["count"] == 1
+
+        preview = service.preview(subject)
+        receipt = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert receipt["complete"] is True
+
+        with pytest.raises(MeetingError, match="not found"):
+            meetings.require(alice["id"], workspace_id="local")
+        assert meetings.require(bob["id"], workspace_id="local")["title"] == "General market call"
     finally:
         service.close()
         store.close()

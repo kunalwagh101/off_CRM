@@ -268,43 +268,59 @@ class CrawlFrontier:
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
-                rows = self.connection.execute(
-                    f"""
-                    SELECT * FROM crawl_frontier
-                    WHERE next_due_at <= ?
-                      AND (lease_until = '' OR lease_until <= ?)
-                      AND depth <= ?
-                      {domain_sql}
-                    ORDER BY next_due_at ASC, discovered_at ASC, url ASC
-                    LIMIT ?
-                    """,
-                    (current_iso, current_iso, int(max_depth), *domain_params, int(limit)),
-                ).fetchall()
                 claimed: list[FrontierEntry] = []
-                for row in rows:
-                    try:
-                        self.validator(str(row["url"]))
-                    except ValueError:
-                        continue
-                    self.connection.execute(
-                        """
-                        UPDATE crawl_frontier
-                        SET lease_until = ?, updated_at = ?
-                        WHERE url = ?
+                while len(claimed) < limit:
+                    rows = self.connection.execute(
+                        f"""
+                        SELECT * FROM crawl_frontier
+                        WHERE next_due_at <= ?
+                          AND (lease_until = '' OR lease_until <= ?)
+                          AND depth <= ?
+                          {domain_sql}
+                        ORDER BY next_due_at ASC, discovered_at ASC, url ASC
+                        LIMIT ?
                         """,
-                        (lease_until, current_iso, row["url"]),
-                    )
-                    payload = dict(row)
-                    payload["lease_until"] = lease_until
-                    payload["updated_at"] = current_iso
-                    claimed.append(
-                        FrontierEntry(
-                            **{
-                                name: payload[name]
-                                for name in FrontierEntry.__dataclass_fields__
-                            }
+                        (
+                            current_iso,
+                            current_iso,
+                            int(max_depth),
+                            *domain_params,
+                            int(limit - len(claimed)),
+                        ),
+                    ).fetchall()
+                    if not rows:
+                        break
+                    for row in rows:
+                        try:
+                            self.validator(str(row["url"]))
+                        except ValueError:
+                            # The URL was valid when admitted but the current
+                            # policy no longer permits it. Remove stale policy
+                            # state so it cannot consume the claim window forever.
+                            self.connection.execute(
+                                "DELETE FROM crawl_frontier WHERE url = ?",
+                                (row["url"],),
+                            )
+                            continue
+                        self.connection.execute(
+                            """
+                            UPDATE crawl_frontier
+                            SET lease_until = ?, updated_at = ?
+                            WHERE url = ?
+                            """,
+                            (lease_until, current_iso, row["url"]),
                         )
-                    )
+                        payload = dict(row)
+                        payload["lease_until"] = lease_until
+                        payload["updated_at"] = current_iso
+                        claimed.append(
+                            FrontierEntry(
+                                **{
+                                    name: payload[name]
+                                    for name in FrontierEntry.__dataclass_fields__
+                                }
+                            )
+                        )
                 self.connection.execute("COMMIT")
                 return claimed
             except BaseException:

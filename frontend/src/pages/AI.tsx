@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent, type KeyboardEvent } from "react";
 import { api } from "../api";
-import { Button } from "../components";
+import { Button, Modal } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIModesPayload, AIProvidersPayload } from "../types";
@@ -31,6 +31,7 @@ export default function AIPage() {
   // Three ways to work. Chat is the everyday one and stays the default.
   const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan" | "image">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const panelToggleRef = useRef<HTMLButtonElement>(null);
   const recognitionRef = useRef<any>(null);
 
   const chats = useResource(() => api.get<{ items: Chat[] }>("/ai/chats?limit=60"), []);
@@ -247,13 +248,15 @@ export default function AIPage() {
               ＋ New chat
             </button>
             <button
+              ref={panelToggleRef}
               type="button"
               className={panelOpen ? "ai-panel-toggle ai-panel-toggle-active" : "ai-panel-toggle"}
               onClick={() => setPanelOpen((v) => !v)}
               title={panelOpen ? "Close history" : "Open history & projects"}
               aria-expanded={panelOpen}
+              aria-controls="ai-history-panel"
             >
-              <span className="ai-panel-toggle-icon">⊞</span>
+              <span className="ai-panel-toggle-icon" aria-hidden="true">⊞</span>
               <span>History {totalChats > 0 ? `· ${totalChats}` : ""}</span>
             </button>
           </div>
@@ -261,7 +264,7 @@ export default function AIPage() {
 
         {/* How you want to work. Each tab states its trade-off so the choice
             never needs explaining twice. */}
-        <div className="ai-mode-tabs" role="tablist" aria-label="How to work">
+        <div className="ai-mode-tabs" role="group" aria-label="How to work">
           {([
             { key: "chat", label: "Chat", hint: "One model · fastest" },
             { key: "compare", label: "Compare", hint: "All models · pick the best" },
@@ -285,8 +288,7 @@ export default function AIPage() {
               <button
                 key={tab.key}
                 type="button"
-                role="tab"
-                aria-selected={workMode === tab.key}
+                aria-pressed={workMode === tab.key}
                 className={workMode === tab.key ? "ai-mode-tab ai-mode-tab-on" : "ai-mode-tab"}
                 onClick={() => setWorkMode(tab.key)}
                 disabled={disabled}
@@ -334,6 +336,7 @@ export default function AIPage() {
             <form className="ai-input-row" onSubmit={sendMessage}>
               <textarea
                 className="ai-input"
+                aria-label="Message"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
@@ -427,13 +430,40 @@ export default function AIPage() {
       </div>
 
       {/* ── Right panel: history + projects (slides in/out) ──────────────── */}
-      {panelOpen && (
-        <div className="ai-panel-overlay" onClick={() => setPanelOpen(false)} aria-hidden="true" />
-      )}
-      <aside className={panelOpen ? "ai-panel ai-panel-open" : "ai-panel"} aria-label="Chat history and projects">
+      {panelOpen ? (
+        <>
+          <div
+            className="ai-panel-overlay"
+            onClick={() => {
+              setPanelOpen(false);
+              window.requestAnimationFrame(() => panelToggleRef.current?.focus());
+            }}
+            aria-hidden="true"
+          />
+          <aside
+            id="ai-history-panel"
+            className="ai-panel ai-panel-open"
+            aria-label="Chat history and projects"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setPanelOpen(false);
+                window.requestAnimationFrame(() => panelToggleRef.current?.focus());
+              }
+            }}
+          >
         <div className="ai-panel-head">
           <strong>History &amp; Projects</strong>
-          <button type="button" className="ai-panel-close" onClick={() => setPanelOpen(false)} aria-label="Close panel">✕</button>
+          <button
+            type="button"
+            className="ai-panel-close"
+            autoFocus
+            onClick={() => {
+              setPanelOpen(false);
+              window.requestAnimationFrame(() => panelToggleRef.current?.focus());
+            }}
+            aria-label="Close panel"
+          >✕</button>
         </div>
 
         <div className="ai-panel-scroll">
@@ -445,8 +475,8 @@ export default function AIPage() {
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
                   <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move to project" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete chat" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn" aria-label={`Move ${chat.title} to project`} onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" aria-label={`Delete ${chat.title}`} onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">
@@ -470,8 +500,8 @@ export default function AIPage() {
                 <div key={chat.id} className={activeChatId === chat.id ? "ai-chat-item ai-chat-active" : "ai-chat-item"}>
                   <button type="button" className="ai-chat-title" onClick={() => openChat(chat)}>{chat.title}</button>
                   <div className="ai-chat-actions">
-                    <button type="button" className="ai-icon-btn" title="Move" onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
-                    <button type="button" className="ai-icon-btn ai-delete-btn" title="Delete" onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
+                    <button type="button" className="ai-icon-btn" aria-label={`Move ${chat.title}`} onClick={() => setMovingChat(movingChat === chat.id ? null : chat.id)}>📁</button>
+                    <button type="button" className="ai-icon-btn ai-delete-btn" aria-label={`Delete ${chat.title}`} onClick={() => setDeleteConfirm(chat.id)}>🗑</button>
                   </div>
                   {movingChat === chat.id && (
                     <div className="ai-move-dropdown">
@@ -495,30 +525,33 @@ export default function AIPage() {
           <div className="ai-panel-section">
             {showNewProject ? (
               <form className="ai-new-project-form" onSubmit={createProject}>
-                <input className="ai-new-project-input" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Project name" autoFocus />
+                <input className="ai-new-project-input" aria-label="Project name" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Project name" autoFocus />
                 <button type="submit" className="ai-new-project-btn">Create</button>
-                <button type="button" className="ai-new-project-cancel" onClick={() => setShowNewProject(false)}>✕</button>
+                <button type="button" className="ai-new-project-cancel" aria-label="Cancel new project" onClick={() => setShowNewProject(false)}>✕</button>
               </form>
             ) : (
               <button type="button" className="ai-new-project-toggle" onClick={() => setShowNewProject(true)}>+ New project</button>
             )}
           </div>
         </div>
-      </aside>
+          </aside>
+        </>
+      ) : null}
 
       {/* ── Delete confirmation ─────────────────────────────────────────── */}
-      {deleteConfirm && (
-        <div className="ai-overlay" onClick={() => setDeleteConfirm(null)}>
-          <div className="ai-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <p className="ai-confirm-title">Delete this chat?</p>
-            <p className="ai-confirm-body">This permanently deletes the conversation and all its messages. It cannot be undone.</p>
-            <div className="button-row">
-              <Button tone="danger" onClick={() => deleteChat(deleteConfirm)}>Yes, delete</Button>
-              <Button tone="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            </div>
+      {deleteConfirm ? (
+        <Modal
+          open
+          title="Delete this chat?"
+          description="This permanently deletes the conversation and all its messages. It cannot be undone."
+          onClose={() => setDeleteConfirm(null)}
+        >
+          <div className="button-row">
+            <Button tone="danger" onClick={() => deleteChat(deleteConfirm)}>Yes, delete</Button>
+            <Button tone="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
           </div>
-        </div>
-      )}
+        </Modal>
+      ) : null}
     </div>
   );
 }

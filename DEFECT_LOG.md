@@ -97,6 +97,193 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-63 | 2026-09-20 | bug | medium | The backup-restore fallback rebuilt privacy without the configured export directory, so CSV export deletion coverage could silently shrink after a failed restore | fixed during second-batch lifecycle review |
 | D-64 | 2026-09-20 | data-loss | high | Backup restore could replace `ai_tools.db` while ToolRegistry still held an open SQLite connection, leaving tools/companions attached to pre-restore state | fixed during `S-04.01.01` lifecycle review; registry is closed and reconstructed around restore |
 
+| D-65 | 2026-09-22 | security | high | Meeting creation declared a transcription provider/model but chunk upload could supply a different pair, allowing later requests to redirect raw audio to another connected provider | fixed before S-07.01.03 review; meeting provider/model are immutable and mismatch is refused before broker I/O |
+| D-66 | 2026-09-22 | privacy/recovery | high | The new meeting transcript database was initially outside subject-access/deletion and encrypted backup coverage | fixed before S-07.01.03 review; meeting transcripts are a registered privacy store and SQLite-safe backup member |
+| D-67 | 2026-09-22 | privacy/reliability | high | Local screen sharing was not owned by cleanup until after meeting creation, so a denied microphone or failed API create could leave screen capture active; failed final chunks also had no recovery path | fixed before S-07.01.03 review; streams are owned immediately and unfinished chunks expose retry/discard |
+| D-68 | 2026-09-22 | security | high | 54 JSON API handlers accepted raw dictionaries, so malformed or wrongly typed values could enter business logic before framework validation | fixed · S-06.02.02 strict request contracts plus registered-route validation audit |
+| D-69 | 2026-09-22 | accessibility | medium | Hash navigation changed the visible screen without moving keyboard/screen-reader focus, and one hover-only tooltip was not exposed on keyboard focus | fixed · S-06.02.05 shared main-focus management and focus-within tooltip path |
+| D-70 | 2026-09-22 | process | medium | S-06.02.02 appeared twice in BOARD.md IN_REVIEW after sequential state updates, making board counts untrustworthy | fixed during batch-4 close-out; duplicate removed before handoff |
+| D-71 | 2026-09-23 | bug | high | A persisted crawler URL rejected by the current policy could consume the claim limit forever and starve valid due URLs behind it | code fixed · `S-05.01.01`; executable evidence pending |
+| D-72 | 2026-09-23 | bug | high | Extraction-pack CSS selectors were length-checked but never syntax-checked, so malformed config could load and fail only when a page was parsed | code fixed · `S-05.01.02`; executable evidence pending |
+| D-73 | 2026-09-23 | bug | high | Competitor numeric evidence accepted NaN/Infinity, allowing later timeline crashes or non-finite performance records | code fixed · `S-05.01.03`; executable evidence pending |
+| D-74 | 2026-09-23 | bug | medium | A removed/renamed video recipe leaked UnknownRecipe out of competitor teardown, turning catalogue drift into an API 500 | code fixed · `S-05.01.03`; executable evidence pending |
+| D-75 | 2026-09-23 | process | high | GitHub-hosted CI repeatedly creates the quality job but fails before runner allocation with zero steps/no logs, blocking every repository evidence gate | open · `S-06.02.18` |
+| D-76 | 2026-09-23 | bug | high | A partial privacy-deletion retry trusted an old per-store success without checking whether matching personal data had been written again | code fixed · `S-06.02.04`; executable evidence pending |
+| D-77 | 2026-09-23 | security | high | Companion runtime asked for its own memory scope, but the production CRM memory search silently merged global memory into that result | code fixed · `S-04.01.01`; executable evidence pending |
+| D-78 | 2026-09-23 | data-loss | high | Resume could regenerate a deleted managed PLAN.md from the original goal, silently losing the owner's edited steering state | code fixed · `S-02.02.02`; executable evidence pending |
+| D-79 | 2026-09-23 | security | high | Generic model-visible assignments/fields such as api_key or client_secret could bypass the credential scanner when the value had no vendor-specific token prefix | code fixed · `S-06.02.01`; executable evidence pending |
+| D-80 | 2026-09-23 | data-loss | high | Independent WorkspaceAISettingsStore processes used only per-instance thread locks, so concurrent read-modify-replace writes could erase another workspace's provider settings or encrypted keys | code fixed · `S-06.01.01`; executable evidence pending |
+| D-81 | 2026-09-23 | bug | high | The workspace username regex double-escaped NUL/CR/LF, accidentally rejecting ordinary characters such as r, n, x and 0 instead of the intended control characters | code fixed · `S-06.01.01`; executable evidence pending |
+
+
+### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
+
+**What went wrong.** `claim_due()` selected rows with SQL `LIMIT` and only
+then re-ran the current URL policy. If the first persisted row was now forbidden,
+the validator rejected it but left it due and unleased. With `limit=1`, every
+later claim selected the same forbidden row and returned no work even though a
+valid due URL was waiting behind it.
+
+**How it was found.** CHECK-mode cold review of S-05.01.01. An isolated RED
+reproduction selected the forbidden row, returned zero claims, and showed the
+valid row still due.
+
+**The fix.** Policy-rejected persisted rows are deleted inside the same
+`BEGIN IMMEDIATE` transaction and selection continues until the requested
+number of valid claims is filled or no due work remains. No schema or public
+interface changed.
+
+**Evidence status.** The isolated corrected scheduling case now claims the valid
+row and removes the forbidden one. The repository test
+`test_claim_due_removes_a_persisted_url_rejected_by_current_policy` is committed,
+but GitHub Actions still fails before workflow step 1, so S-05.01.01 remains
+IN_REVIEW.
+
+
+### D-72 — Malformed extraction selectors loaded as valid config · 2026-09-23
+
+**What went wrong.** The extraction-pack registry bounded selector strings but
+did not parse-check them. A malformed selector such as `div[` therefore passed
+registry loading and failed later only when Scrapling parsed a matching page.
+That violated S-05.01.02's fail-closed configuration criterion.
+
+**How it was found.** CHECK-mode cold review compared the story acceptance
+criteria with `ExtractionPack.from_data()`, `ExtractionRule.from_data()` and
+the real `ScraplingPageParser` consumers.
+
+**The fix.** Registry loading now validates selectors with Scrapling's own CSS
+parser, the same parser used at runtime. Packs may select elements only; the
+runtime continues to own text/attribute extraction. No second CSS grammar or
+new dependency was added.
+
+**Evidence status.** Regression tests for malformed record selectors, malformed
+field selectors and pack-supplied pseudo-elements are committed. GitHub Actions
+still fails before workflow step 1, so S-05.01.02 remains IN_REVIEW.
+
+
+### D-73 — Competitor evidence accepted NaN and Infinity · 2026-09-23
+
+**What went wrong.** `_non_negative_number()` converted values with `float()`
+and checked only `number < 0`. IEEE NaN is not less than zero, so it passed.
+Infinity passed too. A NaN duration could then crash timeline tick conversion;
+non-finite performance metrics could survive into stored/API evidence.
+
+**How it was found.** CHECK-mode cold review of S-05.01.03 followed every
+accepted numeric fact through recipe selection, arithmetic and serialization.
+
+**The fix.** The shared numeric validator now requires `math.isfinite()`
+before the existing non-negative check. No recipe threshold or business rule
+changed.
+
+**Evidence status.** Regression cases for NaN duration and infinite views are
+committed. GitHub Actions still fails before workflow step 1, so S-05.01.03
+remains IN_REVIEW.
+
+
+### D-74 — Missing teardown recipe leaked an internal exception · 2026-09-23
+
+**What went wrong.** The deterministic analyser correctly called the canonical
+recipe registry, but an `UnknownRecipe` from that registry was not translated
+to the teardown domain error caught by the API. Catalogue drift could therefore
+turn a controlled refusal into a 500.
+
+**How it was found.** Final S-05.01.03 failure-path review compared the
+architecture's explicit “recipe cannot be resolved” refusal with the actual
+exception boundary.
+
+**The fix.** Catch `recipes.UnknownRecipe` exactly and re-raise
+`CompetitorTeardownError` with the original catalogue reason. Unrelated errors
+still surface normally.
+
+**Evidence status.** A monkeypatched catalogue-drift regression is committed.
+Executable repository evidence remains unavailable because Actions fails before
+workflow step 1.
+
+
+### D-75 — GitHub-hosted CI never reaches step 1 · 2026-09-23
+
+**What went wrong.** Push and pull-request runs create the `quality` job, but
+GitHub completes it as failure before assigning a runner. The Jobs API returns
+no workflow steps and no logs, so checkout, dependency installation, tests and
+the verifier never execute.
+
+**How it was found.** Repeated evidence attempts on the current branch,
+including run 1205 / 35779093017. A manual re-run created job 106939339831 and
+failed identically. The workflow itself still targets ordinary
+`ubuntu-latest` and begins with `actions/checkout@v4`; there is no repository
+step before the failure.
+
+**Why it matters.** The repository Definition of Done requires real locked test
+output from the current session. While runner allocation is unavailable, every
+code-complete story must remain IN_REVIEW.
+
+**Status.** Open under S-06.02.18. The remaining diagnosis is outside
+application code: account Actions billing/budgets/payment state, repository
+Actions policy, or GitHub-hosted runner provisioning/service state. Tests and
+DONE rules will not be weakened to work around it.
+
+
+### D-76 — Partial privacy retry could certify stale success · 2026-09-23
+
+**What went wrong.** A store marked successful on the first deletion attempt was
+skipped on every retry. If another store failed and matching personal data was
+written again into the successful store before retry, the retry could clear the
+failed store and report the whole request complete while the new row survived.
+
+**How it was found.** CHECK-mode failure-path review of S-06.02.04 followed the
+persisted receipt across two attempts instead of testing only an unchanged
+fixture.
+
+**The fix.** Historical success is reusable only after the same adapter's
+read-only `find(subject)` inventory proves that store is still clean. If data
+reappeared, deletion runs again. A failed re-inventory or missing adapter is a
+failed store, never a cached success. CRM remains last.
+
+**Evidence status.** The regression
+`test_partial_retry_rechecks_previously_successful_stores_before_completion`
+is committed. Executable repository evidence is still blocked by D-75, so the
+story remains IN_REVIEW.
+
+
+### D-77 — Global memory leaked into companion runtime context · 2026-09-23
+
+**What went wrong.** `CompanionRegistry.start()` requested the companion's
+exact scope, but the production `OutreachStore.search_memory_items()` defines a
+scoped query as `global OR requested scope`. The companion unit fixture used
+exact-scope semantics, so tests and production disagreed.
+
+**How it was found.** CHECK-mode blast-radius review replaced the fake-memory
+assumption with the actual memory store contract.
+
+**The fix.** The shared search keeps its historic behaviour by default through
+`include_global=True`. Companion runtime explicitly passes
+`include_global=False`, so only approved items from the exact companion scope
+are returned. Existing API memory searches keep their prior semantics.
+
+**Evidence status.** A regression using the real `OutreachStore` is committed.
+Executable evidence is blocked by D-75; S-04.01.01 remains IN_REVIEW.
+
+
+### D-78 — Resume could recreate a lost owner-edited PLAN.md · 2026-09-23
+
+**What went wrong.** `AgentRun.run()` calls `RunPlan.ensure()` on both start
+and resume. If a managed run lost PLAN.md between processes, `ensure()` treated
+it like a pre-feature legacy run and recreated the original boilerplate from the
+owner goal. Any steering edits were silently lost.
+
+**How it was found.** CHECK-mode restart-path review compared the documented
+"missing PLAN refuses" contract with the actual resume call path.
+
+**The fix.** Managed run directories carry an empty private
+`.PLAN.managed` sentinel. It contains no instructions and is not a second
+source of truth. Existing PLAN.md files without the marker are adopted
+non-destructively for migration. A marker with a missing PLAN.md now fails
+closed instead of regenerating content.
+
+**Evidence status.** Regressions cover lost managed plans and adoption of an
+existing legacy plan. Executable evidence remains blocked by D-75, so
+S-02.02.02 stays IN_REVIEW.
+
 ---
 
 ## What these add up to
@@ -363,6 +550,65 @@ token varies by model and by language, and it does not count the tokens a
 provider adds itself. And it makes "what did this run cost" unanswerable with
 authority: the number in the log is off_CRM's opinion, not the provider's
 receipt.
+
+
+### D-79 — Generic secret assignments could bypass the prompt scanner · 2026-09-23
+
+**What went wrong.** The model-input scanner knew vendor token prefixes and
+token/password assignments, but not ordinary credential names such as
+`api_key`, `api_secret`, `client_secret` or `secret_key`. An opaque
+secret value with no vendor prefix could therefore enter a system prompt as an
+assignment, or survive inside a FULL-policy mapping under one of those field
+names, without being classified as a credential.
+
+**How it was found.** CHECK-mode boundary review tested the scanner's promise
+against generic credential shapes rather than only known providers.
+
+**The fix.** One bounded case-insensitive assignment pattern was added to the
+existing credential rule table and the generic names were added to the
+structural secret-field deny-list. The broker still blocks before provider
+instantiation; nothing is silently redacted and retried.
+
+**Evidence status.** The parametrized system-prompt regression is committed.
+Executable evidence remains blocked by D-75, so S-06.02.01 stays IN_REVIEW.
+
+
+### D-80 — Concurrent workspace settings writes could erase another workspace · 2026-09-23
+
+**What went wrong.** Atomic file replacement protected against torn JSON, but
+each WorkspaceAISettingsStore had its own threading lock. Two server processes
+could both read the old settings/key document and each replace it, with the last
+writer silently dropping the other's workspace changes.
+
+**How it was found.** CHECK-mode blast-radius review followed the read-modify-
+replace lifecycle rather than treating atomic rename as concurrency control.
+
+**The fix.** Workspace settings/key writes now serialize their complete
+read-modify-replace windows through a small SQLite write lock, which is
+cross-process and standard-library only. Existing atomic replace remains for
+crash safety. Shared readers and public method signatures are unchanged.
+
+**Evidence status.** A regression uses two independent store instances and a
+forced overlapping pre-fix snapshot. Executable evidence is blocked by D-75;
+S-06.01.01 remains IN_REVIEW.
+
+
+### D-81 — Workspace usernames rejected ordinary characters · 2026-09-23
+
+**What went wrong.** The raw regex used double-escaped control sequences inside
+a negated character class. It therefore excluded literal characters such as
+`r`, `n`, `x` and `0` instead of only NUL, carriage return and newline.
+
+**How it was found.** CHECK-mode login-path review compared the actual compiled
+pattern with the error message and tried ordinary names that the existing
+`alice`/`bob` fixtures never exercised.
+
+**The fix.** The regex now contains the intended control-character escapes.
+Regression cases cover normal names containing the formerly banned characters
+and embedded newline/NUL refusal.
+
+**Evidence status.** Tests are committed; executable evidence is still blocked
+by D-75, so S-06.01.01 remains IN_REVIEW.
 
 
 Only where the one-line version is not enough.

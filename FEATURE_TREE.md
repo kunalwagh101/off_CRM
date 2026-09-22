@@ -398,7 +398,7 @@ evidence for why they matter, and not adding the same company twice.
 | P-4.3 | `dedupe.py` — same company, two names | 217 | 3 | ⚠️ |
 | P-4.4 | `scoring.py` | 60 | 2 | ◐ |
 | P-4.5 | `research.py` | 209 | — | ◐ |
-| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, shared host pacing, change-driven revisit | 454 + wiring | 6 focused | ◐ S-05.01.01 · IN_REVIEW |
+| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, shared host pacing, change-driven revisit | 454 + wiring | 7 focused | ◐ S-05.01.01 · IN_REVIEW |
 | P-4.7 | `extraction_packs.py` + `config/extraction_packs.json` — a new source is declared data, not a parser | implemented + parser wiring | `test_extraction_packs.py` | ◐ S-05.01.02 · IN_REVIEW |
 | P-4.8 | `competitor_teardown.py` + existing video recipes/assembler/review — rebuild structure, never source media | implemented + API wiring | `test_competitor_teardown.py` | ◐ S-05.01.03 · IN_REVIEW |
 
@@ -507,15 +507,21 @@ type, scroll — inside a locked box, and it writes down everything it does.
 | P-9.3 | `api/email_delivery.py` — 12 routes | 500 | 16 | ✅ |
 | P-9.4 | `api/schemas.py` + `config.py` | 300 | — | ◐ |
 | P-9.5 | 22 React screens | 15,876 | 1 suite + 7 video suites | ◐ |
-| P-9.6 | **Every endpoint authorises and validates** | — | — | ⬜ S-06.02.02 |
-| P-9.7 | **Keyboard and screen-reader usable** | — | — | ⬜ S-06.02.05 |
+| P-9.6 | **Every endpoint authorises and validates** | route-enumerating auth/validation contract | `test_api_boundary_contract.py` | ◐ S-06.02.02 · IN_REVIEW |
+| P-9.7 | **Keyboard and screen-reader usable** | shared focus/nav semantics + recursive TSX contract | `test_frontend_accessibility_contract.py` | ◐ S-06.02.05 · IN_REVIEW |
 
 Routes by area — `campaigns` 44, `ai` 39, `video-projects` 16, `sales` 14,
 `notion` 6, `trends` 5, `distribution` 5, and 39 others across smaller groups.
 
 **`P-9.1` is a structural problem, not a style complaint.** 178 routes in one
 module means no route group can be tested, deployed, rate-limited or authorised
-independently, and `S-06.02.02` cannot be honestly closed until it is split.
+independently, and `S-06.02.02` now protects and enumerates the full registered API surface without requiring a structural split first. The large-module refactor remains a maintainability concern, not an authorization precondition.
+
+
+**Adjacent local capture slice:** `S-07.01.03` is now ◐ IN_REVIEW:
+browser mic + shared system/tab audio are mixed locally, raw audio remains
+transient, and only transcript/timing/provenance is persisted through the
+declared transcription provider. Evidence: `tests/test_meeting_transcription.py`.
 
 ---
 

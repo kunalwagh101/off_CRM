@@ -46,12 +46,13 @@ Run the focused acceptance slice:
 uv run pytest tests/test_crawler_frontier.py -q
 ```
 
-The six cases prove: robots.txt + crawl-delay enforcement, month-stable pages
+The seven cases prove: robots.txt + crawl-delay enforcement, month-stable pages
 back off further than a page changed yesterday, crawl budget survives process
-restart, a lease prevents two workers claiming one URL, two crawler processes
-cannot start different URLs on the same host inside one crawl-delay window, and
-LinkedIn/Instagram cannot enter the frontier even if an operator mistakenly
-allow-lists them.
+restart, a lease prevents two workers claiming one URL, a persisted URL that
+the current policy now rejects cannot starve valid due work behind it, two
+crawler processes cannot start different URLs on the same host inside one
+crawl-delay window, and LinkedIn/Instagram cannot enter the frontier even if an
+operator mistakenly allow-lists them.
 
 The durable frontier is created on the first real discovery run at:
 
@@ -543,9 +544,10 @@ cat config/extraction_packs.json
 ```
 
 A source is added by a JSON row containing domains, one record selector and
-bounded text/attribute field selectors. There is no Python/plugin/template/AI
-hook in the pack format. An unmatched source still follows the existing
-JSON-LD parser.
+bounded text/attribute field selectors. Registry loading also parse-checks every
+CSS selector with Scrapling itself; malformed selectors fail before a page is
+processed. There is no Python/plugin/template/AI hook in the pack format. An
+unmatched source still follows the existing JSON-LD parser.
 
 ## S-05.01.03 — competitor structure, not competitor content
 
@@ -555,9 +557,10 @@ uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tes
 
 The focused cases prove that the same public facts map to the same existing
 recipe, copied caption/transcript/audio/frame/media fields are rejected,
-session-gated sources are refused, missing evidence is not guessed, and a
-derived project uses our campaign material and enters the existing human review
-queue with origin `competitor_teardown`.
+non-finite numeric evidence is refused, a missing declared recipe fails cleanly, session-gated sources are refused,
+missing evidence is not guessed, and a derived project uses our campaign
+material and enters the existing human review queue with origin
+`competitor_teardown`.
 
 ## S-06.02.04 — subject access and deletion
 
@@ -566,8 +569,9 @@ uv run pytest tests/test_privacy.py tests/test_api_auth.py -q
 ```
 
 The suite exercises cross-subject isolation, authenticated API access, exact
-destructive confirmation, retry after one store fails, deletion of crawler and
-trace copies, AI context/egress and redacted-mail recall, registered generated
+destructive confirmation, retry after one store fails, **revalidation of stores
+that succeeded on an earlier partial attempt**, deletion of crawler and trace
+copies, AI context/egress and redacted-mail recall, registered generated
 artifacts, residual CRM metadata, and row-level cleanup of application-owned
 CSV queues/exports.
 
@@ -616,10 +620,12 @@ Reddit-specific branch in identity, budget or policy code.
 uv run pytest tests/test_agent_plan.py tests/test_agent_run.py tests/test_agent_resume.py -q
 ```
 
-The focused case edits the live run's PLAN.md after decision one. Decision two
-must receive the edited text. Deleting PLAN.md mid-run must stop before another
-model call. Every decision also stores the exact plan version it saw as its
-private trace capture.
+The focused cases edit the live run's PLAN.md after decision one and require
+decision two to receive the edit. Deleting PLAN.md mid-run stops before another
+model call, and deleting a **managed** PLAN.md before restart/resume refuses
+instead of regenerating the original boilerplate. Existing legacy PLAN.md files
+are adopted without overwriting owner text. Every decision also stores the exact
+plan version it saw as its private trace capture.
 
 ## S-04.01.01 — persisted companions stay inside their grants
 
@@ -628,9 +634,103 @@ uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q
 ```
 
 The suite proves persistence, workspace isolation, unique memory scopes,
-approved-memory-only recall, immediate removal of disabled tools, execution-time
-denial of an ungranted tool, authenticated companion API behaviour, companion
-profile privacy deletion and backup/restore reopening of the tool/companion DB.
+approved-memory-only recall, **exact-scope isolation against the real CRM memory
+backend (global memory must not leak into a companion)**, immediate removal of
+disabled tools, execution-time denial of an ungranted tool, authenticated
+companion API behaviour, companion profile privacy deletion and backup/restore
+reopening of the tool/companion DB.
 
 No pass count is written here until the dedicated verification pass actually
 executes these commands.
+
+
+---
+
+## S-06.02.01 — generic credentials never reach a model
+
+```bash
+uv run pytest tests/test_ai_prompt_secret_scan.py tests/test_ai_egress_wall.py -q
+```
+
+The focused regressions include opaque `api_key`, `api_secret`,
+`client_secret` and `secret_key` assignments in model-visible system text,
+plus the same names as FULL-policy unrestricted fields. The provider constructor
+must not run.
+
+## S-06.01.01 — workspace writes and logins stay isolated
+
+```bash
+uv run pytest tests/test_workspace_isolation.py tests/test_api_auth.py tests/test_ai_api.py tests/test_browser_vault.py -q
+```
+
+The suite now includes two independent workspace-settings store instances forced
+through the old overlapping read/modify/write window. Both workspace provider
+settings and both encrypted keys must survive. It also proves ordinary usernames
+containing r/n/x/0 work while embedded newline/NUL are refused.
+
+## S-06.01.04 — unattended routines only notify from verified findings
+
+```bash
+uv run pytest tests/test_agent_routines.py tests/test_agent_run.py tests/test_agent_provenance.py -q
+```
+
+The acceptance cases prove an attended-only target is refused at declaration,
+event execution stays inside the authenticated workspace, duplicate event IDs do
+not run twice, empty/model-prose-only outcomes do not notify, and only the
+source-verified `notification` result becomes a persistent notification.
+
+No pass count is recorded until these commands actually execute.
+
+---
+
+## S-06.02.02 — every private API route refuses unauthenticated access
+
+```bash
+uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q
+```
+
+The contract enumerates FastAPI's registered routes. Private `/api/` methods
+must return 401 without credentials. The only public exceptions are the closed
+bootstrap/signed-callback list. Broken JSON and wrong body shapes must return
+4xx without stack traces or echoing a planted secret.
+
+## S-06.02.05 — keyboard and screen-reader contract
+
+```bash
+uv run pytest tests/test_frontend_accessibility_contract.py -q
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Owner pass to do later: start from the browser address bar, use only
+Tab/Shift+Tab/Enter/Space/Escape through navigation, modals, AI drawer, Sales
+moves and video controls; then repeat core screens with a screen reader. Focus
+must remain visible and no required action may need a mouse.
+
+## S-07.01.03 — local meeting capture with no bot
+
+Engineering checks:
+
+```bash
+uv run pytest tests/test_meeting_transcription.py tests/test_privacy.py -q
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Owner/live check:
+
+1. run off_CRM on localhost;
+2. connect an allowed transcription provider;
+3. open **Meetings** and choose the provider/model;
+4. click **Start local capture**;
+5. share a tab/screen **with audio** and permit the microphone;
+6. play remote/system speech and speak locally;
+7. stop the meeting and inspect the transcript;
+8. confirm there is no stored raw recording file and the meeting record names
+   the provider/model chosen before capture.
+
+A hosted/non-loopback backend or non-loopback browser Origin must refuse capture.
+A later chunk trying to change provider/model must also be refused before
+provider I/O.
+
+No pass count is recorded here until these commands actually execute.

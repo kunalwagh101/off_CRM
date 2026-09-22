@@ -1165,7 +1165,11 @@ function Inspector({
         <ul className="vasset-grid">
           {assets.map((asset) => (
             <li key={asset.id}>
-              <button disabled={busy} onClick={() => onPlace(asset.id)} title={asset.model_id}>
+              <button
+                disabled={busy}
+                onClick={() => onPlace(asset.id)}
+                aria-label={`Place image from ${asset.model_id || "approved generator"} on the timeline`}
+              >
                 <img src={api.url(`/image-assets/${asset.id}/file`)} alt="" loading="lazy" />
               </button>
             </li>
@@ -1418,7 +1422,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy || index === 0}
-                    title="Earlier in the stack"
+                    aria-label={`Move ${nameOf(entry)} earlier in the effect stack`}
                     onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index - 1 })}
                   >
                     ↑
@@ -1426,7 +1430,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy || index === stack.length - 1}
-                    title="Later in the stack"
+                    aria-label={`Move ${nameOf(entry)} later in the effect stack`}
                     onClick={() => onEdit("move_effect", { clip_id: clip.id, index, to: index + 1 })}
                   >
                     ↓
@@ -1434,7 +1438,7 @@ function EffectStack({
                   <button
                     type="button"
                     disabled={busy}
-                    title="Remove"
+                    aria-label={`Remove ${nameOf(entry)} effect`}
                     onClick={() => onEdit("remove_effect", { clip_id: clip.id, index })}
                   >
                     ×
@@ -1450,11 +1454,19 @@ function EffectStack({
                 max={1}
                 step={0.01}
                 defaultValue={entry.amount}
+                aria-label={`Strength for ${nameOf(entry)}`}
                 onMouseUp={(event) =>
                   onEdit("set_effect", {
                     clip_id: clip.id,
                     index,
                     amount: Number((event.target as HTMLInputElement).value)
+                  })
+                }
+                onBlur={(event) =>
+                  onEdit("set_effect", {
+                    clip_id: clip.id,
+                    index,
+                    amount: Number(event.target.value)
                   })
                 }
               />

@@ -71,6 +71,30 @@ def test_credential_shaped_field_surviving_full_payload_is_still_blocked():
     assert any(item.kind == "credential" for item in report.findings)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    ["api_key", "api_secret", "client_secret", "secret_key"],
+)
+def test_generic_secret_field_surviving_full_payload_is_still_blocked(field_name):
+    request = EgressRequest(
+        task_type="debug",
+        data_class=DataClass.PUBLIC,
+        unrestricted={field_name: "opaque-private-value"},
+    )
+    payload = build_payload(request, DataPolicy.FULL)
+    report = scan_model_input(
+        payload,
+        policy=DataPolicy.FULL,
+        allow_addresses=True,
+    )
+
+    assert not report.clean
+    assert any(
+        item.kind == "credential" and field_name in item.detail
+        for item in report.findings
+    )
+
+
 def test_secret_in_system_prompt_blocks_before_provider_instantiation(tmp_path, monkeypatch):
     broker = _broker(tmp_path)
     monkeypatch.setattr(
@@ -89,6 +113,41 @@ def test_secret_in_system_prompt_blocks_before_provider_instantiation(tmp_path, 
             request,
             _settings("mistral"),
             system_prompt="Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
+        )
+
+    assert any(item["kind"] == "credential" for item in excinfo.value.findings)
+    assert any("system_prompt" in item["location"] for item in excinfo.value.findings)
+
+
+@pytest.mark.parametrize(
+    "secret_text",
+    [
+        "api_key=my-private-opaque-value",
+        "client_secret=opaque-client-secret-value",
+        "secret_key=opaque-secret-key-value",
+        "api_secret=opaque-api-secret-value",
+    ],
+)
+def test_generic_secret_assignment_in_system_prompt_blocks_before_provider_instantiation(
+    tmp_path, monkeypatch, secret_text
+):
+    broker = _broker(tmp_path)
+    monkeypatch.setattr(
+        broker,
+        "_instantiate",
+        lambda candidate, **kwargs: pytest.fail("provider was instantiated"),
+    )
+    request = EgressRequest(
+        task_type="write_code",
+        data_class=DataClass.PUBLIC,
+        public_text="Return a safe one-line answer.",
+    )
+
+    with pytest.raises(EgressBlocked) as excinfo:
+        broker.call(
+            request,
+            _settings("mistral"),
+            system_prompt=f"Internal helper configuration: {secret_text}",
         )
 
     assert any(item["kind"] == "credential" for item in excinfo.value.findings)

@@ -37,6 +37,7 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
     ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
     ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    ("secret_assignment", re.compile(r"\b(?:api[_ -]?(?:key|secret)|client[_ -]?secret|secret[_ -]?key)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
 )
 
 #: Browser and OAuth credentials can be opaque and have no recognisable value
@@ -45,6 +46,10 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "authorization",
+        "api_key",
+        "api_secret",
+        "client_secret",
+        "secret_key",
         "cookie",
         "cookies",
         "credential",

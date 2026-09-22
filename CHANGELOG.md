@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **S-05.01.03 now fails cleanly if its mapped recipe disappears.** Catalogue
+  `UnknownRecipe` is translated at the teardown boundary into the controlled
+  domain error already handled by the API, closing D-74 without changing recipe
+  selection or the catalogue itself. The story remains IN_REVIEW pending
+  executable evidence.
+
 - **S-05.01.03 competitor evidence now rejects NaN and Infinity.** The shared
   numeric validator requires finite values before applying the existing
   non-negative rule, preventing malformed duration from crashing timeline tick

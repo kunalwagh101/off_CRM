@@ -34,6 +34,44 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-09-23 — CHECK review of S-06.02.01, S-06.01.01 and S-06.01.04
+
+The governing README was re-read first. Mode stayed CHECK, methodology Kanban,
+role captain/architect. These stories were already IN_REVIEW, so this pass
+audited production consumers and failure paths instead of creating new scope.
+
+- **S-06.02.01 / D-79:** the scanner covered vendor-specific credential shapes
+  but not generic assignments such as `api_key=opaque-value`. A bounded generic
+  assignment rule now blocks those values in every model-visible text channel
+  before provider instantiation.
+- **S-06.01.01 / D-80:** `WorkspaceAISettingsStore` used per-instance thread
+  locks around shared JSON/encrypted-key files. Concurrent processes could lose
+  another workspace's update. Complete write windows now serialize through a
+  standard-library SQLite write lock while the existing atomic replace remains.
+- **S-06.01.01 / D-81:** the username regex double-escaped NUL/CR/LF and rejected
+  normal characters such as r/n/x/0. The intended control-character regex and
+  regressions are committed.
+- **S-06.01.04:** cold review traced declaration → scheduler/event match →
+  workspace lease → AgentRun → verified `notification` record → persistence.
+  The two acceptance criteria remain enforced at production boundaries; no new
+  code change was justified.
+
+Work orders:
+- `docs/work-orders/S-06.02.01-generic-secret-scan.md`
+- `docs/work-orders/S-06.01.01-cross-process-settings.md`
+- `docs/work-orders/S-06.01.01-username-validation.md`
+
+The new workspace lock file contains no customer/settings/key data and requires
+no migration. Rollback can remove the lock file while the application is
+stopped; the existing JSON/encrypted-key formats are unchanged.
+
+Executable proof is still unavailable because S-06.02.18 / D-75 prevents
+GitHub-hosted jobs from reaching workflow step 1. None of these stories moves to
+DONE without focused tests, full regression and the board verifier.
+
+---
+
 ## 2026-09-23 — CHECK review of S-06.02.04, S-04.01.01 and S-02.02.02
 
 The three requested stories were already code-complete and IN_REVIEW, so CHECK

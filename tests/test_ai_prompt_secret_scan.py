@@ -95,6 +95,41 @@ def test_secret_in_system_prompt_blocks_before_provider_instantiation(tmp_path, 
     assert any("system_prompt" in item["location"] for item in excinfo.value.findings)
 
 
+@pytest.mark.parametrize(
+    "secret_text",
+    [
+        "api_key=my-private-opaque-value",
+        "client_secret=opaque-client-secret-value",
+        "secret_key=opaque-secret-key-value",
+        "api_secret=opaque-api-secret-value",
+    ],
+)
+def test_generic_secret_assignment_in_system_prompt_blocks_before_provider_instantiation(
+    tmp_path, monkeypatch, secret_text
+):
+    broker = _broker(tmp_path)
+    monkeypatch.setattr(
+        broker,
+        "_instantiate",
+        lambda candidate, **kwargs: pytest.fail("provider was instantiated"),
+    )
+    request = EgressRequest(
+        task_type="write_code",
+        data_class=DataClass.PUBLIC,
+        public_text="Return a safe one-line answer.",
+    )
+
+    with pytest.raises(EgressBlocked) as excinfo:
+        broker.call(
+            request,
+            _settings("mistral"),
+            system_prompt=f"Internal helper configuration: {secret_text}",
+        )
+
+    assert any(item["kind"] == "credential" for item in excinfo.value.findings)
+    assert any("system_prompt" in item["location"] for item in excinfo.value.findings)
+
+
 def test_secret_in_image_prompt_blocks_before_image_provider_instantiation(tmp_path, monkeypatch):
     broker = _broker(tmp_path)
     monkeypatch.setattr(

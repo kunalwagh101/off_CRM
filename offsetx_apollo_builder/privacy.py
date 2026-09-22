@@ -1762,8 +1762,35 @@ class PrivacyService:
         failures: list[str] = []
         for store_name in request["store_names"]:
             previous = prior.get(store_name)
-            if previous and previous["status"] == "success":
+            adapter = adapter_by_name.get(store_name)
+            if adapter is None:
+                self.requests.set_result(
+                    request_id,
+                    store_name,
+                    status="failed",
+                    error="registered privacy store is unavailable",
+                )
+                failures.append(store_name)
                 continue
+
+            if previous and previous["status"] == "success":
+                # A partial request can be retried much later. Personal data may
+                # have been written again in a store that succeeded previously,
+                # so a historical success is reusable only after the same
+                # inventory contract proves that store is still clean now.
+                try:
+                    remaining = adapter.find(subject)
+                except Exception as exc:
+                    self.requests.set_result(
+                        request_id,
+                        store_name,
+                        status="failed",
+                        error=_scrub_subject(exc, subject),
+                    )
+                    failures.append(store_name)
+                    continue
+                if not remaining:
+                    continue
 
             # CRM deletion is the irreversible identity anchor. If an auxiliary
             # store failed, keep those CRM ids intact so the exact same preview
@@ -1777,16 +1804,6 @@ class PrivacyService:
                 )
                 continue
 
-            adapter = adapter_by_name.get(store_name)
-            if adapter is None:
-                self.requests.set_result(
-                    request_id,
-                    store_name,
-                    status="failed",
-                    error="registered privacy store is unavailable",
-                )
-                failures.append(store_name)
-                continue
             try:
                 counts = adapter.delete(subject)
             except Exception as exc:  # one failed store must not create false global success

@@ -107,6 +107,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-72 | 2026-09-23 | bug | high | Extraction-pack CSS selectors were length-checked but never syntax-checked, so malformed config could load and fail only when a page was parsed | code fixed · `S-05.01.02`; executable evidence pending |
 | D-73 | 2026-09-23 | bug | high | Competitor numeric evidence accepted NaN/Infinity, allowing later timeline crashes or non-finite performance records | code fixed · `S-05.01.03`; executable evidence pending |
 | D-74 | 2026-09-23 | bug | medium | A removed/renamed video recipe leaked UnknownRecipe out of competitor teardown, turning catalogue drift into an API 500 | code fixed · `S-05.01.03`; executable evidence pending |
+| D-75 | 2026-09-23 | process | high | GitHub-hosted CI repeatedly creates the quality job but fails before runner allocation with zero steps/no logs, blocking every repository evidence gate | open · `S-06.02.18` |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -191,6 +192,29 @@ still surface normally.
 **Evidence status.** A monkeypatched catalogue-drift regression is committed.
 Executable repository evidence remains unavailable because Actions fails before
 workflow step 1.
+
+
+### D-75 — GitHub-hosted CI never reaches step 1 · 2026-09-23
+
+**What went wrong.** Push and pull-request runs create the `quality` job, but
+GitHub completes it as failure before assigning a runner. The Jobs API returns
+no workflow steps and no logs, so checkout, dependency installation, tests and
+the verifier never execute.
+
+**How it was found.** Repeated evidence attempts on the current branch,
+including run 1205 / 35779093017. A manual re-run created job 106939339831 and
+failed identically. The workflow itself still targets ordinary
+`ubuntu-latest` and begins with `actions/checkout@v4`; there is no repository
+step before the failure.
+
+**Why it matters.** The repository Definition of Done requires real locked test
+output from the current session. While runner allocation is unavailable, every
+code-complete story must remain IN_REVIEW.
+
+**Status.** Open under S-06.02.18. The remaining diagnosis is outside
+application code: account Actions billing/budgets/payment state, repository
+Actions policy, or GitHub-hosted runner provisioning/service state. Tests and
+DONE rules will not be weakened to work around it.
 
 ---
 

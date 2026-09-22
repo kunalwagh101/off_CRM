@@ -2161,9 +2161,14 @@ written from memory were wrong:
       in an allow-list.
 - [x] Existing SafePublicFetcher/Crawl4AI robots, crawl-delay, SSRF, redirect and
       size controls are reused rather than copied.
-- [x] Five focused tests cover robots + crawl delay, adaptive revisit cadence,
-      restart/budget persistence, concurrent claim exclusion and the social
-      boundary.
+- [x] Seven focused tests cover robots + crawl delay, adaptive revisit cadence,
+      restart/budget persistence, concurrent claim exclusion, stale-policy
+      revalidation without queue starvation, the social boundary and shared
+      cross-process host pacing.
+- [x] CHECK-mode cold review on 2026-09-23 found and fixed D-71:
+      a persisted URL rejected by the current policy could repeatedly consume
+      the claim limit and starve valid due work behind it. The regression test
+      is committed; no public interface or schema changed.
 - [ ] Locked repository test evidence is still missing. GitHub Actions runs 584
       and 590 failed before creating a workflow step and expose no job log.
       Under the Definition of Done this is IN_REVIEW, not DONE.

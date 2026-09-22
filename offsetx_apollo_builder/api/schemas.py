@@ -805,7 +805,10 @@ class AIRecallForgetBody(StrictModel):
 class PrivacySubjectFields(StrictModel):
     emails: list[str] = Field(default_factory=list, max_length=100)
     urls: list[str] = Field(default_factory=list, max_length=100)
-    stable_ids: list[str] = Field(default_factory=list, max_length=100)
+    contact_ids: list[str] = Field(default_factory=list, max_length=100)
+    candidate_ids: list[str] = Field(default_factory=list, max_length=100)
+    entity_ids: list[str] = Field(default_factory=list, max_length=100)
+    sales_lead_ids: list[str] = Field(default_factory=list, max_length=100)
     workspace_id: str = Field(default="", max_length=120)
 
 class PrivacySubjectBody(StrictModel):

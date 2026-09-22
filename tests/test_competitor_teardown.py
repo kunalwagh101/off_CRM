@@ -47,6 +47,19 @@ def test_source_copy_or_media_fields_are_refused(field):
         analyse_public_post(payload)
 
 
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("duration_seconds", "nan"),
+        ("views", "inf"),
+    ],
+)
+def test_non_finite_numeric_evidence_is_refused(field, value):
+    with pytest.raises(CompetitorTeardownError, match="finite number"):
+        analyse_public_post(facts(**{field: value}))
+
+
 def test_session_gated_source_is_refused():
     with pytest.raises(CompetitorTeardownError, match="Automated crawling is disabled"):
         analyse_public_post(

@@ -98,7 +98,7 @@ def _route_path(path: str) -> str:
 
 
 def test_every_protected_api_route_refuses_before_validation_without_auth(tmp_path):
-    from offsetx_apollo_builder.api.app import PUBLIC_API_PATHS, PUBLIC_API_PREFIXES
+    from offsetx_apollo_builder.api.app import is_public_api_path
 
     with TestClient(create_app(_demo_settings(tmp_path)), base_url="https://crm.test") as client:
         failures = []
@@ -111,9 +111,7 @@ def test_every_protected_api_route_refuses_before_validation_without_auth(tmp_pa
             )
             if not path.startswith("/api/"):
                 continue
-            public = path in PUBLIC_API_PATHS or any(
-                path.startswith(prefix) for prefix in PUBLIC_API_PREFIXES
-            )
+            public = is_public_api_path(_route_path(path))
             if public:
                 continue
             for method in methods:
@@ -174,3 +172,34 @@ def test_malformed_bodies_are_bounded_4xx_without_echo_or_stacktrace(
         assert "traceback" not in body
         assert "stack trace" not in body
         assert "secret-should-not-echo" not in body
+
+
+
+def test_parameterised_public_allowlist_does_not_leak_to_nested_routes():
+    from offsetx_apollo_builder.api.app import is_public_api_path
+
+    assert is_public_api_path("/api/v1/email/unsubscribe/signed-token")
+    assert not is_public_api_path("/api/v1/email/unsubscribe/")
+    assert not is_public_api_path("/api/v1/email/unsubscribe/token/admin")
+    assert is_public_api_path("/api/v1/email-delivery/events/ses/sns")
+    assert not is_public_api_path("/api/v1/email-delivery/events/ses/sns/debug")
+
+
+def test_generic_value_error_never_reflects_sensitive_input(tmp_path):
+    settings = _demo_settings(tmp_path)
+    settings.api_token = "a" * 40
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        # This route performs domain validation after Pydantic has accepted the
+        # body. The rejected address must not be reflected by the catch-all
+        # ValueError handler.
+        response = client.post(
+            "/api/v1/email-delivery/suppressions",
+            headers={"X-Offsetx-Token": settings.api_token},
+            json={
+                "email": "SECRET-SHOULD-NOT-ECHO",
+                "reason": "operator",
+            },
+        )
+        assert response.status_code == 422
+        assert "secret-should-not-echo" not in response.text.lower()
+        assert "traceback" not in response.text.lower()

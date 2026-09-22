@@ -79,9 +79,10 @@ class WorkspaceAISettingsStore:
                 connection.execute("PRAGMA busy_timeout=30000")
                 connection.execute("BEGIN IMMEDIATE")
                 yield
-                connection.execute("COMMIT")
+                connection.commit()
             except Exception:
-                connection.execute("ROLLBACK")
+                if connection.in_transaction:
+                    connection.rollback()
                 raise
             finally:
                 connection.close()

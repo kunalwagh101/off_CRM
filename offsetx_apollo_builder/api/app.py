@@ -160,6 +160,59 @@ from .schemas import (
     NotionSettingsUpdate,
     WorkspaceCreate,
     WorkspaceUpdate,
+    AIChatCreateBody,
+    AIChatMessageBody,
+    AIChatMoveBody,
+    AIChatRenameBody,
+    AIImageBody,
+    AIMailboxUnlockBody,
+    AIPlanBody,
+    AIProjectCreateBody,
+    AIProviderConnectBody,
+    AIProviderOverrideBody,
+    AIRecallForgetBody,
+    AIRecallPreviewBody,
+    AIRecallSearchBody,
+    AIRunBody,
+    AITaskDecisionBody,
+    AITaskStartBody,
+    AITaskStepBody,
+    AITemplateApproveBody,
+    AITemplateRegisterBody,
+    AITemplateRewriteBody,
+    AIWorkspaceUpdateBody,
+    CompanionContextBody,
+    CompanionCreateBody,
+    CompanionMemoryBody,
+    CompanionUpdateBody,
+    CompetitorTeardownBody,
+    ContentAutomationBody,
+    DistributionAccountCreateBody,
+    DistributionAccountUpdateBody,
+    DistributionGoalBody,
+    DistributionMetricsBody,
+    DistributionPostBody,
+    DistributionScheduleBody,
+    ImageBriefCreateBody,
+    ImageDecisionBody,
+    ImageGenerateBody,
+    PacingDecisionBody,
+    PipelineDraftBody,
+    PipelinePlanBody,
+    PrivacyDeletionBody,
+    PrivacySubjectBody,
+    TrendSweepBody,
+    TrendWatchBody,
+    VideoAssembleBody,
+    VideoCaptionsBody,
+    VideoDecisionBody,
+    VideoDirectBody,
+    VideoEditBody,
+    VideoPlaceAssetBody,
+    VideoPlaceMediaBody,
+    VideoProjectCreateBody,
+    VideoQueueBody,
+    VideoTranscribeBody,
 )
 
 
@@ -1073,7 +1126,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/companions", status_code=201)
-    def create_companion(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def create_companion(body: CompanionCreateBody, request: Request) -> dict[str, Any]:
         try:
             profile = request.app.state.companions.create(
                 workspace_id=_workspace_id(request),
@@ -1097,7 +1150,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.patch(f"{API_PREFIX}/companions/{{companion_id}}")
     def update_companion(
-        companion_id: str, body: dict[str, Any], request: Request
+        companion_id: str, body: CompanionUpdateBody, request: Request
     ) -> dict[str, Any]:
         try:
             profile = request.app.state.companions.update(
@@ -1131,7 +1184,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/context")
     def companion_context(
-        companion_id: str, body: dict[str, Any], request: Request
+        companion_id: str, body: CompanionContextBody, request: Request
     ) -> dict[str, Any]:
         limit = body.get("memory_limit", 8)
         if isinstance(limit, bool) or not isinstance(limit, int):
@@ -1151,7 +1204,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/memory", status_code=201)
     def companion_memory(
-        companion_id: str, body: dict[str, Any], request: Request
+        companion_id: str, body: CompanionMemoryBody, request: Request
     ) -> dict[str, str]:
         approved = body.get("approved", False)
         if not isinstance(approved, bool):
@@ -1328,7 +1381,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return request.app.state.content_automation.status()
 
     @app.patch(f"{API_PREFIX}/content-automation")
-    def update_content_automation(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def update_content_automation(body: ContentAutomationBody, request: Request) -> dict[str, Any]:
         """Declare which campaign pairs run, and how often.
 
         Deliberately not a typed model: ``pipelines`` is a list of pairs the
@@ -1336,7 +1389,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         entries itself. One place decides what a legal pipeline is, rather than
         that rule living in a schema and again in the service.
         """
-        return request.app.state.content_automation.update(body or {})
+        return request.app.state.content_automation.update(
+            body.model_dump(exclude_unset=True)
+        )
 
     @app.post(f"{API_PREFIX}/content-automation/run")
     def run_content_automation(request: Request) -> dict[str, Any]:
@@ -1471,7 +1526,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-briefs", status_code=201)
-    def add_image_brief(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def add_image_brief(campaign_id: str, body: ImageBriefCreateBody, request: Request) -> dict[str, Any]:
         engine = _imagery(request)
         brief_id = engine.add_brief(
             campaign_id,
@@ -1489,7 +1544,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"items": engine.store.list_briefs(campaign_id)}
 
     @app.post(f"{API_PREFIX}/image-briefs/{{brief_id}}/generate")
-    def generate_images(brief_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def generate_images(brief_id: str, body: ImageGenerateBody, request: Request) -> dict[str, Any]:
         engine = _imagery(request)
         return engine.generate(
             brief_id,
@@ -1533,7 +1588,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return FileResponse(path, media_type=str(asset.get("media_type") or "image/png"))
 
     @app.post(f"{API_PREFIX}/image-assets/{{asset_id}}/decide")
-    def decide_image(asset_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def decide_image(asset_id: str, body: ImageDecisionBody, request: Request) -> dict[str, Any]:
         """Swipe right, swipe left, or refresh.
 
         One endpoint for all three because they are one decision with three
@@ -1649,7 +1704,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects", status_code=201)
-    def create_video_project(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def create_video_project(campaign_id: str, body: VideoProjectCreateBody, request: Request) -> dict[str, Any]:
         return _video(request).create_project(
             campaign_id,
             name=str(body.get("name") or "Untitled"),
@@ -1661,7 +1716,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects/assemble", status_code=201)
     def assemble_video_project(
-        campaign_id: str, body: dict[str, Any], request: Request
+        campaign_id: str, body: VideoAssembleBody, request: Request
     ) -> dict[str, Any]:
         """A recipe and a length in, a finished timeline out.
 
@@ -1692,7 +1747,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/video-projects/direct", status_code=201)
     def direct_video_project(
-        campaign_id: str, body: dict[str, Any], request: Request
+        campaign_id: str, body: VideoDirectBody, request: Request
     ) -> dict[str, Any]:
         """A topic in, a finished project out. The whole loop in one call.
 
@@ -1734,7 +1789,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         status_code=201,
     )
     def competitor_teardown_video_project(
-        campaign_id: str, body: dict[str, Any], request: Request
+        campaign_id: str, body: CompetitorTeardownBody, request: Request
     ) -> dict[str, Any]:
         """Public structural facts -> declared recipe -> our material -> review queue."""
         try:
@@ -1802,7 +1857,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"status": "deleted"}
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/edit")
-    def edit_video_project(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def edit_video_project(project_id: str, body: VideoEditBody, request: Request) -> dict[str, Any]:
         """One edit, or several stored as one step of undo.
 
         A drag produces a stream of moves and undo should return to where the
@@ -1857,7 +1912,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _video(request).frame(project_id, tick)
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/place-asset")
-    def place_video_asset(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def place_video_asset(project_id: str, body: VideoPlaceAssetBody, request: Request) -> dict[str, Any]:
         """Put a generated picture on the timeline."""
         return _video(request).place_asset(
             project_id,
@@ -1902,7 +1957,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/queue", status_code=201)
     def queue_video_for_review(
-        project_id: str, body: dict[str, Any], request: Request
+        project_id: str, body: VideoQueueBody, request: Request
     ) -> dict[str, Any]:
         """Send a hand-built project to the queue.
 
@@ -1915,7 +1970,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {key: value for key, value in review.items() if key != "baseline"}
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/decide")
-    def decide_video(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def decide_video(project_id: str, body: VideoDecisionBody, request: Request) -> dict[str, Any]:
         """Push or ignore.
 
         One endpoint for both because they are one decision with two outcomes,
@@ -1995,7 +2050,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return FileResponse(path, media_type=str(media.get("media_type") or "video/webm"))
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/place-media")
-    def place_video_media(project_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def place_video_media(project_id: str, body: VideoPlaceMediaBody, request: Request) -> dict[str, Any]:
         return _video(request).place_media(
             project_id,
             media_id=str(body.get("media_id") or ""),
@@ -2006,7 +2061,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/video-media/{{media_id}}/transcribe")
     def transcribe_video_media(
-        media_id: str, body: dict[str, Any], request: Request
+        media_id: str, body: VideoTranscribeBody, request: Request
     ) -> dict[str, Any]:
         """Words and timings for one file, reusing what is already stored."""
         try:
@@ -2020,7 +2075,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/video-projects/{{project_id}}/captions")
     def add_video_captions(
-        project_id: str, body: dict[str, Any], request: Request
+        project_id: str, body: VideoCaptionsBody, request: Request
     ) -> dict[str, Any]:
         """Caption one clip.
 
@@ -2208,7 +2263,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/pipeline/plan")
-    def pipeline_plan(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def pipeline_plan(campaign_id: str, body: PipelinePlanBody, request: Request) -> dict[str, Any]:
         """Topic to candidates, stopping at the review queue.
 
         It stops there on purpose: the next step is a person looking at the
@@ -2227,7 +2282,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ).to_dict()
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/pipeline/draft")
-    def pipeline_draft(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def pipeline_draft(campaign_id: str, body: PipelineDraftBody, request: Request) -> dict[str, Any]:
         """Kept pictures to draft posts, stopping before approval.
 
         A draft still needs the approval the distribution runner has always
@@ -2272,7 +2327,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             watcher.close()
 
     @app.post(f"{API_PREFIX}/trends/channels", status_code=201)
-    def watch_channel(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def watch_channel(body: TrendWatchBody, request: Request) -> dict[str, Any]:
         watcher = _trends(request)
         try:
             return watcher.watch(str(body.get("handle", "")))
@@ -2284,7 +2339,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             watcher.close()
 
     @app.post(f"{API_PREFIX}/trends/sweep")
-    def sweep_trends(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def sweep_trends(body: TrendSweepBody, request: Request) -> dict[str, Any]:
         """Read recent uploads for every watched channel.
 
         Uploads playlists, never search — see distribution/youtube.py for the
@@ -2318,7 +2373,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"items": _distribution(request).accounts()}
 
     @app.post(f"{API_PREFIX}/distribution/accounts", status_code=201)
-    def connect_distribution_account(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def connect_distribution_account(body: DistributionAccountCreateBody, request: Request) -> dict[str, Any]:
         return _distribution(request).connect_account(
             platform=str(body.get("platform", "")),
             handle=str(body.get("handle", "")),
@@ -2328,7 +2383,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.patch(f"{API_PREFIX}/distribution/accounts/{{account_id}}")
     def set_distribution_account(
-        account_id: str, body: dict[str, Any], request: Request
+        account_id: str, body: DistributionAccountUpdateBody, request: Request
     ) -> dict[str, Any]:
         """The owner's own limit on one handle, in posts per day.
 
@@ -2375,7 +2430,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/content-automation/pace")
-    def decide_pacing(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def decide_pacing(body: PacingDecisionBody, request: Request) -> dict[str, Any]:
         """Take the machine's suggestion, or turn it down.
 
         Two words rather than a rate, because this endpoint is not "set the
@@ -2394,7 +2449,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/goals", status_code=201)
-    def set_distribution_goal(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def set_distribution_goal(campaign_id: str, body: DistributionGoalBody, request: Request) -> dict[str, Any]:
         return _distribution(request).set_goal(
             campaign_id,
             metric=str(body.get("metric", "views")),
@@ -2403,7 +2458,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/posts", status_code=201)
-    def plan_distribution_post(campaign_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def plan_distribution_post(campaign_id: str, body: DistributionPostBody, request: Request) -> dict[str, Any]:
         return _distribution(request).plan_post(
             campaign_id,
             account_id=str(body.get("account_id", "")),
@@ -2422,7 +2477,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _distribution(request).approve(post_id)
 
     @app.post(f"{API_PREFIX}/posts/{{post_id}}/schedule")
-    def schedule_distribution_post(post_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def schedule_distribution_post(post_id: str, body: DistributionScheduleBody, request: Request) -> dict[str, Any]:
         return _distribution(request).schedule(post_id, at=str(body.get("at", "")))
 
     @app.post(f"{API_PREFIX}/distribution/publish-due")
@@ -2430,7 +2485,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _distribution(request).publish_due().to_dict()
 
     @app.post(f"{API_PREFIX}/posts/{{post_id}}/metrics")
-    def record_post_metrics(post_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def record_post_metrics(post_id: str, body: DistributionMetricsBody, request: Request) -> dict[str, Any]:
         return _distribution(request).record_metrics(
             post_id,
             views=int(body.get("views") or 0),
@@ -2660,7 +2715,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"items": _ai_chat(request).list_projects()}
 
     @app.post(f"{API_PREFIX}/ai/projects")
-    def ai_create_project(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_create_project(body: AIProjectCreateBody, request: Request) -> dict[str, Any]:
         return _ai_chat(request).create_project(str(body.get("name", "")))
 
     @app.delete(f"{API_PREFIX}/ai/projects/{{project_id}}")
@@ -2674,7 +2729,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"items": chats}
 
     @app.post(f"{API_PREFIX}/ai/chats")
-    def ai_create_chat(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_create_chat(body: AIChatCreateBody, request: Request) -> dict[str, Any]:
         return _ai_chat(request).create_chat(title=str(body.get("title", "New chat")), project_id=body.get("project_id"))
 
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}")
@@ -2683,7 +2738,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"deleted": chat_id}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/move")
-    def ai_move_chat(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_move_chat(chat_id: str, body: AIChatMoveBody, request: Request) -> dict[str, Any]:
         from fastapi import HTTPException
         result = _ai_chat(request).move_chat(chat_id, body.get("project_id"))
         if not result:
@@ -2691,7 +2746,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return result
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/rename")
-    def ai_rename_chat(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_rename_chat(chat_id: str, body: AIChatRenameBody, request: Request) -> dict[str, Any]:
         from fastapi import HTTPException
         result = _ai_chat(request).rename_chat(chat_id, str(body.get("title", "")))
         if not result:
@@ -2922,7 +2977,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"deleted": True}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
-    def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_send_message(chat_id: str, body: AIChatMessageBody, request: Request) -> dict[str, Any]:
         """Send a chat turn through the egress broker.
 
         ``data_class`` decides which providers may answer. ``public`` is for
@@ -3005,7 +3060,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/connect")
     def ai_connect_provider(
-        provider_id: str, body: dict[str, Any], request: Request
+        provider_id: str, body: AIProviderConnectBody, request: Request
     ) -> dict[str, Any]:
         _, workspaces, _ = _ai(request)
         try:
@@ -3054,7 +3109,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/override")
     def ai_override_provider(
-        provider_id: str, body: dict[str, Any], request: Request
+        provider_id: str, body: AIProviderOverrideBody, request: Request
     ) -> dict[str, Any]:
         """Raise or lower a provider's trust for this workspace, with a reason."""
         _, workspaces, _ = _ai(request)
@@ -3072,7 +3127,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise _ai_error(exc) from exc
 
     @app.post(f"{API_PREFIX}/ai/workspace")
-    def ai_update_workspace(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_update_workspace(body: AIWorkspaceUpdateBody, request: Request) -> dict[str, Any]:
         """Positioning line, owner domains and addresses.
 
         The positioning line is the only sender-side content permitted to leave.
@@ -3098,7 +3153,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return workspaces.describe(_workspace_id(request))
 
     @app.post(f"{API_PREFIX}/ai/workspace/mailbox-unlock")
-    def ai_mailbox_unlock(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_mailbox_unlock(body: AIMailboxUnlockBody, request: Request) -> dict[str, Any]:
         _, workspaces, _ = _ai(request)
         try:
             workspaces.unlock_mailbox(_workspace_id(request), str(body.get("phrase", "")))
@@ -3107,7 +3162,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return workspaces.describe(_workspace_id(request))
 
     @app.post(f"{API_PREFIX}/ai/plan")
-    def ai_plan(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_plan(body: AIPlanBody, request: Request) -> dict[str, Any]:
         """Dry run: which provider would take this task, and who was filtered out.
 
         Lets the Connectors screen answer 'what happens if I run this?' without
@@ -3188,7 +3243,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/ai/run")
-    def ai_run(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_run(body: AIRunBody, request: Request) -> dict[str, Any]:
         """Run one instruction in the chosen mode.
 
         simple       → one model
@@ -3297,7 +3352,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return result.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/image")
-    def ai_image(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_image(body: AIImageBody, request: Request) -> dict[str, Any]:
         """Draw a picture from a prompt.
 
         Same gate as everything else: the prompt is text, so if it names a real
@@ -3359,7 +3414,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/ai/context/templates")
-    def ai_register_template(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_register_template(body: AITemplateRegisterBody, request: Request) -> dict[str, Any]:
         template_id = str(body.get("template_id", "")).strip()
         if not template_id:
             raise HTTPException(
@@ -3377,7 +3432,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/ai/context/templates/{{template_id}}/rewrite")
     def ai_rewrite_template(
-        template_id: str, body: dict[str, Any], request: Request
+        template_id: str, body: AITemplateRewriteBody, request: Request
     ) -> dict[str, Any]:
         """Ask a model to improve a weak template.
 
@@ -3427,7 +3482,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/ai/context/templates/{{template_id}}/approve")
     def ai_approve_rewrite(
-        template_id: str, body: dict[str, Any], request: Request
+        template_id: str, body: AITemplateApproveBody, request: Request
     ) -> dict[str, Any]:
         """Save an approved rewrite as a new variant to test against the old one."""
         layer = _context(request)
@@ -3448,7 +3503,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return score.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/context/tasks")
-    def ai_start_task(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_start_task(body: AITaskStartBody, request: Request) -> dict[str, Any]:
         task = _context(request).start_task(
             workspace_id=_workspace_id(request),
             kind=str(body.get("kind", "campaign")),
@@ -3458,7 +3513,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return task.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/context/tasks/{{task_id}}/step")
-    def ai_finish_step(task_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_finish_step(task_id: str, body: AITaskStepBody, request: Request) -> dict[str, Any]:
         task = _context(request).finish_step(
             task_id,
             int(body.get("step_index", 0)),
@@ -3470,7 +3525,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return task.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/context/tasks/{{task_id}}/decision")
-    def ai_record_decision(task_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_record_decision(task_id: str, body: AITaskDecisionBody, request: Request) -> dict[str, Any]:
         text = str(body.get("decision", "")).strip()
         if not text:
             raise HTTPException(
@@ -3496,7 +3551,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/ai/recall/search")
-    def ai_recall_search(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_recall_search(body: AIRecallSearchBody, request: Request) -> dict[str, Any]:
         """Search past sent mail.
 
         Runs entirely on this machine — no provider is contacted and no key is
@@ -3524,7 +3579,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {**result, "stats": index.stats(_workspace_id(request))}
 
     @app.post(f"{API_PREFIX}/ai/recall/preview")
-    def ai_recall_preview(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_recall_preview(body: AIRecallPreviewBody, request: Request) -> dict[str, Any]:
         """Show exactly what a model would receive, before anything is sent.
 
         Built through the real payload builder and run through the real scanner,
@@ -3552,7 +3607,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }
 
     @app.post(f"{API_PREFIX}/ai/recall/forget")
-    def ai_recall_forget(body: dict[str, Any], request: Request) -> dict[str, Any]:
+    def ai_recall_forget(body: AIRecallForgetBody, request: Request) -> dict[str, Any]:
         """Remove indexed mail. Redaction is not an answer to a deletion request."""
         index = _recall(request)
         contact_id = str(body.get("campaign_contact_id", "")).strip()
@@ -3680,7 +3735,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/privacy/subject-access")
     def privacy_subject_access(
-        body: dict[str, Any], request: Request
+        body: PrivacySubjectBody, request: Request
     ) -> dict[str, Any]:
         """Inventory one verified subject across every registered personal-data store."""
         try:
@@ -3691,7 +3746,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/privacy/deletion-preview", status_code=201)
     def privacy_deletion_preview(
-        body: dict[str, Any], request: Request
+        body: PrivacySubjectBody, request: Request
     ) -> dict[str, Any]:
         """Create the exact inventory that a later confirmed deletion will execute."""
         try:
@@ -3703,7 +3758,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/privacy/deletions/{{request_id}}")
     def privacy_delete_subject(
         request_id: str,
-        body: dict[str, Any],
+        body: PrivacyDeletionBody,
         request: Request,
     ) -> dict[str, Any]:
         """Execute/retry one previewed deletion. Never invent confirmation."""

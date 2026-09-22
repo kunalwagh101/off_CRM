@@ -739,6 +739,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-100 | CI gives the verifier full history and evidence dependencies before it runs | S-06.02.15 |
 | R-101 | Frontend production dependencies stay audit-clean and development dependencies carry no unresolved high-severity finding | S-06.02.16 |
 | R-102 | A DONE story cannot depend on unfinished work | S-06.02.17 |
+| R-103 | Repository evidence workflows acquire a runner and execute | S-06.02.18 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |

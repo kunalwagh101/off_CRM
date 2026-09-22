@@ -312,3 +312,40 @@ Tracked as D-75 → S-06.02.18 and BLOCKED externally. The owner-side checks are
 Do not weaken tests, DONE evidence or repository privacy to work around this.
 Once runner capacity exists, close the evidence chain in order:
 S-05.01.01 → S-05.01.02 → S-05.01.03.
+
+
+### 2026-09-23 — next-three CHECK hardening: D-76 to D-78
+
+Governing prompt was re-read from `kunalwagh101/prompt/README.md`. Mode stayed
+CHECK; methodology Kanban; active role captain/architect. The requested stories
+were already IN_REVIEW, so work compared acceptance criteria against production
+consumers instead of restarting discovery.
+
+Order reviewed:
+1. S-06.02.04 — Data deletion and subject access.
+2. S-04.01.01 — Companions: persisted agent profiles.
+3. S-02.02.02 — PLAN.md as the single source of truth.
+
+Cold-review fixes:
+- **D-76 / S-06.02.04:** partial deletion retries now re-inventory historical
+  successes; newly reappeared data is deleted before completion can be issued.
+  Regression: `test_partial_retry_rechecks_previously_successful_stores_before_completion`.
+- **D-77 / S-04.01.01:** production `OutreachStore` was merging global memory
+  into scoped companion searches. `search_memory_items(include_global=True)`
+  preserves the old default, while companion runtime passes false. Regression
+  uses the real CRM store, not the simplified fake.
+- **D-78 / S-02.02.02:** a deleted managed PLAN.md could be regenerated on
+  resume. `.PLAN.managed` now distinguishes managed state from genuinely
+  legacy runs; managed plan loss refuses, existing legacy plans migrate without
+  rewrite. DD-32 records the design.
+
+Work orders:
+- `docs/work-orders/S-06.02.04-retry-revalidation.md`
+- `docs/work-orders/S-04.01.01-exact-memory-scope.md`
+- `docs/work-orders/S-02.02.02-plan-loss.md`
+
+Do **not** mark any of the three DONE yet. Focused tests, full regression and
+`uv run python scripts/verify_board.py` still need executable output.
+S-06.02.18 / D-75 remains the external blocker: hosted Actions jobs fail before
+runner allocation with zero steps/no logs. Once runner capacity is restored,
+verify these three in dependency-valid order and only then promote the board.

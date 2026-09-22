@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import math
 from typing import Any, Mapping
 
 from .discovery import validate_public_url
@@ -46,6 +47,8 @@ def _non_negative_number(value: Any, *, name: str) -> float:
         number = float(value or 0)
     except (TypeError, ValueError) as exc:
         raise CompetitorTeardownError(f"{name} must be a number") from exc
+    if not math.isfinite(number):
+        raise CompetitorTeardownError(f"{name} must be a finite number")
     if number < 0:
         raise CompetitorTeardownError(f"{name} cannot be negative")
     return number

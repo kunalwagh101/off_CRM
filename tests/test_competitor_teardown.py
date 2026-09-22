@@ -67,6 +67,18 @@ def test_session_gated_source_is_refused():
         )
 
 
+
+def test_missing_declared_recipe_is_a_controlled_teardown_failure(monkeypatch):
+    from offsetx_apollo_builder.video import recipes
+
+    def missing(_recipe_id: str):
+        raise recipes.UnknownRecipe("recipe catalogue drift")
+
+    monkeypatch.setattr(recipes, "recipe", missing)
+    with pytest.raises(CompetitorTeardownError, match="recipe catalogue drift"):
+        analyse_public_post(facts())
+
+
 def test_missing_structure_is_insufficient_evidence_not_a_guess():
     with pytest.raises(CompetitorTeardownError, match="insufficient structural evidence"):
         analyse_public_post(

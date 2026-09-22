@@ -557,7 +557,7 @@ uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tes
 
 The focused cases prove that the same public facts map to the same existing
 recipe, copied caption/transcript/audio/frame/media fields are rejected,
-non-finite numeric evidence is refused, session-gated sources are refused,
+non-finite numeric evidence is refused, a missing declared recipe fails cleanly, session-gated sources are refused,
 missing evidence is not guessed, and a derived project uses our campaign
 material and enters the existing human review queue with origin
 `competitor_teardown`.

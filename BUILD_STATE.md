@@ -100,6 +100,10 @@ The requested batch is implemented and all three stories are IN_REVIEW:
   declares domain, record selector and bounded text/attribute fields. It reuses
   Scrapling and the existing URL/robots/SSRF path; no executable plugin or AI
   extractor was introduced. Generic JSON-LD remains the fallback.
+  CHECK-mode cold review on 2026-09-23 found D-72: malformed CSS selectors
+  previously loaded successfully and could fail only during page parsing. The
+  registry now validates selectors with Scrapling itself before installation,
+  and pack selectors cannot supply text/attribute pseudo-elements.
 - **S-05.01.03 — competitor teardown.** Normalized public structural/performance
   facts map deterministically to an existing video recipe. Copied media/caption/
   transcript fields are rejected. Projects use our own material and enter the

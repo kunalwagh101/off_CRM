@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import Any, Callable, Iterator
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -60,7 +62,29 @@ class WorkspaceAISettingsStore:
         self.settings_path = self.data_dir / "ai_workspaces.json"
         self.secret_path = self.data_dir / "ai_provider_keys.enc"
         self.key_path = self.data_dir / ".ai_master.key"
+        self.write_lock_path = self.data_dir / ".ai_workspace_write_lock.sqlite3"
         self._lock = threading.RLock()
+
+    @contextmanager
+    def _exclusive_write(self) -> Iterator[None]:
+        """Serialize the complete read-modify-replace window across processes."""
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            connection = sqlite3.connect(
+                self.write_lock_path,
+                timeout=30,
+                isolation_level=None,
+            )
+            try:
+                connection.execute("PRAGMA busy_timeout=30000")
+                connection.execute("BEGIN IMMEDIATE")
+                yield
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+            finally:
+                connection.close()
 
     # ── encrypted keys ──────────────────────────────────────────────────────
 
@@ -108,7 +132,7 @@ class WorkspaceAISettingsStore:
         return f"{workspace_id}::{provider_id}"
 
     def set_key(self, workspace_id: str, provider_id: str, api_key: str) -> None:
-        with self._lock:
+        with self._exclusive_write():
             secrets = self._secrets()
             slot = self._secret_key(workspace_id, provider_id)
             if api_key.strip():
@@ -165,16 +189,26 @@ class WorkspaceAISettingsStore:
         with self._lock:
             return dict(self._document().get(workspace_id) or self._blank(workspace_id))
 
-    def save(self, workspace_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        with self._lock:
+    def _update_workspace(
+        self,
+        workspace_id: str,
+        mutate: Callable[[dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        with self._exclusive_write():
             document = self._document()
             current = dict(document.get(workspace_id) or self._blank(workspace_id))
-            current.update(values)
+            mutate(current)
             current["workspace_id"] = workspace_id
             current["updated_at"] = to_utc_iso()
             document[workspace_id] = current
             _atomic_json(self.settings_path, document)
-            return current
+            return dict(current)
+
+    def save(self, workspace_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        def apply(current: dict[str, Any]) -> None:
+            current.update(values)
+
+        return self._update_workspace(workspace_id, apply)
 
     # ── provider enable / configure ─────────────────────────────────────────
 
@@ -247,12 +281,15 @@ class WorkspaceAISettingsStore:
             "connected_at": to_utc_iso(),
         }
 
-        document = self.raw(workspace_id)
-        providers = dict(document.get("providers") or {})
-        existing = dict(providers.get(provider_id) or {})
-        existing.update(record)
-        providers[provider_id] = existing
-        saved = self.save(workspace_id, {"providers": providers})
+        def apply(current: dict[str, Any]) -> None:
+            providers = dict(current.get("providers") or {})
+            existing = dict(providers.get(provider_id) or {})
+            existing.update(record)
+            providers[provider_id] = existing
+            current["providers"] = providers
+
+        saved = self._update_workspace(workspace_id, apply)
+        existing = dict((saved.get("providers") or {}).get(provider_id) or {})
 
         if api_key:
             self.set_key(workspace_id, provider_id, api_key)
@@ -266,10 +303,12 @@ class WorkspaceAISettingsStore:
         }
 
     def disconnect_provider(self, workspace_id: str, provider_id: str) -> None:
-        document = self.raw(workspace_id)
-        providers = dict(document.get("providers") or {})
-        providers.pop(provider_id, None)
-        self.save(workspace_id, {"providers": providers})
+        def apply(current: dict[str, Any]) -> None:
+            providers = dict(current.get("providers") or {})
+            providers.pop(provider_id, None)
+            current["providers"] = providers
+
+        self._update_workspace(workspace_id, apply)
         self.set_key(workspace_id, provider_id, "")
 
     def set_override(
@@ -295,21 +334,23 @@ class WorkspaceAISettingsStore:
                 "Raising a provider above its trust ceiling needs a reason. "
                 "It is recorded so you can see later why the decision was made."
             )
-        document = self.raw(workspace_id)
-        overrides = dict(document.get("overrides") or {})
-        if not (trust_tier or data_policy or allow_above_ceiling):
-            overrides.pop(provider_id, None)
-        else:
-            overrides[provider_id] = ProviderOverride(
-                provider_id=provider_id,
-                trust_tier=coerce_tier(trust_tier) if trust_tier else None,
-                data_policy=coerce_policy(data_policy) if data_policy else None,
-                allow_above_ceiling=bool(allow_above_ceiling),
-                reason=reason.strip(),
-                decided_by=decided_by or workspace_id,
-                decided_at=to_utc_iso(),
-            ).to_dict()
-        return self.save(workspace_id, {"overrides": overrides})
+        def apply(current: dict[str, Any]) -> None:
+            overrides = dict(current.get("overrides") or {})
+            if not (trust_tier or data_policy or allow_above_ceiling):
+                overrides.pop(provider_id, None)
+            else:
+                overrides[provider_id] = ProviderOverride(
+                    provider_id=provider_id,
+                    trust_tier=coerce_tier(trust_tier) if trust_tier else None,
+                    data_policy=coerce_policy(data_policy) if data_policy else None,
+                    allow_above_ceiling=bool(allow_above_ceiling),
+                    reason=reason.strip(),
+                    decided_by=decided_by or workspace_id,
+                    decided_at=to_utc_iso(),
+                ).to_dict()
+            current["overrides"] = overrides
+
+        return self._update_workspace(workspace_id, apply)
 
     def unlock_mailbox(self, workspace_id: str, phrase: str) -> dict[str, Any]:
         cleaned = str(phrase or "").strip()

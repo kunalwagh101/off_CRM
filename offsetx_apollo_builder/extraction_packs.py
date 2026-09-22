@@ -83,7 +83,7 @@ def _validated_css_selector(value: Any, *, label: str) -> str:
         probe.css(f"{selector}::attr(data-validation)")
     except Exception as exc:
         raise ExtractionPackError(
-            f"{label} is an invalid CSS selector or does not select elements: "
+            f"{label} is an invalid CSS selector or must select elements: "
             f"{selector!r}"
         ) from exc
     return selector

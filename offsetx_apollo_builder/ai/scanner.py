@@ -46,6 +46,10 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "authorization",
+        "api_key",
+        "api_secret",
+        "client_secret",
+        "secret_key",
         "cookie",
         "cookies",
         "credential",

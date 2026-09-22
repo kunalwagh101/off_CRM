@@ -387,6 +387,7 @@ class CompanionRegistry:
                 str(memory_query or ""),
                 workspace_id=workspace_id,
                 scope=profile.memory_scope,
+                include_global=False,
                 approved_only=True,
                 limit=memory_limit,
                 offset=0,

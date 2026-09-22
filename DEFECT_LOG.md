@@ -103,6 +103,31 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-68 | 2026-09-22 | security | high | 54 JSON API handlers accepted raw dictionaries, so malformed or wrongly typed values could enter business logic before framework validation | fixed · S-06.02.02 strict request contracts plus registered-route validation audit |
 | D-69 | 2026-09-22 | accessibility | medium | Hash navigation changed the visible screen without moving keyboard/screen-reader focus, and one hover-only tooltip was not exposed on keyboard focus | fixed · S-06.02.05 shared main-focus management and focus-within tooltip path |
 | D-70 | 2026-09-22 | process | medium | S-06.02.02 appeared twice in BOARD.md IN_REVIEW after sequential state updates, making board counts untrustworthy | fixed during batch-4 close-out; duplicate removed before handoff |
+| D-71 | 2026-09-23 | bug | high | A persisted crawler URL rejected by the current policy could consume the claim limit forever and starve valid due URLs behind it | code fixed · `S-05.01.01`; executable evidence pending |
+
+
+### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
+
+**What went wrong.** `claim_due()` selected rows with SQL `LIMIT` and only
+then re-ran the current URL policy. If the first persisted row was now forbidden,
+the validator rejected it but left it due and unleased. With `limit=1`, every
+later claim selected the same forbidden row and returned no work even though a
+valid due URL was waiting behind it.
+
+**How it was found.** CHECK-mode cold review of S-05.01.01. An isolated RED
+reproduction selected the forbidden row, returned zero claims, and showed the
+valid row still due.
+
+**The fix.** Policy-rejected persisted rows are deleted inside the same
+`BEGIN IMMEDIATE` transaction and selection continues until the requested
+number of valid claims is filled or no due work remains. No schema or public
+interface changed.
+
+**Evidence status.** The isolated corrected scheduling case now claims the valid
+row and removes the forbidden one. The repository test
+`test_claim_due_removes_a_persisted_url_rejected_by_current_policy` is committed,
+but GitHub Actions still fails before workflow step 1, so S-05.01.01 remains
+IN_REVIEW.
 
 ---
 

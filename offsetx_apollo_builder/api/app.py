@@ -103,7 +103,7 @@ from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
-from .gtm import build_gtm_router
+from .gtm import build_gtm_router, resolve_angle
 from .schemas import (
     AutomationUpdate,
     BackupExport,
@@ -314,6 +314,25 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         return response
 
+    def _attach_products(engine: OutreachEngine, owner: FastAPI) -> OutreachEngine:
+        """Every engine's drafts read the product linked to their campaign.
+
+        `S-12.01.02`. Attached here rather than passed to `OutreachEngine`, which
+        stays free of anything product- or model-shaped. The store is looked up
+        when a draft is written, not now: the engine built at startup exists
+        before the product store does. `test_every_engine_is_built_with_products`
+        fails if an `OutreachEngine(...)` in this file is ever built without
+        this — such an engine would fill `{product_offer}` with a blank.
+        """
+
+        def reader(campaign_id: str) -> dict[str, Any] | None:
+            return owner.state.gtm_store.product_for_campaign(
+                campaign_id, _workspace_id(_TimerScope(owner))
+            )
+
+        engine.email_expert.product_reader = reader
+        return engine
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         resolved.prepare()
@@ -321,10 +340,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
-        app.state.engine = OutreachEngine(
-            resolved.database_path,
-            template_counter=app.state.ai_context,
-            mail_archive=app.state.ai_recall,
+        app.state.engine = _attach_products(
+            OutreachEngine(
+                resolved.database_path,
+                template_counter=app.state.ai_context,
+                mail_archive=app.state.ai_recall,
+            ),
+            app,
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         app.state.sales = SalesTracker(app.state.engine.store)
@@ -418,10 +440,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.automation = AutomationService(
             resolved.data_dir / "automation.json",
             # The unattended sender records too, or overnight runs go unlogged.
-            engine_factory=lambda: OutreachEngine(
-                resolved.database_path,
-                template_counter=app.state.ai_context,
-                mail_archive=app.state.ai_recall,
+            engine_factory=lambda: _attach_products(
+                OutreachEngine(
+                    resolved.database_path,
+                    template_counter=app.state.ai_context,
+                    mail_archive=app.state.ai_recall,
+                ),
+                app,
             ),
             mail_provider_factory=lambda mode, authorized: _mail_provider(
                 resolved,
@@ -440,6 +465,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
             distribution_factory=lambda: _distribution(_TimerScope(app)),
             pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
+            angle_resolver=lambda campaign_id, declared: resolve_angle(
+                app.state.gtm_store, _workspace_id(_TimerScope(app)), campaign_id, declared
+            ),
         )
         await app.state.automation.start()
         await app.state.content_automation.start()
@@ -544,7 +572,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     # A lambda so the workspace rule is looked up when a request arrives:
     # `_workspace_id` is defined further down this function, and whatever it
     # becomes, the GTM routes follow it.
-    app.include_router(build_gtm_router(workspace_of=lambda request: _workspace_id(request)))
+    app.include_router(
+        build_gtm_router(
+            workspace_of=lambda request: _workspace_id(request),
+            campaign_of=lambda request, campaign_id: _engine(request).store.get_campaign(
+                campaign_id
+            ),
+        )
+    )
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
@@ -1000,18 +1035,24 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 data_dir=settings.data_dir,
                 passphrase=passphrase,
             )
-            request.app.state.engine = OutreachEngine(
-                settings.database_path,
-                template_counter=request.app.state.ai_context,
-                mail_archive=request.app.state.ai_recall,
+            request.app.state.engine = _attach_products(
+                OutreachEngine(
+                    settings.database_path,
+                    template_counter=request.app.state.ai_context,
+                    mail_archive=request.app.state.ai_recall,
+                ),
+                request.app,
             )
             return result
         finally:
             if getattr(request.app.state, "engine", None) is current_engine:
-                request.app.state.engine = OutreachEngine(
-                    settings.database_path,
-                    template_counter=request.app.state.ai_context,
-                    mail_archive=request.app.state.ai_recall,
+                request.app.state.engine = _attach_products(
+                    OutreachEngine(
+                        settings.database_path,
+                        template_counter=request.app.state.ai_context,
+                        mail_archive=request.app.state.ai_recall,
+                    ),
+                    request.app,
                 )
             await automation.start()
             request.app.state.maintenance_lock.release()
@@ -1762,7 +1803,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         It stops there on purpose: the next step is a person looking at the
         pictures, and no version of this should skip it.
         """
-        angle = str(body.get("angle", ""))
+        # Resolved before `_pipeline` chooses its data class from it.  `S-12.01.02`
+        angle = resolve_angle(
+            request.app.state.gtm_store,
+            _workspace_id(request),
+            campaign_id,
+            str(body.get("angle", "")),
+        )
         pipeline = _pipeline(request, angle=angle)
         return pipeline.plan(
             distribution_campaign_id=campaign_id,
@@ -1781,7 +1828,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         A draft still needs the approval the distribution runner has always
         required before anything can be scheduled.
         """
-        angle = str(body.get("angle", ""))
+        # Resolved before `_pipeline` chooses its data class from it.  `S-12.01.02`
+        angle = resolve_angle(
+            request.app.state.gtm_store,
+            _workspace_id(request),
+            campaign_id,
+            str(body.get("angle", "")),
+        )
         pipeline = _pipeline(request, angle=angle)
         return pipeline.draft(
             distribution_campaign_id=campaign_id,

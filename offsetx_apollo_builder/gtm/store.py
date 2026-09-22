@@ -41,6 +41,19 @@ CREATE TABLE IF NOT EXISTS gtm_products (
 );
 CREATE INDEX IF NOT EXISTS idx_gtm_products_workspace
 ON gtm_products(workspace_id, created_at);
+
+-- One product per campaign: the campaign is the key. A campaign id is not a
+-- foreign key because campaigns live in a table this module does not own.
+CREATE TABLE IF NOT EXISTS gtm_campaign_links (
+    campaign_id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    plan_id TEXT NOT NULL DEFAULT '',
+    channel TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gtm_links_product
+ON gtm_campaign_links(product_id, workspace_id);
 """
 
 #: The text columns written before the JSON lists, in table order.
@@ -192,9 +205,73 @@ class GtmStore:
             )
 
     def delete_product(self, product_id: str, workspace_id: str) -> None:
+        """Delete the product and its links. Plans keep their own snapshot."""
         with self.connection.transaction() as db:
             self._read_product(db, product_id, workspace_id)
+            db.execute(
+                "DELETE FROM gtm_campaign_links WHERE product_id = ? AND workspace_id = ?",
+                (product_id, workspace_id),
+            )
             db.execute(
                 "DELETE FROM gtm_products WHERE id = ? AND workspace_id = ?",
                 (product_id, workspace_id),
             )
+
+    # ── campaign links (S-12.01.02) ─────────────────────────────────────────
+
+    def set_links(
+        self, product_id: str, workspace_id: str, campaign_ids: list[str]
+    ) -> list[str]:
+        """Make ``campaign_ids`` exactly the campaigns this product speaks for.
+
+        Replaces rather than adds, so the owner's checklist is the whole truth.
+        A campaign linked to another product moves here: one campaign tells one
+        story. The caller checks the campaigns exist — they are not this
+        module's rows to look up.
+        """
+        wanted = list(dict.fromkeys(str(item).strip() for item in campaign_ids if str(item).strip()))
+        now = _now()
+        with self.connection.transaction() as db:
+            self._read_product(db, product_id, workspace_id)
+            db.execute(
+                "DELETE FROM gtm_campaign_links WHERE product_id = ? AND workspace_id = ?",
+                (product_id, workspace_id),
+            )
+            for campaign_id in wanted:
+                owner = db.execute(
+                    "SELECT workspace_id FROM gtm_campaign_links WHERE campaign_id = ?",
+                    (campaign_id,),
+                ).fetchone()
+                if owner and dict(owner)["workspace_id"] != workspace_id:
+                    # Another workspace's campaign is "not found" here, the same
+                    # answer another workspace's product gets. The transaction
+                    # rolls back, so this product's old links survive.
+                    raise KeyError(f"Campaign not found: {campaign_id}")
+                db.execute(
+                    "DELETE FROM gtm_campaign_links WHERE campaign_id = ? AND workspace_id = ?",
+                    (campaign_id, workspace_id),
+                )
+                db.execute(
+                    "INSERT INTO gtm_campaign_links (campaign_id, product_id, workspace_id, "
+                    "created_at) VALUES (?, ?, ?, ?)",
+                    (campaign_id, product_id, workspace_id, now),
+                )
+        return self.linked_campaigns(product_id, workspace_id)
+
+    def linked_campaigns(self, product_id: str, workspace_id: str) -> list[str]:
+        rows = self.connection.execute(
+            "SELECT campaign_id FROM gtm_campaign_links WHERE product_id = ? "
+            "AND workspace_id = ? ORDER BY created_at, campaign_id",
+            (product_id, workspace_id),
+        ).fetchall()
+        return [str(dict(row)["campaign_id"]) for row in rows]
+
+    def product_for_campaign(self, campaign_id: str, workspace_id: str) -> dict[str, Any] | None:
+        """The product a campaign speaks for, or ``None``."""
+        row = self.connection.execute(
+            "SELECT p.* FROM gtm_campaign_links l JOIN gtm_products p "
+            "ON p.id = l.product_id AND p.workspace_id = l.workspace_id "
+            "WHERE l.campaign_id = ? AND l.workspace_id = ?",
+            (str(campaign_id or ""), workspace_id),
+        ).fetchone()
+        return self._product(row) if row else None

@@ -97,6 +97,17 @@ export const api = {
       })
     );
   },
+  /** Replace a whole resource, such as the set of campaigns a product speaks for. */
+  async put<T>(path: string, body: unknown): Promise<T> {
+    return parseResponse<T>(
+      await fetch(`${API_ROOT}${path}`, {
+        method: "PUT",
+        headers: headers({ "Content-Type": "application/json" }),
+        credentials: "include",
+        body: JSON.stringify(body)
+      })
+    );
+  },
   async upload<T>(path: string, form: FormData): Promise<T> {
     return parseResponse<T>(
       await fetch(`${API_ROOT}${path}`, { method: "POST", headers: headers(), credentials: "include", body: form })

@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
-import type { GtmProduct } from "../types";
+import type { GtmProduct, GtmProductLink } from "../types";
 import { Loadable } from "./shared";
 
 /** The editable shape of a product: lists are typed one item per line. */
@@ -59,6 +59,80 @@ function toBody(draft: Draft): Record<string, unknown> {
     body[field] = draft[field].split("\n").map((line) => line.trim()).filter(Boolean);
   }
   return body;
+}
+
+/** The campaigns a product speaks for, as a checklist.  S-12.01.02 */
+function LinkedCampaigns({ product }: { product: GtmProduct | null }) {
+  const { campaigns, notify } = useApp();
+  const links = useResource(
+    () => product
+      ? api.get<{ items: GtmProductLink[] }>(`/gtm/products/${product.id}/campaigns`)
+      : Promise.resolve({ items: [] as GtmProductLink[] }),
+    [product?.id]
+  );
+  const [chosen, setChosen] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const linked = links.data?.items ?? [];
+  const selected = chosen ?? linked.map((item) => item.campaign_id);
+  const missing = linked.filter((item) => !item.exists);
+
+  function toggle(id: string) {
+    setChosen(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
+  }
+
+  async function save() {
+    if (!product) return;
+    setBusy(true);
+    try {
+      const saved = await api.put<{ items: GtmProductLink[] }>(`/gtm/products/${product.id}/campaigns`, {
+        campaign_ids: selected
+      });
+      notify(`${saved.items.length} campaign(s) now speak for ${product.name}.`, "success");
+      setChosen(null);
+      links.reload();
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "The links could not be saved.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Campaigns that speak for this product"
+      subtitle="Their email templates can use {product_offer} and the other product fields, and their posts use the one-liner when no angle is typed. A campaign speaks for one product."
+    >
+      {!product ? (
+        <StatePanel title="Save the product first" description="Then choose the campaigns that speak for it." />
+      ) : campaigns.length === 0 ? (
+        <StatePanel title="No campaigns yet" description="Create one on the Campaigns screen, then link it here." />
+      ) : (
+        <>
+          <div className="settings-grid">
+            {campaigns.map((campaign) => (
+              <label key={campaign.id} className="check-line">
+                <input
+                  id={`gtm-link-${campaign.id}`}
+                  type="checkbox"
+                  checked={selected.includes(campaign.id)}
+                  onChange={() => toggle(campaign.id)}
+                />
+                <span>{campaign.name} <small className="muted-copy">{campaign.kind}</small></span>
+              </label>
+            ))}
+          </div>
+          {missing.length ? (
+            <p className="danger-note">
+              {missing.length} linked campaign(s) no longer exist. Save to drop them.
+            </p>
+          ) : null}
+          <div className="modal-actions">
+            <Button busy={busy} onClick={save}>Save links</Button>
+          </div>
+        </>
+      )}
+    </Panel>
+  );
 }
 
 export default function Product() {
@@ -194,7 +268,7 @@ export default function Product() {
             <Field label="What makes it different" hint="One per line, up to 6.">
               <textarea id="gtm-differentiators" aria-invalid={flag("differentiators")} value={draft.differentiators} rows={2} onChange={(e) => set("differentiators", e.target.value)} />
             </Field>
-            <Field label="Never claim" hint="One phrase per line. Anything the strategy brain writes is checked against these, and a plan that uses one has that line removed.">
+            <Field label="Never claim" hint="One phrase per line. An email draft that says one cannot be sent, and a plan that uses one has that line removed.">
               <textarea id="gtm-forbidden" aria-invalid={flag("forbidden_claims")} value={draft.forbidden_claims} rows={3} onChange={(e) => set("forbidden_claims", e.target.value)} />
             </Field>
             <Field label="Voice" hint="How it should sound.">
@@ -210,6 +284,8 @@ export default function Product() {
           </form>
         </Panel>
       </div>
+
+      <LinkedCampaigns product={selected} />
 
       <Modal
         open={confirmDelete && selected !== null}

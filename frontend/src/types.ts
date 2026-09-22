@@ -902,3 +902,11 @@ export type GtmProduct = {
   created_at: string;
   updated_at: string;
 };
+
+/** One campaign a product speaks for. `exists` is false once it is deleted. */
+export type GtmProductLink = {
+  campaign_id: string;
+  name: string;
+  kind: string;
+  exists: boolean;
+};

@@ -179,5 +179,8 @@ describe("the GTM engine", () => {
     }
     // The address rule is explained where the owner types, not three screens later.
     expect(html).toContain("may be sent to a model");
+    // Linking campaigns waits for a saved product rather than offering a dead button.
+    expect(html).toContain("Campaigns that speak for this product");
+    expect(html).toContain("Save the product first");
   });
 });

@@ -42,9 +42,9 @@ role captain/architect. These stories were already IN_REVIEW, so this pass
 audited production consumers and failure paths instead of creating new scope.
 
 - **S-06.02.01 / D-79:** the scanner covered vendor-specific credential shapes
-  but not generic assignments such as `api_key=opaque-value`. A bounded generic
-  assignment rule now blocks those values in every model-visible text channel
-  before provider instantiation.
+  but not generic assignments/field names such as `api_key=opaque-value` or
+  `client_secret`. A bounded assignment rule plus the structural secret-field
+  deny-list now block those values before provider instantiation.
 - **S-06.01.01 / D-80:** `WorkspaceAISettingsStore` used per-instance thread
   locks around shared JSON/encrypted-key files. Concurrent processes could lose
   another workspace's update. Complete write windows now serialize through a

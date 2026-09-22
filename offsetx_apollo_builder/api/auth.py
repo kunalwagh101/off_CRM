@@ -34,7 +34,7 @@ class SessionIdentity:
 
 
 _WORKSPACE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
-_USERNAME = re.compile(r"^[^\\x00\\r\\n]{1,100}$")
+_USERNAME = re.compile(r"^[^\x00\r\n]{1,100}$")
 _PASSWORD_MIN = 12
 _SCRYPT_N = 1 << 14
 _SCRYPT_R = 8

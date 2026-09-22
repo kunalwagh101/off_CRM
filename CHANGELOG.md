@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+
+- **CHECK-mode hardening closed D-76, D-77 and D-78 across the next-three
+  review batch.** S-06.02.04 now re-inventories a previously successful privacy
+  store before trusting its old receipt on retry, so newly written subject data
+  cannot survive behind stale success. S-04.01.01 now disables the CRM memory
+  store's implicit global-memory merge for companion runs, preserving exact
+  memory scope in production as well as tests. S-02.02.02 now marks directories
+  once PLAN management begins and refuses to regenerate a missing managed
+  PLAN.md, preserving owner steering across restart. Focused regressions are
+  committed; executable evidence remains blocked before CI step 1, so all three
+  stories remain IN_REVIEW.
+
 - **S-05.01.03 now fails cleanly if its mapped recipe disappears.** Catalogue
   `UnknownRecipe` is translated at the teardown boundary into the controlled
   domain error already handled by the API, closing D-74 without changing recipe

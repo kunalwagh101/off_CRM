@@ -117,6 +117,29 @@ def test_invalid_registry_fails_closed_as_one_unit(payload, message):
         ExtractionPackRegistry.from_data(payload)
 
 
+
+@pytest.mark.parametrize(
+    "pack, message",
+    [
+        (_people_pack(record_selector="div["), "invalid CSS selector"),
+        (
+            _people_pack(
+                fields={
+                    "full_name": {
+                        "selector": ".name[",
+                        "mode": "text",
+                    }
+                }
+            ),
+            "invalid CSS selector",
+        ),
+    ],
+)
+def test_malformed_css_selector_fails_when_registry_loads(pack, message):
+    with pytest.raises(ExtractionPackError, match=message):
+        _registry(pack)
+
+
 def test_an_unmatched_source_keeps_the_existing_jsonld_fallback():
     parser = ScraplingPageParser(pack_registry=_registry(_people_pack()))
     page = parser.parse(

@@ -557,9 +557,10 @@ uv run pytest tests/test_competitor_teardown.py tests/test_video_assembly.py tes
 
 The focused cases prove that the same public facts map to the same existing
 recipe, copied caption/transcript/audio/frame/media fields are rejected,
-session-gated sources are refused, missing evidence is not guessed, and a
-derived project uses our campaign material and enters the existing human review
-queue with origin `competitor_teardown`.
+non-finite numeric evidence is refused, session-gated sources are refused,
+missing evidence is not guessed, and a derived project uses our campaign
+material and enters the existing human review queue with origin
+`competitor_teardown`.
 
 ## S-06.02.04 — subject access and deletion
 

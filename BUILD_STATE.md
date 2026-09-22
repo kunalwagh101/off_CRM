@@ -2184,6 +2184,23 @@ written from memory were wrong:
       and 590 failed before creating a workflow step and expose no job log.
       Under the Definition of Done this is IN_REVIEW, not DONE.
 
+
+### CI evidence infrastructure — S-06.02.18 (2026-09-23, BLOCKED)
+
+- [x] Workflow source reviewed: the `quality` job targets standard
+      `ubuntu-latest`; step 1 is `actions/checkout@v4`.
+- [x] Current head re-run attempted. Run 1205 / 35779093017, attempt 2,
+      created job 106939339831 and failed before runner allocation.
+- [x] Jobs API evidence: `steps = null`, `logs_url = null`; no repository
+      command executed.
+- [x] Application/test changes are not a valid fix for a failure that occurs
+      before step 1.
+- [ ] Owner-side Actions billing/budget/payment and repository Actions policy
+      must be checked. If clean, GitHub Support must investigate hosted-runner
+      provisioning.
+- [ ] After runner capacity is restored, execute the locked closure chain:
+      S-05.01.01 → S-05.01.02 → S-05.01.03.
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

@@ -143,6 +143,35 @@ def test_frontier_lease_prevents_two_workers_claiming_the_same_url(tmp_path):
         second.close()
 
 
+
+def test_claim_due_removes_a_persisted_url_rejected_by_current_policy(tmp_path):
+    path = tmp_path / "frontier.sqlite3"
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    with CrawlFrontier(path, validator=lambda value: value) as frontier:
+        frontier.admit("https://blocked.example/a", 0, now=now)
+        frontier.admit("https://valid.example/b", 0, now=now)
+
+    def current_policy(value: str) -> str:
+        if "blocked.example" in value:
+            raise ValueError("blocked by current policy")
+        return value
+
+    with CrawlFrontier(path, validator=current_policy) as frontier:
+        claimed = frontier.claim_due(
+            allowed_domains=(),
+            max_depth=0,
+            limit=1,
+            now=now,
+        )
+        remaining = [entry.url for entry in frontier.snapshot()]
+
+    assert [entry.url for entry in claimed] == ["https://valid.example/b"]
+    assert claimed[0].lease_until
+    assert "https://blocked.example/a" not in remaining
+    assert "https://valid.example/b" in remaining
+
+
 def test_frontier_never_admits_session_gated_platforms(tmp_path):
     path = tmp_path / "frontier.sqlite3"
     seed = "https://example.com/"

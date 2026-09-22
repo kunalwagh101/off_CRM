@@ -48,11 +48,11 @@ Three READY stories were implemented sequentially and moved to IN_REVIEW:
   transcription provider/model per meeting, transcript-only persistence,
   privacy deletion and encrypted backup/restore.
 
-Meeting review found D-65 through D-67: chunk requests could have changed the
-declared provider/model; the new transcript DB initially was not registered with
-privacy/backup; and capture failure paths could leave screen sharing active or
-an unfinished meeting with no recovery UI. All three were corrected before
-review.
+Batch review found D-65 through D-70. Meeting hardening fixed provider/model
+redirection, privacy/backup registration and capture cleanup/recovery. API
+hardening replaced 54 raw JSON request bodies with strict contracts. Accessibility
+hardening fixed page-change focus and a hover-only tooltip. Close-out also found
+and removed a duplicated S-06.02.02 board row before handoff.
 
 Owner/manual verification is still required for the real local meeting capture
 and keyboard/screen-reader pass. No story in this section is DONE.

@@ -646,6 +646,42 @@ executes these commands.
 
 ---
 
+## S-06.02.01 — generic credentials never reach a model
+
+```bash
+uv run pytest tests/test_ai_prompt_secret_scan.py tests/test_ai_egress_wall.py -q
+```
+
+The focused regression includes opaque `api_key`, `api_secret`,
+`client_secret` and `secret_key` assignments in model-visible system text.
+The provider constructor must not run.
+
+## S-06.01.01 — workspace writes and logins stay isolated
+
+```bash
+uv run pytest tests/test_workspace_isolation.py tests/test_api_auth.py tests/test_ai_api.py tests/test_browser_vault.py -q
+```
+
+The suite now includes two independent workspace-settings store instances forced
+through the old overlapping read/modify/write window. Both workspace provider
+settings and both encrypted keys must survive. It also proves ordinary usernames
+containing r/n/x/0 work while embedded newline/NUL are refused.
+
+## S-06.01.04 — unattended routines only notify from verified findings
+
+```bash
+uv run pytest tests/test_agent_routines.py tests/test_agent_run.py tests/test_agent_provenance.py -q
+```
+
+The acceptance cases prove an attended-only target is refused at declaration,
+event execution stays inside the authenticated workspace, duplicate event IDs do
+not run twice, empty/model-prose-only outcomes do not notify, and only the
+source-verified `notification` result becomes a persistent notification.
+
+No pass count is recorded until these commands actually execute.
+
+---
+
 ## S-06.02.02 — every private API route refuses unauthenticated access
 
 ```bash

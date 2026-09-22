@@ -149,6 +149,56 @@ class StableAdapter:
         return {"fixture": 0}
 
 
+class ReappearingAdapter:
+    name = "reappearing"
+
+    def __init__(self):
+        self.rows = [{"id": "first"}]
+        self.calls = 0
+
+    def find(self, subject):
+        if not self.rows:
+            return []
+        return [PrivacyRecord(self.name, "fixture", "test", list(self.rows))]
+
+    def delete(self, subject):
+        self.calls += 1
+        deleted = len(self.rows)
+        self.rows.clear()
+        return {"fixture": deleted}
+
+
+def test_partial_retry_rechecks_previously_successful_stores_before_completion(tmp_path):
+    reappearing = ReappearingAdapter()
+    flaky = FlakyAdapter()
+    requests = PrivacyRequestStore(tmp_path / "privacy.db")
+    service = PrivacyService(adapters=(reappearing, flaky), requests=requests)
+    try:
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+
+        first = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+        assert first["complete"] is False
+        assert reappearing.calls == 1
+        assert reappearing.rows == []
+
+        # Personal data can be written again while another store is waiting for
+        # retry. A stale success receipt must not let this new row survive.
+        reappearing.rows.append({"id": "written-after-first-attempt"})
+
+        second = service.delete(
+            preview["request_id"], subject, confirmation=DELETE_CONFIRMATION
+        )
+
+        assert second["complete"] is True
+        assert reappearing.calls == 2
+        assert reappearing.rows == []
+    finally:
+        service.close()
+
+
 def test_failed_store_never_reports_global_success_and_retry_is_idempotent(tmp_path):
     flaky = FlakyAdapter()
     stable = StableAdapter()

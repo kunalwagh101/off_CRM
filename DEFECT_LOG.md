@@ -100,6 +100,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-65 | 2026-09-22 | security | high | Meeting creation declared a transcription provider/model but chunk upload could supply a different pair, allowing later requests to redirect raw audio to another connected provider | fixed before S-07.01.03 review; meeting provider/model are immutable and mismatch is refused before broker I/O |
 | D-66 | 2026-09-22 | privacy/recovery | high | The new meeting transcript database was initially outside subject-access/deletion and encrypted backup coverage | fixed before S-07.01.03 review; meeting transcripts are a registered privacy store and SQLite-safe backup member |
 | D-67 | 2026-09-22 | privacy/reliability | high | Local screen sharing was not owned by cleanup until after meeting creation, so a denied microphone or failed API create could leave screen capture active; failed final chunks also had no recovery path | fixed before S-07.01.03 review; streams are owned immediately and unfinished chunks expose retry/discard |
+| D-68 | 2026-09-22 | security | high | 54 JSON API handlers accepted raw dictionaries, so malformed or wrongly typed values could enter business logic before framework validation | fixed · S-06.02.02 strict request contracts plus registered-route validation audit |
+| D-69 | 2026-09-22 | accessibility | medium | Hash navigation changed the visible screen without moving keyboard/screen-reader focus, and one hover-only tooltip was not exposed on keyboard focus | fixed · S-06.02.05 shared main-focus management and focus-within tooltip path |
 
 ---
 

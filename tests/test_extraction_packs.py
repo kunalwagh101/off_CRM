@@ -140,6 +140,21 @@ def test_malformed_css_selector_fails_when_registry_loads(pack, message):
         _registry(pack)
 
 
+
+def test_pack_selectors_must_select_elements_not_pseudo_elements():
+    with pytest.raises(ExtractionPackError, match="must select elements"):
+        _registry(
+            _people_pack(
+                fields={
+                    "full_name": {
+                        "selector": ".name::text",
+                        "mode": "text",
+                    }
+                }
+            )
+        )
+
+
 def test_an_unmatched_source_keeps_the_existing_jsonld_fallback():
     parser = ScraplingPageParser(pack_registry=_registry(_people_pack()))
     page = parser.parse(

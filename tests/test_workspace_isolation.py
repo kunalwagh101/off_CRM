@@ -95,6 +95,67 @@ def test_provider_keys_are_encrypted_and_workspace_isolated(tmp_path):
     assert b"BETA-PROVIDER-SECRET" not in raw
 
 
+def test_independent_workspace_stores_do_not_lose_concurrent_provider_updates(
+    tmp_path, monkeypatch
+):
+    data_dir = tmp_path / "ai"
+    first = WorkspaceAISettingsStore(data_dir, ProviderRegistry())
+    second = WorkspaceAISettingsStore(data_dir, ProviderRegistry())
+    barrier = threading.Barrier(2)
+    errors = []
+
+    def synchronize_the_old_two_read_path(store):
+        original = store._document
+        state = {"calls": 0}
+        guard = threading.Lock()
+
+        def wrapped():
+            document = original()
+            with guard:
+                state["calls"] += 1
+                call_number = state["calls"]
+            # Before the fix connect_provider() performed one read via raw()
+            # and a second read inside save(). Force both stores to take that
+            # second snapshot before either replaces the shared document.
+            if call_number == 2:
+                barrier.wait(timeout=5)
+            return document
+
+        monkeypatch.setattr(store, "_document", wrapped)
+
+    synchronize_the_old_two_read_path(first)
+    synchronize_the_old_two_read_path(second)
+
+    def connect(store, workspace_id, key):
+        try:
+            store.connect_provider(
+                workspace_id,
+                "mistral",
+                api_key=key,
+                model_id="mistral-small-latest",
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    one = threading.Thread(
+        target=connect, args=(first, "alpha", "ALPHA-CONCURRENT-KEY")
+    )
+    two = threading.Thread(
+        target=connect, args=(second, "beta", "BETA-CONCURRENT-KEY")
+    )
+    one.start()
+    two.start()
+    one.join(timeout=10)
+    two.join(timeout=10)
+
+    assert not one.is_alive() and not two.is_alive()
+    assert errors == []
+    assert first.raw("alpha")["providers"]["mistral"]["enabled"] is True
+    assert first.raw("beta")["providers"]["mistral"]["enabled"] is True
+    assert first.key_for("alpha", "mistral") == "ALPHA-CONCURRENT-KEY"
+    assert first.key_for("beta", "mistral") == "BETA-CONCURRENT-KEY"
+
+
 def test_browser_sessions_are_workspace_isolated_for_the_same_platform(tmp_path, monkeypatch):
     from offsetx_apollo_builder.browser import vault as vault_module
 

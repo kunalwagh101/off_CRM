@@ -71,6 +71,30 @@ def test_credential_shaped_field_surviving_full_payload_is_still_blocked():
     assert any(item.kind == "credential" for item in report.findings)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    ["api_key", "api_secret", "client_secret", "secret_key"],
+)
+def test_generic_secret_field_surviving_full_payload_is_still_blocked(field_name):
+    request = EgressRequest(
+        task_type="debug",
+        data_class=DataClass.PUBLIC,
+        unrestricted={field_name: "opaque-private-value"},
+    )
+    payload = build_payload(request, DataPolicy.FULL)
+    report = scan_model_input(
+        payload,
+        policy=DataPolicy.FULL,
+        allow_addresses=True,
+    )
+
+    assert not report.clean
+    assert any(
+        item.kind == "credential" and field_name in item.detail
+        for item in report.findings
+    )
+
+
 def test_secret_in_system_prompt_blocks_before_provider_instantiation(tmp_path, monkeypatch):
     broker = _broker(tmp_path)
     monkeypatch.setattr(

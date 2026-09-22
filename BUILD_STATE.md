@@ -112,6 +112,9 @@ The requested batch is implemented and all three stories are IN_REVIEW:
   non-negative numeric validator and later crash tick conversion or contaminate
   performance evidence. All numeric facts now reject non-finite values before
   recipe selection or arithmetic.
+  The same review found D-74: a removed/renamed declared recipe escaped as
+  `UnknownRecipe` and would become an API 500. Recipe resolution now fails as a
+  controlled `CompetitorTeardownError`, preserving the catalogue reason.
 - **S-06.02.04 — subject access/deletion.** Authenticated, workspace-bound access
   and confirmed deletion use one eight-adapter inventory covering CRM/research/
   delivery data, recall, AI context/egress, tagged artifacts, CSV queues/exports,

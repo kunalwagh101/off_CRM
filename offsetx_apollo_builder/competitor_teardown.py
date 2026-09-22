@@ -165,7 +165,10 @@ def analyse_public_post(facts: Mapping[str, Any]) -> CompetitorTeardown:
         recipe_id = "hook_hold_payoff"
         hook_class = "direct_hook"
 
-    recipes.recipe(recipe_id)
+    try:
+        recipes.recipe(recipe_id)
+    except recipes.UnknownRecipe as exc:
+        raise CompetitorTeardownError(str(exc)) from exc
     pacing = "fast" if cuts >= 30 else "steady" if cuts and cuts <= 12 else "medium"
     if not cuts:
         pacing = "medium"

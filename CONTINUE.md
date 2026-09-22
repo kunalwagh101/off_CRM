@@ -349,3 +349,43 @@ Do **not** mark any of the three DONE yet. Focused tests, full regression and
 S-06.02.18 / D-75 remains the external blocker: hosted Actions jobs fail before
 runner allocation with zero steps/no logs. Once runner capacity is restored,
 verify these three in dependency-valid order and only then promote the board.
+
+
+### 2026-09-23 — security/workspace/routines CHECK hardening
+
+The governing prompt was re-read from `kunalwagh101/prompt/README.md`.
+Mode: CHECK. Methodology: Kanban. Role/tier: captain/architect.
+
+Reviewed in this order:
+1. S-06.02.01 — No secret may enter a model prompt.
+2. S-06.01.01 — Workspaces with their own keys and logins.
+3. S-06.01.04 — Routines that fire agent runs on a schedule/event.
+
+Cold-review results:
+- **D-79 / S-06.02.01:** generic credential assignments such as
+  `api_key=...` and `client_secret=...` were not guaranteed to trip the
+  scanner unless the value matched a known vendor token. Added a generic
+  assignment rule plus pre-provider-instantiation regressions.
+- **D-80 / S-06.01.01:** per-instance thread locks did not serialize shared
+  JSON/encrypted-key read-modify-replace operations across processes. Added a
+  cross-process SQLite write lock while retaining existing atomic replacement.
+  Regression uses two independent store instances and forces the old overlap.
+- **D-81 / S-06.01.01:** the username regex double-escaped NUL/CR/LF and rejected
+  ordinary r/n/x/0 characters. Corrected the pattern and added valid/invalid
+  username regressions.
+- **S-06.01.04:** declaration policy, workspace/event isolation, dedupe,
+  renewable workspace lease, AgentRun provenance and notification persistence
+  were traced end to end. No additional code defect was found against its two
+  backlog acceptance criteria; no speculative change was made.
+
+Work orders:
+- `docs/work-orders/S-06.02.01-generic-secret-scan.md`
+- `docs/work-orders/S-06.01.01-cross-process-settings.md`
+- `docs/work-orders/S-06.01.01-username-validation.md`
+
+DD-33 records why a local SQLite lock was used instead of migrating the settings
+store during a defect repair.
+
+Do not promote these stories to DONE until the focused commands in DEMO.md,
+full regression and `uv run python scripts/verify_board.py` actually execute.
+S-06.02.18 / D-75 remains the external GitHub-hosted-runner blocker.

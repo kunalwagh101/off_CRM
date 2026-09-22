@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **S-05.01.03 competitor evidence now rejects NaN and Infinity.** The shared
+  numeric validator requires finite values before applying the existing
+  non-negative rule, preventing malformed duration from crashing timeline tick
+  conversion and preventing non-finite performance evidence from escaping.
+  This closes D-73. Repository execution evidence is still blocked before CI
+  step 1, so the story remains IN_REVIEW.
+
 - **S-05.01.02 extraction-pack configuration now fails closed on malformed CSS.**
   The registry validates record and field selectors with Scrapling's own parser
   before installing a pack and rejects pack-supplied pseudo-elements, leaving

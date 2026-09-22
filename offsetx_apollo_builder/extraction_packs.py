@@ -63,6 +63,30 @@ def _bounded_text(value: Any, *, label: str, limit: int) -> str:
     return text
 
 
+def _validated_css_selector(value: Any, *, label: str) -> str:
+    selector = _bounded_text(value, label=label, limit=MAX_SELECTOR_CHARS)
+    if "::" in selector:
+        raise ExtractionPackError(
+            f"{label} must select elements, not CSS pseudo-elements"
+        )
+    try:
+        from scrapling.parser import Selector
+
+        probe = Selector(
+            content=b"<html><body><div class='probe'></div></body></html>",
+            url="https://selector-validation.invalid/",
+            encoding="utf-8",
+            huge_tree=False,
+            adaptive=False,
+        )
+        probe.css(selector)
+    except Exception as exc:
+        raise ExtractionPackError(
+            f"{label} is an invalid CSS selector: {selector!r}"
+        ) from exc
+    return selector
+
+
 @dataclass(frozen=True, slots=True)
 class ExtractionRule:
     selector: str
@@ -78,8 +102,8 @@ class ExtractionRule:
             raise ExtractionPackError(
                 f"Field {field_name!r} has unknown keys: {', '.join(sorted(unknown))}"
             )
-        selector = _bounded_text(
-            data.get("selector"), label=f"selector for {field_name}", limit=MAX_SELECTOR_CHARS
+        selector = _validated_css_selector(
+            data.get("selector"), label=f"selector for {field_name}"
         )
         mode = str(data.get("mode") or "text").strip().lower()
         if mode not in ALLOWED_MODES:
@@ -121,10 +145,9 @@ class ExtractionPack:
         if not isinstance(domains_raw, list) or not domains_raw:
             raise ExtractionPackError(f"Pack {pack_id!r} must declare at least one domain")
         domains = tuple(dict.fromkeys(normalize_pack_domain(value) for value in domains_raw))
-        record_selector = _bounded_text(
+        record_selector = _validated_css_selector(
             data.get("record_selector"),
             label=f"record_selector for {pack_id}",
-            limit=MAX_SELECTOR_CHARS,
         )
         fields_raw = data.get("fields")
         if not isinstance(fields_raw, dict) or not fields_raw:

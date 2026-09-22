@@ -652,9 +652,10 @@ executes these commands.
 uv run pytest tests/test_ai_prompt_secret_scan.py tests/test_ai_egress_wall.py -q
 ```
 
-The focused regression includes opaque `api_key`, `api_secret`,
-`client_secret` and `secret_key` assignments in model-visible system text.
-The provider constructor must not run.
+The focused regressions include opaque `api_key`, `api_secret`,
+`client_secret` and `secret_key` assignments in model-visible system text,
+plus the same names as FULL-policy unrestricted fields. The provider constructor
+must not run.
 
 ## S-06.01.01 — workspace writes and logins stay isolated
 

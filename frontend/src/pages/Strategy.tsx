@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../api";
-import { Badge, Button, Field, PageHeader, Panel, StatePanel } from "../components";
+import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
-import type { GtmDescribe, GtmPlan, GtmProduct } from "../types";
+import type { GtmApplyResult, GtmDescribe, GtmNextStep, GtmPlan, GtmProduct } from "../types";
 import { Loadable } from "./shared";
 
 type GoalForm = {
@@ -119,6 +119,23 @@ export function PlanView({ plan, actions }: { plan: GtmPlan; actions?: ReactNode
   );
 }
 
+/** What to do after Apply, each step a link to the screen that does it. */
+export function NextSteps({ steps, notes = [] }: { steps: GtmNextStep[]; notes?: string[] }) {
+  return (
+    <div className="form-stack">
+      {notes.map((note) => <p key={note} className="danger-note">{note}</p>)}
+      <div className="memory-list">
+        {steps.map((step) => (
+          <div key={`${step.page}-${step.label}`}>
+            <p><strong>{step.label}</strong><span>{step.why}</span></p>
+            <a className="button button-secondary" href={`#${step.page}`}>Open</a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Strategy() {
   const { notify } = useApp();
   const described = useResource(() => api.get<GtmDescribe>("/gtm/envelope"), []);
@@ -138,6 +155,8 @@ export default function Strategy() {
   const [busy, setBusy] = useState("");
   const [refusal, setRefusal] = useState("");
   const [planId, setPlanId] = useState("");
+  const [confirming, setConfirming] = useState<GtmPlan | null>(null);
+  const [applied, setApplied] = useState<GtmApplyResult | null>(null);
   const plans = useResource(
     () => form.product_id
       ? api.get<{ items: GtmPlan[] }>(`/gtm/plans?product_id=${encodeURIComponent(form.product_id)}`)
@@ -154,9 +173,15 @@ export default function Strategy() {
   useEffect(() => {
     if (!form.product_id && productItems.length) setForm((current) => ({ ...current, product_id: productItems[0].id }));
   }, [productItems, form.product_id]);
+  // Once, when the vocabulary arrives — not whenever the list is empty, or
+  // unticking the last box would tick every box again.
+  const [channelsSeeded, setChannelsSeeded] = useState(false);
   useEffect(() => {
-    if (!form.channels.length && kinds.length) setForm((current) => ({ ...current, channels: kinds }));
-  }, [kinds, form.channels.length]);
+    if (!channelsSeeded && kinds.length) {
+      setForm((current) => ({ ...current, channels: kinds }));
+      setChannelsSeeded(true);
+    }
+  }, [kinds, channelsSeeded]);
 
   function set<K extends keyof GoalForm>(key: K, value: GoalForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -188,6 +213,21 @@ export default function Strategy() {
       plans.reload();
     } catch (caught) {
       setRefusal(caught instanceof ApiError || caught instanceof Error ? caught.message : "The plan could not be drafted.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function apply(plan: GtmPlan) {
+    setBusy(`apply-${plan.id}`);
+    try {
+      const result = await api.post<GtmApplyResult>(`/gtm/plans/${plan.id}/apply`, {});
+      setApplied(result);
+      setConfirming(null);
+      notify(`${result.campaigns.length} campaign(s) ready and paused. Nothing has sent.`, "success");
+      plans.reload();
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "The plan could not be applied.", "error");
     } finally {
       setBusy("");
     }
@@ -302,11 +342,34 @@ export default function Strategy() {
           <PlanView
             plan={selected}
             actions={selected.status === "draft" ? (
-              <Button tone="secondary" busy={busy === `discard-${selected.id}`} onClick={() => act(selected, "discard")}>Discard</Button>
+              <>
+                <Button onClick={() => setConfirming(selected)} disabled={selected.product_deleted}>Apply</Button>
+                <Button tone="secondary" busy={busy === `discard-${selected.id}`} onClick={() => act(selected, "discard")}>Discard</Button>
+              </>
             ) : null}
           />
         ) : null}
       </Panel>
+
+      {applied ? (
+        <Panel title="Next steps" subtitle="Apply created or updated these campaigns and left every one paused.">
+          <NextSteps steps={applied.next_steps} notes={applied.notes} />
+        </Panel>
+      ) : null}
+
+      <Modal
+        open={confirming !== null}
+        title="Apply this plan?"
+        description={confirming
+          ? `This creates or updates ${confirming.plan.channels.length} campaign(s) — ${confirming.plan.channels.map((item) => item.kind).join(", ")} — and leaves every one paused. It imports nobody and spends no Apollo credit. Nothing sends until you resume a campaign.`
+          : ""}
+        onClose={() => setConfirming(null)}
+      >
+        <div className="modal-actions">
+          <Button tone="secondary" onClick={() => setConfirming(null)}>Not yet</Button>
+          <Button busy={confirming !== null && busy === `apply-${confirming.id}`} onClick={() => confirming && apply(confirming)}>Apply plan</Button>
+        </div>
+      </Modal>
     </>
   );
 }

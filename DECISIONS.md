@@ -56,6 +56,7 @@ wastes a session when nobody can answer it.
 | DD-46 | 2026-09-22 | Campaign-to-product links live in a table `gtm` owns, not a new column on `campaigns` | The campaigns screen cannot join to products in SQL; it has to ask `gtm` |
 | DD-47 | 2026-09-22 | The review imports `pacing.decide()` but repeats `sales.py`'s ten-line Wilson interval, pinned equal by a drift test | Importing `outreach.sales` runs `outreach/__init__`, which pulls the whole engine and pandas into a pure module; the price is a copy a test must hold equal |
 | DD-48 | 2026-09-22 | A forbidden claim in a model's plan removes that field; it does not refuse the whole plan | The owner can receive a plan with a named gap instead of no plan |
+| DD-49 | 2026-09-22 | Apply is idempotent per channel and marks the plan applied only at the end, instead of one transaction | Campaigns and links live in two stores. A crash between creating a campaign and linking it leaves one unlinked campaign, and the per-plan lock holds only inside one process |
 
 ---
 

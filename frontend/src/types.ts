@@ -994,3 +994,12 @@ export type GtmPlan = {
   feasibility: { kind: string; feasible: boolean | null; explanation: string };
   notes: string[];
 };
+
+export type GtmNextStep = { page: string; label: string; why: string };
+
+export type GtmApplyResult = {
+  plan: GtmPlan;
+  campaigns: Array<{ kind: string; campaign_id: string; action: "created" | "updated" }>;
+  next_steps: GtmNextStep[];
+  notes: string[];
+};

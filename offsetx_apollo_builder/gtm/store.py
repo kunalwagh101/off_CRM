@@ -273,6 +273,17 @@ class GtmStore:
         now = _now()
         with self.connection.transaction() as db:
             self._read_product(db, product_id, workspace_id)
+            # A campaign Apply created also records which plan and channel it
+            # serves. Re-saving the checklist must not wipe that, or the plan's
+            # review would stop finding its own campaigns.
+            kept_meta = {
+                str(dict(row)["campaign_id"]): (str(dict(row)["plan_id"]), str(dict(row)["channel"]))
+                for row in db.execute(
+                    "SELECT campaign_id, plan_id, channel FROM gtm_campaign_links "
+                    "WHERE product_id = ? AND workspace_id = ?",
+                    (product_id, workspace_id),
+                ).fetchall()
+            }
             db.execute(
                 "DELETE FROM gtm_campaign_links WHERE product_id = ? AND workspace_id = ?",
                 (product_id, workspace_id),
@@ -291,12 +302,69 @@ class GtmStore:
                     "DELETE FROM gtm_campaign_links WHERE campaign_id = ? AND workspace_id = ?",
                     (campaign_id, workspace_id),
                 )
+                plan_id, channel = kept_meta.get(campaign_id, ("", ""))
                 db.execute(
                     "INSERT INTO gtm_campaign_links (campaign_id, product_id, workspace_id, "
-                    "created_at) VALUES (?, ?, ?, ?)",
-                    (campaign_id, product_id, workspace_id, now),
+                    "plan_id, channel, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (campaign_id, product_id, workspace_id, plan_id, channel, now),
                 )
         return self.linked_campaigns(product_id, workspace_id)
+
+    def link_campaign(
+        self,
+        campaign_id: str,
+        product_id: str,
+        workspace_id: str,
+        *,
+        plan_id: str = "",
+        channel: str = "",
+    ) -> None:
+        """Link one campaign, recording the plan and channel Apply made it for."""
+        with self.connection.transaction() as db:
+            self._read_product(db, product_id, workspace_id)
+            owner = db.execute(
+                "SELECT workspace_id FROM gtm_campaign_links WHERE campaign_id = ?", (campaign_id,)
+            ).fetchone()
+            if owner and dict(owner)["workspace_id"] != workspace_id:
+                raise KeyError(f"Campaign not found: {campaign_id}")
+            db.execute(
+                "DELETE FROM gtm_campaign_links WHERE campaign_id = ? AND workspace_id = ?",
+                (campaign_id, workspace_id),
+            )
+            db.execute(
+                "INSERT INTO gtm_campaign_links (campaign_id, product_id, workspace_id, plan_id, "
+                "channel, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (campaign_id, product_id, workspace_id, plan_id, channel, _now()),
+            )
+
+    def plan_links(self, plan_id: str, workspace_id: str) -> list[dict[str, Any]]:
+        """The campaigns Apply created for exactly this plan."""
+        rows = self.connection.execute(
+            "SELECT campaign_id, product_id, plan_id, channel, created_at FROM gtm_campaign_links "
+            "WHERE plan_id = ? AND workspace_id = ? ORDER BY created_at, campaign_id",
+            (plan_id, workspace_id),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def line_links(self, root_id: str, workspace_id: str) -> dict[str, str]:
+        """channel -> campaign for every version of one plan's line.
+
+        What makes Apply idempotent (a half-finished apply resumes rather than
+        duplicating) and what makes a revision update the campaigns its line
+        already has instead of making new ones.
+        """
+        rows = self.connection.execute(
+            "SELECT l.channel, l.campaign_id FROM gtm_campaign_links l "
+            "JOIN gtm_plans p ON p.id = l.plan_id AND p.workspace_id = l.workspace_id "
+            "WHERE p.root_id = ? AND l.workspace_id = ? AND l.channel <> '' "
+            "ORDER BY l.created_at, l.campaign_id",
+            (root_id, workspace_id),
+        ).fetchall()
+        found: dict[str, str] = {}
+        for row in rows:
+            item = dict(row)
+            found.setdefault(str(item["channel"]), str(item["campaign_id"]))
+        return found
 
     def linked_campaigns(self, product_id: str, workspace_id: str) -> list[str]:
         rows = self.connection.execute(

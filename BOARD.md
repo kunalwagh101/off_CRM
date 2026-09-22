@@ -40,7 +40,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 be pulled today; it is not pulled because the owner asked for Phase 1 and 2.)*
 
 - S-12.01.03 · The video director uses the product
-- S-12.02.03 · The brain says where it is going wrong, in a fixed order
 - S-12.02.04 · A review becomes the next version of the plan
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
 - S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
@@ -79,7 +78,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
+- S-12.02.03 · The brain says where it is going wrong, in a fixed order
 
 ## IN_REVIEW
 
@@ -89,6 +88,7 @@ write the code, then the evidence block.)*
 - S-12.01.01 · The owner records the product once
 - S-12.01.02 · Everything that writes for a campaign uses its product
 - S-12.02.01 · A goal becomes a checked plan that fits what is connected
+- S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
 
 ## BLOCKED
 

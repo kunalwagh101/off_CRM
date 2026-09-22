@@ -238,6 +238,16 @@ def build_gtm_router(
         except KeyError as exc:
             raise _not_found(exc) from exc
 
+    @router.post("/plans/{plan_id}/apply")
+    def apply_plan(plan_id: str, request: Request) -> dict[str, Any]:
+        """The draft becomes paused campaigns. Nothing is imported, spent or sent."""
+        try:
+            return service_of(request).apply_plan(plan_id)
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+        except PlanStateError as exc:
+            raise _wrong_state(exc) from exc
+
     @router.post("/plans/{plan_id}/discard")
     def discard_plan(plan_id: str, request: Request) -> dict[str, Any]:
         try:

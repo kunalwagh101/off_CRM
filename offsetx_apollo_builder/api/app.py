@@ -2389,6 +2389,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             accounts=lambda: state.distribution_store.list_accounts(workspace_id=workspace_id),
             apollo_ready=lambda: bool(os.getenv("APOLLO_API_KEY", "").strip()),
             ask=ask,
+            # Apply goes through the engine's own campaign creation, the same
+            # call `POST /campaigns` makes, so a plan's campaign is exactly the
+            # campaign a person could have made by hand.
+            create_campaign=lambda **values: _engine(request).create_campaign(**values),
+            update_campaign=lambda campaign_id, changes: _engine(request).store.update_campaign(
+                campaign_id, changes
+            ),
+            set_goal=lambda **values: state.distribution_store.set_goal(
+                workspace_id=workspace_id, **values
+            ),
+            goals_of=lambda campaign_id: state.distribution_store.list_goals(campaign_id),
+            lock=lambda key: state.campaign_locks.hold(key),
         )
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")

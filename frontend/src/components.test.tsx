@@ -200,4 +200,21 @@ describe("the GTM engine", () => {
     // The honest promise, where the owner decides.
     expect(html).toContain("nothing sends");
   });
+
+  it("next steps after Apply are links to screens that exist", async () => {
+    const { NextSteps } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <NextSteps
+        steps={[
+          { page: "contacts", label: "Add contacts to the email campaign", why: "The email campaign starts empty." },
+          { page: "campaigns", label: "Resume each campaign when you are ready", why: "Apply left every campaign paused." }
+        ]}
+        notes={["The email campaign was set to 500."]}
+      />
+    );
+    expect(html).toContain('href="#contacts"');
+    expect(html).toContain('href="#campaigns"');
+    expect(html).toContain("Resume each campaign when you are ready");
+    expect(html).toContain("set to 500");
+  });
 });

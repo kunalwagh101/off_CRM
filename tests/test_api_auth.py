@@ -147,7 +147,10 @@ def test_no_api_route_accepts_an_untyped_raw_dict_body(tmp_path):
 @pytest.mark.parametrize(
     "path,payload",
     [
-        ("/api/v1/companions", {"name": "x", "instructions": "ok", "unexpected": True}),
+        (
+            "/api/v1/companions",
+            {"name": "x", "instructions": "ok", "unexpected": "SECRET-SHOULD-NOT-ECHO"},
+        ),
         ("/api/v1/ai/run", {"instructions": "hello", "max_rounds": "three"}),
         (
             "/api/v1/privacy/subject-access",
@@ -170,4 +173,4 @@ def test_malformed_bodies_are_bounded_4xx_without_echo_or_stacktrace(
         body = response.text.lower()
         assert "traceback" not in body
         assert "stack trace" not in body
-        assert "unexpected" not in body
+        assert "secret-should-not-echo" not in body

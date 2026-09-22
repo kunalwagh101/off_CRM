@@ -4,6 +4,7 @@ from pathlib import Path
 import threading
 
 from fastapi.testclient import TestClient
+import pytest
 
 from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.workspace import WorkspaceAISettingsStore
@@ -54,6 +55,39 @@ def test_two_workspace_logins_resolve_to_different_workspace_ids(tmp_path):
     assert bob_login is not None and bob_login.workspace_id == "beta"
     assert auth.verify(auth.issue(alice)).workspace_id == "alpha"
     assert auth.verify(auth.issue(bob)).workspace_id == "beta"
+
+
+@pytest.mark.parametrize("username", ["nora", "xavier", "user0"])
+def test_workspace_username_validation_accepts_normal_characters(tmp_path, username):
+    auth = WorkspaceAuthStore(
+        tmp_path / f"{username}.db",
+        session_secret=SESSION_SECRET,
+        session_hours=8,
+    )
+    identity = auth.create(
+        username=username,
+        workspace_id=f"ws-{username}".replace("_", "-"),
+        password="valid-password-123",
+    )
+
+    assert identity.username == username
+    assert auth.authenticate(username, "valid-password-123") is not None
+
+
+@pytest.mark.parametrize("username", ["bad\nname", "bad\x00name"])
+def test_workspace_username_validation_refuses_control_characters(tmp_path, username):
+    auth = WorkspaceAuthStore(
+        tmp_path / "invalid-user.db",
+        session_secret=SESSION_SECRET,
+        session_hours=8,
+    )
+
+    with pytest.raises(Exception, match="username"):
+        auth.create(
+            username=username,
+            workspace_id="valid-workspace",
+            password="valid-password-123",
+        )
 
 
 def test_password_rotation_invalidates_existing_workspace_sessions(tmp_path):

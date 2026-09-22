@@ -46,12 +46,13 @@ Run the focused acceptance slice:
 uv run pytest tests/test_crawler_frontier.py -q
 ```
 
-The six cases prove: robots.txt + crawl-delay enforcement, month-stable pages
+The seven cases prove: robots.txt + crawl-delay enforcement, month-stable pages
 back off further than a page changed yesterday, crawl budget survives process
-restart, a lease prevents two workers claiming one URL, two crawler processes
-cannot start different URLs on the same host inside one crawl-delay window, and
-LinkedIn/Instagram cannot enter the frontier even if an operator mistakenly
-allow-lists them.
+restart, a lease prevents two workers claiming one URL, a persisted URL that
+the current policy now rejects cannot starve valid due work behind it, two
+crawler processes cannot start different URLs on the same host inside one
+crawl-delay window, and LinkedIn/Instagram cannot enter the frontier even if an
+operator mistakenly allow-lists them.
 
 The durable frontier is created on the first real discovery run at:
 

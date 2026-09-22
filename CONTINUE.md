@@ -252,3 +252,44 @@ is in `OPEN_QUESTIONS.md`, and whether any of it is true is answered by
 
 That is the whole point of the process. **The prompt is short because the
 repository is honest.**
+
+## 2026-09-23 — CHECK-mode cold review of the S-05.01.01 → S-05.01.03 chain
+
+Mode: CHECK. Role: captain/architect. The latest working stack is
+`feature/next-three-batch-4`; do not use stale `main` as delivery truth.
+
+The owner asked to finish the next three dependency-contiguous stories. Their
+implementations were already IN_REVIEW, so this pass did not invent another
+feature batch. It cold-reviewed the existing acceptance contracts and found four
+real defects:
+
+- **D-71 / S-05.01.01:** a persisted URL rejected by current policy could keep
+  consuming `claim_due(limit=1)` and starve valid due work. The stale row is
+  now removed transactionally and selection continues.
+- **D-72 / S-05.01.02:** malformed CSS selectors were never syntax-validated at
+  registry load. Extraction packs now validate selector syntax/element shape
+  with Scrapling itself before installation.
+- **D-73 / S-05.01.03:** NaN/Infinity passed the non-negative numeric validator.
+  All numeric evidence now requires finite values.
+- **D-74 / S-05.01.03:** recipe-catalogue drift leaked `UnknownRecipe` and
+  could become an API 500. It is now translated to the controlled teardown
+  domain error.
+
+Work orders and RED regression tests are committed under `docs/work-orders/`
+and the focused test files. CHANGELOG, BUILD_STATE, DEFECT_LOG, DEMO,
+FEATURE_TREE/TRACEABILITY where relevant were updated.
+
+**Do not mark these stories DONE yet.** Their required commands still have not
+executed. On final review head `2e39ffeb9106b110e63c65ea4a636e03c2e39ee4`,
+GitHub Actions run **1202 / 35779005783** created job
+`106919379455 quality` and failed with **zero steps and no logs**. This is the
+same runner-allocation failure seen on earlier heads, not a passing or failing
+repository test.
+
+Required closure order remains:
+
+1. S-05.01.01 — run focused crawler suite, full regression, verifier; then DONE.
+2. S-05.01.02 — only after 01 is DONE; run extraction/discovery suite, full regression, verifier.
+3. S-05.01.03 — only after 02 is DONE; run teardown/video suites, full regression, verifier.
+
+No scope was silently deferred. No story was promoted to DONE without evidence.

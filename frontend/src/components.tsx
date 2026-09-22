@@ -11,7 +11,7 @@ export function Button({
   busy?: boolean;
 }) {
   return (
-    <button className={`button button-${tone}`} disabled={disabled || busy} {...props}>
+    <button className={`button button-${tone}`} disabled={disabled || busy} aria-busy={busy || undefined} {...props}>
       {busy ? <span className="spinner" aria-hidden="true" /> : null}
       {children}
     </button>
@@ -77,7 +77,12 @@ export function StatePanel({
   tone?: "empty" | "error" | "loading";
 }) {
   return (
-    <div className={`state-panel state-${tone}`} role={tone === "error" ? "alert" : undefined}>
+    <div
+      className={`state-panel state-${tone}`}
+      role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined}
+      aria-live={tone === "loading" ? "polite" : undefined}
+      aria-busy={tone === "loading" || undefined}
+    >
       {tone === "loading" ? <span className="spinner spinner-large" aria-hidden="true" /> : null}
       <strong>{title}</strong>
       <p>{description}</p>

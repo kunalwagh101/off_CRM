@@ -75,6 +75,12 @@ function currentPage(): Page {
   return value in pages ? value : "dashboard";
 }
 
+export function focusMainContent() {
+  window.requestAnimationFrame(() => {
+    document.getElementById("main-content")?.focus();
+  });
+}
+
 export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -134,6 +140,10 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   }, []);
 
   useEffect(() => {
+    focusMainContent();
+  }, [page]);
+
+  useEffect(() => {
     if (campaigns.length && !campaigns.some((campaign) => campaign.id === campaignId)) {
       setCampaignId(campaigns[0].id);
       localStorage.setItem(CAMPAIGN_KEY, campaigns[0].id);
@@ -179,7 +189,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
 
   return (
     <AppContext.Provider value={context}>
-      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <a className="skip-link" href="#main-content" onClick={focusMainContent}>Skip to main content</a>
       <div className="app-shell">
         <aside className="sidebar">
           <a href="#dashboard" className="brand" aria-label="off_CRM home">
@@ -241,7 +251,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
               </a>
             ))}
           </nav>
-          <main id="main-content" className="page-content" tabIndex={-1}><Screen /></main>
+          <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content"><Screen /></main>
         </div>
       </div>
       {toast ? (

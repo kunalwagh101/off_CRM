@@ -18,7 +18,7 @@ class StrictModel(BaseModel):
         return isinstance(key, str) and key in self.model_fields_set
 
     def __getitem__(self, key: str) -> Any:
-        if key not in self.model_fields:
+        if key not in type(self).model_fields:
             raise KeyError(key)
         return getattr(self, key)
 

@@ -813,3 +813,14 @@ class PrivacySubjectBody(StrictModel):
 
 class PrivacyDeletionBody(PrivacySubjectBody):
     confirmation: str = Field(default="", max_length=200)
+
+
+class ImageDecisionBody(StrictModel):
+    decision: Literal["approve", "reject", "regenerate"]
+
+
+class VideoPlaceMediaBody(StrictModel):
+    media_id: str = Field(min_length=1, max_length=120)
+    track_id: str = Field(min_length=1, max_length=120)
+    start: int = Field(default=-1, ge=-1, strict=True)
+    duration: int = Field(gt=0, strict=True)

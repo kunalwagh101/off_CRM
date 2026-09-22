@@ -398,7 +398,7 @@ evidence for why they matter, and not adding the same company twice.
 | P-4.3 | `dedupe.py` — same company, two names | 217 | 3 | ⚠️ |
 | P-4.4 | `scoring.py` | 60 | 2 | ◐ |
 | P-4.5 | `research.py` | 209 | — | ◐ |
-| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, shared host pacing, change-driven revisit | 454 + wiring | 6 focused | ◐ S-05.01.01 · IN_REVIEW |
+| P-4.6 | `crawler_frontier.py` + `discovery.py` — durable frontier, leases, shared host pacing, change-driven revisit | 454 + wiring | 7 focused | ◐ S-05.01.01 · IN_REVIEW |
 | P-4.7 | `extraction_packs.py` + `config/extraction_packs.json` — a new source is declared data, not a parser | implemented + parser wiring | `test_extraction_packs.py` | ◐ S-05.01.02 · IN_REVIEW |
 | P-4.8 | `competitor_teardown.py` + existing video recipes/assembler/review — rebuild structure, never source media | implemented + API wiring | `test_competitor_teardown.py` | ◐ S-05.01.03 · IN_REVIEW |
 

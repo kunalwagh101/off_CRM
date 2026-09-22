@@ -474,3 +474,20 @@ transcript/timing/provenance metadata is persisted.
 system-audio sharing. Failed chunks must be retried while the capture page still
 holds them in memory. **Revisit when:** a native desktop capture process can
 provide the same or stronger local custody with an inspectable permission model.
+
+
+### DD-32 — A managed PLAN may be missing only by failure · 2026-09-23
+
+A legacy run with no PLAN.md may receive its first plan when it enters the
+managed runtime. Once that happens, the directory carries an empty private
+`.PLAN.managed` sentinel. The sentinel contains no instructions; PLAN.md
+remains the only editable source of truth.
+
+If the sentinel exists and PLAN.md does not, resume refuses. Reconstructing from
+the original goal would be data loss because owner edits are intentionally not
+derivable from the trace's current state.
+
+**Cost:** one empty hidden file per managed run and a migration branch for old
+run directories. **Revisit when:** run metadata gains a durable versioned
+manifest that can carry the same managed-state fact without becoming another
+editable plan.

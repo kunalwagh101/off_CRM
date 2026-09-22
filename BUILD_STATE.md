@@ -108,6 +108,10 @@ The requested batch is implemented and all three stories are IN_REVIEW:
   facts map deterministically to an existing video recipe. Copied media/caption/
   transcript fields are rejected. Projects use our own material and enter the
   existing human review queue.
+  CHECK-mode cold review on 2026-09-23 found D-73: NaN/Infinity could pass the
+  non-negative numeric validator and later crash tick conversion or contaminate
+  performance evidence. All numeric facts now reject non-finite values before
+  recipe selection or arithmetic.
 - **S-06.02.04 — subject access/deletion.** Authenticated, workspace-bound access
   and confirmed deletion use one eight-adapter inventory covering CRM/research/
   delivery data, recall, AI context/egress, tagged artifacts, CSV queues/exports,

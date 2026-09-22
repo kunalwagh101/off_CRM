@@ -28,6 +28,7 @@ from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
+from ..gtm.store import GtmStore
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
@@ -102,6 +103,7 @@ from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import DemoSessionAuth, LoginAttemptLimiter, SESSION_COOKIE
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
+from .gtm import build_gtm_router
 from .schemas import (
     AutomationUpdate,
     BackupExport,
@@ -405,6 +407,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolve_database_target(default=resolved.data_dir / "video.db"),
             renders_dir=resolved.data_dir / "video_renders",
         )
+        # The product and its plans are the owner's work, like a timeline, so
+        # they follow OFFSETX_DATABASE_URL onto Postgres the same way.
+        app.state.gtm_store = GtmStore(
+            resolve_database_target(default=resolved.data_dir / "gtm.db")
+        )
         app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
@@ -446,6 +453,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.image_store.close()
             app.state.distribution_store.close()
             app.state.video_store.close()
+            app.state.gtm_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
 
@@ -533,6 +541,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return JSONResponse(status_code=404, content={"detail": str(exc).strip("'")})
 
     app.include_router(build_email_delivery_router())
+    # A lambda so the workspace rule is looked up when a request arrives:
+    # `_workspace_id` is defined further down this function, and whatever it
+    # becomes, the GTM routes follow it.
+    app.include_router(build_gtm_router(workspace_of=lambda request: _workspace_id(request)))
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:

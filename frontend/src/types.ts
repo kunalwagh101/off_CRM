@@ -882,3 +882,23 @@ export type AIRunResult = {
   notes: string[];
   best_text: string;
 };
+
+/** The product, described once — `offsetx_apollo_builder/gtm/products.py`. */
+export type GtmProduct = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  one_liner: string;
+  audience: string;
+  problem: string;
+  outcome: string;
+  offer: string;
+  proof: string[];
+  differentiators: string[];
+  forbidden_claims: string[];
+  voice: string;
+  website: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};

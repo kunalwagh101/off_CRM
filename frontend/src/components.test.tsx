@@ -155,3 +155,29 @@ describe("timeline units on the dashboard", () => {
     expect(ticksPerFrame("60")).toBe(1500);
   });
 });
+
+describe("the GTM engine", () => {
+  const context = {
+    campaigns: [],
+    campaignId: "",
+    activeCampaign: null,
+    selectCampaign: () => undefined,
+    refreshCampaigns: () => undefined,
+    notify: () => undefined
+  };
+
+  it("the product screen asks for the truth once, and for the claims never to make", async () => {
+    const { default: Product } = await import("./pages/Product");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Product />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Your product, described once");
+    for (const label of ["Name", "One-liner", "Who it is for", "The problem it solves", "The offer", "Never claim"]) {
+      expect(html).toContain(label);
+    }
+    // The address rule is explained where the owner types, not three screens later.
+    expect(html).toContain("may be sent to a model");
+  });
+});

@@ -39,7 +39,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 `S-12.01.03` also waits on `D-81`. `S-06.02.20` is the fix for `D-80` and could
 be pulled today; it is not pulled because the owner asked for Phase 1 and 2.)*
 
-- S-12.01.02 · Everything that writes for a campaign uses its product
 - S-12.01.03 · The video director uses the product
 - S-12.02.01 · A goal becomes a checked plan that fits what is connected
 - S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
@@ -82,11 +81,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-12.01.01 · The owner records the product once
+- S-12.01.02 · Everything that writes for a campaign uses its product
 
 ## IN_REVIEW
 
-_nothing waiting_
+*(Code and tests pass; DONE waits for a review in a context that did not
+write the code, then the evidence block.)*
+
+- S-12.01.01 · The owner records the product once
 
 ## BLOCKED
 

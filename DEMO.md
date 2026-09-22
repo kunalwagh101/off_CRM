@@ -569,8 +569,9 @@ uv run pytest tests/test_privacy.py tests/test_api_auth.py -q
 ```
 
 The suite exercises cross-subject isolation, authenticated API access, exact
-destructive confirmation, retry after one store fails, deletion of crawler and
-trace copies, AI context/egress and redacted-mail recall, registered generated
+destructive confirmation, retry after one store fails, **revalidation of stores
+that succeeded on an earlier partial attempt**, deletion of crawler and trace
+copies, AI context/egress and redacted-mail recall, registered generated
 artifacts, residual CRM metadata, and row-level cleanup of application-owned
 CSV queues/exports.
 
@@ -619,10 +620,12 @@ Reddit-specific branch in identity, budget or policy code.
 uv run pytest tests/test_agent_plan.py tests/test_agent_run.py tests/test_agent_resume.py -q
 ```
 
-The focused case edits the live run's PLAN.md after decision one. Decision two
-must receive the edited text. Deleting PLAN.md mid-run must stop before another
-model call. Every decision also stores the exact plan version it saw as its
-private trace capture.
+The focused cases edit the live run's PLAN.md after decision one and require
+decision two to receive the edit. Deleting PLAN.md mid-run stops before another
+model call, and deleting a **managed** PLAN.md before restart/resume refuses
+instead of regenerating the original boilerplate. Existing legacy PLAN.md files
+are adopted without overwriting owner text. Every decision also stores the exact
+plan version it saw as its private trace capture.
 
 ## S-04.01.01 — persisted companions stay inside their grants
 
@@ -631,9 +634,11 @@ uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q
 ```
 
 The suite proves persistence, workspace isolation, unique memory scopes,
-approved-memory-only recall, immediate removal of disabled tools, execution-time
-denial of an ungranted tool, authenticated companion API behaviour, companion
-profile privacy deletion and backup/restore reopening of the tool/companion DB.
+approved-memory-only recall, **exact-scope isolation against the real CRM memory
+backend (global memory must not leak into a companion)**, immediate removal of
+disabled tools, execution-time denial of an ungranted tool, authenticated
+companion API behaviour, companion profile privacy deletion and backup/restore
+reopening of the tool/companion DB.
 
 No pass count is written here until the dedicated verification pass actually
 executes these commands.

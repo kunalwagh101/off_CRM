@@ -228,11 +228,24 @@ PUBLIC_API_PATHS: frozenset[str] = frozenset({
     f"{API_PREFIX}/auth/session",
     f"{API_PREFIX}/auth/login",
     f"{API_PREFIX}/auth/logout",
-})
-PUBLIC_API_PREFIXES: tuple[str, ...] = (
-    f"{API_PREFIX}/email/unsubscribe/",
     f"{API_PREFIX}/email-delivery/events/ses/sns",
-)
+})
+PUBLIC_UNSUBSCRIBE_PREFIX = f"{API_PREFIX}/email/unsubscribe/"
+
+
+def is_public_api_path(path: str) -> bool:
+    """Closed public bootstrap/callback allowlist.
+
+    Unsubscribe is the only parameterised public route. It accepts exactly one
+    path segment after the prefix; nested/future routes do not inherit public
+    access by sharing a string prefix.
+    """
+    if path in PUBLIC_API_PATHS:
+        return True
+    if not path.startswith(PUBLIC_UNSUBSCRIBE_PREFIX):
+        return False
+    token = path[len(PUBLIC_UNSUBSCRIBE_PREFIX):]
+    return bool(token) and "/" not in token
 PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({
     "/health/live",
     "/health/ready",
@@ -678,10 +691,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
             )
 
-        is_public = (
-            request.url.path in PUBLIC_API_PATHS
-            or request.url.path.startswith(PUBLIC_API_PREFIXES)
-        )
+        is_public = is_public_api_path(request.url.path)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
         # fail-open: with nothing configured, every route served 200 to anyone.
@@ -729,7 +739,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        # Domain ValueErrors can include the rejected value. Never reflect an
+        # arbitrary request-derived string back to the client because it may be
+        # a credential or other sensitive body content.
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "The supplied value is invalid for this operation."},
+        )
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:

@@ -1,3 +1,20 @@
+# Two services, one per branch (docs/BRANCHING.md):
+#   off-crm-demo     <- main     what people see
+#   off-crm-develop  <- develop  where every change lands first
+#
+# Both are on the free plan, and on the free plan the filesystem does not
+# survive a restart or a redeploy: everything under /tmp is wiped. That is why
+# neither sets OFFSETX_PRODUCTION — the app refuses a production start on /tmp,
+# and a demo must never look like the place to keep customers.
+#
+# Keeping real customer data needs a persistent disk, and Render attaches disks
+# only to a paid service. The switch for main is written out in
+# docs/BRANCHING.md ("Making main keep its data") and is the owner's call: it
+# costs money every month (OPEN_QUESTIONS.md Q-26).
+#
+# autoDeployTrigger is `commit`, not `checksPass`: GitHub-hosted CI cannot
+# start a runner on this repository today (D-75), so "deploy when checks pass"
+# would mean "never deploy". Switch it once CI runs.
 services:
   - type: web
     name: off-crm-demo
@@ -7,10 +24,37 @@ services:
     branch: main
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health/ready
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: OFFSETX_ALLOWED_HOSTS
         sync: false   # the public hostname(s) this service answers to, comma separated
+      - key: OFFSETX_WEB_HOST
+        value: 0.0.0.0
+      - key: OFFSETX_DATA_DIR
+        value: /tmp/offsetx/local_data
+      - key: OFFSETX_OUTREACH_DB
+        value: /tmp/offsetx/local_data/offsetx_outreach.db
+      - key: OFFSETX_DEMO_USERNAME
+        sync: false
+      - key: OFFSETX_DEMO_PASSWORD
+        sync: false
+      - key: OFFSETX_SESSION_SECRET
+        generateValue: true
+      - key: OFFSETX_SESSION_HOURS
+        value: 8
+
+  - type: web
+    name: off-crm-develop
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: develop
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    autoDeployTrigger: commit
+    envVars:
+      - key: OFFSETX_ALLOWED_HOSTS
+        sync: false   # the develop service's own public hostname
       - key: OFFSETX_WEB_HOST
         value: 0.0.0.0
       - key: OFFSETX_DATA_DIR

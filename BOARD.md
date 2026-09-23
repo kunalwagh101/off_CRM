@@ -47,6 +47,11 @@ posting screens' work, and the owner asked for Phase 1 and 2.)*
 
 - S-12.02.06 · A plan's posting channel runs from the screens
 
+*(Filed 2026-09-23 at the consolidation: most of the 7 September audit's findings
+were never re-run against this line. `D-121` and `D-122` wait here.)*
+
+- S-06.02.23 · Re-check the 7 September production audit on `develop`
+
 ## READY
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
@@ -76,18 +81,17 @@ the two ports are checked one at a time.)*
 
 ## IN_PROGRESS
 
-*(2026-09-23 — the branch consolidation. `S-06.02.21` is the durable-state work
-built on `integration/main-consolidation`, being ported because this line's own
-restore loses data, `D-114`.)*
+*(2026-09-23 — the branch consolidation.)*
 
 - S-06.02.19 · One working branch holds everything built, and it is green
-- S-06.02.21 · Durable customer state and safe recovery (audit WP1)
 
 
 ## IN_REVIEW
 
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
+
+- S-06.02.21 · Durable customer state and safe recovery (audit WP1)
 
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader

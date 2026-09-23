@@ -135,6 +135,7 @@ class OutreachStore:
         # made of several, nor for a bare statement joining somebody else's.
         # The lock is what makes both safe; see `GuardedConnection`.
         self._write_lock = threading.RLock()
+        self._savepoint = 0
         # `isolation_level=None` is autocommit, and it is the root of the bug
         # this guard exists for. Python's default silently opens a transaction
         # before any DML and leaves it open, so a bare INSERT was never bare —
@@ -191,12 +192,27 @@ class OutreachStore:
         and never got the same treatment.
         """
         with self._write_lock:
+            # "Reentrant" above was true of the lock and false of SQLite: a
+            # second BEGIN inside an open transaction raised "cannot start a
+            # transaction within a transaction" (D-117). A nested call is a
+            # savepoint, so an inner failure undoes only the inner work and the
+            # outer transaction keeps ownership until it commits.
+            nested = self.connection.in_transaction
+            self._savepoint += 1
+            name = f"offcrm_{self._savepoint}"
+            self.connection.execute(
+                f"SAVEPOINT {name}" if nested else "BEGIN IMMEDIATE" if immediate else "BEGIN"
+            )
             try:
-                self.connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
                 yield self.connection
-                self.connection.commit()
-            except Exception:
-                self.connection.rollback()
+                self.connection.execute(f"RELEASE SAVEPOINT {name}" if nested else "COMMIT")
+            except BaseException:
+                if self.connection.in_transaction:
+                    self.connection.execute(
+                        f"ROLLBACK TO SAVEPOINT {name}" if nested else "ROLLBACK"
+                    )
+                    if nested:
+                        self.connection.execute(f"RELEASE SAVEPOINT {name}")
                 raise
 
     def initialize(self) -> None:

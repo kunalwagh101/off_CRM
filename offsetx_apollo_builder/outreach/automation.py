@@ -9,6 +9,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Callable
 
 from .models import to_utc_iso
+from .workspace_lock import WorkspaceLock
 
 
 DEFAULT_AUTOMATION = {
@@ -89,6 +90,13 @@ class AutomationService:
         return {**self.config(), "running": bool(self._task and not self._task.done()), "last_run_at": self.last_run_at, "last_error": self.last_error, "last_results": self.last_results}
 
     def run_once(self) -> list[dict[str, Any]]:
+        # A shared lease on the workspace for the whole cycle: a restore takes
+        # it exclusively, so it cannot swap the files out from under a run
+        # that is half way through writing them (S-06.02.21).
+        with WorkspaceLock(self.path.parent):
+            return self._run_once()
+
+    def _run_once(self) -> list[dict[str, Any]]:
         if not self._run_lock.acquire(blocking=False):
             raise RuntimeError("An automation cycle is already running")
         engine = None

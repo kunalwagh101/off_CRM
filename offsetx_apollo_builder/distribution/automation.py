@@ -50,6 +50,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Callable
 
 from . import pacing
+from ..outreach.workspace_lock import WorkspaceLock
 
 #: An hour. Trends do not move in minutes, and a sweep costs quota — the
 #: default is chosen to be useful on a free YouTube key rather than to feel
@@ -283,6 +284,13 @@ class ContentAutomationService:
     # ── one cycle ───────────────────────────────────────────────────────────
 
     def run_once(self) -> list[dict[str, Any]]:
+        # A shared lease on the workspace for the whole cycle: a restore takes
+        # it exclusively, so it cannot swap the files out from under a run
+        # that is half way through writing them (S-06.02.21).
+        with WorkspaceLock(self.path.parent):
+            return self._run_once()
+
+    def _run_once(self) -> list[dict[str, Any]]:
         """Sweep, plan, draft, publish — in that order, each independently.
 
         The order is the pipeline's own: you cannot plan against topics you have

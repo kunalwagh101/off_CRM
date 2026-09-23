@@ -4,7 +4,7 @@ import hmac
 import os
 import threading
 import uuid
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, nullcontext
 from datetime import date
 from dataclasses import replace
 from pathlib import Path
@@ -72,7 +72,8 @@ from ..privacy import (
 )
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
-from ..outreach.backup import create_encrypted_backup, restore_encrypted_backup
+from ..outreach.backup import recover_interrupted_restore
+from ..outreach.workspace_lock import WorkspaceLock
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
@@ -128,13 +129,13 @@ from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
+from .production_runtime import TIMERS, RecoveryGate, install_runtime_routes
 from .gtm import build_gtm_router, resolve_angle
 from .schemas import (
     AutomationUpdate,
     AgentRoutineCreate,
     AgentRoutineUpdate,
     AgentRoutineEvent,
-    BackupExport,
     CampaignCreate,
     CampaignUpdate,
     ContactUpdate,
@@ -252,6 +253,22 @@ def is_public_api_path(path: str) -> bool:
         return False
     token = path[len(PUBLIC_UNSUBSCRIBE_PREFIX):]
     return bool(token) and "/" not in token
+#: The services `_close_runtime` closes, users of a store before the store.
+#: Everything on app.state with a `close()` must be here — see
+#: `test_every_open_service_is_closed_for_a_restore`.
+RUNTIME_CLOSE_ORDER: tuple[str, ...] = (
+    "privacy",
+    "ai_tools",
+    "engine",
+    "ai_cache",
+    "ai_egress_log",
+    "image_store",
+    "distribution_store",
+    "video_store",
+    "gtm_store",
+    "ai_context",
+    "ai_recall",
+)
 PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({
     "/health/live",
     "/health/ready",
@@ -481,10 +498,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         engine.email_expert.product_reader = reader
         return engine
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        resolved.prepare()
-        app.state.settings = resolved
+    def _open_runtime(app: FastAPI, previous: dict[str, Any]) -> None:
+        """Build every service over the workspace on disk.
+
+        Startup calls this, and so does a restore once the restored workspace
+        is in place (`S-06.02.21`): one list of services, so a store added here
+        is reopened after a restore without being listed twice. ``previous`` is
+        the state being replaced; the few hooks set on it from outside — a
+        discovery fetcher, a delivery provider — are carried across.
+        """
         # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
@@ -538,7 +560,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.engine.delivery_preflight = app.state.email_delivery.preflight
         app.state.engine.unsubscribe_service = unsubscribe
         app.state.sns_verifier = SnsVerifier()
-        app.state.maintenance_lock = threading.Lock()
         app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
         app.state.ai_registry = ProviderRegistry()
         app.state.ai_workspaces = WorkspaceAISettingsStore(
@@ -660,25 +681,55 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
             ),
         )
-        await app.state.automation.start()
-        await app.state.content_automation.start()
-        await app.state.agent_routines.start()
-        try:
-            yield
-        finally:
-            await app.state.automation.stop()
-            await app.state.content_automation.stop()
-            await app.state.agent_routines.stop()
-            app.state.privacy.close()
-            app.state.ai_tools.close()
-            app.state.engine.close()
-            app.state.ai_egress_log.close()
-            app.state.image_store.close()
-            app.state.distribution_store.close()
-            app.state.video_store.close()
-            app.state.gtm_store.close()
-            app.state.ai_context.close()
-            app.state.ai_recall.close()
+        if previous.get("discovery_fetcher_factory") is not None:
+            app.state.discovery_fetcher_factory = previous["discovery_fetcher_factory"]
+        old_delivery = previous.get("email_delivery")
+        for hook in ("domain_checker", "provider_factory"):
+            if old_delivery is not None and getattr(old_delivery, hook, None) is not None:
+                setattr(app.state.email_delivery, hook, getattr(old_delivery, hook))
+
+    def _close_runtime(app: FastAPI) -> None:
+        """Close every service that holds a connection, users before stores.
+
+        `test_every_open_service_is_closed_for_a_restore` fails if a service
+        with a `close()` is added to startup and not here: one left open keeps
+        writing into the workspace a restore has just moved aside.
+        """
+        for name in RUNTIME_CLOSE_ORDER:
+            service = getattr(app.state, name, None)
+            close = getattr(service, "close", None)
+            if callable(close):
+                close()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        resolved.prepare()
+        app.state.settings = resolved
+        resolved.verify_persistent_mount()
+        app.state.recovery_gate = RecoveryGate()
+        # A restore that stopped half way is rolled back before anything opens
+        # the workspace, under the same lock every request takes (audit A03).
+        with WorkspaceLock(resolved.data_dir, exclusive=True):
+            recover_interrupted_restore(
+                database_path=resolved.database_path, data_dir=resolved.data_dir
+            )
+        _open_runtime(app, {})
+        # Production is one instance per disk: SQLite state is not shared
+        # between web instances, and the lock refuses a second one.
+        lease = (
+            WorkspaceLock(resolved.data_dir, instance=True)
+            if resolved.production
+            else nullcontext()
+        )
+        with lease:
+            for name in TIMERS:
+                await getattr(app.state, name).start()
+            try:
+                yield
+            finally:
+                for name in TIMERS:
+                    await getattr(app.state, name).stop()
+                _close_runtime(app)
 
     app = FastAPI(
         title="off_CRM",
@@ -833,11 +884,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
-
-    @app.get("/health/ready")
-    def ready(request: Request) -> dict[str, str]:
-        _engine(request).store.connection.execute("SELECT 1").fetchone()
-        return {"status": "ready"}
 
     @app.get(f"{API_PREFIX}/meta")
     def meta() -> dict[str, Any]:
@@ -1483,100 +1529,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         results = request.app.state.content_automation.run_once()
         return {"results": results, "total": len(results)}
-
-    @app.post(f"{API_PREFIX}/backups/export")
-    def export_backup(body: BackupExport, request: Request) -> Response:
-        content = create_encrypted_backup(
-            database_path=_settings(request).database_path,
-            data_dir=_settings(request).data_dir,
-            passphrase=body.passphrase,
-        )
-        filename = f"offsetx-backup-{uuid.uuid4().hex[:8]}.oxbackup"
-        return Response(
-            content=content,
-            media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
-
-    @app.post(f"{API_PREFIX}/backups/restore")
-    async def restore_backup(
-        request: Request,
-        file: UploadFile = File(...),
-        passphrase: str = Form(..., min_length=12, max_length=500),
-    ) -> dict[str, Any]:
-        settings = _settings(request)
-        content = await file.read(settings.max_upload_bytes + 1)
-        if len(content) > settings.max_upload_bytes:
-            raise HTTPException(status_code=413, detail="Backup exceeds the upload limit")
-        if not request.app.state.maintenance_lock.acquire(blocking=False):
-            raise HTTPException(status_code=409, detail="Maintenance is already running")
-        automation = request.app.state.automation
-        agent_routines = request.app.state.agent_routines
-        await automation.stop()
-        await agent_routines.stop()
-        current_engine = request.app.state.engine
-        request.app.state.privacy.close()
-        request.app.state.ai_tools.close()
-        current_engine.close()
-        try:
-            for suffix in ("-wal", "-shm"):
-                Path(str(settings.database_path) + suffix).unlink(missing_ok=True)
-            result = restore_encrypted_backup(
-                content,
-                database_path=settings.database_path,
-                data_dir=settings.data_dir,
-                passphrase=passphrase,
-            )
-            request.app.state.engine = _attach_products(
-                OutreachEngine(
-                    settings.database_path,
-                    template_counter=request.app.state.ai_context,
-                    mail_archive=request.app.state.ai_recall,
-                ),
-                request.app,
-            )
-            request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
-            request.app.state.companions = CompanionRegistry(
-                settings.data_dir,
-                tools=request.app.state.ai_tools,
-                memory_backend=request.app.state.engine.store,
-            )
-            request.app.state.privacy = PrivacyService.for_local(
-                request.app.state.engine.store,
-                data_dir=settings.data_dir,
-                ai_context=request.app.state.ai_context,
-                ai_recall=request.app.state.ai_recall,
-                ai_egress=request.app.state.ai_egress_log,
-                export_dir=settings.export_dir,
-            )
-            return result
-        finally:
-            if getattr(request.app.state, "engine", None) is current_engine:
-                request.app.state.engine = _attach_products(
-                    OutreachEngine(
-                        settings.database_path,
-                        template_counter=request.app.state.ai_context,
-                        mail_archive=request.app.state.ai_recall,
-                    ),
-                    request.app,
-                )
-                request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
-                request.app.state.companions = CompanionRegistry(
-                    settings.data_dir,
-                    tools=request.app.state.ai_tools,
-                    memory_backend=request.app.state.engine.store,
-                )
-                request.app.state.privacy = PrivacyService.for_local(
-                    request.app.state.engine.store,
-                    data_dir=settings.data_dir,
-                    ai_context=request.app.state.ai_context,
-                    ai_recall=request.app.state.ai_recall,
-                    ai_egress=request.app.state.ai_egress_log,
-                    export_dir=settings.export_dir,
-                )
-            await automation.start()
-            await agent_routines.start()
-            request.app.state.maintenance_lock.release()
 
     @app.get(f"{API_PREFIX}/campaigns")
     def campaigns(
@@ -4248,6 +4200,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         finally:
             temporary.unlink(missing_ok=True)
+
+    # Before the frontend: a mount at "/" answers every path it is given, so a
+    # route added after it — /health/ready, Render's health check — was a 404
+    # in the built image and in no test, because tests run without a build.
+    install_runtime_routes(
+        app, resolved, open_runtime=_open_runtime, close_runtime=_close_runtime
+    )
 
     if resolved.frontend_dist.exists():
         app.mount("/", StaticFiles(directory=resolved.frontend_dist, html=True), name="frontend")

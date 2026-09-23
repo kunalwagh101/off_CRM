@@ -58,6 +58,9 @@ wastes a session when nobody can answer it.
 | DD-28 | 2026-09-20 | Companions are rows in the existing tool-registry SQLite DB, with exact memory scopes and execution-time tool-grant checks | Companion persistence is coupled to the local tool-control database until the broader workspace storage story moves it |
 | DD-35 | 2026-09-23 | A request schema bounds a body's shape — types, sizes, unknown fields — and leaves required-ness, allowed values and clamping to the older handlers that already refuse with a sentence | Those fields accept any string up to their size, and the handler, not the schema, is where to look for the rule |
 | DD-36 | 2026-09-23 | A ValueError's reason goes back to the caller, bounded to 500 characters, unless the credential scanner flags it | A reason that quotes the caller's own input is echoed; only credential-shaped text is withheld |
+| DD-37 | 2026-09-23 | The audit's live harness (`verification/`) and its two GitHub workflows stay on the archived branch; they were not ported | The Chrome, PostgreSQL and Docker acceptance run is not in `develop`; its WP1 container check was replayed by hand instead, and `S-06.02.23` owns bringing it back |
+| DD-38 | 2026-09-23 | Both Render services stay on the free plan and neither claims production; they deploy on commit, not when checks pass | Anything typed into either is lost on restart until the owner pays for a disk (Q-26); a push deploys even if it would have failed CI |
+| DD-39 | 2026-09-23 | A restore reopens services through the same function startup uses, not a list kept beside the restore code | `app.py` owns one more function; a store added to startup is reopened after a restore with no second list to forget |
 | DD-40 | 2026-09-22 | The strategy brain picks channels, sources and shapes from declared lists; a model never writes a campaign structure | A strategy the vocabulary cannot express cannot be proposed until someone adds a registry row |
 | DD-41 | 2026-09-22 | Product details travel only in classified request fields, never in a system prompt and never in `instructions` | At a `minimal` policy the model sees only the one-liner and the plan is thinner — the plan says so |
 | DD-42 | 2026-09-22 | Apply creates campaigns paused, imports nobody and spends no Apollo credit | One more deliberate step per campaign before anything runs |
@@ -491,6 +494,53 @@ tells the owner nothing. What the criterion protects against is a secret coming
 back; the scanner is the repository's one definition of a secret.
 
 **What it cost.** A reason can quote the caller's own input back to the caller.
+
+
+### DD-37 — The live audit harness stays archived · 2026-09-23
+
+**The call.** `verification/` and the `live-verification` and
+`wp1-verification` workflows from `integration/main-consolidation` are not in
+`develop`. They are in the archive tag.
+
+**Why not the obvious thing.** Porting everything is the obvious reading of
+"leave nothing behind". But the harness was pinned to the audited commit, it
+needs a non-root Chrome, a PostgreSQL service and Docker in CI, and the hosted
+runners cannot start on this repository (`D-75`). A workflow that cannot run
+would sit in `develop` looking like a gate. Its WP1 container test was replayed
+by hand against the `develop` image, with the same steps.
+
+**What it cost.** The other live checks — the 18 screens, login, the sandbox,
+Enter, export decoding — do not run anywhere now. `S-06.02.23` brings them back
+when there is somewhere to run them.
+
+### DD-38 — Free and honest on Render until the owner pays · 2026-09-23
+
+**The call.** `render.yaml` runs `off-crm-demo` from `main` and
+`off-crm-develop` from `develop`, both free, both with data in `/tmp`, neither
+with `OFFSETX_PRODUCTION`. Both deploy on every commit.
+
+**Why not the obvious thing.** The durable-state work was built for a paid
+plan with a disk, and its blueprint said so. Committing that would put a monthly
+bill in the owner's Render account from a merge. `checksPass` is the safer
+trigger, but with CI unable to start it means no deploy ever happens.
+
+**What it cost.** Data on either service lasts until the next restart. The test
+that guarded the blueprint now checks the rule that holds either way: a service
+claims production only with a disk, and a service on `/tmp` never does.
+
+### DD-39 — One function builds the services, for startup and for a restore · 2026-09-23
+
+**The call.** `_open_runtime` in `app.py` is what startup runs, and what a
+restore runs once the restored workspace is in place. The runtime module takes
+it as an argument.
+
+**Why not the obvious thing.** The original kept its own rebuild list in the
+runtime module. This line has twelve more services than that branch had, and the
+restore it replaced kept exactly such a list — which had already missed stores.
+
+**What it cost.** The runtime module cannot rebuild anything by itself; tests
+that fail the rebuild patch `_rebind_runtime`, which calls the function it was
+given.
 
 ### DD-29 — API privacy is default-deny; bootstrap and signed callbacks are explicit exceptions · 2026-09-22
 

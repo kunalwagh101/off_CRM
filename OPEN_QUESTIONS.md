@@ -332,3 +332,30 @@ strategy from providers, and these numbers are exactly that strategy.
 **Blast radius if wrong.** Keeping them hidden makes model-written reasons
 vaguer. Letting them through tells every tier A and B provider your volumes and
 reply rates.
+
+---
+
+### Q-26 — Should `main` on Render keep its data across restarts? *(affects `render.yaml`)*
+
+**Status:** open. Raised 2026-09-23 at the branch consolidation (`S-06.02.19`).
+
+**Ambiguity.** Both Render services — `off-crm-demo` on `main` and
+`off-crm-develop` on `develop` — are on the free plan. On the free plan the
+filesystem is wiped on every restart and every deploy, so anything typed into
+either is gone the next time it restarts. Render attaches a persistent disk only
+to a paid service. The code for a production-safe setup is ready
+(`S-06.02.21`): with `OFFSETX_PRODUCTION=1` and a mounted disk it keeps
+everything under one root, backs all of it up, and refuses to start on `/tmp`.
+
+**Options.** 1. Keep both free: fine while only testing, and nothing real may
+be kept in either. 2. Move `main` to a paid plan with a disk (the block is in
+`docs/BRANCHING.md`, "Making main keep its data"); keep `develop` free.
+3. Pay for both.
+
+**Recommended default: 1 now, 2 before the first real customer record.**
+Nothing was changed without your yes, because it costs money every month.
+`develop` should stay free: it is where unfinished work lands.
+
+**Blast radius if wrong.** Staying on 1 after real use starts loses every
+contact and campaign at the next deploy — and every push to `main` is a deploy.
+Choosing 2 early costs a monthly fee for a demo.

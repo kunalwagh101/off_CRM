@@ -288,6 +288,9 @@ class SentMailIndex:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._local = threading.local()
+        self._connection_lock = threading.RLock()
+        self._connections = set()
+        self._generation = 0
         self._redactor_cache: dict[str, tuple[int, Redactor]] = {}
         self._initialise()
 
@@ -295,14 +298,17 @@ class SentMailIndex:
 
     @property
     def connection(self) -> sqlite3.Connection:
-        connection = getattr(self._local, "connection", None)
-        if connection is None:
-            connection = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-            connection.row_factory = sqlite3.Row
-            connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute("PRAGMA foreign_keys=ON")
-            self._local.connection = connection
-        return connection
+        with self._connection_lock:
+            connection = getattr(self._local, "connection", None)
+            if connection is None or getattr(self._local, "generation", -1) != self._generation:
+                connection = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
+                connection.row_factory = sqlite3.Row
+                connection.execute("PRAGMA journal_mode=WAL")
+                connection.execute("PRAGMA foreign_keys=ON")
+                self._local.connection = connection
+                self._local.generation = self._generation
+                self._connections.add(connection)
+            return connection
 
     def _initialise(self) -> None:
         with self._lock:
@@ -339,10 +345,12 @@ class SentMailIndex:
             )
 
     def close(self) -> None:
-        connection = getattr(self._local, "connection", None)
-        if connection is not None:
-            connection.close()
-            self._local.connection = None
+        with self._connection_lock:
+            for connection in self._connections:
+                connection.close()
+            self._connections.clear()
+            self._generation += 1
+
 
     # ── indexing ───────────────────────────────────────────────────────────
 

@@ -31,7 +31,7 @@ export default function Connectors() {
   const [showBlocked, setShowBlocked] = useState(false);
 
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
-  const status = useResource(() => api.get<StatusPayload>("/status"), []);
+  const status = useResource(() => api.get<StatusPayload>("/settings/status"), []);
 
   const grouped = useMemo(() => {
     const rows = providers.data?.providers ?? [];

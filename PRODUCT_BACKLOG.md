@@ -760,6 +760,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-104 | Every line of built work lives on one working branch whose full suite, frontend build and board verifier pass | S-06.02.19 |
 | R-105 | Durable customer state, complete backups, safe recovery and truthful readiness (audit WP1) | S-06.02.21 |
 | R-106 | Creating or switching campaigns preserves the intended target through refresh, failure and reload | S-06.02.22 |
+| R-107 | Every finding of the 7 September production audit is re-checked on the one working branch, each closed by a test or kept open with a story | S-06.02.23 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1503,6 +1504,33 @@ never lands in an older campaign.
 - **Why:** audit finding A33, reproduced in real Chrome. Built on
   `integration/main-consolidation` as its `S-06.02.16` / `R-101`; ported here
   under a free ID because this line's `S-06.02.16` is a different story.
+
+#### S-06.02.23 — Re-check the 7 September production audit on `develop`
+**As an** owner, **I want** each of the audit's 35 findings to say whether it is
+still true of the branch I deploy, **so that** a finding fixed twice is not
+worked on again and a finding still open is not assumed fixed.
+- **Given** a finding the consolidation did not re-check, **when** its
+  reproduction from `docs/audits/2026-09-07-production-audit.md` is run against
+  `develop`, **then** it becomes a test that fails while the finding holds — or
+  the finding is closed with the test that shows it no longer does.
+- **Given** the audit's live harness (`verification/` on the archived
+  `integration/main-consolidation`), **when** it can run — CI runners
+  (`S-06.02.18`) or a trusted machine with Docker, Chrome and PostgreSQL —
+  **then** it runs against `develop` and its results are recorded, skips counted
+  as failures.
+- **Dependencies:** none for the per-finding checks; `S-06.02.18` for the
+  hosted harness run. **Size:** L. **Indicator:** audit findings with unknown
+  status on `develop` — target zero.
+- **Why:** the audit ran on `main` at `9f71f3c`. The consolidation closed A01–A04
+  and A17 (`S-06.02.21`), A26 (the image now installs the lock with its extras)
+  and A35 (`D-120`); A33 is `S-06.02.22`; A31 is `S-06.02.16`. A32 and A34 were
+  re-read in the code and are still open (`D-121`, `D-122`). The other 25 were
+  found on a branch that `develop` has since changed a great deal — several
+  (A05 identity, A06 logout, A09 Enter, A10 spend cap, A18 claim numbers, A19
+  formulas, A24 deletion) are what later stories set out to fix — but none was
+  re-run here, and "probably fixed" is not a status.
+- **Out of scope:** fixing a finding that turns out to be open — each gets its
+  own story, as A32 and A34 will.
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that

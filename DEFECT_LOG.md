@@ -322,6 +322,7 @@ closed instead of regenerating content.
 **Evidence status.** Regressions cover lost managed plans and adoption of an
 existing legacy plan. Executable evidence remains blocked by D-75, so
 S-02.02.02 stays IN_REVIEW.
+| D-102 | 2026-09-18 | process | high | Artifact CLI registration wrote a literal `\\n` into `pyproject.toml`, which would make project metadata invalid | fixed before review · `S-07.01.04` — committed metadata is re-read after scripted edits |
 
 ---
 

@@ -2321,6 +2321,36 @@ written from memory were wrong:
 - [ ] After runner capacity is restored, execute the locked closure chain:
       S-05.01.01 → S-05.01.02 → S-05.01.03.
 
+### Reports and artifacts — S-07.01.04 (2026-09-18, IN_REVIEW)
+
+- [x] Existing verified trace findings are the only content source. Artifact
+      generation has no broker/provider/model route.
+- [x] XLSX uses the installed openpyxl dependency, includes Findings + Trace
+      sheets and internally hyperlinks every claim to its exact trace-step row.
+- [x] Spreadsheet formula prefixes from hostile page text are forced to literal
+      strings; invalid XML control characters are normalised before writing.
+- [x] PPTX is a small standard-library OOXML package: title slide plus one slide
+      per finding, with value, quote, source URL, capture time and trace step.
+      No macros or external relationships.
+- [x] PDF reuses the already-hardened offline HTML report and prints it through
+      installed Chromium with a temporary empty profile and background networking
+      disabled. No second PDF renderer or dependency.
+- [x] Broken provenance fails closed before an artifact is written.
+- [x] `offsetx-artifacts` exposes XLSX, PPTX, PDF and all locally.
+- [x] Ten focused tests cover format structure, trace linkage, hostile text,
+      output privacy, PDF browser contract, CLI behaviour and the no-AI rule.
+- [ ] Locked executable evidence is pending. GitHub Actions is still creating
+      failed quality jobs with zero workflow steps, so this story cannot be
+      called DONE until the test command and board verifier actually run.
+- [x] D-102 (D-51 on its branch) was caught before review: a scripted metadata edit wrote a literal
+      `\\n` into `pyproject.toml`; the committed file was re-read and fixed.
+- [x] Supplemental format probe: the exact PPTX package shape opened in
+      LibreOffice Impress and converted to PDF successfully.
+- [ ] Live PDF rendering is not certified in this container. Root Chromium
+      correctly refuses to run with its sandbox; a non-root probe did not
+      complete here. No `--no-sandbox` weakening was added to make the probe
+      pass.
+
 ## 4. Not built yet
 
 Listed honestly. Nothing below is silently assumed done.

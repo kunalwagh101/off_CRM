@@ -795,3 +795,31 @@ Expect, in this order:
 - `DO Resume the campaign. on campaigns`
 - `REVISE version 2 draft | Only 0 people were contacted …` — too little data, so
   the assumed rate carries forward and the note says so.
+
+---
+
+## 14. Turn one verified run into sendable artifacts
+
+The focused contract:
+
+```bash
+uv run pytest tests/test_agent_artifacts.py -q
+```
+
+Expect the suite to prove all three format paths, exact trace-step provenance,
+spreadsheet formula-injection protection, broken-provenance refusal, private
+output permissions, the installed CLI path, and that the renderer has no AI
+transport.
+
+For an existing agent run:
+
+```bash
+uv run offsetx-artifacts --run-dir /path/to/run --format xlsx
+uv run offsetx-artifacts --run-dir /path/to/run --format pptx
+uv run offsetx-artifacts --run-dir /path/to/run --format pdf
+```
+
+The files appear beside that run's `trace.jsonl`. XLSX contains a Trace sheet
+and every finding links to its exact step row. PPTX writes the step id on every
+claim slide. PDF is the existing escaped offline provenance report printed by a
+local Chromium-family browser.

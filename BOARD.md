@@ -71,7 +71,6 @@ declare is DONE, and no open question is filed against any of them. They had
 been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
-- S-07.01.04 · Reports and artifacts
 
 *(Ported from `integration/main-consolidation` with the consolidation, 2026-09-23.
 Built and proven in real Chrome there; waits here until `S-06.02.21` is in, so
@@ -106,6 +105,7 @@ write the code, then the evidence block.)*
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.01 · A crawler with a frontier, not a loop
+- S-07.01.04 · Reports and artifacts
 
 ## BLOCKED
 

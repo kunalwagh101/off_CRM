@@ -69,7 +69,7 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-56 | S-07.01.04 | 1 | — | — |
+| R-56 | S-07.01.04 | 3 | `tests/test_agent_artifacts.py` | `offsetx_apollo_builder/agent/artifacts.py`, `offsetx_apollo_builder/artifact_cli.py` |
 
 ## Blocked externally — engineering is waiting on access
 

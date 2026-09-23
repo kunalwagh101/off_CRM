@@ -343,6 +343,7 @@ that catches us lying about what is finished.
 | P-10.6 | `scripts/verify_board.py` | **The lie detector.** Re-runs every DONE claim's test and fails on any failure | 29 | S-06.02.06 ✅ |
 | P-10.7 | question lifecycle | An answered question unblocks; a deleted one does not | 29 | S-06.02.07 ✅ |
 | P-10.8 | `privacy.py` | One inventory for subject access + confirmed idempotent deletion across CRM, recall, AI context/egress, companion profiles, crawler, traces, tagged artifacts and CSV exports/queues | `test_privacy.py` | S-06.02.04 ◐ IN_REVIEW |
+| P-10.9 | `agent/artifacts.py` + `artifact_cli.py` | Verified trace findings → XLSX / PPTX / PDF, no second model call | 10 focused | S-07.01.04 ◐ |
 
 **`P-10.6` is the most important 300 lines in the repository** and it deserves a
 plain explanation: anybody can write the word DONE. This script reads `BOARD.md`,

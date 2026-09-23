@@ -80,6 +80,7 @@ wastes a session when nobody can answer it.
 | DD-56 | 2026-09-23 | *Revises DD-53's mechanism.* A version's baseline is taken from the review it was written from, not recorded when it is applied | Sends between the review and the Apply count toward the new version though the old angle made them. Chosen because the new version's goal is "what was left at the review" — counting from anywhere else loses replies or counts them twice (`D-95`) |
 | DD-57 | 2026-09-23 | A paused posting campaign publishes nothing: its due posts are skipped and stay scheduled, and content automation makes nothing for a paused pair | Pausing now also holds posts the owner already approved, where before it held nothing. That is what pause means everywhere else in off_CRM, and a plan's "nothing has sent" depends on it (`D-87`) |
 | DD-58 | 2026-09-23 | Apply never changes an archived campaign — not to pause a dropped channel, not to run a kept one — and says so | A revision whose channel's campaign is archived does not run that channel until the owner unarchives it. Wrong if owners archive to mean "pause"; then Apply should ask |
+| DD-34 | 2026-09-18 | Report artifacts are deterministic renderers: no second model call; XLSX reuses openpyxl, PPTX uses the small OOXML subset directly, PDF prints the existing safe HTML through installed Chromium | PPTX is intentionally plain and PDF requires a Chromium-family browser; branded templates or server-only PDF would justify a document library later |
 
 ---
 

@@ -26,6 +26,10 @@ An item may be pulled only when **all** of these hold:
 
 Every box, every time. This is a claim about the repository, not about intent.
 
+The standing production contract in `AGENTS.md` applies to every item. These
+gates establish evidence for the capability being changed; they do not certify
+the whole deployment. Existing production blockers must remain visible.
+
 - [ ] **Code implemented.** No TODO, no FIXME, no `NotImplementedError`, no
       stub function, no hardcoded fixture standing in for real data anywhere in
       the slice.
@@ -47,6 +51,23 @@ Every box, every time. This is a claim about the repository, not about intent.
 - [ ] **Every design call that was not the obvious one is in `DECISIONS.md`**,
       with what it cost. A decision with no cost was not a decision.
 - [ ] **Board updated and `scripts/verify_board.py` passes.**
+- [ ] The real user path, data ownership, deployment requirements and relevant
+      failure/recovery cases are named. Any external access or integration
+      needed for that path is available, or its blocker is recorded.
+- [ ] **The supported user path works end to end** through the real application
+      entry point. Test-only entry points and simulated provider success do
+      not establish that a customer can use the feature. Record which real
+      integrations were exercised and which remain unverified.
+- [ ] **Changed durable state survives the relevant restart and failure cases.**
+      For persistence changes, verify backup/restoration and migration recovery.
+      For external effects, prove retry/duplicate protection and explicit
+      handling of uncertain outcomes.
+- [ ] **Operational evidence fits the change.** Relevant logs protect secrets,
+      failures give an actionable next step, and affected health checks,
+      time/spend bounds and rollback procedures are verified.
+- [ ] **Release status is explicit.** Record remaining production blockers and
+      distinguish code completion from merge and deployment. A known blocker
+      cannot be waived because a walkthrough succeeds.
 
 **A story that has code but no run test is `IN_REVIEW`, not `DONE`.** There is
 no third state for "I am fairly sure it works".

@@ -17,6 +17,45 @@ There is a sibling repo named `email_agent` that is **empty and unused**. If a
 session lands there and finds no commits, that is the wrong repo, not a missing
 project. The work is here.
 
+**Two branches: `develop` and `main`.** Commit and push to `develop`; `main` is
+promoted from it after checking. Do not create other branches.
+`docs/BRANCHING.md` has the workflow, the Render services, and where every older
+branch went (each is archived as a tag `archive/<branch>`).
+
+---
+
+## Production contract — standing owner instruction (2026-09-05)
+
+off_CRM is a production application for real users. Apply this requirement to
+every plan, architecture decision, prompt, implementation, test, deployment,
+data flow and user experience. The owner must not need to repeat it.
+
+- Build real capabilities with validated inputs, permission checks, protected
+  secrets and accurate user-visible results. No demo-only shortcuts, fake
+  success states, placeholder runtime logic or mock integrations presented as
+  working features. Test doubles belong in tests and do not prove a live
+  integration.
+- Protect customer data and audit records across process crashes, restarts and
+  deployments. Verify persistence, backup and restoration for the storage the
+  feature uses. Temporary storage is only for disposable work.
+- Cover the relevant failure, concurrency and recovery paths. Bound retries,
+  time and spend where applicable; an uncertain external action must not be
+  repeated automatically. Preserve human approval for consequential actions.
+- Include actionable errors, secret-safe logs, health checks and a tested
+  rollback appropriate to the change. Record unresolved release blockers.
+- A feature is complete only when its real supported user path is wired and
+  the applicable Definition of Done evidence passes. Distinguish implemented,
+  verified, merged and deployed; passing isolated tests is not a release claim.
+- Use the simplest maintainable design that meets actual user, data and
+  deployment needs. Production quality does not require unnecessary services
+  or abstractions.
+
+This instruction supersedes historical demo assumptions in this repository.
+Legacy filenames or service names do not permit weaker release standards.
+Read `DEFINITION_OF_DONE.md` for the evidence required before calling work done.
+*(Written on `agent/production-contract` on 2026-09-05; it reached `develop` at
+the branch consolidation of 2026-09-23.)*
+
 ---
 
 ## Read this before reading code
@@ -107,12 +146,24 @@ with a misleading "Scrapling is not installed".
 
 ## Storage
 
-SQLite, behind a boundary in `outreach/store.py`. Postgres is a swap, not a
-rewrite, and is not needed until this is a shared multi-user server.
+SQLite is used by the CRM store and most others. The Postgres boundary covers
+selected stores; it is not a completed migration of the whole application.
+Choose storage from the actual deployment, concurrency, isolation and recovery
+requirements.
 
-On Render, `OFFSETX_DATA_DIR` points at `/tmp`, which is wiped on restart — so
-the encrypted key file does not survive and the egress log resets. Provider keys
-come from `OFFSETX_AI_<PROVIDER>_KEY` environment variables there instead.
+Everything durable lives under one root, `OFFSETX_DATA_DIR`. A backup is that
+whole root plus the CRM database; a restore swaps it under a journal and
+reopens every service (`docs/architecture/WP1_OPERATIONS.md`). A new store
+belongs under that root, and must be opened in `_open_runtime` and closed in
+`RUNTIME_CLOSE_ORDER` — `tests/test_audit_wp1.py` fails if it is not.
+
+**Both Render services run on the free plan with data under `/tmp`, which is
+wiped on every restart and deploy.** That loses CRM data, encrypted keys and
+audit records, and it is a production release blocker until the owner moves
+`main` to a paid service with a disk (`OPEN_QUESTIONS.md` Q-26). With
+`OFFSETX_PRODUCTION=1` the app refuses to start on `/tmp` at all. Provider keys
+can come from `OFFSETX_AI_<PROVIDER>_KEY` environment variables, but that does
+not make CRM data or audit records durable.
 
 ---
 

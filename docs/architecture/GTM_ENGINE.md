@@ -190,7 +190,15 @@ on these rows. Deferring the adapter is right; deferring the labelling is not.
 **Migration and rollback.** Four new tables, no change to any existing table.
 Rollback is dropping them; nothing else reads them. `baseline_json` arrived with
 revisions (S-12.02.04) and is added to an older `gtm_plans` by
-`add_column_if_missing`, the additive migration both backends support.
+`add_column_if_missing`, the additive migration both backends support —
+`test_an_older_database_gains_the_baseline_column` opens a table made without it.
+
+**The rollback was executed once, on 2026-09-23**, against a real app with a
+product, an applied plan and a review: all four `gtm_*` tables dropped, the app
+restarted on the same data, the CRM's campaigns listed with the same ids, the
+GTM screens empty, and the tables made again on the next write (a product
+created, 201). The campaigns Apply made stay behind as ordinary paused
+campaigns — rollback removes the brain, not the CRM rows it created.
 
 ---
 

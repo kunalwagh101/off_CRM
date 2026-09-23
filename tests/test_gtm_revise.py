@@ -486,3 +486,33 @@ def test_revise_over_http(client):
     assert client.post("/api/v1/gtm/plans/no-such/revise", json={}).status_code == 404
     bad = client.post(f"/api/v1/gtm/plans/{plan['id']}/revise", json={"use_modle": False})
     assert bad.status_code == 422
+
+
+def test_an_older_database_gains_the_baseline_column(tmp_path):
+    """`gtm_plans` shipped without `baseline_json`, and `CREATE TABLE IF NOT
+    EXISTS` never adds a column. A database made then must still open, keep its
+    plans, and read their baseline as empty."""
+    import sqlite3
+
+    path = tmp_path / "gtm.db"
+    old = sqlite3.connect(path)
+    old.executescript(
+        "CREATE TABLE gtm_plans (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, "
+        "product_id TEXT NOT NULL, root_id TEXT NOT NULL, parent_id TEXT NOT NULL DEFAULT '', "
+        "version INTEGER NOT NULL, status TEXT NOT NULL, request_json TEXT NOT NULL, "
+        "product_snapshot_json TEXT NOT NULL, product_version INTEGER NOT NULL, "
+        "envelope_json TEXT NOT NULL, plan_json TEXT NOT NULL, feasibility_json TEXT NOT NULL, "
+        "notes_json TEXT NOT NULL, source TEXT NOT NULL, provider_id TEXT NOT NULL DEFAULT '', "
+        "model_id TEXT NOT NULL DEFAULT '', policy TEXT NOT NULL DEFAULT '', "
+        "created_at TEXT NOT NULL, applied_at TEXT);"
+        "INSERT INTO gtm_plans VALUES ('p1','w','prod','p1','',1,'applied','{}','{}',1,'{}',"
+        "'{\"channels\": []}','{}','[]','rules','','','','2026-09-22T00:00:00+00:00',NULL);"
+    )
+    old.commit()
+    old.close()
+
+    store = GtmStore(path)
+    assert store.get_plan("p1", "w")["baseline"] == {}
+    store.set_baseline("p1", "w", {"email": {"contacted": 3, "replied": 1}})
+    assert store.get_plan("p1", "w")["baseline"]["email"]["contacted"] == 3
+    store.close()

@@ -693,6 +693,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-138 | off_CRM drives external GTM tools — Apollo, Hunter, Clay, Mailchimp — as their GTM engineer | F-12.04 |
 | R-139 | A plan's audience compiles into an Apollo search with its credit cost shown first | F-12.05 |
 | R-140 | The verifier distinguishes a shallow clone from a missing commit | S-06.02.20 |
+| R-141 | A plan's posting channel runs from the screens: paired, switched on and approved there | S-12.02.06 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1414,6 +1415,23 @@ own winning templates in view, **so that** the brain starts from what works.
   **then** it reports that no verdict is trustworthy yet.
 - **Dependencies:** S-12.02.04. **Size:** L. **Indicator:** plan-suite score
   with the corpus against without it.
+
+#### S-12.02.06 — A plan's posting channel runs from the screens
+**As an** owner, **I want** a plan's posting channel to start posting from the
+screens, **so that** a views goal is something the product can actually reach.
+Filed 2026-09-22 for `D-82`: today Apply creates the posting and picture
+campaigns, and nothing on a screen pairs them, switches content automation on or
+approves a post.
+- **Given** an applied plan with posting and picture channels, **when** the
+  owner resumes them, **then** content automation runs that pair without the
+  owner writing its ids into an API call.
+- **Given** a drafted post, **when** the owner opens Posting, **then** they can
+  approve or skip it there.
+- **Given** a paused campaign in a declared pair, **when** content automation
+  runs, **then** it makes nothing for that pair — pairing at Apply must not
+  spend image credits on a plan nobody has started.
+- **Dependencies:** S-12.02.02. **Size:** M. **Indicator:** plans with a views
+  goal that publish a first post.
 
 ### F-12.03 — Video in the email  *(E-12, next milestone)*
 

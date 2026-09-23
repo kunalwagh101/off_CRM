@@ -217,4 +217,32 @@ describe("the GTM engine", () => {
     expect(html).toContain("Resume each campaign when you are ready");
     expect(html).toContain("set to 500");
   });
+
+  it("a review shows what is wrong first, and never links a remedy to a screen that cannot do it", async () => {
+    const { ReviewView } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <ReviewView
+        review={{
+          id: "r1", plan_id: "p1", summary: "", source: "rules", provider_id: "", model_id: "", policy: "",
+          created_at: "2026-09-22T12:00:00+00:00", measurements: [],
+          findings: [
+            { channel: "email", campaign_id: "c1", code: "delivery_unhealthy", sentence: "6.0% of 300 accepted emails hard-bounced.", permitted: ["fix_list_quality"], numbers: {} },
+            { channel: "distribution", campaign_id: "c2", code: "nothing_published", sentence: "Nothing has been published from this campaign yet.", permitted: ["set_up_posting"], numbers: {} }
+          ],
+          remedies: [
+            { channel: "email", campaign_id: "c1", finding: "delivery_unhealthy", action: "fix_list_quality", why: "6.0% bounced.", proposal: "", page: "contacts", label: "Remove the addresses that bounced." },
+            { channel: "distribution", campaign_id: "c2", finding: "nothing_published", action: "set_up_posting", why: "Nothing posted.", proposal: "", page: "", label: "Set up posting." }
+          ],
+          notes: ["No model could review this plan. These are the rules' remedies."]
+        }}
+      />
+    );
+    expect(html).toContain("delivery unhealthy");
+    expect(html).toContain("6.0% of 300 accepted emails hard-bounced.");
+    expect(html).toContain('href="#contacts"');
+    // One remedy has a screen and one does not: exactly one "Open" link.
+    expect(html.match(/>Open</g)?.length).toBe(1);
+    expect(html).toContain("Rules-based remedies");
+    expect(html).toContain("rules&#x27; remedies");
+  });
 });

@@ -28,7 +28,8 @@ from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
-from ..gtm.service import GtmService
+from ..gtm.service import PUBLISHED_COUNT_LIMIT, GtmService
+from ..gtm.service import Readers as GtmReaders
 from ..gtm.store import GtmStore
 from ..gtm.strategy import ModelUnavailable
 from ..imagery.engine import ImageCampaignEngine
@@ -1703,8 +1704,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         store = app_ref.state.distribution_store
         goals = store.list_goals(campaign_id)
+        # The newest: `set_goal` adds a row rather than replacing one, so the
+        # first row is the goal as it was, not as it is (D-84).
         views_goal = next(
-            (goal for goal in goals if str(goal.get("metric") or "views") == "views"), None
+            (goal for goal in reversed(goals) if str(goal.get("metric") or "views") == "views"),
+            None,
         )
         accounts = store.list_accounts()
         platform_ids = {str(account.get("platform") or "") for account in accounts}
@@ -1730,6 +1734,25 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "ceiling_source": source,
             "owner_cap": owner_cap,
         }
+
+    def _pacing_decision(app_ref: Any, campaign_id: str) -> Any:
+        """What the pacer says for one campaign now — the Posting screen's number.
+
+        One function for the pacing endpoint and the GTM review, so the review
+        can never quote a different decision than the screen shows.
+        """
+        inputs = _pacing_inputs(app_ref, campaign_id)
+        config = app_ref.state.content_automation.config()
+        return pacing_decide(
+            goal_target=int(inputs["goal_target"]),
+            goal_deadline=str(inputs["goal_deadline"]),
+            metrics=inputs["metrics"],
+            current_per_day=float(config.get("posts_per_day") or 0.0),
+            ceiling=float(inputs["ceiling"]),
+            ceiling_source=str(inputs["ceiling_source"]),
+            owner_cap=float(inputs["owner_cap"]),
+            candidates_per_topic=int(config.get("candidates") or 3),
+        )
 
     def _trends(request: Request) -> TrendWatcher:
         """The competitor watcher, with a client only if a key is configured.
@@ -1958,25 +1981,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         Read-only. It never changes the rate — that is the owner's press of a
         button, and it lives at ``/content-automation/pace``.
         """
-        state = request.app.state
         _distribution(request)._require_own_kind(campaign_id, "reading the pacing")
-        inputs = _pacing_inputs(request.app, campaign_id)
-        config = state.content_automation.config()
-        decision = pacing_decide(
-            goal_target=int(inputs["goal_target"]),
-            goal_deadline=str(inputs["goal_deadline"]),
-            metrics=inputs["metrics"],
-            current_per_day=float(config.get("posts_per_day") or 0.0),
-            ceiling=float(inputs["ceiling"]),
-            ceiling_source=str(inputs["ceiling_source"]),
-            owner_cap=float(inputs["owner_cap"]),
-            candidates_per_topic=int(config.get("candidates") or 3),
-        )
+        config = request.app.state.content_automation.config()
         return {
             "campaign_id": campaign_id,
             "mode": config.get("pace_mode"),
             "pending": config.get("pending_pace") or {},
-            **decision.to_dict(),
+            **_pacing_decision(request.app, campaign_id).to_dict(),
         }
 
     @app.post(f"{API_PREFIX}/content-automation/pace")
@@ -2401,6 +2412,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ),
             goals_of=lambda campaign_id: state.distribution_store.list_goals(campaign_id),
             lock=lambda key: state.campaign_locks.hold(key),
+            # What a review measures — each the same reader the screen for
+            # that fact uses, so the review and the screen cannot disagree.
+            readers=GtmReaders(
+                campaign=lambda campaign_id: _engine(request).store.get_campaign(campaign_id),
+                email_summary=lambda campaign_id: _engine(request).store.campaign_summary(
+                    campaign_id
+                ),
+                health=lambda campaign_id: state.email_delivery.store.health(campaign_id),
+                weak_templates=lambda: len(state.ai_context.weak_templates(workspace_id)),
+                published=lambda campaign_id: len(
+                    state.distribution_store.list_posts(
+                        campaign_id, status="published", limit=PUBLISHED_COUNT_LIMIT
+                    )
+                ),
+                pacing=lambda campaign_id: _pacing_decision(request.app, campaign_id).to_dict(),
+            ),
         )
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")

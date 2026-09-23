@@ -167,10 +167,12 @@ gtm_reviews (
   measurements_json TEXT NOT NULL,       -- exactly what was read
   findings_json TEXT NOT NULL,           -- one per channel, deterministic
   remedies_json TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',      -- the model's, emptied if it says a forbidden claim
   notes_json TEXT NOT NULL,
   source TEXT NOT NULL,                  -- model | rules
   provider_id TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
+  policy TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL               -- microseconds, so two in one second order
 )
 ```
 
@@ -392,36 +394,66 @@ row below that applies.
 
 | Order | Finding | When | Permitted remedies |
 |---|---|---|---|
-| 1 | `not_started` | campaign not `active` | `resume_campaign` |
-| 2 | `no_contacts` | 0 contacts | `add_contacts` |
-| 3 | `delivery_unhealthy` | health `breached` non-empty, or paused by health | `fix_list_quality`, `check_domain_authentication`, `reduce_volume` |
+| 1 | `delivery_unhealthy` | health `breached` non-empty, or paused by health | `fix_list_quality`, `check_domain_authentication`, `reduce_volume` |
+| 2 | `archived` | campaign `archived` — the owner stopped it on purpose | — |
+| 2 | `not_started` | campaign `paused` | `resume_campaign` |
+| 3 | `no_contacts` | 0 contacts | `add_contacts` |
 | 4 | `awaiting_approval` | drafts pending and fewer than half the expected sends | `approve_drafts` |
-| 5 | `under_volume` | contacted < half of `daily_volume × send days elapsed` | `resume_campaign`, `raise_volume` |
+| 5 | `under_volume` | contacted < half of `daily_volume × send days since applied` | `add_contacts`, `check_send_settings` |
 | 6 | `insufficient_data` | contacted < 20 (`MIN_SENDS_TO_JUDGE`) | `wait_for_data` |
-| 7 | `behind_target` | Wilson 90% upper bound < assumed rate | `test_new_angle`, `narrow_audience`, `change_offer`, `rewrite_weak_template`* |
-| 8 | `ahead_of_target` | Wilson 90% lower bound > assumed rate | `hold`, `raise_volume` |
+| 7 | `behind_target` | 90% one-sided Wilson upper bound < assumed rate | `test_new_angle`, `narrow_audience`, `change_offer`, `rewrite_weak_template`* |
+| 8 | `ahead_of_target` | 90% one-sided Wilson lower bound > assumed rate | `hold`, `raise_volume` |
 | 9 | `inconclusive` | otherwise | `wait_for_data`, `hold` |
+
+**Why delivery health is first, not "not started".** Corrected before the code,
+on 2026-09-22. The health auto-pause (`apply_health_pause`) sets the campaign's
+own status to `paused`. With "not started" first, a campaign paused *because it
+was bouncing* would be told to resume — the one piece of advice that does real
+damage. A broken pipe comes before an idle one. `under_volume` offers
+`add_contacts` and `check_send_settings`, not `raise_volume`: a campaign not
+sending what the plan asked for has a cause to find, and more volume is not it.
 
 \* only when the context layer reports a weak template.
 
-`raise_volume` is **never** permitted while delivery is unhealthy — row 3 stops
-the walk before row 5 or 8 can offer it. `inconclusive` says how many people,
+`raise_volume` is **never** permitted while delivery is unhealthy — row 1 stops
+the walk before row 8 can offer it. `inconclusive` says how many people,
 contacted at the rate measured so far, would make the same interval exclude the
 assumption — one statistic for the verdict and for the wait, not two.
 (`ai/bandit.sends_needed` answers a two-variant question, and importing anything
 from `ai/` imports the broker.)
 
-**Distribution** reuses `distribution/pacing.decide()` rather than a second copy
-of its arithmetic:
+"Send days" are counted in UTC dates from the day the plan was applied up to
+today or the end of its window (the day it was written plus its horizon),
+whichever is first — a plan reviewed after its window is not expected to have
+kept sending.
+
+**Distribution** reuses `distribution/pacing.decide()` — through the same
+`_pacing_decision` the Posting screen reads — rather than a second copy of its
+arithmetic:
 
 | Order | Finding | When | Permitted remedies |
 |---|---|---|---|
-| 1 | `no_account` | no connected account | `connect_account` |
-| 2 | `not_started` | 0 posts published | `resume_campaign` |
-| 3 | `insufficient_data` | pacing action `hold` | `wait_for_data` |
-| 4 | `behind_target` | pacing action `raise` | `raise_post_rate`, `test_new_angle` |
-| 5 | `ahead_of_target` | pacing action `lower` | `hold` |
-| 6 | `on_track` | pacing action `on_pace` | `hold` |
+| 1 | `no_account` | no *enabled* connected account | `connect_account` |
+| 2 | `archived` | campaign `archived` | — |
+| 2 | `not_started` | campaign `paused` | `resume_campaign` |
+| 3 | `window_ended` | today is on or after the plan's window end | — (revise the plan) |
+| 4 | `nothing_published` | running, 0 posts published | `set_up_posting` (no screen yet, `D-82`) |
+| 5 | `supporting` | a replies plan: nothing of its own to pace | — |
+| 6 | `on_track` | pacing action `on_pace` (on pace, or the goal met) | `hold` |
+| 7 | `behind_target` | pacing action `raise`, and the pacer is steering | `raise_post_rate`, `test_new_angle` |
+| 8 | `ahead_of_target` | pacing action `lower`, and the pacer is steering | `hold` |
+| 9 | `insufficient_data` | pacing action `hold` below `MIN_POSTS_TO_STEER` measured posts | `wait_for_data` |
+| 10 | `pacer_idle` | anything else — a hold for the goal's own reasons, or a cut to the owner's cap | — |
+
+**Why the pacer's `steering` flag is read, not only its action** (`DD-50`,
+corrected before the code). The pacer also says `hold` when a goal's deadline
+has passed and `lower` when the rate is above the owner's cap. Read by action
+alone, the first becomes "wait for data" — advice to wait for a window that has
+closed — and the second becomes "ahead of target". Its reason sentence is quoted
+whole in every distribution finding, so the owner always sees what it said.
+
+**No campaign.** A plan channel whose campaign was deleted or unlinked is
+`no_campaign`, with no remedy: revising the plan creates it again.
 
 **Image** has one finding, `supporting`, and no remedies — pictures are judged by
 the swipe queue that already exists.
@@ -436,8 +468,18 @@ channel (`task_type="gtm_review"`, data class `campaign`) and returns:
 ```
 
 `parse_remedies` drops any action not permitted for that channel's finding, any
-channel not in the plan, more than two per channel, and any proposal containing
-a forbidden claim. With no model, each finding's first permitted remedy is used.
+channel not in the plan, more than two per channel, and any remedy whose reason
+or proposal contains a forbidden claim — checked against the product as it is
+*today*, not the plan's copy. A channel the model left without a remedy, when its
+finding permits one, gets the rules' first remedy and a note (`DD-52`). With no
+model, each finding's first permitted remedy is used. No model is asked when no
+finding permits anything: the call could only cost money to say nothing.
+
+The model receives the product in classified fields exactly as the plan did
+(`DD-41`), and the plan's own angles and hypotheses as campaign notes — a rules
+plan's angle *is* the one-liner. `instructions` carries only the findings, which
+are numbers and code-authored sentences; a delivery pause reason is never quoted
+into them, because it is stored where an owner could have typed it.
 
 **Measured rates replace assumptions.** `revise` passes the email channel's
 measured reply rate forward as the next version's `assumed_reply_rate` once
@@ -559,9 +601,11 @@ report — do not widen the change.
   `api/gtm.py`, `api/app.py` (readers + `ask` with `task_type="gtm_review"`),
   `Strategy.tsx`.
 - **Interfaces:** `diagnose(plan, measurements, *, min_sample, now) ->
-  list[Finding]`; `permitted_remedies(finding) -> tuple[str, ...]`;
+  list[Finding]`, each `Finding` carrying its own `permitted` tuple;
   `parse_remedies(text, *, findings, product) -> ParsedRemedies`;
-  `baseline_remedies(findings) -> ParsedRemedies`.
+  `baseline_remedies(findings) -> ParsedRemedies`;
+  `GtmService(..., readers=Readers(campaign, email_summary, health,
+  weak_templates, published, pacing))` and `review_plan(plan_id, values)`.
 
 ### S-12.02.04 — A review becomes the next version of the plan
 

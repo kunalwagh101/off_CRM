@@ -10,10 +10,21 @@ drive it with plain functions and what would let it be lifted out later.
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Mapping, Sequence
 
 from .. import campaigns
+from .review import (
+    MIN_SAMPLE,
+    ParsedRemedies,
+    ReviewRefused,
+    baseline_remedies,
+    build_review_prompt,
+    diagnose,
+    parse_remedies,
+    review_fields,
+)
 from .store import GtmStore, PlanStateError
 from .strategy import (
     ASSUMED_REPLY_RATE,
@@ -22,6 +33,7 @@ from .strategy import (
     ModelUnavailable,
     ParsedPlan,
     PlanRefused,
+    RequestInvalid,
     baseline_plan,
     build_prompt,
     envelope_from,
@@ -42,6 +54,37 @@ _THIN_POLICIES = frozenset({"strict", "pseudonymous", "minimal"})
 CAMPAIGN_DAILY_LIMIT = 500
 CAMPAIGN_NAME_LIMIT = 120
 
+#: How many posts a published count reads before it stops counting — the same
+#: bound the distribution progress screen uses. The review only needs "none"
+#: and "how many" for a sentence, never an exact total past it.
+PUBLISHED_COUNT_LIMIT = 10_000
+
+
+@dataclass(frozen=True)
+class Readers:
+    """What a review reads from the rest of off_CRM — one callable per fact.
+
+    Built by the API per request, like Apply's hands, so this package still
+    reads no table it does not own (the seam rule) and a test can hand it plain
+    functions.
+    """
+
+    #: The CRM campaign row; raises ``KeyError`` when it has been deleted.
+    campaign: Callable[[str], Mapping[str, Any]]
+    #: `OutreachStore.campaign_summary`: contacts, statuses, stages, drafts.
+    email_summary: Callable[[str], Mapping[str, Any]]
+    #: The delivery health report for an email campaign.
+    health: Callable[[str], Mapping[str, Any]]
+    #: How many templates the context layer judges weak.
+    weak_templates: Callable[[], int]
+    #: How many posts a distribution campaign has published.
+    published: Callable[[str], int]
+    #: `pacing.decide(...).to_dict()` for a distribution campaign.
+    pacing: Callable[[str], Mapping[str, Any]]
+
+
+REVIEW_FIELDS = ("use_model",)
+
 
 class GtmService:
     def __init__(
@@ -58,6 +101,7 @@ class GtmService:
         set_goal: Callable[..., Any] | None = None,
         goals_of: Callable[[str], Sequence[Mapping[str, Any]]] | None = None,
         lock: Callable[[str], AbstractContextManager[Any]] | None = None,
+        readers: Readers | None = None,
     ) -> None:
         self.store = store
         self.workspace_id = workspace_id
@@ -78,6 +122,8 @@ class GtmService:
         self.set_goal = set_goal
         self.goals_of = goals_of
         self.lock = lock
+        #: What a review measures with. ``None`` means reviews are not wired.
+        self.readers = readers
 
     # ── capacity and vocabulary ─────────────────────────────────────────────
 
@@ -172,14 +218,20 @@ class GtmService:
             source=parsed.source,
             **meta,
         )
-        return self._with_staleness(stored)
+        return self._view(stored)
+
+    def _view(self, plan: dict[str, Any]) -> dict[str, Any]:
+        """A plan as the screen reads it: staleness, and its latest review."""
+        plan = self._with_staleness(plan)
+        plan["review"] = self.store.latest_review(plan["id"], self.workspace_id)
+        return plan
 
     def get_plan(self, plan_id: str) -> dict[str, Any]:
-        return self._with_staleness(self.store.get_plan(plan_id, self.workspace_id))
+        return self._view(self.store.get_plan(plan_id, self.workspace_id))
 
     def list_plans(self, *, product_id: str = "") -> list[dict[str, Any]]:
         return [
-            self._with_staleness(plan)
+            self._view(plan)
             for plan in self.store.list_plans(self.workspace_id, product_id=product_id)
         ]
 
@@ -336,6 +388,151 @@ class GtmService:
                 self.store.move_plan(other["id"], self.workspace_id, allowed_from=("applied",),
                                      to="superseded")
 
+    # ── review (S-12.02.03) ────────────────────────────────────────────────
+
+    def review_plan(
+        self,
+        plan_id: str,
+        values: Mapping[str, Any] | None = None,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Measure an applied plan, say what is wrong per channel, and keep it.
+
+        What is wrong is decided by `review.diagnose` from the numbers alone; a
+        model, when one may answer, only chooses among the remedies each finding
+        permits. Nothing here changes a campaign — the owner acts on a remedy,
+        or revises the plan with it.
+        """
+        values = dict(values or {})
+        for key in values:
+            if key not in REVIEW_FIELDS:
+                raise RequestInvalid(str(key), f"{key!r} is not part of a review request. Known: use_model.")
+        use_model = values.get("use_model", True)
+        if not isinstance(use_model, bool):
+            raise RequestInvalid("use_model", "Say true or false for whether to ask a model.")
+        readers = self.readers
+        if readers is None:
+            raise RuntimeError("Review is not wired: readers missing.")
+
+        plan = self.store.get_plan(plan_id, self.workspace_id)
+        if plan["status"] != "applied":
+            raise PlanStateError(
+                f"This plan is {plan['status']}, so nothing of it is running to review. "
+                "Only an applied plan can be reviewed."
+            )
+        links = self.store.line_links(plan["root_id"], self.workspace_id)
+        measurements = [
+            self._measure(readers, plan, str(spec["kind"]), links.get(str(spec["kind"]), ""))
+            for spec in plan["plan"]["channels"]
+        ]
+        findings = diagnose(plan, measurements, min_sample=MIN_SAMPLE,
+                            now=now or datetime.now(timezone.utc))
+
+        # The owner's current product, when it still exists: a remedy proposed
+        # today must respect what the owner forbids today, not a month ago.
+        notes: list[str] = []
+        try:
+            product = self.store.get_product(plan["product_id"], self.workspace_id)
+            if int(product["version"]) != int(plan["product_version"]):
+                notes.append("The product has changed since this plan was written; the review "
+                             "uses the current one.")
+        except KeyError:
+            product = plan["product_snapshot"]
+
+        parsed: ParsedRemedies | None = None
+        fallback_reason = ""
+        meta = {"provider_id": "", "model_id": "", "policy": ""}
+        if not use_model:
+            fallback_reason = "You asked for the rules-based review."
+        elif self.ask is None:
+            fallback_reason = "No model is wired to this screen, so these are the rules' remedies."
+        elif not any(item.permitted for item in findings):
+            # Nothing to choose between: a call would cost money to say nothing.
+            fallback_reason = "No finding has a remedy to choose, so no model was asked."
+        else:
+            try:
+                result = self.ask(
+                    system_prompt=build_review_prompt(),
+                    task_type="gtm_review",
+                    **review_fields(plan, findings, product),
+                )
+                parsed = parse_remedies(
+                    str(getattr(result, "text", "") or ""), findings=findings, product=product
+                )
+                meta = {
+                    "provider_id": str(getattr(result, "provider_id", "") or ""),
+                    "model_id": str(getattr(result, "model_id", "") or ""),
+                    "policy": str(getattr(result, "policy", "") or ""),
+                }
+                if meta["policy"] in _THIN_POLICIES:
+                    parsed.notes.insert(
+                        0,
+                        f"This review was written by a model that saw only your one-liner and "
+                        f"the numbers, because the data policy for "
+                        f"{meta['provider_id'] or 'that provider'} is {meta['policy']}.",
+                    )
+            except ModelUnavailable as exc:
+                fallback_reason = f"No model could review this plan: {exc} These are the rules' remedies."
+            except ReviewRefused as exc:
+                fallback_reason = f"The model's review was refused: {exc} These are the rules' remedies."
+        if parsed is None:
+            parsed = baseline_remedies(findings)
+            parsed.notes.insert(0, fallback_reason)
+
+        return self.store.create_review(
+            plan_id,
+            self.workspace_id,
+            measurements=measurements,
+            findings=[item.to_dict() for item in findings],
+            remedies=parsed.remedies,
+            summary=parsed.summary,
+            notes=notes + parsed.notes,
+            source=parsed.source,
+            **meta,
+        )
+
+    def _measure(
+        self, readers: Readers, plan: Mapping[str, Any], kind: str, campaign_id: str
+    ) -> dict[str, Any]:
+        """Exactly what the review read for one channel — stored with it."""
+        measured: dict[str, Any] = {"channel": kind, "campaign_id": campaign_id}
+        if not campaign_id:
+            return {**measured, "missing": True}
+        try:
+            campaign = readers.campaign(campaign_id)
+        except KeyError:
+            return {**measured, "missing": True}
+        measured["status"] = str(campaign.get("status") or "")
+        if kind == "email":
+            summary = readers.email_summary(campaign_id)
+            health = readers.health(campaign_id)
+            measured.update(
+                contacts=int(summary.get("contacts") or 0),
+                # Everyone sent a first email; the store counts outbound
+                # messages by stage, and a person gets exactly one "initial".
+                contacted=int((summary.get("messages_by_stage") or {}).get("initial") or 0),
+                replied=int((summary.get("contact_status") or {}).get("replied") or 0),
+                drafts_pending=int((summary.get("draft_status") or {}).get("pending") or 0),
+                health={
+                    key: health.get(key)
+                    for key in ("breached", "paused_reason", "accepted", "hard_bounce_rate",
+                                "complaint_rate", "enough_data")
+                },
+                weak_templates=int(readers.weak_templates() or 0),
+            )
+        elif kind == "distribution":
+            # A disabled account cannot post (`publish_due` skips it), so it
+            # does not count as somewhere to post.
+            measured["accounts"] = sum(1 for item in self.accounts() if item.get("enabled", 1))
+            measured["published"] = int(readers.published(campaign_id) or 0)
+            # Only a views goal is paced; for a replies plan posting supports
+            # the goal and has nothing of its own to steer toward.
+            measured["pacing"] = (
+                dict(readers.pacing(campaign_id)) if plan["request"]["goal_kind"] == "views" else None
+            )
+        return measured
+
 
 def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:
     """What the owner does next, each on a screen that already does it."""
@@ -373,6 +570,18 @@ def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:
             "label": "Connect an account and set its daily cap" if not envelope.get("platforms")
             else "Check each account's daily cap",
             "why": "Posts go out only through accounts you connected, never above your cap.",
+        })
+        # Said plainly rather than implied away (D-82): without this step the
+        # posting campaign is resumed and nothing ever appears.
+        steps.append({
+            "page": "",
+            "label": "Set up posting for this plan",
+            "why": (
+                "Posts are made by content automation once it pairs the posting campaign "
+                "with its picture campaign and is switched on, and each post then waits for "
+                "your approval. No screen does those yet: they are PATCH "
+                "/api/v1/content-automation and POST /api/v1/posts/{id}/approve."
+            ),
         })
     if "image" in kinds:
         steps.append({

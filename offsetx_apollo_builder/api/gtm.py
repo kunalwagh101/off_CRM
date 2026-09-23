@@ -257,4 +257,22 @@ def build_gtm_router(
         except PlanStateError as exc:
             raise _wrong_state(exc) from exc
 
+    # ── review (S-12.02.03) ────────────────────────────────────────────────
+
+    @router.post("/plans/{plan_id}/review", status_code=201)
+    def review_plan(plan_id: str, request: Request, body: Any = Body(default=None)) -> dict[str, Any]:
+        """Measure an applied plan and say, per channel, what is wrong. Changes nothing."""
+        if body is not None and not isinstance(body, dict):
+            raise _invalid_request(
+                RequestInvalid("request", "A review request must be an object, such as {}.")
+            )
+        try:
+            return service_of(request).review_plan(plan_id, body or {})
+        except RequestInvalid as exc:
+            raise _invalid_request(exc) from exc
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+        except PlanStateError as exc:
+            raise _wrong_state(exc) from exc
+
     return router

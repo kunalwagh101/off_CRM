@@ -324,6 +324,9 @@ def envelope_from(
     per_identity_cap: int,
 ) -> Envelope:
     """What the plan must fit inside, from the rows that are really there."""
+    # `publish_due` skips a disabled account, so it carries no posts. A row
+    # without the field predates it and counts as enabled.
+    accounts = [item for item in accounts if item.get("enabled", 1)]
     outbound = [
         item
         for item in identities
@@ -419,14 +422,8 @@ def build_prompt() -> str:
     )
 
 
-def request_fields(product: Mapping[str, Any], request: PlanRequest, envelope: Envelope) -> dict[str, str]:
-    """What goes into each ``EgressRequest`` field — where the policy governs it.
-
-    The one-liner is the positioning line (leaves at ``pseudonymous`` and up);
-    everything else about the product is campaign notes (``standard`` and up).
-    ``instructions`` holds only code-authored numbers and names, so no policy is
-    walked around by putting product text there (DD-41).
-    """
+def product_lines(product: Mapping[str, Any]) -> list[str]:
+    """The product as campaign notes, labelled — the plan and the review share it."""
     lines = [
         f"Product: {product.get('name', '')}",
         f"For: {product.get('audience', '')}",
@@ -440,6 +437,18 @@ def request_fields(product: Mapping[str, Any], request: PlanRequest, envelope: E
         items = product.get(key) or []
         if items:
             lines.append(f"{label}: " + "; ".join(str(item) for item in items))
+    return lines
+
+
+def request_fields(product: Mapping[str, Any], request: PlanRequest, envelope: Envelope) -> dict[str, str]:
+    """What goes into each ``EgressRequest`` field — where the policy governs it.
+
+    The one-liner is the positioning line (leaves at ``pseudonymous`` and up);
+    everything else about the product is campaign notes (``standard`` and up).
+    ``instructions`` holds only code-authored numbers and names, so no policy is
+    walked around by putting product text there (DD-41).
+    """
+    lines = product_lines(product)
     if request.notes:
         lines.append(f"Owner notes: {request.notes}")
 

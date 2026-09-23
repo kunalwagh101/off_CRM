@@ -993,9 +993,47 @@ export type GtmPlan = {
   };
   feasibility: { kind: string; feasible: boolean | null; explanation: string };
   notes: string[];
+  /** The latest review, or null before the first one. */
+  review?: GtmReview | null;
 };
 
 export type GtmNextStep = { page: string; label: string; why: string };
+
+export type GtmFinding = {
+  channel: string;
+  campaign_id: string;
+  code: string;
+  sentence: string;
+  permitted: string[];
+  numbers: Record<string, unknown>;
+};
+
+export type GtmRemedy = {
+  channel: string;
+  campaign_id: string;
+  finding: string;
+  action: string;
+  why: string;
+  proposal: string;
+  /** The screen that does it, or "" when it belongs in the next version of the plan. */
+  page: string;
+  label: string;
+};
+
+export type GtmReview = {
+  id: string;
+  plan_id: string;
+  summary: string;
+  source: "model" | "rules";
+  provider_id: string;
+  model_id: string;
+  policy: string;
+  created_at: string;
+  measurements: Array<Record<string, unknown> & { channel: string; campaign_id: string }>;
+  findings: GtmFinding[];
+  remedies: GtmRemedy[];
+  notes: string[];
+};
 
 export type GtmApplyResult = {
   plan: GtmPlan;

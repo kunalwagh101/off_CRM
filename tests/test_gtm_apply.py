@@ -201,7 +201,8 @@ def test_apply_returns_next_steps_and_spends_nothing(client, monkeypatch):
 
     assert body["next_steps"]
     for step in body["next_steps"]:
-        assert step["page"] in KNOWN_PAGES
+        # "" is a step no screen does yet; the page shows it without a link.
+        assert step["page"] in KNOWN_PAGES | {""}
         assert step["label"] and step["why"].endswith(".")
     pages = {step["page"] for step in body["next_steps"]}
     assert {"contacts", "drafts", "campaigns"} <= pages
@@ -209,6 +210,19 @@ def test_apply_returns_next_steps_and_spends_nothing(client, monkeypatch):
     for entry in body["campaigns"]:
         summary = client.app.state.engine.store.campaign_summary(entry["campaign_id"])
         assert summary["contacts"] == 0
+
+
+def test_next_steps_say_plainly_that_posting_has_no_screen_yet(client, monkeypatch):
+    """No screen pairs a posting campaign with its picture campaign, switches
+    content automation on or approves a post (D-82). Next steps that implied
+    "connect an account and resume" was enough would be a promise the product
+    breaks — posts would simply never appear."""
+    _, plan = _plan(client, monkeypatch)
+    body = client.post(f"/api/v1/gtm/plans/{plan['id']}/apply").json()
+    unscreened = [step for step in body["next_steps"] if step["page"] == ""]
+    assert len(unscreened) == 1
+    assert "no screen" in unscreened[0]["why"].lower()
+    assert "/content-automation" in unscreened[0]["why"]
 
 
 # ── the half-finished apply, driven directly ────────────────────────────────

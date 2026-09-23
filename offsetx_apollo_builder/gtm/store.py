@@ -83,6 +83,25 @@ CREATE TABLE IF NOT EXISTS gtm_plans (
 CREATE INDEX IF NOT EXISTS idx_gtm_plans_product
 ON gtm_plans(workspace_id, product_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_gtm_plans_root ON gtm_plans(root_id, version);
+
+-- Kept, never overwritten: what was planned, what was measured and what the
+-- brain concluded is the first labelled data this product owns (§4).
+CREATE TABLE IF NOT EXISTS gtm_reviews (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    measurements_json TEXT NOT NULL,
+    findings_json TEXT NOT NULL,
+    remedies_json TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    notes_json TEXT NOT NULL,
+    source TEXT NOT NULL,
+    provider_id TEXT NOT NULL DEFAULT '',
+    model_id TEXT NOT NULL DEFAULT '',
+    policy TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_gtm_reviews_plan ON gtm_reviews(plan_id, created_at);
 """
 
 #: The text columns written before the JSON lists, in table order.
@@ -91,6 +110,14 @@ _LEAD_COLUMNS = ("name", "one_liner", "audience", "problem", "outcome", "offer")
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _now_precise() -> str:
+    """Microseconds, so two reviews of one plan in the same second still order.
+
+    Not ``rowid``: that is SQLite's, and this store runs on Postgres too.
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 class ProductConflict(RuntimeError):
@@ -520,4 +547,74 @@ class GtmStore:
         if not row:
             raise KeyError(f"Plan not found: {plan_id}")
         return str(dict(row)["status"])
+
+    # ── reviews (S-12.02.03) ───────────────────────────────────────────────
+
+    @staticmethod
+    def _review(row: Mapping[str, Any]) -> dict[str, Any]:
+        item = dict(row)
+        review: dict[str, Any] = {
+            key: item[key]
+            for key in ("id", "plan_id", "workspace_id", "summary", "source", "provider_id",
+                        "model_id", "policy", "created_at")
+        }
+        for key in ("measurements", "findings", "remedies", "notes"):
+            review[key] = json.loads(item[f"{key}_json"])
+        return review
+
+    def create_review(
+        self,
+        plan_id: str,
+        workspace_id: str,
+        *,
+        measurements: list[Mapping[str, Any]],
+        findings: list[Mapping[str, Any]],
+        remedies: list[Mapping[str, Any]],
+        summary: str,
+        notes: list[str],
+        source: str,
+        provider_id: str = "",
+        model_id: str = "",
+        policy: str = "",
+    ) -> dict[str, Any]:
+        self.get_plan(plan_id, workspace_id)  # KeyError for a plan that is not this workspace's
+        review_id = str(uuid.uuid4())
+        with self.connection.transaction() as db:
+            db.execute(
+                "INSERT INTO gtm_reviews (id, plan_id, workspace_id, measurements_json, "
+                "findings_json, remedies_json, summary, notes_json, source, provider_id, "
+                "model_id, policy, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    review_id,
+                    plan_id,
+                    workspace_id,
+                    json.dumps([dict(item) for item in measurements]),
+                    json.dumps([dict(item) for item in findings]),
+                    json.dumps([dict(item) for item in remedies]),
+                    summary,
+                    json.dumps(list(notes)),
+                    source,
+                    provider_id,
+                    model_id,
+                    policy,
+                    _now_precise(),
+                ),
+            )
+        return self.get_review(review_id, workspace_id)
+
+    def get_review(self, review_id: str, workspace_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM gtm_reviews WHERE id = ? AND workspace_id = ?", (review_id, workspace_id)
+        ).fetchone()
+        if not row:
+            raise KeyError(f"Review not found: {review_id}")
+        return self._review(row)
+
+    def latest_review(self, plan_id: str, workspace_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM gtm_reviews WHERE plan_id = ? AND workspace_id = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (plan_id, workspace_id),
+        ).fetchone()
+        return self._review(row) if row else None
 

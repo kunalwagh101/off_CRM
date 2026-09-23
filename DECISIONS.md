@@ -57,6 +57,9 @@ wastes a session when nobody can answer it.
 | DD-47 | 2026-09-22 | The review imports `pacing.decide()` but repeats `sales.py`'s ten-line Wilson interval, pinned equal by a drift test | Importing `outreach.sales` runs `outreach/__init__`, which pulls the whole engine and pandas into a pure module; the price is a copy a test must hold equal |
 | DD-48 | 2026-09-22 | A forbidden claim in a model's plan removes that field; it does not refuse the whole plan | The owner can receive a plan with a named gap instead of no plan |
 | DD-49 | 2026-09-22 | Apply is idempotent per channel and marks the plan applied only at the end, instead of one transaction | Campaigns and links live in two stores. A crash between creating a campaign and linking it leaves one unlinked campaign, and the per-plan lock holds only inside one process |
+| DD-50 | 2026-09-22 | The review reads the pacer's `steering` flag, not only its action: "hold" means *not enough data* only below the pacer's own floor of measured posts, and a hold or a cut for any other reason (a deadline passed, the owner's cap) is `pacer_idle` with no remedy | Two more finding codes than the design table first had (`pacer_idle`, `window_ended`), and the review depends on a field of `PacingDecision` rather than one word. Wrong if the pacer's actions ever carry that meaning themselves |
+| DD-51 | 2026-09-22 | A remedy with no screen says so — `set_up_posting` names the API — rather than linking to the nearest screen | The owner reads an API path in a product screen. Wrong once `S-12.02.06` gives posting a screen, which should replace the sentence |
+| DD-52 | 2026-09-22 | When a model's review skips a channel whose finding permits something, that channel gets the rules' first remedy, with a note | A model cannot choose "say nothing" about a blocking finding. Wrong if owners start reading the filled-in remedies as the model's advice; the note is what prevents that |
 
 ---
 

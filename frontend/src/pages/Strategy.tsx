@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
-import type { GtmApplyResult, GtmDescribe, GtmNextStep, GtmPlan, GtmProduct } from "../types";
+import type { GtmApplyResult, GtmDescribe, GtmNextStep, GtmPlan, GtmProduct, GtmReview } from "../types";
 import { Loadable } from "./shared";
 
 type GoalForm = {
@@ -119,6 +119,75 @@ export function PlanView({ plan, actions }: { plan: GtmPlan; actions?: ReactNode
   );
 }
 
+/** A finding that stops the walk before the copy is judged. */
+const blocking = new Set(["delivery_unhealthy", "not_started", "no_contacts", "no_account", "no_campaign", "nothing_published"]);
+
+function findingTone(code: string): string {
+  if (blocking.has(code)) return "danger";
+  if (["on_track", "ahead_of_target", "supporting"].includes(code)) return "success";
+  if (code === "behind_target") return "warning";
+  return "neutral";
+}
+
+/**
+ * One review: what was wrong on each channel, then what to do about it.
+ *
+ * The findings come first and are never a model's words — they are arithmetic
+ * over what was measured. A remedy with no screen belongs in the next version
+ * of the plan, so it gets no "Open" link that would lead nowhere.
+ */
+export function ReviewView({ review }: { review: GtmReview }) {
+  return (
+    <div className="form-stack">
+      <p className="muted-copy">
+        {review.source === "model"
+          ? `Remedies chosen by ${review.model_id || "a model"} on ${review.provider_id || "a provider"}`
+          : "Rules-based remedies"}
+        {" · reviewed "}
+        {formatDate(review.created_at)}
+      </p>
+      {review.summary ? <p>{review.summary}</p> : null}
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Channel</th><th>What is wrong</th></tr></thead>
+          <tbody>
+            {review.findings.map((finding) => (
+              <tr key={finding.channel}>
+                <td><strong>{finding.channel}</strong><small><Badge tone={findingTone(finding.code)}>{finding.code.replaceAll("_", " ")}</Badge></small></td>
+                <td>{finding.sentence}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {review.remedies.length ? (
+        <div className="memory-list">
+          {review.remedies.map((remedy) => (
+            <div key={`${remedy.channel}-${remedy.action}`}>
+              <p>
+                <small>{remedy.channel}</small>
+                <strong>{remedy.label}</strong>
+                <span>{remedy.why}</span>
+                {remedy.proposal ? <span>Proposed: {remedy.proposal}</span> : null}
+              </p>
+              {remedy.page ? <a className="button button-secondary" href={`#${remedy.page}`}>Open</a> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted-copy">Nothing to do yet: no finding has a remedy.</p>
+      )}
+      {review.notes.length ? (
+        <div className="memory-list">
+          {review.notes.map((note, index) => (
+            <div key={index}><p><small>How this review was made</small><span>{note}</span></p></div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** What to do after Apply, each step a link to the screen that does it. */
 export function NextSteps({ steps, notes = [] }: { steps: GtmNextStep[]; notes?: string[] }) {
   return (
@@ -128,7 +197,7 @@ export function NextSteps({ steps, notes = [] }: { steps: GtmNextStep[]; notes?:
         {steps.map((step) => (
           <div key={`${step.page}-${step.label}`}>
             <p><strong>{step.label}</strong><span>{step.why}</span></p>
-            <a className="button button-secondary" href={`#${step.page}`}>Open</a>
+            {step.page ? <a className="button button-secondary" href={`#${step.page}`}>Open</a> : null}
           </div>
         ))}
       </div>
@@ -228,6 +297,19 @@ export default function Strategy() {
       plans.reload();
     } catch (caught) {
       notify(caught instanceof Error ? caught.message : "The plan could not be applied.", "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function review(plan: GtmPlan) {
+    setBusy(`review-${plan.id}`);
+    try {
+      const result = await api.post<GtmReview>(`/gtm/plans/${plan.id}/review`, { use_model: form.use_model });
+      notify(result.source === "model" ? "Reviewed. The findings are measured; the remedies were chosen by a model." : "Reviewed with the rules.", "success");
+      plans.reload();
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "The plan could not be reviewed.", "error");
     } finally {
       setBusy("");
     }
@@ -346,10 +428,18 @@ export default function Strategy() {
                 <Button onClick={() => setConfirming(selected)} disabled={selected.product_deleted}>Apply</Button>
                 <Button tone="secondary" busy={busy === `discard-${selected.id}`} onClick={() => act(selected, "discard")}>Discard</Button>
               </>
+            ) : selected.status === "applied" ? (
+              <Button busy={busy === `review-${selected.id}`} onClick={() => review(selected)}>Review against what was measured</Button>
             ) : null}
           />
         ) : null}
       </Panel>
+
+      {selected?.review ? (
+        <Panel title="Where it is going wrong" subtitle="Checked in a fixed order: delivery, then whether it is running, then volume, and only then the copy.">
+          <ReviewView review={selected.review} />
+        </Panel>
+      ) : null}
 
       {applied ? (
         <Panel title="Next steps" subtitle="Apply created or updated these campaigns and left every one paused.">

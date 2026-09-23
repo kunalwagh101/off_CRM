@@ -169,6 +169,20 @@ def test_envelope_counts_only_what_is_connected():
     assert any("Second" in blocker for blocker in envelope.blockers)
 
 
+def test_a_disabled_account_is_not_capacity():
+    """`publish_due` skips a disabled account, so a plan sized on it would
+    promise posts that can never go out."""
+    envelope = connected(accounts=[
+        {"platform": "instagram", "daily_cap": 2, "enabled": 0},
+        {"platform": "youtube", "daily_cap": 1, "enabled": 1},
+    ])
+    assert envelope.platforms == ("youtube",)
+    assert envelope.post_daily_capacity == 1
+    only_disabled = connected(accounts=[{"platform": "instagram", "daily_cap": 2, "enabled": 0}])
+    assert only_disabled.post_daily_capacity == 0
+    assert any("account" in blocker for blocker in only_disabled.blockers)
+
+
 def test_no_identity_assumes_one_mailbox_and_says_so():
     envelope = connected(identities=[], accounts=[], apollo_ready=False)
     assert envelope.email_identities == 0

@@ -285,3 +285,18 @@ def test_one_uncapped_account_means_the_campaign_has_no_cap(client):
     client.post("/api/v1/distribution/accounts",
                 json={"platform": "local_outbox", "handle": "@two"})
     assert client.get(f"/api/v1/campaigns/{campaign_id}/pacing").json()["owner_cap"] == 0.0
+
+
+def test_the_pacer_steers_by_the_newest_views_goal(client):
+    """`set_goal` adds a row; it does not replace one. Reading the first row
+    meant a goal set later — by hand, or by a plan revised after its window
+    closed — was never the one the pacer steered by (D-84)."""
+    campaign_id = _campaign(client)
+    store = client.app.state.distribution_store
+    store.set_goal(campaign_id=campaign_id, metric="views", target=1_000_000,
+                   deadline="2026-01-01T00:00:00+00:00")
+    store.set_goal(campaign_id=campaign_id, metric="views", target=1_000_000,
+                   deadline=_in_days(100))
+    body = client.get(f"/api/v1/campaigns/{campaign_id}/pacing").json()
+    assert "deadline has passed" not in body["reason"]
+    assert body["days_left"] > 99

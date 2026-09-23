@@ -72,11 +72,6 @@ been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
-*(Ported from `integration/main-consolidation` with the consolidation, 2026-09-23.
-Built and proven in real Chrome there; waits here until `S-06.02.21` is in, so
-the two ports are checked one at a time.)*
-
-- S-06.02.22 · A created or selected campaign stays the active workspace
 
 ## IN_PROGRESS
 
@@ -91,6 +86,7 @@ the two ports are checked one at a time.)*
 write the code, then the evidence block.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
+- S-06.02.22 · A created or selected campaign stays the active workspace
 
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader

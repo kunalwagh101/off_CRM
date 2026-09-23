@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { api, idempotencyKey } from "../api";
+import { api } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
@@ -7,7 +7,7 @@ import type { Campaign, CampaignKind } from "../types";
 import { statusTone } from "./shared";
 
 export default function Campaigns() {
-  const { campaigns, campaignId, selectCampaign, refreshCampaigns, notify } = useApp();
+  const { campaigns, campaignId, selectCampaign, createCampaign, refreshCampaigns, notify } = useApp();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
@@ -35,8 +35,9 @@ export default function Campaigns() {
     event.preventDefault();
     setBusy(true);
     try {
-      const campaign = await api.post<Campaign>(
-        "/campaigns",
+      // The store creates, selects and refreshes as one step, so the stale list
+      // that arrives after the save cannot select an older campaign (A33).
+      await createCampaign(
         {
           name,
           kind,
@@ -49,11 +50,8 @@ export default function Campaigns() {
           experiment_hypothesis: hypothesis,
           experiment_min_sample: minimumSample,
           control_variant: "A"
-        },
-        idempotencyKey("campaign")
+        }
       );
-      selectCampaign(campaign.id);
-      refreshCampaigns();
       setOpen(false);
       setName("");
       setKind("email");

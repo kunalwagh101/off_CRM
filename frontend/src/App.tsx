@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { api, AUTH_REQUIRED_EVENT, getToken, setToken } from "./api";
-import { Button, Field, Modal } from "./components";
+import { useEffect, useMemo, useState, type FormEvent, useSyncExternalStore } from "react";
+import { api, AUTH_REQUIRED_EVENT, getToken, setToken, idempotencyKey } from "./api";
+import { Button, Field, Modal, StatePanel } from "./components";
 import { AppContext } from "./context";
-import { useResource } from "./hooks";
+import { CampaignSelection } from "./campaignSelection";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import Contacts from "./pages/Contacts";
@@ -51,6 +51,12 @@ const pages = {
   settings: Settings
 };
 type Page = keyof typeof pages;
+// Screens that act on the selected campaign. Each remounts when the campaign
+// changes, so a half-filled form cannot keep another campaign's rows (S-06.02.22).
+const campaignScopedPages = new Set<Page>([
+  "contacts", "discovery", "drafts", "queue", "deliverability", "experiments",
+  "imagereview", "videoeditor", "posting", "settings"
+]);
 
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
@@ -130,12 +136,25 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
 
 function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
   const [page, setPage] = useState<Page>(currentPage());
-  const [campaignId, setCampaignId] = useState(localStorage.getItem(CAMPAIGN_KEY) ?? "");
+  // One store owns the campaign list and the selection, so they cannot
+  // disagree for a render — which is how a new campaign lost its selection to
+  // an older one when the stale list arrived first (audit A33, S-06.02.22).
+  const [selection] = useState(() => new CampaignSelection({
+    list: async () => (await api.get<Paginated<Campaign>>("/campaigns?limit=200")).items,
+    get: (id) => api.get<Campaign>(`/campaigns/${encodeURIComponent(id)}`),
+    create: (body) => api.post<Campaign>("/campaigns", body, idempotencyKey("campaign"))
+  }, {
+    read: () => localStorage.getItem(CAMPAIGN_KEY) ?? "",
+    write: (id) => {
+      if (id) localStorage.setItem(CAMPAIGN_KEY, id);
+      else localStorage.removeItem(CAMPAIGN_KEY);
+    }
+  }));
+  const campaignsResource = useSyncExternalStore(selection.subscribe, selection.getSnapshot, selection.getSnapshot);
+  const { campaigns, campaignId } = campaignsResource;
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenValue, setTokenValue] = useState(getToken());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" | "warning" } | null>(null);
-  const campaignsResource = useResource(() => api.get<Paginated<Campaign>>("/campaigns?limit=200"), []);
-  const campaigns = campaignsResource.data?.items ?? [];
   const activeCampaign = campaigns.find((campaign) => campaign.id === campaignId) ?? null;
 
   useEffect(() => {
@@ -150,23 +169,15 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
   }, [page]);
 
   useEffect(() => {
-    if (campaigns.length && !campaigns.some((campaign) => campaign.id === campaignId)) {
-      setCampaignId(campaigns[0].id);
-      localStorage.setItem(CAMPAIGN_KEY, campaigns[0].id);
-    }
-  }, [campaigns, campaignId]);
+    selection.connect();
+    return selection.disconnect;
+  }, [selection]);
 
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(null), 4500);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  function selectCampaign(id: string) {
-    setCampaignId(id);
-    if (id) localStorage.setItem(CAMPAIGN_KEY, id);
-    else localStorage.removeItem(CAMPAIGN_KEY);
-  }
 
   function notify(message: string, tone: "success" | "error" | "info" | "warning" = "info") {
     setToast({ message, tone });
@@ -176,7 +187,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
     event.preventDefault();
     setToken(tokenValue);
     setTokenOpen(false);
-    campaignsResource.reload();
+    void selection.refresh();
     notify(tokenValue ? "Session token saved" : "Session token cleared", "success");
   }
 
@@ -185,11 +196,12 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
       campaigns,
       campaignId,
       activeCampaign,
-      selectCampaign,
-      refreshCampaigns: campaignsResource.reload,
+      selectCampaign: selection.select,
+      createCampaign: selection.create,
+      refreshCampaigns: selection.refresh,
       notify
     }),
-    [campaigns, campaignId, activeCampaign, campaignsResource.reload]
+    [campaigns, campaignId, activeCampaign, selection]
   );
   const Screen = pages[page];
 
@@ -213,7 +225,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
                 >
                   <span className={`nav-icon nav-icon-${item.page}`} aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
-                  {item.page === "drafts" && campaignsResource.data ? <small className="nav-count">Review</small> : null}
+                  {item.page === "drafts" && campaignsResource.ready ? <small className="nav-count">Review</small> : null}
                 </a>
               </div>
             ))}
@@ -227,8 +239,8 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
           <header className="topbar">
             <div className="campaign-switcher">
               <span>Campaign</span>
-              <select value={campaignId} onChange={(event) => selectCampaign(event.target.value)} aria-label="Active campaign">
-                {!campaigns.length ? <option value="">No campaign</option> : null}
+              <select value={campaignId} onChange={(event) => selection.select(event.target.value)} aria-label="Active campaign" disabled={!campaignsResource.ready}>
+                {!campaigns.length ? <option value="">{campaignsResource.loading ? "Loading campaigns…" : "No campaign"}</option> : null}
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </select>
               {activeCampaign ? (
@@ -257,7 +269,13 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
               </a>
             ))}
           </nav>
-          <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content"><Screen /></main>
+          <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content">
+            {campaignsResource.storageWarning ? <p className="form-note" role="alert">{campaignsResource.storageWarning}</p> : null}
+            {campaignsResource.selectionNotice ? <p className="form-note" role="status">{campaignsResource.selectionNotice}</p> : null}
+            {campaignsResource.error ? <StatePanel title="Could not refresh campaigns" description={campaignsResource.error + (campaignsResource.ready ? " Your current selection has been kept." : " Retry before starting campaign work.")} action={<Button onClick={() => void selection.refresh()} busy={campaignsResource.loading}>Retry campaigns</Button>} /> : null}
+            {!campaignsResource.ready && campaignsResource.loading ? <div className="spinner spinner-large" role="status" aria-label="Loading campaigns" /> : null}
+            {campaignsResource.ready ? <Screen key={campaignScopedPages.has(page) ? `${page}:${campaignId}` : page} /> : null}
+          </main>
         </div>
       </div>
       {toast ? (

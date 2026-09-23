@@ -32,6 +32,21 @@ indented `blocked: <Q-nn or a named external dependency>`.
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
 
+*(E-12, opened 2026-09-22 — the GTM engine. Phase 1 and 2 are DONE (2026-09-23),
+so every story below could be pulled; none is, because the owner asked for Phase
+1 and 2. `S-12.01.03` also waits on `D-81`. `S-12.02.05` needs the expert library
+the owner said they will source. `S-06.02.20` is the fix for `D-80`.)*
+
+- S-12.01.03 · The video director uses the product
+- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
+- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
+
+*(Filed 2026-09-22 for `D-82`, found while building the review: a plan's posting
+channel cannot reach a published post from the screens. Not pulled — it is the
+posting screens' work, and the owner asked for Phase 1 and 2.)*
+
+- S-12.02.06 · A plan's posting channel runs from the screens
+
 ## READY
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
@@ -55,9 +70,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
 
 ## IN_REVIEW
+
+*(Code and tests pass; DONE waits for a review in a context that did not
+write the code, then the evidence block.)*
 
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader
@@ -73,8 +90,6 @@ _nothing in flight_
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.01 · A crawler with a frontier, not a loop
 
-_nothing waiting_
-
 ## BLOCKED
 
 - S-06.02.18 · Restore executable CI runner capacity
@@ -88,6 +103,54 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-12.02.04 · A review becomes the next version of the plan
+  tests: tests/test_gtm_revise.py::test_a_measured_rate_replaces_the_assumption, tests/test_gtm_revise.py::test_too_few_contacted_carries_the_assumption_forward, tests/test_gtm_revise.py::test_applying_a_revision_updates_the_same_campaigns, tests/test_gtm_revise.py::test_a_plan_with_no_review_is_not_revised, tests/test_gtm_revise.py::test_the_deadline_stays_and_the_target_is_what_is_left, tests/test_gtm_revise.py::test_the_review_of_a_revision_counts_only_its_own_sends, tests/test_gtm_revise.py::test_replies_between_a_review_and_the_next_apply_count_for_the_next_version, tests/test_gtm_revise.py::test_a_revised_angle_reaches_the_posts_and_the_emails, tests/test_gtm_revise.py::test_a_deleted_campaign_is_made_again_when_the_revision_is_applied, tests/test_gtm_revise.py::test_an_older_database_gains_the_baseline_column, tests/test_gtm_revise.py::test_revise_over_http
+  command: uv run pytest tests/test_gtm_revise.py -q
+  result: 24 passed (2026-09-23)
+  live: walked in a real headless Chromium against the running app — draft, apply, review, then "Write the next version from this review": version 2 appears as a draft beside the applied version 1, keeps the 2026-10-23 deadline and says why the assumed rate carried forward. The rollback was executed once: all four gtm tables dropped under a real app, the CRM kept every campaign with the same ids, and the tables came back on the next write. The migration test fails with the add-column line removed. The cold review found D-89, D-90, D-95 and D-96 here; each has a test that failed first.
+  code: offsetx_apollo_builder/gtm/review.py, offsetx_apollo_builder/gtm/service.py, offsetx_apollo_builder/gtm/store.py, offsetx_apollo_builder/api/gtm.py, frontend/src/pages/Strategy.tsx
+  commit: 03203ac
+
+- S-12.02.03 · The brain says where it is going wrong, in a fixed order
+  tests: tests/test_gtm_review.py::test_delivery_is_diagnosed_before_copy, tests/test_gtm_review.py::test_a_campaign_paused_for_bouncing_is_never_told_to_resume, tests/test_gtm_review.py::test_the_order_is_fixed, tests/test_gtm_review.py::test_no_verdict_without_enough_data, tests/test_gtm_review.py::test_verdict_uses_an_interval_not_a_threshold, tests/test_gtm_review.py::test_distribution_review_follows_the_pacers_action, tests/test_gtm_review.py::test_remedies_outside_the_permitted_set_are_dropped, tests/test_gtm_review.py::test_a_review_with_no_model_uses_rules_and_says_so, tests/test_gtm_review.py::test_review_stores_what_it_measured, tests/test_gtm_review.py::test_what_the_brain_needs_survives_the_shape_filter, tests/test_pacing_cap.py::test_the_pacer_steers_by_the_newest_views_goal
+  command: uv run pytest tests/test_gtm_review.py tests/test_pacing_cap.py -q
+  result: 64 passed (2026-09-23)
+  live: walked in a real headless Chromium: "Review against what was measured" on an applied plan shows email "not started — the email campaign is paused" with "Resume the campaign." linking to Campaigns, and says the remedies are the rules' because no model is connected. The first RED run was a collection error (no review module). The real pacer drives the distribution tests, not a dict shaped like it.
+  code: offsetx_apollo_builder/gtm/review.py, offsetx_apollo_builder/gtm/service.py, offsetx_apollo_builder/api/gtm.py, offsetx_apollo_builder/api/app.py
+  commit: 03203ac
+
+- S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
+  tests: tests/test_gtm_apply.py::test_apply_creates_one_paused_campaign_per_channel, tests/test_gtm_apply.py::test_only_a_draft_can_be_applied, tests/test_gtm_apply.py::test_two_applies_at_once_cannot_both_run, tests/test_gtm_apply.py::test_a_failed_apply_resumes_without_duplicates, tests/test_gtm_apply.py::test_a_campaign_is_paused_before_it_is_linked, tests/test_gtm_apply.py::test_apply_returns_next_steps_and_spends_nothing, tests/test_gtm_apply.py::test_next_steps_say_plainly_that_posting_has_no_screen_yet, tests/test_distribution.py::test_a_paused_campaign_publishes_nothing_and_the_post_waits, tests/test_content_automation.py::test_a_paused_campaign_makes_nothing
+  command: uv run pytest tests/test_gtm_apply.py tests/test_distribution.py tests/test_content_automation.py -q
+  result: 78 passed (2026-09-23)
+  live: walked in a real headless Chromium: Apply's confirm dialog, then the email campaign read back from the CRM as paused and nothing sent. The cold review showed "paused" did not stop posting (D-87); publishing and content automation now skip a paused campaign and fail closed when one cannot be read.
+  code: offsetx_apollo_builder/gtm/service.py, offsetx_apollo_builder/gtm/store.py, offsetx_apollo_builder/distribution/engine.py, offsetx_apollo_builder/distribution/automation.py, frontend/src/pages/Strategy.tsx
+  commit: 03203ac
+
+- S-12.02.01 · A goal becomes a checked plan that fits what is connected
+  tests: tests/test_gtm_strategy.py::test_envelope_counts_only_what_is_connected, tests/test_gtm_strategy.py::test_unknown_kind_is_refused_by_name, tests/test_gtm_strategy.py::test_volume_is_clamped_to_the_envelope, tests/test_gtm_strategy.py::test_email_always_uses_targeted_outreach, tests/test_gtm_strategy.py::test_forbidden_claim_is_removed_and_named, tests/test_gtm_strategy.py::test_system_prompt_carries_no_product_text, tests/test_gtm_strategy.py::test_product_travels_in_classified_fields, tests/test_gtm_strategy.py::test_no_permitted_model_returns_the_rules_plan, tests/test_gtm_strategy.py::test_feasibility_is_arithmetic_the_owner_can_check, tests/test_gtm_strategy.py::test_never_claim_survives_the_notes_limit, tests/test_gtm_strategy.py::test_an_infinite_volume_is_treated_as_no_number
+  command: uv run pytest tests/test_gtm_strategy.py -q
+  result: 50 passed (2026-09-23)
+  live: DEMO.md section 15 (section 14 before the branches were consolidated) run exactly as written: with no provider connected the plan is the rules plan and its first note says why ("No model could write this plan: No AI provider is connected…"), never an error. Walked in a real headless Chromium: the goal form drafts a plan whose feasibility is arithmetic on the page.
+  code: offsetx_apollo_builder/gtm/strategy.py, offsetx_apollo_builder/gtm/service.py, offsetx_apollo_builder/api/gtm.py, frontend/src/pages/Strategy.tsx
+  commit: 03203ac
+
+- S-12.01.02 · Everything that writes for a campaign uses its product
+  tests: tests/test_gtm_product_wiring.py::test_links_replace_and_one_product_per_campaign, tests/test_gtm_product_wiring.py::test_links_are_scoped_to_the_workspace_and_die_with_the_product, tests/test_gtm_product_wiring.py::test_email_template_placeholders_come_from_the_linked_product, tests/test_gtm_product_wiring.py::test_draft_audit_flags_a_forbidden_claim, tests/test_gtm_product_wiring.py::test_product_angle_is_resolved_before_the_data_class_is_chosen, tests/test_gtm_product_wiring.py::test_automation_resolves_the_product_angle, tests/test_gtm_product_wiring.py::test_a_campaign_linked_in_another_workspace_cannot_be_taken, tests/test_gtm_product_wiring.py::test_every_engine_is_built_with_products, tests/test_gtm_product_wiring.py::test_a_template_can_say_the_angle_and_gets_the_one_liner_without_a_plan
+  command: uv run pytest tests/test_gtm_product_wiring.py tests/test_gtm_products.py -q
+  result: 53 passed (2026-09-23)
+  live: walked in a real headless Chromium on the Product screen: a campaign linked and saved; "New product" opens an empty form; a box ticked and not saved does not follow to another product; a linked campaign deleted from the CRM shows "no longer exist. Save to drop them." and Save drops it (D-99). The structural engine test was mutation-checked: an unwrapped engine site is caught.
+  code: offsetx_apollo_builder/gtm/store.py, offsetx_apollo_builder/outreach/email_expert.py, offsetx_apollo_builder/distribution/automation.py, offsetx_apollo_builder/api/app.py, frontend/src/pages/Product.tsx
+  commit: 03203ac
+
+- S-12.01.01 · The owner records the product once
+  tests: tests/test_gtm_products.py::test_a_product_is_created_at_version_one_and_read_back, tests/test_gtm_products.py::test_bad_input_is_refused_with_the_field_named, tests/test_gtm_products.py::test_an_email_address_is_refused_at_the_door, tests/test_gtm_products.py::test_an_edit_raises_the_version, tests/test_gtm_products.py::test_a_stale_version_is_a_conflict_not_a_lost_update, tests/test_gtm_products.py::test_another_workspace_cannot_see_the_product, tests/test_gtm_products.py::test_delete_removes_the_product, tests/test_gtm_products.py::test_the_product_round_trips_over_http, tests/test_gtm_products.py::test_http_refusals_are_sentences_not_stack_traces, tests/test_gtm_products.py::test_gtm_owns_no_transport, tests/test_gtm_products.py::test_nothing_gtm_loads_reaches_a_model_or_the_network
+  command: uv run pytest tests/test_gtm_products.py -q
+  result: 36 passed (2026-09-23)
+  live: walked in a real headless Chromium: the Product form saves at version 1 and reads back. A clean interpreter that imports the gtm package loads nothing from ai/ and no network library — the check the cold review showed the AST walk alone could not make (D-98).
+  code: offsetx_apollo_builder/gtm/products.py, offsetx_apollo_builder/gtm/store.py, offsetx_apollo_builder/api/gtm.py, frontend/src/pages/Product.tsx
+  commit: 03203ac
 
 - S-06.02.17 · DONE may not depend on unfinished work
   tests: tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails, tests/test_verify_board.py::test_done_with_only_done_dependencies_passes

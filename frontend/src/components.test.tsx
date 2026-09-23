@@ -160,7 +160,6 @@ describe("timeline units on the dashboard", () => {
   });
 });
 
-
 describe("keyboard and screen-reader contract", () => {
   function tsxFiles(directory: string): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -230,5 +229,96 @@ describe("keyboard and screen-reader contract", () => {
     expect(css).toContain(":focus-visible");
     expect(css).toContain("outline: 3px solid");
     expect(css).toContain(".catalog-card-wrapper:focus-within .catalog-tooltip");
+  });
+});
+
+describe("the GTM engine", () => {
+  const context = {
+    campaigns: [],
+    campaignId: "",
+    activeCampaign: null,
+    selectCampaign: () => undefined,
+    refreshCampaigns: () => undefined,
+    notify: () => undefined
+  };
+
+  it("the product screen asks for the truth once, and for the claims never to make", async () => {
+    const { default: Product } = await import("./pages/Product");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Product />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Your product, described once");
+    for (const label of ["Name", "One-liner", "Who it is for", "The problem it solves", "The offer", "Never claim"]) {
+      expect(html).toContain(label);
+    }
+    // The address rule is explained where the owner types, not three screens later.
+    expect(html).toContain("may be sent to a model");
+    // Linking campaigns waits for a saved product rather than offering a dead button.
+    expect(html).toContain("Campaigns that speak for this product");
+    expect(html).toContain("Save the product first");
+  });
+
+  it("the strategy screen shows the goal form and what is connected before any plan", async () => {
+    const { default: Strategy } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={context}>
+        <Strategy />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Plan the go-to-market");
+    expect(html).toContain("What is connected");
+    for (const label of ["Product", "Goal", "Target", "Days", "New contacts", "Channels"]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain("Draft a plan");
+    // The honest promise, where the owner decides.
+    expect(html).toContain("nothing sends");
+  });
+
+  it("next steps after Apply are links to screens that exist", async () => {
+    const { NextSteps } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <NextSteps
+        steps={[
+          { page: "contacts", label: "Add contacts to the email campaign", why: "The email campaign starts empty." },
+          { page: "campaigns", label: "Resume each campaign when you are ready", why: "Apply left every campaign paused." }
+        ]}
+        notes={["The email campaign was set to 500."]}
+      />
+    );
+    expect(html).toContain('href="#contacts"');
+    expect(html).toContain('href="#campaigns"');
+    expect(html).toContain("Resume each campaign when you are ready");
+    expect(html).toContain("set to 500");
+  });
+
+  it("a review shows what is wrong first, and never links a remedy to a screen that cannot do it", async () => {
+    const { ReviewView } = await import("./pages/Strategy");
+    const html = renderToStaticMarkup(
+      <ReviewView
+        review={{
+          id: "r1", plan_id: "p1", summary: "", source: "rules", provider_id: "", model_id: "", policy: "",
+          created_at: "2026-09-22T12:00:00+00:00", measurements: [],
+          findings: [
+            { channel: "email", campaign_id: "c1", code: "delivery_unhealthy", sentence: "6.0% of 300 accepted emails hard-bounced.", permitted: ["fix_list_quality"], numbers: {} },
+            { channel: "distribution", campaign_id: "c2", code: "nothing_published", sentence: "Nothing has been published from this campaign yet.", permitted: ["set_up_posting"], numbers: {} }
+          ],
+          remedies: [
+            { channel: "email", campaign_id: "c1", finding: "delivery_unhealthy", action: "fix_list_quality", why: "6.0% bounced.", proposal: "", page: "contacts", label: "Remove the addresses that bounced." },
+            { channel: "distribution", campaign_id: "c2", finding: "nothing_published", action: "set_up_posting", why: "Nothing posted.", proposal: "", page: "", label: "Set up posting." }
+          ],
+          notes: ["No model could review this plan. These are the rules' remedies."]
+        }}
+      />
+    );
+    expect(html).toContain("delivery unhealthy");
+    expect(html).toContain("6.0% of 300 accepted emails hard-bounced.");
+    expect(html).toContain('href="#contacts"');
+    // One remedy has a screen and one does not: exactly one "Open" link.
+    expect(html.match(/>Open</g)?.length).toBe(1);
+    expect(html).toContain("Rules-based remedies");
+    expect(html).toContain("rules&#x27; remedies");
   });
 });

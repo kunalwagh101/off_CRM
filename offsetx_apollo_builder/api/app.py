@@ -40,6 +40,10 @@ from ..distribution.publishers import LocalOutboxPublisher
 from ..distribution.trends import TrendWatcher
 from ..distribution.youtube import YouTubeClient, YouTubeError
 from ..distribution.store import DistributionStore
+from ..gtm.service import PUBLISHED_COUNT_LIMIT, GtmService
+from ..gtm.service import Readers as GtmReaders
+from ..gtm.store import GtmStore
+from ..gtm.strategy import ModelUnavailable
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
@@ -114,6 +118,7 @@ from ..ai import (
     ToolRegistry,
 )
 from ..ai.context import ContextLayer
+from ..ai.errors import AIModuleError
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
 from ..ai.workspace import WorkspaceAISettingsStore
@@ -123,6 +128,7 @@ from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
 from .email_delivery import build_email_delivery_router
+from .gtm import build_gtm_router, resolve_angle
 from .schemas import (
     AutomationUpdate,
     AgentRoutineCreate,
@@ -456,6 +462,25 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         return response
 
+    def _attach_products(engine: OutreachEngine, owner: FastAPI) -> OutreachEngine:
+        """Every engine's drafts read the product linked to their campaign.
+
+        `S-12.01.02`. Attached here rather than passed to `OutreachEngine`, which
+        stays free of anything product- or model-shaped. The store is looked up
+        when a draft is written, not now: the engine built at startup exists
+        before the product store does. `test_every_engine_is_built_with_products`
+        fails if an `OutreachEngine(...)` in this file is ever built without
+        this — such an engine would fill `{product_offer}` with a blank.
+        """
+
+        def reader(campaign_id: str) -> dict[str, Any] | None:
+            return owner.state.gtm_store.product_for_campaign(
+                campaign_id, _workspace_id(_TimerScope(owner))
+            )
+
+        engine.email_expert.product_reader = reader
+        return engine
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         resolved.prepare()
@@ -463,10 +488,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
-        app.state.engine = OutreachEngine(
-            resolved.database_path,
-            template_counter=app.state.ai_context,
-            mail_archive=app.state.ai_recall,
+        app.state.engine = _attach_products(
+            OutreachEngine(
+                resolved.database_path,
+                template_counter=app.state.ai_context,
+                mail_archive=app.state.ai_recall,
+            ),
+            app,
         )
         app.state.ai_tools = ToolRegistry(resolved.data_dir / "ai_tools.db")
         app.state.companions = CompanionRegistry(
@@ -589,16 +617,24 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ai_egress=app.state.ai_egress_log,
             export_dir=resolved.export_dir,
         )
+        # The product and its plans are the owner's work, like a timeline, so
+        # they follow OFFSETX_DATABASE_URL onto Postgres the same way.
+        app.state.gtm_store = GtmStore(
+            resolve_database_target(default=resolved.data_dir / "gtm.db")
+        )
         app.state.trends_path = resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
             resolved.data_dir / "automation.json",
             # The unattended sender records too, or overnight runs go unlogged.
-            engine_factory=lambda: OutreachEngine(
-                resolved.database_path,
-                template_counter=app.state.ai_context,
-                mail_archive=app.state.ai_recall,
+            engine_factory=lambda: _attach_products(
+                OutreachEngine(
+                    resolved.database_path,
+                    template_counter=app.state.ai_context,
+                    mail_archive=app.state.ai_recall,
+                ),
+                app,
             ),
             mail_provider_factory=lambda mode, authorized: _mail_provider(
                 resolved,
@@ -617,6 +653,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             pipeline_factory=lambda angle: _pipeline(_TimerScope(app), angle=angle),
             distribution_factory=lambda: _distribution(_TimerScope(app)),
             pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
+            angle_resolver=lambda campaign_id, declared: resolve_angle(
+                app.state.gtm_store, _workspace_id(_TimerScope(app)), campaign_id, declared
+            ),
+            campaign_status=lambda campaign_id: str(
+                _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
+            ),
         )
         await app.state.automation.start()
         await app.state.content_automation.start()
@@ -634,6 +676,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             app.state.image_store.close()
             app.state.distribution_store.close()
             app.state.video_store.close()
+            app.state.gtm_store.close()
             app.state.ai_context.close()
             app.state.ai_recall.close()
 
@@ -736,6 +779,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return JSONResponse(status_code=404, content={"detail": str(exc).strip("'")})
 
     app.include_router(build_email_delivery_router())
+    # A lambda so the workspace rule is looked up when a request arrives:
+    # `_workspace_id` is defined further down this function, and whatever it
+    # becomes, the GTM routes follow it.
+    app.include_router(
+        build_gtm_router(
+            workspace_of=lambda request: _workspace_id(request),
+            campaign_of=lambda request, campaign_id: _engine(request).store.get_campaign(
+                campaign_id
+            ),
+            service_of=lambda request: _gtm(request),
+        )
+    )
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
@@ -1467,10 +1522,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 data_dir=settings.data_dir,
                 passphrase=passphrase,
             )
-            request.app.state.engine = OutreachEngine(
-                settings.database_path,
-                template_counter=request.app.state.ai_context,
-                mail_archive=request.app.state.ai_recall,
+            request.app.state.engine = _attach_products(
+                OutreachEngine(
+                    settings.database_path,
+                    template_counter=request.app.state.ai_context,
+                    mail_archive=request.app.state.ai_recall,
+                ),
+                request.app,
             )
             request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
             request.app.state.companions = CompanionRegistry(
@@ -1489,10 +1547,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return result
         finally:
             if getattr(request.app.state, "engine", None) is current_engine:
-                request.app.state.engine = OutreachEngine(
-                    settings.database_path,
-                    template_counter=request.app.state.ai_context,
-                    mail_archive=request.app.state.ai_recall,
+                request.app.state.engine = _attach_products(
+                    OutreachEngine(
+                        settings.database_path,
+                        template_counter=request.app.state.ai_context,
+                        mail_archive=request.app.state.ai_recall,
+                    ),
+                    request.app,
                 )
                 request.app.state.ai_tools = ToolRegistry(settings.data_dir / "ai_tools.db")
                 request.app.state.companions = CompanionRegistry(
@@ -2186,8 +2247,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         store = app_ref.state.distribution_store
         goals = store.list_goals(campaign_id)
+        # The newest: `set_goal` adds a row rather than replacing one, so the
+        # first row is the goal as it was, not as it is (D-84).
         views_goal = next(
-            (goal for goal in goals if str(goal.get("metric") or "views") == "views"), None
+            (goal for goal in reversed(goals) if str(goal.get("metric") or "views") == "views"),
+            None,
         )
         accounts = store.list_accounts()
         platform_ids = {str(account.get("platform") or "") for account in accounts}
@@ -2213,6 +2277,25 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "ceiling_source": source,
             "owner_cap": owner_cap,
         }
+
+    def _pacing_decision(app_ref: Any, campaign_id: str) -> Any:
+        """What the pacer says for one campaign now — the Posting screen's number.
+
+        One function for the pacing endpoint and the GTM review, so the review
+        can never quote a different decision than the screen shows.
+        """
+        inputs = _pacing_inputs(app_ref, campaign_id)
+        config = app_ref.state.content_automation.config()
+        return pacing_decide(
+            goal_target=int(inputs["goal_target"]),
+            goal_deadline=str(inputs["goal_deadline"]),
+            metrics=inputs["metrics"],
+            current_per_day=float(config.get("posts_per_day") or 0.0),
+            ceiling=float(inputs["ceiling"]),
+            ceiling_source=str(inputs["ceiling_source"]),
+            owner_cap=float(inputs["owner_cap"]),
+            candidates_per_topic=int(config.get("candidates") or 3),
+        )
 
     def _trends(request: Request) -> TrendWatcher:
         """The competitor watcher, with a client only if a key is configured.
@@ -2290,7 +2373,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         It stops there on purpose: the next step is a person looking at the
         pictures, and no version of this should skip it.
         """
-        angle = str(body.get("angle", ""))
+        # Resolved before `_pipeline` chooses its data class from it.  `S-12.01.02`
+        angle = resolve_angle(
+            request.app.state.gtm_store,
+            _workspace_id(request),
+            campaign_id,
+            str(body.get("angle", "")),
+        )
         pipeline = _pipeline(request, angle=angle)
         return pipeline.plan(
             distribution_campaign_id=campaign_id,
@@ -2309,7 +2398,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         A draft still needs the approval the distribution runner has always
         required before anything can be scheduled.
         """
-        angle = str(body.get("angle", ""))
+        # Resolved before `_pipeline` chooses its data class from it.  `S-12.01.02`
+        angle = resolve_angle(
+            request.app.state.gtm_store,
+            _workspace_id(request),
+            campaign_id,
+            str(body.get("angle", "")),
+        )
         pipeline = _pipeline(request, angle=angle)
         return pipeline.draft(
             distribution_campaign_id=campaign_id,
@@ -2429,25 +2524,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         Read-only. It never changes the rate — that is the owner's press of a
         button, and it lives at ``/content-automation/pace``.
         """
-        state = request.app.state
         _distribution(request)._require_own_kind(campaign_id, "reading the pacing")
-        inputs = _pacing_inputs(request.app, campaign_id)
-        config = state.content_automation.config()
-        decision = pacing_decide(
-            goal_target=int(inputs["goal_target"]),
-            goal_deadline=str(inputs["goal_deadline"]),
-            metrics=inputs["metrics"],
-            current_per_day=float(config.get("posts_per_day") or 0.0),
-            ceiling=float(inputs["ceiling"]),
-            ceiling_source=str(inputs["ceiling_source"]),
-            owner_cap=float(inputs["owner_cap"]),
-            candidates_per_topic=int(config.get("candidates") or 3),
-        )
+        config = request.app.state.content_automation.config()
         return {
             "campaign_id": campaign_id,
             "mode": config.get("pace_mode"),
             "pending": config.get("pending_pace") or {},
-            **decision.to_dict(),
+            **_pacing_decision(request.app, campaign_id).to_dict(),
         }
 
     @app.post(f"{API_PREFIX}/content-automation/pace")
@@ -2996,6 +3079,90 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail="Meeting not found")
         return {"deleted": True}
+
+    def _gtm(request: Request) -> GtmService:
+        """The strategy brain for this request's workspace.  `E-12`
+
+        ``ask`` is the one model call it makes, built the way the video
+        director's is, with three differences that are the point of it:
+
+        - **Campaign class.** The product is the owner's material; tier C and D
+          may not see it, and the broker already knows what each tier may receive.
+        - **The product in classified fields** — one-liner as the positioning
+          line, the rest as campaign notes — so each provider's data policy
+          decides how much of it leaves (DD-41). The system prompt is code-only.
+        - **Every broker refusal becomes ``ModelUnavailable``**, so "no model
+          connected" gives the owner the rules plan and the reason, never a 500.
+          Anything that is not a broker refusal still surfaces: a bug should not
+          be disguised as a missing key.
+        """
+        state = request.app.state
+        workspace_id = _workspace_id(request)
+        settings = state.ai_workspaces.egress_settings(workspace_id)
+
+        def ask(
+            *,
+            system_prompt: str,
+            task_type: str,
+            positioning_line: str,
+            campaign_notes: str,
+            instructions: str,
+        ) -> Any:
+            state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
+                workspace_id
+            )
+            try:
+                return state.ai_broker.call(
+                    EgressRequest(
+                        task_type=task_type,
+                        data_class=DataClass.CAMPAIGN,
+                        instructions=instructions,
+                        positioning_line=positioning_line,
+                        campaign_notes=campaign_notes,
+                    ),
+                    settings,
+                    system_prompt=system_prompt,
+                    expect_json=True,
+                )
+            except AIModuleError as exc:
+                raise ModelUnavailable(str(exc)) from exc
+
+        return GtmService(
+            state.gtm_store,
+            workspace_id=workspace_id,
+            identities=lambda: state.email_delivery.store.list_identities(),
+            accounts=lambda: state.distribution_store.list_accounts(workspace_id=workspace_id),
+            apollo_ready=lambda: bool(os.getenv("APOLLO_API_KEY", "").strip()),
+            ask=ask,
+            # Apply goes through the engine's own campaign creation, the same
+            # call `POST /campaigns` makes, so a plan's campaign is exactly the
+            # campaign a person could have made by hand.
+            create_campaign=lambda **values: _engine(request).create_campaign(**values),
+            update_campaign=lambda campaign_id, changes: _engine(request).store.update_campaign(
+                campaign_id, changes
+            ),
+            set_goal=lambda **values: state.distribution_store.set_goal(
+                workspace_id=workspace_id, **values
+            ),
+            goals_of=lambda campaign_id: state.distribution_store.list_goals(campaign_id),
+            lock=lambda key: state.campaign_locks.hold(key),
+            # What a review measures — each the same reader the screen for
+            # that fact uses, so the review and the screen cannot disagree.
+            readers=GtmReaders(
+                campaign=lambda campaign_id: _engine(request).store.get_campaign(campaign_id),
+                email_summary=lambda campaign_id: _engine(request).store.campaign_summary(
+                    campaign_id
+                ),
+                health=lambda campaign_id: state.email_delivery.store.health(campaign_id),
+                weak_templates=lambda: len(state.ai_context.weak_templates(workspace_id)),
+                published=lambda campaign_id: len(
+                    state.distribution_store.list_posts(
+                        campaign_id, status="published", limit=PUBLISHED_COUNT_LIMIT
+                    )
+                ),
+                pacing=lambda campaign_id: _pacing_decision(request.app, campaign_id).to_dict(),
+            ),
+        )
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: AIChatMessageBody, request: Request) -> dict[str, Any]:

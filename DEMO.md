@@ -734,3 +734,64 @@ A later chunk trying to change provider/model must also be refused before
 provider I/O.
 
 No pass count is recorded here until these commands actually execute.
+
+---
+
+## 15. The GTM brain: a goal becomes paused campaigns, a review, and the next version
+
+No model and no keys needed: with nothing connected the brain uses its rules and
+says so. Everything runs against a throwaway database.
+
+```bash
+uv run python - <<'PY'
+import tempfile
+from pathlib import Path
+from fastapi.testclient import TestClient
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
+
+tmp = Path(tempfile.mkdtemp())
+app = create_app(AppSettings(project_root=Path.cwd(), database_path=tmp / "crm.db",
+                             data_dir=tmp / "data", export_dir=tmp / "exports",
+                             frontend_dist=tmp / "none", allow_unauthenticated=True))
+with TestClient(app) as http:
+    api = "/api/v1/gtm"
+    product = http.post(f"{api}/products", json={
+        "name": "Ledgerline",
+        "one_liner": "Reconciles freight invoices against delivery records overnight.",
+        "audience": "Finance leads at logistics companies with 50 to 500 staff.",
+        "problem": "Carriers overbill and nobody has time to check every invoice.",
+        "offer": "a 15-minute walkthrough on your own invoices",
+        "forbidden_claims": ["guaranteed"],
+    }).json()
+    plan = http.post(f"{api}/plans", json={"product_id": product["id"], "goal_kind": "replies",
+                                           "goal_target": 20}).json()
+    print("PLAN  ", plan["source"], "|", plan["notes"][0])
+    print("       ", plan["feasibility"]["explanation"][:150], "...")
+
+    applied = http.post(f"{api}/plans/{plan['id']}/apply").json()
+    for item in applied["campaigns"]:
+        status = app.state.engine.store.get_campaign(item["campaign_id"])["status"]
+        print("APPLY ", item["kind"], item["action"], "->", status)
+
+    review = http.post(f"{api}/plans/{plan['id']}/review", json={}).json()
+    for finding in review["findings"]:
+        print("REVIEW", finding["channel"], finding["code"], "|", finding["sentence"])
+    print("DO    ", review["remedies"][0]["label"], "on", review["remedies"][0]["page"])
+
+    nxt = http.post(f"{api}/plans/{plan['id']}/revise", json={}).json()
+    print("REVISE version", nxt["version"], nxt["status"], "|", nxt["notes"][0])
+PY
+```
+
+Expect, in this order:
+
+- `PLAN rules | No model could write this plan: …` — nothing is connected, so the
+  rules wrote it and the first note says why, instead of an error.
+- `APPLY email created -> paused` — Apply never starts anything.
+- `REVIEW email not_started | The email campaign is paused, so it is not sending.`
+  — the review checks whether the pipe is running before it says a word about
+  the copy.
+- `DO Resume the campaign. on campaigns`
+- `REVISE version 2 draft | Only 0 people were contacted …` — too little data, so
+  the assumed rate carries forward and the note says so.

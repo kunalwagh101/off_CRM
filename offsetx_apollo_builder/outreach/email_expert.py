@@ -5,8 +5,9 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
+from ..gtm.products import find_forbidden
 from ..locked_categories import LOCKED_CATEGORIES
 from .models import (
     AIProvider,
@@ -232,12 +233,91 @@ def normalize_email_body(body: str) -> str:
     return "\n".join(output).strip()
 
 
+#: A template may say `{product_offer}` and have it filled from the product the
+#: campaign is linked to (S-12.01.02). Found in the *template*, before filling.
+_PRODUCT_FIELD = re.compile(r"\{product_[a-z_]+\}")
+
+
+def _product_fields(product: dict[str, Any] | None) -> dict[str, str]:
+    """The `{product_*}` placeholders, empty when there is no product.
+
+    Empty rather than left as `{product_offer}`: `_SafeFormat` would otherwise
+    print the brace into a real email. The audit then blocks the draft, so the
+    hole is visible and never sent.
+    """
+    product = product or {}
+    proof = product.get("proof") or []
+    return {
+        "product_name": clean_text(product.get("name")),
+        "product_one_liner": clean_text(product.get("one_liner")),
+        # How this campaign pitches the product: its applied plan's angle, else
+        # the one-liner. A revision's new angle arrives here (S-12.02.04).
+        "product_angle": clean_text(product.get("angle") or product.get("one_liner")),
+        "product_problem": clean_text(product.get("problem")),
+        "product_outcome": clean_text(product.get("outcome")),
+        "product_offer": clean_text(product.get("offer")),
+        "product_proof": clean_text(proof[0]) if proof else "",
+        "product_website": clean_text(product.get("website")),
+    }
+
+
 class LocalEmailExpert:
     """Local template retrieval plus optional provider-based personalisation."""
 
-    def __init__(self, store: OutreachStore):
+    def __init__(
+        self,
+        store: OutreachStore,
+        *,
+        product_reader: Callable[[str], dict[str, Any] | None] | None = None,
+    ):
         self.store = store
         self.memory = MemoryService(store)
+        #: campaign id -> the product it speaks for, or None. Injected, so this
+        #: module imports no product store: `api/app.py` attaches it to every
+        #: engine it builds (`_attach_products`).
+        self.product_reader = product_reader
+
+    def _product(self, campaign_id: str) -> tuple[dict[str, Any] | None, str]:
+        """The linked product, and an error sentence if it could not be read.
+
+        Fail closed: a product store that cannot answer means forbidden claims
+        cannot be checked, so the draft is blocked with the reason rather than
+        sent unchecked — and rather than crashing every draft in the batch.
+        """
+        if self.product_reader is None or not campaign_id:
+            return None, ""
+        try:
+            return self.product_reader(campaign_id), ""
+        except Exception as exc:  # noqa: BLE001 - reported on the draft, never swallowed
+            return None, (
+                f"The product linked to this campaign could not be read ({str(exc)[:200]}), "
+                "so forbidden claims were not checked. Try again, or unlink the product."
+            )
+
+    @staticmethod
+    def _audit_product(
+        audit: DraftAudit,
+        *,
+        template_text: str,
+        subject: str,
+        body: str,
+        product: dict[str, Any] | None,
+        product_error: str,
+    ) -> None:
+        if product_error:
+            audit.errors.append(product_error)
+        elif product is None and _PRODUCT_FIELD.search(template_text):
+            audit.errors.append(
+                "This template uses product fields, but this campaign has no product "
+                "linked, so the email would go out with blanks. Link one on the "
+                "Product screen."
+            )
+        if product:
+            for claim in find_forbidden(f"{subject}\n{body}", product.get("forbidden_claims") or []):
+                audit.errors.append(
+                    f"The draft says {claim!r}, which the product says never to claim. "
+                    "Edit the draft or the template."
+                )
 
     def seed_templates(self, path: Path | str) -> int:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -280,6 +360,9 @@ class LocalEmailExpert:
             questions = json.loads(contact.get("questions_json") or "[]")
         except json.JSONDecodeError:
             questions = []
+        product, product_error = self._product(
+            campaign_id or clean_text(contact.get("campaign_id"))
+        )
         values = _SafeFormat(
             first_name=clean_text(contact.get("first_name"))
             or clean_text(contact.get("full_name")).split(" ", 1)[0],
@@ -299,8 +382,12 @@ class LocalEmailExpert:
             original_subject=original_subject or "the evidence handoff",
             signature=OFFSETX_SIGNATURE,
         )
-        subject = str(template["subject_template"]).format_map(values).strip()
-        body = normalize_email_body(str(template["body_template"]).format_map(values))
+        # Product fields fill the template but are not added to `values`: those
+        # travel to the older provider path labelled as the *recipient*, and the
+        # owner's product is not the recipient.
+        fill = _SafeFormat({**values, **_product_fields(product)})
+        subject = str(template["subject_template"]).format_map(fill).strip()
+        body = normalize_email_body(str(template["body_template"]).format_map(fill))
 
         retrieval_query = " ".join(
             filter(
@@ -387,6 +474,14 @@ class LocalEmailExpert:
             subject=subject,
             body=body,
         )
+        self._audit_product(
+            audit,
+            template_text=f"{template['subject_template']}\n{template['body_template']}",
+            subject=subject,
+            body=body,
+            product=product,
+            product_error=product_error,
+        )
         return DraftContent(
             subject=subject,
             body=body,
@@ -421,6 +516,17 @@ class LocalEmailExpert:
             hook_source=clean_text(contact.get("hook_source")),
             subject=subject.strip(),
             body=normalize_email_body(body),
+        )
+        # A person's edit is held to the product's forbidden claims too. There
+        # is no template here to check for blanks — the text is what they typed.
+        product, product_error = self._product(clean_text(contact.get("campaign_id")))
+        self._audit_product(
+            audit,
+            template_text="",
+            subject=subject.strip(),
+            body=normalize_email_body(body),
+            product=product,
+            product_error=product_error,
         )
         return DraftContent(
             subject=subject.strip(),

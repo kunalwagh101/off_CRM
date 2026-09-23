@@ -15,6 +15,8 @@ import Experiments from "./pages/Experiments";
 import ImageReview from "./pages/ImageReview";
 import VideoEditor from "./pages/VideoEditor";
 import Posting from "./pages/Posting";
+import Product from "./pages/Product";
+import Strategy from "./pages/Strategy";
 import AI from "./pages/AI";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
@@ -38,6 +40,8 @@ const pages = {
   imagereview: ImageReview,
   videoeditor: VideoEditor,
   posting: Posting,
+  product: Product,
+  strategy: Strategy,
   connectors: Connectors,
   egress: Egress,
   memory: Memory,
@@ -59,6 +63,8 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },
   { page: "contacts", label: "Contacts", icon: "◎" },
+  { page: "product", label: "Product", icon: "◆", group: "Strategy" },
+  { page: "strategy", label: "Go-to-market plan", icon: "⌖" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },
   { page: "queue", label: "Send queue", icon: "➤" },
   { page: "deliverability", label: "Deliverability", icon: "✓" },

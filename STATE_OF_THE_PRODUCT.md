@@ -20,6 +20,23 @@ The owner explicitly authorised build-ahead under DD-22. That allows complete
 implementation batches to accumulate in IN_REVIEW, but it does not allow the
 repository to call them DONE ahead of their evidence/dependency chain.
 
+## Newest DONE work: the GTM brain, Phase 1 and 2 (E-12)
+
+| What it does | Story | Proof |
+|---|---|---|
+| You describe your product once; every writer uses it, and a forbidden claim is caught | S-12.01.01, S-12.01.02 | 53 tests |
+| A goal (replies or views) becomes a plan that fits what is actually connected | S-12.02.01 | 50 tests |
+| Applying a plan makes **paused** campaigns — nothing imported, spent or sent — and paused now stops posting too | S-12.02.02 | 78 tests |
+| A review says what is wrong, in a fixed order: the pipe before the copy | S-12.02.03 | 64 tests |
+| A review becomes the next version, which learns the real reply rate | S-12.02.04 | 24 tests |
+
+Honest limits. With no model connected, the brain plans and reviews by rules
+and says so. A plan's **posting** channel cannot yet post from the screens
+(`D-82`, story `S-12.02.06`): Apply and the review both say this plainly. The
+brain judges replies and views only, because nothing links a meeting or a
+sign-up back to the campaign that earned it. Design:
+`docs/architecture/GTM_ENGINE.md`.
+
 ## Build-ahead stories currently in review
 
 ### Public discovery and privacy

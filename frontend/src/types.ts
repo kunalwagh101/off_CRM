@@ -882,3 +882,164 @@ export type AIRunResult = {
   notes: string[];
   best_text: string;
 };
+
+/** The product, described once — `offsetx_apollo_builder/gtm/products.py`. */
+export type GtmProduct = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  one_liner: string;
+  audience: string;
+  problem: string;
+  outcome: string;
+  offer: string;
+  proof: string[];
+  differentiators: string[];
+  forbidden_claims: string[];
+  voice: string;
+  website: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One campaign a product speaks for. `exists` is false once it is deleted. */
+export type GtmProductLink = {
+  campaign_id: string;
+  name: string;
+  kind: string;
+  exists: boolean;
+};
+
+/** Capacity a plan is fitted inside — `gtm/strategy.py` `Envelope`. */
+export type GtmEnvelope = {
+  email_identities: number;
+  email_unverified: string[];
+  email_daily_capacity: number;
+  per_identity_daily_cap: number;
+  platforms: string[];
+  post_daily_capacity: number;
+  apollo_ready: boolean;
+  blockers: string[];
+};
+
+export type GtmDescribe = {
+  envelope: GtmEnvelope;
+  vocabulary: {
+    kinds: string[];
+    goal_kinds: string[];
+    sources: string[];
+    company_sizes: string[];
+    platforms: string[];
+    recipe_families: string[];
+    roles: string[];
+    weekdays: string[];
+  };
+  defaults: { assumed_reply_rate: number; per_identity_daily_cap: number; horizon_days: number };
+};
+
+export type GtmChannel = {
+  kind: string;
+  role: string;
+  angle: string;
+  hypothesis: string;
+  daily_volume?: number;
+  send_window?: string[];
+  weekdays?: string;
+  timezone?: string;
+  stream?: string;
+  platforms?: string[];
+  recipe_family?: string;
+};
+
+export type GtmPlan = {
+  id: string;
+  product_id: string;
+  root_id: string;
+  parent_id: string;
+  version: number;
+  status: "draft" | "applied" | "superseded" | "discarded";
+  source: "model" | "rules";
+  provider_id: string;
+  model_id: string;
+  policy: string;
+  created_at: string;
+  applied_at: string | null;
+  product_version: number;
+  product_stale: boolean;
+  product_deleted: boolean;
+  request: {
+    goal_kind: string;
+    goal_target: number;
+    horizon_days: number;
+    contact_budget: number;
+    channels: string[];
+    assumed_reply_rate: number;
+    per_identity_daily_cap: number;
+  };
+  product_snapshot: GtmProduct;
+  envelope: GtmEnvelope;
+  plan: {
+    summary: string;
+    audience: {
+      description: string;
+      source: string;
+      titles: string[];
+      industries: string[];
+      company_sizes: string[];
+      regions: string[];
+    };
+    channels: GtmChannel[];
+  };
+  feasibility: { kind: string; feasible: boolean | null; explanation: string };
+  notes: string[];
+  /** The latest review, or null before the first one. */
+  review?: GtmReview | null;
+  /** What the line's campaigns had already done when this version was applied. */
+  baseline?: { email?: { campaign_id?: string; contacted: number; replied: number } };
+};
+
+export type GtmNextStep = { page: string; label: string; why: string };
+
+export type GtmFinding = {
+  channel: string;
+  campaign_id: string;
+  code: string;
+  sentence: string;
+  permitted: string[];
+  numbers: Record<string, unknown>;
+};
+
+export type GtmRemedy = {
+  channel: string;
+  campaign_id: string;
+  finding: string;
+  action: string;
+  why: string;
+  proposal: string;
+  /** The screen that does it, or "" when it belongs in the next version of the plan. */
+  page: string;
+  label: string;
+};
+
+export type GtmReview = {
+  id: string;
+  plan_id: string;
+  summary: string;
+  source: "model" | "rules";
+  provider_id: string;
+  model_id: string;
+  policy: string;
+  created_at: string;
+  measurements: Array<Record<string, unknown> & { channel: string; campaign_id: string }>;
+  findings: GtmFinding[];
+  remedies: GtmRemedy[];
+  notes: string[];
+};
+
+export type GtmApplyResult = {
+  plan: GtmPlan;
+  campaigns: Array<{ kind: string; campaign_id: string; action: "created" | "updated" | "left archived" }>;
+  next_steps: GtmNextStep[];
+  notes: string[];
+};

@@ -117,6 +117,8 @@ class ContentAutomationService:
         pipeline_factory: Callable[[str], Any],
         distribution_factory: Callable[[], Any],
         pacing_reader: Callable[[str], dict[str, Any]] | None = None,
+        angle_resolver: Callable[[str, str], str] | None = None,
+        campaign_status: Callable[[str], str] | None = None,
     ) -> None:
         self.path = Path(path)
         self.trends_factory = trends_factory
@@ -130,6 +132,16 @@ class ContentAutomationService:
         #: for the same reason everything else here is: this module owns the
         #: order of the work and no knowledge of storage.
         self.pacing_reader = pacing_reader
+        #: (distribution campaign id, declared angle) -> the angle to use. The
+        #: product the campaign is linked to fills an empty one (S-12.01.02).
+        #: Resolved *before* `pipeline_factory` is called, because the factory
+        #: chooses the data class from the angle it is handed — resolving it
+        #: later would send the owner's positioning out under a public label.
+        self.angle_resolver = angle_resolver
+        #: campaign id -> its status. A pair runs only while both campaigns
+        #: are active: planning makes pictures, which costs money, and a paused
+        #: campaign is the owner saying stop (D-87). ``None`` checks nothing.
+        self.campaign_status = campaign_status
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
         self._run_lock = threading.Lock()
@@ -290,6 +302,18 @@ class ContentAutomationService:
                 results.append({"step": "sweep", "status": "skipped"})
 
             for pipeline in config["pipelines"]:
+                stopped = self._stopped(pipeline)
+                if stopped:
+                    for step in ("plan", "draft"):
+                        if config[step]:
+                            results.append({
+                                "step": step,
+                                "distribution_campaign_id": pipeline["distribution_campaign_id"],
+                                "image_campaign_id": pipeline["image_campaign_id"],
+                                "status": "skipped",
+                                "reason": stopped,
+                            })
+                    continue
                 # The goal decides how much to make, before anything is made.
                 paced, decision = self._pace(config, pipeline)
                 if decision is not None:
@@ -455,6 +479,27 @@ class ContentAutomationService:
                 except Exception:  # noqa: BLE001 - closing is best effort
                     pass
 
+    def _stopped(self, pipeline: dict[str, Any]) -> str:
+        """Why this pair must make nothing this cycle, or "" when it may run."""
+        if self.campaign_status is None:
+            return ""
+        for key, what in (("distribution_campaign_id", "posting"), ("image_campaign_id", "picture")):
+            try:
+                status = str(self.campaign_status(pipeline[key]) or "active")
+            except KeyError:
+                return f"the {what} campaign no longer exists"
+            except Exception as exc:  # noqa: BLE001 - fail closed; one pair must not cost the cycle
+                return f"the {what} campaign could not be read: {str(exc)[:120]}"
+            if status != "active":
+                return f"the {what} campaign is {status}"
+        return ""
+
+    def _angle(self, pipeline: dict[str, Any]) -> str:
+        declared = str(pipeline.get("angle") or "")
+        if self.angle_resolver is None:
+            return declared
+        return str(self.angle_resolver(pipeline["distribution_campaign_id"], declared) or "")
+
     def _plan(self, config: dict[str, Any], pipeline: dict[str, Any]) -> dict[str, Any]:
         row = {
             "step": "plan",
@@ -462,13 +507,14 @@ class ContentAutomationService:
             "image_campaign_id": pipeline["image_campaign_id"],
         }
         try:
-            runner = self.pipeline_factory(pipeline["angle"])
+            angle = self._angle(pipeline)
+            runner = self.pipeline_factory(angle)
             planned = runner.plan(
                 distribution_campaign_id=pipeline["distribution_campaign_id"],
                 image_campaign_id=pipeline["image_campaign_id"],
                 max_topics=int(config["max_topics"]),
                 candidates=int(config["candidates"]),
-                angle=pipeline["angle"],
+                angle=angle,
             ).to_dict()
             return {
                 **row,
@@ -488,12 +534,13 @@ class ContentAutomationService:
             "image_campaign_id": pipeline["image_campaign_id"],
         }
         try:
-            runner = self.pipeline_factory(pipeline["angle"])
+            angle = self._angle(pipeline)
+            runner = self.pipeline_factory(angle)
             drafted = runner.draft(
                 distribution_campaign_id=pipeline["distribution_campaign_id"],
                 image_campaign_id=pipeline["image_campaign_id"],
                 account_ids=pipeline["account_ids"],
-                angle=pipeline["angle"],
+                angle=angle,
             ).to_dict()
             return {
                 **row,

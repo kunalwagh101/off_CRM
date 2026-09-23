@@ -1,6 +1,6 @@
 # Where everything stands
 
-**Current implementation snapshot: 2026-09-22.**
+**Current implementation snapshot: 2026-09-23, branch `develop`.**
 
 This is a readable summary. `BOARD.md` is the source of truth and
 `uv run python scripts/verify_board.py` is the independent delivery check.
@@ -10,11 +10,31 @@ Implementation in IN_REVIEW is not DONE evidence.
 
 | State | Count | Meaning |
 |---|---:|---|
-| IN_PROGRESS | 0 | no story is being changed now |
-| IN_REVIEW | 13 | code/tests/docs exist; executable and/or owner proof is pending |
-| READY | 1 | `S-07.01.04 — Reports and artifacts` |
-| BLOCKED | 3 | external platform access/review is missing |
-| DEFERRED | 0 | nothing intentionally parked |
+| DONE | 61 | built, tested, evidence recorded and re-runnable |
+| IN_PROGRESS | 1 | `S-06.02.19` — the branch consolidation itself |
+| IN_REVIEW | 16 | code and passing tests exist; an independent review (and for some, an owner pass) is pending |
+| READY | 0 | nothing is waiting to be pulled |
+| BACKLOG | 14 | written down, not started |
+| BLOCKED | 4 | external access is missing (CI runners, YouTube, platform reviews) |
+
+Recompute with `uv run python scripts/verify_board.py`.
+
+## One branch now: `develop` (2026-09-23)
+
+All built work is on `develop`; `main` is promoted from it after checking.
+Both deploy to Render — `off-crm-develop` and `off-crm-demo` — on the free plan,
+**so data on either is wiped at every restart and deploy** until the owner
+decides to pay for a disk (`OPEN_QUESTIONS.md` Q-26). `docs/BRANCHING.md` has
+the workflow and where every old branch went.
+
+The consolidation found that the newest line had never run its own tests: 33
+failed and 5 test files could not load. All are fixed at their cause and logged
+(`D-103`–`D-123`). Two older pieces of built work were missing from it and are
+now in: **durable state and safe recovery** (`S-06.02.21` — whole-workspace
+backup, a restore that rolls back on failure, readiness that tells the truth,
+and a Docker image that builds, which it did not, on `main` either) and
+**campaign selection** (`S-06.02.22` — a newly created campaign now stays
+selected, so an import cannot land in the wrong one). Both are IN_REVIEW.
 
 The owner explicitly authorised build-ahead under DD-22. That allows complete
 implementation batches to accumulate in IN_REVIEW, but it does not allow the
@@ -74,23 +94,30 @@ routines, workspace identities and derived meeting transcripts.
 
 ## What is deliberately not claimed
 
-The newest build-ahead stories have focused tests and demo commands, but this
-session has not yet produced executable CI/local pass evidence for them.
-Meeting transcription additionally needs a real localhost browser capture in the
-owner verification pass. Accessibility needs the owner keyboard/screen-reader
-pass.
+On `develop` the build-ahead stories' tests now run and pass locally — they did
+not on the branch they were built on (`D-115`). That is not DONE: each still
+needs the review and evidence block the Definition of Done asks for, and CI
+cannot yet run them (`D-75`). Meeting transcription also needs a real localhost
+browser capture in the owner verification pass, and accessibility needs the
+owner's keyboard and screen-reader pass.
 
 Therefore their correct state is **IN_REVIEW**.
 
-## Next READY work
+## Next work
 
-Only one story is currently READY:
+Nothing is READY. The next useful work, in order:
 
-**S-07.01.04 — Reports and artifacts.**
+1. **Review the 16 IN_REVIEW stories** so they can become DONE. They pass their
+   tests on `develop`; each still needs its review and evidence block.
+2. **`S-06.02.23` — re-check the 7 September production audit on `develop`.**
+   Two of its findings are known to be open: the sandbox's `/work` folder
+   refuses writes (`D-121`) and a short valid video export is rejected
+   (`D-122`). The rest were found on older code and have not been re-run.
+3. **`S-06.02.18` — CI runners.** Until GitHub Actions can start a job, nothing
+   checks a push automatically.
 
-It turns source-backed run findings into a deck, sheet or PDF while requiring
-every claim to resolve back to a trace step. Do not pull it until the owner asks
-for the next batch.
+`S-07.01.04 — Reports and artifacts` (deck, sheet or PDF from verified run
+findings) is built and IN_REVIEW.
 
 ## Externally blocked
 

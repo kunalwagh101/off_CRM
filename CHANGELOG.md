@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **One working branch, `develop`** (`S-06.02.19`, 2026-09-23). Every line of
+  built work was merged or ported onto one branch; the rest are archived as
+  `archive/<branch>` tags (`docs/BRANCHING.md`). `main` is promoted from
+  `develop` after checking; both run on Render as free services.
+  - **The newest line passed none of its own checks.** It had never run its
+    suite: 33 tests failed and 5 files could not load. Fixed at the cause, each
+    logged: every privacy route crashed (`D-103`); strict request schemas hid
+    readable errors and refused requests the screens send (`D-107`); timers
+    crashed on a missing login (`D-109`); a bare `token=` reached a model
+    provider (`D-110`); workspace-login installs could not start (`D-111`);
+    and several tests were checking nothing (`D-104`, `D-105`, `D-108`).
+  - **Durable state and safe recovery** (`S-06.02.21`, ported). Backups now hold
+    the whole workspace, so no store can be forgotten (`gtm.db`, images, video
+    and posts were); a restore drains requests, swaps the folder under a
+    journal, reopens every service and rolls back on failure; the old restore's
+    stale-WAL data loss is gone (`D-114`). `OFFSETX_PRODUCTION=1` refuses to
+    start on `/tmp` or without the disk. The Docker image builds again — it did
+    not, on `main` either (`D-116`) — installs the lock with its extras, and
+    runs as an unprivileged user. `/health/ready` checks what it claims to.
+  - **Campaign selection** (`S-06.02.22`, ported). A newly created campaign
+    stays selected; before, the stale list put an older one back (`D-123`).
+  - **Also fixed:** the Connectors screen called an API route that never
+    existed (`D-120`) — a new test now checks every path the screens call;
+    nested transactions crash no more (`D-117`).
+  - **Merged:** reports and artifacts (`S-07.01.04`, IN_REVIEW), the
+    competitor research, the frontend-audit blocker record, and the owner's
+    production contract in `AGENTS.md` and the Definition of Done.
+  - **Renumbered:** D-80/D-81 → D-100/D-101, the reports branch's DD-21/D-51 →
+    DD-34/D-102, and the ported stories' IDs; `docs/BRANCHING.md` lists them.
+
 - **The GTM engine, Phase 1 and 2** (`E-12`: `S-12.01.01`, `S-12.01.02`,
   `S-12.02.01`–`S-12.02.04`). Design and work orders:
   `docs/architecture/GTM_ENGINE.md`.

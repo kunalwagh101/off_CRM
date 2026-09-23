@@ -11,7 +11,10 @@ Last updated: 2026-09-23
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where and
 where the old branches are archived.
-Tests: CONSOLIDATION-PENDING
+Tests (2026-09-23, on `develop` at the consolidation): **2345 Python passed, 0 failed**,
+4 environment-gated skips; ruff gate clean; frontend **144 passed** and a clean
+production build. The re-run of every DONE story's evidence command and the
+cold review of the consolidation are recorded on `S-06.02.19` when they finish.
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
@@ -34,6 +37,48 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-09-23 — the branch consolidation: one working branch, `develop`
+
+**What `develop` is.** Every piece of built work, on one branch. It started
+from `feature/next-three-batch-4` (which contained `main`), merged the GTM
+engine (E-12), the reports feature (`S-07.01.04`), the competitor research and
+the frontend-audit record, and ported from `integration/main-consolidation` the
+durable-state work (`S-06.02.21`), the campaign-selection fix (`S-06.02.22`) and
+the owner's production contract. Every other branch was either already
+inside it or built the same stories another way; each is archived as a tag.
+`docs/BRANCHING.md` has the full record, the workflow and the renumbered IDs.
+
+**What the consolidation found.** The newest line had never run its own
+suite — CI could not start a runner (`D-75`), and nothing else ran it. On its
+own it had 33 failing tests and 5 test files that could not load (`D-115`).
+Root causes, all fixed with tests (`S-06.02.19`): every privacy route raised
+NameError (`D-103`); the strict request schemas pre-empted the older endpoints'
+readable errors and some requests the screens send (`D-107`); timers crashed
+reading a login from a request they do not have (`D-109`); a bare `token=` in a
+prompt passed the scanner (`D-110`); workspace-login installs could not start
+(`D-111`); and several tests checked nothing (`D-104`, `D-105`, `D-108`). Its
+restore lost data — a stale WAL replayed over the restored database, and the
+backup named only four stores (`D-114`) — which the durable-state port replaced.
+The Docker image could not build, on `main` too (`D-116`).
+
+**Proven here, not assumed.**
+- Full Python suite green, ruff gate clean, frontend tests and build green (the
+  numbers are on the `Tests:` line at the top of this file).
+- The real image, built and run in Docker with `OFFSETX_PRODUCTION=1` on a
+  named volume, read-only root and no capabilities: kept a record and an asset
+  through kill and recreate, restored a backup, stayed ready, and refused to
+  start on `/tmp`.
+- In real Chromium, the old code kept "First campaign" selected after
+  "Second campaign" was created; `develop` keeps the new one through Contacts
+  and a reload.
+
+**Still open, on purpose.** The thirteen build-ahead stories stay IN_REVIEW —
+the consolidation made them pass their tests, it did not review them.
+`S-06.02.23` re-checks the other findings of the 7 September audit on
+`develop`; two are known to be open (`D-121`, `D-122`). Both Render services
+are free, so their data does not survive a restart (`Q-26`). CI still cannot
+start a runner (`D-75`).
 
 ## 2026-09-23 — CHECK review of S-06.02.01, S-06.01.01 and S-06.01.04
 

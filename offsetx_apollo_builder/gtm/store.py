@@ -434,6 +434,21 @@ class GtmStore:
         product["angle"] = self.plan_angle(campaign_id, workspace_id) or product["one_liner"]
         return product
 
+    def product_for_linked_campaign(self, campaign_id: str) -> dict[str, Any] | None:
+        """The product a campaign speaks for, read through the link's own workspace.
+
+        For the engine and the timers, which act for a campaign rather than for
+        a signed-in person, and so have no workspace of their own to ask with.
+        A campaign has at most one link (`campaign_id` is the key), so the link
+        says whose product it is. Asking with the caller's workspace instead
+        found nothing for any campaign linked from a workspace login (D-109).
+        """
+        row = self.connection.execute(
+            "SELECT workspace_id FROM gtm_campaign_links WHERE campaign_id = ?",
+            (str(campaign_id or ""),),
+        ).fetchone()
+        return self.product_for_campaign(campaign_id, row[0]) if row else None
+
     def plan_angle(self, campaign_id: str, workspace_id: str) -> str:
         """The angle the applied version of a campaign's plan gives its channel, or "".
 

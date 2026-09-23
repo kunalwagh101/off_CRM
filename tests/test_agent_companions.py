@@ -56,7 +56,8 @@ def _tool(registry: ToolRegistry, name: str, workspace_id: str = "w"):
         name=name,
         repository_url="https://github.com/example/example",
         commit_sha=SHA,
-        image="python:3.12.11-slim@sha256:" + "b" * 64,
+        # The sandbox accepts name:tag or name@sha256:<digest>, not both at once.
+        image="python@sha256:" + "b" * 64,
         command=("python", "tool.py"),
         description=f"{name} tool",
         workspace_id=workspace_id,

@@ -8,9 +8,41 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "src"
 
 
+def _sources():
+    # Test files quote the very patterns these checks look for.
+    return [p for p in FRONTEND.rglob("*.tsx") if not p.name.endswith(".test.tsx")]
+
+
 def _read(relative: str) -> str:
     return (FRONTEND / relative).read_text(encoding="utf-8")
 
+
+
+def _opening_tags(source: str, names: str):
+    """Every JSX opening tag of the given element names, read to its real end.
+
+    A regex like `<img[^>]*>` stops at the `>` of an arrow function inside an
+    attribute — `onClick={() => ...}` — so everything after it, including an
+    `alt` or `aria-hidden`, was invisible to these checks (D-105). Braces are
+    counted so a `>` inside `{...}` does not end the tag.
+    """
+    for match in re.finditer(rf"<({names})\b", source):
+        depth = 0
+        for end in range(match.end(), len(source)):
+            char = source[end]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+            elif char == ">" and depth == 0:
+                yield match.group(1), source[match.start():end + 1]
+                break
+
+
+def _one_line(tag: str) -> str:
+    # Outside the f-string: a backslash inside an f-string expression is a
+    # SyntaxError before Python 3.12, and the project supports 3.10 (D-104).
+    return re.sub(r"\s+", " ", tag)[:160]
 
 def test_app_has_skip_navigation_current_page_and_live_feedback():
     source = _read("App.tsx")
@@ -40,9 +72,11 @@ def test_shared_modal_has_the_complete_keyboard_focus_contract():
 
 def test_focus_is_visibly_global_and_skip_link_becomes_visible():
     source = _read("styles.css")
-    assert ":focus-visible" in source
-    focus = source[source.index(":focus-visible"):source.index(":focus-visible") + 180]
-    assert "outline:" in focus
+    # The rule whose selector is exactly `:focus-visible`, not the first
+    # component rule that happens to mention it (D-105).
+    focus = re.search(r"(?m)^:focus-visible\s*\{[^}]*\}", source)
+    assert focus is not None
+    assert "outline:" in focus.group(0)
     assert ".skip-link:focus" in source
     assert "prefers-reduced-motion" in source
 
@@ -93,11 +127,11 @@ def test_video_effect_controls_work_without_a_mouse():
 
 def test_every_frontend_image_declares_alt_text():
     offenders: list[str] = []
-    for path in FRONTEND.rglob("*.tsx"):
+    for path in _sources():
         source = path.read_text(encoding="utf-8")
-        for match in re.finditer(r"<img\\b[^>]*>", source, flags=re.DOTALL):
-            if not re.search(r"\\balt\\s*=", match.group(0)):
-                offenders.append(f"{path.relative_to(ROOT)}: {match.group(0)[:120]}")
+        for _, tag in _opening_tags(source, "img"):
+            if not re.search(r"\balt\s*=", tag):
+                offenders.append(f"{path.relative_to(ROOT)}: {_one_line(tag)}")
     assert offenders == []
 
 
@@ -105,7 +139,7 @@ def test_no_pointer_only_generic_click_targets_remain_in_core_shells():
     for relative in ("App.tsx", "components.tsx", "pages/SalesTracker.tsx"):
         source = _read(relative)
         matches = re.findall(
-            r"<(?:article|section|li|tr|td|span)\\b[^>]*\\bonClick=",
+            r"<(?:article|section|li|tr|td|span)\b[^>]*\bonClick=",
             source,
             flags=re.DOTALL,
         )
@@ -115,21 +149,18 @@ def test_no_pointer_only_generic_click_targets_remain_in_core_shells():
 
 def test_all_frontend_click_targets_have_a_keyboard_path():
     offenders: list[str] = []
-    for path in FRONTEND.rglob("*.tsx"):
+    for path in _sources():
         source = path.read_text(encoding="utf-8")
-        for match in re.finditer(
-            r"<(div|span|li|section|article|tr|td)\b[^>]*\bonClick\s*=.*?>",
-            source,
-            flags=re.DOTALL,
-        ):
-            tag = match.group(0)
+        for _, tag in _opening_tags(source, "div|span|li|section|article|tr|td"):
+            if not re.search(r"\bonClick\s*=", tag):
+                continue
             # A backdrop may be mouse convenience only when it is explicitly
             # absent from the accessibility tree; the same surface must expose
             # an Escape/close button elsewhere (AI drawer is covered separately).
             if 'aria-hidden="true"' in tag:
                 continue
             offenders.append(
-                f"{path.relative_to(ROOT)}: {re.sub(r'\s+', ' ', tag)[:160]}"
+                f"{path.relative_to(ROOT)}: {_one_line(tag)}"
             )
     assert offenders == []
 
@@ -155,6 +186,6 @@ def test_fake_role_buttons_require_keyboard_handlers_everywhere():
             tag = match.group(0)
             if "onKeyDown=" not in tag and "onKeyUp=" not in tag:
                 offenders.append(
-                    f"{path.relative_to(ROOT)}: {re.sub(r'\s+', ' ', tag)[:160]}"
+                    f"{path.relative_to(ROOT)}: {_one_line(tag)}"
                 )
     assert offenders == []

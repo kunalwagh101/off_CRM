@@ -100,7 +100,10 @@ class Platform:
     home_url: str
     signed_in: tuple[str, ...]
     signed_out: tuple[str, ...]
-    domains: tuple[str, ...]
+    # Defaulted so a Platform built in code — the sign-in, revoke and vault
+    # tests make their own — still constructs. The packaged registry refuses
+    # an empty list in `from_data`, so a shipped platform always has one.
+    domains: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
     min_seconds_between_actions: float = 0.4
     unattended: bool = False

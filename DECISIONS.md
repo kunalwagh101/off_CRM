@@ -56,6 +56,8 @@ wastes a session when nobody can answer it.
 | DD-26 | 2026-09-20 | Browser platform identity, pacing and default budgets come from one packaged validated registry | Changing a built-in platform declaration requires a code/config release rather than a runtime admin edit |
 | DD-27 | 2026-09-20 | PLAN.md is mutable steering state, while every model decision captures the exact plan version it saw into the append-only trace | The same plan text exists once as current state and again as historical evidence |
 | DD-28 | 2026-09-20 | Companions are rows in the existing tool-registry SQLite DB, with exact memory scopes and execution-time tool-grant checks | Companion persistence is coupled to the local tool-control database until the broader workspace storage story moves it |
+| DD-35 | 2026-09-23 | A request schema bounds a body's shape — types, sizes, unknown fields — and leaves required-ness, allowed values and clamping to the older handlers that already refuse with a sentence | Those fields accept any string up to their size, and the handler, not the schema, is where to look for the rule |
+| DD-36 | 2026-09-23 | A ValueError's reason goes back to the caller, bounded to 500 characters, unless the credential scanner flags it | A reason that quotes the caller's own input is echoed; only credential-shaped text is withheld |
 | DD-40 | 2026-09-22 | The strategy brain picks channels, sources and shapes from declared lists; a model never writes a campaign structure | A strategy the vocabulary cannot express cannot be proposed until someone adds a registry row |
 | DD-41 | 2026-09-22 | Product details travel only in classified request fields, never in a system prompt and never in `instructions` | At a `minimal` policy the model sees only the one-liner and the plan is thinner — the plan says so |
 | DD-42 | 2026-09-22 | Apply creates campaigns paused, imports nobody and spends no Apollo credit | One more deliberate step per campaign before anything runs |
@@ -456,6 +458,39 @@ mechanism.
 **Cost:** the companion table shares the tool-control DB. **Revisit when:** a
 future workspace storage migration moves both tools and companions together.
 
+
+
+### DD-35 — Schemas bound the shape; handlers keep the rules they explain · 2026-09-23
+
+**The call.** `S-06.02.02` gave every raw body a strict schema. For the endpoints
+that existed before it, the schema now checks only what a schema is good at —
+the type, the size, no unknown fields — and the handler keeps deciding what is
+required, which values are allowed and what is clamped.
+
+**Why not the obvious thing.** Letting the schema decide everything is tidier,
+and it is what the story did. But those handlers answer with a sentence the
+owner can act on ("Choose one of: simple, verified…") and a code the screens
+expect, while the schema answers 422 with a field path. 29 tests of finished
+stories failed on it, and some requests the screens send — a clip placed
+without a track — were refused outright (`D-107`).
+
+**What it cost.** The rule for a field is in two places: its bound in
+`schemas.py`, its meaning in the handler. New endpoints from `S-06.02.02`
+onwards keep their full schema, because nothing older speaks for them.
+
+### DD-36 — Return the reason, withhold only a credential · 2026-09-23
+
+**The call.** The ValueError handler returns the exception's message, cut to
+500 characters, unless the credential scanner flags it; then it returns the
+fixed sentence.
+
+**Why not the obvious thing.** Withholding every message is the safest reading
+of "never echo request-body content", and it hid every reason the product gives
+— "Unknown campaign kind", "Loss reason is required" — behind one sentence that
+tells the owner nothing. What the criterion protects against is a secret coming
+back; the scanner is the repository's one definition of a secret.
+
+**What it cost.** A reason can quote the caller's own input back to the caller.
 
 ### DD-29 — API privacy is default-deny; bootstrap and signed callbacks are explicit exceptions · 2026-09-22
 

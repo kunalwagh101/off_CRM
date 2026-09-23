@@ -22,6 +22,7 @@ from offsetx_apollo_builder.gtm.review import (
     parse_remedies,
     wilson_interval,
 )
+from broker_fakes import fake_model_calls
 
 NOW = "2026-09-22T12:00:00+00:00"
 
@@ -469,7 +470,7 @@ def _applied_plan(client, monkeypatch, *, review_reply=None):
         text = model_plan() if request.task_type == "gtm_plan" else (review_reply or "{}")
         return SimpleNamespace(text=text, provider_id="p", model_id="m", policy="standard")
 
-    monkeypatch.setattr(client.app.state.ai_broker, "call", call)
+    fake_model_calls(monkeypatch, client.app.state.ai_broker, call)
     product = client.post("/api/v1/gtm/products", json=PRODUCT).json()
     plan_body = client.post("/api/v1/gtm/plans", json={
         "product_id": product["id"], "goal_kind": "replies", "goal_target": 20,
@@ -533,7 +534,7 @@ def test_review_needs_an_applied_plan(client, monkeypatch):
         seen["n"] += 1
         return SimpleNamespace(text=model_plan(), provider_id="p", model_id="m", policy="standard")
 
-    monkeypatch.setattr(client.app.state.ai_broker, "call", call)
+    fake_model_calls(monkeypatch, client.app.state.ai_broker, call)
     product = client.post("/api/v1/gtm/products", json=PRODUCT).json()
     draft = client.post("/api/v1/gtm/plans", json={
         "product_id": product["id"], "goal_kind": "replies", "goal_target": 20,

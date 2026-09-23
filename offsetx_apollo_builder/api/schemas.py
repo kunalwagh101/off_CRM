@@ -548,7 +548,7 @@ class ContentAutomationBody(StrictModel):
     publish_due: bool | None = Field(default=None, strict=True)
 
 class ImageBriefCreateBody(StrictModel):
-    brief: str = Field(min_length=1, max_length=12000)
+    brief: str = Field(default="", max_length=12000)
     width: int = Field(default=0, ge=0, le=8192, strict=True)
     height: int = Field(default=0, ge=0, le=8192, strict=True)
     wanted: int = Field(default=1, ge=1, le=100, strict=True)
@@ -565,7 +565,7 @@ class VideoProjectCreateBody(StrictModel):
     height: int = Field(default=0, ge=0, le=16384, strict=True)
 
 class VideoAssembleBody(StrictModel):
-    recipe: str = Field(min_length=1, max_length=120)
+    recipe: str | None = Field(default=None, max_length=120)
     target_ticks: int = Field(default=0, ge=0, strict=True)
     name: str = Field(default="", max_length=200)
     lines: list[str] = Field(default_factory=list, max_length=500)
@@ -578,7 +578,7 @@ class VideoAssembleBody(StrictModel):
     seed: int = Field(default=0, strict=True)
 
 class VideoDirectBody(StrictModel):
-    topic: str = Field(min_length=1, max_length=12000)
+    topic: str | None = Field(default=None, max_length=12000)
     style: str = Field(default="", max_length=1000)
     target_ticks: int = Field(default=0, ge=0, strict=True)
     name: str = Field(default="", max_length=200)
@@ -608,16 +608,16 @@ class VideoEditBody(StrictModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 class VideoPlaceAssetBody(StrictModel):
-    asset_id: str = Field(min_length=1, max_length=120)
-    track_id: str = Field(min_length=1, max_length=120)
+    asset_id: str | None = Field(default=None, max_length=120)
+    track_id: str | None = Field(default=None, max_length=120)
     start: int = Field(default=-1, ge=-1, strict=True)
-    duration: int = Field(gt=0, strict=True)
+    duration: int | None = Field(default=None, gt=0, strict=True)
 
 class VideoQueueBody(StrictModel):
     origin: str = Field(default="manual", max_length=80)
 
 class VideoDecisionBody(StrictModel):
-    decision: Literal["push", "ignore"]
+    decision: str = Field(default="", max_length=40)
     note: str = Field(default="", max_length=5000)
 
 class VideoTranscribeBody(StrictModel):
@@ -625,7 +625,7 @@ class VideoTranscribeBody(StrictModel):
     refresh: bool = Field(default=False, strict=True)
 
 class VideoCaptionsBody(StrictModel):
-    clip_id: str = Field(min_length=1, max_length=120)
+    clip_id: str | None = Field(default=None, max_length=120)
     language: str = Field(default="", max_length=32)
     style: dict[str, Any] | None = None
     max_chars: int = Field(default=42, ge=1, le=500, strict=True)
@@ -633,7 +633,7 @@ class VideoCaptionsBody(StrictModel):
 
 class PipelinePlanBody(StrictModel):
     angle: str = Field(default="", max_length=1000)
-    image_campaign_id: str = Field(min_length=1, max_length=80)
+    image_campaign_id: str = Field(default="", max_length=80)
     window_hours: int = Field(default=72, ge=1, le=720, strict=True)
     min_channels: int = Field(default=3, ge=1, le=100, strict=True)
     max_topics: int = Field(default=3, ge=1, le=100, strict=True)
@@ -641,42 +641,42 @@ class PipelinePlanBody(StrictModel):
 
 class PipelineDraftBody(StrictModel):
     angle: str = Field(default="", max_length=1000)
-    image_campaign_id: str = Field(min_length=1, max_length=80)
+    image_campaign_id: str = Field(default="", max_length=80)
     account_ids: list[str] = Field(default_factory=list, max_length=500)
 
 class TrendWatchBody(StrictModel):
-    handle: str = Field(min_length=1, max_length=500)
+    handle: str = Field(default="", max_length=500)
 
 class TrendSweepBody(StrictModel):
     per_channel: int = Field(default=10, ge=1, le=50, strict=True)
     limit: int = Field(default=0, ge=0, le=10000, strict=True)
 
 class DistributionAccountCreateBody(StrictModel):
-    platform: str = Field(min_length=1, max_length=80)
-    handle: str = Field(min_length=1, max_length=500)
+    platform: str = Field(default="", max_length=80)
+    handle: str = Field(default="", max_length=500)
     label: str = Field(default="", max_length=200)
-    daily_cap: int = Field(default=0, ge=0, le=100000, strict=True)
+    daily_cap: int = Field(default=0, strict=True)
 
 class DistributionAccountUpdateBody(StrictModel):
-    daily_cap: int | None = Field(default=None, ge=0, le=100000, strict=True)
+    daily_cap: int | None = Field(default=None, strict=True)
     label: str | None = Field(default=None, max_length=200)
     enabled: bool | None = Field(default=None, strict=True)
 
 class PacingDecisionBody(StrictModel):
-    decision: Literal["accept", "dismiss"]
+    decision: str = Field(default="", max_length=40)
 
 class DistributionGoalBody(StrictModel):
     metric: str = Field(default="views", max_length=80)
-    target: int = Field(ge=0, strict=True)
+    target: int | None = Field(default=None, ge=0, strict=True)
     deadline: str = Field(default="", max_length=80)
 
 class DistributionPostBody(StrictModel):
-    account_id: str = Field(min_length=1, max_length=120)
+    account_id: str = Field(default="", max_length=120)
     caption: str = Field(default="", max_length=30000)
     asset_id: str = Field(default="", max_length=120)
 
 class DistributionScheduleBody(StrictModel):
-    at: str = Field(min_length=1, max_length=80)
+    at: str = Field(default="", max_length=80)
 
 class DistributionMetricsBody(StrictModel):
     views: int = Field(default=0, ge=0, strict=True)
@@ -686,7 +686,7 @@ class DistributionMetricsBody(StrictModel):
     source: str = Field(default="", max_length=500)
 
 class AIProjectCreateBody(StrictModel):
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(default="", max_length=200)
 
 class AIChatCreateBody(StrictModel):
     title: str = Field(default="New chat", max_length=500)
@@ -696,13 +696,13 @@ class AIChatMoveBody(StrictModel):
     project_id: str | None = Field(default=None, max_length=120)
 
 class AIChatRenameBody(StrictModel):
-    title: str = Field(min_length=1, max_length=500)
+    title: str = Field(default="", max_length=500)
 
 class AIChatMessageBody(StrictModel):
-    data_class: Literal["public", "campaign"] = "campaign"
+    data_class: str = Field(default="campaign", max_length=40)
     provider_id: str = Field(default="", max_length=80)
     model_id: str = Field(default="", max_length=240)
-    content: str = Field(min_length=1, max_length=50000)
+    content: str = Field(default="", max_length=50000)
 
 class AIProviderConnectBody(StrictModel):
     api_key: str = Field(default="", max_length=10000)
@@ -727,7 +727,7 @@ class AIWorkspaceUpdateBody(StrictModel):
     owner_addresses: list[str] | None = Field(default=None, max_length=20)
 
 class AIMailboxUnlockBody(StrictModel):
-    phrase: str = Field(min_length=1, max_length=500)
+    phrase: str = Field(default="", max_length=500)
 
 class AIPlanBody(StrictModel):
     data_class: str = Field(default="person_public", max_length=40)
@@ -735,10 +735,10 @@ class AIPlanBody(StrictModel):
     task_tags: list[str] = Field(default_factory=list, max_length=20)
 
 class AIRunBody(StrictModel):
-    mode: Literal["simple", "verified", "compare", "orchestrated"] = "simple"
-    data_class: Literal["public", "person_public", "campaign"] = "public"
+    mode: str = Field(default="simple", max_length=40)
+    data_class: str = Field(default="public", max_length=40)
     task_type: str = Field(default="ai_run", max_length=120)
-    instructions: str = Field(min_length=1, max_length=6000)
+    instructions: str = Field(default="", max_length=6000)
     template_text: str = Field(default="", max_length=12000)
     public_text: str = Field(default="", max_length=20000)
     task_tags: list[str] = Field(default_factory=list, max_length=4)
@@ -752,12 +752,12 @@ class AIRunBody(StrictModel):
     model_id: str = Field(default="", max_length=240)
 
 class AIImageBody(StrictModel):
-    prompt: str = Field(min_length=1, max_length=4000)
-    data_class: Literal["public", "person_public"] = "public"
+    prompt: str = Field(default="", max_length=4000)
+    data_class: str = Field(default="public", max_length=40)
     provider_id: str = Field(default="", max_length=80)
 
 class AITemplateRegisterBody(StrictModel):
-    template_id: str = Field(min_length=1, max_length=120)
+    template_id: str = Field(default="", max_length=120)
     variant_id: str = Field(default="", max_length=120)
     label: str = Field(default="", max_length=500)
     template_text: str = Field(default="", max_length=30000)
@@ -768,7 +768,7 @@ class AITemplateRewriteBody(StrictModel):
     use_winner: bool = Field(default=True, strict=True)
 
 class AITemplateApproveBody(StrictModel):
-    template_text: str = Field(min_length=1, max_length=30000)
+    template_text: str = Field(default="", max_length=30000)
     variant_id: str = Field(default="b", max_length=120)
     label: str = Field(default="Rewritten", max_length=500)
     parent_variant_id: str = Field(default="", max_length=120)
@@ -784,7 +784,7 @@ class AITaskStepBody(StrictModel):
     status: str = Field(default="done", max_length=80)
 
 class AITaskDecisionBody(StrictModel):
-    decision: str = Field(min_length=1, max_length=10000)
+    decision: str = Field(default="", max_length=10000)
 
 class AIRecallSearchBody(StrictModel):
     query: str = Field(default="", max_length=5000)
@@ -795,7 +795,7 @@ class AIRecallPreviewBody(StrictModel):
     query: str = Field(default="", max_length=5000)
     replied_only: bool = Field(default=False, strict=True)
     instructions: str = Field(default="", max_length=6000)
-    data_policy: Literal["strict", "minimal", "standard", "full"] = "standard"
+    data_policy: str = Field(default="standard", max_length=40)
 
 class AIRecallForgetBody(StrictModel):
     campaign_contact_id: str = Field(default="", max_length=120)
@@ -819,11 +819,11 @@ class PrivacyDeletionBody(PrivacySubjectBody):
 
 
 class ImageDecisionBody(StrictModel):
-    decision: Literal["approve", "reject", "regenerate"]
+    decision: str = Field(default="", max_length=40)
 
 
 class VideoPlaceMediaBody(StrictModel):
-    media_id: str = Field(min_length=1, max_length=120)
-    track_id: str = Field(min_length=1, max_length=120)
+    media_id: str | None = Field(default=None, max_length=120)
+    track_id: str | None = Field(default=None, max_length=120)
     start: int = Field(default=-1, ge=-1, strict=True)
-    duration: int = Field(gt=0, strict=True)
+    duration: int | None = Field(default=None, gt=0, strict=True)

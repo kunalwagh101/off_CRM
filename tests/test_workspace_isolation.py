@@ -448,3 +448,14 @@ def test_api_never_mutates_the_shared_ai_broker_credential_resolver():
     source = Path(app_module.__file__).read_text(encoding="utf-8")
     assert ".credential_resolver =" not in source
     assert "with_credential_resolver(" in source
+
+
+def test_a_session_secret_alone_is_a_valid_install_but_half_a_demo_login_is_not(tmp_path):
+    """The secret signs workspace logins too. Refusing it without a demo
+    username and password stopped every workspace-login install from starting."""
+    _settings(tmp_path).validate()
+
+    half_demo = _settings(tmp_path)
+    half_demo.demo_username = "owner"
+    with pytest.raises(ValueError, match="Demo login requires"):
+        half_demo.validate()

@@ -21,6 +21,7 @@ from offsetx_apollo_builder.locked_categories import LOCKED_CATEGORIES
 from offsetx_apollo_builder.outreach.email_expert import LocalEmailExpert, route_for_category
 from offsetx_apollo_builder.outreach.models import INITIAL
 from offsetx_apollo_builder.outreach.store import OutreachStore
+from broker_fakes import fake_model_calls
 
 LIBRARY = Path(__file__).resolve().parents[1] / "email_expert_library" / "default_templates.json"
 #: A real locked category on the client route, which `initial-client-a` serves.
@@ -273,7 +274,7 @@ def app_client(tmp_path, monkeypatch):
             recorded["requests"].append(request)
             return SimpleNamespace(text="written")
 
-        monkeypatch.setattr(client.app.state.ai_broker, "call", spy)
+        fake_model_calls(monkeypatch, client.app.state.ai_broker, spy)
         yield client, recorded
 
 
@@ -459,3 +460,44 @@ def test_a_template_can_say_the_angle_and_gets_the_one_liner_without_a_plan(gtm)
     assert linked["angle"] == product["one_liner"]
     assert _product_fields(linked)["product_angle"] == product["one_liner"]
     assert _product_fields(None)["product_angle"] == ""
+
+
+# ── acting for a campaign, not for a signed-in person (D-109) ───────────────
+
+
+def test_a_link_made_from_a_workspace_login_is_found_by_the_campaign(gtm):
+    """The engine and the timers act for a campaign and have no login.
+
+    Before, they asked with the install's workspace and found nothing for a
+    campaign linked from any other workspace — its drafts lost the product and
+    its forbidden claims went unchecked.
+    """
+    product = gtm.create_product("acme", product_values())
+    gtm.set_links(product["id"], "acme", ["camp-9"])
+
+    found = gtm.product_for_linked_campaign("camp-9")
+    assert found["id"] == product["id"]
+    assert found["angle"] == product["one_liner"]
+    # Scoped reads are unchanged: another workspace still cannot see it.
+    assert gtm.product_for_campaign("camp-9", "local") is None
+    assert gtm.product_for_linked_campaign("never-linked") is None
+
+
+def test_the_engine_reads_the_product_linked_from_another_workspace(app_client):
+    client, _ = app_client
+    campaign = _campaign(client, "email")
+    store = client.app.state.gtm_store
+    product = store.create_product("acme", product_values())
+    store.set_links(product["id"], "acme", [campaign])
+
+    reader = client.app.state.engine.email_expert.product_reader
+    assert reader(campaign)["id"] == product["id"]
+
+
+def test_the_content_timer_builds_its_engines_without_a_login(app_client):
+    """A timer has no cookies. Building the pipeline for it used to raise
+    AttributeError before a single post was planned."""
+    client, _ = app_client
+    automation = client.app.state.content_automation
+    assert automation.pipeline_factory("") is not None
+    assert automation.distribution_factory() is not None

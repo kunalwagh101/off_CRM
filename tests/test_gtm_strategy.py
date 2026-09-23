@@ -27,6 +27,7 @@ from offsetx_apollo_builder.gtm.strategy import (
     request_fields,
     validate_request,
 )
+from broker_fakes import fake_model_calls
 
 IMPLEMENTED = ("distribution", "email", "image")
 
@@ -509,7 +510,7 @@ def _spy(client, monkeypatch, *, text, policy="standard"):
         seen["system_prompts"].append(kwargs.get("system_prompt", ""))
         return SimpleNamespace(text=text, provider_id="mistral", model_id="m-large", policy=policy)
 
-    monkeypatch.setattr(client.app.state.ai_broker, "call", call)
+    fake_model_calls(monkeypatch, client.app.state.ai_broker, call)
     return seen
 
 
@@ -639,7 +640,7 @@ def test_a_bug_in_the_model_call_is_not_disguised_as_no_model(client, monkeypatc
     def broken(*args, **kwargs):
         raise ZeroDivisionError("a real bug")
 
-    monkeypatch.setattr(client.app.state.ai_broker, "call", broken)
+    fake_model_calls(monkeypatch, client.app.state.ai_broker, broken)
     with pytest.raises(ZeroDivisionError):
         client.post("/api/v1/gtm/plans", json={"product_id": product_id, "goal_kind": "replies",
                                                "goal_target": 20})

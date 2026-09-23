@@ -19,6 +19,7 @@ import pytest
 
 from offsetx_apollo_builder.gtm.service import GtmService
 from offsetx_apollo_builder.gtm.store import GtmStore, PlanStateError
+from broker_fakes import fake_model_calls
 
 #: The screens a next step may point at. Every one exists in `frontend/src/App.tsx`.
 KNOWN_PAGES = {"discovery", "contacts", "deliverability", "drafts", "campaigns", "posting", "imagereview"}
@@ -75,9 +76,7 @@ def client(tmp_path, monkeypatch):
 
 def _plan(client, monkeypatch, *, goal_kind="replies", target=20, horizon=30):
     product = client.post("/api/v1/gtm/products", json=PRODUCT).json()
-    monkeypatch.setattr(
-        client.app.state.ai_broker,
-        "call",
+    fake_model_calls(monkeypatch, client.app.state.ai_broker,
         lambda *args, **kwargs: SimpleNamespace(
             text=model_reply(goal_kind=goal_kind), provider_id="p", model_id="m", policy="standard"
         ),

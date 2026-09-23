@@ -169,6 +169,25 @@ describe("keyboard and screen-reader contract", () => {
     });
   }
 
+  // Each JSX opening tag, read to its real end. `[^>]*` stops at the `>` of
+  // `onClick={() => ...}`, hiding every attribute after it (D-105).
+  function openingTags(source: string, names: string): string[] {
+    const tags: string[] = [];
+    for (const match of source.matchAll(new RegExp(`<(?:${names})\\b`, "g"))) {
+      let depth = 0;
+      for (let end = match.index + match[0].length; end < source.length; end++) {
+        const char = source[end];
+        if (char === "{") depth++;
+        else if (char === "}") depth--;
+        else if (char === ">" && depth === 0) {
+          tags.push(source.slice(match.index, end + 1));
+          break;
+        }
+      }
+    }
+    return tags;
+  }
+
   it("shared busy/loading states expose assistive semantics", () => {
     const button = renderToStaticMarkup(<Button busy>Save</Button>);
     const loading = renderToStaticMarkup(
@@ -210,14 +229,19 @@ describe("keyboard and screen-reader contract", () => {
     for (const path of tsxFiles(join(process.cwd(), "src"))) {
       if (path.endsWith("components.test.tsx")) continue;
       const source = readFileSync(path, "utf-8");
-      if (/<(?:div|span|li|tr|td|article|section)\b[^>]*\bonClick\s*=/gs.test(source)) {
-        offenders.push(path);
+      for (const tag of openingTags(source, "div|span|li|tr|td|article|section")) {
+        // A backdrop may be a mouse convenience only when it is hidden from
+        // assistive technology; the drawer it closes has its own Escape and
+        // Close button. The Python contract grants the same one exemption.
+        if (/\bonClick\s*=/.test(tag) && !tag.includes('aria-hidden="true"')) {
+          offenders.push(path);
+        }
       }
       if (/\brole\s*=\s*["']button["']/.test(source)) {
         offenders.push(path + " (role=button)");
       }
-      for (const match of source.matchAll(/<img\b([^>]*)>/gs)) {
-        if (!/\balt\s*=/.test(match[1])) missingAlt.push(path);
+      for (const tag of openingTags(source, "img")) {
+        if (!/\balt\s*=/.test(tag)) missingAlt.push(path);
       }
     }
     expect(offenders).toEqual([]);

@@ -33,7 +33,9 @@ ServiceOf = Callable[[Request], GtmService]
 MAX_LINKS = 200
 
 
-def resolve_angle(store: GtmStore, workspace_id: str, campaign_id: str, explicit: str) -> str:
+def resolve_angle(
+    store: GtmStore, workspace_id: str | None, campaign_id: str, explicit: str
+) -> str:
     """The angle a post pipeline runs with: the owner's, else the applied plan's
     angle for this campaign, else the product's one-liner.
 
@@ -45,7 +47,12 @@ def resolve_angle(store: GtmStore, workspace_id: str, campaign_id: str, explicit
     chosen = str(explicit or "").strip()
     if chosen:
         return chosen
-    product = store.product_for_campaign(campaign_id, workspace_id)
+    # No workspace means a timer: it acts for the campaign, so the link decides.
+    product = (
+        store.product_for_linked_campaign(campaign_id)
+        if workspace_id is None
+        else store.product_for_campaign(campaign_id, workspace_id)
+    )
     # The applied plan's angle for this campaign, else the one-liner.
     return str(product["angle"]) if product else ""
 

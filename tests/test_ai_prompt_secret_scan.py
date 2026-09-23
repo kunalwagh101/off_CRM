@@ -28,10 +28,14 @@ def _broker(tmp_path):
     )
 
 
-def _settings(provider_id: str) -> WorkspaceEgressSettings:
+def _settings(provider_id: str, *models: str) -> WorkspaceEgressSettings:
+    # Image and transcription models are opt-in per model. Without one switched
+    # on the broker refuses at planning — before the scanner — so a test that
+    # names none never reaches the check it exists to prove (D-110).
     return WorkspaceEgressSettings(
         workspace_id="local",
         enabled_provider_ids=(provider_id,),
+        enabled_models={provider_id: models} if models else {},
         cross_tier_public_routing=False,
     )
 
@@ -168,7 +172,11 @@ def test_secret_in_image_prompt_blocks_before_image_provider_instantiation(tmp_p
     )
 
     with pytest.raises(EgressBlocked):
-        broker.call_image(request, _settings("nvidia"), provider_id="nvidia")
+        broker.call_image(
+            request,
+            _settings("nvidia", "black-forest-labs/flux.1-dev"),
+            provider_id="nvidia",
+        )
 
 
 @pytest.mark.parametrize(
@@ -204,7 +212,7 @@ def test_secret_in_transcription_metadata_blocks_before_provider_instantiation(
     with pytest.raises(EgressBlocked) as excinfo:
         broker.call_transcript(
             request,
-            _settings("openai"),
+            _settings("openai", "whisper-1"),
             provider_id="openai",
             **arguments,
         )

@@ -68,7 +68,20 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-07.01.04 · Reports and artifacts
 
+*(Ported from `integration/main-consolidation` with the consolidation, 2026-09-23.
+Built and proven in real Chrome there; waits here until `S-06.02.21` is in, so
+the two ports are checked one at a time.)*
+
+- S-06.02.22 · A created or selected campaign stays the active workspace
+
 ## IN_PROGRESS
+
+*(2026-09-23 — the branch consolidation. `S-06.02.21` is the durable-state work
+built on `integration/main-consolidation`, being ported because this line's own
+restore loses data, `D-114`.)*
+
+- S-06.02.19 · One working branch holds everything built, and it is green
+- S-06.02.21 · Durable customer state and safe recovery (audit WP1)
 
 
 ## IN_REVIEW

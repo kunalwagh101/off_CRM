@@ -112,7 +112,10 @@ replaced by measured rates. Design: `docs/architecture/GTM_ENGINE.md`.
 *(ID block. E-12 artifacts use R-120–R-149, DD-40–DD-59, D-80–D-99, Q-20–Q-39
 and S-06.02.20 onward. On 2026-09-22 the branch `feature/next-three-batch-4` was
 using numbers up to R-102, DD-28, D-70, Q-07 and S-06.02.17 in parallel; a
-separate block means neither side collides with the other when they merge.)*
+separate block means neither side collides with the other when they merge.
+It then went on to use D-80 and D-81 as well; at the consolidation into
+`develop` those two became D-100 and D-101, and every other line's clashing
+numbers moved above the E-12 block — see `docs/BRANCHING.md`.)*
 
 ---
 
@@ -754,6 +757,9 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-101 | Frontend production dependencies stay audit-clean and development dependencies carry no unresolved high-severity finding | S-06.02.16 |
 | R-102 | A DONE story cannot depend on unfinished work | S-06.02.17 |
 | R-103 | Repository evidence workflows acquire a runner and execute | S-06.02.18 |
+| R-104 | Every line of built work lives on one working branch whose full suite, frontend build and board verifier pass | S-06.02.19 |
+| R-105 | Durable customer state, complete backups, safe recovery and truthful readiness (audit WP1) | S-06.02.21 |
+| R-106 | Creating or switching campaigns preserves the intended target through refresh, failure and reload | S-06.02.22 |
 | R-90 | Every evidence command uses one runner | S-06.02.08 |
 | R-91 | Every shared-connection write is serialised by one guard | S-06.02.09 |
 | R-92 | Authentication is required on every host, loopback included | S-06.02.10 |
@@ -1437,6 +1443,66 @@ verifier can execute before any story is certified DONE.
 - **Out of scope:** weakening/removing tests, changing DONE evidence rules,
   making the private production repository public to obtain free hosted
   minutes, or silently switching to an untrusted runner.
+
+#### S-06.02.19 — One working branch holds everything built, and it is green
+**As an** owner, **I want** one branch that carries every piece of work that was
+built — and nothing that was not — with its whole suite passing, **so that**
+what runs on Render is the product, not whichever branch was deployed last.
+- **Given** the thirty-odd branches of 2026-09-23, **when** they are consolidated,
+  **then** every branch is either merged, ported, or shown by a line-coverage
+  and status comparison to be contained or superseded, and archived under
+  `archive/<branch>` before it is deleted.
+- **Given** two lines that used the same story, requirement, defect or decision
+  IDs for different things, **when** they meet, **then** the later ones are
+  renumbered and each renumbered entry says what it was called before.
+- **Given** the consolidated branch, **when** the full Python suite, ruff gate,
+  frontend tests and build, and the board verifier run, **then** all pass; a
+  test that passed only because it checked nothing is repaired and shown to fail
+  when the code is broken on purpose.
+- **Dependencies:** none. **Size:** L. **Indicator:** branches carrying unmerged
+  work — target one (`develop`).
+- **Why:** `D-115`. The newest line had never run its own suite. Its failures
+  and the merge's are `D-103`–`D-113`.
+- **Out of scope:** moving IN_REVIEW stories to DONE — they wait for their own
+  review; this story only removes the errors that stood in the way of one.
+  Merging `develop` into `main` — the owner does that after checking it.
+
+#### S-06.02.21 — Durable customer state and safe recovery (audit WP1)
+**As an** owner, **I want** a restart, a redeploy or a restore never to lose or
+corrupt the workspace, **so that** customer records survive the operations that
+are supposed to protect them.
+- **Given** production configuration, **when** the durable root is ephemeral,
+  **then** the app refuses to start rather than silently losing state.
+- **Given** a backup, **when** it is made, **then** every durable file under the
+  data directory is in it — new stores included without editing a list — with a
+  versioned, hashed manifest; only named rebuildable caches are left out.
+- **Given** a restore, **when** it succeeds or is rejected, **then** writers are
+  drained first, the whole workspace is swapped under a journal, every service
+  is reopened and health-checked, and a failure rolls back to the previous
+  generation; an interrupted swap rolls back at the next start.
+- **Given** readiness, **when** a required store or durable path cannot be
+  opened or written, or recovery is in progress, **then** `/health/ready` is red.
+- **Dependencies:** none. **Size:** L. **Indicator:** restores that lose a
+  record — target zero.
+- **Why:** built on `integration/main-consolidation` as its `S-06.02.15` / `R-100`
+  (findings A01–A04 and A17 of `docs/audits/2026-09-07-production-audit.md`).
+  That branch shared no history with the newest line, which kept its own weaker
+  restore — and that restore lost data (`D-114`). Ported here under a free ID.
+
+#### S-06.02.22 — A created or selected campaign stays the active workspace
+**As an** owner, **I want** the campaign I just created or picked to stay
+selected through a refresh, a failed request or a reload, **so that** an import
+never lands in an older campaign.
+- **Given** a new campaign, **when** it is created, **then** it becomes the
+  selected campaign and stays so after the campaign list refreshes.
+- **Given** a selected campaign outside the bounded list, **when** the list
+  refreshes, **then** the selection is kept by reading its detail; only a 404
+  for that campaign lets the selection fall back.
+- **Dependencies:** none. **Size:** S. **Indicator:** imports into a campaign the
+  owner did not pick — target zero.
+- **Why:** audit finding A33, reproduced in real Chrome. Built on
+  `integration/main-consolidation` as its `S-06.02.16` / `R-101`; ported here
+  under a free ID because this line's `S-06.02.16` is a different story.
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that

@@ -36,7 +36,12 @@ def test_complete_api_workflow_uses_local_outbox_by_default(tmp_path):
         health = client.get("/health/ready")
         assert health.status_code == 200
         assert health.headers["x-content-type-options"] == "nosniff"
-        assert health.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+        # Camera and location stay denied everywhere. The microphone and screen
+        # capture are allowed to this origin only on a loopback install, for
+        # bot-free meeting capture (S-07.01.03); a hosted install denies both.
+        assert health.headers["permissions-policy"] == (
+            "camera=(), geolocation=(), microphone=(self), display-capture=(self)"
+        )
         assert "default-src 'self'" in health.headers["content-security-policy"]
 
         created = client.post(
@@ -244,3 +249,15 @@ def test_campaigns_carry_their_kind_and_can_be_filtered_by_it(tmp_path):
         assert client.get("/api/v1/campaigns?kind=email").json()["total"] == 1
         assert client.get("/api/v1/campaigns?kind=image").json()["total"] == 0
         assert client.get("/api/v1/campaigns?kind=podcast").status_code == 422
+
+
+def test_a_hosted_install_denies_the_microphone_and_screen_capture(tmp_path):
+    """The loopback-only grant must not follow the app onto a server."""
+    token = "hosted-" + "t" * 40
+    settings = _settings(tmp_path, token=token)
+    settings.host = "0.0.0.0"
+    with TestClient(create_app(settings)) as client:
+        health = client.get("/health/live")
+        assert health.headers["permissions-policy"] == (
+            "camera=(), geolocation=(), microphone=(), display-capture=()"
+        )

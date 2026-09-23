@@ -10,9 +10,10 @@ from fastapi.testclient import TestClient
 from offsetx_apollo_builder.api.app import (
     API_PREFIX,
     PUBLIC_API_PATHS,
-    PUBLIC_API_PREFIXES,
     PUBLIC_HEALTH_PATHS,
+    PUBLIC_UNSUBSCRIBE_PREFIX,
     create_app,
+    is_public_api_path,
 )
 from offsetx_apollo_builder.api.config import AppSettings
 
@@ -58,13 +59,29 @@ def _concrete(path: str) -> str:
 
 
 def _is_public(path: str) -> bool:
-    return path in PUBLIC_API_PATHS or path.startswith(PUBLIC_API_PREFIXES)
+    # The app's own rule, not a copy of it. The prefix list this used to read
+    # was narrowed to one exact unsubscribe route and removed (D-108).
+    return is_public_api_path(path)
+
+
+def _flatten(routes) -> list:
+    # FastAPI 0.139 keeps an included router as one nested entry holding its
+    # routes, where older versions copied the routes in. Reading only the top
+    # level missed every route the email-delivery and GTM routers own — the
+    # public SNS callback among them (D-108). The routers carry their own
+    # "/api/v1" prefix and are included without another, so a nested route's
+    # path is already its full path.
+    flat: list = []
+    for route in routes:
+        nested = getattr(route, "original_router", None)
+        flat.extend(_flatten(nested.routes) if nested is not None else [route])
+    return flat
 
 
 def _api_routes(app) -> list[APIRoute]:
     return [
         route
-        for route in app.routes
+        for route in _flatten(app.routes)
         if isinstance(route, APIRoute) and route.path.startswith("/api/")
     ]
 
@@ -101,10 +118,9 @@ def test_public_api_exceptions_are_closed_and_intentional(tmp_path):
         for path in PUBLIC_API_PATHS:
             assert path in route_paths, f"stale public-path exemption: {path}"
 
-        for prefix in PUBLIC_API_PREFIXES:
-            assert any(path.startswith(prefix) for path in route_paths), (
-                f"stale public-prefix exemption: {prefix}"
-            )
+        assert any(
+            path.startswith(PUBLIC_UNSUBSCRIBE_PREFIX) for path in route_paths
+        ), f"stale public-prefix exemption: {PUBLIC_UNSUBSCRIBE_PREFIX}"
 
         # Operational health probes are the only explicitly public app endpoints
         # outside /api that execute backend code. They contain no customer data.

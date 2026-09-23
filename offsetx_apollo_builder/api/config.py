@@ -89,7 +89,10 @@ class AppSettings:
     def validate(self) -> None:
         loopback = self.host in {"127.0.0.1", "localhost", "::1"}
         demo_values = (self.demo_username, self.demo_password, self.session_secret)
-        if any(demo_values) and not all(demo_values):
+        # The session secret also signs workspace logins (S-06.01.01), so a
+        # secret on its own is a valid install. Only a demo username or password
+        # without the rest is half a demo login (D-111).
+        if (self.demo_username or self.demo_password) and not all(demo_values):
             raise ValueError(
                 "Demo login requires OFFSETX_DEMO_USERNAME, OFFSETX_DEMO_PASSWORD, "
                 "and OFFSETX_SESSION_SECRET"

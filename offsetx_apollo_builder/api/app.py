@@ -325,14 +325,16 @@ def _privacy(request: Request) -> PrivacyService:
     return request.app.state.privacy
 
 
-def _privacy_subject(body: Any, request: Request) -> SubjectIdentity:
+def _privacy_subject(body: Any, workspace_id: str) -> SubjectIdentity:
+    # The caller resolves the workspace: `_workspace_id` closes over the
+    # app's settings inside `create_app`, so a module-level helper cannot
+    # call it — doing so was a NameError on every privacy route (D-103).
     subject_value = body.get("subject") if hasattr(body, "get") else None
     payload = (
         subject_value.model_dump()
         if hasattr(subject_value, "model_dump")
         else dict(subject_value or {})
     )
-    workspace_id = _workspace_id(request)
     supplied = str(payload.get("workspace_id") or "").strip()
     if supplied and supplied != workspace_id:
         raise HTTPException(
@@ -474,9 +476,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
 
         def reader(campaign_id: str) -> dict[str, Any] | None:
-            return owner.state.gtm_store.product_for_campaign(
-                campaign_id, _workspace_id(_TimerScope(owner))
-            )
+            return owner.state.gtm_store.product_for_linked_campaign(campaign_id)
 
         engine.email_expert.product_reader = reader
         return engine
@@ -654,7 +654,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             distribution_factory=lambda: _distribution(_TimerScope(app)),
             pacing_reader=lambda campaign_id: _pacing_inputs(app, campaign_id),
             angle_resolver=lambda campaign_id, declared: resolve_angle(
-                app.state.gtm_store, _workspace_id(_TimerScope(app)), campaign_id, declared
+                app.state.gtm_store, None, campaign_id, declared
             ),
             campaign_status=lambda campaign_id: str(
                 _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
@@ -794,13 +794,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.exception_handler(ValueError)
     async def invalid_value(_: Request, exc: ValueError) -> JSONResponse:
-        # Domain ValueErrors can include the rejected value. Never reflect an
-        # arbitrary request-derived string back to the client because it may be
-        # a credential or other sensitive body content.
-        return JSONResponse(
-            status_code=422,
-            content={"detail": "The supplied value is invalid for this operation."},
-        )
+        # The reason is the product's error message — "Unknown campaign kind",
+        # "Loss reason is required" — and the owner needs it to fix the input.
+        # Replacing every one with a fixed sentence hid them all (D-107). What
+        # S-06.02.02 guards against is a *credential* echoed back, so only a
+        # message the credential scanner flags is withheld, and every message
+        # is bounded.
+        message = str(exc)[:500]
+        if not message or not scan_payload(
+            {"detail": message}, policy=DataPolicy.FULL, allow_addresses=True
+        ).clean:
+            message = "The supplied value is invalid for this operation."
+        return JSONResponse(status_code=422, content={"detail": message})
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:
@@ -2887,6 +2892,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
 
     def _workspace_id(request: Request) -> str:
+        # A timer acts for the install, as the API token does. It has no cookies
+        # to read a login from; asking for them crashed every timed run of the
+        # content engine (D-109).
+        if isinstance(request, _TimerScope):
+            return "local"
         identity = session_identity(request)
         if identity is not None:
             return identity.workspace_id
@@ -3108,11 +3118,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             campaign_notes: str,
             instructions: str,
         ) -> Any:
-            state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-                workspace_id
+            # A copy bound to this workspace's keys. Setting the resolver on the
+            # shared broker let two workspaces' requests race for one key (D-106).
+            broker = state.ai_broker.with_credential_resolver(
+                state.ai_workspaces.credential_resolver(workspace_id)
             )
             try:
-                return state.ai_broker.call(
+                return broker.call(
                     EgressRequest(
                         task_type=task_type,
                         data_class=DataClass.CAMPAIGN,
@@ -3927,7 +3939,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Inventory one verified subject across every registered personal-data store."""
         try:
-            subject = _privacy_subject(body, request)
+            subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).access(subject)
         except PrivacyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3938,7 +3950,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Create the exact inventory that a later confirmed deletion will execute."""
         try:
-            subject = _privacy_subject(body, request)
+            subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).preview(subject)
         except PrivacyError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -3951,7 +3963,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Execute/retry one previewed deletion. Never invent confirmation."""
         try:
-            subject = _privacy_subject(body, request)
+            subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).delete(
                 request_id,
                 subject,

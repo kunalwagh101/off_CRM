@@ -36,7 +36,9 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
     ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
-    ("token_assignment", re.compile(r"\b(?:access[_ -]?token|refresh[_ -]?token|session[_ -]?token|auth[_ -]?token)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    # A bare `token=` too: the field-name list already refuses a `token` key,
+    # and the same thing typed into a prompt was passing (D-110).
+    ("token_assignment", re.compile(r"\b(?:(?:access|refresh|session|auth)[_ -]?)?token\s*[:=]\s*\S{8,}", re.IGNORECASE)),
     ("secret_assignment", re.compile(r"\b(?:api[_ -]?(?:key|secret)|client[_ -]?secret|secret[_ -]?key)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
 )
 

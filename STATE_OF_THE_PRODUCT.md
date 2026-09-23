@@ -3,7 +3,7 @@
 *Plain English. Every segment of off_CRM, what state it is in, and who has to do
 what next.*
 
-Verified from the repository board on 2026-08-27. Recompute the numbers with
+Verified from the repository board on 2026-09-23. Recompute the numbers with
 `python scripts/verify_board.py`; this summary records that output rather than
 claiming to update itself.
 
@@ -32,15 +32,15 @@ different words.
 ## The scoreboard
 
 ```
-✅ DELIVERED        23 stories   ███████████████████████
-🔬 RESEARCHED        1 story     █
+✅ DELIVERED        57 stories   ████████████████████████████████████████
+🔬 RESEARCHED       12 stories   ████████████
 🔒 WAITING ON YOU    3 stories   ███
-📋 PLANNED          26 stories   ██████████████████████████
+📋 PLANNED          16 stories   ████████████████
 🚧 BUILDING          0 stories
-🧪 PROVING           1 story     █
+🧪 PROVING           0 stories
 ⏸️ PARKED            0 stories
 
-71 requirements tracked · 0 orphans · 49% of acceptance criteria behind a test
+121 requirements tracked · 0 orphans · 75% of acceptance criteria behind a DONE story
 ```
 
 ---
@@ -124,11 +124,11 @@ re-runs, so "it works" is checkable rather than something I said.
 
 | What it does | Story | Proof |
 |---|---|---|
-| You describe your product once; every writer uses it, and a forbidden claim is caught | S-12.01.01, S-12.01.02 | 51 tests |
-| A goal (replies or views) becomes a plan that fits what is actually connected | S-12.02.01 | 48 tests |
-| Applying a plan makes **paused** campaigns — nothing imported, spent or sent | S-12.02.02 | 13 tests |
-| A review says what is wrong, in a fixed order: the pipe before the copy | S-12.02.03 | 42 tests |
-| A review becomes the next version, which learns the real reply rate | S-12.02.04 | 16 tests |
+| You describe your product once; every writer uses it, and a forbidden claim is caught | S-12.01.01, S-12.01.02 | 53 tests |
+| A goal (replies or views) becomes a plan that fits what is actually connected | S-12.02.01 | 50 tests |
+| Applying a plan makes **paused** campaigns — nothing imported, spent or sent — and paused now stops posting too | S-12.02.02 | 78 tests |
+| A review says what is wrong, in a fixed order: the pipe before the copy | S-12.02.03 | 64 tests |
+| A review becomes the next version, which learns the real reply rate | S-12.02.04 | 24 tests |
 
 > Honest limits. With no model connected, the brain plans and reviews by rules
 > and says so. A plan's **posting** channel cannot yet post from the screens
@@ -140,11 +140,10 @@ re-runs, so "it works" is checkable rather than something I said.
 
 # Part 1B — What is PROVING 🧪
 
-### 🧪 S-08.01.05 — Operators control delivery without hidden live sends
-The API, signed public unsubscribe and exact live-send confirmation pass their
-two Python tests. The Deliverability screen and its frontend test exist, but
-this clean environment cannot install one uncached npm dependency under the
-current network policy. It stays `IN_REVIEW` until that test is re-run.
+Nothing is proving right now. The last story here, S-08.01.05 (operators
+control delivery without hidden live sends), completed its frontend proof on
+2026-09-11 and is `DONE` on the board; this page had not caught up until
+2026-09-23.
 
 ---
 

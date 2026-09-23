@@ -170,3 +170,9 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
+| R-120, R-121, R-122 | S-12.01.01 | 7 | `tests/test_gtm_products.py` | `gtm/products.py`, `gtm/store.py`, `api/gtm.py`, `frontend/src/pages/Product.tsx` |
+| R-123, R-124 | S-12.01.02 | 6 | `tests/test_gtm_product_wiring.py` | `gtm/store.py`, `outreach/email_expert.py`, `distribution/automation.py`, `api/app.py` |
+| R-125, R-126, R-127, R-128, R-129 | S-12.02.01 | 10 | `tests/test_gtm_strategy.py` | `gtm/strategy.py`, `gtm/service.py`, `frontend/src/pages/Strategy.tsx` |
+| R-130 | S-12.02.02 | 5 | `tests/test_gtm_apply.py`, `tests/test_distribution.py`, `tests/test_content_automation.py` | `gtm/service.py`, `distribution/engine.py`, `distribution/automation.py` |
+| R-131, R-132 | S-12.02.03 | 8 | `tests/test_gtm_review.py`, `tests/test_pacing_cap.py` | `gtm/review.py`, `gtm/service.py`, `api/gtm.py` |
+| R-133, R-134 | S-12.02.04 | 4 | `tests/test_gtm_revise.py` | `gtm/review.py`, `gtm/service.py`, `gtm/store.py` |

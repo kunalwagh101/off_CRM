@@ -9,8 +9,9 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-09-23
 Branch: `claude/vigilant-pascal-acjg05`
-Tests: **2086 Python passed, 0 failed**, 4 environment-gated skips; frontend
-**120 passed** and a clean production build (2026-09-23).
+Tests: **2105 Python passed, 0 failed**, 4 environment-gated skips; frontend
+**120 passed** and a clean production build (2026-09-23). Board: 57 DONE,
+`verify_board.py` with every evidence command re-run — OK.
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
@@ -225,7 +226,15 @@ reviews and revises. Design, data model, API and work orders:
 - [x] Screens: **Product** and **Go-to-market plan** (plan, apply, review,
       revise). No button leads nowhere: a step no screen can do yet is shown
       without a link and says so.
-- [x] 170 GTM tests across six files, plus 4 UI tests.
+- [x] 184 GTM tests across six files, plus 4 UI tests; all six stories `DONE`
+      after a cold review by a reviewer that never saw the code being written.
+      It found 13 problems (`D-87`–`D-99`); 12 are fixed, each behind a test that
+      failed first, and one is filed (`D-97` → `S-12.02.06`). The worst:
+      pausing a posting campaign did not stop posting (`D-87`), and a revised
+      angle reached nothing that is sent (`D-89`).
+- [x] Walked in a real browser (headless Chromium against the running app):
+      product → plan → apply → review → revise, and the Product screen's link
+      checklist. The migration's rollback was executed once (`GTM_ENGINE.md` §4).
 
 **Not built here, on purpose:** the video director reading the product
 (`S-12.01.03`, blocked on `D-81`); drafting against the expert corpus

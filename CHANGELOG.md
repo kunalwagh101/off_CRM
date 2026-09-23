@@ -29,6 +29,17 @@
 - **Fixed on the way:** the plan's capacity counted a disabled social account
   (`D-83`); the pacer steered by a campaign's oldest views goal instead of its
   newest (`D-84`).
+- **Fixed after a cold review** (`D-87`–`D-99`): **pausing a posting campaign
+  now stops posting** — its due posts wait, still scheduled, and content
+  automation makes nothing for a paused pair (`D-87`, `DD-57`); a plan's angle
+  now reaches posts and any template that says `{product_angle}` (`D-89`); a
+  campaign deleted from the CRM is made again instead of blocking the plan
+  (`D-90`); campaigns are paused before they are linked (`D-91`); "Never claim"
+  survives the payload's length limit (`D-93`); and the Product screen's
+  "New product", unsaved ticks and dead links behave (`D-99`).
+- **For the owner to decide:** below `full`, the payload filter hides the plan's
+  numbers from models (`Q-25`). The brain still works — its arithmetic is code —
+  and a test holds that the codes a model chooses from survive the filter.
 - **Filed, not fixed:** a plan's posting channel cannot reach a published post
   from the screens (`D-82` → `S-12.02.06`). Apply's next steps and the review now
   say so plainly instead of implying "connect an account and resume" is enough.

@@ -115,7 +115,8 @@ using numbers up to R-102, DD-28, D-70, Q-07 and S-06.02.17 in parallel; a
 separate block means neither side collides with the other when they merge.
 It then went on to use D-80 and D-81 as well; at the consolidation into
 `develop` those two became D-100 and D-101, and every other line's clashing
-numbers moved above the E-12 block — see `docs/BRANCHING.md`.)*
+numbers moved above the E-12 block — see `docs/BRANCHING.md`. Since then there
+is one line, so the blocks are closed: a new ID takes the next free number.)*
 
 ---
 
@@ -584,6 +585,22 @@ back, **so that** a bad release is a five-minute problem.
   documented and tested.
 - **Dependencies:** S-06.01.01. **Size:** L. **Indicator:** mean time to restore.
 
+#### S-06.01.06 — Campaigns, contacts and drafts belong to a workspace
+**As an** owner hosting more than one client on one install, **I want** each
+workspace to see only its own campaigns, contacts, drafts and templates, **so
+that** one client's customers and product text never reach another's login.
+- **Given** two workspaces, **when** either lists, reads or changes a campaign,
+  contact, draft or template, **then** it reaches only its own rows, and
+  another workspace's row is "not found".
+- **Given** the rows that exist before this ships, **when** it ships, **then**
+  each is assigned to the install's own workspace, `local`, by a migration whose
+  rollback has been run.
+- **Dependencies:** `Q-27` — built only if the owner chooses option 2.
+  **Size:** L. **Indicator:** CRM rows readable across workspaces — target zero.
+- **Why:** `D-135`. Workspace isolation (`S-06.01.01`) covered credentials, AI
+  settings and products; the CRM stayed install-wide, so a draft written from
+  one workspace's private product can be read from every login.
+
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
 #### S-06.02.01 — No secret may enter a model prompt
@@ -829,6 +846,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-139 | A plan's audience compiles into an Apollo search with its credit cost shown first | F-12.05 |
 | R-140 | The verifier distinguishes a shallow clone from a missing commit | S-06.02.20 |
 | R-141 | A plan's posting channel runs from the screens: paired, switched on and approved there | S-12.02.06 |
+| R-150 | A workspace's campaigns, contacts, drafts and templates are its own, if the owner chooses that (`Q-27`) | S-06.01.06 |
+| R-151 | Every process that writes the workspace holds the lease a restore waits for | S-06.02.24 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1547,6 +1566,21 @@ worked on again and a finding still open is not assumed fixed.
   re-run here, and "probably fixed" is not a status.
 - **Out of scope:** fixing a finding that turns out to be open — each gets its
   own story, as A32 and A34 will.
+
+#### S-06.02.24 — Every process that writes the workspace holds its lease
+**As an** owner, **I want** the command-line tools to respect a restore as the
+web app and the email worker do, **so that** nothing written during a restore
+is lost with the generation it swaps out.
+- **Given** a restore in progress, **when** the outreach, notebook or eval CLI
+  starts, **then** it refuses with a sentence saying to retry once readiness
+  returns, and writes nothing.
+- **Given** a CLI command running, **when** a restore starts, **then** the
+  restore waits for it within its bound, or is refused — as for the worker.
+- **Given** a restore nobody has rolled back yet, **when** a CLI starts,
+  **then** it refuses, as the email worker does (`D-129`).
+- **Dependencies:** none. **Size:** S. **Indicator:** processes that write the
+  workspace without its lease — target zero.
+- **Why:** `D-134`, found while fixing the cold review's findings on `develop`.
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that

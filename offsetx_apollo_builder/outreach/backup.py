@@ -494,6 +494,15 @@ def _journal_path(data: Path) -> Path:
     return data.parent / f".{data.name}.restore-journal.json"
 
 
+def restore_pending(data_dir: Path | str) -> bool:
+    """A restore was swapped in and has not been committed and cleaned up.
+
+    Nothing may work over the workspace until start-up recovers it: pending,
+    it is rolled back; committed, its cleanup is finished (D-129).
+    """
+    return _journal_path(Path(data_dir).resolve()).exists()
+
+
 def _write_journal(path: Path, journal: dict[str, Any]) -> None:
     temporary = path.with_suffix(".tmp")
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -530,6 +539,23 @@ def _read_journal(data: Path, database: Path) -> dict[str, Any] | None:
     return journal
 
 
+def _sidecar(path: Path, suffix: str) -> Path:
+    return Path(str(path) + suffix)
+
+
+def _move_sidecars(source: Path, destination: Path) -> None:
+    """Move a database file's WAL, shared-memory and journal files to go with it.
+
+    Only a database outside the data directory needs this: inside it, they
+    move with the directory. Moved alone, a database file leaves its sidecars
+    at the live path, and SQLite replays that WAL over whichever file is put
+    there next — the other generation (D-126).
+    """
+    for suffix in SQLITE_SIDECAR_SUFFIXES:
+        if _sidecar(source, suffix).exists():
+            os.replace(_sidecar(source, suffix), _sidecar(destination, suffix))
+
+
 def recover_interrupted_restore(*, database_path: Path | str, data_dir: Path | str) -> bool:
     """Run before opening any store. An uncommitted swap always rolls back.
 
@@ -544,13 +570,28 @@ def recover_interrupted_restore(*, database_path: Path | str, data_dir: Path | s
     if journal["state"] == "pending":
         for target in reversed(journal["targets"]):
             live, saved = Path(target["live"]), Path(target["saved"])
+            # The only file target is a database outside the data directory.
+            database_file = target["live"] != str(data)
             if saved.exists():
                 if live.exists():
                     _remove_path(live)
+                if database_file:
+                    # The swap moves sidecars before the file, so once the file
+                    # is saved, anything beside the live path is the restored
+                    # generation's: never replay it over the original.
+                    for suffix in SQLITE_SIDECAR_SUFFIXES:
+                        _sidecar(live, suffix).unlink(missing_ok=True)
                 os.replace(saved, live)
                 _fsync_directory(live.parent)
             elif not target["existed"] and live.exists():
                 _remove_path(live)
+                if database_file:
+                    for suffix in SQLITE_SIDECAR_SUFFIXES:
+                        _sidecar(live, suffix).unlink(missing_ok=True)
+                _fsync_directory(live.parent)
+            if database_file:
+                # The original's own WAL holds committed rows: it comes back too.
+                _move_sidecars(saved, live)
                 _fsync_directory(live.parent)
     _remove_path(Path(journal["root"]))
     _journal_path(data).unlink()
@@ -628,6 +669,12 @@ def restore_encrypted_backup(
         for target in targets:
             live, saved = Path(target["live"]), Path(target["saved"])
             live.parent.mkdir(parents=True, exist_ok=True)
+            if target["live"] != str(data):
+                # Before the file, so a crash between the two never leaves the
+                # saved file's committed WAL where the restored file will be.
+                _move_sidecars(live, saved)
+                _fsync_directory(live.parent)
+                _fsync_directory(root)
             if target["existed"]:
                 os.replace(live, saved)
                 _fsync_directory(live.parent)

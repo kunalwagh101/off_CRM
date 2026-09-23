@@ -15,12 +15,12 @@ cheaper than after.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from .ai.context import ContextLayer
+from .data_paths import database_path
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -29,8 +29,6 @@ from .notebook import (
     resolve_target,
 )
 from .outreach.store import OutreachStore
-
-DEFAULT_DB = os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db")
 
 
 def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
@@ -165,12 +163,12 @@ def _cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="offsetx-notebook",
         description="Build research-notebook sources from a campaign.",
     )
-    parser.add_argument("--db", default=DEFAULT_DB, help="outreach database path")
+    parser.add_argument("--db", default=str(database_path()), help="outreach database path")
     parser.add_argument("--context", default="", help="AI context database path")
     parser.add_argument("--workspace", default="local")
     parser.add_argument(
@@ -197,8 +195,11 @@ def main(argv: list[str] | None = None) -> int:
         if name == "export":
             cmd.add_argument("--out", required=True, help="an empty output directory")
         cmd.set_defaults(func=handler)
+    return parser
 
-    args = parser.parse_args(argv)
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
     try:
         return int(args.func(args))
     except NotebookExportError as exc:

@@ -47,6 +47,9 @@ CloseRuntime = Callable[[Any], None]
 
 
 class RecoveryGate:
+    #: How long a backup or restore waits for requests already in flight.
+    DRAIN_SECONDS = 60.0
+
     def __init__(self):
         self._condition = asyncio.Condition()
         self._active = 0
@@ -72,9 +75,11 @@ class RecoveryGate:
                 raise RuntimeError("Workspace recovery is already active; inspect readiness before retrying")
             self.maintenance = True
             try:
-                async with asyncio.timeout(60):
-                    while self._active:
-                        await self._condition.wait()
+                # `wait_for`, not `asyncio.timeout`: that is Python 3.11+, and on
+                # the 3.10 the package supports every backup answered 500 (D-128).
+                await asyncio.wait_for(
+                    self._condition.wait_for(lambda: not self._active), self.DRAIN_SECONDS
+                )
             except BaseException:
                 self.maintenance = False
                 raise
@@ -282,16 +287,47 @@ async def _finish_even_if_disconnected(operation):
 TIMERS = ("automation", "content_automation", "agent_routines")
 
 
+#: How long a backup or restore waits for the timers' runs in flight. Past it,
+#: the operation is refused and the timers carry on (D-133).
+TIMER_STOP_SECONDS = 30.0
+
+
+async def _stop_timers(state) -> bool:
+    """Stop every timer; False if one is still mid-run when the bound passes.
+
+    `asyncio.wait`, not `wait_for`: cancelling a `stop()` would cancel the
+    timer's own loop through the task it awaits.
+    """
+    stops = [asyncio.ensure_future(getattr(state, name).stop()) for name in TIMERS]
+    _, pending = await asyncio.wait(stops, timeout=TIMER_STOP_SECONDS)
+    return not pending
+
+
+async def _start_timers(state) -> None:
+    for name in TIMERS:
+        await getattr(state, name).start()
+
+
 @asynccontextmanager
 async def _maintenance(state):
     gate = state.recovery_gate
+    # The timers first, within a bound, while requests still flow. Stopped
+    # after the gate closed, one long run — a routine waiting half an hour for
+    # a browser lease — held every request at 503 (D-133).
+    if not await _stop_timers(state):
+        if not gate.failed:
+            await _start_timers(state)
+        raise HTTPException(
+            409, "A scheduled job is still running. Wait for it to finish, then retry."
+        )
     try:
         await gate.begin_maintenance()
-    except (RuntimeError, TimeoutError) as exc:
+    # On 3.10 `asyncio.TimeoutError` is not the builtin `TimeoutError` yet.
+    except (RuntimeError, TimeoutError, asyncio.TimeoutError) as exc:
+        if not gate.failed:
+            await _start_timers(state)
         raise HTTPException(409, "Workspace could not drain. Wait for active operations and retry.") from exc
     try:
-        for name in TIMERS:
-            await getattr(state, name).stop()
         try:
             lease = WorkspaceLock(state.settings.data_dir, exclusive=True).__enter__()
         except WorkspaceBusy as exc:
@@ -302,8 +338,7 @@ async def _maintenance(state):
             lease.__exit__()
     finally:
         if not gate.failed:
-            for name in TIMERS:
-                await getattr(state, name).start()
+            await _start_timers(state)
         await gate.end_maintenance()
 
 
@@ -400,7 +435,17 @@ async def _restore(app, content, passphrase, *, open_runtime: OpenRuntime, close
             ) from exc
 
 
-def install_runtime_routes(app, settings, *, open_runtime: OpenRuntime, close_runtime: CloseRuntime):
+def install_runtime_routes(
+    app,
+    settings,
+    *,
+    open_runtime: OpenRuntime,
+    close_runtime: CloseRuntime,
+    require_owner: Callable[[Request], None],
+):
+    """`require_owner` refuses anyone but the install owner. A backup is every
+    workspace at once — each login, provider key, the install token and the
+    key that signs every session — so being signed in is not enough (D-124)."""
     app.add_middleware(RecoveryMiddleware, settings=settings)
 
     @app.get("/health/ready")
@@ -421,6 +466,7 @@ def install_runtime_routes(app, settings, *, open_runtime: OpenRuntime, close_ru
 
     @app.post(f"{API_PREFIX}/backups/export")
     async def export(body: BackupExport, request: Request):
+        require_owner(request)
         state, gate = request.app.state, request.app.state.recovery_gate
         _require_local_backup(state)
         if gate.operation.locked():
@@ -450,6 +496,7 @@ def install_runtime_routes(app, settings, *, open_runtime: OpenRuntime, close_ru
         file: UploadFile = File(...),
         passphrase: str = Form(..., min_length=12, max_length=500),
     ):
+        require_owner(request)
         state, gate = request.app.state, request.app.state.recovery_gate
         _require_local_backup(state)
         if gate.operation.locked():

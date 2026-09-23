@@ -36,9 +36,12 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")),
     ("cookie_header", re.compile(r"^\s*(?:cookie|set-cookie)\s*:\s*[^=\s;]+=", re.IGNORECASE | re.MULTILINE)),
     ("password_assignment", re.compile(r"\b(?:password|passwd|passphrase)\s*[:=]\s*\S{4,}", re.IGNORECASE)),
-    # A bare `token=` too: the field-name list already refuses a `token` key,
-    # and the same thing typed into a prompt was passing (D-110).
-    ("token_assignment", re.compile(r"\b(?:(?:access|refresh|session|auth)[_ -]?)?token\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    # Any name ending in `token`, bare `token=` included: the field-name list
+    # already refuses a `token` key, and the same thing typed into a prompt was
+    # passing (D-110). Four fixed prefixes still let `api_token=`, `id_token=`
+    # and `bot_token=` through (D-132). The name must end in `token`, so prose
+    # like "1500 tokens: shorter" stays clean.
+    ("token_assignment", re.compile(r"\b\w*token\s*[:=]\s*\S{8,}", re.IGNORECASE)),
     ("secret_assignment", re.compile(r"\b(?:api[_ -]?(?:key|secret)|client[_ -]?secret|secret[_ -]?key)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
 )
 

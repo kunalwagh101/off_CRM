@@ -788,15 +788,21 @@ class RoutineService:
 
     async def start(self) -> None:
         if self._task and not self._task.done():
+            # Still finishing a run a stop asked it to end: a backup that could
+            # not wait for it restarts us, and must get a running timer back,
+            # not one that ends after this run (D-133).
+            self._stop.clear()
             return
         self._stop.clear()
         self._task = asyncio.create_task(self._loop(), name="offsetx-agent-routines")
 
     async def stop(self) -> None:
         self._stop.set()
-        if self._task is not None:
-            await self._task
-            self._task = None
+        task = self._task
+        if task is not None:
+            await task
+            if self._task is task:
+                self._task = None
 
     async def _loop(self) -> None:
         while not self._stop.is_set():

@@ -25,6 +25,13 @@ Permission, rate-limit, network and server errors never mean the record was
 deleted. Retry keeps the last verified selection; an initial failure blocks
 campaign work until verification succeeds.
 
+"Campaign work" is the screens that read the campaign list or the selection —
+`campaignListPages` in `App.tsx`: Overview, Campaigns, Product and every
+campaign-scoped screen but Settings. Everything else stays usable while the
+list cannot load, Settings with its backup and restore included; before
+`D-130` every screen waited. Product waits because its checklist, saved from an
+empty list, would unlink its campaigns.
+
 A successful creation stays successful when its subsequent list refresh fails.
 The error offers a retry. If browser storage is unavailable, selection still
 works in the current tab and a warning explains that reload cannot preserve it.

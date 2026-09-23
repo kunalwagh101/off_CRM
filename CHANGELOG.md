@@ -2,9 +2,39 @@
 
 ## Unreleased
 
+- **The cold review of `develop`** (2026-09-23): ten findings, each fixed with a
+  test that failed first, and two filed.
+  - **Critical — backups were anyone's.** Any workspace login could export the
+    whole install — the install token, the session-signing key, every login and
+    AI key — or restore over it. Only the install owner can now: the token, or
+    the install's own login (`D-124`).
+  - **One workspace could read another's product** by drafting a campaign that
+    workspace had linked, and could run the owner's content timer on the owner's
+    keys. The draft writer now reads with the caller's workspace and refuses
+    another's; the timer is the owner's to run and configure (`D-125`).
+  - **Data kept, both ways.** An external CRM database no longer has its WAL
+    replayed over the other generation on a restore or rollback (`D-126`);
+    Docker Compose mounts the data where the image now keeps it, and the CLIs
+    open the web app's database (`D-127`).
+  - **Also fixed:** backups on Python 3.10, where the whole suite now passes
+    (`D-128`); the app starting while the email worker runs, and the worker
+    refusing a half-restored workspace (`D-129`); Settings reachable when the
+    campaign list will not load (`D-130`); the tool registry's connections
+    closed on restore (`D-131`); `api_token=`-style secrets in prompts
+    (`D-132`); a backup no longer holds every request at 503 behind a long
+    scheduled run (`D-133`); the top bar says "API access needed" only when
+    access is the problem (`D-136`).
+  - **Filed:** the CLIs write without the restore lease (`D-134`,
+    `S-06.02.24`); CRM rows belong to no workspace (`D-135`) — the owner's
+    decision, `Q-27`.
+  - **The old branches are not deleted yet.** GitHub refused this session both
+    the archive tags and the deletions (HTTP 403).
+    `scripts/archive_old_branches.sh` does both safely, from a clone with push
+    rights; `S-06.02.19` waits on it.
+
 - **One working branch, `develop`** (`S-06.02.19`, 2026-09-23). Every line of
-  built work was merged or ported onto one branch; the rest are archived as
-  `archive/<branch>` tags (`docs/BRANCHING.md`). `main` is promoted from
+  built work was merged or ported onto one branch; the rest are to be kept as
+  `archive/<branch>` tags and deleted (`docs/BRANCHING.md`). `main` is promoted from
   `develop` after checking; both run on Render as free services.
   - **The newest line passed none of its own checks.** It had never run its
     suite: 33 tests failed and 5 files could not load. Fixed at the cause, each

@@ -11,11 +11,11 @@ Implementation in IN_REVIEW is not DONE evidence.
 | State | Count | Meaning |
 |---|---:|---|
 | DONE | 61 | built, tested, evidence recorded and re-runnable |
-| IN_PROGRESS | 1 | `S-06.02.19` — the branch consolidation itself |
+| IN_PROGRESS | 0 | nothing is being built right now |
 | IN_REVIEW | 16 | code and passing tests exist; an independent review (and for some, an owner pass) is pending |
 | READY | 0 | nothing is waiting to be pulled |
-| BACKLOG | 14 | written down, not started |
-| BLOCKED | 4 | external access is missing (CI runners, YouTube, platform reviews) |
+| BACKLOG | 15 | written down, not started |
+| BLOCKED | 6 | waiting on something only the owner or an outside party can do: the old branches' deletion (`S-06.02.19`), a decision (`Q-27`), CI runners, YouTube, platform reviews |
 
 Recompute with `uv run python scripts/verify_board.py`.
 
@@ -26,6 +26,20 @@ Both deploy to Render — `off-crm-develop` and `off-crm-demo` — on the free p
 **so data on either is wiped at every restart and deploy** until the owner
 decides to pay for a disk (`OPEN_QUESTIONS.md` Q-26). `docs/BRANCHING.md` has
 the workflow and where every old branch went.
+
+**One step is the owner's.** The 45 old branches are still on GitHub: this
+session was refused (HTTP 403) when it tried to tag and delete them. From a
+clone with push rights, `bash scripts/archive_old_branches.sh --delete` keeps
+each as an `archive/<branch>` tag, checks it, then deletes the branch. Nothing
+is lost meanwhile.
+
+**A cold review of `develop` found ten defects, all fixed with tests**
+(`D-124`–`D-133`). The worst: any workspace login could download the whole
+install's backup — its admin token included — or restore over it; and one
+workspace could read another's private product through drafts. Both are closed.
+It also filed two: the CLIs ignore the restore lease (`S-06.02.24`), and CRM
+rows belong to no workspace — whether they should is the owner's call
+(`Q-27`).
 
 The consolidation found that the newest line had never run its own tests: 33
 failed and 5 test files could not load. All are fixed at their cause and logged
@@ -105,10 +119,18 @@ Therefore their correct state is **IN_REVIEW**.
 
 ## Next work
 
-Nothing is READY. The next useful work, in order:
+Nothing is READY. First, three things only the owner can do:
+
+- run `bash scripts/archive_old_branches.sh --delete` (above);
+- answer `Q-27` — does each workspace get its own campaigns and contacts?
+- answer `Q-26` — does `main` get a paid disk before real data goes in?
+
+Then the next useful work, in order:
 
 1. **Review the 16 IN_REVIEW stories** so they can become DONE. They pass their
    tests on `develop`; each still needs its review and evidence block.
+   `S-06.02.21` and `S-06.02.22` have had one — its ten findings are fixed — and
+   need their real-container and real-browser checks re-run on the fixed code.
 2. **`S-06.02.23` — re-check the 7 September production audit on `develop`.**
    Two of its findings are known to be open: the sandbox's `/work` folder
    refuses writes (`D-121`) and a short valid video export is rejected

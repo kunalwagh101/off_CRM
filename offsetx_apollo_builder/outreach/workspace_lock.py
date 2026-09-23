@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 
@@ -10,14 +11,35 @@ class WorkspaceBusy(RuntimeError):
 
 
 class WorkspaceLock:
-    def __init__(self, data_dir: Path, *, exclusive: bool = False, instance: bool = False):
+    def __init__(
+        self,
+        data_dir: Path,
+        *,
+        exclusive: bool = False,
+        instance: bool = False,
+        wait_seconds: float = 0.0,
+    ):
         suffix = "instance" if instance else "workspace"
         self.path = data_dir.parent / f".{data_dir.name}.{suffix}.lock"
         self.exclusive = exclusive or instance
+        #: 0 fails at once, as a request must. Start-up waits instead, for a
+        #: worker's cycle to end (D-129) — polled, because neither lock call
+        #: below can block with a deadline.
+        self.wait_seconds = wait_seconds
         self.fd: int | None = None
         self._unlock = None
 
     def __enter__(self):
+        deadline = time.monotonic() + self.wait_seconds
+        while True:
+            try:
+                return self._acquire()
+            except WorkspaceBusy:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.1)
+
+    def _acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
         try:

@@ -155,6 +155,24 @@ describe("campaign selection owns the campaign it displays", () => {
     expect(stored()).toBe("older");
   });
 
+  // The top bar offered the API token for every failure, a 500 included (D-136).
+  it.each([[401, true], [403, true], [500, false], [503, false]])(
+    "calls a list failure an access problem only when it is one (HTTP %i)",
+    async (status, access) => {
+      const { selection, source } = setup();
+      source.list.mockRejectedValue(new ApiError("Refused", status as number));
+      await selection.refresh();
+      expect(selection.getSnapshot()).toMatchObject({ error: "Refused", authError: access });
+    }
+  );
+
+  it("does not call an unreachable server an access problem", async () => {
+    const { selection, source } = setup();
+    source.list.mockRejectedValue(new TypeError("Failed to fetch"));
+    await selection.refresh();
+    expect(selection.getSnapshot()).toMatchObject({ error: "Failed to fetch", authError: false });
+  });
+
   it("ignores a delayed detail 404 after the user has selected another known campaign", async () => {
     const { selection, source, stored } = setup();
     await selection.refresh();

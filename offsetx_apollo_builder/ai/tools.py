@@ -280,23 +280,34 @@ class ToolRegistry:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._local = threading.local()
+        # Every thread's connection, so `close` reaches all of them: a restore
+        # closes this store from one thread, and the connections the companion
+        # routes and the readiness probe opened on others stayed on the old
+        # workspace until garbage collection (D-131). As `ai/cache.py` does.
+        self._connection_lock = threading.RLock()
+        self._connections: set[sqlite3.Connection] = set()
+        self._generation = 0
         with self.connection() as conn:
             conn.executescript(SCHEMA)
 
     def connection(self) -> sqlite3.Connection:
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            conn = sqlite3.connect(self.path, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn = conn
-        return conn
+        with self._connection_lock:
+            conn = getattr(self._local, "conn", None)
+            if conn is None or getattr(self._local, "generation", -1) != self._generation:
+                conn = sqlite3.connect(self.path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")
+                self._local.conn = conn
+                self._local.generation = self._generation
+                self._connections.add(conn)
+            return conn
 
     def close(self) -> None:
-        conn = getattr(self._local, "conn", None)
-        if conn is not None:
-            conn.close()
-            self._local.conn = None
+        with self._connection_lock:
+            for conn in self._connections:
+                conn.close()
+            self._connections.clear()
+            self._generation += 1
 
     # ── registration: owner only ────────────────────────────────────────────
 

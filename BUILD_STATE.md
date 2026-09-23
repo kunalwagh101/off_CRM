@@ -9,12 +9,14 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-09-23
 Branch: `develop` — the one working branch. Every line of work was merged or
-ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where and
-where the old branches are archived.
-Tests (2026-09-23, on `develop` at the consolidation): **2345 Python passed, 0 failed**,
-4 environment-gated skips; ruff gate clean; frontend **144 passed** and a clean
-production build. The re-run of every DONE story's evidence command and the
-cold review of the consolidation are recorded on `S-06.02.19` when they finish.
+ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
+The 45 old branches are still on GitHub until the owner runs
+`scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
+Tests (2026-09-23, on `develop` after the cold review's fixes): **2371 Python
+passed, 0 failed**, 4 environment-gated skips — and the same suite on a real
+Python 3.10: **2371 passed, 0 failed**; ruff gate clean; frontend **151
+passed** and a clean production build; board verifier with every DONE story's
+evidence command re-run: **61 of 61 passed**, board OK.
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
@@ -38,6 +40,43 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
 
+## 2026-09-23 — the cold review of `develop`: ten defects, fixed
+
+A reviewer in a fresh context read the consolidation's own code — the WP1
+port, the campaign-selection port and the merge's `app.py` — and reproduced six
+of its ten findings. Each is fixed with a test that failed first, and so is one
+found while checking the fixes in a real browser:
+
+| | Defect | Fix |
+|---|---|---|
+| critical | `D-124` any login could export the whole install (its admin token inside) or restore over it | owner-only: the token or the `local` login (DD-59) |
+| high | `D-125` a workspace read another's product through drafts; any login ran the owner's content timer | a per-request caller marker; refused, not drafted blank (DD-60, DD-61); timer owner-only |
+| high | `D-126` an external CRM database's WAL replayed over the other generation | sidecars move with the file, before it |
+| high | `D-127` compose mounted the old data path; CLIs opened a second CRM | new mount; one path rule, `data_paths.py` (DD-63) |
+| medium | `D-128` backups 500 on Python 3.10 | `wait_for`; the suite now runs on 3.10 |
+| medium | `D-129` app would not start beside a busy worker; worker ran on a half-restored workspace | lock only with a journal, bounded wait; worker checks under its lease |
+| medium | `D-130` a failed campaign list hid every screen, Settings included | only campaign screens wait |
+| low | `D-131` the tool registry kept other threads' connections across a restore | tracks and closes all |
+| low | `D-132` `api_token=`-style secrets passed the scanner | any `…token` name |
+| low | `D-133` a long scheduled run held every request at 503 during a backup | timers stopped first, bounded; refuse, don't wait (DD-62) |
+| low | `D-136` a failing campaign list always said "API access needed" | only a 401/403 says so; found in real Chromium |
+
+Filed, not fixed: `D-134` (the CLIs write without the restore lease,
+`S-06.02.24`) and `D-135` (CRM rows belong to no workspace — `Q-27`, the
+owner's, with `S-06.01.06` waiting on it).
+
+**What stays open.** `S-06.02.21` and `S-06.02.22` stay IN_REVIEW: their fixes
+have tests but no second review, and the real-container and real-browser checks
+ran before them — the browser walks were re-run on the fixed build (a created
+campaign stays selected through Contacts and a reload; with the list failing,
+Settings and its backup still show). `S-06.02.19` is BLOCKED on the branch
+deletion. The image with
+these fixes was built and run in real Docker: in the compose
+layout a fresh `./local_data` became writable, kept a campaign across container
+replacement, and refused a workspace login's backup and restore (403) while the
+owner's export worked; the production acceptance (unprivileged user, kill and
+recreate, restore, refusal on `/tmp`) passed again.
+
 ## 2026-09-23 — the branch consolidation: one working branch, `develop`
 
 **What `develop` is.** Every piece of built work, on one branch. It started
@@ -46,7 +85,7 @@ engine (E-12), the reports feature (`S-07.01.04`), the competitor research and
 the frontend-audit record, and ported from `integration/main-consolidation` the
 durable-state work (`S-06.02.21`), the campaign-selection fix (`S-06.02.22`) and
 the owner's production contract. Every other branch was either already
-inside it or built the same stories another way; each is archived as a tag.
+inside it or built the same stories another way; each is to be kept as a tag.
 `docs/BRANCHING.md` has the full record, the workflow and the renumbered IDs.
 
 **What the consolidation found.** The newest line had never run its own

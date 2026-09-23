@@ -20,7 +20,8 @@ project. The work is here.
 **Two branches: `develop` and `main`.** Commit and push to `develop`; `main` is
 promoted from it after checking. Do not create other branches.
 `docs/BRANCHING.md` has the workflow, the Render services, and where every older
-branch went (each is archived as a tag `archive/<branch>`).
+branch went (each is kept as a tag `archive/<branch>` once the owner has run
+`scripts/archive_old_branches.sh`, which a cloud session is not allowed to).
 
 ---
 

@@ -5,6 +5,7 @@ import os
 import threading
 import uuid
 from contextlib import asynccontextmanager, contextmanager, nullcontext
+from contextvars import ContextVar
 from datetime import date
 from dataclasses import replace
 from pathlib import Path
@@ -72,8 +73,8 @@ from ..privacy import (
 )
 from ..io_utils import read_apollo_exclusion_ledgers, read_apollo_rejection_ledgers
 from ..outreach.automation import AutomationService
-from ..outreach.backup import recover_interrupted_restore
-from ..outreach.workspace_lock import WorkspaceLock
+from ..outreach.backup import recover_interrupted_restore, restore_pending
+from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 from ..outreach.engine import OutreachEngine
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
@@ -294,6 +295,18 @@ class CampaignLocks:
             lock.release()
 
 
+#: How long start-up waits for another process — the email worker, mid-cycle —
+#: to let go of the workspace before rolling back an interrupted restore.
+RECOVERY_WAIT_SECONDS = 120.0
+
+#: The workspace of the request being served: its login's, or `local` for the
+#: install token. "" for a request nobody signed. Unset (None) outside a request,
+#: which is a timer acting for the install. The engine is shared by every
+#: request, so its product reader cannot be handed a caller — it reads one here
+#: (D-125). Set by the security middleware, around the whole request.
+_CALLER_WORKSPACE: ContextVar[str | None] = ContextVar("offcrm_caller_workspace", default=None)
+
+
 def _engine(request: Request) -> OutreachEngine:
     return request.app.state.engine
 
@@ -462,6 +475,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def session_identity(request: Request):
         return workspace_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
 
+    def _caller(request: Request) -> str | None:
+        """The caller's workspace: its login's, `local` for the install token or
+        a server run without auth, None for nobody."""
+        identity = session_identity(request)
+        if identity is not None:
+            return identity.workspace_id
+        if valid_api_token(request) or resolved.allow_unauthenticated:
+            return "local"
+        return None
+
     def security_headers(response: Response) -> Response:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -493,7 +516,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
 
         def reader(campaign_id: str) -> dict[str, Any] | None:
-            return owner.state.gtm_store.product_for_linked_campaign(campaign_id)
+            store = owner.state.gtm_store
+            linked = store.linked_workspace(campaign_id)
+            if not linked:
+                return None
+            caller = _CALLER_WORKSPACE.get()
+            # A timer acts for the install, and the link says whose product it
+            # is. A request reads only its own workspace's: campaigns, drafts
+            # and templates are install-wide, so reading through the link let
+            # any login write another workspace's product into drafts it can
+            # read (D-125).
+            if caller is not None and caller != linked:
+                raise PermissionError(
+                    "This campaign is linked to another workspace's product, so its "
+                    "drafts can only be written from that workspace's login. Ask the "
+                    "install owner to unlink it, or use a campaign of your own."
+                )
+            return store.product_for_campaign(campaign_id, linked)
 
         engine.email_expert.product_reader = reader
         return engine
@@ -709,10 +748,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.recovery_gate = RecoveryGate()
         # A restore that stopped half way is rolled back before anything opens
         # the workspace, under the same lock every request takes (audit A03).
-        with WorkspaceLock(resolved.data_dir, exclusive=True):
-            recover_interrupted_restore(
-                database_path=resolved.database_path, data_dir=resolved.data_dir
-            )
+        # Only when there is one: taking it regardless meant a worker mid-cycle,
+        # holding its shared lease, stopped the app starting at all (D-129).
+        if restore_pending(resolved.data_dir):
+            try:
+                with WorkspaceLock(
+                    resolved.data_dir, exclusive=True, wait_seconds=RECOVERY_WAIT_SECONDS
+                ):
+                    recover_interrupted_restore(
+                        database_path=resolved.database_path, data_dir=resolved.data_dir
+                    )
+            except WorkspaceBusy as exc:
+                raise WorkspaceBusy(
+                    "An interrupted restore must be rolled back before off_CRM starts, and "
+                    "another process — the email worker? — still holds the workspace. "
+                    "Stop it, then start off_CRM again."
+                ) from exc
         _open_runtime(app, {})
         # Production is one instance per disk: SQLite state is not shared
         # between web instances, and the lock refuses a second one.
@@ -766,7 +817,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # are about being reachable from somewhere real and a harness is not.
             # Both are covered by their own tests against a production-shaped
             # config, so nothing here goes unexercised.
-            return security_headers(await call_next(request))
+            return await serve_as(_caller(request), request, call_next)
         sent_host = (request.headers.get("host") or "").strip().lower()
         if sent_host.startswith("["):          # [::1]:8766  ->  ::1
             bare_host = sent_host[1:].split("]", 1)[0]
@@ -792,11 +843,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         protected = request.url.path.startswith("/api/") and not is_public
         if resolved.allow_unauthenticated:
             protected = False
-        if protected and not (valid_api_token(request) or session_identity(request)):
+        caller = _caller(request)
+        if protected and caller is None:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
             )
-        return security_headers(await call_next(request))
+        return await serve_as(caller, request, call_next)
+
+    async def serve_as(caller: str | None, request: Request, call_next: Any) -> Response:
+        # "" rather than None for a request nobody signed: None means "not a
+        # request", which the product reader treats as a timer acting for the
+        # install. An anonymous request must never be mistaken for that.
+        marker = _CALLER_WORKSPACE.set(caller or "")
+        try:
+            return security_headers(await call_next(request))
+        finally:
+            _CALLER_WORKSPACE.reset(marker)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(
@@ -1516,6 +1578,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         entries itself. One place decides what a legal pipeline is, rather than
         that rule living in a schema and again in the service.
         """
+        # The timer runs on the owner's keys and egress policy, as `local`, for
+        # every campaign it is given (D-125).
+        require_install_owner(request)
         return request.app.state.content_automation.update(
             body.model_dump(exclude_unset=True)
         )
@@ -1525,8 +1590,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """Run one cycle now, whether or not the timer is enabled.
 
         The same code the timer runs — there is no separate manual path, so a
-        cycle that works here works unattended.
+        cycle that works here works unattended. So it runs as the timer does,
+        for the install, which is why only the owner may start it (D-125).
         """
+        require_install_owner(request)
+        _CALLER_WORKSPACE.set(None)
         results = request.app.state.content_automation.run_once()
         return {"results": results, "total": len(results)}
 
@@ -2849,12 +2917,26 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # content engine (D-109).
         if isinstance(request, _TimerScope):
             return "local"
-        identity = session_identity(request)
-        if identity is not None:
-            return identity.workspace_id
-        if valid_api_token(request) or resolved.allow_unauthenticated:
-            return "local"
-        raise HTTPException(status_code=401, detail="CRM login required")
+        caller = _caller(request)
+        if caller is None:
+            raise HTTPException(status_code=401, detail="CRM login required")
+        return caller
+
+    def require_install_owner(request: Request) -> None:
+        # The owner is the install's own workspace, `local`: the install token,
+        # the demo login bootstrapped into `local`, or a server run without
+        # auth. Not the token alone, as `require_workspace_admin` is — a demo
+        # login has no token (none is made when a login is configured), and on
+        # Render's free plan a backup is how that owner keeps data (D-124).
+        if valid_api_token(request) or _workspace_id(request) == "local":
+            return
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Only the install owner can do this: it covers every workspace. "
+                "Sign in with the owner's login or use the install API token."
+            ),
+        )
 
 
     def _require_local_capture_origin(request: Request) -> None:
@@ -4205,7 +4287,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     # route added after it — /health/ready, Render's health check — was a 404
     # in the built image and in no test, because tests run without a build.
     install_runtime_routes(
-        app, resolved, open_runtime=_open_runtime, close_runtime=_close_runtime
+        app,
+        resolved,
+        open_runtime=_open_runtime,
+        close_runtime=_close_runtime,
+        require_owner=require_install_owner,
     )
 
     if resolved.frontend_dist.exists():

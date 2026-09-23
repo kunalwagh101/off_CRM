@@ -12,6 +12,7 @@ from .outreach.deliverability.service import EmailDeliveryService
 from .outreach.deliverability.ses import SesMailProvider
 from .outreach.deliverability.store import DeliverabilityStore
 from .outreach.deliverability.unsubscribe import UnsubscribeService
+from .outreach.backup import restore_pending
 from .outreach.engine import OutreachEngine
 from .outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 from .outreach.gmail import LocalOutboxProvider
@@ -83,6 +84,12 @@ def main(argv: list[str] | None = None) -> int:
                 # never keeps a connection to the old generation after a
                 # restore swaps the workspace (S-06.02.21).
                 with WorkspaceLock(settings.data_dir):
+                    # Checked under the lease: a restore writes its journal while
+                    # holding the exclusive one, so this cannot race it. A journal
+                    # seen here is a half-restored workspace nobody has rolled
+                    # back yet — the web app's start-up does that (D-129).
+                    if restore_pending(settings.data_dir):
+                        raise WorkspaceBusy("restore pending")
                     settings.prepare()
                     engine = OutreachEngine(settings.database_path)
                     try:
@@ -93,7 +100,9 @@ def main(argv: list[str] | None = None) -> int:
             except WorkspaceBusy:
                 if not args.watch:
                     raise SystemExit(
-                        "Workspace recovery is in progress. Retry the worker after readiness returns."
+                        "A backup restore is in progress or waiting to be rolled back. Start "
+                        "the web app if it is stopped, and retry the worker once its "
+                        "readiness check passes."
                     )
             if not args.watch:
                 return 0

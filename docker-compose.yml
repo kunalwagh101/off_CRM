@@ -8,8 +8,14 @@ services:
       OFFSETX_OWN_EMAIL: "${OFFSETX_OWN_EMAIL:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # The entrypoint makes this folder writable for the app's user (10001)
+      # before dropping root. For a bind mount, that is the mounted folder.
+      OFFSETX_PERSISTENT_MOUNT: /var/lib/offcrm/local_data
     volumes:
-      - ./local_data:/app/local_data
+      # The image keeps everything under /var/lib/offcrm/local_data; it was
+      # /app/local_data before the WP1 port. Same host folder, same files — so
+      # an existing ./local_data is picked up as it is (D-127).
+      - ./local_data:/var/lib/offcrm/local_data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/ready', timeout=3)"]

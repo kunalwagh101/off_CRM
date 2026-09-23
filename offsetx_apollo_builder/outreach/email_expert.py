@@ -288,6 +288,9 @@ class LocalEmailExpert:
             return None, ""
         try:
             return self.product_reader(campaign_id), ""
+        except PermissionError as exc:
+            # Not a failure worth retrying: the product is not this caller's.
+            return None, str(exc)[:300]
         except Exception as exc:  # noqa: BLE001 - reported on the draft, never swallowed
             return None, (
                 f"The product linked to this campaign could not be read ({str(exc)[:200]}), "

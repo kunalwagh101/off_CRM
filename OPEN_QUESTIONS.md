@@ -359,3 +359,30 @@ Nothing was changed without your yes, because it costs money every month.
 **Blast radius if wrong.** Staying on 1 after real use starts loses every
 contact and campaign at the next deploy — and every push to `main` is a deploy.
 Choosing 2 early costs a monthly fee for a demo.
+
+### Q-27 — Should campaigns, contacts and drafts belong to a workspace? *(affects every CRM table)*
+
+**Status:** open. Raised 2026-09-23 by the cold review of `develop` (`D-135`).
+
+**Ambiguity.** Workspaces have their own logins, provider keys, browser
+sessions, AI settings and products (`S-06.01.01`). The CRM itself does not:
+every login sees and changes the same campaigns, contacts, drafts and
+templates. That is fine if every login is one team working one book of
+business. It is not, if a workspace is a different client: a draft written from
+one workspace's private product can then be read from any other login, and a
+workspace can link a campaign nobody has linked yet. The draft writer no longer
+lets another workspace *create* such a draft (`D-125`); drafts already written
+stay readable.
+
+**Options.** 1. Keep one shared CRM, and say so in the product: workspaces
+separate credentials, not customers. 2. Give every CRM row a workspace, so each
+login sees only its own. 3. Keep one CRM, but make products install-wide too.
+
+**Recommended default: 1 for now, 2 before a second, unrelated customer shares
+an install.** Option 2 changes every CRM table and query, and existing rows
+need an owner, so it is a data migration — the kind that is cheap before real
+data and expensive after. Nothing was changed until you choose.
+
+**Blast radius if wrong.** Staying on 1 with unrelated customers on one install
+shows each one's contacts and product text to the other. Choosing 2 when
+everyone is one team adds a workspace filter to every screen for nothing.

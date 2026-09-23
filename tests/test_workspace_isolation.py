@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import threading
 
 from fastapi.testclient import TestClient
@@ -299,6 +300,174 @@ def test_workspace_admin_routes_are_not_available_to_a_workspace_session(tmp_pat
         )
         assert response.status_code == 403
 
+
+def test_a_workspace_login_cannot_export_or_restore_the_whole_install(tmp_path):
+    """A backup holds every workspace at once — each login, each provider key,
+    the install token and the key that signs every session — and a restore
+    replaces all of them. Both answered any login (D-124): a workspace could
+    export, read the install token out of its own archive, and administer."""
+    settings = _settings(tmp_path)
+    admin = {"X-Offsetx-Token": ADMIN_TOKEN}
+    with TestClient(create_app(settings)) as client:
+        assert client.post(
+            "/api/v1/workspaces",
+            headers=admin,
+            json={"username": "alice", "workspace_id": "alpha", "password": "alice-password-123"},
+        ).status_code == 201
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"username": "alice", "password": "alice-password-123"},
+        ).status_code == 200
+
+        exported = client.post("/api/v1/backups/export", json={"passphrase": "alpha-chose-this-phrase"})
+        assert exported.status_code == 403
+        assert "owner" in exported.json()["detail"]
+        # Refused before the upload is even validated: a 422 here would mean the
+        # check ran after the archive was opened with the caller's passphrase.
+        restored = client.post(
+            "/api/v1/backups/restore",
+            files={"file": ("w.oxbackup", b"not a backup")},
+            data={"passphrase": "alpha-chose-this-phrase"},
+        )
+        assert restored.status_code == 403
+
+        client.cookies.clear()
+        owner = client.post(
+            "/api/v1/backups/export", headers=admin, json={"passphrase": "owner-chose-this-phrase"}
+        )
+        assert owner.status_code == 200
+
+
+SHARED_CONTACTS = b"""Full Name,Email,Company,Title,Category,Public Hook,Hook Source,Tension
+Anita Rao,anita@example.com,Example Exports,Climate Lead,CBAM,Published a supplier emissions brief,https://example.com/anita,Supplier evidence handoff
+"""
+ACME_OFFER = "ACME-PRIVATE pricing: 40% off for the first 3 months"
+
+
+def _two_workspaces_and_a_shared_campaign(client, app) -> tuple[str, str]:
+    """acme links its private product to a campaign every login can see.
+
+    Campaigns, contacts, drafts and templates are install-wide; a product is
+    its workspace's. Returns (campaign id, product id)."""
+    admin = {"X-Offsetx-Token": ADMIN_TOKEN}
+    for workspace in ("acme", "beta"):
+        assert client.post(
+            "/api/v1/workspaces",
+            headers=admin,
+            json={"username": f"{workspace}-user", "workspace_id": workspace, "password": f"{workspace}-password-1"},
+        ).status_code == 201
+    campaign = client.post(
+        "/api/v1/campaigns", headers=admin, json={"name": "Shared", "daily_send_limit": 2}
+    ).json()["id"]
+    assert client.post(
+        f"/api/v1/campaigns/{campaign}/contacts/import",
+        headers=admin,
+        files={"file": ("c.csv", SHARED_CONTACTS, "text/csv")},
+        data={"default_category": "Sustainability / ESG / Climate"},
+    ).status_code == 200
+    store = app.state.engine.store
+    for template in store.list_templates(limit=1000)[0]:
+        template = dict(template)
+        template["body_template"] += "\n\nWe offer {product_offer}."
+        store.upsert_template(template)
+    _login(client, "acme")
+    product = client.post(
+        "/api/v1/gtm/products",
+        json={
+            "name": "Acme product",
+            "one_liner": "Freight invoice reconciliation for finance teams",
+            "audience": "Finance leads at logistics companies",
+            "problem": "Carriers overbill and nobody checks every invoice",
+            "offer": ACME_OFFER,
+            "proof": [],
+            "forbidden_claims": [],
+        },
+    ).json()
+    assert client.put(
+        f"/api/v1/gtm/products/{product['id']}/campaigns", json={"campaign_ids": [campaign]}
+    ).status_code == 200
+    return campaign, product["id"]
+
+
+def _login(client, workspace: str) -> None:
+    client.cookies.clear()
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"username": f"{workspace}-user", "password": f"{workspace}-password-1"},
+    ).status_code == 200
+
+
+def _generate(client, campaign: str) -> list[dict]:
+    generated = client.post(
+        f"/api/v1/campaigns/{campaign}/drafts/generate",
+        json={"campaign_contact_ids": [], "stages": ["initial"], "provider": None},
+    )
+    assert generated.status_code == 200, generated.text
+    return client.get(f"/api/v1/campaigns/{campaign}/drafts").json()["items"]
+
+
+def test_a_workspace_cannot_draft_another_workspaces_product(tmp_path):
+    """beta cannot read acme's product at /gtm, and could not before — but it
+    could draft acme's campaign and read the offer out of the drafts, or add
+    every product placeholder to the install-wide templates and read them all
+    (D-125). The reader now asks with the caller's workspace."""
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        campaign, product_id = _two_workspaces_and_a_shared_campaign(client, app)
+        _login(client, "beta")
+        assert client.get(f"/api/v1/gtm/products/{product_id}").status_code == 404
+
+        drafts = _generate(client, campaign)
+        assert drafts
+        assert ACME_OFFER not in json.dumps(drafts)
+        # Blocked with the reason, not sent without its product's checks.
+        assert all("another workspace" in json.dumps(draft) for draft in drafts)
+
+
+def test_the_linking_workspace_still_drafts_its_own_product(tmp_path):
+    """The other half: acme's own login drafts with its product (D-109)."""
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        campaign, _ = _two_workspaces_and_a_shared_campaign(client, app)
+        drafts = _generate(client, campaign)
+        assert drafts and all(ACME_OFFER in draft["body"] for draft in drafts)
+
+
+def test_only_the_install_owner_runs_or_configures_the_content_timer(tmp_path):
+    """The timer acts for the install, on the owner's keys and egress policy.
+    Any login could run it now, or reconfigure what it runs (D-125)."""
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        _two_workspaces_and_a_shared_campaign(client, app)
+        _login(client, "beta")
+        assert client.post("/api/v1/content-automation/run").status_code == 403
+        assert client.patch("/api/v1/content-automation", json={"enabled": False}).status_code == 403
+        assert client.get("/api/v1/content-automation").status_code == 200
+
+        client.cookies.clear()
+        owner = {"X-Offsetx-Token": ADMIN_TOKEN}
+        assert client.patch(
+            "/api/v1/content-automation", headers=owner, json={"enabled": False}
+        ).status_code == 200
+        assert client.post("/api/v1/content-automation/run", headers=owner).status_code == 200
+
+
+def test_the_demo_login_is_the_install_owner_and_keeps_its_backups(tmp_path):
+    """On Render the owner signs in with the demo login and has no install
+    token — one is made only when no login is configured. On the free plan a
+    backup is how that owner keeps data across a deploy, so the owner check
+    must not lock them out."""
+    settings = _settings(tmp_path)
+    settings.api_token = ""
+    settings.demo_username = "owner"
+    settings.demo_password = "owner-password-123"
+    with TestClient(create_app(settings)) as client:
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"username": "owner", "password": "owner-password-123"},
+        ).status_code == 200
+        exported = client.post("/api/v1/backups/export", json={"passphrase": "owner-chose-this-phrase"})
+        assert exported.status_code == 200
 
 
 def test_backup_restores_workspace_keys_logins_and_routines_together(tmp_path):

@@ -106,18 +106,33 @@ characters and download the file. The app briefly drains requests and timers to
 capture one consistent workspace. Ordinary requests receive 503 with retry
 instructions during maintenance; another backup operation receives 409.
 
+**Only the install owner may export or restore** — the install token, or the
+login of the install's own workspace, `local` (the demo login on Render). A
+backup is every workspace at once: each login, provider key, the install token
+and the key that signs every session. Any other workspace login gets 403, before
+an upload is even opened (`D-124`, DD-59). Settings stays reachable when the
+campaign list cannot load, because that is when a restore is needed (`D-130`).
+
 To restore, choose the archive, enter the passphrase and confirm replacement.
 Authentication, size, archive paths, manifest membership, hashes and SQLite
 integrity are checked before live services close. The runtime then:
 
-1. Drains complete request lifetimes, including streaming/background responses,
-   and stops every workspace timer — email automation, content automation and
-   agent routines. A drain exceeding 60 seconds is refused.
+1. Stops every workspace timer — email automation, content automation and
+   agent routines — while requests still flow. A timer still in a run after 30
+   seconds refuses the operation with 409 and keeps running; before, a routine
+   waiting for a browser lease held every request at 503 (`D-133`). Then drains
+   complete request lifetimes, including streaming/background responses. A
+   drain exceeding 60 seconds is refused.
 2. Acquires the exclusive workspace lease. An active delivery worker causes a
-   retryable refusal; the worker reopens its stores each cycle under a shared lease.
+   retryable refusal; the worker reopens its stores each cycle under a shared
+   lease, and refuses to run while a restore awaits rollback (`D-129`). The
+   command-line tools do not take the lease yet (`D-134`, `S-06.02.24`): stop
+   them before a restore.
 3. Closes all database connections, including those created on other threads.
 4. Writes a staged generation and a synced journal on the persistent filesystem.
 5. Renames the old generation into recovery storage and installs the new one.
+   A CRM database outside the data directory — possible outside production —
+   moves with its WAL, shared-memory and journal files, both ways (`D-126`).
 6. Recreates the same service graph used at startup and checks readiness.
 7. Records the commit decision, removes recovery files and resumes the timers.
 
@@ -140,6 +155,17 @@ At startup, before preparing paths or opening any database, the runtime checks
 rolls back to the previous generation. A committed journal preserves the restored
 generation and retries cleanup. The journal covers a crash between either rename
 and before/after the commit record. Do not delete or hand-edit it.
+
+Only a journal makes start-up take the exclusive lease, and then it waits up to
+two minutes for a worker to finish its cycle, then stops with a sentence naming
+the worker. With nothing to recover, a worker mid-cycle no longer stops the web
+app starting (`D-129`).
+
+**Docker Compose** mounts the host's `./local_data` at the image's data path,
+`/var/lib/offcrm/local_data` — the same folder and files the image used at
+`/app/local_data` before this port (`D-127`, DD-63). The command-line tools open
+the same database the web app does, `OFFSETX_DATA_DIR/offsetx_outreach.db`,
+unless `OFFSETX_OUTREACH_DB` names another.
 
 For an ordinary restart, retain the disk/volume and replace only the application
 container. `/health/ready` verifies the mounted root, writable durable directories,

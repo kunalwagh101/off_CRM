@@ -7,12 +7,10 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..data_paths import data_dir as _data_dir
+from ..data_paths import database_path as _database_path
+from ..data_paths import resolved as _resolved
 from ..outreach.backup import DEFAULT_MAX_BACKUP_BYTES
-
-
-def _resolved(value: str | Path, root: Path) -> Path:
-    path = Path(value).expanduser()
-    return path.resolve() if path.is_absolute() else (root / path).resolve()
 
 
 def _enabled(value: str) -> bool:
@@ -68,7 +66,7 @@ class AppSettings:
     @classmethod
     def from_env(cls, project_root: Path | str | None = None) -> "AppSettings":
         root = Path(project_root or Path.cwd()).resolve()
-        data_dir = _resolved(os.getenv("OFFSETX_DATA_DIR", "local_data"), root)
+        data_dir = _data_dir(root)
         gmail_secrets = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
         # Defaults follow OFFSETX_DATA_DIR, so moving the data moves everything
         # the backup and the persistent disk have to cover.
@@ -76,9 +74,7 @@ class AppSettings:
         persistent_mount = os.getenv("OFFSETX_PERSISTENT_MOUNT", "").strip()
         settings = cls(
             project_root=root,
-            database_path=_resolved(
-                os.getenv("OFFSETX_OUTREACH_DB", str(data_dir / "offsetx_outreach.db")), root
-            ),
+            database_path=_database_path(root),
             data_dir=data_dir,
             export_dir=data_dir / "exports",
             frontend_dist=root / "frontend" / "dist",

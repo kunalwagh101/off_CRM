@@ -52,6 +52,11 @@ were never re-run against this line. `D-121` and `D-122` wait here.)*
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
 
+*(Filed 2026-09-23 by the cold review of `develop`: `D-134`. Its sibling,
+`S-06.01.06`, waits on the owner in BLOCKED.)*
+
+- S-06.02.24 · Every process that writes the workspace holds its lease
+
 ## READY
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
@@ -75,9 +80,8 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-*(2026-09-23 — the branch consolidation.)*
-
-- S-06.02.19 · One working branch holds everything built, and it is green
+*(Empty. The branch consolidation, `S-06.02.19`, is BLOCKED on one step only
+the owner can take.)*
 
 
 ## IN_REVIEW
@@ -104,6 +108,12 @@ write the code, then the evidence block.)*
 - S-07.01.04 · Reports and artifacts
 
 ## BLOCKED
+
+- S-06.02.19 · One working branch holds everything built, and it is green
+  blocked: external — the old branches must be kept as `archive/<branch>` tags and then deleted, and GitHub refused both to this session (HTTP 403, 2026-09-23; it may push commits, not tags or deletions). The owner runs `bash scripts/archive_old_branches.sh --delete` from a clone with push rights (`docs/BRANCHING.md`). The rest of the story is met: `develop` holds everything and is green.
+
+- S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
+  blocked: Q-27 — built only if the owner chooses option 2, workspace-owned CRM rows (`D-135`).
 
 - S-06.02.18 · Restore executable CI runner capacity
   blocked: external — GitHub-hosted `ubuntu-latest` jobs are created but fail before runner allocation with zero steps/no logs. Owner must inspect Actions billing/budgets/payment state and repository Actions policy; if those are clean, GitHub Support must resolve hosted-runner provisioning.

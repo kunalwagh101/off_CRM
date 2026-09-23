@@ -194,9 +194,14 @@ def test_restore_waits_for_full_response_and_rejects_new_requests(tmp_path):
 
 
 def test_all_thread_local_connections_close_before_state_swap(tmp_path):
+    """Every store that opens a connection per thread closes all of them, not
+    only the calling thread's. The tool registry did not: the companion routes
+    and the readiness probe left it open on the old workspace (D-131)."""
     from offsetx_apollo_builder.ai.cache import ResponseCache
     from offsetx_apollo_builder.ai.recall import SentMailIndex
-    for store in (ResponseCache(tmp_path / 'cache.db'), SentMailIndex(tmp_path / 'recall.db')):
+    from offsetx_apollo_builder.ai.tools import ToolRegistry
+    for store in (ResponseCache(tmp_path / 'cache.db'), SentMailIndex(tmp_path / 'recall.db'),
+                  ToolRegistry(tmp_path / 'ai_tools.db')):
         def read_connection():
             candidate = store.connection
             return candidate if isinstance(candidate, sqlite3.Connection) else candidate()
@@ -441,3 +446,180 @@ def test_invalid_production_root_does_not_create_credentials(tmp_path, monkeypat
     with pytest.raises(ValueError, match='temporary'):
         AppSettings.from_env(tmp_path)
     assert not root.exists()
+
+
+def _external_db_generations(tmp_path):
+    """A CRM database outside the data directory, as a local install with its
+    own OFFSETX_OUTREACH_DB has. Returns (db, data, backup of 50 rows); the live
+    database then holds 400 different rows."""
+    data, db = tmp_path / "data", tmp_path / "crm" / "outreach.db"
+    data.mkdir()
+    db.parent.mkdir()
+
+    def seed(prefix, count, width):
+        connection = sqlite3.connect(db)
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("CREATE TABLE IF NOT EXISTS t(v TEXT)")
+        connection.execute("DELETE FROM t")
+        connection.executemany("INSERT INTO t VALUES (?)", [(prefix + "x" * width,)] * count)
+        connection.commit()
+        connection.close()
+
+    seed("backup-", 50, 200)
+    (data / "settings.json").write_text("{}")
+    content = backup.create_encrypted_backup(database_path=db, data_dir=data, passphrase=PASSPHRASE)
+    seed("live-", 400, 300)
+    return db, data, content
+
+
+def _write_and_die(db, prefix, count):
+    """Commit rows in WAL mode and exit without closing: the rows exist only in
+    the WAL beside the database, as they do after a crash or an OOM kill."""
+    import subprocess
+    import sys
+
+    subprocess.run([sys.executable, "-c", (
+        "import os, sqlite3\n"
+        f"c = sqlite3.connect({str(db)!r})\n"
+        "c.execute('PRAGMA journal_mode=WAL')\n"
+        f"c.executemany('INSERT INTO t VALUES (?)', [({prefix!r} + 'z' * 300,)] * {count})\n"
+        "c.commit()\n"
+        "os._exit(0)\n"
+    )], check=True)
+    assert db.with_name(db.name + "-wal").exists()
+
+
+def _rows(db):
+    connection = sqlite3.connect(db)
+    try:
+        assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        return dict(connection.execute(
+            "SELECT substr(v, 1, instr(v, '-')), count(*) FROM t GROUP BY 1"
+        ).fetchall())
+    finally:
+        connection.close()
+
+
+def test_an_external_database_rolls_back_without_the_restored_wal(tmp_path):
+    """The restored database is reopened — start-up seeds templates, so it is
+    always written — and the process dies before the commit. The next start
+    put the original file back beside the restored generation's WAL, and
+    SQLite replayed it: 'Rowid out of order', 26 of 400 rows left (D-126)."""
+    db, data, content = _external_db_generations(tmp_path)
+    backup.restore_encrypted_backup(content, database_path=db, data_dir=data, passphrase=PASSPHRASE)
+    _write_and_die(db, "restored-", 300)
+
+    assert backup.recover_interrupted_restore(database_path=db, data_dir=data)
+    assert _rows(db) == {"live-": 400}
+
+
+def test_an_external_databases_own_wal_moves_with_it_and_comes_back(tmp_path):
+    """The other direction. Rows the live database holds only in its WAL must
+    not be replayed over the restored file, and must come back with the
+    original on rollback — they are committed data (D-126)."""
+    db, data, content = _external_db_generations(tmp_path)
+    _write_and_die(db, "late-", 100)
+
+    backup.restore_encrypted_backup(content, database_path=db, data_dir=data, passphrase=PASSPHRASE)
+    assert _rows(db) == {"backup-": 50}
+
+    assert backup.recover_interrupted_restore(database_path=db, data_dir=data)
+    assert _rows(db) == {"live-": 400, "late-": 100}
+
+
+def test_maintenance_drains_without_python_311(monkeypatch):
+    """`asyncio.timeout` is Python 3.11+. The package supports 3.10, where it
+    made every backup and restore answer 500 (D-128)."""
+    import asyncio
+
+    from offsetx_apollo_builder.api.production_runtime import RecoveryGate
+
+    monkeypatch.delattr(asyncio, "timeout", raising=False)
+    gate = RecoveryGate()
+    gate.DRAIN_SECONDS = 0.05
+
+    async def scenario():
+        assert await gate.enter_request()
+        with pytest.raises((TimeoutError, asyncio.TimeoutError)):
+            await gate.begin_maintenance()
+        # A drain that timed out lets traffic back in, and still counts it.
+        assert not gate.maintenance
+        assert await gate.enter_request()
+        await gate.leave_request()
+        await gate.leave_request()
+        await gate.begin_maintenance()
+        assert gate.maintenance
+
+    asyncio.run(scenario())
+
+
+def _timers(tmp_path):
+    from offsetx_apollo_builder.agent.routines import RoutineService, RoutineStore
+    from offsetx_apollo_builder.distribution.automation import ContentAutomationService
+    from offsetx_apollo_builder.outreach.automation import AutomationService
+
+    def nothing(*args, **kwargs):
+        return None
+
+    return [
+        AutomationService(tmp_path / "automation.json", engine_factory=nothing,
+                          mail_provider_factory=nothing, own_email_factory=lambda: ""),
+        ContentAutomationService(tmp_path / "content.json", trends_factory=nothing,
+                                 pipeline_factory=nothing, distribution_factory=nothing),
+        RoutineService(RoutineStore(tmp_path / "routines.db"), runner=nothing),
+    ]
+
+
+def test_a_timer_started_again_while_stopping_keeps_running(tmp_path):
+    """A backup that cannot wait for a long scheduled run gives up and starts
+    the timers again. `start` returned early while the old loop was still
+    finishing, and that loop then ended: the scheduled jobs stopped, silently,
+    until the next restart (D-133)."""
+    import asyncio
+
+    async def scenario():
+        for timer in _timers(tmp_path):
+            await timer.start()
+            loop = timer._task
+            stopping = asyncio.ensure_future(timer.stop())
+            await asyncio.sleep(0)
+            await timer.start()
+            await asyncio.sleep(0.05)
+            assert not loop.done(), type(timer).__name__
+            await timer.stop()
+            await stopping
+            assert loop.done()
+
+    asyncio.run(scenario())
+
+
+def test_a_long_scheduled_run_refuses_the_backup_instead_of_holding_requests(tmp_path, monkeypatch):
+    """Maintenance closed the request gate, then waited — with no bound — for
+    the scheduled jobs: a routine waiting half an hour for a browser lease held
+    every request at 503. The jobs are stopped first now, within a bound, while
+    requests still flow; one that will not stop refuses the backup (D-133)."""
+    import asyncio
+
+    import offsetx_apollo_builder.api.production_runtime as runtime
+
+    monkeypatch.setattr(runtime, "TIMER_STOP_SECONDS", 0.2, raising=False)
+    app = create_app(_settings(tmp_path))
+    seen = []
+
+    class LongRun:
+        async def start(self):
+            seen.append("start")
+
+        async def stop(self):
+            seen.append(("stop", app.state.recovery_gate.maintenance))
+            if len(seen) == 1:
+                await asyncio.sleep(3)
+
+    with TestClient(app) as client:
+        app.state.agent_routines = LongRun()
+        response = client.post("/api/v1/backups/export", json={"passphrase": PASSPHRASE})
+        assert response.status_code == 409, response.headers.get("content-type")
+        assert "scheduled" in response.json()["detail"]
+        assert seen[0] == ("stop", False)
+        assert "start" in seen
+        assert client.get("/health/ready").status_code == 200

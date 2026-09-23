@@ -7,6 +7,8 @@ export type CampaignSnapshot = {
   ready: boolean;
   loading: boolean;
   error: string;
+  /** The list was refused for access (401/403), not down: only then is the API token the fix (D-136). */
+  authError: boolean;
   storageWarning: string;
   selectionNotice: string;
 };
@@ -24,7 +26,8 @@ const STORAGE_WARNING = "Browser storage is unavailable. Your campaign is select
 /** One snapshot owns both the list and its selection: they cannot disagree for a render. */
 export class CampaignSelection {
   private snapshot: CampaignSnapshot = {
-    campaigns: [], campaignId: "", ready: false, loading: true, error: "", storageWarning: "", selectionNotice: ""
+    campaigns: [], campaignId: "", ready: false, loading: true, error: "", authError: false,
+    storageWarning: "", selectionNotice: ""
   };
   private listeners = new Set<() => void>();
   private wantedId = "";
@@ -73,7 +76,7 @@ export class CampaignSelection {
     } catch {
       storageWarning = STORAGE_WARNING;
     }
-    this.publish({ campaigns, campaignId, ready: true, loading: false, error: "", storageWarning, selectionNotice });
+    this.publish({ campaigns, campaignId, ready: true, loading: false, error: "", authError: false, storageWarning, selectionNotice });
   }
 
   refresh = async (): Promise<void> => {
@@ -81,7 +84,7 @@ export class CampaignSelection {
     const request = ++this.request;
     const wantedId = this.wantedId;
     const current = () => this.active && request === this.request;
-    this.publish({ ...this.snapshot, loading: true, error: "" });
+    this.publish({ ...this.snapshot, loading: true, error: "", authError: false });
     try {
       let campaigns = await this.source.list();
       if (!current()) return;
@@ -106,7 +109,8 @@ export class CampaignSelection {
     } catch (error) {
       if (current()) this.publish({
         ...this.snapshot, loading: false,
-        error: error instanceof Error ? error.message : "Could not load campaigns. Try again."
+        error: error instanceof Error ? error.message : "Could not load campaigns. Try again.",
+        authError: error instanceof ApiError && (error.status === 401 || error.status === 403)
       });
     }
   };

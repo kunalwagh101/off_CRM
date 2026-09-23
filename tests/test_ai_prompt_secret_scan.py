@@ -130,6 +130,12 @@ def test_secret_in_system_prompt_blocks_before_provider_instantiation(tmp_path, 
         "client_secret=opaque-client-secret-value",
         "secret_key=opaque-secret-key-value",
         "api_secret=opaque-api-secret-value",
+        # Any `…token` name, not four fixed prefixes: these passed (D-132),
+        # although `id_token` is refused as a field name.
+        "api_token=opaque-api-token-value",
+        "id_token=opaque-id-token-value",
+        "bot_token: opaque-bot-token-value",
+        "CSRFTOKEN=opaque-csrf-token-value",
     ],
 )
 def test_generic_secret_assignment_in_system_prompt_blocks_before_provider_instantiation(
@@ -244,3 +250,17 @@ def test_transport_api_key_is_not_added_to_model_visible_input():
 
     assert key not in repr(payload)
     assert report.clean
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Keep each email under 1500 tokens: shorter lands better.",
+        "The token count was 12345678 last week.",
+        "Tokenization: split the words first.",
+    ],
+)
+def test_ordinary_prose_about_tokens_is_not_a_credential(text):
+    """The wider `…token` pattern must not refuse prose that merely talks about
+    tokens — a scanner that cries wolf gets switched off."""
+    assert scan_model_input({}, system_prompt=text).clean

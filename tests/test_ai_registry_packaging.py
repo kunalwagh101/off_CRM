@@ -6,8 +6,12 @@ checks exist to fail the build rather than fail in production.
 """
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10: the same parser before it joined the stdlib
+    import tomli as tomllib
 
 import pytest
 

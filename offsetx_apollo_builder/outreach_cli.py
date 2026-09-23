@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from .campaigns import CampaignKindError
 from .campaigns import list_kinds as list_campaign_kinds
+from .data_paths import database_path
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
     GmailMailProvider,
@@ -30,7 +31,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="off_CRM local outreach CRM")
     parser.add_argument(
         "--db",
-        default=os.getenv("OFFSETX_OUTREACH_DB", "local_data/offsetx_outreach.db"),
+        default=str(database_path()),
         help="Local SQLite database path",
     )
     sub = parser.add_subparsers(dest="command", required=True)

@@ -346,3 +346,44 @@ describe("the GTM engine", () => {
     expect(html).toContain("rules&#x27; remedies");
   });
 });
+
+describe("screens before the campaign list has loaded (D-130)", () => {
+  // A static render is the first frame: the campaign list has not answered.
+  // When it fails, the app stays in exactly this state until a retry works —
+  // so what shows here is what an owner has while /campaigns returns 500.
+  async function firstFrame(page: string) {
+    const memory = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => void memory.set(key, value),
+      removeItem: (key: string) => void memory.delete(key)
+    };
+    const stubs = {
+      sessionStorage: storage,
+      localStorage: storage,
+      window: { location: { hash: `#${page}` }, addEventListener: () => undefined, removeEventListener: () => undefined }
+    };
+    const globals = globalThis as Record<string, unknown>;
+    const saved = Object.fromEntries(Object.keys(stubs).map((key) => [key, globals[key]]));
+    Object.assign(globals, stubs);
+    try {
+      const { AuthenticatedApp } = await import("./App");
+      const auth = { configured: true, authenticated: true, username: "owner", expires_at: null };
+      return renderToStaticMarkup(<AuthenticatedApp auth={auth} onLogout={() => undefined} />);
+    } finally {
+      Object.assign(globals, saved);
+    }
+  }
+
+  it("keeps Settings, where backup and restore live, reachable", async () => {
+    const html = await firstFrame("settings");
+    expect(html).toContain("Encrypted backup");
+    expect(html).not.toContain('aria-label="Loading campaigns"');
+  });
+
+  it("holds campaign screens until the list they read has loaded", async () => {
+    const html = await firstFrame("contacts");
+    expect(html).toContain('aria-label="Loading campaigns"');
+    expect(html).not.toContain("<h1>Contacts</h1>");
+  });
+});

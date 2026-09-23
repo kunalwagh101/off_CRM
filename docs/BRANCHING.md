@@ -109,13 +109,34 @@ instance types in Render's [Blueprint spec](https://render.com/docs/blueprint-sp
 
 ## What happened to every branch (2026-09-23)
 
-Every branch was tagged `archive/<branch-name>` before it was deleted, so each
-is recoverable exactly as it was:
+**The last step is the owner's.** The old branches are still on GitHub. Each is
+to be kept as a tag, `archive/<branch-name>`, and then deleted — and GitHub
+refused both to the cloud session that built `develop` (HTTP 403: that session
+may push commits, not tags or deletions). From a clone with push rights:
+
+```bash
+git checkout develop && git pull origin develop
+bash scripts/archive_old_branches.sh            # tag every old branch, check each on GitHub; deletes nothing
+bash scripts/archive_old_branches.sh --delete   # the same, then delete the branches
+```
+
+It deletes a branch only once its tag is confirmed on GitHub at the branch's
+commit, and only if nobody has pushed to the branch since. Deleting a branch
+closes any pull request opened from it: 19 pull requests are open on these
+branches, and their pages stay readable. `S-06.02.19` is BLOCKED on this step.
+
+After it, each old branch can be recovered exactly as it was:
 
 ```bash
 git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'
 git checkout -b look-at-it archive/feature/s-04-01-01-companions
 ```
+
+Nothing is lost meanwhile, or even if the tags were never made: 22 of the 45
+branches end inside `develop`'s own history; 20 more are kept by GitHub under
+their pull request (`git fetch origin pull/14/head`); three have commits
+nowhere else — `agent/s-02-02-01-bounded-run-loop`,
+`claude/abacus-ai-app-idea-t1mnja` and `claude/production-ai-system-design-6413s6`.
 
 **The base.** `develop` started from `feature/next-three-batch-4`, the line
 with the most built work (`main` plus the next-three batches). It was

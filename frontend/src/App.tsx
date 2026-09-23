@@ -57,6 +57,17 @@ const campaignScopedPages = new Set<Page>([
   "contacts", "discovery", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting", "settings"
 ]);
+// Screens that read the campaign list or the selection, and so wait for its
+// first load: before it, "No campaigns yet" would be untrue, and Product's
+// checklist, saved from an empty list, would unlink its campaigns. The rest stay
+// reachable when that load fails — which is when recovery is needed — Settings
+// among them, where backup and restore live (D-130). Settings reads the
+// selection too, but copes with none: its campaign export asks for one first.
+export const campaignListPages = new Set<Page>([
+  "dashboard", "campaigns", "product",
+  "contacts", "discovery", "drafts", "queue", "deliverability", "experiments",
+  "imagereview", "videoeditor", "posting"
+]);
 
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
@@ -134,7 +145,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
   );
 }
 
-function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
+export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
   const [page, setPage] = useState<Page>(currentPage());
   // One store owns the campaign list and the selection, so they cannot
   // disagree for a render — which is how a new campaign lost its selection to
@@ -251,7 +262,7 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
               ) : null}
             </div>
             <div className="topbar-actions">
-              {campaignsResource.error ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-ok"><span />Backend ready</span>}
+              {campaignsResource.error ? (campaignsResource.authError ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-error" role="status">Backend error</span>) : <span className="connection-ok"><span />Backend ready</span>}
               {auth.configured ? <span className="session-user">{auth.username}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
               {auth.configured ? <button className="topbar-button logout-button" onClick={onLogout}>Log out</button> : null}
               <a className="topbar-button" href="/api/docs" target="_blank" rel="noreferrer" aria-label="Open API documentation">?</a>
@@ -273,8 +284,8 @@ function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () 
             {campaignsResource.storageWarning ? <p className="form-note" role="alert">{campaignsResource.storageWarning}</p> : null}
             {campaignsResource.selectionNotice ? <p className="form-note" role="status">{campaignsResource.selectionNotice}</p> : null}
             {campaignsResource.error ? <StatePanel title="Could not refresh campaigns" description={campaignsResource.error + (campaignsResource.ready ? " Your current selection has been kept." : " Retry before starting campaign work.")} action={<Button onClick={() => void selection.refresh()} busy={campaignsResource.loading}>Retry campaigns</Button>} /> : null}
-            {!campaignsResource.ready && campaignsResource.loading ? <div className="spinner spinner-large" role="status" aria-label="Loading campaigns" /> : null}
-            {campaignsResource.ready ? <Screen key={campaignScopedPages.has(page) ? `${page}:${campaignId}` : page} /> : null}
+            {!campaignsResource.ready && campaignsResource.loading && campaignListPages.has(page) ? <div className="spinner spinner-large" role="status" aria-label="Loading campaigns" /> : null}
+            {campaignsResource.ready || !campaignListPages.has(page) ? <Screen key={campaignScopedPages.has(page) ? `${page}:${campaignId}` : page} /> : null}
           </main>
         </div>
       </div>

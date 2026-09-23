@@ -13,12 +13,14 @@ docker compose up --build
 ```
 
 The compose file exposes the app only on host loopback and persists SQLite under `local_data`.
+That folder is mounted where the image keeps its data, `/var/lib/offcrm/local_data`, and on
+start the container gives it to its own unprivileged user (uid 10001), which then writes there.
 
 Gmail OAuth is easier to authorize on the host first. If Gmail is needed inside the container, mount the client-secret and token files and set their container paths explicitly.
 
 ## Disposable Render demo
 
-`render.yaml` defines a free Docker web service with `/health/ready` as its health check. For the manual Render form, use Docker, branch `main`, Singapore, an empty root directory and the Free plan.
+`render.yaml` defines two free Docker web services with `/health/ready` as their health check: `off-crm-demo` on `main` and `off-crm-develop` on `develop` (`docs/BRANCHING.md`). For the manual Render form, use Docker, the service's branch, Singapore, an empty root directory and the Free plan.
 
 Set these secrets in Render, never in Git:
 

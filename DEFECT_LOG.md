@@ -112,8 +112,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-77 | 2026-09-23 | security | high | Companion runtime asked for its own memory scope, but the production CRM memory search silently merged global memory into that result | code fixed · `S-04.01.01`; executable evidence pending |
 | D-78 | 2026-09-23 | data-loss | high | Resume could regenerate a deleted managed PLAN.md from the original goal, silently losing the owner's edited steering state | code fixed · `S-02.02.02`; executable evidence pending |
 | D-79 | 2026-09-23 | security | high | Generic model-visible assignments/fields such as api_key or client_secret could bypass the credential scanner when the value had no vendor-specific token prefix | code fixed · `S-06.02.01`; executable evidence pending |
-| D-80 | 2026-09-23 | data-loss | high | Independent WorkspaceAISettingsStore processes used only per-instance thread locks, so concurrent read-modify-replace writes could erase another workspace's provider settings or encrypted keys | code fixed · `S-06.01.01`; executable evidence pending |
-| D-81 | 2026-09-23 | bug | high | The workspace username regex double-escaped NUL/CR/LF, accidentally rejecting ordinary characters such as r, n, x and 0 instead of the intended control characters | code fixed · `S-06.01.01`; executable evidence pending |
+| D-100 | 2026-09-23 | data-loss | high | Independent WorkspaceAISettingsStore processes used only per-instance thread locks, so concurrent read-modify-replace writes could erase another workspace's provider settings or encrypted keys | code fixed · `S-06.01.01`; executable evidence pending |
+| D-101 | 2026-09-23 | bug | high | The workspace username regex double-escaped NUL/CR/LF, accidentally rejecting ordinary characters such as r, n, x and 0 instead of the intended control characters | code fixed · `S-06.01.01`; executable evidence pending |
 
 
 ### D-71 — A stale forbidden frontier row could stop valid crawling · 2026-09-23
@@ -573,7 +573,11 @@ instantiation; nothing is silently redacted and retried.
 Executable evidence remains blocked by D-75, so S-06.02.01 stays IN_REVIEW.
 
 
-### D-80 — Concurrent workspace settings writes could erase another workspace · 2026-09-23
+### D-100 — Concurrent workspace settings writes could erase another workspace · 2026-09-23
+
+*(Recorded as D-80 on `feature/next-three-batch-4`. Renumbered when the branches
+were consolidated into `develop`, because E-12 had already reserved D-80–D-99
+and used D-80 for a different defect.)*
 
 **What went wrong.** Atomic file replacement protected against torn JSON, but
 each WorkspaceAISettingsStore had its own threading lock. Two server processes
@@ -593,7 +597,11 @@ forced overlapping pre-fix snapshot. Executable evidence is blocked by D-75;
 S-06.01.01 remains IN_REVIEW.
 
 
-### D-81 — Workspace usernames rejected ordinary characters · 2026-09-23
+### D-101 — Workspace usernames rejected ordinary characters · 2026-09-23
+
+*(Recorded as D-81 on `feature/next-three-batch-4`. Renumbered when the branches
+were consolidated into `develop`, because E-12 had already reserved D-80–D-99
+and used D-81 for a different defect.)*
 
 **What went wrong.** The raw regex used double-escaped control sequences inside
 a negated character class. It therefore excluded literal characters such as

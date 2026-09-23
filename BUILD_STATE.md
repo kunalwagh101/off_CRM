@@ -45,11 +45,11 @@ audited production consumers and failure paths instead of creating new scope.
   but not generic assignments/field names such as `api_key=opaque-value` or
   `client_secret`. A bounded assignment rule plus the structural secret-field
   deny-list now block those values before provider instantiation.
-- **S-06.01.01 / D-80:** `WorkspaceAISettingsStore` used per-instance thread
+- **S-06.01.01 / D-100:** `WorkspaceAISettingsStore` used per-instance thread
   locks around shared JSON/encrypted-key files. Concurrent processes could lose
   another workspace's update. Complete write windows now serialize through a
   standard-library SQLite write lock while the existing atomic replace remains.
-- **S-06.01.01 / D-81:** the username regex double-escaped NUL/CR/LF and rejected
+- **S-06.01.01 / D-101:** the username regex double-escaped NUL/CR/LF and rejected
   normal characters such as r/n/x/0. The intended control-character regex and
   regressions are committed.
 - **S-06.01.04:** cold review traced declaration → scheduler/event match →

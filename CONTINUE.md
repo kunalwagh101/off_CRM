@@ -367,11 +367,11 @@ Cold-review results:
   unless the value matched a known vendor token. Added a generic assignment
   rule, structural field-name deny-list coverage and pre-provider-instantiation
   regressions.
-- **D-80 / S-06.01.01:** per-instance thread locks did not serialize shared
+- **D-100 / S-06.01.01:** per-instance thread locks did not serialize shared
   JSON/encrypted-key read-modify-replace operations across processes. Added a
   cross-process SQLite write lock while retaining existing atomic replacement.
   Regression uses two independent store instances and forces the old overlap.
-- **D-81 / S-06.01.01:** the username regex double-escaped NUL/CR/LF and rejected
+- **D-101 / S-06.01.01:** the username regex double-escaped NUL/CR/LF and rejected
   ordinary r/n/x/0 characters. Corrected the pattern and added valid/invalid
   username regressions.
 - **S-06.01.04:** declaration policy, workspace/event isolation, dedupe,

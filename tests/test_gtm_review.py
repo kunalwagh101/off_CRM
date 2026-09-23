@@ -263,6 +263,39 @@ def test_a_pacer_holding_for_the_goal_not_the_data_is_not_told_to_wait():
     assert capped.code == "pacer_idle"
 
 
+def test_a_pacer_holding_for_a_dead_goal_is_idle_even_with_few_posts():
+    """Below five measured posts the pacer holds for want of data — and also for
+    a passed deadline or a goal of nothing. Only the first is "wait"."""
+    passed = distribution_finding(pacer("hold", views=[500] * 3, deadline="2026-09-01"))
+    assert passed.code == "pacer_idle"
+    no_deadline = distribution_finding(pacer("hold", views=[500] * 3, deadline=""))
+    assert no_deadline.code == "pacer_idle"
+    waiting = distribution_finding(pacer("hold", views=[500] * 3))
+    assert waiting.code == "insufficient_data"
+
+
+def test_what_the_brain_needs_survives_the_shape_filter():
+    """Below `full` the payload builder widens numbers ("5%" becomes "a share").
+    The brain's arithmetic is all in code, so what a model needs is the finding
+    codes and the actions it may choose — and those must survive the filter."""
+    from offsetx_apollo_builder.ai.payload import EgressRequest, build_payload
+    from offsetx_apollo_builder.ai.tiers import DataClass, DataPolicy
+    from offsetx_apollo_builder.gtm.review import review_fields
+
+    findings = diagnose(plan(), [email(contacted=400, replied=2, weak_templates=1),
+                                 distribution(accounts=0), image()], min_sample=20, now=NOW)
+    fields = review_fields({**plan(), "created_at": "2026-09-22T09:00:00+00:00"}, findings,
+                           {"name": "N", "one_liner": "O", "audience": "A", "problem": "P", "offer": "F"})
+    built = build_payload(
+        EgressRequest(task_type="gtm_review", data_class=DataClass.CAMPAIGN, **fields),
+        DataPolicy.STANDARD,
+    )
+    for item in findings:
+        assert item.code in built["instructions"]
+        for action in item.permitted:
+            assert action in built["instructions"]
+
+
 def test_distribution_is_checked_for_accounts_status_and_posts_first():
     def code(**overrides):
         found = diagnose(plan(), [email(), distribution(**overrides), image()], min_sample=20, now=NOW)

@@ -299,7 +299,23 @@ class GtmService:
             plan, review, root_request=root["request"], today=moment.date()
         )
         request["use_model"] = use_model
-        return self.draft_plan(request, revision=(plan, review, notes), now=moment)
+        drafted = self.draft_plan(request, revision=(plan, review, notes), now=moment)
+        # Counted from the review this version was written from — the moment
+        # "what is left of the goal" was measured — so a reply that arrives
+        # before it is applied is counted once, here (DD-53).
+        email = next(
+            (item for item in review["measurements"]
+             if item.get("channel") == "email" and not item.get("missing")),
+            None,
+        )
+        if email is not None:
+            self.store.set_baseline(drafted["id"], self.workspace_id, {"email": {
+                "campaign_id": str(email.get("campaign_id") or ""),
+                "contacted": int(email.get("contacted") or 0) + int(email.get("contacted_before") or 0),
+                "replied": int(email.get("replied") or 0) + int(email.get("replied_before") or 0),
+            }})
+            drafted = self.get_plan(drafted["id"])
+        return drafted
 
     def _view(self, plan: dict[str, Any]) -> dict[str, Any]:
         """A plan as the screen reads it: staleness, and its latest review."""
@@ -356,28 +372,30 @@ class GtmService:
                     "campaigns would speak for nothing. Draft a new plan for a product "
                     "that exists."
                 ) from None
+            newer = [
+                other for other in self.store.list_plans(self.workspace_id, product_id=str(plan["product_id"]))
+                if other["root_id"] == plan["root_id"] and other["status"] == "applied"
+                and int(other["version"]) > int(plan["version"])
+            ]
+            if newer:
+                raise PlanStateError(
+                    f"Version {newer[0]['version']} of this plan is already applied, so this older "
+                    f"draft cannot replace it. Revise version {newer[0]['version']} instead."
+                )
             product = plan["product_snapshot"]
             request = plan["request"]
-            existing = self.store.line_links(plan["root_id"], self.workspace_id)
-            if existing.get("email") and self.readers is not None:
-                # What the line's email had already done, so this version's
-                # review judges only its own sends (S-12.02.04).
-                try:
-                    summary = self.readers.email_summary(existing["email"])
-                    self.store.set_baseline(plan_id, self.workspace_id, {"email": {
-                        "contacted": _count(summary, "messages_by_stage", "initial"),
-                        "replied": _count(summary, "contact_status", "replied"),
-                    }})
-                except KeyError:
-                    pass  # the campaign is gone; Apply makes a new one, from zero
             notes: list[str] = []
+            existing, statuses = self._live_links(plan, notes)
             created: list[dict[str, Any]] = []
             for channel in plan["plan"]["channels"]:
-                created.append(self._apply_channel(plan, product, request, channel, existing, notes))
-            # A revision that dropped a channel pauses its campaign, never deletes it.
+                created.append(
+                    self._apply_channel(plan, product, request, channel, existing, statuses, notes)
+                )
+            # A revision that dropped a channel pauses its campaign, never deletes
+            # it — and leaves one the owner archived exactly as it is.
             kept = {item["kind"] for item in plan["plan"]["channels"]}
             for kind, campaign_id in existing.items():
-                if kind not in kept:
+                if kind not in kept and statuses.get(kind) != "archived":
                     self.update_campaign(campaign_id, {"status": "paused"})
                     notes.append(f"This version has no {kind} channel, so its campaign was paused.")
             self.store.move_plan(plan_id, self.workspace_id, allowed_from=("draft",), to="applied")
@@ -390,6 +408,30 @@ class GtmService:
             "notes": notes,
         }
 
+    def _live_links(
+        self, plan: Mapping[str, Any], notes: list[str]
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """The line's campaigns that still exist, and each one's status.
+
+        A link can outlive its campaign — restoring a CRM backup does it — and
+        Apply would then update a campaign that is not there, every time. So a
+        vanished campaign is unlinked here, and the channel gets a new one.
+        """
+        links = self.store.line_links(plan["root_id"], self.workspace_id)
+        if self.readers is None:
+            return links, {}
+        live: dict[str, str] = {}
+        statuses: dict[str, str] = {}
+        for kind, campaign_id in links.items():
+            try:
+                statuses[kind] = str(self.readers.campaign(campaign_id).get("status") or "")
+            except KeyError:
+                self.store.unlink_campaign(campaign_id, self.workspace_id)
+                notes.append(f"The {kind} campaign this plan had no longer exists, so Apply made a new one.")
+                continue
+            live[kind] = campaign_id
+        return live, statuses
+
     def _apply_channel(
         self,
         plan: Mapping[str, Any],
@@ -397,9 +439,16 @@ class GtmService:
         request: Mapping[str, Any],
         channel: Mapping[str, Any],
         existing: Mapping[str, str],
+        statuses: Mapping[str, str],
         notes: list[str],
     ) -> dict[str, Any]:
         kind = str(channel["kind"])
+        if existing.get(kind) and statuses.get(kind) == "archived":
+            notes.append(
+                f"The {kind} campaign is archived, so Apply left it as it is. Unarchive it on "
+                "Campaigns and apply again to run this channel."
+            )
+            return {"kind": kind, "campaign_id": existing[kind], "action": "left archived"}
         settings: dict[str, Any] = {}
         if kind == "email":
             volume = int(channel.get("daily_volume") or 1)
@@ -447,6 +496,9 @@ class GtmService:
                 if "timezone" in settings:
                     create["timezone_name"] = settings["timezone"]
             campaign_id = self.create_campaign(**create)
+            # Paused before anything else: the CRM creates campaigns active, and
+            # if linking fails next, what is left behind must not be running.
+            self.update_campaign(campaign_id, {"status": "paused"})
             # Linked straight away, so a failure after this point resumes
             # rather than making the campaign again.
             self.store.link_campaign(
@@ -600,6 +652,10 @@ class GtmService:
             summary = readers.email_summary(campaign_id)
             health = readers.health(campaign_id)
             before = (plan.get("baseline") or {}).get("email") or {}
+            if before.get("campaign_id") and before["campaign_id"] != campaign_id:
+                # The baseline was measured on a campaign since replaced; this
+                # one has done nothing before this version.
+                before = {}
             contacted_before = int(before.get("contacted") or 0)
             replied_before = int(before.get("replied") or 0)
             measured.update(
@@ -666,7 +722,10 @@ def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:
         steps.append({
             "page": "drafts",
             "label": "Write and approve the drafts",
-            "why": "Every email waits for your approval before it can send.",
+            "why": (
+                "Every email waits for your approval before it can send. A template that "
+                "says {product_angle} uses this plan's angle, and a revision changes it for you."
+            ),
         })
     if "distribution" in kinds:
         steps.append({

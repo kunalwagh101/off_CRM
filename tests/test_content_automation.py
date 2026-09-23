@@ -706,3 +706,50 @@ def test_the_rate_is_bounded_however_it_is_set(tmp_path, parts):
     assert service.config()["posts_per_day"] == 20.0
     service.update({"posts_per_day": -5})
     assert service.config()["posts_per_day"] == 0.0
+
+
+def test_a_paused_campaign_makes_nothing(tmp_path: Path, parts):
+    """Planning makes pictures, which costs money, and drafting makes posts. A
+    paused campaign — or a paused picture campaign — gets neither (D-87)."""
+    status = {"dist-1": "paused", "img-1": "active"}
+    service = ContentAutomationService(
+        tmp_path / "content_automation.json",
+        trends_factory=lambda: parts["watcher"],
+        pipeline_factory=lambda angle: parts["pipeline"],
+        distribution_factory=lambda: parts["distribution"],
+        campaign_status=lambda campaign_id: status[campaign_id],
+    )
+    service.update({"pipelines": [PAIR], "sweep": False})
+    results = service.run_once()
+    skipped = [row for row in results if row["step"] in ("plan", "draft")]
+    assert skipped and all(row["status"] == "skipped" for row in skipped)
+    assert all("paused" in row["reason"] for row in skipped)
+    assert parts["pipeline"].planned == [] and parts["pipeline"].drafted == []
+
+    status.update({"dist-1": "active", "img-1": "paused"})
+    service.run_once()
+    assert parts["pipeline"].planned == []
+
+    status["img-1"] = "active"
+    service.run_once()
+    assert len(parts["pipeline"].planned) == 1 and len(parts["pipeline"].drafted) == 1
+
+
+def test_an_unreadable_campaign_makes_nothing_and_the_cycle_goes_on(tmp_path: Path, parts):
+    """Fail closed on the pair, and still publish what was already approved."""
+    def broken(campaign_id):
+        raise RuntimeError("database is locked")
+
+    service = ContentAutomationService(
+        tmp_path / "content_automation.json",
+        trends_factory=lambda: parts["watcher"],
+        pipeline_factory=lambda angle: parts["pipeline"],
+        distribution_factory=lambda: parts["distribution"],
+        campaign_status=broken,
+    )
+    service.update({"pipelines": [PAIR], "sweep": False})
+    results = service.run_once()
+    held = [row for row in results if row["step"] in ("plan", "draft")]
+    assert held and all("could not be read" in row["reason"] for row in held)
+    assert parts["pipeline"].planned == []
+    assert parts["distribution"].calls == 1  # publish_due still ran

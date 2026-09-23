@@ -17,7 +17,6 @@ from offsetx_apollo_builder.distribution.platforms import PLATFORMS
 from offsetx_apollo_builder.gtm.strategy import (
     ASSUMED_REPLY_RATE,
     COLD_EMAILS_PER_IDENTITY_PER_DAY,
-    ModelUnavailable,
     PlanRefused,
     RequestInvalid,
     baseline_plan,
@@ -631,9 +630,49 @@ def test_the_envelope_endpoint_shows_capacity_and_vocabulary(client):
     assert body["defaults"]["assumed_reply_rate"] == ASSUMED_REPLY_RATE
 
 
-def test_the_ask_contract_raises_model_unavailable_not_a_provider_error():
-    """gtm must not know the broker's exception types: it imports nothing from ai/."""
-    assert issubclass(ModelUnavailable, RuntimeError)
+def test_a_bug_in_the_model_call_is_not_disguised_as_no_model(client, monkeypatch):
+    """Only the broker's own refusals become "no model, here is the rules plan".
+    Anything else is a bug, and a bug must surface rather than look like a
+    missing key."""
+    product_id = client.post("/api/v1/gtm/products", json=PRODUCT_BODY).json()["id"]
+
+    def broken(*args, **kwargs):
+        raise ZeroDivisionError("a real bug")
+
+    monkeypatch.setattr(client.app.state.ai_broker, "call", broken)
+    with pytest.raises(ZeroDivisionError):
+        client.post("/api/v1/gtm/plans", json={"product_id": product_id, "goal_kind": "replies",
+                                               "goal_target": 20})
+
+
+def test_an_infinite_volume_is_treated_as_no_number():
+    """`1e999` is valid JSON for infinity. It used to raise OverflowError and
+    turn a model's typo into a 500."""
+    text = reply().replace('"daily_volume": 40', '"daily_volume": 1e999')
+    plan = parse(text)
+    assert channel(plan, "email")["daily_volume"] == connected().email_daily_capacity
+    assert any("not a number" in note for note in plan.notes)
+
+
+def test_never_claim_survives_the_notes_limit():
+    """The payload builder keeps the first 4,000 characters of campaign notes. A
+    long product used to lose "Never claim" and the owner's notes — the two
+    parts that must not be lost — because they came last."""
+    from offsetx_apollo_builder.ai.payload import EgressRequest, build_payload
+    from offsetx_apollo_builder.ai.tiers import DataClass, DataPolicy
+
+    long_product = product(
+        proof=[f"Proof point {n}: " + "x" * 280 for n in range(8)],
+        differentiators=[f"Different {n}: " + "y" * 280 for n in range(8)],
+    )
+    fields = request_fields(long_product, request(notes="Mention the Hamburg pilot."), connected())
+    assert len(fields["campaign_notes"]) > 4000
+    built = build_payload(
+        EgressRequest(task_type="gtm_plan", data_class=DataClass.CAMPAIGN, **fields),
+        DataPolicy.STANDARD,
+    )
+    assert "Never claim: guaranteed" in built["campaign_notes"]
+    assert "Mention the Hamburg pilot." in built["campaign_notes"]
 
 
 def test_feasibility_says_when_the_contact_count_is_the_real_ceiling():

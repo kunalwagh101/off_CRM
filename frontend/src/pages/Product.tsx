@@ -75,6 +75,9 @@ function LinkedCampaigns({ product }: { product: GtmProduct | null }) {
   const linked = links.data?.items ?? [];
   const selected = chosen ?? linked.map((item) => item.campaign_id);
   const missing = linked.filter((item) => !item.exists);
+  // A deleted campaign has no checkbox to untick, so Save drops it here —
+  // which is what the note below promises.
+  const gone = new Set(missing.map((item) => item.campaign_id));
 
   function toggle(id: string) {
     setChosen(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
@@ -85,7 +88,7 @@ function LinkedCampaigns({ product }: { product: GtmProduct | null }) {
     setBusy(true);
     try {
       const saved = await api.put<{ items: GtmProductLink[] }>(`/gtm/products/${product.id}/campaigns`, {
-        campaign_ids: selected
+        campaign_ids: selected.filter((id) => !gone.has(id))
       });
       notify(`${saved.items.length} campaign(s) now speak for ${product.name}.`, "success");
       setChosen(null);
@@ -100,35 +103,39 @@ function LinkedCampaigns({ product }: { product: GtmProduct | null }) {
   return (
     <Panel
       title="Campaigns that speak for this product"
-      subtitle="Their email templates can use {product_offer} and the other product fields, and their posts use the one-liner when no angle is typed. A campaign speaks for one product."
+      subtitle="Their email templates can use {product_offer}, {product_angle} and the other product fields, and their posts use the plan's angle — or the one-liner — when no angle is typed. A campaign speaks for one product."
     >
       {!product ? (
         <StatePanel title="Save the product first" description="Then choose the campaigns that speak for it." />
-      ) : campaigns.length === 0 ? (
-        <StatePanel title="No campaigns yet" description="Create one on the Campaigns screen, then link it here." />
       ) : (
         <>
-          <div className="settings-grid">
-            {campaigns.map((campaign) => (
-              <label key={campaign.id} className="check-line">
-                <input
-                  id={`gtm-link-${campaign.id}`}
-                  type="checkbox"
-                  checked={selected.includes(campaign.id)}
-                  onChange={() => toggle(campaign.id)}
-                />
-                <span>{campaign.name} <small className="muted-copy">{campaign.kind}</small></span>
-              </label>
-            ))}
-          </div>
+          {campaigns.length === 0 ? (
+            <StatePanel title="No campaigns yet" description="Create one on the Campaigns screen, then link it here." />
+          ) : (
+            <div className="settings-grid">
+              {campaigns.map((campaign) => (
+                <label key={campaign.id} className="check-line">
+                  <input
+                    id={`gtm-link-${campaign.id}`}
+                    type="checkbox"
+                    checked={selected.includes(campaign.id)}
+                    onChange={() => toggle(campaign.id)}
+                  />
+                  <span>{campaign.name} <small className="muted-copy">{campaign.kind}</small></span>
+                </label>
+              ))}
+            </div>
+          )}
           {missing.length ? (
             <p className="danger-note">
               {missing.length} linked campaign(s) no longer exist. Save to drop them.
             </p>
           ) : null}
-          <div className="modal-actions">
-            <Button busy={busy} onClick={save}>Save links</Button>
-          </div>
+          {campaigns.length || missing.length ? (
+            <div className="modal-actions">
+              <Button busy={busy} onClick={save}>Save links</Button>
+            </div>
+          ) : null}
         </>
       )}
     </Panel>
@@ -147,13 +154,18 @@ export default function Product() {
   const items = products.data?.items ?? [];
   const selected = items.find((item) => item.id === selectedId) ?? null;
 
-  // Open the first product once the list arrives. Most owners have one.
+  // Open the first product once, when the list first arrives — most owners
+  // have one. Only once: afterwards an empty selection means "New product",
+  // and reopening the first product would make that button do nothing.
+  const [autoOpened, setAutoOpened] = useState(false);
   useEffect(() => {
+    if (autoOpened || !products.data) return;
+    setAutoOpened(true);
     if (!selectedId && items.length) {
       setSelectedId(items[0].id);
       setDraft(toDraft(items[0]));
     }
-  }, [items, selectedId]);
+  }, [autoOpened, products.data, items, selectedId]);
 
   function set(field: keyof Draft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -285,7 +297,8 @@ export default function Product() {
         </Panel>
       </div>
 
-      <LinkedCampaigns product={selected} />
+      {/* Keyed by product, so boxes ticked and not saved never follow the owner to another product. */}
+      <LinkedCampaigns key={selected?.id ?? "none"} product={selected} />
 
       <Modal
         open={confirmDelete && selected !== null}

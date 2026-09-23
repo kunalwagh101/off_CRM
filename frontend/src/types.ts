@@ -996,7 +996,7 @@ export type GtmPlan = {
   /** The latest review, or null before the first one. */
   review?: GtmReview | null;
   /** What the line's campaigns had already done when this version was applied. */
-  baseline?: { email?: { contacted: number; replied: number } };
+  baseline?: { email?: { campaign_id?: string; contacted: number; replied: number } };
 };
 
 export type GtmNextStep = { page: string; label: string; why: string };
@@ -1039,7 +1039,7 @@ export type GtmReview = {
 
 export type GtmApplyResult = {
   plan: GtmPlan;
-  campaigns: Array<{ kind: string; campaign_id: string; action: "created" | "updated" }>;
+  campaigns: Array<{ kind: string; campaign_id: string; action: "created" | "updated" | "left archived" }>;
   next_steps: GtmNextStep[];
   notes: string[];
 };

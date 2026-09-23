@@ -370,6 +370,13 @@ class GtmStore:
                 (campaign_id, product_id, workspace_id, plan_id, channel, _now()),
             )
 
+    def unlink_campaign(self, campaign_id: str, workspace_id: str) -> None:
+        """Forget a link whose campaign is gone. The product and plans stay."""
+        self.connection.execute(
+            "DELETE FROM gtm_campaign_links WHERE campaign_id = ? AND workspace_id = ?",
+            (campaign_id, workspace_id),
+        )
+
     def plan_links(self, plan_id: str, workspace_id: str) -> list[dict[str, Any]]:
         """The campaigns Apply created for exactly this plan."""
         rows = self.connection.execute(
@@ -408,14 +415,51 @@ class GtmStore:
         return [str(dict(row)["campaign_id"]) for row in rows]
 
     def product_for_campaign(self, campaign_id: str, workspace_id: str) -> dict[str, Any] | None:
-        """The product a campaign speaks for, or ``None``."""
+        """The product a campaign speaks for, or ``None``.
+
+        With ``angle``: how this campaign pitches it — the applied plan's angle
+        for its channel, or the one-liner when no plan made the campaign. It is
+        what posts are written from and what `{product_angle}` fills, so a
+        revision's new angle reaches what is sent.
+        """
         row = self.connection.execute(
             "SELECT p.* FROM gtm_campaign_links l JOIN gtm_products p "
             "ON p.id = l.product_id AND p.workspace_id = l.workspace_id "
             "WHERE l.campaign_id = ? AND l.workspace_id = ?",
             (str(campaign_id or ""), workspace_id),
         ).fetchone()
-        return self._product(row) if row else None
+        if not row:
+            return None
+        product = self._product(row)
+        product["angle"] = self.plan_angle(campaign_id, workspace_id) or product["one_liner"]
+        return product
+
+    def plan_angle(self, campaign_id: str, workspace_id: str) -> str:
+        """The angle the applied version of a campaign's plan gives its channel, or "".
+
+        The version, not the plan that created the campaign: a revision is
+        applied onto the same campaigns, and its angle is the one that counts.
+        """
+        link = self.connection.execute(
+            "SELECT l.channel, p.root_id FROM gtm_campaign_links l JOIN gtm_plans p "
+            "ON p.id = l.plan_id AND p.workspace_id = l.workspace_id "
+            "WHERE l.campaign_id = ? AND l.workspace_id = ?",
+            (str(campaign_id or ""), workspace_id),
+        ).fetchone()
+        if not link:
+            return ""
+        found = dict(link)
+        applied = self.connection.execute(
+            "SELECT plan_json FROM gtm_plans WHERE root_id = ? AND workspace_id = ? "
+            "AND status = 'applied' ORDER BY version DESC LIMIT 1",
+            (found["root_id"], workspace_id),
+        ).fetchone()
+        if not applied:
+            return ""
+        for channel in json.loads(dict(applied)["plan_json"]).get("channels") or []:
+            if channel.get("kind") == found["channel"]:
+                return str(channel.get("angle") or "")
+        return ""
 
     # ── plans (S-12.02.01) ──────────────────────────────────────────────────
 

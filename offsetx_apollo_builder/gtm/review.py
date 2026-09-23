@@ -393,7 +393,10 @@ def _distribution(
                         ("raise_post_rate", "test_new_angle"), numbers)
     if pacing.get("steering") and action == "lower":
         return _finding(measured, "distribution", "ahead_of_target", said, ("hold",), numbers)
-    if action == "hold" and posts < MIN_POSTS_TO_STEER:
+    # "Not enough data" only while there is a live goal to gather it for: the
+    # pacer also holds, with few posts, for a passed deadline or no goal.
+    live_goal = float(pacing.get("days_left") or 0) > 0 and int(pacing.get("shortfall") or 0) > 0
+    if action == "hold" and posts < MIN_POSTS_TO_STEER and live_goal:
         return _finding(measured, "distribution", "insufficient_data", said, ("wait_for_data",), numbers)
     # Holding with the data it needs, or lowering to the owner's cap: about the
     # goal or the cap, not about how the plan is doing. Its reason says what to do.
@@ -743,9 +746,10 @@ def rules_revision(
         elif action == "raise_volume" and channel and "daily_volume" in channel:
             channel["daily_volume"] = math.ceil(int(channel["daily_volume"]) * 1.25)
             changed.append(f"{channel['kind']} volume raised a quarter, to {channel['daily_volume']} a day")
-        elif action == "raise_post_rate" and channel and "daily_volume" in channel:
-            channel["daily_volume"] = int(channel["daily_volume"]) + 1
-            changed.append(f"posting raised to {channel['daily_volume']} a day")
+        elif action == "raise_post_rate":
+            # Posting runs at the rate set on Posting; the plan's posts a day is
+            # read by nothing that posts, so raising it would change nothing.
+            notes.append(f"Posting runs at the rate set on the Posting screen, so raise it there: {label}")
         elif action == "test_new_angle" and channel and proposal:
             channel["angle"] = proposal
             channel["hypothesis"] = "This angle earns more than the last one, which the review found was not landing."

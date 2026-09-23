@@ -206,6 +206,9 @@ def test_apply_returns_next_steps_and_spends_nothing(client, monkeypatch):
         assert step["label"] and step["why"].endswith(".")
     pages = {step["page"] for step in body["next_steps"]}
     assert {"contacts", "drafts", "campaigns"} <= pages
+    # Where the plan's angle reaches an email, said where the owner writes one.
+    drafts = next(step for step in body["next_steps"] if step["page"] == "drafts")
+    assert "{product_angle}" in drafts["why"]
 
     for entry in body["campaigns"]:
         summary = client.app.state.engine.store.campaign_summary(entry["campaign_id"])
@@ -334,8 +337,27 @@ def test_apply_on_an_unknown_or_foreign_plan_is_not_found(tmp_path):
     store.close()
 
 
-def test_state_errors_are_the_store_type():
-    assert issubclass(PlanStateError, RuntimeError)
+def test_a_campaign_is_paused_before_it_is_linked(tmp_path, monkeypatch):
+    """The CRM creates campaigns active. When linking fails after the create, the
+    campaign left behind must already be paused — never quietly running."""
+    crm = FakeCrm()
+    store, service, product = _service(tmp_path, crm)
+    plan = service.draft_plan({"product_id": product["id"], "goal_kind": "replies", "goal_target": 20})
+    real = store.link_campaign
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("database is locked")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(store, "link_campaign", flaky)
+    with pytest.raises(RuntimeError):
+        service.apply_plan(plan["id"])
+    assert len(crm.campaigns) == 1
+    assert all(campaign["status"] == "paused" for campaign in crm.campaigns.values())
+    store.close()
 
 
 def test_apply_refuses_when_the_product_was_deleted(tmp_path):

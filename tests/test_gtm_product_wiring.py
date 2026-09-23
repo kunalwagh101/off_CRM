@@ -446,3 +446,16 @@ def test_every_engine_is_built_with_products():
     assert built, "no OutreachEngine construction found; the test is looking at the wrong file"
     bare = sorted(set(built) - wrapped)
     assert not bare, f"OutreachEngine built without _attach_products at app.py lines {bare}"
+
+
+def test_a_template_can_say_the_angle_and_gets_the_one_liner_without_a_plan(gtm):
+    """`{product_angle}` is the applied plan's angle for this campaign; a campaign
+    linked by hand, with no plan, gets the product's one-liner."""
+    from offsetx_apollo_builder.outreach.email_expert import _product_fields
+
+    product = gtm.create_product("local", product_values())
+    gtm.set_links(product["id"], "local", ["c1"])
+    linked = gtm.product_for_campaign("c1", "local")
+    assert linked["angle"] == product["one_liner"]
+    assert _product_fields(linked)["product_angle"] == product["one_liner"]
+    assert _product_fields(None)["product_angle"] == ""

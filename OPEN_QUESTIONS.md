@@ -296,3 +296,35 @@ campaigns.
 
 **Blast radius if wrong.** Rotating too early burns several domains instead of
 one. Waiting caps daily volume at one identity's safe number for longer.
+
+### Q-25 — May the strategy brain's own numbers reach a model? *(affects `ai/payload.py` shape abstraction)*
+
+**Status:** open. Raised 2026-09-23 by the cold review of `E-12`.
+
+**Ambiguity.** Below the `full` policy the payload builder widens business
+numbers before anything leaves: "20 replies within 30 days" arrives as "some
+engagement within 30 days", and "5 replies from 150 contacted is 3.3%" as "a
+share". It is on by default and no screen turns it off. So the plan, review and
+revise models never see the goal size, the capacity or the measured rate. A
+forbidden claim with a number in it ("100% accuracy") also arrives widened,
+though the code still removes it from anything a model writes.
+
+**Why the brain still works.** All of its arithmetic — volumes, the Wilson
+verdict, what is left of the goal — is code. A model only chooses among the
+remedies each finding permits, and the finding codes and remedy names survive
+the filter; `test_what_the_brain_needs_survives_the_shape_filter` holds that.
+What the model loses is the *size* of the problem, which makes its sentences
+vaguer, not its choices wrong.
+
+**Options.** 1. Keep hiding the numbers (today). 2. Let code-written
+`instructions` for `gtm_*` tasks through unwidened — they are the owner's own
+totals, not a person's data. That is a change to `ai/payload.py`, which the GTM
+work orders may not touch, so it needs your yes.
+
+**Recommended default: 1** until a model's remedies are measured against the
+rules' — then decide on evidence. Shape abstraction exists to keep the business
+strategy from providers, and these numbers are exactly that strategy.
+
+**Blast radius if wrong.** Keeping them hidden makes model-written reasons
+vaguer. Letting them through tells every tier A and B provider your volumes and
+reply rates.

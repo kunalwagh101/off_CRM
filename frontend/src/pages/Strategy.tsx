@@ -294,7 +294,8 @@ export default function Strategy() {
       const result = await api.post<GtmApplyResult>(`/gtm/plans/${plan.id}/apply`, {});
       setApplied(result);
       setConfirming(null);
-      notify(`${result.campaigns.length} campaign(s) ready and paused. Nothing has sent.`, "success");
+      const ready = result.campaigns.filter((item) => item.action !== "left archived").length;
+      notify(`${ready} campaign(s) ready and paused. Nothing has sent.`, "success");
       plans.reload();
     } catch (caught) {
       notify(caught instanceof Error ? caught.message : "The plan could not be applied.", "error");

@@ -437,9 +437,21 @@ def build_prompt() -> str:
     )
 
 
-def product_lines(product: Mapping[str, Any]) -> list[str]:
-    """The product as campaign notes, labelled — the plan and the review share it."""
-    lines = [
+def product_lines(product: Mapping[str, Any], owner_notes: str = "") -> list[str]:
+    """The product as campaign notes, labelled — the plan and the review share it.
+
+    Most important first. The payload builder keeps the first 4,000 characters
+    of campaign notes and a full product runs to about 7,700, so what must never
+    be lost — the claims not to make, and what the owner typed for this plan —
+    leads, and the long lists of proof trail.
+    """
+    lines: list[str] = []
+    claims = product.get("forbidden_claims") or []
+    if claims:
+        lines.append("Never claim: " + "; ".join(str(item) for item in claims))
+    if owner_notes:
+        lines.append(f"Owner notes: {owner_notes}")
+    lines += [
         f"Product: {product.get('name', '')}",
         f"For: {product.get('audience', '')}",
         f"Problem: {product.get('problem', '')}",
@@ -447,8 +459,7 @@ def product_lines(product: Mapping[str, Any]) -> list[str]:
     for label, key in (("Outcome", "outcome"), ("Offer", "offer"), ("Voice", "voice")):
         if product.get(key):
             lines.append(f"{label}: {product[key]}")
-    for label, key in (("Proof", "proof"), ("Different because", "differentiators"),
-                       ("Never claim", "forbidden_claims")):
+    for label, key in (("Proof", "proof"), ("Different because", "differentiators")):
         items = product.get(key) or []
         if items:
             lines.append(f"{label}: " + "; ".join(str(item) for item in items))
@@ -463,9 +474,7 @@ def request_fields(product: Mapping[str, Any], request: PlanRequest, envelope: E
     ``instructions`` holds only code-authored numbers and names, so no policy is
     walked around by putting product text there (DD-41).
     """
-    lines = product_lines(product)
-    if request.notes:
-        lines.append(f"Owner notes: {request.notes}")
+    lines = product_lines(product, request.notes)
 
     platforms = ", ".join(envelope.platforms) or "none connected"
     instructions = "\n".join(
@@ -560,8 +569,13 @@ def _volume(raw: Any, capacity: int, notes: list[str], unit: str) -> int:
     try:
         if isinstance(raw, bool):
             raise TypeError
-        number = int(float(raw))
-    except (TypeError, ValueError):
+        measured = float(raw)
+        # `1e999` and `Infinity` are valid JSON for infinity; `int()` of it
+        # raises OverflowError, which used to reach the owner as a 500.
+        if not math.isfinite(measured):
+            raise ValueError
+        number = int(measured)
+    except (TypeError, ValueError, OverflowError):
         if raw is not None:
             notes.append(f"The model's {unit} a day, {raw!r}, is not a number; used {ceiling}.")
         return ceiling

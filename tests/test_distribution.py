@@ -359,3 +359,57 @@ def test_the_publishing_path_carries_no_transport():
             elif isinstance(node, ast.ImportFrom):
                 imported.add(node.module or "")
         assert not (imported & {"requests", "httpx", "urllib.request"}), (name, imported)
+
+
+def test_a_paused_campaign_publishes_nothing_and_the_post_waits(engine):
+    """Pausing a campaign is the owner saying stop. Publishing used to check the
+    account and never the campaign, so a scheduled post went out anyway — and a
+    plan's Apply, which pauses every campaign it touches, said "nothing has sent"
+    while it did (D-87). The post stays scheduled, so resuming sends it."""
+    status = {"value": "active"}
+    engine.campaign_reader = lambda cid: {"id": cid, "kind": "distribution", "status": status["value"]}
+    account = engine.connect_account(platform="local_outbox", handle="@depot")
+    post = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="held")
+    engine.approve(post["id"])
+    engine.schedule(post["id"], at=datetime.now(timezone.utc) - timedelta(minutes=1))
+
+    for stopped in ("paused", "archived"):
+        status["value"] = stopped
+        result = engine.publish_due()
+        assert (result.published, result.skipped) == (0, 1)
+        assert stopped in result.details[0]["detail"]
+        assert engine.store.get_post(post["id"])["status"] == "scheduled"
+
+    status["value"] = "active"
+    assert engine.publish_due().published == 1
+
+
+def test_a_post_for_a_campaign_that_no_longer_exists_is_not_published(engine):
+    account = engine.connect_account(platform="local_outbox", handle="@depot")
+    post = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="orphan")
+    engine.approve(post["id"])
+    engine.schedule(post["id"], at=datetime.now(timezone.utc) - timedelta(minutes=1))
+
+    def gone(cid):
+        raise KeyError(f"Campaign not found: {cid}")
+
+    engine.campaign_reader = gone
+    result = engine.publish_due()
+    assert (result.published, result.skipped) == (0, 1)
+    assert "no longer exists" in result.details[0]["detail"]
+
+
+def test_a_campaign_that_cannot_be_read_holds_its_posts_and_the_round_goes_on(engine):
+    """Fail closed, and never let one campaign cost the round."""
+    account = engine.connect_account(platform="local_outbox", handle="@depot")
+    post = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="unknown state")
+    engine.approve(post["id"])
+    engine.schedule(post["id"], at=datetime.now(timezone.utc) - timedelta(minutes=1))
+
+    def broken(cid):
+        raise RuntimeError("database is locked")
+
+    engine.campaign_reader = broken
+    result = engine.publish_due()
+    assert (result.published, result.skipped) == (0, 1)
+    assert "could not be read" in result.details[0]["detail"]

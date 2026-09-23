@@ -472,6 +472,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             angle_resolver=lambda campaign_id, declared: resolve_angle(
                 app.state.gtm_store, _workspace_id(_TimerScope(app)), campaign_id, declared
             ),
+            campaign_status=lambda campaign_id: str(
+                _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
+            ),
         )
         await app.state.automation.start()
         await app.state.content_automation.start()

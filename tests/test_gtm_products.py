@@ -295,9 +295,9 @@ def test_http_refusals_are_sentences_not_stack_traces(client):
 #: Nothing in `gtm` may reach a provider, the broker or the network. `ask` is
 #: injected, the way the video director's is.
 FORBIDDEN_IMPORTS = (
-    "offsetx_apollo_builder.ai.broker",
-    "offsetx_apollo_builder.ai.registry",
-    "offsetx_apollo_builder.ai.payload",
+    # All of ai/, not three modules of it: `ai/__init__` imports the broker, so
+    # importing anything under `ai` loads it.
+    "offsetx_apollo_builder.ai",
     "offsetx_apollo_builder.outreach.providers",
     "offsetx_apollo_builder.outreach.provider_profiles",
     "offsetx_apollo_builder.apollo_client",
@@ -333,6 +333,24 @@ def test_gtm_owns_no_transport():
         for forbidden in FORBIDDEN_IMPORTS:
             hits = [name for name in imported if name == forbidden or name.startswith(forbidden + ".")]
             assert not hits, f"{module.name} imports {hits}; gtm must stay transport-free"
+
+
+def test_nothing_gtm_loads_reaches_a_model_or_the_network():
+    """The AST walk sees only direct imports. This loads the package in a clean
+    interpreter and looks at everything that came with it."""
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys\n"
+        "import offsetx_apollo_builder.gtm.service, offsetx_apollo_builder.gtm.review\n"
+        "bad = sorted(m for m in sys.modules if m == 'offsetx_apollo_builder.ai' "
+        "or m.startswith('offsetx_apollo_builder.ai.') or m in ('httpx', 'requests', "
+        "'urllib.request', 'offsetx_apollo_builder.apollo_client'))\n"
+        "print(','.join(bad))\n"
+    )
+    loaded = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+    assert loaded.stdout.strip() == ""
 
 
 def test_products_module_is_pure():

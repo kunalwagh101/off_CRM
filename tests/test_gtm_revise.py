@@ -308,6 +308,143 @@ def test_the_rules_revision_halves_volume_when_delivery_is_unhealthy(tmp_path):
     assert any("delivery" in note for note in revision["notes"])
 
 
+def test_a_revised_angle_reaches_the_posts_and_the_emails(tmp_path):
+    """A copy remedy that changes nothing that is sent is not a remedy. The
+    applied version's angle is what posts are written from and what a template's
+    `{product_angle}` says; a draft changes nothing until it is applied."""
+    from offsetx_apollo_builder.api.gtm import resolve_angle
+
+    world, service, plan = applied_line(tmp_path, accounts=[YOUTUBE], model=True)
+    kinds = {c["kind"]: cid for cid, c in world.campaigns.items()}
+    first = {c["kind"]: c["angle"] for c in plan["plan"]["channels"]}
+    assert resolve_angle(service.store, "w", kinds["distribution"], "") == first["distribution"]
+    assert service.store.product_for_campaign(kinds["email"], "w")["angle"] == first["email"]
+
+    reviewed(world, service, plan, contacted=100, replied=1)
+    world.replies.append(model_revision("email", "distribution"))
+    revision = service.revise_plan(plan["id"], {"use_model": True}, now=day(plan, 12))
+    assert resolve_angle(service.store, "w", kinds["distribution"], "") == first["distribution"]
+
+    service.apply_plan(revision["id"])
+    assert resolve_angle(service.store, "w", kinds["distribution"], "") == "a"
+    assert service.store.product_for_campaign(kinds["email"], "w")["angle"] == \
+        "Lead with the overbilling number."
+    # The owner's own angle still wins over the plan's.
+    assert resolve_angle(service.store, "w", kinds["distribution"], "mine") == "mine"
+
+
+def test_the_rules_revision_leaves_the_posting_rate_to_the_posting_screen(tmp_path):
+    """Posting runs at the rate set on Posting; a plan's posts-a-day is read by
+    nothing that posts. Raising it in the plan would be a change that changes
+    nothing, so the remedy is named as the screen action it is."""
+    world, service, plan = applied_line(tmp_path, goal_kind="views", accounts=[YOUTUBE])
+    reviewed(world, service, plan, contacted=0, replied=0, days=5)
+    review = service.store.latest_review(plan["id"], "w")
+    service.store.create_review(
+        plan["id"], "w", measurements=review["measurements"], findings=review["findings"],
+        remedies=[{"channel": "distribution", "action": "raise_post_rate", "why": "Behind.",
+                   "proposal": ""}],
+        summary="", notes=[], source="rules")
+    before = next(c for c in plan["plan"]["channels"] if c["kind"] == "distribution")["daily_volume"]
+    revision = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 5))
+    after = next(c for c in revision["plan"]["channels"] if c["kind"] == "distribution")["daily_volume"]
+    assert after == before
+    assert any("Posting" in note for note in revision["notes"])
+
+
+# ── a line survives what the owner does to its campaigns ────────────────────
+
+
+def test_a_deleted_campaign_is_made_again_when_the_revision_is_applied(tmp_path):
+    """Restoring a backup replaces the CRM and not the plans, so a link can point
+    at nothing. The review says revising creates it again; it must."""
+    world, service, plan = applied_line(tmp_path)
+    old = next(cid for cid, c in world.campaigns.items() if c["kind"] == "email")
+    del world.campaigns[old]
+    review = service.review_plan(plan["id"], {"use_model": False}, now=day(plan, 5))
+    assert next(f for f in review["findings"] if f["channel"] == "email")["code"] == "no_campaign"
+
+    revision = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 5))
+    result = service.apply_plan(revision["id"])
+    email = next(item for item in result["campaigns"] if item["kind"] == "email")
+    assert email["action"] == "created" and email["campaign_id"] != old
+    assert world.campaigns[email["campaign_id"]]["status"] == "paused"
+    assert service.store.line_links(plan["root_id"], "w")["email"] == email["campaign_id"]
+    assert any("no longer exists" in note for note in result["notes"])
+
+
+def test_apply_leaves_an_archived_campaign_archived(tmp_path):
+    """Archiving is the owner's decision. Apply pausing it would quietly bring
+    back a campaign they put away."""
+    world, service, plan = applied_line(tmp_path, accounts=[YOUTUBE], model=True)
+    kinds = {c["kind"]: cid for cid, c in world.campaigns.items()}
+    world.campaigns[kinds["image"]]["status"] = "archived"
+    world.campaigns[kinds["email"]]["status"] = "archived"
+    reviewed(world, service, plan, contacted=0, replied=0, days=5)
+    world.replies.append(model_revision("email", "distribution"))  # drops pictures
+    revision = service.revise_plan(plan["id"], {"use_model": True}, now=day(plan, 5))
+    result = service.apply_plan(revision["id"])
+    assert world.campaigns[kinds["image"]]["status"] == "archived"
+    assert world.campaigns[kinds["email"]]["status"] == "archived"
+    assert any("archived" in note for note in result["notes"])
+
+
+def test_an_older_draft_cannot_replace_a_newer_applied_version(tmp_path):
+    world, service, plan = applied_line(tmp_path)
+    reviewed(world, service, plan, contacted=100, replied=2, days=5)
+    second = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 5))
+    third = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 5))
+    service.apply_plan(third["id"])
+    with pytest.raises(PlanStateError) as refused:
+        service.apply_plan(second["id"])
+    assert "version 3" in str(refused.value).lower()
+    assert service.get_plan(third["id"])["status"] == "applied"
+
+
+def test_replies_between_a_review_and_the_next_apply_count_for_the_next_version(tmp_path):
+    """The next version aims for what was left at the review, so it counts from
+    the review — not from when it happened to be applied, which lost the replies
+    in between from both versions."""
+    world, service, plan = applied_line(tmp_path, target=20)
+    reviewed(world, service, plan, contacted=100, replied=5, days=10)
+    revision = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 10))
+    assert revision["request"]["goal_target"] == 15
+    world.sent(120, 8)  # three more replies arrive before the revision is applied
+    service.apply_plan(revision["id"])
+    for campaign in world.campaigns.values():
+        campaign["status"] = "active"
+    world.sent(200, 20)
+    review = service.review_plan(revision["id"], {"use_model": False}, now=day(plan, 20))
+    email = next(item for item in review["measurements"] if item["channel"] == "email")
+    assert email["replied"] == 15
+
+
+def test_a_first_version_counts_every_send_even_after_a_resumed_apply(tmp_path, monkeypatch):
+    """A first version's campaigns are new, so it has nothing to subtract — even
+    when its apply failed half way, sends happened, and it was applied again."""
+    world = World()
+    store = GtmStore(tmp_path / "gtm.db")
+    service = world.service(store, accounts=[YOUTUBE])  # three channels, so a second link
+    product = store.create_product("w", PRODUCT)
+    plan = service.draft_plan({"product_id": product["id"], "goal_kind": "replies",
+                               "goal_target": 20, "use_model": False})
+    real = store.link_campaign
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("database is locked")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(store, "link_campaign", flaky)
+    world.sent(40, 2)
+    with pytest.raises(RuntimeError):
+        service.apply_plan(plan["id"])
+    service.apply_plan(plan["id"])
+    assert service.get_plan(plan["id"])["baseline"] == {}
+
+
 # ── over HTTP ───────────────────────────────────────────────────────────────
 
 

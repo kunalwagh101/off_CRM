@@ -250,6 +250,9 @@ def _product_fields(product: dict[str, Any] | None) -> dict[str, str]:
     return {
         "product_name": clean_text(product.get("name")),
         "product_one_liner": clean_text(product.get("one_liner")),
+        # How this campaign pitches the product: its applied plan's angle, else
+        # the one-liner. A revision's new angle arrives here (S-12.02.04).
+        "product_angle": clean_text(product.get("angle") or product.get("one_liner")),
         "product_problem": clean_text(product.get("problem")),
         "product_outcome": clean_text(product.get("outcome")),
         "product_offer": clean_text(product.get("offer")),

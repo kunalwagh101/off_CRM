@@ -34,7 +34,8 @@ MAX_LINKS = 200
 
 
 def resolve_angle(store: GtmStore, workspace_id: str, campaign_id: str, explicit: str) -> str:
-    """The angle a post pipeline runs with: the owner's, else the product's.
+    """The angle a post pipeline runs with: the owner's, else the applied plan's
+    angle for this campaign, else the product's one-liner.
 
     One rule for the HTTP endpoints and the automation timer. It must run
     **before** the pipeline is built, because the pipeline chooses its data
@@ -45,7 +46,8 @@ def resolve_angle(store: GtmStore, workspace_id: str, campaign_id: str, explicit
     if chosen:
         return chosen
     product = store.product_for_campaign(campaign_id, workspace_id)
-    return str(product["one_liner"]) if product else ""
+    # The applied plan's angle for this campaign, else the one-liner.
+    return str(product["angle"]) if product else ""
 
 
 def _store(request: Request) -> GtmStore:
@@ -189,7 +191,17 @@ def build_gtm_router(
                     "message": f"{len(ids)} campaigns is more than {MAX_LINKS} in one list.",
                 },
             )
+        store, workspace = _store(request), workspace_of(request)
+        # Only a new link must name a real campaign. One already linked may
+        # point at a campaign deleted since (a restored backup does this);
+        # refusing the whole save over it would leave the owner no way out.
+        try:
+            already = set(store.linked_campaigns(product_id, workspace))
+        except KeyError as exc:
+            raise _not_found(exc) from exc
         for campaign_id in ids:
+            if campaign_id in already:
+                continue
             try:
                 campaign_of(request, campaign_id)
             except KeyError:
@@ -200,7 +212,6 @@ def build_gtm_router(
                         "message": f"There is no campaign {campaign_id!r}. Nothing was linked.",
                     },
                 ) from None
-        store, workspace = _store(request), workspace_of(request)
         try:
             linked = store.set_links(product_id, workspace, ids)
         except KeyError as exc:

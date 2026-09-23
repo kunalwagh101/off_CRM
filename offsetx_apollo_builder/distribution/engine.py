@@ -94,6 +94,26 @@ class DistributionEngine:
         self.workspace_id = workspace_id
         self._lock = threading.RLock()
 
+    def _stopped(self, campaign_id: str, seen: dict[str, str]) -> str:
+        """Why a campaign's posts may not go out now, or "" when they may.
+
+        Read once per campaign per round. A row with no status predates the
+        column and is treated as running, as it always was.
+        """
+        if campaign_id not in seen:
+            if self.campaign_reader is None:
+                seen[campaign_id] = ""
+            else:
+                try:
+                    status = str(self.campaign_reader(campaign_id).get("status") or "active")
+                except KeyError:
+                    seen[campaign_id] = "campaign no longer exists"
+                except Exception as exc:  # noqa: BLE001 - fail closed, and the round goes on
+                    seen[campaign_id] = f"campaign could not be read: {str(exc)[:120]}"
+                else:
+                    seen[campaign_id] = "" if status == "active" else f"campaign {status}"
+        return seen[campaign_id]
+
     def _require_own_kind(self, campaign_id: str, action: str) -> None:
         """The third runner to carry this check, for the same reason as the others."""
         if self.campaign_reader is None:
@@ -218,7 +238,17 @@ class DistributionEngine:
         round_result = PublishRound()
 
         with self._lock:
+            stopped: dict[str, str] = {}
             for post in self.store.due_posts(now=moment, limit=limit):
+                # A paused campaign is the owner saying stop, so its posts wait
+                # — still scheduled, and sent once it is resumed (D-87).
+                reason = self._stopped(str(post["campaign_id"]), stopped)
+                if reason:
+                    round_result.skipped += 1
+                    round_result.details.append(
+                        {"post_id": post["id"], "status": "skipped", "detail": reason}
+                    )
+                    continue
                 account = self.store.get_account(str(post["account_id"]))
                 if not int(account.get("enabled") or 0):
                     round_result.skipped += 1

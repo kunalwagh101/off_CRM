@@ -294,6 +294,14 @@ The request: `task_type="gtm_plan"`, data class `campaign`,
 `positioning_line = one_liner`, `campaign_notes = product details + owner notes`,
 `instructions = goal + capacity numbers + allowed channels` (code-authored).
 
+**Campaign notes lead with what must not be lost** (`D-93`): "Never claim", then
+the owner's notes, then the product, with proof and differentiators last. The
+payload keeps only the first 4,000 characters, and a full product runs to about
+7,700. **Below `full`, numbers are widened** before they leave — "20 replies"
+becomes "some engagement" — so a model sees the goal's shape, not its size. The
+brain's arithmetic is all in code, so this costs vaguer sentences, not wrong
+choices; whether to let these numbers through is the owner's call (`Q-25`).
+
 ```json
 {
   "summary": "one or two sentences",
@@ -373,7 +381,9 @@ gap would be a business rule nobody gave.
 `POST /gtm/plans/{id}/apply`. Only a `draft` may be applied.
 
 - **First version:** one campaign per channel through `create_campaign()`, then
-  `update_campaign(status="paused")`. Email campaigns get `daily_send_limit`,
+  `update_campaign(status="paused")` **before it is linked** — the CRM creates
+  campaigns active, so a link that fails must leave nothing running (`D-91`).
+  Email campaigns get `daily_send_limit`,
   window, weekdays, timezone, `experiment_hypothesis` and
   `approval_mode="each_message"`. A `views` goal on a distribution channel also
   gets `set_goal(metric="views", target, deadline)`. Each campaign is linked to
@@ -381,7 +391,16 @@ gap would be a business rule nobody gave.
 - **A later version:** the campaigns linked to the root plan are **updated**, not
   duplicated — same contacts, same history. A channel new in this version is
   created; a channel dropped is paused, never deleted. The previous applied
-  version becomes `superseded`.
+  version becomes `superseded`. An older draft cannot replace a newer applied
+  version (`D-96`).
+- **What the owner did to the campaigns stands.** A linked campaign that no
+  longer exists in the CRM (a restored backup does this) is unlinked and made
+  again, with a note (`D-90`). An **archived** campaign is never changed — not
+  paused, not run — and the note says how to bring it back (`DD-58`).
+- **Paused means paused for posting too.** `publish_due` skips a paused
+  campaign's posts, which stay scheduled, and content automation makes nothing
+  for a paused pair (`DD-57`, `D-87`). Before this, Apply's "nothing has sent"
+  held for email only.
 - The response carries a **next-steps list**, each item naming the existing
   screen that does it (`#discovery`, `#contacts`, `#deliverability`, `#drafts`,
   `#campaigns`, `#posting`). Apply spends no Apollo credits and imports nobody.
@@ -445,7 +464,7 @@ arithmetic:
 | 6 | `on_track` | pacing action `on_pace` (on pace, or the goal met) | `hold` |
 | 7 | `behind_target` | pacing action `raise`, and the pacer is steering | `raise_post_rate`, `test_new_angle` |
 | 8 | `ahead_of_target` | pacing action `lower`, and the pacer is steering | `hold` |
-| 9 | `insufficient_data` | pacing action `hold` below `MIN_POSTS_TO_STEER` measured posts | `wait_for_data` |
+| 9 | `insufficient_data` | pacing action `hold` below `MIN_POSTS_TO_STEER` measured posts, with a live goal (days left and views short) | `wait_for_data` |
 | 10 | `pacer_idle` | anything else — a hold for the goal's own reasons, or a cut to the owner's cap | — |
 
 **Why the pacer's `steering` flag is read, not only its action** (`DD-50`,
@@ -506,21 +525,29 @@ version dropped, and supersedes the old version (§7).
 | Same deadline | the window has 7+ days left and the goal is not met | `horizon_days` = days left; for replies, `goal_target` = what is left of it |
 | New window | ended, under 7 days left, or goal met | the first version's `goal_target` and `horizon_days`, from today |
 
-**Counted per version** (`DD-53`). When a version is applied onto campaigns that
-already exist, Apply records what they had already done (`gtm_plans.baseline_json`:
-contacted and replied on email). Its review subtracts that, so version 2's rate
-is version 2's sends — replies to the old angle are not evidence about the new
-one — and "what is left of the goal" never counts a reply twice. The baseline is
-written once: a resumed apply does not move it.
+**Counted per version** (`DD-53`, `DD-56`). A revision records, from the review
+it is written from, what its email campaign had already done
+(`gtm_plans.baseline_json`: the campaign, contacted and replied). Its review
+subtracts that, so version 2's rate is version 2's sends — replies to the old
+angle are not evidence about the new one — and "what is left of the goal" never
+counts a reply twice or loses one that arrived before the Apply (`D-95`). A
+first version has no baseline: its campaigns are new. A baseline names its
+campaign, so a campaign made again after it vanished starts from zero.
+
+**The angle reaches what is sent** (`DD-55`). Posts are written from the
+applied version's angle for their campaign, and an email template that says
+`{product_angle}` gets the same; with no plan behind a campaign both fall back
+to the one-liner. A draft changes nothing until it is applied.
 
 **Written with the review in view.** A model is told the findings (numbers, in
 `instructions`) and the chosen remedies' reasons and proposals (possibly its own
 words about the product, so campaign notes). With no model, `rules_revision`
 starts from the last version — not from a fresh rules plan — and changes what
-rules can: delivery unhealthy halves the email volume, ahead raises it a
-quarter, posting behind adds one post a day, and a review's proposal for a new
-angle or a narrower audience is adopted (it was already checked for forbidden
-claims). A remedy that needs words the review did not supply is left to the
+rules can: delivery unhealthy halves the email volume (`D-85`), ahead raises it
+a quarter, and a review's proposal for a new angle or a narrower audience is
+adopted (it was already checked for forbidden claims). Posting behind is named
+as a Posting-screen action, because the plan's posts a day is read by nothing
+that posts (`D-97`). A remedy that needs words the review did not supply is left to the
 owner, with a note. Everything then goes through `normalise_plan` again, so a
 revision is clamped to what is connected *today*.
 

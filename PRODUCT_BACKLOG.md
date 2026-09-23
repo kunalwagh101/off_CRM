@@ -1429,7 +1429,10 @@ approves a post.
   approve or skip it there.
 - **Given** a paused campaign in a declared pair, **when** content automation
   runs, **then** it makes nothing for that pair — pairing at Apply must not
-  spend image credits on a plan nobody has started.
+  spend image credits on a plan nobody has started. *(Done early for `D-87`.)*
+- **Given** a plan's posts a day, **when** its posting runs, **then** that is
+  the rate the pacer starts from, so the number the plan shows is the number
+  that posts (`D-97`).
 - **Dependencies:** S-12.02.02. **Size:** M. **Indicator:** plans with a views
   goal that publish a first post.
 

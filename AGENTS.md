@@ -68,8 +68,8 @@ why, and the open questions for the owner.
 
 Design documents live in `docs/architecture/`.
 
-**What to work on next: `docs/work-orders/README.md`.** Every open item, tagged
-by kind, status and size, with a work order to follow. Pull only READY items.
+**What to work on next: `BOARD.md`.** Pull only a READY item; each carries a
+`work_order:` line naming the plan to follow, in `docs/work-orders/`.
 
 **Two logs are kept, and both are enforced by `scripts/verify_board.py`:**
 

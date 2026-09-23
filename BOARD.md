@@ -10,7 +10,15 @@ is not in this file, it did not happen.
 ```
 
 `DONE` items carry an indented evidence block. `BLOCKED` items carry an
-indented `blocked: <Q-nn or a named external dependency>`.
+indented `blocked: <Q-nn or a named external dependency>`. An item with a build
+plan carries an indented `work_order: <path>` — the file an implementer follows
+without asking. An open item with none needs its work order written before
+anyone pulls it.
+
+**Pulling an item.** Only from READY. Read its work order to the end, then its
+story in `PRODUCT_BACKLOG.md`. Write the test first and watch it fail. Run the
+gates in `AGENTS.md`; log defects and design calls; push to `develop`. It
+reaches DONE only with the evidence block `DEFINITION_OF_DONE.md` describes.
 
 **WIP limit: `IN_PROGRESS` ≤ 2.** Nothing is pulled while an item sits in
 `IN_PROGRESS` or `BLOCKED`.
@@ -38,7 +46,9 @@ so every story below could be pulled; none is, because the owner asked for Phase
 the owner said they will source. `S-06.02.20` is the fix for `D-80`.)*
 
 - S-12.01.03 · The video director uses the product
+  work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
+  work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
 - S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
 
 *(Filed 2026-09-22 for `D-82`, found while building the review: a plan's posting
@@ -46,6 +56,7 @@ channel cannot reach a published post from the screens. Not pulled — it is the
 posting screens' work, and the owner asked for Phase 1 and 2.)*
 
 - S-12.02.06 · A plan's posting channel runs from the screens
+  work_order: docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md
 
 *(Split 2026-09-23 from `S-06.02.23`: the audit's live harness waits for CI
 runners. The per-finding re-check itself is READY.)*
@@ -56,17 +67,21 @@ runners. The per-finding re-check itself is READY.)*
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
 - S-06.02.26 · CI runs the suite on every Python the package supports
+  work_order: docs/work-orders/S-06.02.26-python-matrix.md
 
 ## READY
 
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the
 remaining work to be written down, not built: each item below has a work order
-an implementer can follow without asking — `docs/work-orders/README.md` is the
-index. `S-06.02.24` is `D-134` and `D-138`; `S-06.02.25` is `D-137`.)*
+an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
+`S-06.02.25` is `D-137`.)*
 
 - S-06.02.24 · Every process that writes the workspace holds its lease
+  work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
 - S-06.02.25 · Every screen opens at its top, its warnings in view
+  work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
+  work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
@@ -99,7 +114,9 @@ the owner can take.)*
 write the code, then the evidence block.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
+  work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 - S-06.02.22 · A created or selected campaign stays the active workspace
+  work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader
@@ -123,6 +140,7 @@ write the code, then the evidence block.)*
 
 - S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
   blocked: Q-27 — built only if the owner chooses option 2, workspace-owned CRM rows (`D-135`).
+  design: docs/architecture/CRM_TENANCY.md
 
 - S-06.02.18 · Restore executable CI runner capacity
   blocked: external — GitHub-hosted `ubuntu-latest` jobs are created but fail before runner allocation with zero steps/no logs. Owner must inspect Actions billing/budgets/payment state and repository Actions policy; if those are clean, GitHub Support must resolve hosted-runner provisioning.

@@ -3,8 +3,8 @@
 ## Unreleased
 
 - **The remaining work, planned for handoff** (2026-09-23). No code: every open
-  item is on the board with a work order an implementer can follow —
-  `docs/work-orders/README.md` is the index. New: work orders for seven stories
+  item is on `BOARD.md` with a `work_order:` line naming the plan an
+  implementer follows. New: work orders for seven stories
   and the close-out of `S-06.02.21`/`S-06.02.22`; the CRM tenancy design for
   `S-06.01.06`, ready for the owner's answer to `Q-27`; stories `S-06.02.25`,
   `S-06.02.26`, `S-06.02.27`; defects `D-137`, `D-138`.

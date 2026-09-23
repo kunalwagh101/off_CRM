@@ -43,9 +43,8 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 ## 2026-09-23 — the handoff: the remaining work is written down, not built
 
 The owner asked to stop building and to leave the rest as planned features, for
-an implementer to build from. `docs/work-orders/README.md` is the index: every
-open item on the board, tagged by kind (build, review, owner, external), status
-and size, each with a work order or a note of what it waits for.
+an implementer to build from. `BOARD.md` stays the one list: each item that
+has a build plan carries a `work_order:` line pointing into `docs/work-orders/`.
 
 New from this handoff: work orders for `S-06.02.24`, `S-06.02.25`,
 `S-06.02.23`, `S-06.02.26`, `S-12.01.03`, `S-12.02.05`, `S-12.02.06` and the

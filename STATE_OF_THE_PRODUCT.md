@@ -120,8 +120,8 @@ Therefore their correct state is **IN_REVIEW**.
 ## Next work
 
 **The remaining work is written down, not built** (the owner's instruction,
-2026-09-23): `docs/work-orders/README.md` lists every open item with its tags
-and its work order. Three are READY: `S-06.02.24`, `S-06.02.25` and
+2026-09-23): each open item on `BOARD.md` carries a `work_order:` line naming
+the plan to follow. Three are READY: `S-06.02.24`, `S-06.02.25` and
 `S-06.02.23`. Three more are planned and can follow: `S-12.01.03`,
 `S-12.02.06`, `S-12.02.05`.
 

@@ -1630,6 +1630,10 @@ can make are not taken on trust.
   never run against `develop` — target zero.
 - **Why:** split from `S-06.02.23` on 2026-09-23; `DD-37` is why the harness was
   not ported with the rest.
+- **Where the harness is:** after the owner's branch clean-up, the tag
+  `archive/integration/main-consolidation` (fetch tags with
+  `git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'`); before it, the
+  branch itself, or pull request #14's ref (`git fetch origin pull/14/head`).
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that

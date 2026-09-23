@@ -47,17 +47,26 @@ posting screens' work, and the owner asked for Phase 1 and 2.)*
 
 - S-12.02.06 · A plan's posting channel runs from the screens
 
-*(Filed 2026-09-23 at the consolidation: most of the 7 September audit's findings
-were never re-run against this line. `D-121` and `D-122` wait here.)*
+*(Split 2026-09-23 from `S-06.02.23`: the audit's live harness waits for CI
+runners. The per-finding re-check itself is READY.)*
 
-- S-06.02.23 · Re-check the 7 September production audit on `develop`
+- S-06.02.27 · The audit's live harness runs against `develop`
 
-*(Filed 2026-09-23 by the cold review of `develop`: `D-134`. Its sibling,
-`S-06.01.06`, waits on the owner in BLOCKED.)*
+*(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
+Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
-- S-06.02.24 · Every process that writes the workspace holds its lease
+- S-06.02.26 · CI runs the suite on every Python the package supports
 
 ## READY
+
+*(2026-09-23 — the handoff after the consolidation. The owner asked for the
+remaining work to be written down, not built: each item below has a work order
+an implementer can follow without asking — `docs/work-orders/README.md` is the
+index. `S-06.02.24` is `D-134` and `D-138`; `S-06.02.25` is `D-137`.)*
+
+- S-06.02.24 · Every process that writes the workspace holds its lease
+- S-06.02.25 · Every screen opens at its top, its warnings in view
+- S-06.02.23 · Re-check the 7 September production audit on `develop`
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the

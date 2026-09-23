@@ -13,7 +13,7 @@ Implementation in IN_REVIEW is not DONE evidence.
 | DONE | 61 | built, tested, evidence recorded and re-runnable |
 | IN_PROGRESS | 0 | nothing is being built right now |
 | IN_REVIEW | 16 | code and passing tests exist; an independent review (and for some, an owner pass) is pending |
-| READY | 0 | nothing is waiting to be pulled |
+| READY | 3 | work orders written; an implementer can pull them now |
 | BACKLOG | 15 | written down, not started |
 | BLOCKED | 6 | waiting on something only the owner or an outside party can do: the old branches' deletion (`S-06.02.19`), a decision (`Q-27`), CI runners, YouTube, platform reviews |
 
@@ -119,7 +119,13 @@ Therefore their correct state is **IN_REVIEW**.
 
 ## Next work
 
-Nothing is READY. First, three things only the owner can do:
+**The remaining work is written down, not built** (the owner's instruction,
+2026-09-23): `docs/work-orders/README.md` lists every open item with its tags
+and its work order. Three are READY: `S-06.02.24`, `S-06.02.25` and
+`S-06.02.23`. Three more are planned and can follow: `S-12.01.03`,
+`S-12.02.06`, `S-12.02.05`.
+
+First, three things only the owner can do:
 
 - run `bash scripts/archive_old_branches.sh --delete` (above);
 - answer `Q-27` — does each workspace get its own campaigns and contacts?

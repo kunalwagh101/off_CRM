@@ -40,6 +40,20 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
 
+## 2026-09-23 — the handoff: the remaining work is written down, not built
+
+The owner asked to stop building and to leave the rest as planned features, for
+an implementer to build from. `docs/work-orders/README.md` is the index: every
+open item on the board, tagged by kind (build, review, owner, external), status
+and size, each with a work order or a note of what it waits for.
+
+New from this handoff: work orders for `S-06.02.24`, `S-06.02.25`,
+`S-06.02.23`, `S-06.02.26`, `S-12.01.03`, `S-12.02.05`, `S-12.02.06` and the
+close-out of `S-06.02.21`/`S-06.02.22`; the tenancy design for `S-06.01.06`
+(`docs/architecture/CRM_TENANCY.md`); new stories `S-06.02.25` (`D-137`),
+`S-06.02.26` and `S-06.02.27` (split from `S-06.02.23`); defects `D-137` and
+`D-138`, both open with their stories. No code changed in this step.
+
 ## 2026-09-23 — the cold review of `develop`: ten defects, fixed
 
 A reviewer in a fresh context read the consolidation's own code — the WP1

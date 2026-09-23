@@ -600,6 +600,8 @@ that** one client's customers and product text never reach another's login.
 - **Why:** `D-135`. Workspace isolation (`S-06.01.01`) covered credentials, AI
   settings and products; the CRM stayed install-wide, so a draft written from
   one workspace's private product can be read from every login.
+- **Design:** `docs/architecture/CRM_TENANCY.md` — ready for the day `Q-27` is
+  answered with option 2; nothing is built before then.
 
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
@@ -848,6 +850,9 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-141 | A plan's posting channel runs from the screens: paired, switched on and approved there | S-12.02.06 |
 | R-150 | A workspace's campaigns, contacts, drafts and templates are its own, if the owner chooses that (`Q-27`) | S-06.01.06 |
 | R-151 | Every process that writes the workspace holds the lease a restore waits for | S-06.02.24 |
+| R-152 | Every screen opens at its top, with its warnings in view | S-06.02.25 |
+| R-153 | Every Python version the package supports, and the image's, runs the suite in CI | S-06.02.26 |
+| R-154 | The audit's live harness runs against the branch that deploys | S-06.02.27 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1548,18 +1553,17 @@ worked on again and a finding still open is not assumed fixed.
   reproduction from `docs/audits/2026-09-07-production-audit.md` is run against
   `develop`, **then** it becomes a test that fails while the finding holds — or
   the finding is closed with the test that shows it no longer does.
-- **Given** the audit's live harness (`verification/` on the archived
-  `integration/main-consolidation`), **when** it can run — CI runners
-  (`S-06.02.18`) or a trusted machine with Docker, Chrome and PostgreSQL —
-  **then** it runs against `develop` and its results are recorded, skips counted
-  as failures.
-- **Dependencies:** none for the per-finding checks; `S-06.02.18` for the
-  hosted harness run. **Size:** L. **Indicator:** audit findings with unknown
-  status on `develop` — target zero.
+- **Dependencies:** none. **Size:** L. **Indicator:** audit findings with
+  unknown status on `develop` — target zero.
+- **Split 2026-09-23:** the live-harness criterion moved to `S-06.02.27`, so the
+  per-finding checks, which need nothing, are not held behind CI runners. A
+  finding that still holds is not left as a failing test in the suite: it gets a
+  `D-nnn` row and a story whose fix starts from that test. Work order:
+  `docs/work-orders/S-06.02.23-audit-recheck.md`.
 - **Why:** the audit ran on `main` at `9f71f3c`. The consolidation closed A01–A04
   and A17 (`S-06.02.21`), A26 (the image now installs the lock with its extras)
   and A35 (`D-120`); A33 is `S-06.02.22`; A31 is `S-06.02.16`. A32 and A34 were
-  re-read in the code and are still open (`D-121`, `D-122`). The other 25 were
+  re-read in the code and are still open (`D-121`, `D-122`). The other 24 were
   found on a branch that `develop` has since changed a great deal — several
   (A05 identity, A06 logout, A09 Enter, A10 spend cap, A18 claim numbers, A19
   formulas, A24 deletion) are what later stories set out to fix — but none was
@@ -1580,7 +1584,52 @@ is lost with the generation it swaps out.
   **then** it refuses, as the email worker does (`D-129`).
 - **Dependencies:** none. **Size:** S. **Indicator:** processes that write the
   workspace without its lease — target zero.
-- **Why:** `D-134`, found while fixing the cold review's findings on `develop`.
+- **Why:** `D-134` and `D-138`, found while fixing the cold review's findings on
+  `develop`. Work order: `docs/work-orders/S-06.02.24-workspace-lease-for-clis.md`.
+
+#### S-06.02.25 — Every screen opens at its top, its warnings in view
+**As an** owner, **I want** a screen to open at its top, with any warning above
+it in view, **so that** I see why work is blocked instead of a page scrolled
+past its own error.
+- **Given** any screen opened from the navigation, **when** it has rendered,
+  **then** its title and first panel are fully visible below the top bar, at
+  desktop and phone widths.
+- **Given** the campaign list failing, **when** a screen opens, **then** the
+  "Could not refresh campaigns" panel is visible without scrolling.
+- **Given** keyboard or screen-reader use, **when** the screen changes,
+  **then** focus still moves to the main content, as `S-06.02.05` requires.
+- **Dependencies:** none. **Size:** S. **Indicator:** screens whose top is
+  hidden on arrival — target zero.
+- **Why:** `D-137`. Work order: `docs/work-orders/S-06.02.25-screen-opens-at-top.md`.
+
+#### S-06.02.26 — CI runs the suite on every Python the package supports
+**As an** owner, **I want** the suite run on every Python version
+`pyproject.toml` declares and the one the image runs, **so that** a failure on
+one version only is caught on the push, not in someone's install.
+- **Given** a push, **when** CI runs, **then** the whole suite runs on 3.10,
+  3.11 and 3.12, each installed from the lock, and a failure on any fails the
+  check.
+- **Given** a version added to `pyproject.toml`, or the image's version
+  changed, **when** the suite runs, **then** a test fails until CI names it.
+- **Dependencies:** `S-06.02.18` (CI runners). **Size:** S. **Indicator:**
+  supported versions without a CI job — target zero.
+- **Why:** `D-128`: every backup failed on 3.10 and the suite could not even
+  load there, and nothing ran it. Work order:
+  `docs/work-orders/S-06.02.26-python-matrix.md`.
+
+#### S-06.02.27 — The audit's live harness runs against `develop`
+**As an** owner, **I want** the 7 September audit's live harness run against the
+branch I deploy, **so that** the checks only real Chrome, PostgreSQL and Docker
+can make are not taken on trust.
+- **Given** the audit's live harness (`verification/` on the archived
+  `integration/main-consolidation`), **when** it can run — CI runners
+  (`S-06.02.18`) or a trusted machine with Docker, Chrome and PostgreSQL —
+  **then** it runs against `develop` and its results are recorded, skips counted
+  as failures.
+- **Dependencies:** `S-06.02.18`. **Size:** M. **Indicator:** harness checks
+  never run against `develop` — target zero.
+- **Why:** split from `S-06.02.23` on 2026-09-23; `DD-37` is why the harness was
+  not ported with the rest.
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that
@@ -1660,7 +1709,8 @@ three different stories.
 - **Dependencies:** S-12.01.02. **Size:** M. **Indicator:** model calls carrying
   owner text outside the payload — target zero.
 - **Why:** `D-81`. Wiring the product into today's `style` argument would carry
-  campaign material to tier C, unlogged.
+  campaign material to tier C, unlogged. Work order:
+  `docs/work-orders/S-12.01.03-video-director-uses-the-product.md`.
 
 ### F-12.02 — The strategy brain  *(E-12)*
 
@@ -1769,6 +1819,7 @@ own winning templates in view, **so that** the brain starts from what works.
   **then** it reports that no verdict is trustworthy yet.
 - **Dependencies:** S-12.02.04. **Size:** L. **Indicator:** plan-suite score
   with the corpus against without it.
+- **Work order:** `docs/work-orders/S-12.02.05-plans-with-expert-references.md`.
 
 #### S-12.02.06 — A plan's posting channel runs from the screens
 **As an** owner, **I want** a plan's posting channel to start posting from the
@@ -1789,6 +1840,7 @@ approves a post.
   that posts (`D-97`).
 - **Dependencies:** S-12.02.02. **Size:** M. **Indicator:** plans with a views
   goal that publish a first post.
+- **Work order:** `docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md`.
 
 ### F-12.03 — Video in the email  *(E-12, next milestone)*
 

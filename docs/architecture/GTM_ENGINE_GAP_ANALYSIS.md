@@ -298,19 +298,28 @@ nobody can review four hundred lines of JSON before it becomes a campaign.
 
 ## Scraper stack decision
 
+**Corrected 2026-09-22.** The first version of this table recommended Camoufox,
+Patchright, Scrapling's `StealthyFetcher` and Firecrawl for "pages that beat
+everything". All four exist to get past bot protection, and this repository's
+own rules forbid that: `DD-04` — *No Cloudflare or anti-bot evasion. Ever.* —
+and the stealth and CAPTCHA rows of the backlog's out-of-scope table. A
+recommendation that breaks a standing rule is not a recommendation, so they are
+removed rather than qualified. A page that challenges a real browser stays
+unreachable: use the site's API, a licensed source such as Apollo, or skip it.
+
 | Library | Role | Reason |
 |---|---|---|
-| **Scrapling** *(already a dependency)* | Default fetcher + parser | Selectors re-find an element after a site redesign. Ships StealthyFetcher on modified Firefox. |
-| **Crawl4AI** *(already an extra)* | JS-heavy pages → Markdown | Already wired as `crawl4ai_public_js`. LLM-ready output, no boilerplate stripper needed. |
+| **Scrapling** *(already a dependency)* | Default fetcher + parser | Selectors re-find an element after a site redesign. Its plain fetcher only — never `StealthyFetcher`, which is built to pass bot checks. |
+| **Crawl4AI** *(already an extra)* | JS-heavy public pages → Markdown | Already wired as `crawl4ai_public_js`. LLM-ready output, no boilerplate stripper needed. Run as an ordinary browser, with no stealth mode. |
 | **Trafilatura** — add | Article body extraction | Best-in-class main-content isolation; returns author/date/sitename free. Cuts token spend. |
 | **selectolax** — add | Fast HTML parsing | lexbor-based, ~5–10× faster than BeautifulSoup. Parsing is the CPU bill at crawl scale. |
-| **Camoufox** — add | The hard 5% | Patches fingerprint leaks inside the Firefox engine. ~99% against Cloudflare managed challenges. |
-| **Patchright** — optional | Chromium-side stealth | Drop-in patched Playwright; least disruptive given the existing CDP client. |
-| **Firecrawl** — paid fallback | Pages that beat everything | Buying the hard 2% beats a proxy fleet. US hosted → **Tier B, public data only** under this repo's own rules. |
 
-**Rejected:** Scrapy (its spider architecture fights the existing `PageFetcher`
-protocol), Selenium (slower and more detectable in 2026), BeautifulSoup
-(outclassed on both speed and adaptivity), Botasaurus (overlaps Camoufox, heavy).
+**Rejected:** Camoufox, Patchright, Scrapling's `StealthyFetcher`, and Firecrawl
+or any hosted scraper used to get past protection (`DD-04` — evasion is evasion
+whether we run it or rent it); Scrapy (its spider architecture fights the
+existing `PageFetcher` protocol); Selenium (slower, and no better at anything
+here); BeautifulSoup (outclassed on both speed and adaptivity); Botasaurus
+(an anti-detection framework, so the same rule).
 
 **Hard line: do not scrape LinkedIn.** `discovery.py` already blocks it for
 headless engines and that call stands. People data comes from Apollo's API.
@@ -327,6 +336,6 @@ that is currently the strongest asset here.
 - AI SDR field — <https://www.stackfyi.com/guides/best-ai-sdr-tools-clay-vs-apollo-vs-artisan-vs-11x-2026>, <https://www.refontelearning.com/blog/ai-sdr-tools-clay-11x-artisan-compared>
 - Fine-tuning vs prompting 2026 — <https://aishwaryasrinivasan.substack.com/p/fine-tuning-vs-prompt-engineering>, <https://bigdataboutique.com/blog/fine-tuning-llms-when-rag-isnt-enough>
 - Apollo API limits and credits — <https://docs.apollo.io/reference/rate-limits>, <https://galadon.com/apollo-io-api>
-- Stealth browsers 2026 — <https://scrapfly.io/blog/posts/best-stealth-browsers>, <https://scrapewise.ai/blogs/playwright-stealth-2026>
+- Stealth browsers 2026 (read to know what to refuse, not to adopt) — <https://scrapfly.io/blog/posts/best-stealth-browsers>, <https://scrapewise.ai/blogs/playwright-stealth-2026>
 - Scrapling — <https://scrapling.readthedocs.io/en/latest/index.html>
 - Crawl4AI vs Firecrawl — <https://brightdata.com/blog/ai/crawl4ai-vs-firecrawl>

@@ -120,6 +120,22 @@ re-runs, so "it works" is checkable rather than something I said.
 > This improves deliverability; it does not guarantee inbox placement. Real AWS,
 > DNS and mailbox-cohort testing are still required before removing the beta label.
 
+## The GTM brain — Phase 1 and 2 (E-12, added 2026-09-22)
+
+| What it does | Story | Proof |
+|---|---|---|
+| You describe your product once; every writer uses it, and a forbidden claim is caught | S-12.01.01, S-12.01.02 | 51 tests |
+| A goal (replies or views) becomes a plan that fits what is actually connected | S-12.02.01 | 48 tests |
+| Applying a plan makes **paused** campaigns — nothing imported, spent or sent | S-12.02.02 | 13 tests |
+| A review says what is wrong, in a fixed order: the pipe before the copy | S-12.02.03 | 42 tests |
+| A review becomes the next version, which learns the real reply rate | S-12.02.04 | 16 tests |
+
+> Honest limits. With no model connected, the brain plans and reviews by rules
+> and says so. A plan's **posting** channel cannot yet post from the screens
+> (`D-82`, story `S-12.02.06`): Apply and the review both say this plainly. The
+> brain judges replies and views only, because nothing links a meeting or a
+> sign-up back to the campaign that earned it.
+
 ---
 
 # Part 1B — What is PROVING 🧪

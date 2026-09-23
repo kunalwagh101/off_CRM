@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- **The GTM engine, Phase 1 and 2** (`E-12`: `S-12.01.01`, `S-12.01.02`,
+  `S-12.02.01`–`S-12.02.04`). Design and work orders:
+  `docs/architecture/GTM_ENGINE.md`.
+  - **ProductTruth.** The owner describes the product once on the **Product**
+    screen: name, one-liner, audience, problem, offer, proof, and the claims it
+    must never make. Email templates fill `{product_*}` from it; a post pipeline
+    uses its one-liner as the angle, resolved *before* the data class is chosen;
+    a draft that says a forbidden claim is flagged.
+  - **Plan.** The **Go-to-market plan** screen turns a goal (replies or views)
+    into a plan. A model chooses from declared lists and writes short
+    sentences; code decides volumes from what is actually connected, the stream
+    (always targeted outreach) and what gets removed. No model connected means a
+    rules plan and a sentence saying why — never an error.
+  - **Apply.** A plan becomes **paused** campaigns, one per channel. It imports
+    nobody, spends no Apollo credit and sends nothing. Applying again resumes a
+    half-finished apply instead of duplicating it.
+  - **Review.** An applied plan is measured and gets one finding per channel,
+    in a fixed order: delivery health first, then whether it is running, then
+    volume, and the copy last — only after 20 people were contacted, and by a
+    90% Wilson interval rather than a threshold. A model may only pick among the
+    remedies each finding permits.
+  - **Revise.** A review becomes the next version: the measured reply rate
+    replaces the assumed one, the deadline stays, and applying it updates the
+    same campaigns. Each version is judged on its own sends.
+- **Fixed on the way:** the plan's capacity counted a disabled social account
+  (`D-83`); the pacer steered by a campaign's oldest views goal instead of its
+  newest (`D-84`).
+- **Filed, not fixed:** a plan's posting channel cannot reach a published post
+  from the screens (`D-82` → `S-12.02.06`). Apply's next steps and the review now
+  say so plainly instead of implying "connect an account and resume" is enough.
+- **Corrected advice:** the scraper stack in `GTM_ENGINE_GAP_ANALYSIS.md` had
+  recommended stealth tools (Camoufox, Patchright, Scrapling's
+  `StealthyFetcher`, Firecrawl as a way past protection). They are removed:
+  `DD-04` forbids anti-bot evasion.
+
 - **A test refers to a trace step by finding it, not by counting to it**
   (`S-06.02.14`, closing `D-37`). Five files named `step-000002` and meant "the
   read action". Adding any step earlier in a run shifts every id after it, so a

@@ -56,7 +56,7 @@ export function PlanView({ plan, actions }: { plan: GtmPlan; actions?: ReactNode
             : `The product has changed since this plan was written against version ${plan.product_version}. Draft a new plan to use the current product.`}
         </p>
       ) : null}
-      {summary ? <p>{summary}</p> : <p className="muted-copy">No summary survived the checks — see what was corrected below.</p>}
+      {summary ? <p>{summary}</p> : <p className="muted-copy">No summary survived the checks — the notes below say why.</p>}
 
       <div className="definition-list">
         <div><dt>Goal</dt><dd>{plan.request.goal_target} {plan.request.goal_kind} in {plan.request.horizon_days} days</dd></div>
@@ -110,7 +110,7 @@ export function PlanView({ plan, actions }: { plan: GtmPlan; actions?: ReactNode
       {plan.notes.length ? (
         <div className="memory-list">
           {plan.notes.map((note, index) => (
-            <div key={index}><p><small>What was corrected, and why</small><span>{note}</span></p></div>
+            <div key={index}><p><small>How this plan was made</small><span>{note}</span></p></div>
           ))}
         </div>
       ) : null}
@@ -277,8 +277,9 @@ export default function Strategy() {
         notes: form.notes,
         use_model: form.use_model
       });
-      notify(plan.source === "model" ? "Plan drafted. Read what was corrected before applying it." : "Rules-based plan drafted.", "success");
+      notify(plan.source === "model" ? "Plan drafted. Read how it was made before applying it." : "Rules-based plan drafted.", "success");
       setPlanId(plan.id);
+      setApplied(null);
       plans.reload();
     } catch (caught) {
       setRefusal(caught instanceof ApiError || caught instanceof Error ? caught.message : "The plan could not be drafted.");
@@ -321,6 +322,8 @@ export default function Strategy() {
       const next = await api.post<GtmPlan>(`/gtm/plans/${plan.id}/revise`, { use_model: form.use_model });
       notify(`Version ${next.version} drafted from the review. Read what changed, then apply it.`, "success");
       setPlanId(next.id);
+      // The steps shown belong to the version applied before; this one is a draft.
+      setApplied(null);
       plans.reload();
     } catch (caught) {
       notify(caught instanceof Error ? caught.message : "The plan could not be revised.", "error");

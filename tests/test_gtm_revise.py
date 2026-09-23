@@ -290,6 +290,9 @@ def test_the_rules_revision_does_what_rules_can(tmp_path):
 
 
 def test_the_rules_revision_halves_volume_when_delivery_is_unhealthy(tmp_path):
+    """Delivery first, in the revision as in the review. With no model, the
+    review's first remedy is an owner action — clean the list — and the plan
+    itself must still stop sending at the rate that caused the bounces."""
     world, service, plan = applied_line(tmp_path)
     before = next(item for item in plan["plan"]["channels"] if item["kind"] == "email")["daily_volume"]
     world.sent(300, 3)
@@ -299,15 +302,10 @@ def test_the_rules_revision_halves_volume_when_delivery_is_unhealthy(tmp_path):
     review = service.review_plan(plan["id"], {"use_model": False}, now=day(plan, 12))
     assert review["remedies"][0]["action"] == "fix_list_quality"
 
-    # The rules take the first remedy; ask for fewer emails explicitly through a model-less
-    # review whose remedy is reduce_volume.
-    service.store.create_review(
-        plan["id"], "w", measurements=review["measurements"], findings=review["findings"],
-        remedies=[{**review["remedies"][0], "action": "reduce_volume"}],
-        summary="", notes=[], source="rules")
     revision = service.revise_plan(plan["id"], {"use_model": False}, now=day(plan, 12))
     email = next(item for item in revision["plan"]["channels"] if item["kind"] == "email")
     assert email["daily_volume"] == max(1, before // 2)
+    assert any("delivery" in note for note in revision["notes"])
 
 
 # ── over HTTP ───────────────────────────────────────────────────────────────

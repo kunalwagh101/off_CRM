@@ -762,6 +762,23 @@ def rules_revision(
             continue
         else:
             notes.append(f"Still to do on a screen, not in the plan: {label}")
+
+    # Delivery first, here as in the review. The rules' first remedy for bad
+    # delivery is the owner's — clean the list — so without this the next
+    # version would keep sending at the rate that caused the bounces.
+    email = by_kind.get("email")
+    unhealthy = any(
+        item.get("channel") == "email" and item.get("code") == "delivery_unhealthy"
+        for item in review.get("findings") or []
+    )
+    already = any(item.get("action") == "reduce_volume" for item in review.get("remedies") or [])
+    if unhealthy and not already and email and "daily_volume" in email:
+        email["daily_volume"] = max(1, int(email["daily_volume"]) // 2)
+        changed.append(f"email volume halved to {email['daily_volume']} a day while delivery is unhealthy")
+        notes.append(
+            f"Mail was not arriving well, so this version sends {email['daily_volume']} a day, half "
+            "of the last one, until the delivery review comes back healthy."
+        )
     written["summary"] = (
         f"Rules-based revision of version {plan['version']}: "
         + ("; ".join(changed) if changed else "nothing the rules can change")

@@ -7,12 +7,13 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
-Branch: `main`
-Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
-The latest frontend evidence remains 116 passed plus a clean production build
-from 2026-08-24; this clean checkout could not re-install one uncached npm
-package under the current network policy, so S-08.01.05 remains `IN_REVIEW`.
+Last updated: 2026-09-23
+Branch: `claude/vigilant-pascal-acjg05`
+Tests: **2086 Python passed, 0 failed**, 4 environment-gated skips; frontend
+**120 passed** and a clean production build (2026-09-23).
+
+**Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
+Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
 `frontend/src/video/` and the **Video editor** screen. Read
@@ -189,6 +190,51 @@ reason. Credentials, mailbox headers and internal field names are blocked at
 ---
 
 ## 3. Done
+
+### The GTM engine — Phase 1 and 2 (E-12, 2026-09-22)
+
+The owner's end goal is an autonomous GTM engineer. Phase 1 gives the system one
+source of truth about the product; Phase 2 is the brain that plans, applies,
+reviews and revises. Design, data model, API and work orders:
+`docs/architecture/GTM_ENGINE.md`. Decisions `DD-40`–`DD-54`; defects
+`D-80`–`D-84`; open questions `Q-20`–`Q-24`.
+
+- [x] **`offsetx_apollo_builder/gtm/`** — `products.py` (validation, forbidden
+      claims), `store.py` (the only code touching `gtm_*` tables),
+      `strategy.py` (plan request, envelope, parse, rules plan, feasibility),
+      `review.py` (diagnosis, remedies, revision) and `service.py` (the one
+      stateful orchestrator). **It imports nothing from `ai/` and no transport**;
+      `tests/test_gtm_products.py` walks the package's AST to hold that.
+- [x] **The model never builds structure.** It chooses from declared lists and
+      writes short sentences; code decides volume from what is connected and
+      always sends on `targeted_outreach`. Its reply is untrusted input, checked
+      field by field (`DD-40`).
+- [x] **The owner's words travel only in classified fields** — the one-liner as
+      the positioning line, the rest as campaign notes — never in the system
+      prompt or `instructions`, which the data policy does not govern (`DD-41`,
+      `D-81`). Requests are `DataClass.CAMPAIGN`, so tiers C and D never see them.
+- [x] **Apply creates paused campaigns**, imports nobody, spends nothing and
+      sends nothing (`DD-42`); it is idempotent per channel (`DD-49`).
+- [x] **Review in a fixed order** — delivery, running, contacts, approvals,
+      volume, and only then the copy, by a 90% Wilson interval after 20 sends
+      (`DD-45`, `DD-47`, `DD-50`). Every review is stored with exactly what it
+      measured: the first labelled data this product owns, and what a fine-tune
+      would train on when the owner builds it last.
+- [x] **Revise** carries the measured rate forward, keeps the deadline, and
+      judges each version on its own sends (`DD-53`, `DD-54`).
+- [x] Screens: **Product** and **Go-to-market plan** (plan, apply, review,
+      revise). No button leads nowhere: a step no screen can do yet is shown
+      without a link and says so.
+- [x] 170 GTM tests across six files, plus 4 UI tests.
+
+**Not built here, on purpose:** the video director reading the product
+(`S-12.01.03`, blocked on `D-81`); drafting against the expert corpus
+(`S-12.02.05`); running a plan's posting channel from the screens (`S-12.02.06`,
+`D-82`); video in the email (`F-12.03`, Google Drive for now — `Q-20`); driving
+Apollo, Hunter, Clay and Mailchimp as tools (`F-12.04`); compiling an audience
+into an Apollo search (`F-12.05`); creating social accounts in bulk (`Q-21`,
+open — it conflicts with the sock-puppet row and the FTC rule on fake
+influence).
 
 ### Protected bulk email delivery (beta, F-08.01, 2026-08-24)
 - [x] Added deterministic permission, relationship, global-suppression,
@@ -2070,6 +2116,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
 | — | Campaign `kind` column | **Built** (`campaigns.py`, schema v8). Remaining: no `settings_json` blob — deliberately deferred until there is a kind whose settings are known, since a validator has to exist before the blob does. |
 | — | Postgres | **Partly done.** The seam is built and tested (`db/`), and the **egress log** runs on either backend. The other five stores — CRM, context, recall, scoreboard, cache, sales — are still SQLite-only. Also missing: a Postgres migration path (`PRAGMA table_info` / `user_version` have no equivalent yet), FTS (`fts5` → `tsvector` is a reimplementation), and connection pooling. |
+| E-12 | GTM engine, the rest | Phase 1 and 2 are built (section 3). Remaining, each with a backlog id: the video director reading the product (`S-12.01.03`), the expert corpus (`S-12.02.05`), posting from the screens (`S-12.02.06`), video in the email (`F-12.03`), driving external GTM tools (`F-12.04`), audience → Apollo search (`F-12.05`). |
 | 10 | Rebuild guide | **Written** — `docs/architecture/REBUILD_GUIDE.md`. Stage order with the reason each stage must precede the next, the 15 traps, the invariants that are enforced by AST tests, and what is deliberately absent. |
 
 ---

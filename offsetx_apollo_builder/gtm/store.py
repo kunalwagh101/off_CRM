@@ -78,7 +78,10 @@ CREATE TABLE IF NOT EXISTS gtm_plans (
     model_id TEXT NOT NULL DEFAULT '',
     policy TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
-    applied_at TEXT
+    applied_at TEXT,
+    -- What the line's campaigns had already done when this version was
+    -- applied, so its review counts only its own sends (S-12.02.04).
+    baseline_json TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_gtm_plans_product
 ON gtm_plans(workspace_id, product_id, created_at);
@@ -132,7 +135,7 @@ class PlanStateError(RuntimeError):
 #: last two. Checked in the UPDATE itself, so two requests cannot both win.
 PLAN_STATUSES = ("draft", "applied", "superseded", "discarded")
 
-_PLAN_JSON = ("request", "product_snapshot", "envelope", "plan", "feasibility", "notes")
+_PLAN_JSON = ("request", "product_snapshot", "envelope", "plan", "feasibility", "notes", "baseline")
 
 
 class GtmStore:
@@ -145,6 +148,9 @@ class GtmStore:
         if self._connection is None:
             database = open_database(self.target)
             database.executescript(SCHEMA)
+            # A table made before revisions existed has no baseline column, and
+            # `CREATE TABLE IF NOT EXISTS` does not add one.
+            database.add_column_if_missing("gtm_plans", "baseline_json", "TEXT NOT NULL DEFAULT '{}'")
             self._connection = database
         return self._connection
 
@@ -442,8 +448,13 @@ class GtmStore:
         model_id: str = "",
         policy: str = "",
         parent: Mapping[str, Any] | None = None,
+        created_at: str = "",
     ) -> dict[str, Any]:
-        """Store a draft. With ``parent`` it is the next version of that line."""
+        """Store a draft. With ``parent`` it is the next version of that line.
+
+        ``created_at`` is for a revision: its horizon is counted from the same
+        moment, so its window ends exactly where its parent's does.
+        """
         plan_id = str(uuid.uuid4())
         with self.connection.transaction() as db:
             if parent is None:
@@ -478,7 +489,7 @@ class GtmStore:
                     provider_id,
                     model_id,
                     policy,
-                    _now(),
+                    created_at or _now(),
                 ),
             )
         return self.get_plan(plan_id, workspace_id)
@@ -539,6 +550,18 @@ class GtmStore:
                 f"This plan is {current}, so it cannot become {to}. Only a plan that is "
                 f"{' or '.join(allowed_from)} can."
             )
+
+    def set_baseline(self, plan_id: str, workspace_id: str, baseline: Mapping[str, Any]) -> None:
+        """Record what was already done when this version was applied — once.
+
+        A resumed apply must not move it: sends between the two attempts
+        belong to this version, not to the one before.
+        """
+        self.connection.execute(
+            "UPDATE gtm_plans SET baseline_json = ? WHERE id = ? AND workspace_id = ? "
+            "AND baseline_json = '{}'",
+            (json.dumps(dict(baseline)), plan_id, workspace_id),
+        )
 
     def _read_status(self, db: Database, plan_id: str, workspace_id: str) -> str:
         row = db.execute(

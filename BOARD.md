@@ -83,7 +83,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-12.02.04 · A review becomes the next version of the plan
 
 ## IN_REVIEW
 
@@ -95,6 +94,7 @@ write the code, then the evidence block.)*
 - S-12.02.01 · A goal becomes a checked plan that fits what is connected
 - S-12.02.02 · An approved plan becomes paused campaigns, and nothing sends by itself
 - S-12.02.03 · The brain says where it is going wrong, in a fixed order
+- S-12.02.04 · A review becomes the next version of the plan
 
 ## BLOCKED
 

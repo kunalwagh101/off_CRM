@@ -24,6 +24,9 @@ from .review import (
     diagnose,
     parse_remedies,
     review_fields,
+    revision_fields,
+    revision_request,
+    rules_revision,
 )
 from .store import GtmStore, PlanStateError
 from .strategy import (
@@ -38,6 +41,7 @@ from .strategy import (
     build_prompt,
     envelope_from,
     feasibility,
+    normalise_plan,
     parse_plan,
     request_fields,
     validate_request,
@@ -159,8 +163,20 @@ class GtmService:
             plan["product_deleted"] = True
         return plan
 
-    def draft_plan(self, values: Mapping[str, Any]) -> dict[str, Any]:
-        """A goal in, a stored draft plan out. Never a stack trace for "no model"."""
+    def draft_plan(
+        self,
+        values: Mapping[str, Any],
+        *,
+        revision: tuple[Mapping[str, Any], Mapping[str, Any], list[str]] | None = None,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """A goal in, a stored draft plan out. Never a stack trace for "no model".
+
+        ``revision`` is ``(parent, review, notes)`` when this is the next version
+        of a line: the model is told what the review found, the rules fallback
+        starts from the parent instead of from nothing, and the notes that
+        explain the new request come first.
+        """
         request = validate_request(values, implemented=campaigns.implemented_kinds())
         product = self.store.get_product(request.product_id, self.workspace_id)
         envelope = self.envelope(per_identity_cap=request.per_identity_daily_cap)
@@ -174,10 +190,16 @@ class GtmService:
             fallback_reason = "No model is wired to this screen, so this is the rules-based plan."
         else:
             try:
+                fields = request_fields(product, request, envelope)
+                if revision is not None:
+                    extra = revision_fields(revision[0], revision[1])
+                    fields["instructions"] = extra["instructions"] + "\n" + fields["instructions"]
+                    if extra["campaign_notes"]:
+                        fields["campaign_notes"] += "\n" + extra["campaign_notes"]
                 result = self.ask(
                     system_prompt=build_prompt(),
                     task_type="gtm_plan",
-                    **request_fields(product, request, envelope),
+                    **fields,
                 )
                 parsed = parse_plan(
                     str(getattr(result, "text", "") or ""),
@@ -204,8 +226,17 @@ class GtmService:
                 fallback_reason = f"The model's plan was refused: {exc} This is the rules-based plan."
 
         if parsed is None:
-            parsed = baseline_plan(request=request, envelope=envelope, product=product)
+            if revision is None:
+                parsed = baseline_plan(request=request, envelope=envelope, product=product)
+            else:
+                # The rules revise the last version; they do not start again.
+                raw, rule_notes = rules_revision(revision[0], revision[1])
+                parsed = normalise_plan(raw, request=request, envelope=envelope, product=product,
+                                        source="rules")
+                parsed.notes[:0] = rule_notes
             parsed.notes.insert(0, fallback_reason)
+        if revision is not None:
+            parsed.notes[:0] = revision[2]
 
         stored = self.store.create_plan(
             self.workspace_id,
@@ -216,9 +247,59 @@ class GtmService:
             feasibility=feasibility(parsed, request),
             notes=parsed.notes,
             source=parsed.source,
+            parent=revision[0] if revision is not None else None,
+            created_at=now.isoformat(timespec="seconds") if now else "",
             **meta,
         )
         return self._view(stored)
+
+    # ── revise (S-12.02.04) ────────────────────────────────────────────────
+
+    def revise_plan(
+        self,
+        plan_id: str,
+        values: Mapping[str, Any] | None = None,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """The next version of an applied plan, written from its latest review.
+
+        A draft, like any plan: nothing changes until it is applied, and then
+        it updates the same campaigns (Apply is per line, not per version).
+        """
+        values = dict(values or {})
+        for key in values:
+            if key not in REVIEW_FIELDS:
+                raise RequestInvalid(str(key), f"{key!r} is not part of a revise request. Known: use_model.")
+        use_model = values.get("use_model", True)
+        if not isinstance(use_model, bool):
+            raise RequestInvalid("use_model", "Say true or false for whether to ask a model.")
+
+        moment = now or datetime.now(timezone.utc)
+        plan = self.store.get_plan(plan_id, self.workspace_id)
+        if plan["status"] != "applied":
+            raise PlanStateError(
+                f"This plan is {plan['status']}, so it cannot be revised. Only the applied "
+                "version of a line can be."
+            )
+        review = self.store.latest_review(plan_id, self.workspace_id)
+        if review is None:
+            raise PlanStateError(
+                "Review this plan first: the next version is written from what this one measured."
+            )
+        try:
+            self.store.get_product(plan["product_id"], self.workspace_id)
+        except KeyError:
+            raise PlanStateError(
+                "The product this plan was written for has been deleted, so there is nothing "
+                "to revise it for. Draft a new plan for a product that exists."
+            ) from None
+        root = self.store.get_plan(plan["root_id"], self.workspace_id)
+        request, notes = revision_request(
+            plan, review, root_request=root["request"], today=moment.date()
+        )
+        request["use_model"] = use_model
+        return self.draft_plan(request, revision=(plan, review, notes), now=moment)
 
     def _view(self, plan: dict[str, Any]) -> dict[str, Any]:
         """A plan as the screen reads it: staleness, and its latest review."""
@@ -278,6 +359,17 @@ class GtmService:
             product = plan["product_snapshot"]
             request = plan["request"]
             existing = self.store.line_links(plan["root_id"], self.workspace_id)
+            if existing.get("email") and self.readers is not None:
+                # What the line's email had already done, so this version's
+                # review judges only its own sends (S-12.02.04).
+                try:
+                    summary = self.readers.email_summary(existing["email"])
+                    self.store.set_baseline(plan_id, self.workspace_id, {"email": {
+                        "contacted": _count(summary, "messages_by_stage", "initial"),
+                        "replied": _count(summary, "contact_status", "replied"),
+                    }})
+                except KeyError:
+                    pass  # the campaign is gone; Apply makes a new one, from zero
             notes: list[str] = []
             created: list[dict[str, Any]] = []
             for channel in plan["plan"]["channels"]:
@@ -507,13 +599,18 @@ class GtmService:
         if kind == "email":
             summary = readers.email_summary(campaign_id)
             health = readers.health(campaign_id)
+            before = (plan.get("baseline") or {}).get("email") or {}
+            contacted_before = int(before.get("contacted") or 0)
+            replied_before = int(before.get("replied") or 0)
             measured.update(
                 contacts=int(summary.get("contacts") or 0),
                 # Everyone sent a first email; the store counts outbound
                 # messages by stage, and a person gets exactly one "initial".
-                contacted=int((summary.get("messages_by_stage") or {}).get("initial") or 0),
-                replied=int((summary.get("contact_status") or {}).get("replied") or 0),
-                drafts_pending=int((summary.get("draft_status") or {}).get("pending") or 0),
+                # Counted from when this version was applied, not from the
+                # line's first send.
+                contacted=max(0, _count(summary, "messages_by_stage", "initial") - contacted_before),
+                replied=max(0, _count(summary, "contact_status", "replied") - replied_before),
+                drafts_pending=_count(summary, "draft_status", "pending"),
                 health={
                     key: health.get(key)
                     for key in ("breached", "paused_reason", "accepted", "hard_bounce_rate",
@@ -521,6 +618,8 @@ class GtmService:
                 },
                 weak_templates=int(readers.weak_templates() or 0),
             )
+            if before:
+                measured.update(contacted_before=contacted_before, replied_before=replied_before)
         elif kind == "distribution":
             # A disabled account cannot post (`publish_due` skips it), so it
             # does not count as somewhere to post.
@@ -532,6 +631,11 @@ class GtmService:
                 dict(readers.pacing(campaign_id)) if plan["request"]["goal_kind"] == "views" else None
             )
         return measured
+
+
+def _count(summary: Mapping[str, Any], group: str, key: str) -> int:
+    """One count from `OutreachStore.campaign_summary`'s grouped counts."""
+    return int((summary.get(group) or {}).get(key) or 0)
 
 
 def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:

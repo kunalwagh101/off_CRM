@@ -159,7 +159,8 @@ gtm_plans (
   source TEXT NOT NULL,                  -- model | rules
   provider_id TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL DEFAULT '',
   policy TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL, applied_at TEXT
+  created_at TEXT NOT NULL, applied_at TEXT,
+  baseline_json TEXT NOT NULL DEFAULT '{}'  -- what the line had done when this version was applied
 )
 
 gtm_reviews (
@@ -187,7 +188,9 @@ When a fine-tune finally happens (the owner's plan, deliberately last) it trains
 on these rows. Deferring the adapter is right; deferring the labelling is not.
 
 **Migration and rollback.** Four new tables, no change to any existing table.
-Rollback is dropping them; nothing else reads them.
+Rollback is dropping them; nothing else reads them. `baseline_json` arrived with
+revisions (S-12.02.04) and is added to an older `gtm_plans` by
+`add_column_if_missing`, the additive migration both backends support.
 
 ---
 
@@ -486,6 +489,46 @@ measured reply rate forward as the next version's `assumed_reply_rate` once
 `contacted ≥ 20` — this is what "learns from where it went wrong" means in
 checkable terms.
 
+### 8a. Revise — the next version, from the last review
+
+`POST /gtm/plans/{id}/revise` needs an **applied** plan with **a review**; either
+missing is a 409 that says which. It drafts version *n+1* of the same line
+(`parent_id` = the plan, same `root_id`). Nothing changes until that draft is
+applied, and Apply then updates the same campaigns, pauses any channel the new
+version dropped, and supersedes the old version (§7).
+
+`revision_request` builds the new request, each rule with a note:
+
+| Rule | When | What changes |
+|---|---|---|
+| Measured rate | ≥ 20 contacted since this version was applied | `assumed_reply_rate` = replied ÷ contacted, kept inside 0.1%–50% |
+| Carry forward | fewer than 20 | nothing; the note says how many were contacted |
+| Same deadline | the window has 7+ days left and the goal is not met | `horizon_days` = days left; for replies, `goal_target` = what is left of it |
+| New window | ended, under 7 days left, or goal met | the first version's `goal_target` and `horizon_days`, from today |
+
+**Counted per version** (`DD-53`). When a version is applied onto campaigns that
+already exist, Apply records what they had already done (`gtm_plans.baseline_json`:
+contacted and replied on email). Its review subtracts that, so version 2's rate
+is version 2's sends — replies to the old angle are not evidence about the new
+one — and "what is left of the goal" never counts a reply twice. The baseline is
+written once: a resumed apply does not move it.
+
+**Written with the review in view.** A model is told the findings (numbers, in
+`instructions`) and the chosen remedies' reasons and proposals (possibly its own
+words about the product, so campaign notes). With no model, `rules_revision`
+starts from the last version — not from a fresh rules plan — and changes what
+rules can: delivery unhealthy halves the email volume, ahead raises it a
+quarter, posting behind adds one post a day, and a review's proposal for a new
+angle or a narrower audience is adopted (it was already checked for forbidden
+claims). A remedy that needs words the review did not supply is left to the
+owner, with a note. Everything then goes through `normalise_plan` again, so a
+revision is clamped to what is connected *today*.
+
+**The views deadline stays put.** A revision is created at the moment it is
+asked for and given the days left, so `created_at + horizon_days` is the same
+date as before and Apply finds the views goal already set. A new window adds a
+new goal row, and the pacer now steers by the newest (`D-84`).
+
 ---
 
 ## 9. API contract
@@ -509,7 +552,7 @@ All under `/api/v1`. Errors are `{"error": code, "message": sentence}` with 404
 | POST | `/gtm/plans/{id}/apply` | — | `{plan, campaigns, next_steps}` |
 | POST | `/gtm/plans/{id}/discard` | — | `Plan` |
 | POST | `/gtm/plans/{id}/review` | `{use_model?: bool}` | `Review` (201) |
-| POST | `/gtm/plans/{id}/revise` | `{use_model?: bool}` | `Plan` (201) |
+| POST | `/gtm/plans/{id}/revise` | `{use_model?: bool}` | `Plan` (201), version n+1, a draft |
 
 ---
 
@@ -611,6 +654,11 @@ report — do not widen the change.
 
 - **Modify:** `gtm/service.py` (`revise_plan`, apply-on-revision),
   `api/gtm.py`, `Strategy.tsx`. **Create:** `tests/test_gtm_revise.py`.
+- **Interfaces:** `revision_request(plan, review, *, root_request, today) ->
+  (request, notes)`; `rules_revision(plan, review) -> (plan_mapping, notes)`;
+  `revision_fields(plan, review) -> {instructions, campaign_notes}`;
+  `GtmService.revise_plan(plan_id, values, *, now=None)`;
+  `GtmStore.set_baseline(plan_id, workspace_id, baseline)`.
 
 **Commands for every work order:**
 

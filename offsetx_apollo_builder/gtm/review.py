@@ -18,6 +18,7 @@ two, and anything outside that set is dropped with a note: the same contract
 
 from __future__ import annotations
 
+import copy
 import math
 import re
 from dataclasses import dataclass, field
@@ -26,7 +27,15 @@ from typing import Any, Mapping, Sequence
 
 from ..distribution.pacing import MIN_POSTS_TO_STEER
 from .products import find_forbidden
-from .strategy import ASSUMED_REPLY_RATE, WEEKDAY_SETS, product_lines, read_json_object
+from .strategy import (
+    ASSUMED_REPLY_RATE,
+    MAX_ASSUMED_RATE,
+    MIN_ASSUMED_RATE,
+    MIN_HORIZON_DAYS,
+    WEEKDAY_SETS,
+    product_lines,
+    read_json_object,
+)
 
 #: How many people must be contacted before a reply rate is judged at all —
 #: `ai/context.MIN_SENDS_TO_JUDGE`, repeated because importing anything from
@@ -606,3 +615,178 @@ def baseline_remedies(findings: Sequence[Finding]) -> ParsedRemedies:
         remedies=[_remedy(item, item.permitted[0], item.sentence) for item in findings if item.permitted],
         source="rules",
     )
+
+
+# ── the next version (S-12.02.04) ───────────────────────────────────────────
+
+#: Remedies that need words — a new angle, audience or offer. The rules can
+#: adopt a review's proposal for the first two; they cannot write one.
+_NEEDS_WORDS = ("test_new_angle", "narrow_audience", "change_offer", "rewrite_weak_template")
+
+
+def _email_measured(review: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    return next(
+        (item for item in review.get("measurements") or []
+         if item.get("channel") == "email" and not item.get("missing")),
+        None,
+    )
+
+
+def revision_request(
+    plan: Mapping[str, Any],
+    review: Mapping[str, Any],
+    *,
+    root_request: Mapping[str, Any],
+    today: date,
+    min_sample: int = MIN_SAMPLE,
+) -> tuple[dict[str, Any], list[str]]:
+    """The next version's request, from this version's and what its review measured.
+
+    Three rules, each explained in a note (``GTM_ENGINE.md`` §8a):
+
+    - **The measured rate replaces the assumed one** once ``min_sample`` people
+      have been contacted since this version was applied. Fewer, and the
+      assumption carries forward, because a rate from twelve sends is noise.
+    - **The deadline stays.** The window keeps its end date, so a revision
+      gets the days that are left — and, for replies, aims for what is left of
+      the goal rather than asking for the whole of it again.
+    - **A closed window starts a new one** — when it has ended, when too little
+      of it is left to plan in, or when the goal is already met — at the size
+      the owner first chose, from the first version of the line.
+    """
+    request = {key: value for key, value in plan["request"].items() if key != "use_model"}
+    notes: list[str] = []
+    kind = str(request["goal_kind"])
+    old_rate = float(request.get("assumed_reply_rate") or ASSUMED_REPLY_RATE)
+    email = _email_measured(review)
+    contacted = int(email.get("contacted") or 0) if email else 0
+    replied = int(email.get("replied") or 0) if email else 0
+
+    if email is None:
+        notes.append(f"Nothing was measured on email, so the assumed {old_rate:.1%} reply rate carries forward.")
+    elif contacted >= min_sample:
+        measured = replied / contacted
+        rate = min(max(measured, MIN_ASSUMED_RATE), MAX_ASSUMED_RATE)
+        note = (
+            f"The assumed reply rate is now the measured {measured:.1%} ({replied} replies from "
+            f"{contacted} contacted), replacing {old_rate:.1%}."
+        )
+        if rate != measured:
+            note += f" A plan can assume no less than {MIN_ASSUMED_RATE:.1%} and no more than {MAX_ASSUMED_RATE:.0%}, so it assumes {rate:.1%}."
+        notes.append(note)
+        request["assumed_reply_rate"] = rate
+    else:
+        notes.append(
+            f"Only {contacted} people were contacted since this version was applied, fewer than "
+            f"the {min_sample} a rate needs, so the assumed {old_rate:.1%} carries forward."
+        )
+
+    ends = window_end(plan)
+    left = (ends - today).days
+    target = int(request["goal_target"])
+    met = kind == "replies" and replied >= target
+    if met or left < MIN_HORIZON_DAYS:
+        if met:
+            why = f"The goal is met — {replied} replies against {target}"
+        elif left <= 0:
+            why = f"The window ended on {ends.isoformat()}"
+        else:
+            why = f"Only {left} days are left in the window, fewer than the {MIN_HORIZON_DAYS} a plan covers"
+        request["goal_target"] = int(root_request["goal_target"])
+        request["horizon_days"] = int(root_request["horizon_days"])
+        notes.append(
+            f"{why}, so this version starts a new {request['horizon_days']}-day window for "
+            f"{request['goal_target']} {kind}."
+        )
+        if kind == "views":
+            notes.append(
+                "The pacer counts a campaign's views from its first post, so views already "
+                "earned count toward this goal; raise the target in a new plan if you want that "
+                "many more."
+            )
+    else:
+        request["horizon_days"] = left
+        if kind == "replies" and replied:
+            request["goal_target"] = target - replied
+            notes.append(
+                f"{replied} replies so far, so this version aims for the remaining "
+                f"{target - replied} by {ends.isoformat()}."
+            )
+        else:
+            notes.append(f"The deadline stays {ends.isoformat()}: this version has the {left} days left.")
+    return request, notes
+
+
+def rules_revision(
+    plan: Mapping[str, Any], review: Mapping[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """The last version, changed by what rules can change, for `normalise_plan`.
+
+    Volumes move by fixed steps — halved when delivery is unhealthy, a quarter
+    up when the rate is ahead, one more post a day when posting is behind — and
+    `normalise_plan` then clamps them to what is connected. A proposal the
+    review already checked is adopted; a remedy that needs words the review did
+    not supply is left to the owner, with a note, rather than invented.
+    """
+    written = copy.deepcopy(dict(plan["plan"]))
+    by_kind = {str(item["kind"]): item for item in written["channels"]}
+    notes: list[str] = []
+    changed: list[str] = []
+    for remedy in review.get("remedies") or []:
+        action = str(remedy.get("action") or "")
+        channel = by_kind.get(str(remedy.get("channel") or ""))
+        proposal = str(remedy.get("proposal") or "").strip()
+        label = REMEDIES.get(action, ("", action))[1]
+        if action == "reduce_volume" and channel and "daily_volume" in channel:
+            channel["daily_volume"] = max(1, int(channel["daily_volume"]) // 2)
+            changed.append(f"{channel['kind']} volume halved to {channel['daily_volume']} a day")
+        elif action == "raise_volume" and channel and "daily_volume" in channel:
+            channel["daily_volume"] = math.ceil(int(channel["daily_volume"]) * 1.25)
+            changed.append(f"{channel['kind']} volume raised a quarter, to {channel['daily_volume']} a day")
+        elif action == "raise_post_rate" and channel and "daily_volume" in channel:
+            channel["daily_volume"] = int(channel["daily_volume"]) + 1
+            changed.append(f"posting raised to {channel['daily_volume']} a day")
+        elif action == "test_new_angle" and channel and proposal:
+            channel["angle"] = proposal
+            channel["hypothesis"] = "This angle earns more than the last one, which the review found was not landing."
+            changed.append(f"a new {channel['kind']} angle from the review")
+        elif action == "narrow_audience" and proposal:
+            written["audience"]["description"] = proposal
+            changed.append("a narrower audience from the review")
+        elif action == "change_offer":
+            notes.append(f"{label} The offer lives on the product, so change it there"
+                         + (f": {proposal}" if proposal else "."))
+        elif action in _NEEDS_WORDS:
+            notes.append(f"{label} The rules cannot write that; revise with a model, or edit the plan's product.")
+        elif action in ("hold", "wait_for_data"):
+            continue
+        else:
+            notes.append(f"Still to do on a screen, not in the plan: {label}")
+    written["summary"] = (
+        f"Rules-based revision of version {plan['version']}: "
+        + ("; ".join(changed) if changed else "nothing the rules can change")
+        + "."
+    )
+    return written, notes
+
+
+def revision_fields(plan: Mapping[str, Any], review: Mapping[str, Any]) -> dict[str, str]:
+    """What a model is told about the last version, split like everything else.
+
+    The findings are numbers and code-authored sentences, so they go in
+    ``instructions``. A remedy's reason and proposal can be a model's words
+    about the product, so they go in campaign notes (DD-41).
+    """
+    lines = [f"This revises version {plan['version']}. Its review found:"]
+    for item in review.get("findings") or []:
+        lines.append(f"{item['channel']}: {item['code']}. {item['sentence']}")
+    remedies = review.get("remedies") or []
+    if remedies:
+        lines.append("Remedies chosen: " + ", ".join(
+            f"{item['channel']} {item['action']}" for item in remedies) + ".")
+    notes = []
+    for item in remedies:
+        said = "; ".join(part for part in (item.get("why"), item.get("proposal")) if part)
+        if said:
+            notes.append(f"Review, {item['channel']} {item['action']}: {said}")
+    return {"instructions": "\n".join(lines), "campaign_notes": "\n".join(notes)}

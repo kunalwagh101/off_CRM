@@ -995,6 +995,8 @@ export type GtmPlan = {
   notes: string[];
   /** The latest review, or null before the first one. */
   review?: GtmReview | null;
+  /** What the line's campaigns had already done when this version was applied. */
+  baseline?: { email?: { contacted: number; replied: number } };
 };
 
 export type GtmNextStep = { page: string; label: string; why: string };

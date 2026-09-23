@@ -275,4 +275,22 @@ def build_gtm_router(
         except PlanStateError as exc:
             raise _wrong_state(exc) from exc
 
+    # ── revise (S-12.02.04) ────────────────────────────────────────────────
+
+    @router.post("/plans/{plan_id}/revise", status_code=201)
+    def revise_plan(plan_id: str, request: Request, body: Any = Body(default=None)) -> dict[str, Any]:
+        """The next version of an applied plan, from its latest review. A draft: nothing changes yet."""
+        if body is not None and not isinstance(body, dict):
+            raise _invalid_request(
+                RequestInvalid("request", "A revise request must be an object, such as {}.")
+            )
+        try:
+            return service_of(request).revise_plan(plan_id, body or {})
+        except RequestInvalid as exc:
+            raise _invalid_request(exc) from exc
+        except KeyError as exc:
+            raise _not_found(exc) from exc
+        except PlanStateError as exc:
+            raise _wrong_state(exc) from exc
+
     return router

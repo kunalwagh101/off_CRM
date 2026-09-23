@@ -315,6 +315,20 @@ export default function Strategy() {
     }
   }
 
+  async function revise(plan: GtmPlan) {
+    setBusy(`revise-${plan.id}`);
+    try {
+      const next = await api.post<GtmPlan>(`/gtm/plans/${plan.id}/revise`, { use_model: form.use_model });
+      notify(`Version ${next.version} drafted from the review. Read what changed, then apply it.`, "success");
+      setPlanId(next.id);
+      plans.reload();
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "The plan could not be revised.", "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function act(plan: GtmPlan, action: "discard") {
     setBusy(`${action}-${plan.id}`);
     try {
@@ -429,7 +443,13 @@ export default function Strategy() {
                 <Button tone="secondary" busy={busy === `discard-${selected.id}`} onClick={() => act(selected, "discard")}>Discard</Button>
               </>
             ) : selected.status === "applied" ? (
-              <Button busy={busy === `review-${selected.id}`} onClick={() => review(selected)}>Review against what was measured</Button>
+              <>
+                <Button busy={busy === `review-${selected.id}`} onClick={() => review(selected)}>Review against what was measured</Button>
+                {/* A revision is written from a review, so there is nothing to revise from until one exists. */}
+                <Button tone="secondary" busy={busy === `revise-${selected.id}`} disabled={!selected.review} onClick={() => revise(selected)}>
+                  {selected.review ? "Write the next version from this review" : "Review first, then revise"}
+                </Button>
+              </>
             ) : null}
           />
         ) : null}

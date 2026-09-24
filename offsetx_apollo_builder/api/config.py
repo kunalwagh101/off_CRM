@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ..data_paths import data_dir as _data_dir
 from ..data_paths import database_path as _database_path
+from ..data_paths import gmail_token_path as _gmail_token_path
 from ..data_paths import resolved as _resolved
 from ..outreach.backup import DEFAULT_MAX_BACKUP_BYTES
 
@@ -68,9 +69,6 @@ class AppSettings:
         root = Path(project_root or Path.cwd()).resolve()
         data_dir = _data_dir(root)
         gmail_secrets = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
-        # Defaults follow OFFSETX_DATA_DIR, so moving the data moves everything
-        # the backup and the persistent disk have to cover.
-        gmail_token = os.getenv("OFFSETX_GMAIL_TOKEN", str(data_dir / "gmail_token.json")).strip()
         persistent_mount = os.getenv("OFFSETX_PERSISTENT_MOUNT", "").strip()
         settings = cls(
             project_root=root,
@@ -94,7 +92,9 @@ class AppSettings:
             production=_enabled(os.getenv("OFFSETX_PRODUCTION", "")),
             persistent_mount=_resolved(persistent_mount, root) if persistent_mount else None,
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
-            gmail_token=_resolved(gmail_token, root) if gmail_token else None,
+            # Defaults follow OFFSETX_DATA_DIR, so moving the data moves everything
+            # the backup and the persistent disk have to cover.
+            gmail_token=_gmail_token_path(root),
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
             public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
             unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),

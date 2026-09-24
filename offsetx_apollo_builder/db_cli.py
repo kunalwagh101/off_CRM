@@ -4,7 +4,9 @@ Usage::
 
     offsetx-db check                                  # what would be opened, and can it be reached
     offsetx-db check --target postgresql://…
-    offsetx-db copy-log --from local_data/ai_egress.db --to postgresql://…
+    offsetx-db copy-log --from <data dir>/ai_egress.db --to postgresql://…
+
+The data directory is ``OFFSETX_DATA_DIR``, or ``local_data`` when it is unset.
 
 off_CRM is SQLite-first and stays that way for one owner on one machine.
 Postgres is for the case SQLite cannot serve: a deployment whose disk does not
@@ -15,9 +17,33 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import AbstractContextManager, nullcontext
+from pathlib import Path
 
-from .db import DATABASE_URL_ENV, DatabaseError, describe_target, open_database, resolve_target
 from .ai.log import copy_egress_log
+from .data_paths import data_dir
+from .db import (
+    DATABASE_URL_ENV,
+    DatabaseError,
+    describe_target,
+    open_database,
+    resolve_target,
+)
+from .db.connection import is_postgres_url
+from .outreach.workspace_lock import cli_workspace_lease
+
+
+def _lease(target: object) -> AbstractContextManager[None]:
+    """The workspace lease when `target` is a file a restore swaps (D-134).
+
+    Only then: a Postgres URL, or a SQLite copy kept elsewhere, is not part of
+    the workspace, and checking one is what an operator does while a restore
+    is stuck.
+    """
+    workspace = data_dir(Path.cwd())
+    if is_postgres_url(target) or not Path(str(target)).resolve().is_relative_to(workspace):
+        return nullcontext()
+    return cli_workspace_lease(workspace)
 
 
 def _cmd_check(args: argparse.Namespace) -> int:
@@ -28,6 +54,11 @@ def _cmd_check(args: argparse.Namespace) -> int:
         return 2
 
     print(f"Target  : {describe_target(target)}")
+    with _lease(target):
+        return _check(target, args)
+
+
+def _check(target: str, args: argparse.Namespace) -> int:
     try:
         database = open_database(target)
     except DatabaseError as exc:
@@ -52,7 +83,8 @@ def _cmd_check(args: argparse.Namespace) -> int:
 
 def _cmd_copy_log(args: argparse.Namespace) -> int:
     try:
-        result = copy_egress_log(args.source, args.destination)
+        with _lease(args.source):
+            result = copy_egress_log(args.source, args.destination)
     except DatabaseError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -85,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--target", default="", help="path or postgresql:// URL")
     check.add_argument(
         "--default",
-        default="local_data/ai_egress.db",
+        default=str(data_dir(Path.cwd()) / "ai_egress.db"),
         help="fallback used when no target and no environment variable is set",
     )
     check.add_argument("--verbose", action="store_true")

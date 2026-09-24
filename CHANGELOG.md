@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Command-line tools no longer write under a restore** (2026-09-24,
+  `S-06.02.24`). `offsetx-outreach`, `offsetx-notebook`, `offsetx-evals`,
+  `offsetx-tools`, `offsetx-db` and `offsetx-artifacts` hold the workspace's
+  shared lease for a whole command, as web requests and the email worker do.
+  While a backup or restore runs, or an interrupted restore awaits rollback,
+  they refuse to start and say which, instead of writing into files the
+  restore is swapping out (`D-134`, `D-139`). Commands that open nothing still
+  run. The tools also open the web app's files by default: the Gmail token, the
+  egress log and the notebook's AI context (`D-138`, `D-141`). `.env.example`
+  no longer pins the CRM database and Gmail token outside `OFFSETX_DATA_DIR`
+  (`D-140`). Operators no longer stop the tools by hand before a restore.
+
 - **The remaining work, planned for handoff** (2026-09-23). No code: every open
   item is on `BOARD.md` with a `work_order:` line naming the plan an
   implementer follows. New: work orders for seven stories

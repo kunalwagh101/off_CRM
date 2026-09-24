@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Sequence
 
 from ..api.config import AppSettings
+from ..outreach.workspace_lock import cli_workspace_lease
 from .broker import EgressBroker
 from .evals import EvalRunner, default_evals_path, load_suites, suite_summary
 from .log import EgressLog
@@ -80,9 +81,14 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _data_dir(args: argparse.Namespace) -> Path:
+    # Resolved: the lease is named after the folder, and `--data-dir .` has no
+    # name until it is, so it would lock a file the web app never looks at.
+    return (Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir).resolve()
+
+
 def cmd_run(args: argparse.Namespace) -> int:
-    data_dir = Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir
-    registry, workspaces, broker, board = _build(data_dir)
+    registry, workspaces, broker, board = _build(_data_dir(args))
     suites = load_suites(_suite_path(args.file))
 
     suite = suites.get(args.suite)
@@ -198,8 +204,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_champion(args: argparse.Namespace) -> int:
-    data_dir = Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir
-    board = Scoreboard(data_dir / "ai_evals.db")
+    board = Scoreboard(_data_dir(args) / "ai_evals.db")
     current = board.champion(workspace_id=args.workspace, suite_id=args.suite)
     if not current:
         print(
@@ -247,7 +252,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     champ.set_defaults(func=cmd_champion)
 
     args = parser.parse_args(argv)
-    return int(args.func(args))
+    if args.command == "list":
+        # Reads the suites file only, so it answers during a restore.
+        return int(args.func(args))
+    with cli_workspace_lease(_data_dir(args)):
+        return int(args.func(args))
 
 
 if __name__ == "__main__":  # pragma: no cover

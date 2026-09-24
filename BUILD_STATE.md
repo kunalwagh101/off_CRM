@@ -7,16 +7,17 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-23, on `develop` after the cold review's fixes): **2371 Python
-passed, 0 failed**, 4 environment-gated skips — and the same suite on a real
-Python 3.10: **2371 passed, 0 failed**; ruff gate clean; frontend **151
-passed** and a clean production build; board verifier with every DONE story's
-evidence command re-run: **61 of 61 passed**, board OK.
+Tests (2026-09-24, on `develop` with `S-06.02.24`): **2404 Python passed, 0
+failed**, 4 environment-gated skips (2371 before it; the 33 added are its own).
+On a real Python 3.10 its changed areas pass (145 tests); the whole 3.10 suite
+last passed on 2026-09-23 (2371). Ruff gate clean. Frontend unchanged since
+**151 passed** and a clean production build. Board verifier OK; every DONE
+story's evidence command last re-run on 2026-09-23: **61 of 61 passed**.
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
@@ -39,6 +40,35 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-09-24 — `S-06.02.24`: the command-line tools hold the restore lease
+
+Building resumed at the owner's word, with the next READY item. Every
+command-line tool that opens the workspace now holds the same shared lease as a
+web request, for the whole command: `offsetx-outreach`, `-notebook`, `-evals`,
+`-tools`, `-db` and `-artifacts`. During a backup or restore, or while an
+interrupted restore awaits rollback, each refuses to start and says which. A
+running one makes a restore answer 409, as a busy worker does. The helper is
+`cli_workspace_lease` in `outreach/workspace_lock.py`.
+
+Decisions made while building, with their reasons in the code:
+
+- `offsetx-db` and `offsetx-artifacts` lock only when their target is inside
+  the data directory. A Postgres check, or a run copied elsewhere, is nothing a
+  restore swaps — and checking Postgres is what an operator does while a
+  restore is stuck.
+- Two refusal sentences, not the work order's one. A backup export takes the
+  same exclusive lease, so "a restore is in progress" would have been wrong
+  half the time.
+- `data_paths.gmail_token_path` is now the one Gmail-token rule, and the web
+  app reads it too, so the two cannot drift a third time.
+
+Found while building, all fixed here: `offsetx-artifacts` writes into the
+workspace (`D-139`); `.env.example` pinned the CRM and Gmail token outside the
+data directory (`D-140`); the notebook read the AI context from the wrong
+folder (`D-141`). Verified in a real run: six installed tools refused while a
+separate process held the lease; a real HTTP restore answered 409 while a real
+`offsetx-outreach import-contacts` held its lease, and succeeded after it ended.
 
 ## 2026-09-23 — the handoff: the remaining work is written down, not built
 

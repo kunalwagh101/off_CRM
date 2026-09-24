@@ -31,14 +31,20 @@ from pathlib import Path
 from typing import Sequence
 
 from ..api.config import AppSettings
+from ..outreach.workspace_lock import cli_workspace_lease
 from .errors import AIModuleError
 from .sandbox import SandboxWorkspace, sandbox_available
 from .tools import ToolRegistry
 
 
+def _data_dir(args: argparse.Namespace) -> Path:
+    # Resolved: the lease is named after the folder, and `--data-dir .` has no
+    # name until it is, so it would lock a file the web app never looks at.
+    return (Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir).resolve()
+
+
 def _registry(args: argparse.Namespace) -> ToolRegistry:
-    data_dir = Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir
-    return ToolRegistry(data_dir / "ai_tools.db")
+    return ToolRegistry(_data_dir(args) / "ai_tools.db")
 
 
 def _resolve(registry: ToolRegistry, reference: str, workspace: str):
@@ -125,9 +131,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(reason)
         return 2
 
-    root = Path(args.workdir) if args.workdir else (
-        Path(args.data_dir or AppSettings.from_env().data_dir) / "sandbox" / tool.name
-    )
+    root = Path(args.workdir) if args.workdir else _data_dir(args) / "sandbox" / tool.name
     workspace = SandboxWorkspace(root=root)
     print(f"running {tool.name} @ {tool.commit_sha[:12]} in {root}")
     run = registry.run(
@@ -247,7 +251,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if getattr(args, "command", None) and args.command and args.command[0] == "--":
         args.command = args.command[1:]
     try:
-        return int(args.func(args))
+        # Every command opens the registry, which lives in the workspace.
+        with cli_workspace_lease(_data_dir(args)):
+            return int(args.func(args))
     except AIModuleError as exc:
         print(str(exc))
         return 2

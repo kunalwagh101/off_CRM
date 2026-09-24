@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from .campaigns import CampaignKindError
 from .campaigns import list_kinds as list_campaign_kinds
-from .data_paths import database_path
+from .data_paths import data_dir, database_path, gmail_token_path
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
     GmailMailProvider,
@@ -21,6 +21,7 @@ from .outreach.gmail import (
 from .outreach.models import MESSAGE_STAGES
 from .outreach.provider_profiles import create_guarded_provider
 from .outreach.providers import load_provider_config
+from .outreach.workspace_lock import cli_workspace_lease
 
 
 def _json(value: Any) -> None:
@@ -95,16 +96,34 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _gmail_token() -> Path:
+    # The web app's rule, so a token authorised here is the one it reads (D-138).
+    token = gmail_token_path()
+    if token is None:
+        raise SystemExit(
+            "OFFSETX_GMAIL_TOKEN is set but empty, which turns Gmail off. Remove "
+            "it to use gmail_token.json in the data directory."
+        )
+    return token
+
+
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     args = _parser().parse_args(argv)
+    if args.command == "campaign-kinds":
+        # Opens nothing, so it needs no lease and answers even during a restore.
+        _json({"items": list_campaign_kinds()})
+        return 0
+    with cli_workspace_lease(data_dir(Path.cwd())):
+        return _run(args)
+
+
+def _run(args: argparse.Namespace) -> int:
     if args.command == "gmail-authorize":
         client = args.client_secrets or Path(
             os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "gmail_client_secret.json")
         )
-        token = args.token or Path(
-            os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json")
-        )
+        token = args.token or _gmail_token()
         authorize_interactive(
             client_secrets_path=client,
             token_path=token,
@@ -123,8 +142,6 @@ def main(argv: list[str] | None = None) -> int:
                 timezone_name=args.timezone,
             )
             _json(engine.store.get_campaign(campaign_id))
-        elif args.command == "campaign-kinds":
-            _json({"items": list_campaign_kinds()})
         elif args.command == "list-campaigns":
             items, total = engine.store.list_campaigns(status=args.status, kind=args.kind)
             _json({"items": items, "total": total})
@@ -170,12 +187,11 @@ def main(argv: list[str] | None = None) -> int:
                 if args.confirm != "SEND LIVE EMAILS":
                     raise SystemExit("Gmail requires: --confirm \"SEND LIVE EMAILS\"")
                 client = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
-                token = os.getenv("OFFSETX_GMAIL_TOKEN", "local_data/gmail_token.json").strip()
                 if not client or not own_email:
                     raise SystemExit(
                         "Set OFFSETX_GMAIL_CLIENT_SECRETS and OFFSETX_OWN_EMAIL"
                     )
-                mail = GmailMailProvider(client_secrets_path=client, token_path=token)
+                mail = GmailMailProvider(client_secrets_path=client, token_path=_gmail_token())
             else:
                 mail = LocalOutboxProvider(Path(args.db).parent / "mail")
             _json(

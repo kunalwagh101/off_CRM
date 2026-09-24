@@ -76,8 +76,6 @@ remaining work to be written down, not built: each item below has a work order
 an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 `S-06.02.25` is `D-137`.)*
 
-- S-06.02.24 · Every process that writes the workspace holds its lease
-  work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
 - S-06.02.25 · Every screen opens at its top, its warnings in view
   work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
@@ -104,14 +102,17 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-*(Empty. The branch consolidation, `S-06.02.19`, is BLOCKED on one step only
-the owner can take.)*
-
 
 ## IN_REVIEW
 
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
+
+- S-06.02.24 · Every process that writes the workspace holds its lease
+  work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
+  *(2026-09-24 — resumed at the owner's word as the next READY item. Built
+  test-first; the full suite and a live cross-process check pass. The review in
+  a fresh context is running.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md

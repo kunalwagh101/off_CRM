@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+
+from .backup import restore_pending
 
 
 class WorkspaceBusy(RuntimeError):
@@ -87,3 +91,32 @@ class WorkspaceLock:
             finally:
                 os.close(self.fd)
                 self.fd = None
+
+
+@contextmanager
+def cli_workspace_lease(data_dir: Path) -> Iterator[None]:
+    """The shared lease for one command-line run, as a web request holds (D-134).
+
+    A restore swaps the data directory under the exclusive lease, which a
+    backup also takes; without this, a tool's write landed in the generation
+    being swapped out and was lost with it. Refused rather than waited for: a
+    restore can take minutes, and a person at a terminal should be told why now.
+    """
+    lease = WorkspaceLock(data_dir)
+    try:
+        lease.__enter__()
+    except WorkspaceBusy as exc:
+        raise SystemExit(
+            "The web app is backing up or restoring the workspace. Retry once it finishes."
+        ) from exc
+    try:
+        # Checked under the lease, as the email worker does (D-129): a crash
+        # mid-restore leaves no process holding anything, only the journal.
+        if restore_pending(data_dir):
+            raise SystemExit(
+                "A restore was interrupted and has not been rolled back yet. Start the "
+                "web app, which rolls it back as it starts, then retry."
+            )
+        yield
+    finally:
+        lease.__exit__(None, None, None)

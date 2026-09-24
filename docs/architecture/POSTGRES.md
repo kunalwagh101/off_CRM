@@ -5,9 +5,12 @@ genuinely cannot serve.
 
 ```
 offsetx-db check                                       # what would be opened, and can it be reached
-offsetx-db copy-log --from local_data/ai_egress.db --to postgresql://…
+offsetx-db copy-log --from <data dir>/ai_egress.db --to postgresql://…
 OFFSETX_DATABASE_URL=postgresql://…                    # switch over; unset to go back
 ```
+
+The data directory is `OFFSETX_DATA_DIR`, or `local_data` when it is unset —
+the example below uses the default.
 
 ---
 

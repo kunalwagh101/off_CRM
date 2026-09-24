@@ -126,8 +126,15 @@ integrity are checked before live services close. The runtime then:
 2. Acquires the exclusive workspace lease. An active delivery worker causes a
    retryable refusal; the worker reopens its stores each cycle under a shared
    lease, and refuses to run while a restore awaits rollback (`D-129`). The
-   command-line tools do not take the lease yet (`D-134`, `S-06.02.24`): stop
-   them before a restore.
+   command-line tools take the same shared lease for a whole command, so a
+   running one refuses the restore the same way; while a backup or restore
+   runs, or one awaits rollback, they refuse to start and say which
+   (`D-134`, `S-06.02.24`). They lock the data directory they resolve —
+   `OFFSETX_DATA_DIR`, or `local_data` under the folder they run from — so
+   run them with the web app's `OFFSETX_DATA_DIR`. `offsetx-db` and
+   `offsetx-artifacts` lock only when their target is inside the workspace: a
+   Postgres check, or a run copied elsewhere, still works during a restore.
+   Commands that open nothing (`campaign-kinds`, `targets`, `list`) never lock.
 3. Closes all database connections, including those created on other threads.
 4. Writes a staged generation and a synced journal on the persistent filesystem.
 5. Renames the old generation into recovery storage and installs the new one.

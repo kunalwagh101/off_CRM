@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
-from .agent.artifacts import ArtifactError, SUPPORTED_FORMATS, write_artifact
+from .agent.artifacts import SUPPORTED_FORMATS, ArtifactError, write_artifact
 from .browser.trace import Trace, TraceIntegrityError
+from .data_paths import data_dir
+from .outreach.workspace_lock import cli_workspace_lease
 
 
 def _trace(run_dir: str) -> Trace:
@@ -46,16 +49,22 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    try:
-        trace = _trace(args.run_dir)
-        formats = SUPPORTED_FORMATS if args.format_name == "all" else (args.format_name,)
-        for format_name in formats:
-            path = write_artifact(trace, format_name, browser_path=args.browser)
-            print(path)
-        return 0
-    except (ArtifactError, TraceIntegrityError, OSError, ValueError) as exc:
-        print(f"offsetx-artifacts: {exc}", file=sys.stderr)
-        return 2
+    # The app records agent runs under the data directory, and the reports are
+    # written beside the trace, so rendering one writes into the workspace
+    # (D-139). A run copied elsewhere is nothing a restore swaps.
+    workspace = data_dir(Path.cwd())
+    inside = Path(args.run_dir).expanduser().resolve().is_relative_to(workspace)
+    with cli_workspace_lease(workspace) if inside else nullcontext():
+        try:
+            trace = _trace(args.run_dir)
+            formats = SUPPORTED_FORMATS if args.format_name == "all" else (args.format_name,)
+            for format_name in formats:
+                path = write_artifact(trace, format_name, browser_path=args.browser)
+                print(path)
+            return 0
+        except (ArtifactError, TraceIntegrityError, OSError, ValueError) as exc:
+            print(f"offsetx-artifacts: {exc}", file=sys.stderr)
+            return 2
 
 
 if __name__ == "__main__":

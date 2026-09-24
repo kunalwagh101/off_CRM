@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Sequence
 
 from .ai.context import ContextLayer
-from .data_paths import database_path
+from .data_paths import data_dir, database_path
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -29,6 +30,7 @@ from .notebook import (
     resolve_target,
 )
 from .outreach.store import OutreachStore
+from .outreach.workspace_lock import cli_workspace_lease
 
 
 def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
@@ -63,7 +65,7 @@ def _exporter(args: argparse.Namespace) -> tuple[NotebookExport, OutreachStore, 
     store = OutreachStore(args.db)
     store.initialize()
     context: ContextLayer | None = None
-    context_path = Path(args.context) if args.context else Path(args.db).with_name("ai_context.db")
+    context_path = Path(args.context)
     if context_path.exists():
         context = ContextLayer(context_path)
     return (
@@ -169,7 +171,13 @@ def _parser() -> argparse.ArgumentParser:
         description="Build research-notebook sources from a campaign.",
     )
     parser.add_argument("--db", default=str(database_path()), help="outreach database path")
-    parser.add_argument("--context", default="", help="AI context database path")
+    # Where the web app keeps it, not beside the CRM: the two differ once the
+    # CRM database is named elsewhere (D-141).
+    parser.add_argument(
+        "--context",
+        default=str(data_dir(Path.cwd()) / "ai_context.db"),
+        help="AI context database path",
+    )
     parser.add_argument("--workspace", default="local")
     parser.add_argument(
         "--owner-domain",
@@ -200,8 +208,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    # `targets` reads nothing from the workspace, so it answers during a restore.
+    lease = (
+        nullcontext() if args.command == "targets" else cli_workspace_lease(data_dir(Path.cwd()))
+    )
     try:
-        return int(args.func(args))
+        with lease:
+            return int(args.func(args))
     except NotebookExportError as exc:
         print(str(exc), file=sys.stderr)
         return 2

@@ -1,9 +1,10 @@
 """Where durable data lives when nothing names it: one rule for every entry point.
 
-The web app, the outreach CLI and the notebook CLI must open the same CRM
-database by default. Each had its own default, and when the web app's began to
-follow `OFFSETX_DATA_DIR` — the one durable root a backup covers — the CLIs
-kept `local_data/` and quietly opened a second, empty CRM beside it (D-127).
+The web app and every command-line tool must open the same files by default.
+Each had its own default, and when the web app's began to follow
+`OFFSETX_DATA_DIR` — the one durable root a backup covers — the CLIs kept
+`local_data/` and quietly opened a second, empty CRM beside it (D-127), and
+later a Gmail token and an egress log the web app never read (D-138).
 
 Its own module rather than a function in `api/config.py`: importing anything
 from `api` imports the whole web app, which a command-line tool should not pay
@@ -29,3 +30,11 @@ def database_path(root: Path | str | None = None) -> Path:
     return resolved(
         os.getenv("OFFSETX_OUTREACH_DB", str(data_dir(base) / "offsetx_outreach.db")), base
     )
+
+
+def gmail_token_path(root: Path | str | None = None) -> Path | None:
+    """The Gmail token file; None when OFFSETX_GMAIL_TOKEN is set but empty,
+    which is how the web app has always read "Gmail is off"."""
+    base = Path(root or Path.cwd()).resolve()
+    value = os.getenv("OFFSETX_GMAIL_TOKEN", str(data_dir(base) / "gmail_token.json")).strip()
+    return resolved(value, base) if value else None

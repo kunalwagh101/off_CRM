@@ -45,13 +45,22 @@ class WorkspaceLock:
 
     def _acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # 0644: the file holds no data, and a user who cannot read it cannot
+        # lock it. Made 0600 by a tool run as root, it left the app's own user
+        # answering 500 to every request while health stayed green (D-142).
         try:
-            self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
-        except PermissionError:
-            # Made by another user — a tool run as root in the container. A
-            # lock needs no write access, and failing here answered 500 to
-            # every request while health stayed green.
-            self.fd = os.open(self.path, os.O_RDONLY)
+            self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o644)
+        except PermissionError as denied:
+            # Another user's file: a lock needs no write access.
+            try:
+                self.fd = os.open(self.path, os.O_RDONLY)
+            except OSError:
+                raise denied from None
+        else:
+            try:
+                os.fchmod(self.fd, 0o644)  # widen a 0600 file an older build made
+            except (OSError, AttributeError):  # not the owner; or Windows
+                pass
         try:
             if os.name == "nt":
                 import ctypes

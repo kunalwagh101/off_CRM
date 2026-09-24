@@ -113,13 +113,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
 
-- S-06.02.24 · Every process that writes the workspace holds its lease
-  work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
-  *(2026-09-24 — resumed at the owner's word as the next READY item. Built
-  test-first; the full suite and a live cross-process check pass. The
-  fresh-context review found `D-142` to `D-146`: four fixed test-first, `D-146`
-  filed as `S-06.02.28`. DONE waits for a second fresh look at those fixes.)*
-
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 - S-06.02.22 · A created or selected campaign stays the active workspace
@@ -160,6 +153,14 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.24 · Every process that writes the workspace holds its lease
+  work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
+  tests: tests/test_cli_workspace_lease.py::test_a_tool_refuses_while_a_restore_holds_the_workspace, tests/test_cli_workspace_lease.py::test_a_tool_refuses_while_a_restore_waits_to_be_rolled_back, tests/test_cli_workspace_lease.py::test_a_tool_lets_a_restore_in_once_it_finishes, tests/test_cli_workspace_lease.py::test_a_command_that_opens_nothing_still_runs_during_a_restore, tests/test_cli_workspace_lease.py::test_offsetx_db_still_checks_postgres_during_a_restore, tests/test_cli_workspace_lease.py::test_offsetx_artifacts_still_renders_a_run_kept_outside_the_workspace, tests/test_cli_workspace_lease.py::test_a_lock_file_is_readable_by_the_apps_own_user, tests/test_cli_workspace_lease.py::test_a_lock_file_this_process_cannot_write_still_locks, tests/test_cli_workspace_lease.py::test_a_refused_tool_writes_nothing_into_the_workspace, tests/test_cli_workspace_lease.py::test_a_restore_left_committed_is_not_called_interrupted, tests/test_cli_workspace_lease.py::test_copy_log_locks_when_it_would_write_into_the_workspace, tests/test_cli_workspace_lease.py::test_check_locks_the_crm_database_even_outside_the_data_dir, tests/test_default_data_paths.py::test_gmail_authorize_writes_the_token_where_the_web_app_reads_it, tests/test_default_data_paths.py::test_offsetx_db_checks_the_egress_log_the_web_app_writes, tests/test_default_data_paths.py::test_the_notebook_reads_the_web_apps_context_when_the_crm_lives_elsewhere, tests/test_default_data_paths.py::test_the_env_template_leaves_every_durable_path_to_the_data_dir
+  command: uv run pytest tests/test_cli_workspace_lease.py tests/test_default_data_paths.py tests/test_workspace_lock.py -q
+  result: 51 passed (2026-09-24); full suite 2371 -> 2413 passed, 0 failed; Python 3.10 full suite 2404 passed before the review fixes
+  live: installed tools against a running web app: all six refused while a separate process held the exclusive lease; a real HTTP restore answered 409 while a real offsetx-outreach import held its lease, and succeeded after it ended. Lock-file permissions checked with two real users (root makes the file, nobody still leases it and is refused under root's exclusive). Two fresh-context reviews: D-142..D-145 fixed test-first (the first D-142 fix was wrong and the second review caught it); D-146 filed as S-06.02.28, not claimed.
+  code: offsetx_apollo_builder/outreach/workspace_lock.py, offsetx_apollo_builder/data_paths.py, offsetx_apollo_builder/outreach_cli.py, offsetx_apollo_builder/notebook_cli.py, offsetx_apollo_builder/ai/eval_cli.py, offsetx_apollo_builder/ai/tool_cli.py, offsetx_apollo_builder/db_cli.py, offsetx_apollo_builder/artifact_cli.py, offsetx_apollo_builder/api/config.py, .env.example
 
 - S-12.02.04 · A review becomes the next version of the plan
   tests: tests/test_gtm_revise.py::test_a_measured_rate_replaces_the_assumption, tests/test_gtm_revise.py::test_too_few_contacted_carries_the_assumption_forward, tests/test_gtm_revise.py::test_applying_a_revision_updates_the_same_campaigns, tests/test_gtm_revise.py::test_a_plan_with_no_review_is_not_revised, tests/test_gtm_revise.py::test_the_deadline_stays_and_the_target_is_what_is_left, tests/test_gtm_revise.py::test_the_review_of_a_revision_counts_only_its_own_sends, tests/test_gtm_revise.py::test_replies_between_a_review_and_the_next_apply_count_for_the_next_version, tests/test_gtm_revise.py::test_a_revised_angle_reaches_the_posts_and_the_emails, tests/test_gtm_revise.py::test_a_deleted_campaign_is_made_again_when_the_revision_is_applied, tests/test_gtm_revise.py::test_an_older_database_gains_the_baseline_column, tests/test_gtm_revise.py::test_revise_over_http

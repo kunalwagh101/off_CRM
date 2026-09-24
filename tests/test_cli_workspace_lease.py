@@ -305,3 +305,22 @@ def test_check_locks_the_crm_database_even_outside_the_data_dir(tmp_path, monkey
         pytest.raises(SystemExit, match="backing up or restoring"),
     ):
         db_cli.main(["check", "--target", str(outside)])
+
+
+def test_a_lock_file_is_readable_by_the_apps_own_user(tmp_path):
+    """The read-only fallback only helps if another user can open the file: it
+    holds no data, so a 0600 file made by root stopped the app for nothing."""
+    lock = WorkspaceLock(tmp_path / "data")
+    lock.__enter__().__exit__()
+    assert lock.path.stat().st_mode & 0o044 == 0o044
+
+
+def test_a_lock_that_cannot_be_opened_says_which_file(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.outreach import workspace_lock
+
+    def denied(path, flags, *args):
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(workspace_lock.os, "open", denied)
+    with pytest.raises(PermissionError, match=r"\.data\.workspace\.lock"):
+        WorkspaceLock(tmp_path / "data").__enter__()

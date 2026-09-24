@@ -351,7 +351,9 @@ providers:
           top_p: 0.95
           chat_template_kwargs:
             enable_thinking: true
-          reasoning_budget: 16384
+          # No reasoning_budget: NVIDIA forwards it as vLLM's
+          # thinking_token_budget, which its V2 runner refuses with a 400 on
+          # every call (D-147). max_tokens above already bounds the thinking.
       - id: microsoft/phi-3-medium-128k-instruct
         context_window: 128000
         cost_per_1m_input_usd: 0.0

@@ -98,9 +98,15 @@ class AppSettings:
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
             public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
             unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),
+            # Render sets RENDER_EXTERNAL_HOSTNAME to the service's own public
+            # name; without it an unconfigured service answered 421 to itself.
             allowed_hosts=tuple(
                 item.strip().lower()
-                for item in os.getenv("OFFSETX_ALLOWED_HOSTS", "").split(",")
+                for item in (
+                    os.getenv("OFFSETX_ALLOWED_HOSTS", "")
+                    + ","
+                    + os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
+                ).split(",")
                 if item.strip()
             ),
         )

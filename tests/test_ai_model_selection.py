@@ -460,7 +460,10 @@ def test_model_request_options_reach_the_http_payload(registry, tmp_path):
     assert payload["temperature"] == 1
     assert payload["top_p"] == 0.95
     assert payload["chat_template_kwargs"] == {"enable_thinking": True}
-    assert payload["reasoning_budget"] == 16384
+    # NVIDIA forwards `reasoning_budget` as vLLM's `thinking_token_budget`,
+    # which its V2 model runner refuses with a 400 on every call (D-147);
+    # max_tokens already bounds the thinking.
+    assert "reasoning_budget" not in payload
     assert sent["url"].endswith("/chat/completions")
 
 

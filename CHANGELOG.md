@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Two live bugs the owner reported** (2026-09-25). NVIDIA's reasoning model
+  failed every chat with a 400, because we sent an option its server refuses
+  (`D-147`, `S-06.02.29`). And every Render deploy timed out: the host guard
+  answered 421 to Render's own health checker (`D-148`). Health checks are
+  now answered on any host; the API is still guarded; Render's own hostname
+  needs no setting.
+
 - **Command-line tools no longer write under a restore** (2026-09-24,
   `S-06.02.24`). `offsetx-outreach`, `offsetx-notebook`, `offsetx-evals`,
   `offsetx-tools`, `offsetx-db` and `offsetx-artifacts` hold the workspace's

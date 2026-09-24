@@ -154,6 +154,13 @@ write the code, then the evidence block.)*
 
 ## DONE
 
+- S-06.02.29 · The NVIDIA reasoning model answers in chat
+  tests: tests/test_ai_model_selection.py::test_model_request_options_reach_the_http_payload, tests/test_security_audit.py::test_health_checks_answer_whatever_host_the_platform_sends, tests/test_security_audit.py::test_render_s_own_hostname_is_answered_without_configuration
+  command: uv run pytest tests/test_ai_model_selection.py tests/test_security_audit.py -q
+  result: 56 passed (2026-09-25)
+  live: not yet — both fixes are proven against the real app in-process and the real provider payload, but no call reached NVIDIA (the owner's key is not in this session) and no Render deploy was watched. The owner retries the chat and redeploys develop; D-148 (the 421 health check, S-06.02.10's host guard) ships in the same commit.
+  code: config/providers.yaml, offsetx_apollo_builder/ai/providers.yaml, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/config.py
+
 - S-06.02.24 · Every process that writes the workspace holds its lease
   work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
   tests: tests/test_cli_workspace_lease.py::test_a_tool_refuses_while_a_restore_holds_the_workspace, tests/test_cli_workspace_lease.py::test_a_tool_refuses_while_a_restore_waits_to_be_rolled_back, tests/test_cli_workspace_lease.py::test_a_tool_lets_a_restore_in_once_it_finishes, tests/test_cli_workspace_lease.py::test_a_command_that_opens_nothing_still_runs_during_a_restore, tests/test_cli_workspace_lease.py::test_offsetx_db_still_checks_postgres_during_a_restore, tests/test_cli_workspace_lease.py::test_offsetx_artifacts_still_renders_a_run_kept_outside_the_workspace, tests/test_cli_workspace_lease.py::test_a_lock_file_is_readable_by_the_apps_own_user, tests/test_cli_workspace_lease.py::test_a_lock_file_this_process_cannot_write_still_locks, tests/test_cli_workspace_lease.py::test_a_refused_tool_writes_nothing_into_the_workspace, tests/test_cli_workspace_lease.py::test_a_restore_left_committed_is_not_called_interrupted, tests/test_cli_workspace_lease.py::test_copy_log_locks_when_it_would_write_into_the_workspace, tests/test_cli_workspace_lease.py::test_check_locks_the_crm_database_even_outside_the_data_dir, tests/test_default_data_paths.py::test_gmail_authorize_writes_the_token_where_the_web_app_reads_it, tests/test_default_data_paths.py::test_offsetx_db_checks_the_egress_log_the_web_app_writes, tests/test_default_data_paths.py::test_the_notebook_reads_the_web_apps_context_when_the_crm_lives_elsewhere, tests/test_default_data_paths.py::test_the_env_template_leaves_every_durable_path_to_the_data_dir

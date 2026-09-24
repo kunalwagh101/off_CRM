@@ -565,3 +565,24 @@ def test_the_connection_is_opened_in_autocommit():
 
     source = inspect.getsource(module.OutreachStore.__init__)
     assert "isolation_level=None" in source
+
+
+def test_health_checks_answer_whatever_host_the_platform_sends(tmp_path):
+    """Render's health checker sends an internal host; answered 421, every
+    deploy timed out and never went live (D-148). A health answer says only
+    ready or not, so a rebinding page learns nothing from it — the API stays
+    behind the allowlist."""
+    settings = _real_settings(tmp_path, allowed_hosts=("crm.example",))
+    with TestClient(create_app(settings)) as client:
+        for path in ("/health/live", "/health/ready"):
+            answer = client.get(path, headers={"Host": "10.209.25.53:10000"})
+            assert answer.status_code == 200, f"{path}: {answer.status_code}"
+        assert client.get("/api/v1/meta", headers={"Host": "10.209.25.53:10000"}).status_code == 421
+
+
+def test_render_s_own_hostname_is_answered_without_configuration(tmp_path, monkeypatch):
+    """Render sets RENDER_EXTERNAL_HOSTNAME to the service's public name; an
+    owner who has not set OFFSETX_ALLOWED_HOSTS should not get 421 on it."""
+    monkeypatch.setenv("RENDER_EXTERNAL_HOSTNAME", "off-crm-develop.onrender.com")
+    monkeypatch.delenv("OFFSETX_ALLOWED_HOSTS", raising=False)
+    assert "off-crm-develop.onrender.com" in AppSettings.from_env(tmp_path).host_allowlist()

@@ -823,7 +823,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             bare_host = sent_host[1:].split("]", 1)[0]
         else:                                  # 127.0.0.1:8766  ->  127.0.0.1
             bare_host = sent_host.split(":", 1)[0]
-        if sent_host and bare_host not in host_allowlist:
+        # Health checks come from the platform with an internal host; refused,
+        # every Render deploy timed out (D-148). They say only ready or not, so
+        # a rebinding page learns nothing — and nothing else is exempt.
+        platform_probe = request.method == "GET" and request.url.path in (
+            "/health/live",
+            "/health/ready",
+        )
+        if sent_host and bare_host not in host_allowlist and not platform_probe:
             return security_headers(
                 JSONResponse(
                     status_code=421,

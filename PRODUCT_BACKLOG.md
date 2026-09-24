@@ -854,6 +854,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-153 | Every Python version the package supports, and the image's, runs the suite in CI | S-06.02.26 |
 | R-154 | The audit's live harness runs against the branch that deploys | S-06.02.27 |
 | R-155 | A command-line tool locks the workspace whose files it actually opens | S-06.02.28 |
+| R-156 | Every model in the provider catalogue is called with options its provider accepts | S-06.02.29 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1635,6 +1636,17 @@ can make are not taken on trust.
   `archive/integration/main-consolidation` (fetch tags with
   `git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'`); before it, the
   branch itself, or pull request #14's ref (`git fetch origin pull/14/head`).
+
+#### S-06.02.29 — The NVIDIA reasoning model answers in chat
+**As an** owner, **I want** a model I connected to answer, **so that** the AI
+screen is not a wall of "every permitted provider failed".
+- **Given** `nvidia/nemotron-3-ultra-550b-a55b` connected with a key, **when**
+  the owner chats, **then** the request carries only options NVIDIA accepts:
+  `max_tokens`, `temperature`, `top_p`, `chat_template_kwargs` — not
+  `reasoning_budget`.
+- **Dependencies:** none. **Size:** XS. **Indicator:** provider 400s caused by
+  our own request options — target zero.
+- **Why:** `D-147`, reported by the owner from the live app on 2026-09-25.
 
 #### S-06.02.28 — A command-line tool locks the workspace it actually opens
 **As an** owner, **I want** a command-line tool to hold the lease of the

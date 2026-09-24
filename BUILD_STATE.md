@@ -70,6 +70,13 @@ folder (`D-141`). Verified in a real run: six installed tools refused while a
 separate process held the lease; a real HTTP restore answered 409 while a real
 `offsetx-outreach import-contacts` held its lease, and succeeded after it ended.
 
+The fresh-context review found one high defect this change widened: a tool
+run as root left a lock file the app's user could not open, and every API
+request answered 500 with health green (`D-142`). Fixed, with `D-143` to
+`D-145`, each test-first. Open, and not claimed: `D-146` — a tool pointed at
+the app's files from another folder, or with `OFFSETX_DATA_DIR` only in `.env`,
+locks the wrong workspace; `S-06.02.28` owns it.
+
 ## 2026-09-23 — the handoff: the remaining work is written down, not built
 
 The owner asked to stop building and to leave the rest as planned features, for

@@ -63,6 +63,11 @@ runners. The per-finding re-check itself is READY.)*
 
 - S-06.02.27 · The audit's live harness runs against `develop`
 
+*(Filed 2026-09-24 from the review of `S-06.02.24` for `D-146`. Needs its
+work order before it is pulled.)*
+
+- S-06.02.28 · A command-line tool locks the workspace it actually opens
+
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
@@ -111,8 +116,9 @@ write the code, then the evidence block.)*
 - S-06.02.24 · Every process that writes the workspace holds its lease
   work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md
   *(2026-09-24 — resumed at the owner's word as the next READY item. Built
-  test-first; the full suite and a live cross-process check pass. The review in
-  a fresh context is running.)*
+  test-first; the full suite and a live cross-process check pass. The
+  fresh-context review found `D-142` to `D-146`: four fixed test-first, `D-146`
+  filed as `S-06.02.28`. DONE waits for a second fresh look at those fixes.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md

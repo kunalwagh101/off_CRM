@@ -143,3 +143,10 @@ def test_an_empty_gmail_token_setting_means_gmail_is_off_everywhere(tmp_path, mo
     assert AppSettings.from_env(tmp_path).gmail_token is None
     with pytest.raises(SystemExit, match="turns Gmail off"):
         outreach_cli.main(["gmail-authorize", "--no-browser"])
+
+
+@pytest.fixture(autouse=True)
+def _no_dotenv(monkeypatch):
+    """`offsetx-outreach` loads `.env` into the process; a developer's own file
+    must not decide what these tests see, nor leak into the tests after them."""
+    monkeypatch.setattr(outreach_cli, "load_dotenv", lambda *args, **kwargs: False)

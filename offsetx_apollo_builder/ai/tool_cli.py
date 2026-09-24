@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from ..api.config import AppSettings
+from ..data_paths import data_dir, resolved
 from ..outreach.workspace_lock import cli_workspace_lease
 from .errors import AIModuleError
 from .sandbox import SandboxWorkspace, sandbox_available
@@ -39,8 +39,9 @@ from .tools import ToolRegistry
 
 def _data_dir(args: argparse.Namespace) -> Path:
     # Resolved: the lease is named after the folder, and `--data-dir .` has no
-    # name until it is, so it would lock a file the web app never looks at.
-    return (Path(args.data_dir) if args.data_dir else AppSettings.from_env().data_dir).resolve()
+    # name until it is. Not through the web app's settings: loading them
+    # writes an API token into the workspace, before any lease is held.
+    return resolved(args.data_dir, Path.cwd()) if args.data_dir else data_dir(Path.cwd())
 
 
 def _registry(args: argparse.Namespace) -> ToolRegistry:

@@ -853,6 +853,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-152 | Every screen opens at its top, with its warnings in view | S-06.02.25 |
 | R-153 | Every Python version the package supports, and the image's, runs the suite in CI | S-06.02.26 |
 | R-154 | The audit's live harness runs against the branch that deploys | S-06.02.27 |
+| R-155 | A command-line tool locks the workspace whose files it actually opens | S-06.02.28 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1634,6 +1635,26 @@ can make are not taken on trust.
   `archive/integration/main-consolidation` (fetch tags with
   `git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'`); before it, the
   branch itself, or pull request #14's ref (`git fetch origin pull/14/head`).
+
+#### S-06.02.28 — A command-line tool locks the workspace it actually opens
+**As an** owner, **I want** a command-line tool to hold the lease of the
+workspace whose files it opens, **so that** no path spelling lets a write land
+in a workspace a restore is swapping.
+- **Given** an explicit `--db`, `--context` or `--token`, or an absolute
+  `OFFSETX_OUTREACH_DB` or `OFFSETX_GMAIL_TOKEN`, naming the web app's files, run
+  from any folder, **when** a restore holds the web app's workspace, **then**
+  the tool refuses — it does not lock a `local_data` beside the current folder.
+- **Given** `OFFSETX_DATA_DIR` set only in `.env`, **when** any of the six tools
+  runs, **then** it resolves the same data directory as `offsetx-web`; today only
+  `offsetx-web` and `offsetx-outreach` read `.env`.
+- **Given** `offsetx-artifacts --run-dir .` from inside a run the app recorded,
+  **when** a restore runs, **then** it refuses.
+- **Dependencies:** `S-06.02.24`. **Size:** M. **Indicator:** writes made
+  during a restore by a tool pointed at the workspace — target zero.
+- **Why:** `D-146`, from the fresh-context review of `S-06.02.24`: the lease
+  is keyed on the data directory worked out from the current folder, not on
+  the files the command opens. The design call — how a tool learns which
+  workspace a path belongs to — is the first step of its work order.
 
 #### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 **As an** owner, **I want** the verifier to say "this clone is shallow" when that

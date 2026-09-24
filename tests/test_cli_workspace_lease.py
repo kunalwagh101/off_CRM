@@ -10,6 +10,8 @@ real `main`, that opens a store under the data directory.
 """
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 import pytest
@@ -126,7 +128,7 @@ def test_a_tool_refuses_while_a_restore_waits_to_be_rolled_back(command, tmp_pat
     run, argv, store = command(settings, monkeypatch)
     before = _state(store)
 
-    with pytest.raises(SystemExit, match="interrupted and has not been rolled back"):
+    with pytest.raises(SystemExit, match="has not finished"):
         run(argv)
 
     assert _state(store) == before
@@ -196,3 +198,110 @@ def test_offsetx_artifacts_still_renders_a_run_kept_outside_the_workspace(tmp_pa
         assert artifact_cli.main(["--run-dir", str(trace.directory), "--format", "xlsx"]) == 0
 
     assert (trace.directory / XLSX_FILENAME).exists()
+
+
+@pytest.fixture(autouse=True)
+def _no_dotenv(monkeypatch):
+    """`offsetx-outreach` loads `.env` into the process; a developer's own file
+    must not decide what these tests see, nor leak into the tests after them."""
+    monkeypatch.setattr(outreach_cli, "load_dotenv", lambda *args, **kwargs: False)
+
+
+def test_a_lock_file_this_process_cannot_write_still_locks(tmp_path, monkeypatch):
+    """A tool run as root first left a root-owned 0600 lock file; the app's own
+    user then failed to open it and answered 500 to every request."""
+    from offsetx_apollo_builder.outreach import workspace_lock
+
+    real_open = os.open
+
+    def owned_by_someone_else(path, flags, *args):
+        if str(path).endswith(".lock") and flags & os.O_RDWR:
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_open(path, flags, *args)
+
+    data = tmp_path / "data"
+    WorkspaceLock(data).__enter__().__exit__()  # the file exists, made by "root"
+    monkeypatch.setattr(workspace_lock.os, "open", owned_by_someone_else)
+
+    with WorkspaceLock(data), WorkspaceLock(data):
+        pass  # shared leases still share
+    with WorkspaceLock(data, exclusive=True), pytest.raises(workspace_lock.WorkspaceBusy):
+        WorkspaceLock(data).__enter__()
+
+
+@pytest.mark.parametrize("run", [eval_cli.main, tool_cli.main], ids=["offsetx-evals", "offsetx-tools"])
+def test_a_refused_tool_writes_nothing_into_the_workspace(run, tmp_path, monkeypatch):
+    """Working out the data directory went through the web app's settings, which
+    write an API token into it — before the lease was taken."""
+    settings = _settings(tmp_path)
+    _point_at(settings, tmp_path, monkeypatch)
+    monkeypatch.delenv("OFFSETX_LOCAL_API_TOKEN", raising=False)
+    argv = ["champion", "--suite", "x"] if run is eval_cli.main else ["list"]
+
+    with (
+        WorkspaceLock(settings.data_dir, exclusive=True),
+        pytest.raises(SystemExit, match="backing up or restoring"),
+    ):
+        run(argv)
+
+    assert not settings.data_dir.exists()
+
+
+def test_a_restore_left_committed_is_not_called_interrupted(tmp_path, monkeypatch):
+    """A cleanup failure leaves a committed journal in a running, healthy app:
+    nothing will be rolled back, and the app needs a restart, not a start."""
+    from offsetx_apollo_builder.outreach import backup
+
+    settings = _pending_restore(tmp_path)
+    journal_path = backup._journal_path(settings.data_dir.resolve())
+    journal = json.loads(journal_path.read_text())
+    journal["state"] = "committed"
+    journal_path.write_text(json.dumps(journal))
+    _point_at(settings, tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit) as refused:
+        tool_cli.main(["list"])
+    assert "rolled back" not in str(refused.value)
+    assert "Restart the web app" in str(refused.value)
+
+
+def test_a_data_dir_given_as_dot_locks_the_web_apps_lease(tmp_path, monkeypatch):
+    settings = _settings(tmp_path)
+    settings.data_dir.mkdir(parents=True)
+    _point_at(settings, tmp_path, monkeypatch)
+    monkeypatch.chdir(settings.data_dir)
+
+    with (
+        WorkspaceLock(settings.data_dir, exclusive=True),
+        pytest.raises(SystemExit, match="backing up or restoring"),
+    ):
+        tool_cli.main(["--data-dir", ".", "list"])
+
+
+def test_copy_log_locks_when_it_would_write_into_the_workspace(tmp_path, monkeypatch):
+    """`--to` was not looked at: a mistyped path made a SQLite file in the
+    workspace while a restore held it."""
+    settings = _settings(tmp_path)
+    _point_at(settings, tmp_path, monkeypatch)
+    source = tmp_path / "elsewhere.db"
+
+    with (
+        WorkspaceLock(settings.data_dir, exclusive=True),
+        pytest.raises(SystemExit, match="backing up or restoring"),
+    ):
+        db_cli.main(["copy-log", "--from", str(source), "--to", str(settings.data_dir / "typo.db")])
+    assert not (settings.data_dir / "typo.db").exists()
+
+
+def test_check_locks_the_crm_database_even_outside_the_data_dir(tmp_path, monkeypatch):
+    """A backup covers the CRM database wherever it lives, so a restore swaps it."""
+    settings = _settings(tmp_path)
+    _point_at(settings, tmp_path, monkeypatch)
+    outside = tmp_path / "crm" / "outreach.db"
+    monkeypatch.setenv("OFFSETX_OUTREACH_DB", str(outside))
+
+    with (
+        WorkspaceLock(settings.data_dir, exclusive=True),
+        pytest.raises(SystemExit, match="backing up or restoring"),
+    ):
+        db_cli.main(["check", "--target", str(outside)])

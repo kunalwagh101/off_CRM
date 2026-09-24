@@ -21,7 +21,7 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
 from .ai.log import copy_egress_log
-from .data_paths import data_dir
+from .data_paths import data_dir, database_path
 from .db import (
     DATABASE_URL_ENV,
     DatabaseError,
@@ -33,17 +33,23 @@ from .db.connection import is_postgres_url
 from .outreach.workspace_lock import cli_workspace_lease
 
 
-def _lease(target: object) -> AbstractContextManager[None]:
-    """The workspace lease when `target` is a file a restore swaps (D-134).
+def _lease(*targets: object) -> AbstractContextManager[None]:
+    """The workspace lease when any target is a file a restore swaps (D-134):
+    one inside the data directory, or the CRM database, which a backup covers
+    wherever it lives.
 
     Only then: a Postgres URL, or a SQLite copy kept elsewhere, is not part of
     the workspace, and checking one is what an operator does while a restore
     is stuck.
     """
     workspace = data_dir(Path.cwd())
-    if is_postgres_url(target) or not Path(str(target)).resolve().is_relative_to(workspace):
-        return nullcontext()
-    return cli_workspace_lease(workspace)
+    for target in targets:
+        if is_postgres_url(target):
+            continue
+        path = Path(str(target)).resolve()
+        if path.is_relative_to(workspace) or path == database_path():
+            return cli_workspace_lease(workspace)
+    return nullcontext()
 
 
 def _cmd_check(args: argparse.Namespace) -> int:
@@ -83,7 +89,7 @@ def _check(target: str, args: argparse.Namespace) -> int:
 
 def _cmd_copy_log(args: argparse.Namespace) -> int:
     try:
-        with _lease(args.source):
+        with _lease(args.source, args.destination):
             result = copy_egress_log(args.source, args.destination)
     except DatabaseError as exc:
         print(str(exc), file=sys.stderr)

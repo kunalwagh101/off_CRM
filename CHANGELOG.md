@@ -9,10 +9,17 @@
   While a backup or restore runs, or an interrupted restore awaits rollback,
   they refuse to start and say which, instead of writing into files the
   restore is swapping out (`D-134`, `D-139`). Commands that open nothing still
-  run. The tools also open the web app's files by default: the Gmail token, the
-  egress log and the notebook's AI context (`D-138`, `D-141`). `.env.example`
-  no longer pins the CRM database and Gmail token outside `OFFSETX_DATA_DIR`
-  (`D-140`). Operators no longer stop the tools by hand before a restore.
+  run. Run from the web app's folder with its environment, the tools also open
+  its files by default: the Gmail token, the egress log and the notebook's AI
+  context (`D-138`, `D-141`). `.env.example` and the README no longer pin the
+  CRM database and Gmail token outside `OFFSETX_DATA_DIR` (`D-140`).
+  - **The fresh-context review** found a root-owned lock file could put every
+    API request at 500 (`D-142`, high), and three smaller gaps (`D-143` to
+    `D-145`); all fixed with tests that failed first. Still open: a tool
+    pointed at the web app's files from another folder, or with
+    `OFFSETX_DATA_DIR` only in `.env`, locks the wrong workspace (`D-146`,
+    `S-06.02.28`) — run the tools with the web app's environment, from its
+    folder.
 
 - **The remaining work, planned for handoff** (2026-09-23). No code: every open
   item is on `BOARD.md` with a `work_order:` line naming the plan an

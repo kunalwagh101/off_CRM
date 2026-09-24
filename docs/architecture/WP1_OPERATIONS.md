@@ -131,9 +131,12 @@ integrity are checked before live services close. The runtime then:
    runs, or one awaits rollback, they refuse to start and say which
    (`D-134`, `S-06.02.24`). They lock the data directory they resolve —
    `OFFSETX_DATA_DIR`, or `local_data` under the folder they run from — so
-   run them with the web app's `OFFSETX_DATA_DIR`. `offsetx-db` and
-   `offsetx-artifacts` lock only when their target is inside the workspace: a
-   Postgres check, or a run copied elsewhere, still works during a restore.
+   run them with the web app's `OFFSETX_DATA_DIR`, exported rather than only in
+   `.env`, from its folder: a tool pointed at the app's files from elsewhere
+   locks the wrong workspace (`D-146`, open, `S-06.02.28`). `offsetx-db` and
+   `offsetx-artifacts` lock only when a path they touch is in the workspace or
+   is the CRM database: a Postgres check, or a run copied elsewhere, still
+   works during a restore.
    Commands that open nothing (`campaign-kinds`, `targets`, `list`) never lock.
 3. Closes all database connections, including those created on other threads.
 4. Writes a staged generation and a synced journal on the persistent filesystem.

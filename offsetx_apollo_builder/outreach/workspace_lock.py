@@ -45,7 +45,13 @@ class WorkspaceLock:
 
     def _acquire(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            self.fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        except PermissionError:
+            # Made by another user — a tool run as root in the container. A
+            # lock needs no write access, and failing here answered 500 to
+            # every request while health stayed green.
+            self.fd = os.open(self.path, os.O_RDONLY)
         try:
             if os.name == "nt":
                 import ctypes
@@ -112,10 +118,12 @@ def cli_workspace_lease(data_dir: Path) -> Iterator[None]:
     try:
         # Checked under the lease, as the email worker does (D-129): a crash
         # mid-restore leaves no process holding anything, only the journal.
+        # The journal may be pending (rolled back at start-up) or committed
+        # (kept, cleanup retried), so the sentence promises neither.
         if restore_pending(data_dir):
             raise SystemExit(
-                "A restore was interrupted and has not been rolled back yet. Start the "
-                "web app, which rolls it back as it starts, then retry."
+                "A restore has not finished: its recovery record is still on disk. "
+                "Restart the web app, which completes it as it starts, then retry."
             )
         yield
     finally:

@@ -160,6 +160,7 @@ write the code, then the evidence block.)*
   result: 56 passed (2026-09-25)
   live: not yet — both fixes are proven against the real app in-process and the real provider payload, but no call reached NVIDIA (the owner's key is not in this session) and no Render deploy was watched. The owner retries the chat and redeploys develop; D-148 (the 421 health check, S-06.02.10's host guard) ships in the same commit.
   code: config/providers.yaml, offsetx_apollo_builder/ai/providers.yaml, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/config.py
+  commit: 12afdb6
 
 - S-06.02.24 · Every process that writes the workspace holds its lease
   work_order: docs/work-orders/S-06.02.24-workspace-lease-for-clis.md

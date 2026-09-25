@@ -442,3 +442,37 @@ def test_recall_rebuild_runs_without_a_campaign(client):
     response = client.post(f"{API}/ai/recall/rebuild", json={})
     assert response.status_code == 200
     assert response.json()["indexed"] == 0
+
+
+def test_the_connect_form_s_own_defaults_are_accepted(client):
+    """The Connectors form sends what it shows: a daily call cap of 0 ("use the
+    provider's own limit") and a spend cap of 0 ("no cap"). The strict request
+    contract refused the 0, so no provider could be connected from the screen
+    with its defaults (D-149)."""
+    response = client.post(
+        f"{API}/ai/providers/nvidia/connect",
+        json={
+            "api_key": "nvapi-test",
+            "model_ids": ["nvidia/nemotron-3-ultra-550b-a55b"],
+            "data_policy": "standard",
+            "requests_per_day": 0,
+            "max_spend_usd_per_day": 0,
+        },
+    )
+    assert response.status_code == 200, response.text
+    rows = client.get(f"{API}/ai/providers").json()["providers"]
+    nvidia = next(row for row in rows if row["id"] == "nvidia")
+    assert nvidia["connected"] is True
+    assert nvidia["requests_per_day"] == 0  # no cap of our own; the provider's applies
+
+
+def test_a_refused_value_is_named_in_the_message_the_screen_shows(client):
+    """Screens show the message line only, and "Request validation failed" told
+    the owner nothing about what to change (D-150)."""
+    response = client.post(
+        f"{API}/ai/providers/nvidia/connect", json={"api_key": "k", "requests_per_day": -1}
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "requests per day" in detail
+    assert "greater than or equal to 0" in detail

@@ -886,10 +886,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 "message": str(item.get("msg") or "Invalid value")[:500],
                 "type": str(item.get("type") or "validation_error")[:120],
             })
+        # Screens show `detail` alone, so it names the first refused field: a
+        # bare "Request validation failed" left the owner nothing to change
+        # (D-150). Built from the same bounded messages, never from the body.
+        detail = "Request validation failed"
+        if errors:
+            first = errors[0]
+            field = " ".join(first["location"]).replace("_", " ").strip()
+            detail = f"{field}: {first['message']}." if field else f"{first['message']}."
+            if len(errors) > 1:
+                detail += f" ({len(errors) - 1} more value(s) were refused too.)"
+            detail += " Correct it and try again."
         return JSONResponse(
             status_code=422,
             content={
-                "detail": "Request validation failed",
+                "detail": detail,
                 "errors": errors,
             },
         )

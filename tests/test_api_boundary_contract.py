@@ -219,4 +219,8 @@ def test_validation_error_never_echoes_a_secret_request_body(tmp_path):
         )
         assert response.status_code == 422
         assert secret not in response.text
-        assert response.json()["detail"] == "Request validation failed"
+        # The message names the field the screen must point at (D-150); the
+        # body, and so the secret, is still never echoed.
+        body = response.json()
+        first = " ".join(body["errors"][0]["location"]).replace("_", " ")
+        assert first and first in body["detail"]

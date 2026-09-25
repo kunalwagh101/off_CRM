@@ -154,6 +154,13 @@ write the code, then the evidence block.)*
 
 ## DONE
 
+- S-06.02.30 · A provider connects from the Connectors screen as shown
+  tests: tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_api.py::test_a_refused_value_is_named_in_the_message_the_screen_shows, tests/test_api_boundary_contract.py::test_validation_error_never_echoes_a_secret_request_body
+  command: uv run pytest tests/test_ai_api.py tests/test_api_boundary_contract.py -q
+  result: 42 passed (2026-09-25)
+  live: in a real headless Chromium against the running app with the built screens: Connectors → NVIDIA NIM → Connect, key pasted, defaults left as shown (call cap 0, spend cap 0); the request carried requests_per_day 0 and the screen said "NVIDIA NIM connected. Key encrypted on this machine.", card On. The RED run reproduced the owner's exact response. Not re-checked on Render from here.
+  code: offsetx_apollo_builder/api/schemas.py, offsetx_apollo_builder/api/app.py
+
 - S-06.02.29 · The NVIDIA reasoning model answers in chat
   tests: tests/test_ai_model_selection.py::test_model_request_options_reach_the_http_payload, tests/test_security_audit.py::test_health_checks_answer_whatever_host_the_platform_sends, tests/test_security_audit.py::test_render_s_own_hostname_is_answered_without_configuration
   command: uv run pytest tests/test_ai_model_selection.py tests/test_security_audit.py -q

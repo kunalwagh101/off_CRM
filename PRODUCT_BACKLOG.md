@@ -855,6 +855,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-154 | The audit's live harness runs against the branch that deploys | S-06.02.27 |
 | R-155 | A command-line tool locks the workspace whose files it actually opens | S-06.02.28 |
 | R-156 | Every model in the provider catalogue is called with options its provider accepts | S-06.02.29 |
+| R-157 | A provider connects from the Connectors screen with the form's own values, and a refused value is named | S-06.02.30 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1636,6 +1637,19 @@ can make are not taken on trust.
   `archive/integration/main-consolidation` (fetch tags with
   `git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'`); before it, the
   branch itself, or pull request #14's ref (`git fetch origin pull/14/head`).
+
+#### S-06.02.30 — A provider connects from the Connectors screen as shown
+**As an** owner, **I want** the Connect button to work with the values the form
+shows me, **so that** connecting a model is one click after pasting a key.
+- **Given** the Connectors form's defaults — call cap 0, spend cap 0 — **when**
+  the owner connects a provider, **then** it connects, and 0 means no cap of
+  ours.
+- **Given** a value the server refuses, **when** the screen shows the error,
+  **then** the message names the field and what was wrong.
+- **Dependencies:** none. **Size:** XS. **Indicator:** connect attempts refused
+  for a value the form itself offered — target zero.
+- **Why:** `D-149` and `D-150`, reported by the owner from the live app on
+  2026-09-25.
 
 #### S-06.02.29 — The NVIDIA reasoning model answers in chat
 **As an** owner, **I want** a model I connected to answer, **so that** the AI

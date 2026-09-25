@@ -711,7 +711,10 @@ class AIProviderConnectBody(StrictModel):
     data_policy: str = Field(default="", max_length=40)
     enabled: bool = Field(default=True, strict=True)
     requests_per_minute: int | None = Field(default=None, ge=1, le=100000, strict=True)
-    requests_per_day: int | None = Field(default=None, ge=1, le=10000000, strict=True)
+    # 0 is the Connectors form's own default — "use the provider's own limit",
+    # which the quota reads as no cap of ours. Refusing it meant no provider
+    # could be connected from the screen (D-149).
+    requests_per_day: int | None = Field(default=None, ge=0, le=10000000, strict=True)
     max_spend_usd_per_day: float | None = Field(default=None, ge=0)
 
 class AIProviderOverrideBody(StrictModel):

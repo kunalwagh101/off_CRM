@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Connecting a provider from the screen works again** (2026-09-25,
+  `S-06.02.30`). The Connectors form sends a call cap of 0, meaning "the
+  provider's own limit", and a strict contract added on 22 September refused
+  it, so every Connect said "Request validation failed" (`D-149`). And that
+  message now names the field and what was wrong, everywhere (`D-150`).
+
 - **Two live bugs the owner reported** (2026-09-25). NVIDIA's reasoning model
   failed every chat with a 400, because we sent an option its server refuses
   (`D-147`, `S-06.02.29`). And every Render deploy timed out: the host guard

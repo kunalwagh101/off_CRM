@@ -160,6 +160,7 @@ write the code, then the evidence block.)*
   result: 42 passed (2026-09-25)
   live: in a real headless Chromium against the running app with the built screens: Connectors → NVIDIA NIM → Connect, key pasted, defaults left as shown (call cap 0, spend cap 0); the request carried requests_per_day 0 and the screen said "NVIDIA NIM connected. Key encrypted on this machine.", card On. The RED run reproduced the owner's exact response. Not re-checked on Render from here.
   code: offsetx_apollo_builder/api/schemas.py, offsetx_apollo_builder/api/app.py
+  commit: 4d37889
 
 - S-06.02.29 · The NVIDIA reasoning model answers in chat
   tests: tests/test_ai_model_selection.py::test_model_request_options_reach_the_http_payload, tests/test_security_audit.py::test_health_checks_answer_whatever_host_the_platform_sends, tests/test_security_audit.py::test_render_s_own_hostname_is_answered_without_configuration

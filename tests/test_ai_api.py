@@ -476,3 +476,47 @@ def test_a_refused_value_is_named_in_the_message_the_screen_shows(client):
     detail = response.json()["detail"]
     assert "requests per day" in detail
     assert "greater than or equal to 0" in detail
+
+
+def test_a_key_in_the_server_environment_serves_no_workspace(client, monkeypatch):
+    """The fallback handed the owner's key to every workspace login, other
+    clients' included (D-151). Keys come only from the app (DD-64)."""
+    monkeypatch.setenv("OFFSETX_AI_NVIDIA_KEY", "nvapi-from-the-environment")
+    rows = client.get(f"{API}/ai/providers").json()["providers"]
+    assert next(row for row in rows if row["id"] == "nvidia")["has_key"] is False
+    for workspace in ("local", "acme-client"):
+        assert client.app.state.ai_workspaces.key_for(workspace, "nvidia") == ""
+
+
+def test_connecting_with_no_key_says_to_paste_one(client):
+    """Without the fallback a blank key would connect a provider that fails at
+    the first chat; the connect says so instead."""
+    response = client.post(
+        f"{API}/ai/providers/nvidia/connect", json={"api_key": "", "data_policy": "standard"}
+    )
+    assert response.status_code == 400
+    assert "Paste" in response.json()["detail"]["message"]
+    rows = client.get(f"{API}/ai/providers").json()["providers"]
+    assert next(row for row in rows if row["id"] == "nvidia")["connected"] is False
+
+
+def test_saving_changes_with_the_key_box_blank_keeps_the_stored_key(client):
+    first = client.post(f"{API}/ai/providers/nvidia/connect", json={"api_key": "nvapi-typed-in-the-app"})
+    assert first.status_code == 200
+    again = client.post(
+        f"{API}/ai/providers/nvidia/connect", json={"api_key": "", "requests_per_day": 200}
+    )
+    assert again.status_code == 200, again.text
+    assert client.app.state.ai_workspaces.key_for("local", "nvidia") == "nvapi-typed-in-the-app"
+
+
+def test_a_local_server_needs_no_key(client):
+    assert client.post(f"{API}/ai/providers/local/connect", json={"api_key": ""}).status_code == 200
+
+
+def test_a_rejected_key_points_at_connectors_not_the_environment():
+    from offsetx_apollo_builder.ai.failures import describe_kinds
+
+    auth = next(item for item in describe_kinds() if item["kind"] == "auth")
+    assert "Connectors" in auth["owner_action"]
+    assert "OFFSETX_AI_" not in auth["owner_action"]

@@ -143,19 +143,18 @@ class WorkspaceAISettingsStore:
             self._write_secrets(secrets)
 
     def key_for(self, workspace_id: str, provider_id: str) -> str:
-        """Resolution order: stored key, then a named environment variable.
+        """The key this workspace stored in Connectors, or "".
 
-        The env fallback keeps server deployments simple — on Render the key can
-        live in the dashboard rather than in an uploaded file.
+        Only that. An `OFFSETX_AI_<PROVIDER>_KEY` fallback used to answer for any
+        workspace with none stored — so every login, other clients' included,
+        spent the owner's key (D-151). A user cannot reach the server's
+        environment anyway; keys are typed in the app (DD-64).
         """
         with self._lock:
             try:
-                stored = self._secrets().get(self._secret_key(workspace_id, provider_id), "")
+                return self._secrets().get(self._secret_key(workspace_id, provider_id), "")
             except RegistryError:
-                stored = ""
-        if stored:
-            return stored
-        return os.environ.get(f"OFFSETX_AI_{provider_id.upper()}_KEY", "").strip()
+                return ""
 
     def credential_resolver(self, workspace_id: str):
         def resolve(provider_id: str) -> str:
@@ -228,6 +227,13 @@ class WorkspaceAISettingsStore:
         max_spend_usd_per_day: float | None = None,
     ) -> dict[str, Any]:
         entry = self.registry.require(provider_id)
+        # Checked before anything is stored: connected with no key, a provider
+        # only fails later, at the first chat, far from the cause.
+        if not api_key.strip() and not entry.local_only and not self.key_for(workspace_id, provider_id):
+            raise ValueError(
+                f"Paste your {entry.name} API key first. The key page link on this "
+                "card shows where to get one."
+            )
         tier = entry.derived_tier
         policy = (
             coerce_policy(data_policy, default=default_policy_for_tier(tier))

@@ -165,9 +165,11 @@ belongs under that root, and must be opened in `_open_runtime` and closed in
 wiped on every restart and deploy.** That loses CRM data, encrypted keys and
 audit records, and it is a production release blocker until the owner moves
 `main` to a paid service with a disk (`OPEN_QUESTIONS.md` Q-26). With
-`OFFSETX_PRODUCTION=1` the app refuses to start on `/tmp` at all. Provider keys
-can come from `OFFSETX_AI_<PROVIDER>_KEY` environment variables, but that does
-not make CRM data or audit records durable.
+`OFFSETX_PRODUCTION=1` the app refuses to start on `/tmp` at all. The owner's
+answer (2026-09-25) is a hosted PostgreSQL on the free plan:
+`docs/architecture/HOSTED_STORAGE.md`, feature `F-06.03`, not built yet.
+Provider keys come only from the app — there is no environment-variable
+fallback any more (`DD-64`, `D-151`); never tell a user to set one.
 
 ---
 

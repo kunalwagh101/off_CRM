@@ -4,6 +4,7 @@ import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
+import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
 import { Loadable } from "./shared";
 
@@ -462,16 +463,21 @@ function ProviderCard({
           </div>
 
           <div className="form-grid">
-            <Field label="Daily call cap" hint="0 means use the provider's own limit.">
-              <input name="requests_per_day" type="number" min="0" defaultValue={row.requests_per_day ?? 0} />
+            <Field label="Daily call cap" hint="Counted by off_CRM. The provider's own limit still applies.">
+              <CapPicker
+                name="requests_per_day"
+                label="Daily call cap"
+                presets={CALL_CAP_PRESETS}
+                defaultValue={row.requests_per_day ?? 0}
+              />
             </Field>
-            <Field label="Daily spend cap (USD)" hint="0 means no cap.">
-              <input
+            <Field label="Daily spend cap (USD)" hint="Stops calls once today's estimated spend reaches it.">
+              <CapPicker
                 name="max_spend_usd_per_day"
-                type="number"
-                min="0"
-                step="0.5"
+                label="Daily spend cap"
+                presets={SPEND_CAP_PRESETS}
                 defaultValue={row.max_spend_usd_per_day ?? 0}
+                step={0.5}
               />
             </Field>
           </div>

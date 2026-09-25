@@ -100,10 +100,6 @@ an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 *(2026-09-25 — the owner's requests on keys, limits and trust. Built in this
 order; `S-06.02.31` also closes `D-151`.)*
 
-- S-06.02.31 · Provider keys come only from the app
-  work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
-- S-06.02.32 · The connect form offers limit presets
-  work_order: docs/work-orders/S-06.02.32-limit-presets.md
 - S-06.02.33 · Trust is the owner's to change, per provider and per model
   work_order: docs/work-orders/S-06.02.33-trust-per-provider-and-model.md
 
@@ -116,13 +112,11 @@ order; `S-06.02.31` also closes `D-151`.)*
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
 Definition of Ready is not a formality and an item whose shape can still change
 is an item that gets built twice. S-11.02.01 through S-11.02.03 are DONE; the
 remaining independent stories below stay READY.)*
-
 
 *(Moved out of BACKLOG on 2026-09-10 after an audit: every dependency these
 declare is DONE, and no open question is filed against any of them. They had
@@ -130,9 +124,7 @@ been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
-
 ## IN_PROGRESS
-
 
 ## IN_REVIEW
 
@@ -180,6 +172,21 @@ write the code, then the evidence block.)*
 
 ## DONE
 
+- S-06.02.32 · The connect form offers limit presets
+  work_order: docs/work-orders/S-06.02.32-limit-presets.md
+  tests: frontend/src/components.test.tsx, tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted
+  command: uv run pytest tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: 1 passed, then 25 passed (2026-09-25); frontend 155 passed, build clean
+  live: real headless Chromium against the running app with the built screens: "200 a day" and "$5 a day" chosen on NVIDIA NIM's card posted requests_per_day 200 and max_spend_usd_per_day 5, it connected, and reopening the form showed both presets selected. The spend hint was checked against quota.py before it was written.
+  code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx
+
+- S-06.02.31 · Provider keys come only from the app
+  work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
+  tests: tests/test_ai_api.py::test_a_key_in_the_server_environment_serves_no_workspace, tests/test_ai_api.py::test_connecting_with_no_key_says_to_paste_one, tests/test_ai_api.py::test_saving_changes_with_the_key_box_blank_keeps_the_stored_key, tests/test_ai_api.py::test_a_local_server_needs_no_key, tests/test_ai_api.py::test_a_rejected_key_points_at_connectors_not_the_environment
+  command: uv run pytest tests/test_ai_api.py -q
+  result: 42 passed (2026-09-25); full suite 2417 -> 2422 passed, 0 failed
+  live: before the change, a script showed OFFSETX_AI_NVIDIA_KEY answering for workspaces local, acme-client and another-client alike. After it, real headless Chromium: Connect NVIDIA NIM with the key box blank said "Paste your NVIDIA NIM API key first. The key page link on this card shows where to get one." and stored nothing; with a key it connected.
+  code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py
 - S-06.02.30 · A provider connects from the Connectors screen as shown
   tests: tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_api.py::test_a_refused_value_is_named_in_the_message_the_screen_shows, tests/test_api_boundary_contract.py::test_validation_error_never_echoes_a_secret_request_body
   command: uv run pytest tests/test_ai_api.py tests/test_api_boundary_contract.py -q

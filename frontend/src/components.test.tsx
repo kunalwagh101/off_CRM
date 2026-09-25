@@ -387,3 +387,39 @@ describe("screens before the campaign list has loaded (D-130)", () => {
     expect(html).not.toContain("<h1>Contacts</h1>");
   });
 });
+
+describe("limit presets on the connect form (S-06.02.32)", () => {
+  it("offers the provider's own limit or no cap, three sizes, and a typed number", async () => {
+    const { CALL_CAP_PRESETS, SPEND_CAP_PRESETS } = await import("./pages/CapPicker");
+    expect(CALL_CAP_PRESETS.map((preset) => preset.value)).toEqual([0, 50, 200, 1000]);
+    expect(SPEND_CAP_PRESETS.map((preset) => preset.value)).toEqual([0, 1, 5, 20]);
+  });
+
+  it("shows a saved cap as its preset, and any other number as custom", async () => {
+    const { CALL_CAP_PRESETS, SPEND_CAP_PRESETS, presetChoice } = await import("./pages/CapPicker");
+    expect(presetChoice(200, CALL_CAP_PRESETS)).toBe("200");
+    expect(presetChoice(0, SPEND_CAP_PRESETS)).toBe("0");
+    expect(presetChoice(37, CALL_CAP_PRESETS)).toBe("custom");
+  });
+
+  it("posts a preset's number with no number box shown", async () => {
+    const { default: CapPicker, CALL_CAP_PRESETS } = await import("./pages/CapPicker");
+    const html = renderToStaticMarkup(
+      <CapPicker name="requests_per_day" label="Daily call cap" presets={CALL_CAP_PRESETS} defaultValue={200} />
+    );
+    expect(html).toContain('name="requests_per_day"');
+    expect(html).toContain('value="200"');
+    expect(html).toContain("Provider&#x27;s own limit");
+    expect(html).not.toContain('type="number"');
+  });
+
+  it("shows a typed cap in its own labelled number box", async () => {
+    const { default: CapPicker, CALL_CAP_PRESETS } = await import("./pages/CapPicker");
+    const html = renderToStaticMarkup(
+      <CapPicker name="requests_per_day" label="Daily call cap" presets={CALL_CAP_PRESETS} defaultValue={37} />
+    );
+    expect(html).toContain('type="number"');
+    expect(html).toContain('aria-label="Custom daily call cap"');
+    expect(html).toContain('value="37"');
+  });
+});

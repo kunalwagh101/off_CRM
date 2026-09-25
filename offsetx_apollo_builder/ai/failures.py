@@ -213,9 +213,9 @@ _ACTIONS: dict[FailureKind, FailureAction] = {
 
 _OWNER_ACTIONS: dict[FailureKind, str] = {
     FailureKind.AUTH: (
-        "The provider rejected the API key. Reconnect it in Connectors, or set "
-        "OFFSETX_AI_<PROVIDER>_KEY. Nothing was sent to another model, because "
-        "failing over would have hidden this."
+        "The provider rejected the API key. Paste a working one in Connectors. "
+        "Nothing was sent to another model, because failing over would have "
+        "hidden this."
     ),
     FailureKind.PAYMENT: (
         "The provider refused the call for billing reasons — out of credit, or "

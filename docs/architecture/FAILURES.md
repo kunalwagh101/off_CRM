@@ -102,9 +102,9 @@ time the server named beats guessing at it.
 
 A `STOP` names what to do, and says explicitly that nothing was routed around:
 
-> The provider rejected the API key. Reconnect it in Connectors, or set
-> `OFFSETX_AI_<PROVIDER>_KEY`. Nothing was sent to another model, because
-> failing over would have hidden this.
+> The provider rejected the API key. Paste a working one in Connectors.
+> Nothing was sent to another model, because failing over would have hidden
+> this.
 > *(provider nvidia, model meta/llama-3.1-70b-instruct, auth)*
 
 Over HTTP that is a **502** with the kind, the action and the owner action in

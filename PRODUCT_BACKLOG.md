@@ -1682,8 +1682,9 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Given** a provider raised above its default, **when** one of its models is
   capped because of who built it, **then** the provider's raise does not lift
   that model — only the model's own setting can.
-- **Given** any trust setting, **when** a request carries received mail,
-  **then** it still reaches no model (`AGENTS.md` rule 5).
+- **Given** any trust setting, **when** the owner has not typed the separate
+  mailbox unlock phrase, **then** received mail reaches no model — no trust
+  setting opens the mailbox (`AGENTS.md` rule 5).
 - **Given** a changed trust, **when** the owner saves the connection again,
   **then** the data ceiling follows the changed trust, not the default.
 - **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without

@@ -309,7 +309,6 @@ Environment, in full:
 | `OFFSETX_DATA_DIR` | Where the databases live |
 | `OFFSETX_DATABASE_URL` | Postgres URL for the egress log; unset → SQLite |
 | `OFFSETX_OUTREACH_DB` | CRM database path |
-| `OFFSETX_AI_<PROVIDER>_KEY` | Provider keys, when the encrypted file cannot persist |
 | `OFFSETX_GMAIL_CLIENT_SECRETS`, `OFFSETX_GMAIL_TOKEN` | Mail credentials |
 | `OFFSETX_OWN_EMAIL`, `OFFSETX_SENDER_*`, `OFFSETX_SIGNATURE` | Sender identity |
 | `OFFSETX_WEB_HOST`, `OFFSETX_WEB_PORT` | Server binding |

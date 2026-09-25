@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Keys only from the app, and limit presets** (2026-09-25, `S-06.02.31`,
+  `S-06.02.32`). A provider key set in the server's environment used to
+  answer for every workspace login, other clients' included (`D-151`); that
+  route is gone, and connecting with no key says to paste one. The call and
+  spend caps are now chosen from presets — the provider's own limit or no
+  cap, three sizes, or a typed number.
+
 - **Connecting a provider from the screen works again** (2026-09-25,
   `S-06.02.30`). The Connectors form sends a call cap of 0, meaning "the
   provider's own limit", and a strict contract added on 22 September refused

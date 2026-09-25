@@ -856,6 +856,11 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-155 | A command-line tool locks the workspace whose files it actually opens | S-06.02.28 |
 | R-156 | Every model in the provider catalogue is called with options its provider accepts | S-06.02.29 |
 | R-157 | A provider connects from the Connectors screen with the form's own values, and a refused value is named | S-06.02.30 |
+| R-158 | Provider keys come only from the app; the server's environment never supplies one | S-06.02.31 |
+| R-159 | Call and spend caps are chosen from presets or typed, with 0 meaning the provider's limit or no cap | S-06.02.32 |
+| R-160 | Trust is the owner's to raise or lower, per provider and per model, with a recorded reason to raise | S-06.02.33 |
+| R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
+| R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1638,6 +1643,68 @@ can make are not taken on trust.
   `git fetch origin 'refs/tags/archive/*:refs/tags/archive/*'`); before it, the
   branch itself, or pull request #14's ref (`git fetch origin pull/14/head`).
 
+#### S-06.02.31 — Provider keys come only from the app
+**As an** owner, **I want** every provider key to be one I typed into the app,
+**so that** no user ever has to reach the server's environment, and no login
+ever uses a key it was not given.
+- **Given** `OFFSETX_AI_<PROVIDER>_KEY` set on the server, **when** any workspace
+  lists or uses providers, **then** that variable supplies nothing.
+- **Given** no stored key, **when** the owner connects a provider that needs one,
+  **then** it is refused with a sentence saying to paste the key first; a local
+  server that needs no key still connects.
+- **Dependencies:** none. **Size:** S. **Indicator:** workspaces able to use a
+  key they did not store — target zero.
+- **Why:** `D-151` — the variable served every workspace login, other clients
+  included. Owner, 2026-09-25: users add keys in the app, not the environment.
+
+#### S-06.02.32 — The connect form offers limit presets
+**As an** owner, **I want** to pick a daily call cap and spend cap from sensible
+choices, **so that** I do not have to guess a number.
+- **Given** the Connect form, **when** the owner sets the call cap, **then** the
+  choices are the provider's own limit (0), 50, 200, 1,000 or a typed number;
+  the spend cap offers no cap (0), $1, $5, $20 or a typed amount.
+- **Given** a saved cap, **when** the form opens again, **then** it shows that
+  cap, as its preset or as a typed number.
+- **Dependencies:** `S-06.02.30`. **Size:** S. **Indicator:** caps set by typing
+  a number the owner had to guess — no target; the presets are the default.
+- **Why:** owner request, 2026-09-25.
+
+#### S-06.02.33 — Trust is the owner's to change, per provider and per model
+**As an** owner, **I want** to raise or lower how far any provider or model is
+trusted, **so that** the defaults are a starting point and not a verdict.
+- **Given** any provider, **when** the owner lowers its trust, **then** it
+  applies at once to every model under it, with no reason asked.
+- **Given** any model under a provider, **when** the owner sets its own trust,
+  **then** that setting wins over the provider's.
+- **Given** a raise above a default, **when** the owner saves it, **then** a
+  typed reason is required and recorded with who and when; without one nothing
+  changes.
+- **Given** a provider raised above its default, **when** one of its models is
+  capped because of who built it, **then** the provider's raise does not lift
+  that model — only the model's own setting can.
+- **Given** any trust setting, **when** a request carries received mail,
+  **then** it still reaches no model (`AGENTS.md` rule 5).
+- **Given** a changed trust, **when** the owner saves the connection again,
+  **then** the data ceiling follows the changed trust, not the default.
+- **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without
+  a recorded reason for a raise — target zero.
+- **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
+
+#### S-06.02.34 — Connectors show how much is left
+**As an** owner, **I want** each connected provider to show what I have used
+and what is left, **so that** I am not surprised when a key stops.
+- **Given** every connected provider, **when** Connectors opens, **then** it
+  shows today's calls counted by off_CRM against the owner's cap.
+- **Given** a provider that reports what is left — a key or balance endpoint,
+  or rate-limit headers on its replies — **when** it has been checked or called,
+  **then** the screen shows the provider's own figure and when it was read.
+- **Given** a provider that reports nothing (NVIDIA, checked 2026-09-25),
+  **then** the screen says the provider does not report it, never a guess.
+- **Dependencies:** `S-06.02.32`. **Size:** M. **Indicator:** providers whose
+  reporting is unknown — target zero after the work order's first step.
+- **Why:** owner request, 2026-09-25. A model cannot know an account's balance;
+  only the provider's API can say, and many do not.
+
 #### S-06.02.30 — A provider connects from the Connectors screen as shown
 **As an** owner, **I want** the Connect button to work with the values the form
 shows me, **so that** connecting a model is one click after pasting a key.
@@ -1913,6 +1980,45 @@ discovery objective, with the credit cost shown before anything is spent. No
 stories until opened.
 
 ---
+
+### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
+
+The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep
+the data in a free hosted PostgreSQL. Design: `docs/architecture/HOSTED_STORAGE.md`.
+
+#### S-06.03.01 — Every store's backend is known
+- **Given** the running app, **when** the inventory test runs, **then** it lists
+  every store opened at start-up, its backend today and its size on a real
+  install, and the design's table is generated from it.
+- **Dependencies:** none. **Size:** S.
+
+#### S-06.03.02 — Keys, settings and logins live in the hosted database
+- **Given** `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` set once, **when** a
+  key is typed in Connectors and the container is destroyed and recreated,
+  **then** the key, the AI settings, trust changes, workspace logins and the
+  egress log are all still there.
+- **Given** a wrong or missing `OFFSETX_SECRETS_KEY`, **when** the app starts,
+  **then** it refuses with a sentence, never starts with keys it cannot read.
+- **Dependencies:** `S-06.03.01`, `S-06.02.31`. **Size:** L.
+
+#### S-06.03.03 — The CRM lives in the hosted database
+- **Given** the CRM suite, **when** it runs, **then** it passes against SQLite
+  and PostgreSQL alike.
+- **Given** an existing SQLite CRM, **when** the copy tool runs, **then** every
+  table's count reconciles, and the inverse copy has been run once.
+- **Dependencies:** `S-06.03.02`. **Size:** XL.
+
+#### S-06.03.04 — The hosted database is backed up outside itself
+- **Given** the hosted topology, **when** a night passes, **then** an encrypted
+  export exists outside the database; restoring it into an empty one gives the
+  same counts, and the owner can download it.
+- **Dependencies:** `S-06.03.03`. **Size:** M. **Why:** Neon's free restore
+  window is 6 hours.
+
+#### S-06.03.05 — Production refuses a half-hosted install
+- **Given** `OFFSETX_PRODUCTION=1`, **when** some stores are hosted and others
+  are on a wiped disk, **then** the app refuses to start and names them.
+- **Dependencies:** `S-06.03.04`. **Size:** S.
 
 ## 3b. Amendments to shipped definitions
 

@@ -68,6 +68,22 @@ work order before it is pulled.)*
 
 - S-06.02.28 · A command-line tool locks the workspace it actually opens
 
+*(Filed 2026-09-25 from the owner's requests. `S-06.02.34` starts by finding
+out what each provider reports. `F-06.03` is the owner's answer to `Q-26`.)*
+
+- S-06.02.34 · Connectors show how much is left
+  work_order: docs/work-orders/S-06.02.34-usage-remaining.md
+- S-06.03.01 · Every store's backend is known
+  design: docs/architecture/HOSTED_STORAGE.md
+- S-06.03.02 · Keys, settings and logins live in the hosted database
+  design: docs/architecture/HOSTED_STORAGE.md
+- S-06.03.03 · The CRM lives in the hosted database
+  design: docs/architecture/HOSTED_STORAGE.md
+- S-06.03.04 · The hosted database is backed up outside itself
+  design: docs/architecture/HOSTED_STORAGE.md
+- S-06.03.05 · Production refuses a half-hosted install
+  design: docs/architecture/HOSTED_STORAGE.md
+
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
@@ -80,6 +96,16 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 remaining work to be written down, not built: each item below has a work order
 an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 `S-06.02.25` is `D-137`.)*
+
+*(2026-09-25 — the owner's requests on keys, limits and trust. Built in this
+order; `S-06.02.31` also closes `D-151`.)*
+
+- S-06.02.31 · Provider keys come only from the app
+  work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
+- S-06.02.32 · The connect form offers limit presets
+  work_order: docs/work-orders/S-06.02.32-limit-presets.md
+- S-06.02.33 · Trust is the owner's to change, per provider and per model
+  work_order: docs/work-orders/S-06.02.33-trust-per-provider-and-model.md
 
 - S-06.02.25 · Every screen opens at its top, its warnings in view
   work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md

@@ -337,7 +337,11 @@ reply rates.
 
 ### Q-26 — Should `main` on Render keep its data across restarts? *(affects `render.yaml`)*
 
-**Status:** open. Raised 2026-09-23 at the branch consolidation (`S-06.02.19`).
+**Status:** answered 2026-09-25 — a fourth option: stay on Render's free plan
+and keep the data in a free hosted PostgreSQL. Design:
+`docs/architecture/HOSTED_STORAGE.md`; feature `F-06.03`; decision `DD-66`.
+Until `S-06.03.02` lands, data on Render is still wiped on every deploy.
+Raised 2026-09-23 at the branch consolidation (`S-06.02.19`).
 
 **Ambiguity.** Both Render services — `off-crm-demo` on `main` and
 `off-crm-develop` on `develop` — are on the free plan. On the free plan the

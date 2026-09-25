@@ -7,17 +7,16 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-24
+Last updated: 2026-09-25
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-24, on `develop` with `S-06.02.24`): **2404 Python passed, 0
-failed**, 4 environment-gated skips (2371 before it; the 33 added are its own).
-On a real Python 3.10 its changed areas pass (145 tests); the whole 3.10 suite
-last passed on 2026-09-23 (2371). Ruff gate clean. Frontend unchanged since
-**151 passed** and a clean production build. Board verifier OK; every DONE
-story's evidence command last re-run on 2026-09-23: **61 of 61 passed**.
+Tests (2026-09-25, on `develop` at `730b0df`): **2435 Python passed, 0 failed**,
+4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
+2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
+clean. Frontend **158 passed** and a clean production build. Board verifier
+OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
@@ -40,6 +39,31 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-09-25 — live bugs fixed; the owner's keys, limits, trust and storage decisions
+
+**Fixed from the live app** (each test-first, walked in a real browser):
+NVIDIA's reasoning model refused every call (`D-147`); Render deploys timed
+out on a 421 health check (`D-148`); Connect refused the form's own 0 cap and
+hid why (`D-149`, `D-150`).
+
+**The owner's decisions, 2026-09-25** — recorded in `DECISIONS.md` and
+`OPEN_QUESTIONS.md`:
+- Provider keys come only from the app. The environment-variable fallback is
+  gone: it handed the owner's key to every workspace login (`D-151`, `DD-64`).
+- Trust is the owner's to raise or lower, per provider and per model (`DD-65`).
+- `Q-26` answered: stay on Render's free plan with a free hosted PostgreSQL
+  (`DD-66`, `docs/architecture/HOSTED_STORAGE.md`, feature `F-06.03`, five
+  phases). **Not built.** Until phase 1 (`S-06.03.02`) lands, everything on
+  Render — keys included — is still wiped on every deploy.
+
+**Built, in IN_REVIEW pending a fresh-context review:** `S-06.02.31` (keys
+only from the app), `S-06.02.32` (limit presets), `S-06.02.33` (trust per
+provider and model; also `D-152`, `D-153`).
+
+**Planned, not built:** `S-06.02.34` — show what is left per provider. Checked
+on 2026-09-25: NVIDIA reports nothing; OpenRouter and DeepSeek do. A model
+cannot know an account's balance; only a provider's API can say.
 
 ## 2026-09-24 — `S-06.02.24`: the command-line tools hold the restore lease
 

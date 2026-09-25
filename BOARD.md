@@ -179,6 +179,7 @@ write the code, then the evidence block.)*
   result: 1 passed, then 25 passed (2026-09-25); frontend 155 passed, build clean
   live: real headless Chromium against the running app with the built screens: "200 a day" and "$5 a day" chosen on NVIDIA NIM's card posted requests_per_day 200 and max_spend_usd_per_day 5, it connected, and reopening the form showed both presets selected. The spend hint was checked against quota.py before it was written.
   code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx
+  commit: 41fbeb8
 
 - S-06.02.31 · Provider keys come only from the app
   work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
@@ -187,6 +188,7 @@ write the code, then the evidence block.)*
   result: 42 passed (2026-09-25); full suite 2417 -> 2422 passed, 0 failed
   live: before the change, a script showed OFFSETX_AI_NVIDIA_KEY answering for workspaces local, acme-client and another-client alike. After it, real headless Chromium: Connect NVIDIA NIM with the key box blank said "Paste your NVIDIA NIM API key first. The key page link on this card shows where to get one." and stored nothing; with a key it connected.
   code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py
+  commit: 41fbeb8
 - S-06.02.30 · A provider connects from the Connectors screen as shown
   tests: tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_api.py::test_a_refused_value_is_named_in_the_message_the_screen_shows, tests/test_api_boundary_contract.py::test_validation_error_never_echoes_a_secret_request_body
   command: uv run pytest tests/test_ai_api.py tests/test_api_boundary_contract.py -q

@@ -142,7 +142,6 @@ export default function Settings() {
         name: data.get("name"),
         provider_type: providerType,
         model: data.get("model"),
-        api_key_env: data.get("api_key_env"),
         api_key: data.get("api_key"),
         base_url: data.get("base_url"),
         timeout_seconds: 60,

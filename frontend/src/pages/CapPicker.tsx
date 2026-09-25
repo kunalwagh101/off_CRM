@@ -21,6 +21,17 @@ export const SPEND_CAP_PRESETS: CapPreset[] = [
   { value: 20, label: "$20 a day" }
 ];
 
+/**
+ * A posted cap as a number, or null when it is not one. A blank custom box
+ * was Number("") === 0, which saved "no cap" — the opposite of a cap.
+ */
+export function readCap(raw: FormDataEntryValue | null): number | null {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 /** Which option a saved cap shows as: its preset, or "custom" for any other number. */
 export function presetChoice(value: number, presets: CapPreset[]): string {
   return presets.some((preset) => preset.value === value) ? String(value) : "custom";

@@ -65,23 +65,13 @@ export default function Drafts() {
 
   function generateFromForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
     if (providerType === "local") {
       void generate(null);
       return;
     }
-    if (providerType === "fallback") {
-      void generate(null, true);
-      return;
-    }
-    void generate({
-      provider_type: providerType,
-      model: String(data.get("model") ?? ""),
-      api_key_env: String(data.get("api_key_env") ?? ""),
-      base_url: String(data.get("base_url") ?? ""),
-      timeout_seconds: 60,
-      extra: {}
-    });
+    // A request can no longer bring its own provider (D-154): models are
+    // reached through saved profiles, whose keys are typed in the app.
+    void generate(null, true);
   }
 
   async function approveSelected() {
@@ -244,18 +234,10 @@ export default function Drafts() {
             <select value={providerType} onChange={(event) => setProviderType(event.target.value)}>
               <option value="local">Local templates only</option>
               <option value="fallback" disabled={!profiles.data?.total}>Automatic fallback chain ({profiles.data?.total ?? 0})</option>
-              <option value="openai">OpenAI Responses</option>
-              <option value="anthropic">Anthropic Messages</option>
-              <option value="openai_compatible">Compatible provider</option>
-              <option value="template_engine_http">Separate template application</option>
             </select>
           </Field>
-          {!['local', 'fallback'].includes(providerType) ? (
-            <>
-              {providerType !== "template_engine_http" ? <Field label="Model ID"><input name="model" required placeholder="Provider model ID" /></Field> : <input type="hidden" name="model" value="" />}
-              <Field label="API key environment variable" hint="Only the variable name is sent. The secret stays in the backend environment."><input key={providerType} name="api_key_env" defaultValue={providerType === "openai" ? "OPENAI_API_KEY" : providerType === "anthropic" ? "ANTHROPIC_API_KEY" : providerType === "template_engine_http" ? "TEMPLATE_ENGINE_API_KEY" : "AI_PROVIDER_API_KEY"} /></Field>
-              <Field label="Base URL" hint={providerType === "openai" || providerType === "anthropic" ? "Optional. Leave blank for the official provider endpoint." : "Loopback HTTP or HTTPS only."}><input name="base_url" type="url" required={providerType === "openai_compatible" || providerType === "template_engine_http"} placeholder={providerType === "template_engine_http" ? "http://127.0.0.1:8090" : providerType === "openai_compatible" ? "http://127.0.0.1:8080/v1" : "Official endpoint"} /></Field>
-            </>
+          {!profiles.data?.total ? (
+            <p className="muted-copy">To personalise with a model, save a provider profile with its API key in Settings.</p>
           ) : null}
           {providerType === "fallback" ? <div className="form-note success-note"><strong>Provider-independent mode</strong><span>The CRM tries configured providers in priority order and automatically skips outages, rate limits and malformed responses.</span></div> : null}
           {providerType === "fallback" ? <Field label="Multi-provider strategy"><select value={fallbackStrategy} onChange={(event) => setFallbackStrategy(event.target.value)}><option value="priority">Priority failover</option><option value="round_robin">Round robin</option><option value="parallel">Parallel first-success</option></select></Field> : null}

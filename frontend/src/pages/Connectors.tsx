@@ -4,7 +4,7 @@ import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
-import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS } from "./CapPicker";
+import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS, readCap } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
 import { ModelTrustSelect, ProviderTrustSelect, TRUST_WORD } from "./TrustSelect";
 import { Loadable } from "./shared";
@@ -52,6 +52,12 @@ export default function Connectors() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const requestsPerDay = readCap(data.get("requests_per_day"));
+    const spendPerDay = readCap(data.get("max_spend_usd_per_day"));
+    if (requestsPerDay === null || spendPerDay === null) {
+      notify("Type a number of 0 or more for the custom cap, or pick a preset. Nothing was saved.", "warning");
+      return;
+    }
     setBusy(`connect-${row.id}`);
     try {
       const result = await api.post<{ policy_was_clamped: boolean; tier: string; policy_ceiling: string }>(
@@ -60,8 +66,8 @@ export default function Connectors() {
           api_key: String(data.get("api_key") ?? ""),
           model_ids: [String(data.get("model_id") ?? (row.model_id || row.default_model))],
           data_policy: String(data.get("data_policy") ?? ""),
-          requests_per_day: Number(data.get("requests_per_day") ?? 0),
-          max_spend_usd_per_day: Number(data.get("max_spend_usd_per_day") ?? 0)
+          requests_per_day: requestsPerDay,
+          max_spend_usd_per_day: spendPerDay
         }
       );
       if (result.policy_was_clamped) {
@@ -158,7 +164,7 @@ export default function Connectors() {
     setBusy(`override-${row.id}`);
     try {
       await api.post(`/ai/providers/${row.id}/override`, {});
-      notify(`${row.name} returned to its default trust level`, "success");
+      notify(`Full access to ${row.name} withdrawn. Its trust settings stay as they are.`, "success");
       providers.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not reset trust", "error");
@@ -436,19 +442,20 @@ function ProviderCard({
         open={showModelTrust}
         onToggle={(event) => onModelTrustToggle((event.currentTarget as HTMLDetailsElement).open)}
       >
-        <summary>Trust per model ({row.available_models.length})</summary>
+        <summary>Trust per model ({(row.trust_models ?? row.available_models).length})</summary>
         <p className="muted-copy">
-          A model's own setting wins over the provider's. Raising the provider never lifts a
-          model capped because of who built it — only that model's own setting can.
+          A model is trusted as much as {row.name}, or less: the provider sees everything sent to
+          it. A model built elsewhere stays capped until its own setting lifts it, with a reason.
         </p>
         <ul>
-          {row.available_models.map((model) => (
+          {(row.trust_models ?? row.available_models).map((model) => (
             <li key={model.id}>
               <span>
                 {model.id} <Badge tone={TIER_TONE[model.tier]}>{TIER_WORD[model.tier]}</Badge>
               </span>
               <ModelTrustSelect
                 modelId={model.id}
+                providerName={row.name}
                 value={row.override?.model_tiers?.[model.id]?.tier ?? ""}
                 disabled={busy === `trust-${row.id}`}
                 onChange={(tier) => onTrust(tier, model.id)}
@@ -459,9 +466,9 @@ function ProviderCard({
       </details>
       {row.override && (row.override.allow_above_ceiling || row.override.data_policy) ? (
         <p className="provider-override">
-          Trust changed by you: {row.override.reason}
+          Full access granted by you: {row.override.reason}
           <button type="button" className="link-button" onClick={onClearOverride}>
-            reset
+            withdraw
           </button>
         </p>
       ) : null}
@@ -481,7 +488,14 @@ function ProviderCard({
       <footer className="provider-card-actions">
         {blocked ? (
           <>
-            <span className="muted-copy">Blocked by default.</span>
+            <span className="muted-copy">
+              {row.override?.trust_tier === "D" ? "Blocked by you." : "Blocked by default."}
+            </span>
+            {row.connected ? (
+              <Button tone="ghost" busy={busy === `disconnect-${row.id}`} onClick={onDisconnect}>
+                Disconnect
+              </Button>
+            ) : null}
             <Button tone="ghost" busy={busy === `override-${row.id}`} onClick={onRaise}>
               Allow anyway…
             </Button>

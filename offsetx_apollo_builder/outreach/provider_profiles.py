@@ -128,11 +128,9 @@ class ProviderProfileStore:
         result.setdefault("last_checked_at", "")
         result.setdefault("last_error", "")
         has_secret = bool(secrets.get(str(profile.get("id", ""))))
-        env_name = str(profile.get("api_key_env", ""))
         result["has_stored_secret"] = has_secret
-        result["credential_source"] = (
-            "encrypted_local" if has_secret else "environment" if env_name else "none"
-        )
+        # A named variable is never read (D-154): without a typed key there is none.
+        result["credential_source"] = "encrypted_local" if has_secret else "none"
         return result
 
     def list(self, *, owner: str = "") -> list[dict[str, Any]]:
@@ -202,6 +200,13 @@ class ProviderProfileStore:
             self._write_secrets(secrets)
         return self._public(profile, secrets)
 
+    def owner_of(self, profile_id: str) -> str | None:
+        with self._lock:
+            for item in self._profiles():
+                if item.get("id") == profile_id:
+                    return str(item.get("owner", ""))
+        return None
+
     def delete(self, profile_id: str) -> None:
         with self._lock:
             profiles = self._profiles()
@@ -226,11 +231,10 @@ class ProviderProfileStore:
             extra=dict(profile.get("extra") or {}),
         )
         stored = secrets.get(str(profile["id"]), "")
-        if stored:
-            env_name = config.api_key_env or "OFFSETX_PROVIDER_PROFILE_KEY"
-            config.api_key_env = env_name
-            return create_provider(config, environ={env_name: stored})
-        return create_provider(config)
+        # Only the key typed into the app, never the server's environment —
+        # whatever variable an older profile still names (D-154, DD-64).
+        config.api_key_env = "OFFSETX_PROVIDER_PROFILE_KEY" if stored else ""
+        return create_provider(config, environ={config.api_key_env: stored} if stored else {})
 
     def router(
         self,

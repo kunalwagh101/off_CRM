@@ -568,11 +568,19 @@ providers:
     supports_model_discovery: true
     models:
       - id: deepseek-chat
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 64000
         cost_per_1m_input_usd: 0.27
         cost_per_1m_output_usd: 1.10
         good_at: [writing, code, bulk]
       - id: deepseek-reasoner
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 64000
         cost_per_1m_input_usd: 0.55
         cost_per_1m_output_usd: 2.19
@@ -602,6 +610,10 @@ providers:
     default_model: moonshot-v1-128k
     models:
       - id: moonshot-v1-128k
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 128000
         cost_per_1m_input_usd: 0.84
         cost_per_1m_output_usd: 0.84
@@ -625,11 +637,19 @@ providers:
     default_model: glm-4-plus
     models:
       - id: glm-4-plus
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 128000
         cost_per_1m_input_usd: 0.70
         cost_per_1m_output_usd: 0.70
         good_at: [writing, reasoning, multilingual]
       - id: glm-4-flash
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
@@ -650,6 +670,10 @@ providers:
     default_model: qwen-max
     models:
       - id: qwen-max
+        # Built in China: capped at C wherever it runs, as the origin rules
+        # cap the same models on NVIDIA and others (D-164).
+        model_origin: CN
+        model_origin_tier_cap: C
         context_window: 32000
         cost_per_1m_input_usd: 1.60
         cost_per_1m_output_usd: 6.40

@@ -759,6 +759,8 @@ export type AIProviderRow = {
   available_models: Array<AIModel & { tier: string; default_tier?: string }>;
   /** The provider's tier before any owner setting. */
   default_tier?: string;
+  /** Every model trust can be set for: config's, plus any switched on from the live catalogue. */
+  trust_models?: Array<{ id: string; tier: string; default_tier: string }>;
 };
 
 export type DiscoveredModel = {

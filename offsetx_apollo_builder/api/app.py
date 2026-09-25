@@ -83,7 +83,7 @@ from ..outreach.deliverability.service import EmailDeliveryService
 from ..outreach.deliverability.ses import SesMailProvider
 from ..outreach.deliverability.store import DeliverabilityStore
 from ..outreach.deliverability.unsubscribe import UnsubscribeService
-from ..outreach.models import ProviderConfig, ROUTES, utc_now
+from ..outreach.models import ROUTES, utc_now
 from ..outreach.ai_chat import AIChatService
 from ..outreach.notion import (
     NotionClient,
@@ -124,7 +124,7 @@ from ..ai.errors import AIModuleError
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
 from ..ai.workspace import ReasonRequired, WorkspaceAISettingsStore
-from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
+from ..outreach.provider_profiles import ProviderProfileStore
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
@@ -1277,24 +1277,45 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "own_email": settings.own_email,
             "local_outbox": str(settings.data_dir / "mail" / "outbox"),
             "expert_sources": _engine(request).store.expert_source_summary(),
-            "provider_profiles": len(request.app.state.provider_profiles.list()),
+            "provider_profiles": len(
+                request.app.state.provider_profiles.list(owner=_profile_scope(request))
+            ),
             "memory": _engine(request).store.memory_stats(),
             "automation": request.app.state.automation.status(),
         }
+
+    def _profile_scope(request: Request) -> str:
+        """"" for the install owner, who manages every profile; otherwise the
+        caller's own workspace. Profiles were install-wide, so any login could
+        re-point the owner's at its own server and receive the key (D-155)."""
+        caller = _workspace_id(request)
+        return "" if caller == "local" else caller
+
+    def _own_profile(request: Request, profile_id: str) -> None:
+        scope = _profile_scope(request)
+        owner = request.app.state.provider_profiles.owner_of(profile_id)
+        # Another workspace's profile is "not found": existence is not leaked.
+        if owner is None or (scope and owner != scope):
+            raise HTTPException(404, "Provider profile not found")
 
     @app.get(f"{API_PREFIX}/provider-profiles")
     def provider_profiles(
         request: Request,
         owner: str = Query("", max_length=100),
     ) -> dict[str, Any]:
-        items = request.app.state.provider_profiles.list(owner=owner)
+        items = request.app.state.provider_profiles.list(owner=_profile_scope(request) or owner)
         return {"items": items, "total": len(items)}
 
     @app.post(f"{API_PREFIX}/provider-profiles", status_code=201)
     def save_provider_profile(
         body: ProviderProfileUpsert, request: Request
     ) -> dict[str, Any]:
-        payload = body.model_dump(exclude={"api_key"})
+        payload = body.model_dump(exclude={"api_key", "api_key_env"})
+        scope = _profile_scope(request)
+        if scope:
+            if payload.get("id"):
+                _own_profile(request, str(payload["id"]))
+            payload["owner"] = scope
         return request.app.state.provider_profiles.upsert(payload, api_key=body.api_key)
 
     @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/test")
@@ -1303,6 +1324,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: ProviderHealthRequest,
         request: Request,
     ) -> dict[str, Any]:
+        _own_profile(request, profile_id)
         result = request.app.state.provider_profiles.health(
             profile_id, probe=body.live_probe
         )
@@ -1312,6 +1334,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/delete")
     def delete_provider_profile(profile_id: str, request: Request) -> dict[str, bool]:
+        _own_profile(request, profile_id)
         request.app.state.provider_profiles.delete(profile_id)
         return {"deleted": True}
 
@@ -3367,6 +3390,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         except RegistryError as exc:
             raise _ai_error(exc) from exc
+        # Shown with the owner's trust, not config's default: the list is
+        # where models are chosen, so it must match what the router does.
+        override = workspaces.egress_settings(workspace_id).overrides.get(provider_id)
+        if override is not None:
+            registry = request.app.state.ai_registry
+            for model in result.models:
+                if model.known:
+                    model.tier = registry.resolve(
+                        provider_id, model_id=model.id, override=override
+                    ).tier.value
         return result.to_dict()
 
     @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/override")
@@ -4129,17 +4162,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                         "Choose either a direct provider or the configured fallback chain"
                     )
                 provider = request.app.state.provider_profiles.router(
-                    owner=body.provider_owner,
+                    # A client login drafts with its own profiles, whatever
+                    # owner the request names (D-155).
+                    owner=_profile_scope(request) or body.provider_owner,
                     profile_ids=body.provider_profile_ids,
                     strategy=body.fallback_strategy,
                     audit_callback=engine.store.record_provider_call,
-                )
-            elif body.provider:
-                provider = create_guarded_provider(
-                    ProviderConfig(**body.provider.model_dump()),
-                    data_policy=body.data_policy,
-                    audit_callback=engine.store.record_provider_call,
-                    profile_id="request-supplied",
                 )
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(

@@ -2579,10 +2579,10 @@ Listed honestly. Nothing below is silently assumed done.
 4. **Render deployment** — `render.yaml` deploys `branch: main` with
    `autoDeploy: true`, so nothing ships until this branch is merged there.
    Two things to set up before the first deploy:
-   - Provider keys as environment variables `OFFSETX_AI_<PROVIDER>_KEY`
-     (e.g. `OFFSETX_AI_MISTRAL_KEY`). `OFFSETX_DATA_DIR` points at `/tmp`
-     on Render, which is wiped on every restart, so the encrypted key file
-     will not survive. The env fallback is why keys still work there.
+   - *(Superseded 2026-09-25, `DD-64`: keys are typed in the app only. The
+     environment fallback this line described handed the owner's key to every
+     workspace login (`D-151`) and is gone; keys surviving a deploy is
+     `F-06.03`.)*
    - **The egress log lives in the same disposable `/tmp` directory.** It is
      the audit trail, and on Render it resets on every restart. Fine for a
      demo; a real shared deployment needs a Render disk or Postgres.

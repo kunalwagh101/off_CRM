@@ -534,8 +534,12 @@ def test_legacy_profile_router_still_wraps_every_provider_in_a_policy_guard():
 
     source = Path(provider_profiles.__file__).read_text(encoding="utf-8")
     assert "PolicyAIProvider(" in source
-    # create_provider results are only ever returned wrapped.
-    assert source.count("return create_provider") == 2  # inside _provider only
+    # create_provider results are only ever returned from _provider, which
+    # the router wraps. Checked by place, not by a count that changes when
+    # _provider's return paths do (D-154 merged its two into one).
+    provider_body = source.split("def _provider")[1].split("\n    def ")[0]
+    assert provider_body.count("return create_provider") >= 1
+    assert source.count("return create_provider") == provider_body.count("return create_provider")
     assert "PolicyAIProvider" in source.split("def router")[1]
 
 

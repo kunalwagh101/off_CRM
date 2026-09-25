@@ -1649,6 +1649,10 @@ can make are not taken on trust.
 ever uses a key it was not given.
 - **Given** `OFFSETX_AI_<PROVIDER>_KEY` set on the server, **when** any workspace
   lists or uses providers, **then** that variable supplies nothing.
+- **Given** any web request — a draft, a provider profile — **when** it names
+  a server environment variable or brings its own provider, **then** it is
+  refused; and a login sees and uses only its own workspace's profiles
+  (`D-154`, `D-155`, found by the story's fresh-context review).
 - **Given** no stored key, **when** the owner connects a provider that needs one,
   **then** it is refused with a sentence saying to paste the key first; a local
   server that needs no key still connects.
@@ -1675,7 +1679,8 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Given** any provider, **when** the owner lowers its trust, **then** it
   applies at once to every model under it, with no reason asked.
 - **Given** any model under a provider, **when** the owner sets its own trust,
-  **then** that setting wins over the provider's.
+  **then** it applies at or below the provider's tier, never above it — the
+  provider sees everything sent to it (`DD-65`, amended after review).
 - **Given** a raise above a default, **when** the owner saves it, **then** a
   typed reason is required and recorded with who and when; without one nothing
   changes.

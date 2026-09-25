@@ -446,10 +446,26 @@ describe("trust per provider and per model (S-06.02.33)", () => {
   it("lets a model follow its provider or take its own tier", async () => {
     const { ModelTrustSelect } = await import("./pages/TrustSelect");
     const html = renderToStaticMarkup(
-      <ModelTrustSelect modelId="deepseek-ai/deepseek-r1" value="" onChange={() => undefined} />
+      <ModelTrustSelect modelId="deepseek-ai/deepseek-r1" providerName="NVIDIA NIM" value="" onChange={() => undefined} />
     );
-    expect(html).toContain('aria-label="Trust for deepseek-ai/deepseek-r1"');
+    // The provider is in the name: gpt-4o is offered by two providers.
+    expect(html).toContain('aria-label="Trust for deepseek-ai/deepseek-r1 on NVIDIA NIM"');
     expect(html).toContain("Same as provider");
     expect(html).toContain("Highest trust");
+  });
+});
+
+describe("a custom cap must be a number (review of S-06.02.32)", () => {
+  it("reads presets and typed numbers, and refuses a blank or a negative", async () => {
+    const { readCap } = await import("./pages/CapPicker");
+    expect(readCap("0")).toBe(0);
+    expect(readCap("200")).toBe(200);
+    expect(readCap("2.5")).toBe(2.5);
+    // A blank box was Number("") === 0, which saved "no cap".
+    expect(readCap("")).toBeNull();
+    expect(readCap("   ")).toBeNull();
+    expect(readCap("abc")).toBeNull();
+    expect(readCap("-5")).toBeNull();
+    expect(readCap(null)).toBeNull();
   });
 });

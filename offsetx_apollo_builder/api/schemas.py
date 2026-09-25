@@ -148,7 +148,10 @@ class ProviderSpec(StrictModel):
 class DraftGenerate(StrictModel):
     campaign_contact_ids: list[str] = Field(default_factory=list, max_length=5000)
     stages: list[str] = Field(default_factory=lambda: list(MESSAGE_STAGES), min_length=1)
-    provider: ProviderSpec | None = None
+    # A request can no longer bring its own provider: it named a server
+    # environment variable and a URL to send it to (D-154). Accepted only as
+    # null, so older clients that send `"provider": null` still work.
+    provider: None = None
     use_provider_fallback: bool = False
     provider_profile_ids: list[str] = Field(default_factory=list, max_length=20)
     provider_owner: str = Field(default="", max_length=100)
@@ -269,7 +272,9 @@ class ProviderProfileUpsert(StrictModel):
         "template_engine_http",
     ]
     model: str = Field(default="", max_length=200)
-    api_key_env: str = Field(default="", pattern=r"^[A-Z][A-Z0-9_]*$|^$")
+    # Keys are typed in the app (DD-64); a profile naming a server variable
+    # let any login send that variable anywhere (D-154). Only empty passes.
+    api_key_env: str | None = Field(default=None, max_length=0)
     api_key: str = Field(default="", max_length=10000)
     base_url: str = Field(default="", max_length=1000)
     timeout_seconds: int = Field(default=60, ge=5, le=300)

@@ -128,32 +128,31 @@ write the code, then the evidence block.)*
 
 *(2026-09-25 — the owner's key, limit and trust requests. `S-06.02.31` and
 `S-06.02.32` were first put in DONE without the fresh-context review this
-column requires; moved back here until that review is in.)*
+column requires, and moved back. That review found `D-154` to `D-164`, two
+critical; all fixed test-first. DONE waits for a second fresh look at the
+fixes.)*
 
 - S-06.02.31 · Provider keys come only from the app
   work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
-  tests: tests/test_ai_api.py::test_a_key_in_the_server_environment_serves_no_workspace, tests/test_ai_api.py::test_connecting_with_no_key_says_to_paste_one, tests/test_ai_api.py::test_saving_changes_with_the_key_box_blank_keeps_the_stored_key, tests/test_ai_api.py::test_a_local_server_needs_no_key, tests/test_ai_api.py::test_a_rejected_key_points_at_connectors_not_the_environment
-  command: uv run pytest tests/test_ai_api.py -q
-  result: 42 passed (2026-09-25); full suite 2417 -> 2422 passed, 0 failed
-  live: before the change, a script showed OFFSETX_AI_NVIDIA_KEY answering for workspaces local, acme-client and another-client alike. After it, real headless Chromium: Connect NVIDIA NIM with the key box blank said "Paste your NVIDIA NIM API key first. The key page link on this card shows where to get one." and stored nothing; with a key it connected.
-  code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py
-  commit: 41fbeb8
+  tests: tests/test_ai_api.py::test_a_key_in_the_server_environment_serves_no_workspace, tests/test_ai_api.py::test_connecting_with_no_key_says_to_paste_one, tests/test_ai_api.py::test_saving_changes_with_the_key_box_blank_keeps_the_stored_key, tests/test_ai_api.py::test_a_local_server_needs_no_key, tests/test_ai_api.py::test_a_rejected_key_points_at_connectors_not_the_environment, tests/test_provider_profile_isolation.py::test_a_draft_request_cannot_name_an_environment_variable_or_a_url, tests/test_provider_profile_isolation.py::test_a_profile_cannot_name_an_environment_variable, tests/test_provider_profile_isolation.py::test_a_stored_profile_naming_a_variable_never_reads_the_environment, tests/test_provider_profile_isolation.py::test_a_client_login_sees_none_of_the_owners_profiles, tests/test_provider_profile_isolation.py::test_a_client_login_cannot_repoint_test_or_delete_the_owners_profile, tests/test_provider_profile_isolation.py::test_a_client_login_drafts_with_its_own_profiles_only, tests/test_provider_profile_isolation.py::test_a_client_logins_new_profile_is_its_own
+  command: uv run pytest tests/test_ai_api.py tests/test_provider_profile_isolation.py -q
+  result: 49 passed (2026-09-25); full suite 2452 passed, 0 failed
+  live: real headless Chromium: a blank-key connect says to paste the key and stores nothing. The fresh-context review then found two critical holes in older code (D-154, D-155) - a draft request or a profile could make the server send any environment variable to any URL, and a client login could re-point the owner's profile to receive the owner's key; its reproductions are these tests, red before the fix, acting as a real second workspace login through the API.
+  code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py, offsetx_apollo_builder/api/schemas.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/outreach/provider_profiles.py, offsetx_apollo_builder/outreach/providers.py, frontend/src/pages/Drafts.tsx, frontend/src/pages/Settings.tsx
 - S-06.02.32 · The connect form offers limit presets
   work_order: docs/work-orders/S-06.02.32-limit-presets.md
-  tests: frontend/src/components.test.tsx, tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted
-  command: uv run pytest tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted -q && (cd frontend && npm test -- src/components.test.tsx)
-  result: 1 passed, then 25 passed (2026-09-25); frontend 155 passed, build clean
-  live: real headless Chromium against the running app with the built screens: "200 a day" and "$5 a day" chosen on NVIDIA NIM's card posted requests_per_day 200 and max_spend_usd_per_day 5, it connected, and reopening the form showed both presets selected. The spend hint was checked against quota.py before it was written.
-  code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx
-  commit: 41fbeb8
-
+  tests: frontend/src/components.test.tsx, tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_trust.py::test_saving_the_model_list_keeps_the_caps_and_what_is_sent
+  command: uv run pytest tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted tests/test_ai_trust.py::test_saving_the_model_list_keeps_the_caps_and_what_is_sent -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: 2 passed, then 29 passed (2026-09-25); frontend 159 passed, build clean
+  live: real headless Chromium: "200 a day" and "$5 a day" posted 200 and 5 and reopened as selected; after the review, a blank custom cap showed "Type a number of 0 or more..." and sent no request (D-161). Saving the model list no longer resets the caps (D-159).
+  code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx, offsetx_apollo_builder/ai/workspace.py
 - S-06.02.33 · Trust is the owner's to change, per provider and per model
   work_order: docs/work-orders/S-06.02.33-trust-per-provider-and-model.md
-  tests: tests/test_ai_trust.py::test_lowering_a_provider_applies_to_its_models_with_no_reason_asked, tests/test_ai_trust.py::test_raising_needs_a_typed_reason_and_records_who_and_when, tests/test_ai_trust.py::test_a_models_own_setting_wins_over_the_providers, tests/test_ai_trust.py::test_a_provider_raise_never_lifts_a_model_capped_by_who_built_it, tests/test_ai_trust.py::test_no_trust_setting_opens_the_mailbox, tests/test_ai_trust.py::test_routing_follows_a_lowered_trust, tests/test_ai_trust.py::test_the_connect_ceiling_follows_a_changed_trust, tests/test_ai_trust.py::test_raising_to_full_access_keeps_the_per_model_settings, tests/test_ai_trust.py::test_who_decided_is_the_login_not_what_the_request_claims, frontend/src/components.test.tsx
+  tests: tests/test_ai_trust.py::test_lowering_a_provider_applies_to_its_models_with_no_reason_asked, tests/test_ai_trust.py::test_raising_needs_a_typed_reason_and_records_who_and_when, tests/test_ai_trust.py::test_a_model_can_be_trusted_less_than_its_provider_never_more, tests/test_ai_trust.py::test_blocking_a_provider_blocks_every_model_under_it, tests/test_ai_trust.py::test_a_provider_raise_never_lifts_a_model_capped_by_who_built_it, tests/test_ai_trust.py::test_a_raise_never_stands_without_its_reason, tests/test_ai_trust.py::test_withdrawing_full_access_keeps_the_trust_settings, tests/test_ai_trust.py::test_a_full_access_grant_never_lifts_what_a_limited_model_sends, tests/test_ai_trust.py::test_every_trust_change_is_kept_with_who_when_and_why, tests/test_ai_trust.py::test_no_trust_setting_opens_the_mailbox, tests/test_ai_trust.py::test_the_connect_ceiling_follows_a_changed_trust, tests/test_ai_trust.py::test_who_decided_is_the_login_not_what_the_request_claims, tests/test_ai_trust.py::test_find_models_shows_the_owners_trust_not_the_default, frontend/src/components.test.tsx
   command: uv run pytest tests/test_ai_trust.py tests/test_ai_egress_wall.py -q && (cd frontend && npm test -- src/components.test.tsx)
-  live: real headless Chromium against the running app: NVIDIA lowered to Restricted with no question; a raise with the reason box dismissed changed nothing and said so; with a reason it saved and the card shows who and why; deepseek-ai/deepseek-r1 stayed Restricted under Highest-trust NVIDIA, and its own setting lifted it after its own reason. The per-model section first snapped shut after each change; fixed and walked again.
-  code: offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/schemas.py, frontend/src/pages/TrustSelect.tsx, frontend/src/pages/Connectors.tsx
-
+  result: 65 passed, then 29 passed (2026-09-25); egress wall 42 of 42
+  live: real headless Chromium, after the review's fixes: deepseek-ai/deepseek-r1 stayed Restricted under Highest-trust NVIDIA and its own setting lifted it after a reason; blocking NVIDIA showed Llama (own setting Highest) and DeepSeek (own setting Default) both Blocked; setting a model above its provider was refused with the sentence. The first rule (a model's setting wins both ways) failed the review (D-156); DD-65 is amended.
+  code: offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/schemas.py, config/providers.yaml, frontend/src/pages/TrustSelect.tsx, frontend/src/pages/Connectors.tsx
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 - S-06.02.22 · A created or selected campaign stays the active workspace

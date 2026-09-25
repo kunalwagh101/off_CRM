@@ -786,6 +786,9 @@ def create_provider(
     if not api_key:
         raise ProviderError(
             f"Missing AI credential. Set the local environment variable: {config.api_key_env}"
+            if config.api_key_env
+            # The web app never names one (D-154): its keys are typed in.
+            else "Missing AI credential. Type this provider's API key in the app first."
         )
     if not config.model:
         raise ProviderError("AI provider model is required")

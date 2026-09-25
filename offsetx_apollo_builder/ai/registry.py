@@ -600,6 +600,23 @@ class ProviderRegistry:
             )
         return entry
 
+    def model_origin(self, provider_id: str, model_id: str) -> tuple[bool, TrustTier | None]:
+        """Whether config can place this model, and the cap set by who built it.
+
+        Listed in config: its declared cap. Found in the live catalogue: the
+        origin rules decide, never the provider — an unmatched name is unknown.
+        """
+        entry = self.require(provider_id)
+        listed = entry.model(model_id)
+        if listed is not None:
+            cap = listed.model_origin_tier_cap
+            return True, coerce_tier(cap, default=TrustTier.D) if cap else None
+        classification = self.classify_model(model_id)
+        if not classification["known"]:
+            return False, TrustTier.D
+        cap = classification["tier_cap"]
+        return True, coerce_tier(cap, default=TrustTier.D) if cap else None
+
     def resolve(
         self,
         provider_id: str,
@@ -612,36 +629,23 @@ class ProviderRegistry:
         entry = self.require(provider_id)
         chosen_model = model_id or entry.default_model
 
-        # The cap set by who built the model, if any. A provider-level raise
-        # never lifts a model past it; only the model's own setting can (DD-65).
-        origin_cap: TrustTier | None = None
-        if entry.model(chosen_model) is not None:
-            # Listed in config: its declared origin and cap win.
-            tier = entry.tier_for_model(chosen_model)
-            listed = entry.model(chosen_model)
-            if listed is not None and listed.model_origin_tier_cap:
-                origin_cap = coerce_tier(listed.model_origin_tier_cap, default=TrustTier.D)
+        # DD-65, as amended after the review of 2026-09-25: a model is trusted
+        # as much as its host, or less — the host sees every byte it is sent,
+        # so blocking a provider blocks every model on it. The model's own
+        # setting, else the cap from who built it, can only lower that.
+        host = (
+            override.trust_tier
+            if override and override.trust_tier is not None
+            else entry.derived_tier
+        )
+        known, origin_cap = self.model_origin(provider_id, chosen_model)
+        if not known:
+            # A model config cannot place is untrusted; no setting lifts it.
+            tier = TrustTier.D
         else:
-            # Discovered from the provider's live catalogue. Config rules decide
-            # what it is, never the provider — and an unmatched name is untrusted.
-            classification = self.classify_model(chosen_model)
-            tier = entry.derived_tier
-            cap = coerce_tier(classification["tier_cap"], default=TrustTier.D)
-            if classification["tier_cap"]:
-                origin_cap = cap
-                if cap.rank < tier.rank:
-                    tier = cap
-            if not classification["known"]:
-                tier = TrustTier.D
-                origin_cap = TrustTier.D
-
-        model_tier = override.model_tiers.get(chosen_model) if override else None
-        if model_tier is not None:
-            tier = model_tier
-        elif override and override.trust_tier is not None:
-            tier = override.trust_tier
-            if origin_cap is not None and origin_cap.rank < tier.rank:
-                tier = origin_cap
+            own = override.model_tiers.get(chosen_model) if override else None
+            limit = own if own is not None else origin_cap
+            tier = host if limit is None or limit.rank >= host.rank else limit
 
         ceiling = policy_ceiling_for_tier(tier)
         if requested_policy is None:
@@ -653,7 +657,9 @@ class ProviderRegistry:
         else:
             policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
 
-        allow_above = bool(override and override.allow_above_ceiling)
+        # A full-access grant is for the provider. It never lifts what a model
+        # held below its host — by the owner or by who built it — may be sent.
+        allow_above = bool(override and override.allow_above_ceiling) and tier == host
         if not allow_above and policy.rank > ceiling.rank:
             policy = ceiling
 

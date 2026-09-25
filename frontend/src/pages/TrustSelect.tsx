@@ -47,21 +47,25 @@ export function ProviderTrustSelect({
   );
 }
 
-/** "" follows the provider; a tier is the model's own setting, which wins. */
+/** "" follows the provider. A tier is the model's own setting: lower than the
+ * provider, or past the cap from who built it — never above the provider,
+ * which sees everything sent to it (DD-65, amended). */
 export function ModelTrustSelect({
   modelId,
+  providerName,
   value,
   disabled,
   onChange
 }: {
   modelId: string;
+  providerName: string;
   value: string;
   disabled?: boolean;
   onChange: (tier: string) => void;
 }) {
   return (
     <select
-      aria-label={`Trust for ${modelId}`}
+      aria-label={`Trust for ${modelId} on ${providerName}`}
       value={value}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}

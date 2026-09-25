@@ -1,11 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { api } from "../api";
+import { ApiError, api } from "../api";
 import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
 import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
+import { ModelTrustSelect, ProviderTrustSelect, TRUST_WORD } from "./TrustSelect";
 import { Loadable } from "./shared";
 
 /** Tier → how the badge reads. Colour alone never carries the meaning. */
@@ -29,6 +30,9 @@ export default function Connectors() {
   const [busy, setBusy] = useState("");
   const [openProvider, setOpenProvider] = useState<string>("");
   const [modelsFor, setModelsFor] = useState<string>("");
+  // Kept here, not in the card: a trust change reloads the list, and a card
+  // remounted with its own state closed the section after every change.
+  const [trustFor, setTrustFor] = useState<string>("");
   const [showBlocked, setShowBlocked] = useState(false);
 
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
@@ -114,6 +118,38 @@ export default function Connectors() {
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not change trust", "error");
     } finally {
+      setBusy("");
+    }
+  }
+
+  // The server says when a change is a raise that needs a reason (DD-65):
+  // try without one, and ask only when it answers `reason_required`.
+  async function setTrust(row: AIProviderRow, tier: string, modelId = "") {
+    const target = modelId ? `${modelId} on ${row.name}` : row.name;
+    const send = (reason = "") =>
+      api.post(`/ai/providers/${row.id}/trust`, { tier, model_id: modelId, reason });
+    setBusy(`trust-${row.id}`);
+    try {
+      try {
+        await send();
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.detail?.error !== "reason_required") throw error;
+        const reason = window.prompt(`${error.message}\n\nWhy are you raising ${target}?`);
+        if (!reason?.trim()) {
+          notify("A reason is required. Nothing was changed.", "warning");
+          return;
+        }
+        await send(reason.trim());
+      }
+      notify(
+        tier ? `${target} is now ${TRUST_WORD[tier]}.` : `${target} is back to its default trust.`,
+        "success"
+      );
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not change trust", "error");
+    } finally {
+      // Reloaded either way: a refused change must show the tier that stands.
+      providers.reload();
       setBusy("");
     }
   }
@@ -284,6 +320,9 @@ export default function Connectors() {
                         onDisconnect={() => disconnect(row)}
                         onRaise={() => raiseTrust(row)}
                         onClearOverride={() => clearOverride(row)}
+                        onTrust={(tier, modelId) => setTrust(row, tier, modelId)}
+                        showModelTrust={trustFor === row.id}
+                        onModelTrustToggle={(open) => setTrustFor(open ? row.id : trustFor === row.id ? "" : trustFor)}
                       />
                     ))}
                   </div>
@@ -321,7 +360,10 @@ function ProviderCard({
   onConnect,
   onDisconnect,
   onRaise,
-  onClearOverride
+  onClearOverride,
+  onTrust,
+  showModelTrust,
+  onModelTrustToggle
 }: {
   row: AIProviderRow;
   open: boolean;
@@ -334,6 +376,9 @@ function ProviderCard({
   onDisconnect: () => void;
   onRaise: () => void;
   onClearOverride: () => void;
+  onTrust: (tier: string, modelId?: string) => void;
+  showModelTrust: boolean;
+  onModelTrustToggle: (open: boolean) => void;
 }) {
   const blocked = row.effective_tier === "D";
   const usage = row.usage;
@@ -360,7 +405,13 @@ function ProviderCard({
         <div>
           <dt>Trust</dt>
           <dd>
-            <Badge tone={TIER_TONE[row.effective_tier]}>{TIER_WORD[row.effective_tier]}</Badge>
+            <ProviderTrustSelect
+              name={row.name}
+              value={row.effective_tier}
+              defaultTier={row.default_tier ?? row.trust_tier}
+              disabled={busy === `trust-${row.id}`}
+              onChange={(tier) => onTrust(tier)}
+            />
           </dd>
         </div>
         <div>
@@ -374,7 +425,39 @@ function ProviderCard({
         {row.trains_on_input ? <em className="provider-warn"> Trains on what you send.</em> : null}
       </p>
 
-      {row.override ? (
+      {row.override?.trust_tier ? (
+        <p className="provider-override">
+          Set to {TRUST_WORD[row.override.trust_tier]} by {row.override.trust_decided_by}
+          {row.override.trust_reason ? `: ${row.override.trust_reason}` : ""}
+        </p>
+      ) : null}
+      <details
+        className="provider-model-trust"
+        open={showModelTrust}
+        onToggle={(event) => onModelTrustToggle((event.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>Trust per model ({row.available_models.length})</summary>
+        <p className="muted-copy">
+          A model's own setting wins over the provider's. Raising the provider never lifts a
+          model capped because of who built it — only that model's own setting can.
+        </p>
+        <ul>
+          {row.available_models.map((model) => (
+            <li key={model.id}>
+              <span>
+                {model.id} <Badge tone={TIER_TONE[model.tier]}>{TIER_WORD[model.tier]}</Badge>
+              </span>
+              <ModelTrustSelect
+                modelId={model.id}
+                value={row.override?.model_tiers?.[model.id]?.tier ?? ""}
+                disabled={busy === `trust-${row.id}`}
+                onChange={(tier) => onTrust(tier, model.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      </details>
+      {row.override && (row.override.allow_above_ceiling || row.override.data_policy) ? (
         <p className="provider-override">
           Trust changed by you: {row.override.reason}
           <button type="button" className="link-button" onClick={onClearOverride}>

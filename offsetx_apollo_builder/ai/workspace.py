@@ -53,6 +53,22 @@ def _atomic_json(path: Path, payload: Any) -> None:
 atomic_json = _atomic_json
 
 
+#: Trust settings made on the trust route, kept when the override route
+#: records a different decision for the same provider.
+_TRUST_KEYS = ("trust_tier", "trust_reason", "trust_decided_by", "trust_decided_at", "model_tiers")
+
+
+class ReasonRequired(ValueError):
+    """A trust raise with no reason: the screen asks for one and retries."""
+
+
+def _raise_needs_reason(name: str, before: Any, after: Any) -> str:
+    return (
+        f"Raising {name} from {before.label} to {after.label} lets more of your data "
+        "reach it. Type why; the reason is recorded with who made the change."
+    )
+
+
 class WorkspaceAISettingsStore:
     """Reads and writes one JSON document per install, keyed by workspace."""
 
@@ -234,17 +250,6 @@ class WorkspaceAISettingsStore:
                 f"Paste your {entry.name} API key first. The key page link on this "
                 "card shows where to get one."
             )
-        tier = entry.derived_tier
-        policy = (
-            coerce_policy(data_policy, default=default_policy_for_tier(tier))
-            if data_policy
-            else default_policy_for_tier(tier)
-        )
-        ceiling = policy_ceiling_for_tier(tier)
-        clamped = policy.rank > ceiling.rank
-        if clamped:
-            policy = ceiling
-
         # A key unlocks many models. `model_id` is kept for older stored records
         # and single-model callers; `model_ids` is the list the UI sends.
         chosen: list[str] = [str(item).strip() for item in (model_ids or []) if str(item).strip()]
@@ -273,7 +278,6 @@ class WorkspaceAISettingsStore:
             "enabled": bool(enabled),
             "model_id": chosen[0],
             "model_ids": chosen,
-            "data_policy": policy.value,
             "requests_per_minute": (
                 requests_per_minute
                 if requests_per_minute is not None
@@ -288,10 +292,29 @@ class WorkspaceAISettingsStore:
             "connected_at": to_utc_iso(),
         }
 
+        decided: dict[str, Any] = {}
+
         def apply(current: dict[str, Any]) -> None:
+            # The ceiling follows the owner's trust for this provider, not the
+            # config default — read under the write lock, so a trust change
+            # cannot land between the read and this write.
+            stored = dict(current.get("overrides") or {}).get(provider_id) or {}
+            tier = (
+                coerce_tier(stored["trust_tier"], default=entry.derived_tier)
+                if stored.get("trust_tier")
+                else entry.derived_tier
+            )
+            policy = (
+                coerce_policy(data_policy, default=default_policy_for_tier(tier))
+                if data_policy
+                else default_policy_for_tier(tier)
+            )
+            ceiling = policy_ceiling_for_tier(tier)
+            clamped = policy.rank > ceiling.rank
+            decided.update(tier=tier, ceiling=ceiling, clamped=clamped)
             providers = dict(current.get("providers") or {})
             existing = dict(providers.get(provider_id) or {})
-            existing.update(record)
+            existing.update(record, data_policy=(ceiling if clamped else policy).value)
             providers[provider_id] = existing
             current["providers"] = providers
 
@@ -303,9 +326,9 @@ class WorkspaceAISettingsStore:
 
         return {
             "provider": existing,
-            "policy_was_clamped": clamped,
-            "tier": tier.value,
-            "policy_ceiling": ceiling.value,
+            "policy_was_clamped": decided["clamped"],
+            "tier": decided["tier"].value,
+            "policy_ceiling": decided["ceiling"].value,
             "workspace": saved["workspace_id"],
         }
 
@@ -335,7 +358,9 @@ class WorkspaceAISettingsStore:
         that freedom — but it is never silent: a reason is required and the
         decision is stored with who made it and when.
         """
-        self.registry.require(provider_id)
+        entry = self.registry.require(provider_id)
+        if trust_tier and coerce_tier(trust_tier).rank > entry.derived_tier.rank and not reason.strip():
+            raise ReasonRequired(_raise_needs_reason(entry.name, entry.derived_tier, coerce_tier(trust_tier)))
         if allow_above_ceiling and not reason.strip():
             raise ValueError(
                 "Raising a provider above its trust ceiling needs a reason. "
@@ -346,7 +371,7 @@ class WorkspaceAISettingsStore:
             if not (trust_tier or data_policy or allow_above_ceiling):
                 overrides.pop(provider_id, None)
             else:
-                overrides[provider_id] = ProviderOverride(
+                decision = ProviderOverride(
                     provider_id=provider_id,
                     trust_tier=coerce_tier(trust_tier) if trust_tier else None,
                     data_policy=coerce_policy(data_policy) if data_policy else None,
@@ -355,6 +380,98 @@ class WorkspaceAISettingsStore:
                     decided_by=decided_by or workspace_id,
                     decided_at=to_utc_iso(),
                 ).to_dict()
+                # Rebuilt from scratch, this record dropped the trust settings
+                # made on the trust route — a per-model tier vanished when full
+                # access was granted. They are kept unless this call sets them.
+                previous = dict(overrides.get(provider_id) or {})
+                for key in _TRUST_KEYS:
+                    if key in previous:
+                        decision[key] = previous[key]
+                if trust_tier:
+                    decision["trust_tier"] = coerce_tier(trust_tier).value
+                    decision["trust_reason"] = reason.strip()
+                    decision["trust_decided_by"] = decided_by or workspace_id
+                    decision["trust_decided_at"] = decision["decided_at"]
+                overrides[provider_id] = decision
+            current["overrides"] = overrides
+
+        return self._update_workspace(workspace_id, apply)
+
+    def set_trust(
+        self,
+        workspace_id: str,
+        provider_id: str,
+        *,
+        tier: str = "",
+        model_id: str = "",
+        reason: str = "",
+        decided_by: str = "",
+    ) -> dict[str, Any]:
+        """Set or clear trust for a provider, or for one model under it (DD-65).
+
+        Lowering is never refused. A tier above the one this setting departs
+        from needs a reason, stored with who and when. "" returns that level
+        to its default. No tier opens the mailbox: that is its own unlock.
+        """
+        entry = self.registry.require(provider_id)
+        model_id = model_id.strip()
+        wanted = coerce_tier(tier) if tier.strip() else None
+
+        def apply(current: dict[str, Any]) -> None:
+            # Everything decided from the locked snapshot: a baseline read
+            # before the lock could let a concurrent change skip the reason.
+            # A ValueError here aborts the update before anything is written.
+            overrides = dict(current.get("overrides") or {})
+            record = dict(overrides.get(provider_id) or {"provider_id": provider_id})
+            if model_id:
+                offered = (dict(current.get("providers") or {}).get(provider_id) or {}).get("model_ids") or []
+                if entry.model(model_id) is None and model_id not in offered:
+                    raise ValueError(
+                        f"{entry.name} does not offer {model_id}, so it has no trust to change."
+                    )
+            if wanted is not None:
+                if model_id:
+                    # What the model has without its own setting: the
+                    # provider's trust, held to the cap set by who built it.
+                    without = dict(record)
+                    without["model_tiers"] = {
+                        key: value
+                        for key, value in dict(record.get("model_tiers") or {}).items()
+                        if key != model_id
+                    }
+                    baseline = self.registry.resolve(
+                        provider_id, model_id=model_id, override=ProviderOverride.from_dict(without)
+                    ).tier
+                    name = f"{model_id} on {entry.name}"
+                else:
+                    baseline, name = entry.derived_tier, entry.name
+                if wanted.rank > baseline.rank and not reason.strip():
+                    raise ReasonRequired(_raise_needs_reason(name, baseline, wanted))
+            decision = {
+                "tier": wanted.value if wanted else "",
+                "reason": reason.strip(),
+                "decided_by": decided_by or workspace_id,
+                "decided_at": to_utc_iso(),
+            }
+            if model_id:
+                models = dict(record.get("model_tiers") or {})
+                if wanted is None:
+                    models.pop(model_id, None)
+                else:
+                    models[model_id] = decision
+                record["model_tiers"] = models
+            elif wanted is None:
+                for key in ("trust_tier", "trust_reason", "trust_decided_by", "trust_decided_at"):
+                    record.pop(key, None)
+            else:
+                record["trust_tier"] = decision["tier"]
+                record["trust_reason"] = decision["reason"]
+                record["trust_decided_by"] = decision["decided_by"]
+                record["trust_decided_at"] = decision["decided_at"]
+            if any(record.get(key) for key in ("trust_tier", "model_tiers", "data_policy", "allow_above_ceiling")):
+                overrides[provider_id] = record
+            else:
+                overrides.pop(provider_id, None)
             current["overrides"] = overrides
 
         return self._update_workspace(workspace_id, apply)
@@ -430,7 +547,8 @@ class WorkspaceAISettingsStore:
         for entry in self.registry.all():
             record = connected.get(entry.id)
             override = overrides.get(entry.id)
-            tier = coerce_tier(override.get("trust_tier"), default=entry.derived_tier) if override else entry.derived_tier
+            tier = coerce_tier(override.get("trust_tier"), default=entry.derived_tier) if override and override.get("trust_tier") else entry.derived_tier
+            resolved_override = ProviderOverride.from_dict({"provider_id": entry.id, **override}) if override else None
             payload = entry.to_dict()
             payload.update(
                 {
@@ -448,10 +566,16 @@ class WorkspaceAISettingsStore:
                     "available_models": [
                         {
                             **model.to_dict(),
-                            "tier": entry.tier_for_model(model.id).value,
+                            # The router's own answer, so the card cannot
+                            # show a tier the owner's settings do not give.
+                            "tier": self.registry.resolve(
+                                entry.id, model_id=model.id, override=resolved_override
+                            ).tier.value,
+                            "default_tier": entry.tier_for_model(model.id).value,
                         }
                         for model in entry.models
                     ],
+                    "default_tier": entry.derived_tier.value,
                     "data_policy": (record or {}).get(
                         "data_policy", default_policy_for_tier(tier).value
                     ),

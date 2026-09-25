@@ -423,3 +423,33 @@ describe("limit presets on the connect form (S-06.02.32)", () => {
     expect(html).toContain('value="37"');
   });
 });
+
+describe("trust per provider and per model (S-06.02.33)", () => {
+  it("offers every tier for a provider and marks its default", async () => {
+    const { ProviderTrustSelect } = await import("./pages/TrustSelect");
+    const html = renderToStaticMarkup(
+      <ProviderTrustSelect name="NVIDIA NIM" value="B" defaultTier="B" onChange={() => undefined} />
+    );
+    expect(html).toContain('aria-label="Trust for NVIDIA NIM"');
+    for (const word of ["Highest trust", "Default trust (default)", "Restricted", "Blocked"]) {
+      expect(html).toContain(word);
+    }
+  });
+
+  it("sends the provider back to its default when its default tier is chosen", async () => {
+    const { providerTierToSend } = await import("./pages/TrustSelect");
+    expect(providerTierToSend("B", "B")).toBe("");
+    expect(providerTierToSend("C", "B")).toBe("C");
+    expect(providerTierToSend("A", "B")).toBe("A");
+  });
+
+  it("lets a model follow its provider or take its own tier", async () => {
+    const { ModelTrustSelect } = await import("./pages/TrustSelect");
+    const html = renderToStaticMarkup(
+      <ModelTrustSelect modelId="deepseek-ai/deepseek-r1" value="" onChange={() => undefined} />
+    );
+    expect(html).toContain('aria-label="Trust for deepseek-ai/deepseek-r1"');
+    expect(html).toContain("Same as provider");
+    expect(html).toContain("Highest trust");
+  });
+});

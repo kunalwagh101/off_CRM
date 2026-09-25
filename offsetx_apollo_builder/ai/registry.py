@@ -406,11 +406,15 @@ class ProviderOverride:
     reason: str = ""
     decided_by: str = ""
     decided_at: str = ""
+    #: The owner's tier for single models under this provider (S-06.02.33).
+    #: One wins over `trust_tier` for that model, in both directions (DD-65).
+    model_tiers: dict[str, TrustTier] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider_id": self.provider_id,
             "trust_tier": self.trust_tier.value if self.trust_tier else "",
+            "model_tiers": {model: tier.value for model, tier in self.model_tiers.items()},
             "data_policy": self.data_policy.value if self.data_policy else "",
             "allow_above_ceiling": self.allow_above_ceiling,
             "reason": self.reason,
@@ -432,6 +436,12 @@ class ProviderOverride:
             reason=str(payload.get("reason", "")),
             decided_by=str(payload.get("decided_by", "")),
             decided_at=str(payload.get("decided_at", "")),
+            # Stored with their reason, who and when; only the tier routes.
+            model_tiers={
+                str(model): coerce_tier(entry.get("tier") if isinstance(entry, dict) else entry)
+                for model, entry in dict(payload.get("model_tiers") or {}).items()
+                if (entry.get("tier") if isinstance(entry, dict) else entry)
+            },
         )
 
 
@@ -602,22 +612,36 @@ class ProviderRegistry:
         entry = self.require(provider_id)
         chosen_model = model_id or entry.default_model
 
+        # The cap set by who built the model, if any. A provider-level raise
+        # never lifts a model past it; only the model's own setting can (DD-65).
+        origin_cap: TrustTier | None = None
         if entry.model(chosen_model) is not None:
             # Listed in config: its declared origin and cap win.
             tier = entry.tier_for_model(chosen_model)
+            listed = entry.model(chosen_model)
+            if listed is not None and listed.model_origin_tier_cap:
+                origin_cap = coerce_tier(listed.model_origin_tier_cap, default=TrustTier.D)
         else:
             # Discovered from the provider's live catalogue. Config rules decide
             # what it is, never the provider — and an unmatched name is untrusted.
             classification = self.classify_model(chosen_model)
             tier = entry.derived_tier
             cap = coerce_tier(classification["tier_cap"], default=TrustTier.D)
-            if classification["tier_cap"] and cap.rank < tier.rank:
-                tier = cap
+            if classification["tier_cap"]:
+                origin_cap = cap
+                if cap.rank < tier.rank:
+                    tier = cap
             if not classification["known"]:
                 tier = TrustTier.D
+                origin_cap = TrustTier.D
 
-        if override and override.trust_tier is not None:
+        model_tier = override.model_tiers.get(chosen_model) if override else None
+        if model_tier is not None:
+            tier = model_tier
+        elif override and override.trust_tier is not None:
             tier = override.trust_tier
+            if origin_cap is not None and origin_cap.rank < tier.rank:
+                tier = origin_cap
 
         ceiling = policy_ceiling_for_tier(tier)
         if requested_policy is None:

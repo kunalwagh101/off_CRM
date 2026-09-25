@@ -123,7 +123,7 @@ from ..ai.context import ContextLayer
 from ..ai.errors import AIModuleError
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
-from ..ai.workspace import WorkspaceAISettingsStore
+from ..ai.workspace import ReasonRequired, WorkspaceAISettingsStore
 from ..outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
@@ -178,6 +178,7 @@ from .schemas import (
     AIProjectCreateBody,
     AIProviderConnectBody,
     AIProviderOverrideBody,
+    AIProviderTrustBody,
     AIRecallForgetBody,
     AIRecallPreviewBody,
     AIRecallSearchBody,
@@ -474,6 +475,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     def session_identity(request: Request):
         return workspace_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
+
+    def _decided_by(request: Request) -> str:
+        """Who a recorded decision is from, as the server knows it."""
+        identity = session_identity(request)
+        if identity is not None:
+            return f"{identity.username} ({identity.workspace_id})"
+        return "the install's API token" if valid_api_token(request) else "local"
 
     def _caller(request: Request) -> str | None:
         """The caller's workspace: its login's, `local` for the install token or
@@ -2925,6 +2933,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return HTTPException(409, detail=exc.to_dict())
         if isinstance(exc, RegistryError):
             return HTTPException(400, detail={"error": "registry_error", "message": str(exc)})
+        if isinstance(exc, ReasonRequired):
+            return HTTPException(400, detail={"error": "reason_required", "message": str(exc)})
         if isinstance(exc, ValueError):
             return HTTPException(400, detail={"error": "invalid_request", "message": str(exc)})
         return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
@@ -3373,10 +3383,32 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 data_policy=str(body.get("data_policy", "")),
                 allow_above_ceiling=bool(body.get("allow_above_ceiling", False)),
                 reason=str(body.get("reason", "")),
-                decided_by=str(body.get("decided_by", "")),
+                # The login, never the request's own claim (D-152): the body
+                # still accepts `decided_by` so older clients are not refused,
+                # and it is ignored.
+                decided_by=_decided_by(request),
             )
         except (RegistryError, ValueError) as exc:
             raise _ai_error(exc) from exc
+
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/trust")
+    def ai_provider_trust(
+        provider_id: str, body: AIProviderTrustBody, request: Request
+    ) -> dict[str, Any]:
+        """Raise or lower trust for a provider or one of its models (S-06.02.33)."""
+        _, workspaces, _ = _ai(request)
+        try:
+            workspaces.set_trust(
+                _workspace_id(request),
+                provider_id,
+                tier=body.tier,
+                model_id=body.model_id,
+                reason=body.reason,
+                decided_by=_decided_by(request),
+            )
+        except (RegistryError, ValueError) as exc:
+            raise _ai_error(exc) from exc
+        return {"status": "saved", "provider_id": provider_id}
 
     @app.post(f"{API_PREFIX}/ai/workspace")
     def ai_update_workspace(body: AIWorkspaceUpdateBody, request: Request) -> dict[str, Any]:

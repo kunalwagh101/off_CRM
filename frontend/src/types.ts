@@ -698,6 +698,8 @@ export type AIUsage = {
   exhausted: boolean;
 };
 
+export type AITrustDecision = { tier: string; reason: string; decided_by: string; decided_at: string };
+
 export type AIOverride = {
   provider_id: string;
   trust_tier: string;
@@ -706,6 +708,11 @@ export type AIOverride = {
   reason: string;
   decided_by: string;
   decided_at: string;
+  // Trust set on the trust route (S-06.02.33), kept with its reason, who and when.
+  trust_reason?: string;
+  trust_decided_by?: string;
+  trust_decided_at?: string;
+  model_tiers?: Record<string, AITrustDecision>;
 };
 
 export type AIProviderRow = {
@@ -749,7 +756,9 @@ export type AIProviderRow = {
   model_ids: string[];
   supports_model_discovery: boolean;
   /** Every model in config for this provider, each with its own tier. */
-  available_models: Array<AIModel & { tier: string }>;
+  available_models: Array<AIModel & { tier: string; default_tier?: string }>;
+  /** The provider's tier before any owner setting. */
+  default_tier?: string;
 };
 
 export type DiscoveredModel = {

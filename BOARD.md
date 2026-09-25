@@ -97,11 +97,6 @@ remaining work to be written down, not built: each item below has a work order
 an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 `S-06.02.25` is `D-137`.)*
 
-*(2026-09-25 — the owner's requests on keys, limits and trust. Built in this
-order; `S-06.02.31` also closes `D-151`.)*
-
-- S-06.02.33 · Trust is the owner's to change, per provider and per model
-  work_order: docs/work-orders/S-06.02.33-trust-per-provider-and-model.md
 
 - S-06.02.25 · Every screen opens at its top, its warnings in view
   work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md
@@ -130,6 +125,34 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
+
+*(2026-09-25 — the owner's key, limit and trust requests. `S-06.02.31` and
+`S-06.02.32` were first put in DONE without the fresh-context review this
+column requires; moved back here until that review is in.)*
+
+- S-06.02.31 · Provider keys come only from the app
+  work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
+  tests: tests/test_ai_api.py::test_a_key_in_the_server_environment_serves_no_workspace, tests/test_ai_api.py::test_connecting_with_no_key_says_to_paste_one, tests/test_ai_api.py::test_saving_changes_with_the_key_box_blank_keeps_the_stored_key, tests/test_ai_api.py::test_a_local_server_needs_no_key, tests/test_ai_api.py::test_a_rejected_key_points_at_connectors_not_the_environment
+  command: uv run pytest tests/test_ai_api.py -q
+  result: 42 passed (2026-09-25); full suite 2417 -> 2422 passed, 0 failed
+  live: before the change, a script showed OFFSETX_AI_NVIDIA_KEY answering for workspaces local, acme-client and another-client alike. After it, real headless Chromium: Connect NVIDIA NIM with the key box blank said "Paste your NVIDIA NIM API key first. The key page link on this card shows where to get one." and stored nothing; with a key it connected.
+  code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py
+  commit: 41fbeb8
+- S-06.02.32 · The connect form offers limit presets
+  work_order: docs/work-orders/S-06.02.32-limit-presets.md
+  tests: frontend/src/components.test.tsx, tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted
+  command: uv run pytest tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: 1 passed, then 25 passed (2026-09-25); frontend 155 passed, build clean
+  live: real headless Chromium against the running app with the built screens: "200 a day" and "$5 a day" chosen on NVIDIA NIM's card posted requests_per_day 200 and max_spend_usd_per_day 5, it connected, and reopening the form showed both presets selected. The spend hint was checked against quota.py before it was written.
+  code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx
+  commit: 41fbeb8
+
+- S-06.02.33 · Trust is the owner's to change, per provider and per model
+  work_order: docs/work-orders/S-06.02.33-trust-per-provider-and-model.md
+  tests: tests/test_ai_trust.py::test_lowering_a_provider_applies_to_its_models_with_no_reason_asked, tests/test_ai_trust.py::test_raising_needs_a_typed_reason_and_records_who_and_when, tests/test_ai_trust.py::test_a_models_own_setting_wins_over_the_providers, tests/test_ai_trust.py::test_a_provider_raise_never_lifts_a_model_capped_by_who_built_it, tests/test_ai_trust.py::test_no_trust_setting_opens_the_mailbox, tests/test_ai_trust.py::test_routing_follows_a_lowered_trust, tests/test_ai_trust.py::test_the_connect_ceiling_follows_a_changed_trust, tests/test_ai_trust.py::test_raising_to_full_access_keeps_the_per_model_settings, tests/test_ai_trust.py::test_who_decided_is_the_login_not_what_the_request_claims, frontend/src/components.test.tsx
+  command: uv run pytest tests/test_ai_trust.py tests/test_ai_egress_wall.py -q && (cd frontend && npm test -- src/components.test.tsx)
+  live: real headless Chromium against the running app: NVIDIA lowered to Restricted with no question; a raise with the reason box dismissed changed nothing and said so; with a reason it saved and the card shows who and why; deepseek-ai/deepseek-r1 stayed Restricted under Highest-trust NVIDIA, and its own setting lifted it after its own reason. The per-model section first snapped shut after each change; fixed and walked again.
+  code: offsetx_apollo_builder/ai/registry.py, offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/schemas.py, frontend/src/pages/TrustSelect.tsx, frontend/src/pages/Connectors.tsx
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
@@ -172,23 +195,6 @@ write the code, then the evidence block.)*
 
 ## DONE
 
-- S-06.02.32 · The connect form offers limit presets
-  work_order: docs/work-orders/S-06.02.32-limit-presets.md
-  tests: frontend/src/components.test.tsx, tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted
-  command: uv run pytest tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted -q && (cd frontend && npm test -- src/components.test.tsx)
-  result: 1 passed, then 25 passed (2026-09-25); frontend 155 passed, build clean
-  live: real headless Chromium against the running app with the built screens: "200 a day" and "$5 a day" chosen on NVIDIA NIM's card posted requests_per_day 200 and max_spend_usd_per_day 5, it connected, and reopening the form showed both presets selected. The spend hint was checked against quota.py before it was written.
-  code: frontend/src/pages/CapPicker.tsx, frontend/src/pages/Connectors.tsx
-  commit: 41fbeb8
-
-- S-06.02.31 · Provider keys come only from the app
-  work_order: docs/work-orders/S-06.02.31-keys-only-from-the-app.md
-  tests: tests/test_ai_api.py::test_a_key_in_the_server_environment_serves_no_workspace, tests/test_ai_api.py::test_connecting_with_no_key_says_to_paste_one, tests/test_ai_api.py::test_saving_changes_with_the_key_box_blank_keeps_the_stored_key, tests/test_ai_api.py::test_a_local_server_needs_no_key, tests/test_ai_api.py::test_a_rejected_key_points_at_connectors_not_the_environment
-  command: uv run pytest tests/test_ai_api.py -q
-  result: 42 passed (2026-09-25); full suite 2417 -> 2422 passed, 0 failed
-  live: before the change, a script showed OFFSETX_AI_NVIDIA_KEY answering for workspaces local, acme-client and another-client alike. After it, real headless Chromium: Connect NVIDIA NIM with the key box blank said "Paste your NVIDIA NIM API key first. The key page link on this card shows where to get one." and stored nothing; with a key it connected.
-  code: offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/ai/failures.py
-  commit: 41fbeb8
 - S-06.02.30 · A provider connects from the Connectors screen as shown
   tests: tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_api.py::test_a_refused_value_is_named_in_the_message_the_screen_shows, tests/test_api_boundary_contract.py::test_validation_error_never_echoes_a_secret_request_body
   command: uv run pytest tests/test_ai_api.py tests/test_api_boundary_contract.py -q

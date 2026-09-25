@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Trust is yours to change, per provider and per model** (2026-09-25,
+  `S-06.02.33`). Every provider card has a trust choice, and "Trust per model"
+  lists each model. Lowering is instant; raising asks why and records it with
+  who made it. A provider raise never lifts a model capped because of who
+  built it — only that model's own setting can (`DD-65`). "Who decided" is
+  now the login, never what a request claims (`D-152`), and granting full
+  access no longer wipes per-model settings (`D-153`).
+
 - **Keys only from the app, and limit presets** (2026-09-25, `S-06.02.31`,
   `S-06.02.32`). A provider key set in the server's environment used to
   answer for every workspace login, other clients' included (`D-151`); that

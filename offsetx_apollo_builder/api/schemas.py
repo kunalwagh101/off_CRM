@@ -724,6 +724,12 @@ class AIProviderOverrideBody(StrictModel):
     reason: str = Field(default="", max_length=2000)
     decided_by: str = Field(default="", max_length=200)
 
+class AIProviderTrustBody(StrictModel):
+    # "" returns the provider, or the model, to its default (S-06.02.33).
+    tier: str = Field(default="", max_length=2)
+    model_id: str = Field(default="", max_length=240)
+    reason: str = Field(default="", max_length=2000)
+
 class AIWorkspaceUpdateBody(StrictModel):
     positioning_line: str | None = Field(default=None, max_length=500)
     owner_domains: list[str] | None = Field(default=None, max_length=20)

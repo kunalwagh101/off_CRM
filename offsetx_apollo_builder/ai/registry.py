@@ -663,24 +663,27 @@ class ProviderRegistry:
             and tier is not TrustTier.D
             and tier.rank >= entry.derived_tier.rank
         )
-        if grant_applied:
-            # While it stands, the grant decides what these models are sent;
-            # the owner's own level waits underneath, unchanged. Writing the
-            # grant into that level lost it on withdraw or resume (D-176).
-            policy = override.data_policy or DataPolicy.FULL
-            if policy.rank > ceiling.rank:
-                ceiling = policy
+        if requested_policy is None:
+            # A grant's level is the grant's, not a stand-in for the owner's.
+            policy = (
+                override.data_policy
+                if override and override.data_policy is not None and not grant_applied
+                else default_policy_for_tier(tier)
+            )
         else:
-            if requested_policy is None:
-                policy = (
-                    override.data_policy
-                    if override and override.data_policy is not None
-                    else default_policy_for_tier(tier)
-                )
-            else:
-                policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
-            if policy.rank > ceiling.rank:
-                policy = ceiling
+            policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
+        if policy.rank > ceiling.rank:
+            policy = ceiling
+        if grant_applied:
+            # While it stands, the grant lifts what these models are sent —
+            # never lowers it: a grant below the owner's own level decided
+            # alone, so withdrawing it raised what was sent (D-186). The
+            # owner's level waits underneath, unchanged (D-176).
+            granted = override.data_policy or DataPolicy.FULL
+            if granted.rank > policy.rank:
+                policy = granted
+            if granted.rank > ceiling.rank:
+                ceiling = granted
 
         return ResolvedProvider(
             entry=entry,

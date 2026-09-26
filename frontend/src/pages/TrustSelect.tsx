@@ -16,7 +16,7 @@ type GrantRow = {
   connected: boolean;
   grant_offer?: boolean;
   grant_state?: string;
-  override: { allow_above_ceiling?: boolean; reason?: string } | null;
+  override: { allow_above_ceiling?: boolean; reason?: string; data_policy?: string } | null;
 };
 
 /** Whether "Send full data anyway…" can change what is sent (DD-67). The
@@ -33,15 +33,18 @@ export function canGrantFullData(row: GrantRow): boolean {
 export function grantLine(row: GrantRow): string {
   if (!row.override?.allow_above_ceiling) return "";
   const reason = row.override.reason ?? "";
+  // The screen grants full; one made for less through the API says so.
+  const level = row.override.data_policy && row.override.data_policy !== "full" ? row.override.data_policy : "full";
+  const what = `${level[0].toUpperCase()}${level.slice(1)} data`;
   switch (row.grant_state) {
     case "active":
-      return `Full data granted by you${reason ? `: ${reason}` : ""}. Not for models trusted less than ${row.name}'s default.`;
+      return `${what} granted by you${reason ? `: ${reason}` : ""}. Not for models trusted less than ${row.name}'s default.`;
     case "provider_lowered":
-      return `Full data paused while you trust ${row.name} less than its default${reason ? `: ${reason}` : ""}.`;
+      return `${what} paused while you trust ${row.name} less than its default${reason ? `: ${reason}` : ""}.`;
     case "provider_blocked":
-      return `Full data paused: ${row.name} is blocked, so it receives nothing.${reason ? ` ${reason}.` : ""}`;
+      return `${what} paused: ${row.name} is blocked, so it receives nothing.${reason ? ` ${reason}.` : ""}`;
     default:
-      return `Full data paused: no model you switched on is trusted at ${row.name}'s default.${reason ? ` ${reason}.` : ""}`;
+      return `${what} paused: no model you switched on is trusted at ${row.name}'s default.${reason ? ` ${reason}.` : ""}`;
   }
 }
 

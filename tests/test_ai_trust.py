@@ -219,11 +219,17 @@ def test_the_connect_ceiling_follows_a_changed_trust(client):
         json={"api_key": "nvapi-test", "data_policy": "standard"},
     ).json()
     assert connected["tier"] == "C"
-    assert connected["policy_was_clamped"] is True
-    # What leaves follows the lowered trust; the owner's own choice is kept
-    # for when trust is restored — storing the cut value lost it (D-176).
+    # What leaves follows the lowered trust; the owner's own choice is kept,
+    # uncut, for when trust is restored — storing the cut value lost it
+    # (D-176), so nothing was cut from the choice and none is reported.
     assert _nvidia(client)["sends"] == "pseudonymous"
     assert connected["provider"]["data_policy"] == "standard"
+    assert connected["policy_was_clamped"] is False
+    # A raise lifts what may be stored: DeepSeek's own Standard is kept.
+    client.post(f"{API}/ai/providers/deepseek/trust", json={"tier": "B", "reason": "Signed their enterprise terms"})
+    raised = client.post(f"{API}/ai/providers/deepseek/connect",
+                         json={"api_key": "sk-test", "data_policy": "standard"}).json()
+    assert (raised["provider"]["data_policy"], raised["policy_was_clamped"]) == ("standard", False)
 
 
 def test_raising_to_full_access_keeps_the_per_model_settings(client):
@@ -582,3 +588,93 @@ def test_the_models_a_provider_can_hold_are_bounded(client):
     assert sum(answer.status_code == 200 for answer in answers) == 20
     last = answers[-1].json()["detail"]["message"]
     assert "50 models" in last
+
+
+# ── Fourth review of 2026-09-26: what the card and Connect claim ────────────
+
+GEMINI = "gemini-2.0-flash"
+
+
+def _google_sends(client) -> tuple[str, str]:
+    app = client.app
+    settings = app.state.ai_workspaces.egress_settings("local")
+    [resolved], _ = app.state.ai_registry.candidates_for(
+        DataClass.PERSON_PUBLIC, enabled_ids=["google"], overrides=settings.overrides,
+        enabled_models={"google": (GEMINI,)}, policy_by_provider=settings.default_policy_by_provider)
+    return resolved.tier.value, resolved.policy.value
+
+
+def test_the_card_never_claims_a_ceiling_no_switched_on_model_gets(client):
+    """D-184: with the grant reaching no model, the form still read "Tier B
+    allows up to Full access"."""
+    _connect(client, data_policy="standard")
+    _grant(client)
+    client.post(f"{API}/ai/providers/nvidia/connect", json={"model_ids": [CN_MODEL], "data_policy": "standard"})
+    row = _nvidia(client)
+    assert row["grant_state"] == "no_model"
+    assert (row["policy_ceiling"], row["standing_ceiling"]) == ("standard", "standard")
+
+
+def test_a_save_that_is_cut_says_so(client):
+    """D-184: choosing Full stored Standard and answered "connected" as if
+    nothing was cut."""
+    _connect(client, data_policy="standard")
+    _grant(client)
+    answer = client.post(f"{API}/ai/providers/nvidia/connect",
+                         json={"model_ids": [US_MODEL, CN_MODEL], "data_policy": "full"}).json()
+    assert answer["provider"]["data_policy"] == "standard"
+    assert (answer["policy_was_clamped"], answer["policy_ceiling"]) == (True, "standard")
+
+
+def test_the_form_offers_levels_up_to_the_providers_standing_trust(client):
+    assert _nvidia(client)["standing_ceiling"] == "standard"
+    _trust(client, {"tier": "C"})
+    assert _nvidia(client)["standing_ceiling"] == "standard"  # a lowering is temporary
+    _trust(client, {"tier": "A", "reason": "Our data agreement with NVIDIA covers this"})
+    assert _nvidia(client)["standing_ceiling"] == "full"
+
+
+def test_withdrawing_a_grant_never_raises_what_is_sent(client):
+    """D-186: a grant below the owner's own level decided what was sent, so
+    withdrawing it raised Minimal to Standard."""
+    assert client.post(f"{API}/ai/providers/google/connect",
+                       json={"api_key": "g-test", "model_ids": [GEMINI]}).status_code == 200
+    assert client.post(f"{API}/ai/providers/google/override", json={
+        "data_policy": "minimal", "allow_above_ceiling": True, "reason": "names are fine for Gemini"}).status_code == 200
+    assert client.post(f"{API}/ai/providers/google/trust",
+                       json={"tier": "B", "reason": "Workspace terms signed"}).status_code == 200
+    client.post(f"{API}/ai/providers/google/connect", json={"model_ids": [GEMINI], "data_policy": "standard"})
+    with_grant = _google_sends(client)
+    client.post(f"{API}/ai/providers/google/override", json={})
+    assert with_grant == _google_sends(client) == ("B", "standard")
+
+
+def test_a_provider_whose_models_are_all_blocked_sends_nothing(client):
+    """D-188: "Sends: Strict" for a provider whose only model was blocked."""
+    client.post(f"{API}/ai/providers/nvidia/connect",
+                json={"api_key": "nvapi-test", "model_ids": [US_MODEL], "data_policy": "standard"})
+    _trust(client, {"tier": "D", "model_id": US_MODEL})
+    row = _nvidia(client)
+    assert (row["sends_nothing"], row["receives_nothing"]) == (True, False)
+    _trust(client, {"tier": "", "model_id": US_MODEL})
+    assert _nvidia(client)["sends_nothing"] is False
+
+
+@pytest.mark.parametrize("damage", ["missing", "invalid", "other"])
+def test_a_damaged_key_store_says_what_the_install_owner_can_do(client, damage):
+    """D-189: only one of three key-store failures had a next step, and that
+    one did not say the key file holds every workspace's keys."""
+    from cryptography.fernet import Fernet
+
+    _connect(client)
+    store = client.app.state.ai_workspaces
+    if damage == "missing":
+        store.key_path.unlink()
+    elif damage == "invalid":
+        store.key_path.write_bytes(b"not a key")
+    else:
+        store.key_path.write_bytes(Fernet.generate_key())
+    answer = client.post(f"{API}/ai/providers/nvidia/connect", json={"api_key": "nvapi-new"})
+    assert answer.status_code == 400
+    message = answer.json()["detail"]["message"]
+    assert "backup" in message and "every workspace" in message and "install owner" in message

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
@@ -276,14 +277,20 @@ class ProviderProfileStore:
         return None
 
     def confirm(
-        self, profile_id: str, *, caller: str, owner_for: Callable[[str], str]
+        self,
+        profile_id: str,
+        *,
+        caller: str,
+        owner_for: Callable[[str], str],
+        api_key: str,
     ) -> dict[str, Any]:
         """Record whose a profile saved before ownership was is (D-166, D-177).
 
-        `owner_for` turns the profile's old label into its workspace, or
-        raises: the label says who it was saved for, and confirming never
-        moves it anywhere else — the caller's own chain included. A confirmed
-        profile of another workspace stays theirs, key and all.
+        The caller proves it by typing the key the profile holds: its label
+        proves nothing, as every login's saves were once labelled "default"
+        (D-185). `owner_for` turns the label into the workspace it goes to, so
+        confirming never moves a profile into the caller's chain by default. A
+        confirmed profile of another workspace stays theirs, key and all.
         """
         with self._lock:
             profiles = self._profiles()
@@ -291,16 +298,28 @@ class ProviderProfileStore:
             if profile is None:
                 raise KeyError("Provider profile not found")
             current = str(profile.get("owner", ""))
+            secrets = self._secrets()
             if _confirmed(profile):
                 if current == caller:
-                    return self._public(profile, self._secrets())
+                    return self._public(profile, secrets)
                 raise ProfileOwnedElsewhere(
                     f"This profile belongs to workspace {current}. It stays theirs; "
                     "remove it instead if it should not exist."
                 )
+            stored = secrets.get(profile_id, "")
+            if not stored:
+                raise ProfileOwnedElsewhere(
+                    "No key is stored in this profile — it read one from a server variable, "
+                    "which off_CRM no longer does — so nothing can use it. Remove it."
+                )
+            if not hmac.compare_digest(stored.encode("utf-8"), api_key.strip().encode("utf-8")):
+                raise ProfileOwnedElsewhere(
+                    "That is not the key this profile holds, so off_CRM cannot tell it is yours. "
+                    "Type the API key saved in it, or remove it if you did not set it up."
+                )
             profile.update(owner=owner_for(current), owner_confirmed=True, updated_at=to_utc_iso())
             _atomic_json(self.profile_path, profiles)
-            return self._public(profile, self._secrets())
+            return self._public(profile, secrets)
 
     def unconfirmed_count(self) -> int:
         """Profiles saved before ownership was recorded: the owner's to settle."""

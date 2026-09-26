@@ -505,6 +505,10 @@ describe("the full-data grant (reviews of S-06.02.33)", () => {
     expect(grantLine({ ...base, override: granted, grant_state: "no_model" })).toBe(
       "Full data paused: no model you switched on is trusted at NVIDIA NIM's default. Signed a DPA."
     );
+    // A grant made for less than full says so; only the screen's grants are full.
+    expect(grantLine({ ...base, override: { ...granted, data_policy: "minimal" }, grant_state: "active" })).toBe(
+      "Minimal data granted by you: Signed a DPA. Not for models trusted less than NVIDIA NIM's default."
+    );
   });
 });
 
@@ -514,6 +518,16 @@ describe("what the card says is sent (D-179)", () => {
     expect(sendsWord({ receives_nothing: false, sends: "standard", sends_varies: false, data_policy: "full" })).toBe("Standard");
     expect(sendsWord({ receives_nothing: false, sends: "full", sends_varies: true, data_policy: "standard" })).toBe("Up to Full access");
     expect(sendsWord({ receives_nothing: true, sends: "strict", sends_varies: false, data_policy: "strict" })).toBe("Nothing");
+    // Every switched-on model blocked: the router sends it nothing (D-188).
+    expect(sendsWord({ receives_nothing: false, sends_nothing: true, sends: "", data_policy: "standard" })).toBe("Nothing");
+  });
+
+  it("offers only the levels the provider's standing trust allows, and shows the saved one within them (D-184)", async () => {
+    const { levelsUpTo, formLevel } = await import("./pages/Connectors");
+    expect([...levelsUpTo("standard")]).toEqual(["strict", "pseudonymous", "minimal", "standard"]);
+    expect([...levelsUpTo("full")]).toEqual(["strict", "pseudonymous", "minimal", "standard", "full"]);
+    expect(formLevel("full", "standard")).toBe("standard");
+    expect(formLevel("minimal", "standard")).toBe("minimal");
   });
 });
 
@@ -525,10 +539,11 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     provider_type: "openai_compatible" as const,
     model: "gpt-4o-mini",
     base_url: "https://api.openai.com/v1",
+    has_stored_secret: true,
     owner_confirmed: false
   };
 
-  it("lists each one with where it sends and who it was saved for, to confirm or remove", async () => {
+  it("lists each one with where it sends, and confirms it only with the key it holds", async () => {
     const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
     const html = renderToStaticMarkup(
       <LegacyProfiles items={[old, { ...old, id: "mine", owner_confirmed: true }]} busy="" onConfirm={() => undefined} onRemove={() => undefined} />
@@ -536,9 +551,22 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     expect(html).toContain("Primary OpenAI");
     expect(html).toContain("https://api.openai.com/v1");
     expect(html).toContain("Saved for: default");
+    // A label proves nothing: anyone's saves were labelled "default" (D-185).
+    expect(html).toContain('aria-label="API key of Primary OpenAI"');
+    expect(html).toContain('type="password"');
     expect(html).toContain('aria-label="Confirm Primary OpenAI"');
     expect(html).toContain('aria-label="Remove Primary OpenAI"');
     expect(html.match(/Confirm Primary OpenAI/g)?.length).toBe(1);
+  });
+
+  it("offers only Remove for a profile with no key stored, which nothing can use (D-187)", async () => {
+    const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
+    const html = renderToStaticMarkup(
+      <LegacyProfiles items={[{ ...old, has_stored_secret: false }]} busy="" onConfirm={() => undefined} onRemove={() => undefined} />
+    );
+    expect(html).not.toContain("Confirm Primary OpenAI");
+    expect(html).toContain("No key is stored in it");
+    expect(html).toContain('aria-label="Remove Primary OpenAI"');
   });
 
   it("shows nothing once every profile is settled", async () => {
@@ -553,10 +581,10 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     const { draftsProfileNote } = await import("./pages/LegacyProfiles");
     expect(draftsProfileNote(2, 0)).toBe("");
     expect(draftsProfileNote(0, 1)).toBe(
-      "1 saved provider profile is waiting for you to confirm it in Settings, under Provider profiles to confirm."
+      "1 saved provider profile is waiting for you in Settings, under Provider profiles to confirm."
     );
     expect(draftsProfileNote(0, 3)).toBe(
-      "3 saved provider profiles are waiting for you to confirm them in Settings, under Provider profiles to confirm."
+      "3 saved provider profiles are waiting for you in Settings, under Provider profiles to confirm."
     );
     // D-173: it pointed at a Settings form that no longer exists.
     expect(draftsProfileNote(0, 0)).toBe(

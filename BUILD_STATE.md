@@ -12,10 +12,10 @@ Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-26, on `develop` with the third review's fixes): **2485 Python
+Tests (2026-09-26, on `develop` with the fourth review's fixes): **2495 Python
 passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **166 passed** and a clean production build. Board verifier
+clean. Frontend **168 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -67,9 +67,10 @@ the owner's profile to receive the owner's key. The second found `D-165` to
 profile ownership was a label the request typed, lowering a provider
 re-applied the full-data grant, and the call log was unscoped. Fixing those
 found `D-171` — the full-data grant never sent more, older than this session —
-and `D-172` to `D-175`. The third review (2026-09-26) found nothing critical
-or high: `D-176` to `D-183`, two medium. All fixed test-first. DONE waits for
-a look at the third round's fixes by a context that did not write them.
+and `D-172` to `D-175`. The third and fourth reviews (2026-09-26) found
+nothing critical or high: `D-176` to `D-189`, four medium. All fixed
+test-first. DONE waits for a look at the fourth round's fixes by a context
+that did not write them.
 
 **How profiles and trust work now — read before touching either:**
 - A provider profile's owner is recorded by the server from the login — the
@@ -85,7 +86,9 @@ a look at the third round's fixes by a context that did not write them.
   answer per switched-on model (`describe`, `_grant_refusal` in
   `ai/workspace.py`). Change the rule in one place.
 - Old profiles are settled in Settings, "Provider profiles to confirm":
-  confirming gives each to the workspace its old label names (`DD-68`).
+  confirming takes the API key the profile holds — its label proves nothing —
+  and gives it back to a client workspace its label names, else to the owner
+  (`DD-68`). A grant only ever lifts what is sent (`DD-67`).
 
 **Found, not fixed:** `D-173` — Drafts reach a model only through provider
 profiles, and no screen adds one since providers moved to Connectors. `Q-28`

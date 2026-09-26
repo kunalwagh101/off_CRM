@@ -777,6 +777,10 @@ export type AIProviderRow = {
   grant_offer?: boolean;
   /** True when the switched-on models are sent different levels; `sends` is the most. */
   sends_varies?: boolean;
+  /** True when every switched-on model is blocked, so none is sent anything. */
+  sends_nothing?: boolean;
+  /** The most "How much to send" can be: the ceiling at the default or the owner's raise. */
+  standing_ceiling?: string;
 };
 
 export type DiscoveredModel = {

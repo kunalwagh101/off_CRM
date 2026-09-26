@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **The fourth fresh-context review, closed** (2026-09-26, `S-06.02.31`,
+  `S-06.02.33`). Nothing critical or high; two medium, four low, each fixed
+  with a test that failed first.
+  - **Confirming an old profile takes the key saved in it** (`D-185`). Its label
+    proves nothing — before `05e9738` a client's own saves could read "default"
+    too — but a client's planted profile holds a key you do not know. A profile
+    with no key stored offers only Remove (`D-187`).
+  - **The form offers only what your trust allows** (`D-184`), so nothing you
+    choose is cut when saved, and a cut from the API is reported. Its hint says
+    what the level means right now: by your grant, while you have lowered the
+    provider, or at its tier.
+  - **Smaller**: a grant only ever lifts what is sent (`D-186`); a provider whose
+    models are all blocked "Sends: Nothing" (`D-188`); every damaged-key message
+    says what the install owner can do, and that removing the keys file clears
+    every workspace's keys (`D-189`).
+
 - **The third fresh-context review, closed** (2026-09-26, `S-06.02.31`,
   `S-06.02.33`). Nothing critical or high; two medium, five low, each fixed
   with a test that failed first. Its random test — 2,800 sequences of connect,
@@ -14,9 +30,10 @@
     your level waits underneath.
   - **Old provider profiles have a screen** (`D-177`). Settings lists the ones
     saved before off_CRM recorded whose each one is, with where each sends, to
-    confirm or remove; Drafts says how many wait. Confirming gives a profile to
-    the workspace it was saved for — never to you by default, so a client's key
-    cannot end up in your drafts.
+    confirm or remove; Drafts says how many wait. *(Corrected 2026-09-26: this
+    entry first said a client's key could not end up in your drafts. It could:
+    before `05e9738` a client's own saves could be labelled "default" too
+    (`D-185`). Confirming now takes the key the profile holds.)*
   - **Smaller**: disconnect works even when stored keys cannot be read, and the
     error says what to do (`D-178`); "Sends" and the grant follow the models you
     switched on (`D-179`); at most 50 models, and 50 per-model trust settings,

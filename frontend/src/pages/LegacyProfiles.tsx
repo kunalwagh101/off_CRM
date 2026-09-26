@@ -4,7 +4,10 @@
 import { Button } from "../components";
 import type { ProviderProfile } from "../types";
 
-type Row = Pick<ProviderProfile, "id" | "owner" | "name" | "provider_type" | "model" | "base_url" | "owner_confirmed">;
+type Row = Pick<
+  ProviderProfile,
+  "id" | "owner" | "name" | "provider_type" | "model" | "base_url" | "has_stored_secret" | "owner_confirmed"
+>;
 
 /** What the Drafts screen says under its model option. It pointed at a
  * Settings form that no longer exists (D-173), and could not say that the
@@ -12,17 +15,18 @@ type Row = Pick<ProviderProfile, "id" | "owner" | "name" | "provider_type" | "mo
 export function draftsProfileNote(total: number, waiting: number): string {
   if (total > 0) return "";
   if (waiting === 1) {
-    return "1 saved provider profile is waiting for you to confirm it in Settings, under Provider profiles to confirm.";
+    return "1 saved provider profile is waiting for you in Settings, under Provider profiles to confirm.";
   }
   if (waiting > 1) {
-    return `${waiting} saved provider profiles are waiting for you to confirm them in Settings, under Provider profiles to confirm.`;
+    return `${waiting} saved provider profiles are waiting for you in Settings, under Provider profiles to confirm.`;
   }
   return "Personalising with a model needs a provider profile, and no screen adds one yet. Drafts use local templates until then.";
 }
 
-/** Confirming gives a profile to the workspace its old label names — you, for
- * "default" — never anywhere else. So each row shows where it sends and who it
- * was saved for: a label anyone could have typed is not proof it is yours. */
+/** Confirming takes the key the profile holds: its label proves nothing —
+ * every login's saves were once labelled "default" — and the key is what a
+ * client's planted profile cannot give you (D-185). A profile labelled for a
+ * client workspace goes back to it; any other is yours. */
 export default function LegacyProfiles({
   items,
   busy,
@@ -31,7 +35,7 @@ export default function LegacyProfiles({
 }: {
   items: Row[];
   busy: string;
-  onConfirm: (profile: Row) => void;
+  onConfirm: (profile: Row, apiKey: string) => void;
   onRemove: (profile: Row) => void;
 }) {
   const waiting = items.filter((item) => !item.owner_confirmed);
@@ -49,14 +53,36 @@ export default function LegacyProfiles({
             <small>Saved for: {item.owner || "no one"}</small>
           </div>
           <div className="button-row">
-            <Button
-              tone="ghost"
-              aria-label={`Confirm ${item.name}`}
-              busy={busy === `provider-confirm-${item.id}`}
-              onClick={() => onConfirm(item)}
-            >
-              Confirm
-            </Button>
+            {item.has_stored_secret ? (
+              <form
+                className="legacy-profile-confirm"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const field = event.currentTarget.elements.namedItem("api_key") as HTMLInputElement | null;
+                  onConfirm(item, field?.value ?? "");
+                }}
+              >
+                <input
+                  name="api_key"
+                  type="password"
+                  autoComplete="off"
+                  placeholder="Its API key"
+                  aria-label={`API key of ${item.name}`}
+                />
+                <Button
+                  type="submit"
+                  tone="ghost"
+                  aria-label={`Confirm ${item.name}`}
+                  busy={busy === `provider-confirm-${item.id}`}
+                >
+                  Confirm
+                </Button>
+              </form>
+            ) : (
+              // It read its key from a server variable, which off_CRM no longer
+              // does: confirmed, every draft through it would fail (D-187).
+              <small>No key is stored in it, so nothing can use it.</small>
+            )}
             <Button
               tone="ghost"
               aria-label={`Remove ${item.name}`}

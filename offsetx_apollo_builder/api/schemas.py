@@ -313,6 +313,12 @@ class ProviderProfileUpsert(StrictModel):
         # Nothing is kept: the route records the caller's own workspace.
 
 
+class ProviderProfileConfirm(StrictModel):
+    # The key the profile holds: typing it proves the profile is the
+    # confirmer's; its old label proves nothing (D-185).
+    api_key: str = Field(default="", max_length=10000)
+
+
 class ProviderHealthRequest(StrictModel):
     live_probe: bool = False
 

@@ -23,15 +23,31 @@ const TIER_WORD: Record<string, string> = {
  * and saving it lowered what was sent without saying so (D-174). */
 export const POLICY_ORDER = ["strict", "pseudonymous", "minimal", "standard", "full"] as const;
 
-/** "Sends" on the card: the most any switched-on model is sent (D-179). */
+/** "Sends" on the card: the most any switched-on model is sent (D-179) —
+ * "Nothing" when every one of them is blocked (D-188). */
 export function sendsWord(row: {
   receives_nothing: boolean;
+  sends_nothing?: boolean;
   sends?: string;
   sends_varies?: boolean;
   data_policy: string;
 }): string {
-  if (row.receives_nothing) return "Nothing";
-  return `${row.sends_varies ? "Up to " : ""}${policyWord(row.sends ?? row.data_policy)}`;
+  if (row.receives_nothing || row.sends_nothing) return "Nothing";
+  return `${row.sends_varies ? "Up to " : ""}${policyWord(row.sends || row.data_policy)}`;
+}
+
+/** The levels "How much to send" offers: none above what the provider's
+ * standing trust allows, so nothing chosen is cut when saved (D-184). Above
+ * it is the grant's job, offered below the form. */
+export function levelsUpTo(standing: string): readonly string[] {
+  const top = POLICY_ORDER.indexOf(standing as (typeof POLICY_ORDER)[number]);
+  return top < 0 ? POLICY_ORDER : POLICY_ORDER.slice(0, top + 1);
+}
+
+/** The saved level as the form shows it: within the offered levels. */
+export function formLevel(saved: string, standing: string): string {
+  const offered = levelsUpTo(standing);
+  return offered.includes(saved) ? saved : offered[offered.length - 1];
 }
 
 export function policyWord(value: string): string {
@@ -96,7 +112,7 @@ export default function Connectors() {
       );
       if (result.policy_was_clamped) {
         notify(
-          `${row.name} connected at ${policyWord(result.policy_ceiling)}. Tier ${result.tier} does not allow more than that by default.`,
+          `${row.name} connected. Its level was saved as ${policyWord(result.policy_ceiling)}, the most its trust allows.`,
           "warning"
         );
       } else {
@@ -369,6 +385,19 @@ export default function Connectors() {
   );
 }
 
+/** What the level below the form means right now — each sentence true of
+ * the card as it stands (D-184). */
+function levelHint(row: AIProviderRow): string {
+  const tiers = ["D", "C", "B", "A"];
+  if (row.grant_active) {
+    return `Your grant sends ${policyWord(row.policy_ceiling)} to the models it covers. This level is for the rest, and for all of them once you withdraw it.`;
+  }
+  if (tiers.indexOf(row.effective_tier) < tiers.indexOf(row.default_tier ?? row.trust_tier)) {
+    return `You trust ${row.name} less than its default, so it is sent at most ${policyWord(row.policy_ceiling)} for now. This level applies again when you restore it.`;
+  }
+  return `Tier ${row.effective_tier} allows up to ${policyWord(row.policy_ceiling)}. A model built elsewhere may be sent less; the card shows what is sent.`;
+}
+
 function tierNote(tier: string): string {
   if (tier === "A")
     return "European or running on your own machine. May receive your templates, drafts and CRM notes.";
@@ -575,16 +604,12 @@ function ProviderCard({
                 ))}
               </select>
             </Field>
-            <Field
-              label="How much to send"
-              hint={
-                row.grant_active
-                  ? `Your grant sends ${policyWord(row.policy_ceiling)} for now; this is what is sent once you withdraw it.`
-                  : `Tier ${row.effective_tier} allows up to ${policyWord(row.policy_ceiling)}.`
-              }
-            >
-              <select name="data_policy" defaultValue={row.data_policy}>
-                {POLICY_ORDER.map((value) => (
+            <Field label="How much to send" hint={levelHint(row)}>
+              <select
+                name="data_policy"
+                defaultValue={formLevel(row.data_policy, row.standing_ceiling ?? row.policy_ceiling)}
+              >
+                {levelsUpTo(row.standing_ceiling ?? row.policy_ceiling).map((value) => (
                   <option key={value} value={value}>
                     {policyWord(value)}
                   </option>

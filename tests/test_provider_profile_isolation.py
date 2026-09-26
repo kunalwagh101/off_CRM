@@ -293,7 +293,8 @@ def test_a_profile_saved_before_ownership_is_in_no_chain_until_the_owner_confirm
     assert "confirm" in refused.json()["detail"].lower()
     assert _sent_to(seen, ATTACKER) == []
 
-    confirmed = client.post(f"/api/v1/provider-profiles/{pid}/confirm", headers=ADMIN)
+    confirmed = client.post(f"/api/v1/provider-profiles/{pid}/confirm", headers=ADMIN,
+                            json={"api_key": "sk-legacy-" + "l" * 20})
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()["owner"] == "local" and confirmed.json()["owner_confirmed"] is True
     assert [item["id"] for item in client.get(
@@ -388,7 +389,8 @@ def test_confirming_returns_a_profile_to_the_workspace_it_was_saved_for(client, 
     """D-177: confirming a profile saved for client beta moved beta's key and
     URL into the owner's chain; and beta could never have it back."""
     _legacy_rows(client, [("beta-old", "beta", "Fast", ATTACKER)])
-    confirmed = client.post("/api/v1/provider-profiles/beta-old/confirm", headers=ADMIN)
+    confirmed = client.post("/api/v1/provider-profiles/beta-old/confirm", headers=ADMIN,
+                            json={"api_key": "sk-beta-old-" + "k" * 20})
     assert confirmed.status_code == 200, confirmed.text
     assert (confirmed.json()["owner"], confirmed.json()["owner_confirmed"]) == ("beta", True)
     assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
@@ -397,12 +399,14 @@ def test_confirming_returns_a_profile_to_the_workspace_it_was_saved_for(client, 
     assert [item["id"] for item in client.get("/api/v1/provider-profiles").json()["items"]] == ["beta-old"]
 
 
-def test_a_profile_labelled_for_no_workspace_cannot_be_confirmed(client):
+def test_a_profile_labelled_for_no_workspace_is_the_owners_once_its_key_is_proved(client):
+    """D-187: a label naming no workspace ("Kunal") could never be confirmed,
+    and the refusal's next step — add it again — has no screen."""
     _legacy_rows(client, [("typed-old", "Kunal", "Mine", OWNER_URL)])
-    refused = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN)
-    assert refused.status_code == 409
-    assert "Kunal" in refused.json()["detail"] and "remove" in refused.json()["detail"].lower()
-    assert client.app.state.provider_profiles.ownership("typed-old") == ("Kunal", False)
+    confirmed = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN,
+                            json={"api_key": "sk-typed-old-" + "k" * 20})
+    assert confirmed.status_code == 200, confirmed.text
+    assert client.app.state.provider_profiles.ownership("typed-old") == ("local", True)
 
 
 def test_an_unconfirmed_profile_is_confirmed_or_removed_never_resaved(client):
@@ -421,7 +425,8 @@ def test_confirm_goes_by_the_profiles_label_whoever_the_cookie_names(client):
     the owner's profile — key included — into beta."""
     _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
     _login(client, "beta")
-    answer = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN)
+    answer = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN,
+                         json={"api_key": "sk-owner-old-" + "k" * 20})
     assert answer.status_code == 200, answer.text
     assert client.app.state.provider_profiles.ownership("owner-old") == ("local", True)
 
@@ -442,3 +447,39 @@ def test_an_edit_checks_whose_the_profile_is_as_it_writes(client):
     with pytest.raises(ProfileUnconfirmed):
         store.upsert({"id": "owner-old", "name": "Mine", "provider_type": "openai_compatible"},
                      owner="local", keep_owner=True)
+
+
+# ── Fourth review of 2026-09-26: a label proves nothing; the key does ──────
+
+
+def test_confirming_needs_the_key_the_profile_holds(client, seen):
+    """D-185: before D-155 every login's API save was labelled "default", so
+    a client's profile read "Saved for: default" and confirming it sent the
+    owner's drafts to the client's server on the client's key."""
+    _legacy_rows(client, [("beta-api", "default", "Fast", ATTACKER)])
+    for body in ({}, {"api_key": OWNER_KEY}):
+        refused = client.post("/api/v1/provider-profiles/beta-api/confirm", headers=ADMIN, json=body)
+        assert refused.status_code == 409, refused.text
+        assert "key" in refused.json()["detail"].lower()
+    assert client.app.state.provider_profiles.ownership("beta-api") == ("default", False)
+    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
+    assert _sent_to(seen, ATTACKER) == []
+    proved = client.post("/api/v1/provider-profiles/beta-api/confirm", headers=ADMIN,
+                         json={"api_key": "sk-beta-api-" + "k" * 20})
+    assert proved.status_code == 200, proved.text
+
+
+def test_a_profile_with_no_key_cannot_be_confirmed(client):
+    """D-187: a profile that read its key from a server variable was confirmed
+    with "Drafts can use it now", and every draft then failed."""
+    store = client.app.state.provider_profiles
+    store.profile_path.parent.mkdir(parents=True, exist_ok=True)
+    store.profile_path.write_text(json.dumps([{
+        "id": "owner-env", "owner": "default", "name": "Primary OpenAI", "provider_type": "openai_compatible",
+        "model": "gpt-4o-mini", "base_url": OWNER_URL, "api_key_env": "OPENAI_API_KEY", "priority": 1,
+        "enabled": True}]))
+    listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"]
+    assert [(item["id"], item["has_stored_secret"]) for item in listed] == [("owner-env", False)]
+    refused = client.post("/api/v1/provider-profiles/owner-env/confirm", headers=ADMIN, json={"api_key": "anything"})
+    assert refused.status_code == 409
+    assert "remove it" in refused.json()["detail"].lower()

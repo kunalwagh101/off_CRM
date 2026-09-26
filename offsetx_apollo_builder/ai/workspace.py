@@ -69,6 +69,17 @@ _TRUST_HISTORY = 20
 #: How many models of one provider may carry their own trust setting (D-180).
 _MODEL_SETTINGS = 50
 
+#: Said for every way the stored keys can become unreadable (D-178, D-189).
+#: Every login can see it, and the file holds every workspace's keys, so it
+#: says whose step each one is.
+_KEY_STORE_HELP = (
+    "Stored AI provider keys cannot be read: {fault}. Until this is fixed no key can "
+    "be read or saved. The install owner can restore the whole data folder from one "
+    "backup — the master key is a hidden file, so copy the folder, not its files — or "
+    "remove ai_provider_keys.enc, which clears the stored keys of every workspace, "
+    "after which each workspace pastes its keys again."
+)
+
 
 def _remember(record: dict[str, Any], kind: str, model_id: str, decision: dict[str, Any]) -> None:
     history = list(record.get("trust_history") or [])
@@ -165,7 +176,7 @@ class WorkspaceAISettingsStore:
     def _fernet(self, *, create: bool) -> Fernet:
         if not self.key_path.exists():
             if not create:
-                raise RegistryError("AI provider encryption key is missing")
+                raise RegistryError(_KEY_STORE_HELP.format(fault="its master key, .ai_master.key, is missing"))
             self.data_dir.mkdir(parents=True, exist_ok=True)
             self.key_path.write_bytes(Fernet.generate_key())
             try:
@@ -175,7 +186,7 @@ class WorkspaceAISettingsStore:
         try:
             return Fernet(self.key_path.read_bytes().strip())
         except (OSError, ValueError) as exc:
-            raise RegistryError("AI provider encryption key is invalid") from exc
+            raise RegistryError(_KEY_STORE_HELP.format(fault="its master key, .ai_master.key, is not a valid key")) from exc
 
     def _secrets(self) -> dict[str, str]:
         if not self.secret_path.exists():
@@ -186,12 +197,9 @@ class WorkspaceAISettingsStore:
         except (OSError, InvalidToken, UnicodeDecodeError, json.JSONDecodeError) as exc:
             # A next step, not just the fault: nothing else on screen can say
             # it, and until it is done no key can be stored (D-178).
-            raise RegistryError(
-                "Stored AI provider keys cannot be decrypted: they were saved under a "
-                "different master key, as happens when only part of a backup is restored. "
-                "Restore the whole backup, or remove ai_provider_keys.enc from the data "
-                "folder and paste your keys again."
-            ) from exc
+            raise RegistryError(_KEY_STORE_HELP.format(
+                fault="they were saved under a different master key, as when only part of a backup is restored"
+            )) from exc
         return {str(k): str(v) for k, v in payload.items()} if isinstance(payload, dict) else {}
 
     def _write_secrets(self, secrets: dict[str, str]) -> None:
@@ -382,12 +390,14 @@ class WorkspaceAISettingsStore:
                 if wanted_policy
                 else default_policy_for_tier(tier)
             )
-            # The owner's full-data grant counts: ignoring it clamped what is
-            # sent back under the tier's ceiling, so the grant never sent
-            # more (D-171).
-            ceiling = _host_ceiling(entry, stored)
-            clamped = policy.rank > ceiling.rank
-            decided.update(tier=tier, ceiling=ceiling, clamped=clamped)
+            standing = policy_ceiling_for_tier(
+                tier if tier.rank >= entry.derived_tier.rank else entry.derived_tier
+            )
+            # Reported against what is stored, so a cut is never silent: the
+            # grant-lifted ceiling said "not cut" while Standard was stored
+            # for a choice of Full (D-184). What leaves is on the card.
+            clamped = policy.rank > standing.rank
+            decided.update(tier=tier, ceiling=standing, clamped=clamped)
             caps = {
                 key: value if value is not None else existing.get(key, first_caps[key])
                 for key, value in given_caps.items()
@@ -398,9 +408,6 @@ class WorkspaceAISettingsStore:
             # choice once trust was restored or a grant resumed (D-176). What
             # leaves is cut again to the current ceiling when each call is
             # routed.
-            standing = policy_ceiling_for_tier(
-                tier if tier.rank >= entry.derived_tier.rank else entry.derived_tier
-            )
             existing.update(record, **caps, data_policy=min(policy, standing, key=lambda item: item.rank).value)
             providers[provider_id] = existing
             current["providers"] = providers
@@ -773,8 +780,14 @@ class WorkspaceAISettingsStore:
                 )
                 for model_id in self._switched_on(entry, record)
             ]
-            sent = {item.policy for item in routed}
+            # A blocked model is sent nothing at all, not "strict" (D-188).
+            reachable = [item for item in routed if item.tier is not TrustTier.D]
+            sent = {item.policy for item in reachable}
             grant_state = self._grant_state(entry, override or {}, routed)
+            # The grant lifts the ceiling only while it reaches a model: with
+            # it reaching none, the form read "allows up to Full" (D-184).
+            if grant_state != "active":
+                ceiling = policy_ceiling_for_tier(tier)
             payload = entry.to_dict()
             payload.update(
                 {
@@ -782,8 +795,15 @@ class WorkspaceAISettingsStore:
                     # "Default trust" for a provider lowered to Restricted.
                     **describe_tier(tier),
                     "policy_ceiling": ceiling.value,
-                    "sends": max(sent, key=lambda policy: policy.rank).value,
+                    # The most "How much to send" can be: the ceiling at the
+                    # provider's default or the owner's raise. The form offers
+                    # no more, so nothing chosen there is cut when saved.
+                    "standing_ceiling": policy_ceiling_for_tier(
+                        tier if tier.rank >= entry.derived_tier.rank else entry.derived_tier
+                    ).value,
+                    "sends": max(sent, key=lambda policy: policy.rank).value if sent else "",
                     "sends_varies": len(sent) > 1,
+                    "sends_nothing": not reachable,
                     "grant_state": grant_state,
                     "grant_active": grant_state == "active",
                     "grant_offer": bool(

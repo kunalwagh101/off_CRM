@@ -162,6 +162,7 @@ from .schemas import (
     SalesProjectionRequest,
     SetterActivityUpsert,
     ProviderHealthRequest,
+    ProviderProfileConfirm,
     ProviderProfileUpsert,
     ReplySyncRequest,
     SendRequest,
@@ -1352,32 +1353,32 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(409, str(exc)) from exc
 
     @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/confirm")
-    def confirm_provider_profile(profile_id: str, request: Request) -> dict[str, Any]:
+    def confirm_provider_profile(
+        profile_id: str, request: Request, body: ProviderProfileConfirm | None = None
+    ) -> dict[str, Any]:
         """The install owner settles a profile saved before ownership was
-        recorded. Until then it is in no workspace's chain (D-166).
+        recorded, by typing the key it holds. Until then it is in no
+        workspace's chain (D-166, D-185).
 
-        It goes to whoever its old label names: "default" — the old form's
-        constant — or "local" is the install owner; a workspace's id is that
-        workspace. Never the caller's own workspace by default: that moved a
-        client's key and address into the owner's chain (D-177), and a cookie
-        could name the caller (D-181).
+        A profile labelled with a client workspace's id goes back to that
+        workspace; any other label — "default", "local", a typed name — is
+        the owner's once the key proves it (D-187). Never the caller's own
+        workspace by virtue of calling: a cookie could name the caller (D-181).
         """
         require_install_owner(request)
-        workspaces = {str(account["workspace_id"]) for account in workspace_auth.list_accounts()}
+        clients = {
+            str(account["workspace_id"]) for account in workspace_auth.list_accounts()
+        } - {"local"}
 
         def owner_for(label: str) -> str:
-            if label in {"", "default", "local"}:
-                return "local"
-            if label in workspaces:
-                return label
-            raise ProfileOwnedElsewhere(
-                f"This profile is labelled {label!r}, which is no workspace here, so off_CRM "
-                "cannot tell whose it is. Remove it, and add it again if it is yours."
-            )
+            return label if label in clients else "local"
 
         try:
             return request.app.state.provider_profiles.confirm(
-                profile_id, caller="local", owner_for=owner_for
+                profile_id,
+                caller="local",
+                owner_for=owner_for,
+                api_key=body.api_key if body else "",
             )
         except KeyError as exc:
             raise HTTPException(404, "Provider profile not found") from exc

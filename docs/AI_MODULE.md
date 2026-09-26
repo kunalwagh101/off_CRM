@@ -75,9 +75,13 @@ You can. It is deliberate, not silent:
    **Send full data to … anyway…**
 2. Type why. A reason is required.
 3. The decision is stored with who made it and when, and shown on the card.
-   While it stands, the models it covers are sent `full`. Your own "How much
-   to send" level is kept underneath, unchanged, and applies again when you
-   withdraw the grant.
+   While it stands, the models it covers are sent `full` — a grant only ever
+   lifts, never lowers. Your own "How much to send" level is kept underneath,
+   unchanged, and applies again when you withdraw the grant.
+
+"How much to send" offers levels up to what the provider's own trust allows
+— its default, or your raise — so nothing you choose there is cut when saved.
+Above that is this grant's job.
 
 It reaches only models trusted at the provider's default tier or higher
 (`DD-67`). A model built elsewhere and capped lower — DeepSeek on NVIDIA — or a

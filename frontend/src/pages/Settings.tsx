@@ -177,10 +177,14 @@ export default function Settings() {
     }
   }
 
-  async function confirmProvider(profile: Pick<ProviderProfile, "id" | "name">) {
+  async function confirmProvider(profile: Pick<ProviderProfile, "id" | "name">, apiKey: string) {
+    if (!apiKey.trim()) {
+      notify(`Type the API key saved in ${profile.name}. It proves the profile is yours.`, "warning");
+      return;
+    }
     setBusy(`provider-confirm-${profile.id}`);
     try {
-      const saved = await api.post<ProviderProfile>(`/provider-profiles/${profile.id}/confirm`, {});
+      const saved = await api.post<ProviderProfile>(`/provider-profiles/${profile.id}/confirm`, { api_key: apiKey.trim() });
       notify(
         saved.owner === "local"
           ? `${profile.name} is confirmed as yours. Drafts can use it now.`
@@ -353,7 +357,7 @@ export default function Settings() {
         {profiles.data?.items.some((item) => !item.owner_confirmed) ? (
           <Panel
             title="Provider profiles to confirm"
-            subtitle="Saved before off_CRM recorded whose each one is. Drafts use none of them until you confirm them."
+            subtitle="Saved before off_CRM recorded whose each one is. To confirm one, type the API key it holds. Drafts use none of them until then."
           >
             <LegacyProfiles items={profiles.data.items} busy={busy} onConfirm={confirmProvider} onRemove={removeProvider} />
           </Panel>

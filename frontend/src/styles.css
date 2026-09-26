@@ -572,6 +572,8 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .legacy-profiles li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .legacy-profile-facts { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .legacy-profile-facts small { color: var(--muted, #6b7280); overflow-wrap: anywhere; }
+.legacy-profile-confirm { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.legacy-profile-confirm input { min-width: 12rem; max-width: 100%; }
 .provider-grant .link-button { margin-left: 0; }
 .provider-grant .link-button:disabled { opacity: 0.5; cursor: default; }
 

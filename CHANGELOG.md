@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **The third fresh-context review, closed** (2026-09-26, `S-06.02.31`,
+  `S-06.02.33`). Nothing critical or high; two medium, five low, each fixed
+  with a test that failed first. Its random test — 2,800 sequences of connect,
+  save, grant, withdraw and trust changes — found lowering trust never raised
+  what any model is sent, and still finds none after these fixes.
+  - **Your "How much to send" level is never overwritten** (`D-176`). The
+    full-data grant used to write "full" into it, so withdrawing after a raise
+    kept sending full data, and a save made while the grant was paused cut it
+    for good. The grant now decides what its models get while it stands, and
+    your level waits underneath.
+  - **Old provider profiles have a screen** (`D-177`). Settings lists the ones
+    saved before off_CRM recorded whose each one is, with where each sends, to
+    confirm or remove; Drafts says how many wait. Confirming gives a profile to
+    the workspace it was saved for — never to you by default, so a client's key
+    cannot end up in your drafts.
+  - **Smaller**: disconnect works even when stored keys cannot be read, and the
+    error says what to do (`D-178`); "Sends" and the grant follow the models you
+    switched on (`D-179`); at most 50 models, and 50 per-model trust settings,
+    per provider (`D-180`); confirming goes by the profile, not by a cookie
+    (`D-181`); an edit checks ownership as it writes (`D-182`).
+
 - **The second fresh-context review, closed** (2026-09-25, `S-06.02.31`,
   `S-06.02.33`). Six findings, each fixed with a test that failed first.
   - **Your drafts could run through a client's profile** (`D-165`, high). The

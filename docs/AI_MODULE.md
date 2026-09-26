@@ -59,12 +59,13 @@ The tier sets a ceiling. You pick the level under it.
 | Policy | What actually leaves |
 |---|---|
 | `strict` | Category and question structure. Nobody is identifiable. |
+| `pseudonymous` | The job title, category and public hook, with the person and company as `PERSON_1` and `COMPANY_1`; off_CRM puts the real names back locally. Your own free text is scrubbed of the name too. |
 | `minimal` | The person's public name, company, title and public hook, plus your one-line positioning. Email addresses become `<RECIPIENT_1>`. |
 | `standard` | The above, plus your template text and campaign notes. Addresses still tokenised. |
 | `full` | No field restrictions. Real addresses can leave. |
 
-Defaults: tier A and B start at `standard`, tier C at `minimal`, tier D at
-`strict`.
+Defaults: tier A and B start at `standard`, tier C at `pseudonymous`, tier D
+at `strict`.
 
 ### Using `full` on a restricted provider
 
@@ -74,7 +75,9 @@ You can. It is deliberate, not silent:
    **Send full data to … anyway…**
 2. Type why. A reason is required.
 3. The decision is stored with who made it and when, and shown on the card.
-   What the provider is sent becomes `full`; you can still lower it on the form.
+   While it stands, the models it covers are sent `full`. Your own "How much
+   to send" level is kept underneath, unchanged, and applies again when you
+   withdraw the grant.
 
 It reaches only models trusted at the provider's default tier or higher
 (`DD-67`). A model built elsewhere and capped lower — DeepSeek on NVIDIA — or a
@@ -82,8 +85,9 @@ model you lowered stays at its own ceiling. Lowering the provider pauses the
 grant, and the card says so; returning it to its default resumes it.
 
 It is not offered where it could change nothing: a blocked provider receives
-nothing at any level (raise its trust instead), and tier A already allows
-`full`.
+nothing at any level (raise its trust instead), tier A already allows `full`,
+and a provider whose switched-on models are all trusted below its default has
+no model the grant could reach.
 
 Three things stay blocked at **every** level, including `full`: credentials,
 mail headers, and off_CRM's internal field names. Those are never legitimate

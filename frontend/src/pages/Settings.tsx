@@ -4,6 +4,7 @@ import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AutomationStatus, MemoryItem, NotionDatabase, NotionExportResult, NotionStatus, Paginated, ProviderCall, ProviderProfile, SettingsStatus } from "../types";
+import LegacyProfiles from "./LegacyProfiles";
 import { Loadable } from "./shared";
 
 type Template = { id: string; name: string; stage: string; route: string; variant_id: string; version_no: number; active: boolean };
@@ -176,7 +177,26 @@ export default function Settings() {
     }
   }
 
-  async function removeProvider(profile: ProviderProfile) {
+  async function confirmProvider(profile: Pick<ProviderProfile, "id" | "name">) {
+    setBusy(`provider-confirm-${profile.id}`);
+    try {
+      const saved = await api.post<ProviderProfile>(`/provider-profiles/${profile.id}/confirm`, {});
+      notify(
+        saved.owner === "local"
+          ? `${profile.name} is confirmed as yours. Drafts can use it now.`
+          : `${profile.name} is confirmed as workspace ${saved.owner}'s, which it was saved for.`,
+        "success"
+      );
+      profiles.reload();
+      status.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Provider profile could not be confirmed", "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function removeProvider(profile: Pick<ProviderProfile, "id" | "name">) {
     if (!window.confirm(`Remove ${profile.name}?`)) return;
     setBusy(`provider-delete-${profile.id}`);
     try {
@@ -329,6 +349,15 @@ export default function Settings() {
             <Button tone="ghost" onClick={() => (window.location.hash = "egress")}>See what was sent</Button>
           </div>
         </Panel>
+
+        {profiles.data?.items.some((item) => !item.owner_confirmed) ? (
+          <Panel
+            title="Provider profiles to confirm"
+            subtitle="Saved before off_CRM recorded whose each one is. Drafts use none of them until you confirm them."
+          >
+            <LegacyProfiles items={profiles.data.items} busy={busy} onConfirm={confirmProvider} onRemove={removeProvider} />
+          </Panel>
+        ) : null}
 
         <Panel title="Learning memory" subtitle="Human edits are approved; reply observations wait for review" className="settings-wide">
           <form className="form-stack" onSubmit={addMemory}>

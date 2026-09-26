@@ -66,6 +66,9 @@ _TRUST_KEYS = (
 #: lives in is read on every request (D-170).
 _TRUST_HISTORY = 20
 
+#: How many models of one provider may carry their own trust setting (D-180).
+_MODEL_SETTINGS = 50
+
 
 def _remember(record: dict[str, Any], kind: str, model_id: str, decision: dict[str, Any]) -> None:
     history = list(record.get("trust_history") or [])
@@ -181,7 +184,14 @@ class WorkspaceAISettingsStore:
             decrypted = self._fernet(create=False).decrypt(self.secret_path.read_bytes())
             payload = json.loads(decrypted.decode("utf-8"))
         except (OSError, InvalidToken, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise RegistryError("Stored AI provider keys cannot be decrypted") from exc
+            # A next step, not just the fault: nothing else on screen can say
+            # it, and until it is done no key can be stored (D-178).
+            raise RegistryError(
+                "Stored AI provider keys cannot be decrypted: they were saved under a "
+                "different master key, as happens when only part of a backup is restored. "
+                "Restore the whole backup, or remove ai_provider_keys.enc from the data "
+                "folder and paste your keys again."
+            ) from exc
         return {str(k): str(v) for k, v in payload.items()} if isinstance(payload, dict) else {}
 
     def _write_secrets(self, secrets: dict[str, str]) -> None:
@@ -382,7 +392,16 @@ class WorkspaceAISettingsStore:
                 key: value if value is not None else existing.get(key, first_caps[key])
                 for key, value in given_caps.items()
             }
-            existing.update(record, **caps, data_policy=(ceiling if clamped else policy).value)
+            # Stored as chosen, up to what the provider's own standing trust
+            # allows — its default, or the owner's raise — never cut to a
+            # temporary lowering: storing that cut value lost the owner's
+            # choice once trust was restored or a grant resumed (D-176). What
+            # leaves is cut again to the current ceiling when each call is
+            # routed.
+            standing = policy_ceiling_for_tier(
+                tier if tier.rank >= entry.derived_tier.rank else entry.derived_tier
+            )
+            existing.update(record, **caps, data_policy=min(policy, standing, key=lambda item: item.rank).value)
             providers[provider_id] = existing
             current["providers"] = providers
             if api_key.strip():
@@ -408,7 +427,13 @@ class WorkspaceAISettingsStore:
             # Models-panel save landing between them re-created the
             # connection with no key (D-169). The key goes first, so a
             # failure part-way leaves nothing that can be spent.
-            self._store_key_locked(workspace_id, provider_id, "")
+            try:
+                self._store_key_locked(workspace_id, provider_id, "")
+            except RegistryError:
+                # Keys that cannot be decrypted cannot be spent either. The
+                # connection still goes, so nothing is routed to it; failing
+                # here kept the provider connected with no way out (D-178).
+                pass
 
         self._update_workspace(workspace_id, apply)
 
@@ -458,28 +483,16 @@ class WorkspaceAISettingsStore:
                 })
                 overrides[provider_id] = record
                 current["overrides"] = overrides
-                # What is sent was above the ceiling only because of the grant.
-                self._fit_sent_to_ceiling(current, entry, record)
                 return
-            host = coerce_tier(trust_tier) if trust_tier else _host_tier(entry, previous)
             if allow_above_ceiling:
                 # A grant that can change nothing is refused rather than
-                # shown as "full access" while nothing more is sent (D-171).
-                if host is TrustTier.D:
-                    raise ValueError(
-                        f"{entry.name} is blocked, so it receives nothing at any level. "
-                        "Raise its trust first."
-                    )
-                if host.rank < entry.derived_tier.rank:
-                    raise ValueError(
-                        f"You trust {entry.name} less than its default. Return it to its "
-                        "default trust before sending it more data."
-                    )
-                if granted.rank <= policy_ceiling_for_tier(host).rank:
-                    raise ValueError(
-                        f"{entry.name} is {host.label}, which already allows {granted.label}. "
-                        "There is nothing to grant."
-                    )
+                # shown as "full access" while nothing more is sent (D-171,
+                # D-179). The screen offers it by the same rule.
+                standing = {**previous, "trust_tier": trust_tier} if trust_tier else previous
+                connected = (dict(current.get("providers") or {})).get(provider_id)
+                refusal = self._grant_refusal(entry, standing, connected, granted)
+                if refusal:
+                    raise ValueError(refusal)
             decision = ProviderOverride(
                 provider_id=provider_id,
                 trust_tier=coerce_tier(trust_tier) if trust_tier else None,
@@ -506,34 +519,64 @@ class WorkspaceAISettingsStore:
             })
             overrides[provider_id] = decision
             current["overrides"] = overrides
-            providers = dict(current.get("providers") or {})
-            if allow_above_ceiling and provider_id in providers:
-                # "Send full data anyway" now sends it: what is sent follows
-                # the grant, and stays the owner's to lower on the form.
-                providers[provider_id] = {**providers[provider_id], "data_policy": granted.value}
-                current["providers"] = providers
 
         return self._update_workspace(workspace_id, apply)
 
-    def _fit_sent_to_ceiling(self, current: dict[str, Any], entry: Any, override: dict[str, Any]) -> None:
-        """Bring a connected provider's chosen policy back under its ceiling.
+    def _switched_on(self, entry: Any, connected: dict[str, Any] | None) -> list[str]:
+        """The models calls go to — the router's own rule for "none chosen"."""
+        record = connected or {}
+        return [
+            str(item)
+            for item in (record.get("model_ids") or ([record["model_id"]] if record.get("model_id") else []))
+        ] or [entry.default_model]
 
-        After a grant is withdrawn, "full" is a choice the owner could not
-        have made without it. The ceiling is taken at the provider's default
-        or the owner's raise, whichever is higher, so a provider the owner
-        has lowered gets its old level back when its trust is restored.
-        """
-        providers = dict(current.get("providers") or {})
-        connected = dict(providers.get(entry.id) or {})
-        if not connected.get("data_policy"):
-            return
+    @staticmethod
+    def _grant_state(entry: Any, override: dict[str, Any], routed: list[Any]) -> str:
+        """Why the owner's grant is, or is not, deciding what is sent."""
+        if not override.get("allow_above_ceiling"):
+            return ""
         host = _host_tier(entry, override)
-        limit = policy_ceiling_for_tier(host if host.rank >= entry.derived_tier.rank else entry.derived_tier)
-        chosen = coerce_policy(connected["data_policy"], default=limit)
-        if chosen.rank > limit.rank:
-            connected["data_policy"] = limit.value
-            providers[entry.id] = connected
-            current["providers"] = providers
+        if host is TrustTier.D:
+            return "provider_blocked"
+        if host.rank < entry.derived_tier.rank:
+            return "provider_lowered"
+        if not any(item.grant_applied for item in routed):
+            return "no_model"
+        return "active"
+
+    def _grant_refusal(
+        self,
+        entry: Any,
+        override: dict[str, Any],
+        connected: dict[str, Any] | None,
+        granted: DataPolicy,
+    ) -> str:
+        """Why a full-data grant now would change nothing, or "" if it would."""
+        host = _host_tier(entry, override)
+        if host is TrustTier.D:
+            return f"{entry.name} is blocked, so it receives nothing at any level. Raise its trust first."
+        if host.rank < entry.derived_tier.rank:
+            return (
+                f"You trust {entry.name} less than its default. Return it to its default "
+                "trust before sending it more data."
+            )
+        if granted.rank <= policy_ceiling_for_tier(host).rank:
+            return (
+                f"{entry.name} is {host.label}, which already allows {granted.label}. "
+                "Choose it under How much to send."
+            )
+        lifted = ProviderOverride.from_dict({
+            **override, "provider_id": entry.id, "allow_above_ceiling": True, "data_policy": granted.value,
+        })
+        if not any(
+            self.registry.resolve(entry.id, model_id=model_id, override=lifted).grant_applied
+            for model_id in self._switched_on(entry, connected)
+        ):
+            return (
+                f"None of the models you switched on for {entry.name} is trusted at its default, "
+                "so full data would reach none of them."
+            )
+        return ""
 
     def set_trust(
         self,
@@ -616,6 +659,13 @@ class WorkspaceAISettingsStore:
                 if wanted is None:
                     models.pop(model_id, None)
                 else:
+                    if model_id not in models and len(models) >= _MODEL_SETTINGS:
+                        # Each is kept with its reason in a document read on
+                        # every request; one login grew it without end (D-180).
+                        raise ValueError(
+                            f"You have set trust for {_MODEL_SETTINGS} models of {entry.name}. "
+                            "Set one back to Same as provider first."
+                        )
                     models[model_id] = decision
                 record["model_tiers"] = models
             elif wanted is None:
@@ -711,22 +761,36 @@ class WorkspaceAISettingsStore:
             # showed the config tier's ceiling after the owner changed trust,
             # and the stored choice even where the ceiling cut it (D-172).
             ceiling = _host_ceiling(entry, override or {})
-            chosen = (
-                coerce_policy(record["data_policy"], default=default_policy_for_tier(tier))
-                if record and record.get("data_policy")
-                else default_policy_for_tier(tier)
-            )
+            # What leaves is the router's answer for each model switched on —
+            # a model the owner lowered, or one capped by who built it, is
+            # sent less than its provider (D-179).
+            routed = [
+                self.registry.resolve(
+                    entry.id,
+                    model_id=model_id,
+                    requested_policy=(record or {}).get("data_policy") or None,
+                    override=resolved_override,
+                )
+                for model_id in self._switched_on(entry, record)
+            ]
+            sent = {item.policy for item in routed}
+            grant_state = self._grant_state(entry, override or {}, routed)
             payload = entry.to_dict()
             payload.update(
                 {
-                    **{
-                        key: value
-                        for key, value in describe_tier(tier).items()
-                        if key in ("permitted_data_classes", "receives_nothing", "default_policy")
-                    },
+                    # The trust the owner set, not config's: the card read
+                    # "Default trust" for a provider lowered to Restricted.
+                    **describe_tier(tier),
                     "policy_ceiling": ceiling.value,
-                    "sends": (chosen if chosen.rank <= ceiling.rank else ceiling).value,
-                    "grant_active": _grant_active(entry, override or {}),
+                    "sends": max(sent, key=lambda policy: policy.rank).value,
+                    "sends_varies": len(sent) > 1,
+                    "grant_state": grant_state,
+                    "grant_active": grant_state == "active",
+                    "grant_offer": bool(
+                        record
+                        and not (override or {}).get("allow_above_ceiling")
+                        and not self._grant_refusal(entry, override or {}, record, DataPolicy.FULL)
+                    ),
                     "connected": record is not None,
                     "enabled": bool(record.get("enabled", False)) if record else False,
                     "has_key": bool(self.key_for(workspace_id, entry.id)),

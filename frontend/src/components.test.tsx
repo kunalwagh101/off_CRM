@@ -470,41 +470,97 @@ describe("a custom cap must be a number (review of S-06.02.32)", () => {
   });
 });
 
-describe("the full-data grant (second review of S-06.02.33)", () => {
+describe("the full-data grant (reviews of S-06.02.33)", () => {
   const base = {
     name: "NVIDIA NIM",
     connected: true,
-    effective_tier: "B",
-    default_tier: "B",
-    trust_tier: "B",
-    policy_ceiling: "standard",
-    grant_active: false,
+    grant_offer: true,
+    grant_state: "",
     override: null
   };
+  const granted = { allow_above_ceiling: true, reason: "Signed a DPA" };
 
-  it("is offered only where it can change what is sent", async () => {
+  it("is offered where the server says it would change what is sent, and nowhere else", async () => {
     const { canGrantFullData } = await import("./pages/TrustSelect");
     expect(canGrantFullData(base)).toBe(true);
     expect(canGrantFullData({ ...base, connected: false })).toBe(false);
-    // Blocked: it receives nothing at any level; raising its trust is the way.
-    expect(canGrantFullData({ ...base, effective_tier: "D", policy_ceiling: "strict" })).toBe(false);
-    // Lowered by the owner: the grant would stand paused.
-    expect(canGrantFullData({ ...base, effective_tier: "C", policy_ceiling: "pseudonymous" })).toBe(false);
-    // Tier A already allows full.
-    expect(canGrantFullData({ ...base, effective_tier: "A", policy_ceiling: "full" })).toBe(false);
-    const granted = { allow_above_ceiling: true, reason: "Signed a DPA" };
+    // Blocked, lowered, tier A, or no switched-on model at the default (D-179).
+    expect(canGrantFullData({ ...base, grant_offer: false })).toBe(false);
     expect(canGrantFullData({ ...base, override: granted })).toBe(false);
   });
 
-  it("says whether a grant is in force or paused, and never claims one that is not there", async () => {
+  it("says why a grant is or is not in force, and never claims one that is not there", async () => {
     const { grantLine } = await import("./pages/TrustSelect");
-    const granted = { allow_above_ceiling: true, reason: "Signed a DPA" };
     expect(grantLine(base)).toBe("");
-    expect(grantLine({ ...base, override: granted, grant_active: true })).toBe(
+    expect(grantLine({ ...base, override: granted, grant_state: "active" })).toBe(
       "Full data granted by you: Signed a DPA. Not for models trusted less than NVIDIA NIM's default."
     );
-    expect(grantLine({ ...base, override: granted, grant_active: false })).toBe(
+    expect(grantLine({ ...base, override: granted, grant_state: "provider_lowered" })).toBe(
       "Full data paused while you trust NVIDIA NIM less than its default: Signed a DPA."
+    );
+    // At its default and blocked: "less than its default" was false (third review).
+    expect(grantLine({ ...base, override: granted, grant_state: "provider_blocked" })).toBe(
+      "Full data paused: NVIDIA NIM is blocked, so it receives nothing. Signed a DPA."
+    );
+    expect(grantLine({ ...base, override: granted, grant_state: "no_model" })).toBe(
+      "Full data paused: no model you switched on is trusted at NVIDIA NIM's default. Signed a DPA."
+    );
+  });
+});
+
+describe("what the card says is sent (D-179)", () => {
+  it("says Nothing for a blocked provider, and Up to when its models differ", async () => {
+    const { sendsWord } = await import("./pages/Connectors");
+    expect(sendsWord({ receives_nothing: false, sends: "standard", sends_varies: false, data_policy: "full" })).toBe("Standard");
+    expect(sendsWord({ receives_nothing: false, sends: "full", sends_varies: true, data_policy: "standard" })).toBe("Up to Full access");
+    expect(sendsWord({ receives_nothing: true, sends: "strict", sends_varies: false, data_policy: "strict" })).toBe("Nothing");
+  });
+});
+
+describe("provider profiles saved before ownership was recorded (D-177)", () => {
+  const old = {
+    id: "owner-old",
+    owner: "default",
+    name: "Primary OpenAI",
+    provider_type: "openai_compatible" as const,
+    model: "gpt-4o-mini",
+    base_url: "https://api.openai.com/v1",
+    owner_confirmed: false
+  };
+
+  it("lists each one with where it sends and who it was saved for, to confirm or remove", async () => {
+    const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
+    const html = renderToStaticMarkup(
+      <LegacyProfiles items={[old, { ...old, id: "mine", owner_confirmed: true }]} busy="" onConfirm={() => undefined} onRemove={() => undefined} />
+    );
+    expect(html).toContain("Primary OpenAI");
+    expect(html).toContain("https://api.openai.com/v1");
+    expect(html).toContain("Saved for: default");
+    expect(html).toContain('aria-label="Confirm Primary OpenAI"');
+    expect(html).toContain('aria-label="Remove Primary OpenAI"');
+    expect(html.match(/Confirm Primary OpenAI/g)?.length).toBe(1);
+  });
+
+  it("shows nothing once every profile is settled", async () => {
+    const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
+    const html = renderToStaticMarkup(
+      <LegacyProfiles items={[{ ...old, owner_confirmed: true }]} busy="" onConfirm={() => undefined} onRemove={() => undefined} />
+    );
+    expect(html).toBe("");
+  });
+
+  it("tells the Drafts screen the truth: waiting profiles, or that no screen adds one yet", async () => {
+    const { draftsProfileNote } = await import("./pages/LegacyProfiles");
+    expect(draftsProfileNote(2, 0)).toBe("");
+    expect(draftsProfileNote(0, 1)).toBe(
+      "1 saved provider profile is waiting for you to confirm it in Settings, under Provider profiles to confirm."
+    );
+    expect(draftsProfileNote(0, 3)).toBe(
+      "3 saved provider profiles are waiting for you to confirm them in Settings, under Provider profiles to confirm."
+    );
+    // D-173: it pointed at a Settings form that no longer exists.
+    expect(draftsProfileNote(0, 0)).toBe(
+      "Personalising with a model needs a provider profile, and no screen adds one yet. Drafts use local templates until then."
     );
   });
 });

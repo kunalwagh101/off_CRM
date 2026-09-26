@@ -3,7 +3,8 @@ import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, Progress, StatePanel } from "../components";
 import { useApp } from "../context";
 import { stageLabel, useResource } from "../hooks";
-import type { Draft, Paginated, ProviderProfile } from "../types";
+import type { Draft, Paginated, ProviderProfileList } from "../types";
+import { draftsProfileNote } from "./LegacyProfiles";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 export default function Drafts() {
@@ -32,7 +33,7 @@ export default function Drafts() {
     [campaignId, stage, approval]
   );
   // The caller's own chain, which is all a draft may use (D-165).
-  const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles?mine=true"), []);
+  const profiles = useResource(() => api.get<ProviderProfileList>("/provider-profiles?mine=true"), []);
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
   if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /></>;
@@ -236,8 +237,8 @@ export default function Drafts() {
               <option value="fallback" disabled={!profiles.data?.total}>Automatic fallback chain ({profiles.data?.total ?? 0})</option>
             </select>
           </Field>
-          {!profiles.data?.total ? (
-            <p className="muted-copy">To personalise with a model, save a provider profile with its API key in Settings.</p>
+          {profiles.data && draftsProfileNote(profiles.data.total, profiles.data.waiting ?? 0) ? (
+            <p className="muted-copy">{draftsProfileNote(profiles.data.total, profiles.data.waiting ?? 0)}</p>
           ) : null}
           {providerType === "fallback" ? <div className="form-note success-note"><strong>Provider-independent mode</strong><span>The CRM tries configured providers in priority order and automatically skips outages, rate limits and malformed responses.</span></div> : null}
           {providerType === "fallback" ? <Field label="Multi-provider strategy"><select value={fallbackStrategy} onChange={(event) => setFallbackStrategy(event.target.value)}><option value="priority">Priority failover</option><option value="round_robin">Round robin</option><option value="parallel">Parallel first-success</option></select></Field> : null}

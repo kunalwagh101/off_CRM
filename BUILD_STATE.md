@@ -12,10 +12,10 @@ Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-26, on `develop` with the second review's fixes): **2469 Python
+Tests (2026-09-26, on `develop` with the third review's fixes): **2485 Python
 passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **162 passed** and a clean production build. Board verifier
+clean. Frontend **166 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -67,19 +67,25 @@ the owner's profile to receive the owner's key. The second found `D-165` to
 profile ownership was a label the request typed, lowering a provider
 re-applied the full-data grant, and the call log was unscoped. Fixing those
 found `D-171` — the full-data grant never sent more, older than this session —
-and `D-172`. All fixed test-first. DONE waits for a look at these fixes by a
-context that did not write them.
+and `D-172` to `D-175`. The third review (2026-09-26) found nothing critical
+or high: `D-176` to `D-183`, two medium. All fixed test-first. DONE waits for
+a look at the third round's fixes by a context that did not write them.
 
 **How profiles and trust work now — read before touching either:**
 - A provider profile's owner is recorded by the server from the login — the
   install owner's is `local`, never a typed label. A draft uses only the
   caller's own profiles. Profiles saved before this wait for the owner to
   confirm them (`DD-68`, `POST /api/v1/provider-profiles/<id>/confirm`).
-- The full-data grant lifts the ceiling only for a known model trusted at its
-  provider's default tier or higher; lowering the provider pauses it (`DD-67`).
-  The provider-level rule is `_host_tier`, `_grant_active` and `_host_ceiling`
-  in `ai/workspace.py`; the per-model rule is in `ProviderRegistry.resolve`.
-  Change one, change the other.
+- The full-data grant reaches only a known model trusted at its provider's
+  default tier or higher, and while it stands it decides what those models
+  are sent; lowering the provider pauses it (`DD-67`). The owner's own level
+  is never overwritten: Connect stores it cut only to the provider's standing
+  trust. The per-model rule is `ProviderRegistry.resolve` (`grant_applied`);
+  the screen's `sends`, `grant_state` and `grant_offer` are that function's
+  answer per switched-on model (`describe`, `_grant_refusal` in
+  `ai/workspace.py`). Change the rule in one place.
+- Old profiles are settled in Settings, "Provider profiles to confirm":
+  confirming gives each to the workspace its old label names (`DD-68`).
 
 **Found, not fixed:** `D-173` — Drafts reach a model only through provider
 profiles, and no screen adds one since providers moved to Connectors. `Q-28`

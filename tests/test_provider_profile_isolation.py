@@ -345,3 +345,100 @@ def test_the_provider_call_log_shows_a_client_only_its_own_calls(client, seen):
     owner_rows = client.get("/api/v1/provider-calls", headers=ADMIN).json()["items"]
     assert {(row["profile_id"], row["workspace_id"]) for row in owner_rows} == {
         (owner_pid, "local"), (beta_pid, "beta")}
+
+
+# ── Third review of 2026-09-26: profiles saved before ownership was recorded ──
+
+
+def _legacy_rows(client, rows) -> None:
+    store = client.app.state.provider_profiles
+    store.profile_path.parent.mkdir(parents=True, exist_ok=True)
+    store.profile_path.write_text(json.dumps([
+        {"id": pid, "owner": label, "name": name, "provider_type": "openai_compatible", "model": "x",
+         "base_url": url, "priority": 1, "enabled": True, "data_policy": "full"}
+        for pid, label, name, url in rows
+    ]))
+    store._write_secrets({pid: f"sk-{pid}-" + "k" * 20 for pid, *_ in rows})
+
+
+def test_the_owner_learns_that_old_profiles_wait_for_them(client):
+    """D-177: the owner's old profiles stopped, and nothing the Drafts screen
+    reads could say why — only a 503 that its disabled option never sent."""
+    _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
+    mine = client.get("/api/v1/provider-profiles?mine=true", headers=ADMIN).json()
+    assert (mine["total"], mine["waiting"]) == (0, 1)
+    _login(client, "beta")
+    assert client.get("/api/v1/provider-profiles?mine=true").json()["waiting"] == 0
+
+
+def test_the_owner_is_never_told_a_clients_profile_is_theirs(client, seen):
+    """D-177: the 503 called every unconfirmed profile "your provider profiles",
+    by the names clients chose."""
+    _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL),
+                          ("beta-old", "beta", "Fast", ATTACKER)])
+    refused = _generate(client, _campaign_with_contact(client, ADMIN), ADMIN)
+    assert refused.status_code == 503
+    message = refused.json()["detail"]
+    assert "Fast" not in message and "Your provider profiles" not in message
+    assert "Settings" in message
+    assert seen == []
+
+
+def test_confirming_returns_a_profile_to_the_workspace_it_was_saved_for(client, seen):
+    """D-177: confirming a profile saved for client beta moved beta's key and
+    URL into the owner's chain; and beta could never have it back."""
+    _legacy_rows(client, [("beta-old", "beta", "Fast", ATTACKER)])
+    confirmed = client.post("/api/v1/provider-profiles/beta-old/confirm", headers=ADMIN)
+    assert confirmed.status_code == 200, confirmed.text
+    assert (confirmed.json()["owner"], confirmed.json()["owner_confirmed"]) == ("beta", True)
+    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
+    assert _sent_to(seen, ATTACKER) == []
+    _login(client, "beta")
+    assert [item["id"] for item in client.get("/api/v1/provider-profiles").json()["items"]] == ["beta-old"]
+
+
+def test_a_profile_labelled_for_no_workspace_cannot_be_confirmed(client):
+    _legacy_rows(client, [("typed-old", "Kunal", "Mine", OWNER_URL)])
+    refused = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN)
+    assert refused.status_code == 409
+    assert "Kunal" in refused.json()["detail"] and "remove" in refused.json()["detail"].lower()
+    assert client.app.state.provider_profiles.ownership("typed-old") == ("Kunal", False)
+
+
+def test_an_unconfirmed_profile_is_confirmed_or_removed_never_resaved(client):
+    """Re-saving one made it the owner's with whatever key it held."""
+    _legacy_rows(client, [("beta-old", "beta", "Fast", ATTACKER)])
+    resaved = client.post("/api/v1/provider-profiles", headers=ADMIN, json={
+        "id": "beta-old", "name": "Mine now", "provider_type": "openai_compatible", "base_url": OWNER_URL})
+    assert resaved.status_code == 409
+    assert "confirm" in resaved.json()["detail"].lower()
+    assert client.app.state.provider_profiles.ownership("beta-old") == ("beta", False)
+
+
+def test_confirm_goes_by_the_profiles_label_whoever_the_cookie_names(client):
+    """D-181: the route recorded the caller's workspace, where a session cookie
+    wins over the install token, so token and beta's cookie together confirmed
+    the owner's profile — key included — into beta."""
+    _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
+    _login(client, "beta")
+    answer = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN)
+    assert answer.status_code == 200, answer.text
+    assert client.app.state.provider_profiles.ownership("owner-old") == ("local", True)
+
+
+def test_an_edit_checks_whose_the_profile_is_as_it_writes(client):
+    """D-182: the save route read ownership in one lock window and wrote in
+    another, so a profile the owner deleted in between came back."""
+    from offsetx_apollo_builder.outreach.provider_profiles import ProfileUnconfirmed
+
+    store = client.app.state.provider_profiles
+    planted = _beta_plants_a_profile(client)
+    store.delete(planted)
+    with pytest.raises(KeyError):
+        store.upsert({"id": planted, "name": "Fast", "provider_type": "openai_compatible"},
+                     owner="beta", must_own=True)
+    assert store.ownership(planted) is None
+    _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
+    with pytest.raises(ProfileUnconfirmed):
+        store.upsert({"id": "owner-old", "name": "Mine", "provider_type": "openai_compatible"},
+                     owner="local", keep_owner=True)

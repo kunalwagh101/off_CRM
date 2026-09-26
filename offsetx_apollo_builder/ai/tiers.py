@@ -303,24 +303,6 @@ def tier_permits_class(
     return data_class in TIER_PERMITTED_CLASSES[tier]
 
 
-def effective_policy(
-    *,
-    tier: TrustTier,
-    requested: DataPolicy,
-    override_allowed: bool = False,
-) -> DataPolicy:
-    """Clamp a requested policy to the tier ceiling unless overridden.
-
-    Returning the clamped value rather than raising keeps the common case quiet:
-    a tier C provider asked for ``standard`` simply runs at ``minimal``.  The
-    broker records both values so the owner can see the clamp happened.
-    """
-    if override_allowed:
-        return requested
-    ceiling = policy_ceiling_for_tier(tier)
-    return requested if requested.rank <= ceiling.rank else ceiling
-
-
 def describe_tier(tier: TrustTier) -> dict[str, object]:
     """Shape used by the Connectors screen so tier rules are visible, not buried."""
     return {

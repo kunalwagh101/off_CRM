@@ -7,7 +7,7 @@ import threading
 import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -59,6 +59,10 @@ def _atomic_json(path: Path, payload: Any) -> None:
 
 class ProfileOwnedElsewhere(ValueError):
     """A confirmed profile belongs to another workspace; it is never taken over."""
+
+
+class ProfileUnconfirmed(ValueError):
+    """A profile saved before ownership was recorded: confirm it or remove it."""
 
 
 def _confirmed(profile: dict[str, Any]) -> bool:
@@ -169,16 +173,37 @@ class ProviderProfileStore:
             )
             return [self._public(item, secrets) for item in items]
 
-    def upsert(self, values: dict[str, Any], *, owner: str, api_key: str = "") -> dict[str, Any]:
+    def upsert(
+        self,
+        values: dict[str, Any],
+        *,
+        owner: str,
+        api_key: str = "",
+        must_own: bool = False,
+        keep_owner: bool = False,
+    ) -> dict[str, Any]:
         """Save a profile for `owner`, the workspace the server decided on.
 
         Never the request's own `owner`: that let any login label a profile
-        as someone else's (D-165, D-166).
+        as someone else's (D-165, D-166). Whose an existing profile is, is
+        checked under the same lock as the write (D-182): `must_own` refuses
+        one that is not `owner`'s own; `keep_owner` leaves a confirmed one
+        with its workspace and refuses one saved before ownership was.
         """
         with self._lock:
-            return self._upsert(values, owner=owner, api_key=api_key)
+            return self._upsert(
+                values, owner=owner, api_key=api_key, must_own=must_own, keep_owner=keep_owner
+            )
 
-    def _upsert(self, values: dict[str, Any], *, owner: str, api_key: str = "") -> dict[str, Any]:
+    def _upsert(
+        self,
+        values: dict[str, Any],
+        *,
+        owner: str,
+        api_key: str = "",
+        must_own: bool = False,
+        keep_owner: bool = False,
+    ) -> dict[str, Any]:
         provider_type = str(values.get("provider_type", "")).strip().lower()
         if provider_type not in PROFILE_TYPES:
             raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -188,6 +213,20 @@ class ProviderProfileStore:
         profile_id = profile_id or uuid.uuid4().hex
         profiles = self._profiles()
         current = next((item for item in profiles if item.get("id") == profile_id), None)
+        if must_own and (
+            current is None
+            or (str(current.get("owner", "")), _confirmed(current)) != (owner, True)
+        ):
+            raise KeyError("Provider profile not found")
+        if keep_owner and current is not None:
+            if not _confirmed(current):
+                # Saving over it would make it the saver's, with whatever key
+                # and address it holds.
+                raise ProfileUnconfirmed(
+                    "This profile was saved before off_CRM recorded whose each one is. "
+                    "Confirm it or remove it first; it cannot be saved over."
+                )
+            owner = str(current.get("owner", ""))
         now = to_utc_iso()
         profile = {
             "id": profile_id,
@@ -236,11 +275,15 @@ class ProviderProfileStore:
                     return str(item.get("owner", "")), _confirmed(item)
         return None
 
-    def confirm(self, profile_id: str, *, owner: str) -> dict[str, Any]:
-        """Record `owner` for a profile saved before ownership was (D-166).
+    def confirm(
+        self, profile_id: str, *, caller: str, owner_for: Callable[[str], str]
+    ) -> dict[str, Any]:
+        """Record whose a profile saved before ownership was is (D-166, D-177).
 
-        Only for one nobody has claimed: a confirmed profile of another
-        workspace stays theirs, key and all.
+        `owner_for` turns the profile's old label into its workspace, or
+        raises: the label says who it was saved for, and confirming never
+        moves it anywhere else — the caller's own chain included. A confirmed
+        profile of another workspace stays theirs, key and all.
         """
         with self._lock:
             profiles = self._profiles()
@@ -248,14 +291,21 @@ class ProviderProfileStore:
             if profile is None:
                 raise KeyError("Provider profile not found")
             current = str(profile.get("owner", ""))
-            if _confirmed(profile) and current != owner:
+            if _confirmed(profile):
+                if current == caller:
+                    return self._public(profile, self._secrets())
                 raise ProfileOwnedElsewhere(
                     f"This profile belongs to workspace {current}. It stays theirs; "
                     "remove it instead if it should not exist."
                 )
-            profile.update(owner=owner, owner_confirmed=True, updated_at=to_utc_iso())
+            profile.update(owner=owner_for(current), owner_confirmed=True, updated_at=to_utc_iso())
             _atomic_json(self.profile_path, profiles)
             return self._public(profile, self._secrets())
+
+    def unconfirmed_count(self) -> int:
+        """Profiles saved before ownership was recorded: the owner's to settle."""
+        with self._lock:
+            return sum(1 for item in self._profiles() if not _confirmed(item))
 
     def delete(self, profile_id: str) -> None:
         with self._lock:
@@ -319,16 +369,15 @@ class ProviderProfileStore:
                 )
             )
             secrets = self._secrets()
-            unclaimed = [str(item.get("name") or item.get("id")) for item in everything if not _confirmed(item)]
+            waiting = sum(1 for item in everything if not _confirmed(item))
         if not profiles:
-            if may_confirm and unclaimed:
+            if may_confirm and waiting:
+                # A count, not names: a label anyone could type is no evidence
+                # the profile is the reader's (D-177).
                 raise ProviderError(
-                    "Your provider profiles were saved before each workspace kept its own, "
-                    "so none is used until you confirm it is yours: "
-                    + ", ".join(unclaimed[:3])
-                    + (" and more" if len(unclaimed) > 3 else "")
-                    + ". Confirm each one you set up (POST /api/v1/provider-profiles/<id>/confirm) "
-                    "and remove the rest, or generate with local templates."
+                    f"{waiting} provider profile(s) saved before off_CRM recorded whose each one "
+                    "is are waiting in Settings, under \"Provider profiles to confirm\". Drafts use "
+                    "none of them until you confirm them. Or generate with local templates."
                 )
             raise ProviderError(
                 "No provider profile is set up for your workspace, so there is nothing to "

@@ -125,7 +125,11 @@ from ..ai.errors import AIModuleError
 from ..ai.recall import MAX_SNIPPETS_IN_PAYLOAD, SentMailIndex
 from ..ai.discovery import discover_models
 from ..ai.workspace import ReasonRequired, WorkspaceAISettingsStore
-from ..outreach.provider_profiles import ProfileOwnedElsewhere, ProviderProfileStore
+from ..outreach.provider_profiles import (
+    ProfileOwnedElsewhere,
+    ProfileUnconfirmed,
+    ProviderProfileStore,
+)
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
@@ -1309,14 +1313,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         mine: bool = Query(False),
     ) -> dict[str, Any]:
         store = request.app.state.provider_profiles
-        if mine or _profile_scope(request):
+        scope = _profile_scope(request)
+        if mine or scope:
             # What the caller's own drafts may use (D-165).
             items = store.list(owner=_workspace_id(request))
         else:
             # The install owner sees every profile and whose it is, strays
             # included, so one can be found, confirmed or removed.
             items = store.list(owner=owner, include_unconfirmed=True)
-        return {"items": items, "total": len(items)}
+        # Profiles saved before ownership was recorded wait for the install
+        # owner, and the screens must be able to say so (D-177).
+        waiting = 0 if scope else store.unconfirmed_count()
+        return {"items": items, "total": len(items), "waiting": waiting}
 
     @app.post(f"{API_PREFIX}/provider-profiles", status_code=201)
     def save_provider_profile(
@@ -1325,27 +1333,51 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         payload = body.model_dump(exclude={"api_key", "api_key_env", "owner"})
         store = request.app.state.provider_profiles
         # Whose a profile is, is the server's call: the caller's own
-        # workspace, "local" for the install owner (D-165, D-166).
-        owner = _workspace_id(request)
-        if payload.get("id"):
-            if _profile_scope(request):
-                _own_profile(request, str(payload["id"]))
-            else:
-                found = store.ownership(str(payload["id"]))
-                # The owner editing a client's profile leaves it the client's;
-                # an unclaimed one the owner saves becomes the owner's.
-                if found is not None and found[1]:
-                    owner = found[0]
-        return store.upsert(payload, owner=owner, api_key=body.api_key)
+        # workspace, "local" for the install owner (D-165, D-166). Checked in
+        # the store's own write, not before it (D-182).
+        scope = _profile_scope(request)
+        try:
+            if scope:
+                # A client edits only its own; a new one gets a fresh id.
+                return store.upsert(
+                    payload, owner=scope, api_key=body.api_key, must_own=bool(payload.get("id"))
+                )
+            # The owner editing a client's profile leaves it the client's.
+            return store.upsert(
+                payload, owner=_workspace_id(request), api_key=body.api_key, keep_owner=True
+            )
+        except KeyError as exc:
+            raise HTTPException(404, "Provider profile not found") from exc
+        except ProfileUnconfirmed as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @app.post(f"{API_PREFIX}/provider-profiles/{{profile_id}}/confirm")
     def confirm_provider_profile(profile_id: str, request: Request) -> dict[str, Any]:
-        """The install owner claims a profile saved before ownership was
-        recorded. Until then it is in no workspace's chain (D-166)."""
+        """The install owner settles a profile saved before ownership was
+        recorded. Until then it is in no workspace's chain (D-166).
+
+        It goes to whoever its old label names: "default" — the old form's
+        constant — or "local" is the install owner; a workspace's id is that
+        workspace. Never the caller's own workspace by default: that moved a
+        client's key and address into the owner's chain (D-177), and a cookie
+        could name the caller (D-181).
+        """
         require_install_owner(request)
+        workspaces = {str(account["workspace_id"]) for account in workspace_auth.list_accounts()}
+
+        def owner_for(label: str) -> str:
+            if label in {"", "default", "local"}:
+                return "local"
+            if label in workspaces:
+                return label
+            raise ProfileOwnedElsewhere(
+                f"This profile is labelled {label!r}, which is no workspace here, so off_CRM "
+                "cannot tell whose it is. Remove it, and add it again if it is yours."
+            )
+
         try:
             return request.app.state.provider_profiles.confirm(
-                profile_id, owner=_workspace_id(request)
+                profile_id, caller="local", owner_for=owner_for
             )
         except KeyError as exc:
             raise HTTPException(404, "Provider profile not found") from exc

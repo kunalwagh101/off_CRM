@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core import PydanticCustomError
@@ -738,8 +738,10 @@ class AIChatMessageBody(StrictModel):
 
 class AIProviderConnectBody(StrictModel):
     api_key: str = Field(default="", max_length=10000)
-    model_id: str = Field(default="", max_length=240)
-    model_ids: list[str] = Field(default_factory=list, max_length=100)
+    # Bounded because each model id — and any trust set for it — is kept in a
+    # document read on every request; any length was stored (D-180).
+    model_id: str = Field(default="", max_length=200)
+    model_ids: list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=50)
     data_policy: str = Field(default="", max_length=40)
     enabled: bool = Field(default=True, strict=True)
     requests_per_minute: int | None = Field(default=None, ge=1, le=100000, strict=True)
@@ -761,7 +763,7 @@ class AIProviderOverrideBody(StrictModel):
 class AIProviderTrustBody(StrictModel):
     # "" returns the provider, or the model, to its default (S-06.02.33).
     tier: str = Field(default="", max_length=2)
-    model_id: str = Field(default="", max_length=240)
+    model_id: str = Field(default="", max_length=200)
     reason: str = Field(default="", max_length=500)
 
 class AIWorkspaceUpdateBody(StrictModel):

@@ -456,6 +456,8 @@ class ResolvedProvider:
     policy: DataPolicy
     policy_ceiling: DataPolicy
     override: ProviderOverride | None = None
+    #: Whether the owner's full-data grant decided `policy` for this model.
+    grant_applied: bool = False
 
     @property
     def id(self) -> str:
@@ -649,31 +651,36 @@ class ProviderRegistry:
             tier = host if limit is None or limit.rank >= host.rank else limit
 
         ceiling = policy_ceiling_for_tier(tier)
-        # The owner's full-data grant (BUILD_STATE §5.1, DD-67) lifts the
-        # ceiling only for a model trusted at its provider's default or higher.
-        # Judged against the default, not the host: "tier == host" handed the
-        # grant to a capped model the moment the owner lowered its host to
-        # meet it, so lowering trust raised what was sent (D-167).
-        if (
+        # The owner's full-data grant (BUILD_STATE §5.1, DD-67) reaches only a
+        # model trusted at its provider's default or higher. Judged against
+        # the default, not the host: "tier == host" handed the grant to a
+        # capped model the moment the owner lowered its host to meet it, so
+        # lowering trust raised what was sent (D-167).
+        grant_applied = bool(
             override
             and override.allow_above_ceiling
             and known
             and tier is not TrustTier.D
             and tier.rank >= entry.derived_tier.rank
-        ):
-            granted = override.data_policy or DataPolicy.FULL
-            if granted.rank > ceiling.rank:
-                ceiling = granted
-        if requested_policy is None:
-            policy = (
-                override.data_policy
-                if override and override.data_policy is not None
-                else default_policy_for_tier(tier)
-            )
+        )
+        if grant_applied:
+            # While it stands, the grant decides what these models are sent;
+            # the owner's own level waits underneath, unchanged. Writing the
+            # grant into that level lost it on withdraw or resume (D-176).
+            policy = override.data_policy or DataPolicy.FULL
+            if policy.rank > ceiling.rank:
+                ceiling = policy
         else:
-            policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
-        if policy.rank > ceiling.rank:
-            policy = ceiling
+            if requested_policy is None:
+                policy = (
+                    override.data_policy
+                    if override and override.data_policy is not None
+                    else default_policy_for_tier(tier)
+                )
+            else:
+                policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
+            if policy.rank > ceiling.rank:
+                policy = ceiling
 
         return ResolvedProvider(
             entry=entry,
@@ -682,6 +689,7 @@ class ProviderRegistry:
             policy=policy,
             policy_ceiling=ceiling,
             override=override,
+            grant_applied=grant_applied,
         )
 
     def candidates_for(

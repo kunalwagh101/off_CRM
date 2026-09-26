@@ -23,6 +23,17 @@ const TIER_WORD: Record<string, string> = {
  * and saving it lowered what was sent without saying so (D-174). */
 export const POLICY_ORDER = ["strict", "pseudonymous", "minimal", "standard", "full"] as const;
 
+/** "Sends" on the card: the most any switched-on model is sent (D-179). */
+export function sendsWord(row: {
+  receives_nothing: boolean;
+  sends?: string;
+  sends_varies?: boolean;
+  data_policy: string;
+}): string {
+  if (row.receives_nothing) return "Nothing";
+  return `${row.sends_varies ? "Up to " : ""}${policyWord(row.sends ?? row.data_policy)}`;
+}
+
 export function policyWord(value: string): string {
   return (
     {
@@ -436,7 +447,7 @@ function ProviderCard({
         </div>
         <div>
           <dt>Sends</dt>
-          <dd>{policyWord(row.sends ?? row.data_policy)}</dd>
+          <dd>{sendsWord(row)}</dd>
         </div>
       </dl>
 
@@ -568,7 +579,7 @@ function ProviderCard({
               label="How much to send"
               hint={
                 row.grant_active
-                  ? `Your grant allows up to ${policyWord(row.policy_ceiling)}.`
+                  ? `Your grant sends ${policyWord(row.policy_ceiling)} for now; this is what is sent once you withdraw it.`
                   : `Tier ${row.effective_tier} allows up to ${policyWord(row.policy_ceiling)}.`
               }
             >

@@ -638,6 +638,9 @@ export type MemoryItem = {
   created_at: string;
 };
 
+/** The profile list, with how many old profiles wait for the install owner (D-177). */
+export type ProviderProfileList = Paginated<ProviderProfile> & { waiting: number };
+
 export type ProviderCall = {
   id: string;
   workspace_id: string;
@@ -766,8 +769,14 @@ export type AIProviderRow = {
   trust_models?: Array<{ id: string; tier: string; default_tier: string }>;
   /** What is sent now: the stored choice, cut to the ceiling the owner's trust sets. */
   sends?: string;
-  /** Whether the owner's full-data grant lifts the ceiling now (paused while trust is lowered). */
+  /** Whether the owner's full-data grant decides what is sent now. */
   grant_active?: boolean;
+  /** Why the grant is, or is not, in force: "", active, provider_lowered, provider_blocked, no_model. */
+  grant_state?: string;
+  /** Whether a grant now would change what is sent — the server's own refusal rule. */
+  grant_offer?: boolean;
+  /** True when the switched-on models are sent different levels; `sends` is the most. */
+  sends_varies?: boolean;
 };
 
 export type DiscoveredModel = {

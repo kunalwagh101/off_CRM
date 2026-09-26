@@ -308,9 +308,11 @@ class ProviderProfileStore:
                 )
             stored = secrets.get(profile_id, "")
             if not stored:
+                # Some types need no key, but without one nothing proves whose
+                # the profile is — and each is sent the drafts (D-191).
                 raise ProfileOwnedElsewhere(
-                    "No key is stored in this profile — it read one from a server variable, "
-                    "which off_CRM no longer does — so nothing can use it. Remove it."
+                    "No key is stored in this profile, so nothing proves it is yours, and it "
+                    "cannot be confirmed. Remove it."
                 )
             if not hmac.compare_digest(stored.encode("utf-8"), api_key.strip().encode("utf-8")):
                 raise ProfileOwnedElsewhere(

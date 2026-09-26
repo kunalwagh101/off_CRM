@@ -7,7 +7,7 @@ import type { ProviderProfile } from "../types";
 type Row = Pick<
   ProviderProfile,
   "id" | "owner" | "name" | "provider_type" | "model" | "base_url" | "has_stored_secret" | "owner_confirmed"
->;
+> & { confirm_to?: string };
 
 /** What the Drafts screen says under its model option. It pointed at a
  * Settings form that no longer exists (D-173), and could not say that the
@@ -69,19 +69,20 @@ export default function LegacyProfiles({
                   placeholder="Its API key"
                   aria-label={`API key of ${item.name}`}
                 />
+                {/* Where it will go, before the click: the server's own answer (D-190). */}
                 <Button
                   type="submit"
                   tone="ghost"
                   aria-label={`Confirm ${item.name}`}
                   busy={busy === `provider-confirm-${item.id}`}
                 >
-                  Confirm
+                  {item.confirm_to && item.confirm_to !== "local" ? `Confirm for workspace ${item.confirm_to}` : "Confirm as yours"}
                 </Button>
               </form>
             ) : (
-              // It read its key from a server variable, which off_CRM no longer
-              // does: confirmed, every draft through it would fail (D-187).
-              <small>No key is stored in it, so nothing can use it.</small>
+              // Without a key nothing proves whose it is; some types need none,
+              // so "nothing can use it" was not always true (D-187, D-191).
+              <small>No key is stored in it, so nothing proves it is yours. Remove it.</small>
             )}
             <Button
               tone="ghost"

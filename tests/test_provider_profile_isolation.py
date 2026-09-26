@@ -483,3 +483,48 @@ def test_a_profile_with_no_key_cannot_be_confirmed(client):
     refused = client.post("/api/v1/provider-profiles/owner-env/confirm", headers=ADMIN, json={"api_key": "anything"})
     assert refused.status_code == 409
     assert "remove it" in refused.json()["detail"].lower()
+
+
+# ── Fifth check of 2026-09-26: where Confirm puts a profile ────────────────
+
+
+def test_the_owners_default_profile_stays_the_owners_whatever_a_workspace_is_called(client, seen):
+    """D-190: with a client workspace given the id "default", confirming the
+    owner's own "default" profile — with the owner's own key — handed it to
+    that client, which re-pointed it and received the owner's key."""
+    assert client.post("/api/v1/workspaces", headers=ADMIN, json={
+        "username": "default-user", "workspace_id": "default", "password": "default-password-1"}).status_code == 201
+    _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
+    listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"]
+    assert [(item["id"], item["confirm_to"]) for item in listed] == [("owner-old", "local")]
+    confirmed = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN,
+                            json={"api_key": "sk-owner-old-" + "k" * 20})
+    assert confirmed.status_code == 200, confirmed.text
+    assert client.app.state.provider_profiles.ownership("owner-old") == ("local", True)
+    _login(client, "default")
+    assert client.post("/api/v1/provider-profiles/owner-old/test", json={"live_probe": True}).status_code == 404
+
+
+def test_the_panel_knows_where_confirm_puts_each_profile(client):
+    """D-190: the panel never said where Confirm would put a profile; only the
+    message after the click did."""
+    _legacy_rows(client, [("a", "default", "A", OWNER_URL), ("b", "beta", "B", OWNER_URL),
+                          ("c", "Kunal", "C", OWNER_URL), ("d", "local", "D", OWNER_URL)])
+    listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"]
+    assert {item["id"]: item["confirm_to"] for item in listed} == {"a": "local", "b": "beta", "c": "local", "d": "local"}
+
+
+def test_a_profile_with_no_key_is_refused_for_the_true_reason(client):
+    """D-191: a template engine needs no key, yet the refusal said the profile
+    "read one from a server variable" and "nothing can use it". Without a key
+    nothing proves whose it is, and a template engine is sent the draft."""
+    store = client.app.state.provider_profiles
+    store.profile_path.parent.mkdir(parents=True, exist_ok=True)
+    store.profile_path.write_text(json.dumps([{
+        "id": "engine", "owner": "default", "name": "Local engine", "provider_type": "template_engine_http",
+        "model": "", "base_url": "http://127.0.0.1:9000/generate", "priority": 1, "enabled": True}]))
+    refused = client.post("/api/v1/provider-profiles/engine/confirm", headers=ADMIN, json={"api_key": ""})
+    assert refused.status_code == 409
+    detail = refused.json()["detail"]
+    assert "nothing proves it is yours" in detail
+    assert "server variable" not in detail and "nothing can use it" not in detail

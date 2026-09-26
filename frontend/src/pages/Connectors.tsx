@@ -6,7 +6,17 @@ import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
 import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS, readCap } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
-import { ModelTrustSelect, ProviderTrustSelect, TRUST_WORD, canGrantFullData, grantLine } from "./TrustSelect";
+import {
+  ModelTrustSelect,
+  POLICY_ORDER,
+  ProviderTrustSelect,
+  TRUST_WORD,
+  canGrantFullData,
+  grantLine,
+  policyWord
+} from "./TrustSelect";
+
+export { POLICY_ORDER, policyWord };
 import { Loadable } from "./shared";
 
 /** Tier → how the badge reads. Colour alone never carries the meaning. */
@@ -17,11 +27,6 @@ const TIER_WORD: Record<string, string> = {
   C: "Restricted",
   D: "Blocked"
 };
-
-/** Every level the server has (ai/tiers.py `DataPolicy`), lowest first.
- * "pseudonymous" was missing, so a restricted provider's form showed "Strict"
- * and saving it lowered what was sent without saying so (D-174). */
-export const POLICY_ORDER = ["strict", "pseudonymous", "minimal", "standard", "full"] as const;
 
 /** "Sends" on the card: the most any switched-on model is sent (D-179) —
  * "Nothing" when every one of them is blocked (D-188). */
@@ -50,17 +55,6 @@ export function formLevel(saved: string, standing: string): string {
   return offered.includes(saved) ? saved : offered[offered.length - 1];
 }
 
-export function policyWord(value: string): string {
-  return (
-    {
-      strict: "Strict",
-      pseudonymous: "Pseudonymous",
-      minimal: "Minimal",
-      standard: "Standard",
-      full: "Full access"
-    }[value] ?? value
-  );
-}
 
 /** Groups providers by tier so the safest options are read first. */
 const TIER_ORDER = ["A", "B", "C", "D"] as const;

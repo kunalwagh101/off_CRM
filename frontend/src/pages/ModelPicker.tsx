@@ -3,6 +3,7 @@ import { api } from "../api";
 import { Badge, Button } from "../components";
 import { useApp } from "../context";
 import type { AIProviderRow, DiscoveredModel, DiscoveryResult } from "../types";
+import { policyWord } from "./TrustSelect";
 
 const TIER_TONE: Record<string, string> = { A: "success", B: "neutral", C: "warning", D: "danger" };
 const TIER_WORD: Record<string, string> = {
@@ -40,6 +41,20 @@ function familyOf(modelId: string): string {
  * list shows a tier badge per model, not per provider, and a model whose origin
  * off_CRM cannot place is disabled with the reason on it rather than hidden.
  */
+/** What saving the model list says. The server saves the provider's level
+ * again with it, and may cut a level set under a raise since withdrawn: it
+ * says so, and the panel said only "N models enabled" (D-193). */
+export function modelsSavedMessage(
+  name: string,
+  count: number,
+  result: { policy_was_clamped: boolean; policy_ceiling: string }
+): string {
+  const saved = `${name}: ${count} model${count === 1 ? "" : "s"} enabled`;
+  return result.policy_was_clamped
+    ? `${saved}. Its level was saved as ${policyWord(result.policy_ceiling)}, the most its trust allows.`
+    : saved;
+}
+
 export default function ModelPicker({
   provider,
   onSaved
@@ -116,14 +131,11 @@ export default function ModelPicker({
     }
     setBusy("save");
     try {
-      await api.post(`/ai/providers/${provider.id}/connect`, {
-        model_ids: selected,
-        data_policy: provider.data_policy
-      });
-      notify(
-        `${provider.name}: ${selected.length} model${selected.length === 1 ? "" : "s"} enabled`,
-        "success"
+      const result = await api.post<{ policy_was_clamped: boolean; policy_ceiling: string }>(
+        `/ai/providers/${provider.id}/connect`,
+        { model_ids: selected, data_policy: provider.data_policy }
       );
+      notify(modelsSavedMessage(provider.name, selected.length, result), "success");
       onSaved();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not save", "error");

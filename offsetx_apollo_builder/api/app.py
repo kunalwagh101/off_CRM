@@ -1297,6 +1297,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         caller = _workspace_id(request)
         return "" if caller == "local" else caller
 
+    def _confirm_target(label: str) -> str:
+        """Where confirming a profile saved before ownership was puts it.
+
+        "default" (the old form's label), "local" and "" are always the
+        install owner — whatever a workspace is called: a client workspace
+        given the id "default" received the owner's profile and key (D-190).
+        A label naming another client workspace goes back to it; any other
+        label is the owner's. Confirming itself takes the profile's key.
+        """
+        if label in {"", "default", "local"}:
+            return "local"
+        clients = {str(account["workspace_id"]) for account in workspace_auth.list_accounts()}
+        return label if label in clients else "local"
+
     def _own_profile(request: Request, profile_id: str) -> tuple[str, bool]:
         scope = _profile_scope(request)
         found = request.app.state.provider_profiles.ownership(profile_id)
@@ -1320,8 +1334,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             items = store.list(owner=_workspace_id(request))
         else:
             # The install owner sees every profile and whose it is, strays
-            # included, so one can be found, confirmed or removed.
+            # included, so one can be found, confirmed or removed — and, for
+            # a stray, where Confirm will put it before it is pressed (D-190).
             items = store.list(owner=owner, include_unconfirmed=True)
+            for item in items:
+                if not item["owner_confirmed"]:
+                    item["confirm_to"] = _confirm_target(str(item.get("owner", "")))
         # Profiles saved before ownership was recorded wait for the install
         # owner, and the screens must be able to say so (D-177).
         waiting = 0 if scope else store.unconfirmed_count()
@@ -1360,24 +1378,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         recorded, by typing the key it holds. Until then it is in no
         workspace's chain (D-166, D-185).
 
-        A profile labelled with a client workspace's id goes back to that
-        workspace; any other label — "default", "local", a typed name — is
-        the owner's once the key proves it (D-187). Never the caller's own
-        workspace by virtue of calling: a cookie could name the caller (D-181).
+        Where it goes is `_confirm_target`, as the panel shows before the
+        click. Never the caller's own workspace by virtue of calling: a cookie
+        could name the caller (D-181).
         """
         require_install_owner(request)
-        clients = {
-            str(account["workspace_id"]) for account in workspace_auth.list_accounts()
-        } - {"local"}
-
-        def owner_for(label: str) -> str:
-            return label if label in clients else "local"
-
         try:
             return request.app.state.provider_profiles.confirm(
                 profile_id,
                 caller="local",
-                owner_for=owner_for,
+                owner_for=_confirm_target,
                 api_key=body.api_key if body else "",
             )
         except KeyError as exc:

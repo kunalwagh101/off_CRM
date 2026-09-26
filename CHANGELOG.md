@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **The fifth check, closed** (2026-09-26). The fourth reviewer confirmed its
+  six findings fixed, and found one regression in the fix: with a client
+  workspace named "default", confirming your own old "default" profile gave it
+  to that client (`D-190`). "default" is always yours now, and each Confirm
+  button says where it puts the profile. Also: a key-less profile's refusal
+  says the true reason (`D-191`), the damaged-master-key advice names both files
+  (`D-192`), and the Models panel says when a save cut your level (`D-193`).
+
 - **The fourth fresh-context review, closed** (2026-09-26, `S-06.02.31`,
   `S-06.02.33`). Nothing critical or high; two medium, four low, each fixed
   with a test that failed first.

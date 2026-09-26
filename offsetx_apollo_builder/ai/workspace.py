@@ -76,8 +76,8 @@ _KEY_STORE_HELP = (
     "Stored AI provider keys cannot be read: {fault}. Until this is fixed no key can "
     "be read or saved. The install owner can restore the whole data folder from one "
     "backup — the master key is a hidden file, so copy the folder, not its files — or "
-    "remove ai_provider_keys.enc, which clears the stored keys of every workspace, "
-    "after which each workspace pastes its keys again."
+    "remove ai_provider_keys.enc and .ai_master.key, which clears the stored keys of "
+    "every workspace, after which each workspace pastes its keys again."
 )
 
 

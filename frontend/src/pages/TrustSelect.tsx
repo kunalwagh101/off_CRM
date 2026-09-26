@@ -11,6 +11,23 @@ export const TRUST_WORD: Record<string, string> = {
   D: "Blocked"
 };
 
+/** Every level the server has (ai/tiers.py `DataPolicy`), lowest first.
+ * "pseudonymous" was missing, so a restricted provider's form showed "Strict"
+ * and saving it lowered what was sent without saying so (D-174). */
+export const POLICY_ORDER = ["strict", "pseudonymous", "minimal", "standard", "full"] as const;
+
+export function policyWord(value: string): string {
+  return (
+    {
+      strict: "Strict",
+      pseudonymous: "Pseudonymous",
+      minimal: "Minimal",
+      standard: "Standard",
+      full: "Full access"
+    }[value] ?? value
+  );
+}
+
 type GrantRow = {
   name: string;
   connected: boolean;

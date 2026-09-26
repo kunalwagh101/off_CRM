@@ -559,14 +559,28 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     expect(html.match(/Confirm Primary OpenAI/g)?.length).toBe(1);
   });
 
-  it("offers only Remove for a profile with no key stored, which nothing can use (D-187)", async () => {
+  it("offers only Remove for a profile with no key stored, and says why truly (D-187, D-191)", async () => {
     const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
     const html = renderToStaticMarkup(
       <LegacyProfiles items={[{ ...old, has_stored_secret: false }]} busy="" onConfirm={() => undefined} onRemove={() => undefined} />
     );
     expect(html).not.toContain("Confirm Primary OpenAI");
-    expect(html).toContain("No key is stored in it");
+    expect(html).toContain("No key is stored in it, so nothing proves it is yours.");
     expect(html).toContain('aria-label="Remove Primary OpenAI"');
+  });
+
+  it("says where Confirm puts each profile before it is pressed (D-190)", async () => {
+    const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
+    const html = renderToStaticMarkup(
+      <LegacyProfiles
+        items={[{ ...old, confirm_to: "local" }, { ...old, id: "b", name: "Beta's", owner: "beta", confirm_to: "beta" }]}
+        busy=""
+        onConfirm={() => undefined}
+        onRemove={() => undefined}
+      />
+    );
+    expect(html).toContain("Confirm as yours");
+    expect(html).toContain("Confirm for workspace beta");
   });
 
   it("shows nothing once every profile is settled", async () => {
@@ -600,5 +614,17 @@ describe("what a provider is sent (D-174)", () => {
     expect([...POLICY_ORDER]).toEqual(["strict", "pseudonymous", "minimal", "standard", "full"]);
     expect(policyWord("pseudonymous")).toBe("Pseudonymous");
     expect(policyWord("full")).toBe("Full access");
+  });
+});
+
+describe("the Models panel says when a save cut the level (D-193)", () => {
+  it("names the level that was saved, and says nothing more when nothing was cut", async () => {
+    const { modelsSavedMessage } = await import("./pages/ModelPicker");
+    expect(modelsSavedMessage("NVIDIA NIM", 2, { policy_was_clamped: false, policy_ceiling: "standard" })).toBe(
+      "NVIDIA NIM: 2 models enabled"
+    );
+    expect(modelsSavedMessage("NVIDIA NIM", 1, { policy_was_clamped: true, policy_ceiling: "standard" })).toBe(
+      "NVIDIA NIM: 1 model enabled. Its level was saved as Standard, the most its trust allows."
+    );
   });
 });

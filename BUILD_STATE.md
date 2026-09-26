@@ -12,10 +12,10 @@ Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-26, on `develop` with the fourth review's fixes): **2495 Python
+Tests (2026-09-26, on `develop` with the fifth check's fixes): **2499 Python
 passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **168 passed** and a clean production build. Board verifier
+clean. Frontend **170 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -68,9 +68,10 @@ profile ownership was a label the request typed, lowering a provider
 re-applied the full-data grant, and the call log was unscoped. Fixing those
 found `D-171` — the full-data grant never sent more, older than this session —
 and `D-172` to `D-175`. The third and fourth reviews (2026-09-26) found
-nothing critical or high: `D-176` to `D-189`, four medium. All fixed
-test-first. DONE waits for a look at the fourth round's fixes by a context
-that did not write them.
+nothing critical or high: `D-176` to `D-189`, four medium; the fourth
+reviewer's look at its own findings' fixes found `D-190` to `D-193`, one of
+them a regression in those fixes. All fixed test-first. DONE waits for one
+last look at the `D-190` fixes by a context that did not write them.
 
 **How profiles and trust work now — read before touching either:**
 - A provider profile's owner is recorded by the server from the login — the

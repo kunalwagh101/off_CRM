@@ -678,3 +678,16 @@ def test_a_damaged_key_store_says_what_the_install_owner_can_do(client, damage):
     assert answer.status_code == 400
     message = answer.json()["detail"]["message"]
     assert "backup" in message and "every workspace" in message and "install owner" in message
+
+
+def test_a_damaged_master_key_is_fixed_by_the_step_the_message_gives(client):
+    """D-192: removing the keys file was not enough for a damaged master key,
+    which is only replaced when missing; every save kept failing."""
+    _connect(client)
+    store = client.app.state.ai_workspaces
+    store.key_path.write_bytes(b"not a key")
+    message = client.post(f"{API}/ai/providers/nvidia/connect", json={"api_key": "nvapi-new"}).json()["detail"]["message"]
+    assert "remove ai_provider_keys.enc and .ai_master.key" in message
+    store.secret_path.unlink()
+    store.key_path.unlink()
+    assert client.post(f"{API}/ai/providers/nvidia/connect", json={"api_key": "nvapi-new"}).status_code == 200

@@ -567,6 +567,9 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .provider-facts select, .provider-model-trust select { max-width: 100%; }
 .provider-connect-form { display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border, #e5e7eb); padding-top: 0.85rem; }
 .provider-howto { margin: 0; font-size: 0.85rem; line-height: 1.55; }
+.provider-grant { margin: 0; font-size: 0.85rem; }
+.provider-grant .link-button { margin-left: 0; }
+.provider-grant .link-button:disabled { opacity: 0.5; cursor: default; }
 
 .connector-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 

@@ -138,7 +138,6 @@ export default function Settings() {
     setBusy("provider-save");
     try {
       await api.post<ProviderProfile>("/provider-profiles", {
-        owner: String(data.get("owner") || "default"),
         name: data.get("name"),
         provider_type: providerType,
         model: data.get("model"),
@@ -344,7 +343,7 @@ export default function Settings() {
         </Panel>
 
         <Panel title="AI request audit" subtitle="Inspect exactly what was sent; payload bodies are off unless explicitly enabled" className="settings-wide">
-          {providerCalls.loading || providerCalls.error ? <Loadable loading={providerCalls.loading} error={providerCalls.error} /> : providerCalls.data?.items.length ? <div className="audit-call-list">{providerCalls.data.items.map((call) => <details key={call.id}><summary><Badge tone={call.status === "succeeded" ? "success" : "danger"}>{call.status}</Badge> {call.provider_type} · {call.model || "default"} · {call.data_policy} · {call.duration_ms} ms</summary><pre>{JSON.stringify({ request: call.request, response: call.response, error: call.error }, null, 2)}</pre></details>)}</div> : <p className="muted-copy">No provider calls recorded yet.</p>}
+          {providerCalls.loading || providerCalls.error ? <Loadable loading={providerCalls.loading} error={providerCalls.error} /> : providerCalls.data?.items.length ? <div className="audit-call-list">{providerCalls.data.items.map((call) => <details key={call.id}><summary><Badge tone={call.status === "succeeded" ? "success" : "danger"}>{call.status}</Badge> {call.provider_type} · {call.model || "default"} · {call.data_policy} · {call.duration_ms} ms · workspace {call.workspace_id}</summary><pre>{JSON.stringify({ request: call.request, response: call.response, error: call.error }, null, 2)}</pre></details>)}</div> : <p className="muted-copy">No provider calls recorded yet.</p>}
         </Panel>
 
         <Panel title="Campaign automation" subtitle="Runs reply sync first, then sends only approved and due drafts">

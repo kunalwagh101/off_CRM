@@ -6,7 +6,7 @@ import { useResource } from "../hooks";
 import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
 import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS, readCap } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
-import { ModelTrustSelect, ProviderTrustSelect, TRUST_WORD } from "./TrustSelect";
+import { ModelTrustSelect, ProviderTrustSelect, TRUST_WORD, canGrantFullData, grantLine } from "./TrustSelect";
 import { Loadable } from "./shared";
 
 /** Tier → how the badge reads. Colour alone never carries the meaning. */
@@ -18,8 +18,21 @@ const TIER_WORD: Record<string, string> = {
   D: "Blocked"
 };
 
-function policyWord(value: string): string {
-  return { strict: "Strict", minimal: "Minimal", standard: "Standard", full: "Full access" }[value] ?? value;
+/** Every level the server has (ai/tiers.py `DataPolicy`), lowest first.
+ * "pseudonymous" was missing, so a restricted provider's form showed "Strict"
+ * and saving it lowered what was sent without saying so (D-174). */
+export const POLICY_ORDER = ["strict", "pseudonymous", "minimal", "standard", "full"] as const;
+
+export function policyWord(value: string): string {
+  return (
+    {
+      strict: "Strict",
+      pseudonymous: "Pseudonymous",
+      minimal: "Minimal",
+      standard: "Standard",
+      full: "Full access"
+    }[value] ?? value
+  );
 }
 
 /** Groups providers by tier so the safest options are read first. */
@@ -119,7 +132,7 @@ export default function Connectors() {
         allow_above_ceiling: true,
         reason: reason.trim()
       });
-      notify(`${row.name} raised to full access. The reason is recorded.`, "success");
+      notify(`${row.name} may now receive full data. The reason is recorded.`, "success");
       providers.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not change trust", "error");
@@ -388,6 +401,7 @@ function ProviderCard({
 }) {
   const blocked = row.effective_tier === "D";
   const usage = row.usage;
+  const grant = grantLine(row);
 
   return (
     <article className={row.connected ? "provider-card provider-card-on" : "provider-card"}>
@@ -422,7 +436,7 @@ function ProviderCard({
         </div>
         <div>
           <dt>Sends</dt>
-          <dd>{policyWord(row.data_policy)}</dd>
+          <dd>{policyWord(row.sends ?? row.data_policy)}</dd>
         </div>
       </dl>
 
@@ -464,9 +478,9 @@ function ProviderCard({
           ))}
         </ul>
       </details>
-      {row.override && (row.override.allow_above_ceiling || row.override.data_policy) ? (
+      {grant ? (
         <p className="provider-override">
-          Full access granted by you: {row.override.reason}
+          {grant}{" "}
           <button type="button" className="link-button" onClick={onClearOverride}>
             withdraw
           </button>
@@ -488,17 +502,19 @@ function ProviderCard({
       <footer className="provider-card-actions">
         {blocked ? (
           <>
+            {/* "Allow anyway…" lifted what may be sent, and a blocked provider
+                receives nothing at any level, so it changed nothing (D-171).
+                Raising its trust, above, is what unblocks it. */}
             <span className="muted-copy">
-              {row.override?.trust_tier === "D" ? "Blocked by you." : "Blocked by default."}
+              {row.override?.trust_tier === "D"
+                ? "Blocked by you."
+                : "Blocked by default. Raise its trust above to use it."}
             </span>
             {row.connected ? (
               <Button tone="ghost" busy={busy === `disconnect-${row.id}`} onClick={onDisconnect}>
                 Disconnect
               </Button>
             ) : null}
-            <Button tone="ghost" busy={busy === `override-${row.id}`} onClick={onRaise}>
-              Allow anyway…
-            </Button>
           </>
         ) : row.connected ? (
           <>
@@ -548,9 +564,16 @@ function ProviderCard({
                 ))}
               </select>
             </Field>
-            <Field label="How much to send" hint={`Tier ${row.effective_tier} allows up to ${policyWord(row.policy_ceiling)}.`}>
+            <Field
+              label="How much to send"
+              hint={
+                row.grant_active
+                  ? `Your grant allows up to ${policyWord(row.policy_ceiling)}.`
+                  : `Tier ${row.effective_tier} allows up to ${policyWord(row.policy_ceiling)}.`
+              }
+            >
               <select name="data_policy" defaultValue={row.data_policy}>
-                {["strict", "minimal", "standard", "full"].map((value) => (
+                {POLICY_ORDER.map((value) => (
                   <option key={value} value={value}>
                     {policyWord(value)}
                   </option>
@@ -558,6 +581,18 @@ function ProviderCard({
               </select>
             </Field>
           </div>
+          {canGrantFullData(row) ? (
+            <p className="provider-grant">
+              <button
+                type="button"
+                className="link-button"
+                disabled={busy === `override-${row.id}`}
+                onClick={onRaise}
+              >
+                Send full data to {row.name} anyway…
+              </button>
+            </p>
+          ) : null}
 
           <div className="form-grid">
             <Field label="Daily call cap" hint="Counted by off_CRM. The provider's own limit still applies.">

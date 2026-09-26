@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from ..outreach.models import MESSAGE_STAGES
 
@@ -154,7 +155,10 @@ class DraftGenerate(StrictModel):
     provider: None = None
     use_provider_fallback: bool = False
     provider_profile_ids: list[str] = Field(default_factory=list, max_length=20)
-    provider_owner: str = Field(default="", max_length=100)
+    # Drafts use the profiles of the workspace signed in, the install owner's
+    # included: naming another's put a client's planted profile in the
+    # owner's chain (D-165). Empty passes, as older screens send "".
+    provider_owner: str | None = Field(default=None, max_length=100)
     fallback_strategy: Literal["priority", "round_robin", "parallel"] = "priority"
     # A request-supplied provider still runs under a data policy. Defaulting to
     # "minimal" means an API caller cannot opt out of the guard by omission.
@@ -167,6 +171,16 @@ class DraftGenerate(StrictModel):
         if unknown:
             raise ValueError("Unknown stages: " + ", ".join(unknown))
         return list(dict.fromkeys(stages))
+
+    @field_validator("provider_owner")
+    @classmethod
+    def own_profiles_only(cls, value: str | None) -> None:
+        if value:
+            raise PydanticCustomError(
+                "own_profiles_only",
+                "Drafts use the provider profiles of the workspace you are signed in to; leave this out",
+            )
+        # Nothing is kept: the route uses the caller's own workspace.
 
 
 class DraftEdit(StrictModel):
@@ -263,7 +277,9 @@ class ReplySyncRequest(StrictModel):
 
 class ProviderProfileUpsert(StrictModel):
     id: str = Field(default="", max_length=80)
-    owner: str = Field(default="default", min_length=1, max_length=100)
+    # Whose a profile is, is the server's call (D-165, D-166). "default" is
+    # what the old Settings form always sent, so it says nothing and passes.
+    owner: str | None = Field(default=None, max_length=100)
     name: str = Field(min_length=1, max_length=120)
     provider_type: Literal[
         "openai",
@@ -284,6 +300,17 @@ class ProviderProfileUpsert(StrictModel):
     audit_payloads: bool = False
     fallback_strategy: Literal["priority", "round_robin", "parallel"] = "priority"
     extra: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("owner")
+    @classmethod
+    def owner_set_by_server(cls, value: str | None) -> None:
+        if value not in (None, "", "default"):
+            raise PydanticCustomError(
+                "owner_set_by_server",
+                "The server records whose a profile is: the workspace you are signed in to. "
+                "Leave owner out",
+            )
+        # Nothing is kept: the route records the caller's own workspace.
 
 
 class ProviderHealthRequest(StrictModel):
@@ -726,14 +753,16 @@ class AIProviderOverrideBody(StrictModel):
     trust_tier: str = Field(default="", max_length=20)
     data_policy: str = Field(default="", max_length=40)
     allow_above_ceiling: bool = Field(default=False, strict=True)
-    reason: str = Field(default="", max_length=2000)
+    # A sentence. Each is kept in the trust history, which is read on every
+    # request: 2,000 characters a reason made that megabytes (D-170).
+    reason: str = Field(default="", max_length=500)
     decided_by: str = Field(default="", max_length=200)
 
 class AIProviderTrustBody(StrictModel):
     # "" returns the provider, or the model, to its default (S-06.02.33).
     tier: str = Field(default="", max_length=2)
     model_id: str = Field(default="", max_length=240)
-    reason: str = Field(default="", max_length=2000)
+    reason: str = Field(default="", max_length=500)
 
 class AIWorkspaceUpdateBody(StrictModel):
     positioning_line: str | None = Field(default=None, max_length=500)

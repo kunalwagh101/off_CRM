@@ -70,9 +70,20 @@ Defaults: tier A and B start at `standard`, tier C at `minimal`, tier D at
 
 You can. It is deliberate, not silent:
 
-1. Connectors → the provider card → **Allow anyway…**
+1. Connectors → the connected provider's card → **Change settings** →
+   **Send full data to … anyway…**
 2. Type why. A reason is required.
 3. The decision is stored with who made it and when, and shown on the card.
+   What the provider is sent becomes `full`; you can still lower it on the form.
+
+It reaches only models trusted at the provider's default tier or higher
+(`DD-67`). A model built elsewhere and capped lower — DeepSeek on NVIDIA — or a
+model you lowered stays at its own ceiling. Lowering the provider pauses the
+grant, and the card says so; returning it to its default resumes it.
+
+It is not offered where it could change nothing: a blocked provider receives
+nothing at any level (raise its trust instead), and tier A already allows
+`full`.
 
 Three things stay blocked at **every** level, including `full`: credentials,
 mail headers, and off_CRM's internal field names. Those are never legitimate

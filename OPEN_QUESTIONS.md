@@ -390,3 +390,30 @@ data and expensive after. Nothing was changed until you choose.
 **Blast radius if wrong.** Staying on 1 with unrelated customers on one install
 shows each one's contacts and product text to the other. Choosing 2 when
 everyone is one team adds a workspace filter to every screen for nothing.
+
+### Q-28 — Should drafts personalise through Connectors, or get their provider-profile screen back? *(affects Drafts and the second model path)*
+
+**Status:** open. Raised 2026-09-25 while fixing the second review's findings (`D-173`).
+
+**Ambiguity.** The Drafts screen writes with a model only through *provider
+profiles* — a second, older path to a model with its own keys, priorities and
+data policies. No screen has added a profile since the AI providers moved to
+Connectors (`5e03c6c`): Settings still holds the code to save, test and remove
+one, but no form, and the Drafts screen tells you to use it. The keys you type
+in Connectors, with their trust tiers, scanner and egress log, do not reach
+Drafts at all.
+
+**Options.** 1. Drafts write through Connectors, like the AI screen: one set of
+keys, the trust tiers and the egress log apply, and profiles are retired once
+their drafts are moved. 2. Bring the profile form back in Settings, so the two
+paths stay separate. 3. Leave it; drafts stay template-only unless a profile is
+added through the API.
+
+**Recommended default: 1.** It is the path every other model call already
+takes, and it is the one the trust work of 2026-09-25 protects. Option 2 keeps
+two places to paste a key and two sets of rules for what leaves. Nothing was
+changed until you choose; `S-06.02.35` is filed for either answer.
+
+**Blast radius if wrong.** Choosing 1 means profile-only settings — round-robin
+and parallel strategies — need a Connectors equivalent or are dropped. Choosing
+2 keeps a second egress path that the tiers do not govern.

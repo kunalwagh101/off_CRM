@@ -1592,9 +1592,14 @@ class OutreachStore:
         offset: int = 0,
         profile_id: str = "",
         status: str = "",
+        workspace_id: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
+        """Recorded provider calls, newest first; one workspace's when named."""
         where: list[str] = []
         params: list[Any] = []
+        if workspace_id:
+            where.append("workspace_id = ?")
+            params.append(workspace_id)
         if profile_id:
             where.append("profile_id = ?")
             params.append(profile_id)

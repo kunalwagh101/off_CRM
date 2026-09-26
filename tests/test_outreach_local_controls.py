@@ -31,12 +31,12 @@ def test_provider_profile_secret_is_encrypted_and_never_returned(tmp_path):
     profile = store.upsert(
         {
             "id": "primary",
-            "owner": "Kunal",
             "name": "Primary provider",
             "provider_type": "openai",
             "model": "test-model",
             "priority": 10,
         },
+        owner="local",
         api_key="super-secret-provider-key",
     )
 
@@ -95,7 +95,6 @@ def test_provider_automation_and_backup_api(tmp_path):
             "/api/v1/provider-profiles",
             json={
                 "id": "primary",
-                "owner": "Kunal",
                 "name": "Primary OpenAI",
                 "provider_type": "openai",
                 "model": "test-model",

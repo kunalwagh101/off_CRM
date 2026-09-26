@@ -33,6 +33,7 @@ from .tiers import (
     coerce_policy,
     coerce_tier,
     default_policy_for_tier,
+    describe_tier,
     policy_ceiling_for_tier,
 )
 
@@ -61,8 +62,9 @@ _TRUST_KEYS = (
 )
 
 #: How many trust decisions a provider keeps. Clearing a setting deleted its
-#: who and why; the history is what stays.
-_TRUST_HISTORY = 100
+#: who and why; the history is what stays. Bounded because the document it
+#: lives in is read on every request (D-170).
+_TRUST_HISTORY = 20
 
 
 def _remember(record: dict[str, Any], kind: str, model_id: str, decision: dict[str, Any]) -> None:
@@ -80,6 +82,38 @@ def _remember(record: dict[str, Any], kind: str, model_id: str, decision: dict[s
 
 class ReasonRequired(ValueError):
     """A trust raise with no reason: the screen asks for one and retries."""
+
+
+def _host_tier(entry: Any, override: dict[str, Any]) -> TrustTier:
+    """The provider's own trust: the owner's setting, else config's."""
+    if override.get("trust_tier"):
+        return coerce_tier(override["trust_tier"], default=entry.derived_tier)
+    return entry.derived_tier
+
+
+def _grant_active(entry: Any, override: dict[str, Any]) -> bool:
+    """Whether the owner's full-data grant lifts this provider's ceiling now.
+
+    Only at its default trust or higher (DD-67): lowering the provider pauses
+    the grant, and a blocked provider receives nothing at any level. The
+    router applies the same rule per model (`ProviderRegistry.resolve`).
+    """
+    host = _host_tier(entry, override)
+    return (
+        bool(override.get("allow_above_ceiling"))
+        and host is not TrustTier.D
+        and host.rank >= entry.derived_tier.rank
+    )
+
+
+def _host_ceiling(entry: Any, override: dict[str, Any]) -> DataPolicy:
+    """The most this provider may be sent, before any per-model limit."""
+    ceiling = policy_ceiling_for_tier(_host_tier(entry, override))
+    if _grant_active(entry, override):
+        granted = coerce_policy(override.get("data_policy") or DataPolicy.FULL.value)
+        if granted.rank > ceiling.rank:
+            ceiling = granted
+    return ceiling
 
 
 def _raise_needs_reason(name: str, before: Any, after: Any) -> str:
@@ -328,11 +362,7 @@ class WorkspaceAISettingsStore:
                     "card shows where to get one."
                 )
             stored = dict(current.get("overrides") or {}).get(provider_id) or {}
-            tier = (
-                coerce_tier(stored["trust_tier"], default=entry.derived_tier)
-                if stored.get("trust_tier")
-                else entry.derived_tier
-            )
+            tier = _host_tier(entry, stored)
             providers = dict(current.get("providers") or {})
             existing = dict(providers.get(provider_id) or {})
             # What is sent, kept like the caps when not sent again.
@@ -342,7 +372,10 @@ class WorkspaceAISettingsStore:
                 if wanted_policy
                 else default_policy_for_tier(tier)
             )
-            ceiling = policy_ceiling_for_tier(tier)
+            # The owner's full-data grant counts: ignoring it clamped what is
+            # sent back under the tier's ceiling, so the grant never sent
+            # more (D-171).
+            ceiling = _host_ceiling(entry, stored)
             clamped = policy.rank > ceiling.rank
             decided.update(tier=tier, ceiling=ceiling, clamped=clamped)
             caps = {
@@ -371,9 +404,13 @@ class WorkspaceAISettingsStore:
             providers = dict(current.get("providers") or {})
             providers.pop(provider_id, None)
             current["providers"] = providers
+            # In the same locked window as the record: in a second one, a
+            # Models-panel save landing between them re-created the
+            # connection with no key (D-169). The key goes first, so a
+            # failure part-way leaves nothing that can be spent.
+            self._store_key_locked(workspace_id, provider_id, "")
 
         self._update_workspace(workspace_id, apply)
-        self.set_key(workspace_id, provider_id, "")
 
     def set_override(
         self,
@@ -400,55 +437,103 @@ class WorkspaceAISettingsStore:
                 "Raising a provider above its trust ceiling needs a reason. "
                 "It is recorded so you can see later why the decision was made."
             )
+        granted = coerce_policy(data_policy) if data_policy else DataPolicy.FULL
+
         def apply(current: dict[str, Any]) -> None:
             overrides = dict(current.get("overrides") or {})
+            previous = dict(overrides.get(provider_id) or {})
             if not (trust_tier or data_policy or allow_above_ceiling):
                 # Withdraws this route's own decision — what may be sent —
                 # and keeps the trust settings: the card's reset link used to
                 # delete the owner's blocks along with the grant.
-                record = {
-                    key: value
-                    for key, value in dict(overrides.get(provider_id) or {}).items()
-                    if key in _TRUST_KEYS or key == "provider_id"
-                }
+                if not (previous.get("allow_above_ceiling") or previous.get("data_policy")):
+                    # Nothing to withdraw. Each click used to leave a
+                    # "withdrawn" entry in a record holding nothing else (D-170).
+                    return
+                record = {key: value for key, value in previous.items() if key in _TRUST_KEYS}
+                record["provider_id"] = provider_id
                 _remember(record, "full_access", "", {
                     "tier": "", "reason": "withdrawn", "decided_by": decided_by or workspace_id,
                     "decided_at": to_utc_iso(),
                 })
-                if any(record.get(key) for key in ("trust_tier", "model_tiers", "trust_history")):
-                    overrides[provider_id] = record
-                else:
-                    overrides.pop(provider_id, None)
-            else:
-                decision = ProviderOverride(
-                    provider_id=provider_id,
-                    trust_tier=coerce_tier(trust_tier) if trust_tier else None,
-                    data_policy=coerce_policy(data_policy) if data_policy else None,
-                    allow_above_ceiling=bool(allow_above_ceiling),
-                    reason=reason.strip(),
-                    decided_by=decided_by or workspace_id,
-                    decided_at=to_utc_iso(),
-                ).to_dict()
-                # Rebuilt from scratch, this record dropped the trust settings
-                # made on the trust route — a per-model tier vanished when full
-                # access was granted. They are kept unless this call sets them.
-                previous = dict(overrides.get(provider_id) or {})
-                for key in _TRUST_KEYS:
-                    if key in previous:
-                        decision[key] = previous[key]
-                if trust_tier:
-                    decision["trust_tier"] = coerce_tier(trust_tier).value
-                    decision["trust_reason"] = reason.strip()
-                    decision["trust_decided_by"] = decided_by or workspace_id
-                    decision["trust_decided_at"] = decision["decided_at"]
-                _remember(decision, "full_access" if allow_above_ceiling else "override", "", {
-                    "tier": decision.get("trust_tier", ""), "reason": reason.strip(),
-                    "decided_by": decided_by or workspace_id, "decided_at": decision["decided_at"],
-                })
-                overrides[provider_id] = decision
+                overrides[provider_id] = record
+                current["overrides"] = overrides
+                # What is sent was above the ceiling only because of the grant.
+                self._fit_sent_to_ceiling(current, entry, record)
+                return
+            host = coerce_tier(trust_tier) if trust_tier else _host_tier(entry, previous)
+            if allow_above_ceiling:
+                # A grant that can change nothing is refused rather than
+                # shown as "full access" while nothing more is sent (D-171).
+                if host is TrustTier.D:
+                    raise ValueError(
+                        f"{entry.name} is blocked, so it receives nothing at any level. "
+                        "Raise its trust first."
+                    )
+                if host.rank < entry.derived_tier.rank:
+                    raise ValueError(
+                        f"You trust {entry.name} less than its default. Return it to its "
+                        "default trust before sending it more data."
+                    )
+                if granted.rank <= policy_ceiling_for_tier(host).rank:
+                    raise ValueError(
+                        f"{entry.name} is {host.label}, which already allows {granted.label}. "
+                        "There is nothing to grant."
+                    )
+            decision = ProviderOverride(
+                provider_id=provider_id,
+                trust_tier=coerce_tier(trust_tier) if trust_tier else None,
+                data_policy=coerce_policy(data_policy) if data_policy else None,
+                allow_above_ceiling=bool(allow_above_ceiling),
+                reason=reason.strip(),
+                decided_by=decided_by or workspace_id,
+                decided_at=to_utc_iso(),
+            ).to_dict()
+            # Rebuilt from scratch, this record dropped the trust settings
+            # made on the trust route — a per-model tier vanished when full
+            # access was granted. They are kept unless this call sets them.
+            for key in _TRUST_KEYS:
+                if key in previous:
+                    decision[key] = previous[key]
+            if trust_tier:
+                decision["trust_tier"] = coerce_tier(trust_tier).value
+                decision["trust_reason"] = reason.strip()
+                decision["trust_decided_by"] = decided_by or workspace_id
+                decision["trust_decided_at"] = decision["decided_at"]
+            _remember(decision, "full_access" if allow_above_ceiling else "override", "", {
+                "tier": decision.get("trust_tier", ""), "reason": reason.strip(),
+                "decided_by": decided_by or workspace_id, "decided_at": decision["decided_at"],
+            })
+            overrides[provider_id] = decision
             current["overrides"] = overrides
+            providers = dict(current.get("providers") or {})
+            if allow_above_ceiling and provider_id in providers:
+                # "Send full data anyway" now sends it: what is sent follows
+                # the grant, and stays the owner's to lower on the form.
+                providers[provider_id] = {**providers[provider_id], "data_policy": granted.value}
+                current["providers"] = providers
 
         return self._update_workspace(workspace_id, apply)
+
+    def _fit_sent_to_ceiling(self, current: dict[str, Any], entry: Any, override: dict[str, Any]) -> None:
+        """Bring a connected provider's chosen policy back under its ceiling.
+
+        After a grant is withdrawn, "full" is a choice the owner could not
+        have made without it. The ceiling is taken at the provider's default
+        or the owner's raise, whichever is higher, so a provider the owner
+        has lowered gets its old level back when its trust is restored.
+        """
+        providers = dict(current.get("providers") or {})
+        connected = dict(providers.get(entry.id) or {})
+        if not connected.get("data_policy"):
+            return
+        host = _host_tier(entry, override)
+        limit = policy_ceiling_for_tier(host if host.rank >= entry.derived_tier.rank else entry.derived_tier)
+        chosen = coerce_policy(connected["data_policy"], default=limit)
+        if chosen.rank > limit.rank:
+            connected["data_policy"] = limit.value
+            providers[entry.id] = connected
+            current["providers"] = providers
 
     def set_trust(
         self,
@@ -475,24 +560,34 @@ class WorkspaceAISettingsStore:
             # before the lock could let a concurrent change skip the reason.
             # A ValueError here aborts the update before anything is written.
             overrides = dict(current.get("overrides") or {})
-            record = dict(overrides.get(provider_id) or {"provider_id": provider_id})
+            record = dict(overrides.get(provider_id) or {})
+            record["provider_id"] = provider_id
             if model_id:
                 offered = (dict(current.get("providers") or {}).get(provider_id) or {}).get("model_ids") or []
                 if entry.model(model_id) is None and model_id not in offered:
                     raise ValueError(
                         f"{entry.name} does not offer {model_id}, so it has no trust to change."
                     )
+                standing = dict(record.get("model_tiers") or {}).get(model_id)
+                standing_tier = str((standing.get("tier") if isinstance(standing, dict) else standing) or "")
+                standing_reason = str(standing.get("reason") or "") if isinstance(standing, dict) else ""
+            else:
+                standing_tier = str(record.get("trust_tier") or "")
+                standing_reason = str(record.get("trust_reason") or "")
+            if standing_tier == (wanted.value if wanted else "") and (
+                wanted is None or not reason.strip() or reason.strip() == standing_reason
+            ):
+                # Nothing changes, so nothing is recorded: every such click
+                # used to add a history entry (D-170). The same tier with a
+                # new reason is a new decision, and is kept below.
+                return
             if wanted is not None:
                 if model_id:
                     # DD-65 as amended: never above the host, which sees
                     # every byte — a reason cannot fix that, raising the
                     # provider can. Past the cap from who built it is a
                     # raise; the cap, not the path taken, is the baseline.
-                    host = (
-                        coerce_tier(record["trust_tier"], default=entry.derived_tier)
-                        if record.get("trust_tier")
-                        else entry.derived_tier
-                    )
+                    host = _host_tier(entry, record)
                     if wanted.rank > host.rank:
                         raise ValueError(
                             f"A model cannot be trusted more than the provider that runs it: "
@@ -532,10 +627,7 @@ class WorkspaceAISettingsStore:
                 record["trust_decided_by"] = decision["decided_by"]
                 record["trust_decided_at"] = decision["decided_at"]
             _remember(record, "trust", model_id, decision)
-            if any(record.get(key) for key in ("trust_tier", "model_tiers", "data_policy", "allow_above_ceiling", "trust_history")):
-                overrides[provider_id] = record
-            else:
-                overrides.pop(provider_id, None)
+            overrides[provider_id] = record
             current["overrides"] = overrides
 
         return self._update_workspace(workspace_id, apply)
@@ -559,7 +651,9 @@ class WorkspaceAISettingsStore:
             if bool(record.get("enabled", True))
         )
         overrides = {
-            provider_id: ProviderOverride.from_dict(payload)
+            # Keyed by the provider either way: a record written without its
+            # own `provider_id` must still be this provider's (D-170).
+            provider_id: ProviderOverride.from_dict({**payload, "provider_id": provider_id})
             for provider_id, payload in (document.get("overrides") or {}).items()
             if isinstance(payload, dict)
         }
@@ -611,11 +705,28 @@ class WorkspaceAISettingsStore:
         for entry in self.registry.all():
             record = connected.get(entry.id)
             override = overrides.get(entry.id)
-            tier = coerce_tier(override.get("trust_tier"), default=entry.derived_tier) if override and override.get("trust_tier") else entry.derived_tier
-            resolved_override = ProviderOverride.from_dict({"provider_id": entry.id, **override}) if override else None
+            tier = _host_tier(entry, override or {})
+            resolved_override = ProviderOverride.from_dict({**override, "provider_id": entry.id}) if override else None
+            # What this provider may be sent now, and what it is: the card
+            # showed the config tier's ceiling after the owner changed trust,
+            # and the stored choice even where the ceiling cut it (D-172).
+            ceiling = _host_ceiling(entry, override or {})
+            chosen = (
+                coerce_policy(record["data_policy"], default=default_policy_for_tier(tier))
+                if record and record.get("data_policy")
+                else default_policy_for_tier(tier)
+            )
             payload = entry.to_dict()
             payload.update(
                 {
+                    **{
+                        key: value
+                        for key, value in describe_tier(tier).items()
+                        if key in ("permitted_data_classes", "receives_nothing", "default_policy")
+                    },
+                    "policy_ceiling": ceiling.value,
+                    "sends": (chosen if chosen.rank <= ceiling.rank else ceiling).value,
+                    "grant_active": _grant_active(entry, override or {}),
                     "connected": record is not None,
                     "enabled": bool(record.get("enabled", False)) if record else False,
                     "has_key": bool(self.key_for(workspace_id, entry.id)),

@@ -860,6 +860,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-159 | Call and spend caps are chosen from presets or typed, with 0 meaning the provider's limit or no cap | S-06.02.32 |
 | R-160 | Trust is the owner's to raise or lower, per provider and per model, with a recorded reason to raise | S-06.02.33 |
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
+| R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
@@ -1695,6 +1696,23 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without
   a recorded reason for a raise — target zero.
 - **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
+
+#### S-06.02.35 — Drafts reach a model the owner set up on a screen
+**As an** owner, **I want** the Drafts screen's model option to use a provider
+I can set up from the screens, **so that** "personalise with a model" is not a
+pointer to a form that no longer exists.
+- **Given** the owner's answer to `Q-28`, **when** a model is connected the way
+  it names, **then** the Drafts screen offers it and drafts through it, and the
+  trust tiers, scanner and egress log apply as they do to every other model call
+  (answer 1), or the profile form is back in Settings and lists each profile
+  with whose it is (answer 2).
+- **Given** no model set up for the workspace, **when** Drafts opens, **then**
+  its empty state names the screen that sets one up — a screen that exists.
+- **Given** profiles saved before `DD-68`, **then** the owner can see and
+  confirm or remove each one there, not only through the API.
+- **Dependencies:** `Q-28`. **Size:** M. **Indicator:** empty states pointing
+  at a screen that cannot do what they say — target zero.
+- **Why:** `D-173`, found 2026-09-25 while fixing the second review's findings.
 
 #### S-06.02.34 — Connectors show how much is left
 **As an** owner, **I want** each connected provider to show what I have used

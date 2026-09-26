@@ -469,3 +469,52 @@ describe("a custom cap must be a number (review of S-06.02.32)", () => {
     expect(readCap(null)).toBeNull();
   });
 });
+
+describe("the full-data grant (second review of S-06.02.33)", () => {
+  const base = {
+    name: "NVIDIA NIM",
+    connected: true,
+    effective_tier: "B",
+    default_tier: "B",
+    trust_tier: "B",
+    policy_ceiling: "standard",
+    grant_active: false,
+    override: null
+  };
+
+  it("is offered only where it can change what is sent", async () => {
+    const { canGrantFullData } = await import("./pages/TrustSelect");
+    expect(canGrantFullData(base)).toBe(true);
+    expect(canGrantFullData({ ...base, connected: false })).toBe(false);
+    // Blocked: it receives nothing at any level; raising its trust is the way.
+    expect(canGrantFullData({ ...base, effective_tier: "D", policy_ceiling: "strict" })).toBe(false);
+    // Lowered by the owner: the grant would stand paused.
+    expect(canGrantFullData({ ...base, effective_tier: "C", policy_ceiling: "pseudonymous" })).toBe(false);
+    // Tier A already allows full.
+    expect(canGrantFullData({ ...base, effective_tier: "A", policy_ceiling: "full" })).toBe(false);
+    const granted = { allow_above_ceiling: true, reason: "Signed a DPA" };
+    expect(canGrantFullData({ ...base, override: granted })).toBe(false);
+  });
+
+  it("says whether a grant is in force or paused, and never claims one that is not there", async () => {
+    const { grantLine } = await import("./pages/TrustSelect");
+    const granted = { allow_above_ceiling: true, reason: "Signed a DPA" };
+    expect(grantLine(base)).toBe("");
+    expect(grantLine({ ...base, override: granted, grant_active: true })).toBe(
+      "Full data granted by you: Signed a DPA. Not for models trusted less than NVIDIA NIM's default."
+    );
+    expect(grantLine({ ...base, override: granted, grant_active: false })).toBe(
+      "Full data paused while you trust NVIDIA NIM less than its default: Signed a DPA."
+    );
+  });
+});
+
+describe("what a provider is sent (D-174)", () => {
+  it("offers every level the server has, in order, so a restricted provider's own level is on the list", async () => {
+    const { POLICY_ORDER, policyWord } = await import("./pages/Connectors");
+    // offsetx_apollo_builder/ai/tiers.py DataPolicy, lowest first.
+    expect([...POLICY_ORDER]).toEqual(["strict", "pseudonymous", "minimal", "standard", "full"]);
+    expect(policyWord("pseudonymous")).toBe("Pseudonymous");
+    expect(policyWord("full")).toBe("Full access");
+  });
+});

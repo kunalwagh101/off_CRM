@@ -593,7 +593,9 @@ export type ProviderProfile = {
   priority: number;
   enabled: boolean;
   has_stored_secret: boolean;
-  credential_source: "encrypted_local" | "environment" | "none";
+  credential_source: "encrypted_local" | "none";
+  /** Recorded by the server from the login that saved it; older profiles wait for the owner (D-166). */
+  owner_confirmed: boolean;
   data_policy: "minimal" | "standard" | "full";
   audit_payloads: boolean;
   fallback_strategy: "priority" | "round_robin" | "parallel";
@@ -638,6 +640,7 @@ export type MemoryItem = {
 
 export type ProviderCall = {
   id: string;
+  workspace_id: string;
   profile_id: string;
   provider_type: string;
   model: string;
@@ -761,6 +764,10 @@ export type AIProviderRow = {
   default_tier?: string;
   /** Every model trust can be set for: config's, plus any switched on from the live catalogue. */
   trust_models?: Array<{ id: string; tier: string; default_tier: string }>;
+  /** What is sent now: the stored choice, cut to the ceiling the owner's trust sets. */
+  sends?: string;
+  /** Whether the owner's full-data grant lifts the ceiling now (paused while trust is lowered). */
+  grant_active?: boolean;
 };
 
 export type DiscoveredModel = {

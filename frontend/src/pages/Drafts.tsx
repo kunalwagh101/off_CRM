@@ -31,7 +31,8 @@ export default function Drafts() {
         : Promise.resolve({ items: [], total: 0 }),
     [campaignId, stage, approval]
   );
-  const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles"), []);
+  // The caller's own chain, which is all a draft may use (D-165).
+  const profiles = useResource(() => api.get<Paginated<ProviderProfile>>("/provider-profiles?mine=true"), []);
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
   if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /></>;
@@ -47,7 +48,6 @@ export default function Drafts() {
           provider,
           use_provider_fallback: useFallback,
           provider_profile_ids: [],
-          provider_owner: "",
           fallback_strategy: fallbackStrategy
         },
         idempotencyKey("drafts")

@@ -57,6 +57,17 @@ def _atomic_json(path: Path, payload: Any) -> None:
     os.replace(temporary, path)
 
 
+class ProfileOwnedElsewhere(ValueError):
+    """A confirmed profile belongs to another workspace; it is never taken over."""
+
+
+def _confirmed(profile: dict[str, Any]) -> bool:
+    # Recorded only by the server, from the login that saved the profile.
+    # Older profiles carry an `owner` any caller could type — "default" from
+    # the old form, or any name — so it says nothing about who saved them.
+    return profile.get("owner_confirmed") is True
+
+
 class ProviderProfileStore:
     """Local provider profiles with API keys encrypted outside SQLite."""
 
@@ -131,14 +142,25 @@ class ProviderProfileStore:
         result["has_stored_secret"] = has_secret
         # A named variable is never read (D-154): without a typed key there is none.
         result["credential_source"] = "encrypted_local" if has_secret else "none"
+        result["owner_confirmed"] = _confirmed(profile)
         return result
 
-    def list(self, *, owner: str = "") -> list[dict[str, Any]]:
+    def list(self, *, owner: str = "", include_unconfirmed: bool = False) -> list[dict[str, Any]]:
+        """Every profile, or one workspace's.
+
+        A workspace's list holds only profiles the server recorded as its own,
+        unless `include_unconfirmed` — the install owner looking for strays.
+        """
         with self._lock:
             secrets = self._secrets()
             items = self._profiles()
             if owner:
-                items = [item for item in items if str(item.get("owner", "")) == owner]
+                items = [
+                    item
+                    for item in items
+                    if str(item.get("owner", "")) == owner
+                    and (include_unconfirmed or _confirmed(item))
+                ]
             items.sort(
                 key=lambda item: (
                     int(item.get("priority", 100)),
@@ -147,11 +169,16 @@ class ProviderProfileStore:
             )
             return [self._public(item, secrets) for item in items]
 
-    def upsert(self, values: dict[str, Any], *, api_key: str = "") -> dict[str, Any]:
-        with self._lock:
-            return self._upsert(values, api_key=api_key)
+    def upsert(self, values: dict[str, Any], *, owner: str, api_key: str = "") -> dict[str, Any]:
+        """Save a profile for `owner`, the workspace the server decided on.
 
-    def _upsert(self, values: dict[str, Any], *, api_key: str = "") -> dict[str, Any]:
+        Never the request's own `owner`: that let any login label a profile
+        as someone else's (D-165, D-166).
+        """
+        with self._lock:
+            return self._upsert(values, owner=owner, api_key=api_key)
+
+    def _upsert(self, values: dict[str, Any], *, owner: str, api_key: str = "") -> dict[str, Any]:
         provider_type = str(values.get("provider_type", "")).strip().lower()
         if provider_type not in PROFILE_TYPES:
             raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -164,7 +191,8 @@ class ProviderProfileStore:
         now = to_utc_iso()
         profile = {
             "id": profile_id,
-            "owner": str(values.get("owner") or "default").strip(),
+            "owner": str(owner or "").strip(),
+            "owner_confirmed": True,
             "name": str(values.get("name") or "").strip(),
             "provider_type": provider_type,
             "model": str(values.get("model") or "").strip(),
@@ -200,12 +228,34 @@ class ProviderProfileStore:
             self._write_secrets(secrets)
         return self._public(profile, secrets)
 
-    def owner_of(self, profile_id: str) -> str | None:
+    def ownership(self, profile_id: str) -> tuple[str, bool] | None:
+        """(owner, whether the server recorded it), or None when absent."""
         with self._lock:
             for item in self._profiles():
                 if item.get("id") == profile_id:
-                    return str(item.get("owner", ""))
+                    return str(item.get("owner", "")), _confirmed(item)
         return None
+
+    def confirm(self, profile_id: str, *, owner: str) -> dict[str, Any]:
+        """Record `owner` for a profile saved before ownership was (D-166).
+
+        Only for one nobody has claimed: a confirmed profile of another
+        workspace stays theirs, key and all.
+        """
+        with self._lock:
+            profiles = self._profiles()
+            profile = next((item for item in profiles if item.get("id") == profile_id), None)
+            if profile is None:
+                raise KeyError("Provider profile not found")
+            current = str(profile.get("owner", ""))
+            if _confirmed(profile) and current != owner:
+                raise ProfileOwnedElsewhere(
+                    f"This profile belongs to workspace {current}. It stays theirs; "
+                    "remove it instead if it should not exist."
+                )
+            profile.update(owner=owner, owner_confirmed=True, updated_at=to_utc_iso())
+            _atomic_json(self.profile_path, profiles)
+            return self._public(profile, self._secrets())
 
     def delete(self, profile_id: str) -> None:
         with self._lock:
@@ -239,17 +289,27 @@ class ProviderProfileStore:
     def router(
         self,
         *,
-        owner: str = "",
+        owner: str,
         profile_ids: Iterable[str] = (),
         strategy: str = "",
         audit_callback: Any | None = None,
+        may_confirm: bool = False,
     ) -> FallbackAIProvider:
+        """One workspace's chain. There is no "every profile" chain: the install
+        owner's used to be one, so a client's planted profile received the
+        owner's contacts and wrote the owner's drafts (D-165)."""
+        if not str(owner or "").strip():
+            raise ValueError("A fallback chain belongs to one workspace; none was named")
         with self._lock:
             selected_ids = set(profile_ids)
-            profiles = self._profiles()
-            profiles = [item for item in profiles if bool(item.get("enabled", True))]
-            if owner:
-                profiles = [item for item in profiles if str(item.get("owner", "")) == owner]
+            everything = self._profiles()
+            profiles = [
+                item
+                for item in everything
+                if bool(item.get("enabled", True))
+                and _confirmed(item)
+                and str(item.get("owner", "")) == owner
+            ]
             if selected_ids:
                 profiles = [item for item in profiles if str(item.get("id")) in selected_ids]
             profiles.sort(
@@ -259,6 +319,21 @@ class ProviderProfileStore:
                 )
             )
             secrets = self._secrets()
+            unclaimed = [str(item.get("name") or item.get("id")) for item in everything if not _confirmed(item)]
+        if not profiles:
+            if may_confirm and unclaimed:
+                raise ProviderError(
+                    "Your provider profiles were saved before each workspace kept its own, "
+                    "so none is used until you confirm it is yours: "
+                    + ", ".join(unclaimed[:3])
+                    + (" and more" if len(unclaimed) > 3 else "")
+                    + ". Confirm each one you set up (POST /api/v1/provider-profiles/<id>/confirm) "
+                    "and remove the rest, or generate with local templates."
+                )
+            raise ProviderError(
+                "No provider profile is set up for your workspace, so there is nothing to "
+                "personalise with. Generate with local templates instead."
+            )
         providers: list[tuple[str, Any]] = []
         configuration_errors: list[str] = []
         for profile in profiles:

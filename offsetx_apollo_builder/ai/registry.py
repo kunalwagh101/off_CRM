@@ -407,7 +407,8 @@ class ProviderOverride:
     decided_by: str = ""
     decided_at: str = ""
     #: The owner's tier for single models under this provider (S-06.02.33).
-    #: One wins over `trust_tier` for that model, in both directions (DD-65).
+    #: It stands in for the origin cap, and like it never lifts a model above
+    #: its host (DD-65, amended).
     model_tiers: dict[str, TrustTier] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -648,6 +649,21 @@ class ProviderRegistry:
             tier = host if limit is None or limit.rank >= host.rank else limit
 
         ceiling = policy_ceiling_for_tier(tier)
+        # The owner's full-data grant (BUILD_STATE §5.1, DD-67) lifts the
+        # ceiling only for a model trusted at its provider's default or higher.
+        # Judged against the default, not the host: "tier == host" handed the
+        # grant to a capped model the moment the owner lowered its host to
+        # meet it, so lowering trust raised what was sent (D-167).
+        if (
+            override
+            and override.allow_above_ceiling
+            and known
+            and tier is not TrustTier.D
+            and tier.rank >= entry.derived_tier.rank
+        ):
+            granted = override.data_policy or DataPolicy.FULL
+            if granted.rank > ceiling.rank:
+                ceiling = granted
         if requested_policy is None:
             policy = (
                 override.data_policy
@@ -656,11 +672,7 @@ class ProviderRegistry:
             )
         else:
             policy = coerce_policy(requested_policy, default=default_policy_for_tier(tier))
-
-        # A full-access grant is for the provider. It never lifts what a model
-        # held below its host — by the owner or by who built it — may be sent.
-        allow_above = bool(override and override.allow_above_ceiling) and tier == host
-        if not allow_above and policy.rank > ceiling.rank:
+        if policy.rank > ceiling.rank:
             policy = ceiling
 
         return ResolvedProvider(

@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **The second fresh-context review, closed** (2026-09-25, `S-06.02.31`,
+  `S-06.02.33`). Six findings, each fixed with a test that failed first.
+  - **Your drafts could run through a client's profile** (`D-165`, high). The
+    install owner's "automatic fallback" used every workspace's provider
+    profiles, so a client could add one at the top of the list, pointed at its
+    own server, and receive your contacts. A draft now uses only the caller's
+    own profiles, and a request can no longer choose whose.
+  - **Whose a profile is, is now the server's record** (`D-166`, `DD-68`). It
+    was a label the request supplied — "default" from the old form — so a
+    workspace named `default` owned your profiles and key. Profiles saved
+    before this wait, in no draft chain, until you confirm them:
+    `POST /api/v1/provider-profiles/<id>/confirm` as the install owner. The
+    `owner` field and the draft's `provider_owner` are refused now, with a
+    sentence saying the server decides.
+  - **The full-data grant works, and lowering trust never raises what is
+    sent** (`D-167`, `D-171`, `DD-67`). The grant never sent more — Connect
+    ignored it — and "Allow anyway…" sat only on blocked providers, which
+    receive nothing at any level. It is now **Send full data to … anyway…**
+    under Change settings, where it can change something; it reaches only
+    models trusted at the provider's default or higher, and it pauses while
+    the provider is lowered. Before, lowering NVIDIA handed the grant to the
+    Chinese-built model capped there.
+  - **Smaller**: the provider call log shows a client only its own calls
+    (`D-168`); disconnect takes the key in the same step as the connection
+    (`D-169`); a click that changes nothing records nothing, and trust reasons
+    are capped at 500 characters (`D-170`); the card's limit and "Sends" follow
+    your trust, not the config default (`D-172`).
+  - **Found, not fixed**: the Drafts screen's model option points at a profile
+    form no screen has had since providers moved to Connectors (`D-173`).
+    Which way drafts should go is your call (`Q-28`, `S-06.02.35`).
+
 - **Trust is yours to change, per provider and per model** (2026-09-25,
   `S-06.02.33`). Every provider card has a trust choice, and "Trust per model"
   lists each model. Lowering is instant; raising asks why and records it with

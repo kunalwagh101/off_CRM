@@ -226,7 +226,7 @@ def test_full_workspace_restore_relocates_assets_and_preserves_secrets(tmp_path)
         asset = settings.data_dir / 'image_assets' / 'test.png'
         asset.write_bytes(b'unit-test asset; live codec evidence runs separately')
         app.state.image_store.connection.execute("INSERT INTO image_assets(id,brief_id,campaign_id,path,created_at) VALUES(?,?,?,?,?)", ('asset', 'brief', cid, str(asset), '2026-09-08'))
-        app.state.provider_profiles.upsert({'id': 'restore-profile', 'name': 'Production provider', 'provider_type': 'openai', 'model': 'synthetic'}, api_key='synthetic-offline-test-key')
+        app.state.provider_profiles.upsert({'id': 'restore-profile', 'name': 'Production provider', 'provider_type': 'openai', 'model': 'synthetic'}, owner='local', api_key='synthetic-offline-test-key')
         signing_key = (settings.data_dir / 'email_unsubscribe.key').read_bytes()
         content = _export(client)
     target_settings = _settings(tmp_path / 'recovered')

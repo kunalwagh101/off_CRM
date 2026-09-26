@@ -7,15 +7,15 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-25, on `develop` at `730b0df`): **2435 Python passed, 0 failed**,
-4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
+Tests (2026-09-26, on `develop` with the second review's fixes): **2469 Python
+passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **158 passed** and a clean production build. Board verifier
+clean. Frontend **162 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -40,7 +40,7 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
 
-## 2026-09-25 — live bugs fixed; the owner's keys, limits, trust and storage decisions
+## 2026-09-25 — live bugs fixed; the owner's keys, limits, trust and storage decisions; two reviews
 
 **Fixed from the live app** (each test-first, walked in a real browser):
 NVIDIA's reasoning model refused every call (`D-147`); Render deploys timed
@@ -57,9 +57,33 @@ hid why (`D-149`, `D-150`).
   phases). **Not built.** Until phase 1 (`S-06.03.02`) lands, everything on
   Render — keys included — is still wiped on every deploy.
 
-**Built, in IN_REVIEW pending a fresh-context review:** `S-06.02.31` (keys
-only from the app), `S-06.02.32` (limit presets), `S-06.02.33` (trust per
-provider and model; also `D-152`, `D-153`).
+**Built, in IN_REVIEW:** `S-06.02.31` (keys only from the app), `S-06.02.32`
+(limit presets), `S-06.02.33` (trust per provider and model; also `D-152`,
+`D-153`). Two fresh-context reviews have run. The first found `D-154` to
+`D-164`, two critical, in older code: a draft request or a profile could send
+any server environment variable to any URL, and a client login could re-point
+the owner's profile to receive the owner's key. The second found `D-165` to
+`D-170`: the owner's fallback drafts used every workspace's profiles (high),
+profile ownership was a label the request typed, lowering a provider
+re-applied the full-data grant, and the call log was unscoped. Fixing those
+found `D-171` — the full-data grant never sent more, older than this session —
+and `D-172`. All fixed test-first. DONE waits for a look at these fixes by a
+context that did not write them.
+
+**How profiles and trust work now — read before touching either:**
+- A provider profile's owner is recorded by the server from the login — the
+  install owner's is `local`, never a typed label. A draft uses only the
+  caller's own profiles. Profiles saved before this wait for the owner to
+  confirm them (`DD-68`, `POST /api/v1/provider-profiles/<id>/confirm`).
+- The full-data grant lifts the ceiling only for a known model trusted at its
+  provider's default tier or higher; lowering the provider pauses it (`DD-67`).
+  The provider-level rule is `_host_tier`, `_grant_active` and `_host_ceiling`
+  in `ai/workspace.py`; the per-model rule is in `ProviderRegistry.resolve`.
+  Change one, change the other.
+
+**Found, not fixed:** `D-173` — Drafts reach a model only through provider
+profiles, and no screen adds one since providers moved to Connectors. `Q-28`
+asks which way drafts should go; `S-06.02.35` is filed for either answer.
 
 **Planned, not built:** `S-06.02.34` — show what is left per provider. Checked
 on 2026-09-25: NVIDIA reports nothing; OpenRouter and DeepSeek do. A model

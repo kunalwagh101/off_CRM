@@ -16,7 +16,7 @@ Tests (2026-09-28, on `develop` with the sixth check's fixes): **2501 Python
 passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
 clean. Frontend **171 passed** and a clean production build. Board verifier
-OK with every DONE story's evidence command re-run (2026-09-25).
+OK with every DONE story's evidence command re-run (2026-09-28).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.

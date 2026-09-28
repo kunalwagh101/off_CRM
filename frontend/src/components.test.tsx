@@ -554,7 +554,7 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     // A label proves nothing: anyone's saves were labelled "default" (D-185).
     expect(html).toContain('aria-label="API key of Primary OpenAI"');
     expect(html).toContain('type="password"');
-    expect(html).toContain('aria-label="Confirm Primary OpenAI"');
+    expect(html).toContain('aria-label="Confirm Primary OpenAI as yours"');
     expect(html).toContain('aria-label="Remove Primary OpenAI"');
     expect(html.match(/Confirm Primary OpenAI/g)?.length).toBe(1);
   });
@@ -573,7 +573,10 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     const { default: LegacyProfiles } = await import("./pages/LegacyProfiles");
     const html = renderToStaticMarkup(
       <LegacyProfiles
-        items={[{ ...old, confirm_to: "local" }, { ...old, id: "b", name: "Beta's", owner: "beta", confirm_to: "beta" }]}
+        items={[
+          { ...old, confirm_to: "local", confirm_options: ["local"] },
+          { ...old, id: "b", name: "Beta profile", owner: "beta", confirm_to: "beta", confirm_options: ["beta", "local"] }
+        ]}
         busy=""
         onConfirm={() => undefined}
         onRemove={() => undefined}
@@ -581,6 +584,32 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     );
     expect(html).toContain("Confirm as yours");
     expect(html).toContain("Confirm for workspace beta");
+    // Screen readers hear the destination too: the label overrides the text (D-195).
+    expect(html).toContain('aria-label="Confirm Primary OpenAI as yours"');
+    expect(html).toContain('aria-label="Confirm Beta profile for workspace beta"');
+    // The key proves it yours, so "as yours" is always a choice (D-194).
+    expect(html).toContain('aria-label="Confirm Beta profile as yours"');
+    expect(html.match(/Confirm Primary OpenAI/g)?.length).toBe(1);
+  });
+
+  it("sends where the button pressed says, in any browser, and Enter never chooses between two (D-197)", async () => {
+    const { default: LegacyProfiles, enterDestination } = await import("./pages/LegacyProfiles");
+    const html = renderToStaticMarkup(
+      <LegacyProfiles
+        items={[{ ...old, id: "b", name: "Beta profile", owner: "beta", confirm_to: "beta", confirm_options: ["beta", "local"] }]}
+        busy=""
+        onConfirm={() => undefined}
+        onRemove={() => undefined}
+      />
+    );
+    // Each button carries its own destination: not a submit button, so no
+    // browser has to report which one was pressed (Safari before 15.4 does not).
+    for (const label of ["Confirm Beta profile for workspace beta", "Confirm Beta profile as yours"]) {
+      expect(html).toMatch(new RegExp(`<button[^>]*type="button"[^>]*aria-label="${label}"`));
+    }
+    // Enter in the key box names no button: it confirms only where there is no choice.
+    expect(enterDestination(["local"])).toBe("local");
+    expect(enterDestination(["beta", "local"])).toBe("");
   });
 
   it("shows nothing once every profile is settled", async () => {

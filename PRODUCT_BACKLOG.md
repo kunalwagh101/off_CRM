@@ -861,6 +861,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-160 | Trust is the owner's to raise or lower, per provider and per model, with a recorded reason to raise | S-06.02.33 |
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
 | R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
+| R-164 | A login that will act as the install owner is made so on purpose, never by picking a workspace name | S-06.02.36 |
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
@@ -1696,6 +1697,19 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without
   a recorded reason for a raise — target zero.
 - **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
+
+#### S-06.02.36 — A second owner login is made on purpose
+**As an** install owner, **I want** a login in workspace `local` to be created
+only when I say it should act as the owner, **so that** naming a workspace
+never hands a colleague or client the owner's powers.
+- **Given** the workspace form or API, **when** the id `local` is chosen,
+  **then** the login is created only with an explicit owner choice, and the
+  answer says what an owner login can do.
+- **Given** existing logins in `local`, **then** they keep working.
+- **Dependencies:** none. **Size:** S. **Indicator:** owner logins created
+  without an owner choice — target zero.
+- **Why:** `D-196`, from the sixth check, 2026-09-28. `DD-59` accepted it as a
+  cost; the owner decides whether it stays one.
 
 #### S-06.02.35 — Drafts reach a model the owner set up on a screen
 **As an** owner, **I want** the Drafts screen's model option to use a provider

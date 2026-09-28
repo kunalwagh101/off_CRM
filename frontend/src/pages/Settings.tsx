@@ -177,14 +177,24 @@ export default function Settings() {
     }
   }
 
-  async function confirmProvider(profile: Pick<ProviderProfile, "id" | "name">, apiKey: string) {
+  async function confirmProvider(profile: Pick<ProviderProfile, "id" | "name">, apiKey: string, destination: string) {
     if (!apiKey.trim()) {
       notify(`Type the API key saved in ${profile.name}. It proves the profile is yours.`, "warning");
       return;
     }
+    if (!destination) {
+      // Enter in the key box, with two places it could go (D-197).
+      notify(`${profile.name} can go to you or to its workspace. Press the button for the one you want.`, "warning");
+      return;
+    }
     setBusy(`provider-confirm-${profile.id}`);
     try {
-      const saved = await api.post<ProviderProfile>(`/provider-profiles/${profile.id}/confirm`, { api_key: apiKey.trim() });
+      // The button pressed names where it goes; the server takes only a
+      // destination it offers for this profile (D-194).
+      const saved = await api.post<ProviderProfile>(`/provider-profiles/${profile.id}/confirm`, {
+        api_key: apiKey.trim(),
+        confirm_to: destination
+      });
       notify(
         saved.owner === "local"
           ? `${profile.name} is confirmed as yours. Drafts can use it now.`

@@ -294,7 +294,7 @@ def test_a_profile_saved_before_ownership_is_in_no_chain_until_the_owner_confirm
     assert _sent_to(seen, ATTACKER) == []
 
     confirmed = client.post(f"/api/v1/provider-profiles/{pid}/confirm", headers=ADMIN,
-                            json={"api_key": "sk-legacy-" + "l" * 20})
+                            json={"api_key": "sk-legacy-" + "l" * 20, "confirm_to": "local"})
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()["owner"] == "local" and confirmed.json()["owner_confirmed"] is True
     assert [item["id"] for item in client.get(
@@ -390,7 +390,7 @@ def test_confirming_returns_a_profile_to_the_workspace_it_was_saved_for(client, 
     URL into the owner's chain; and beta could never have it back."""
     _legacy_rows(client, [("beta-old", "beta", "Fast", ATTACKER)])
     confirmed = client.post("/api/v1/provider-profiles/beta-old/confirm", headers=ADMIN,
-                            json={"api_key": "sk-beta-old-" + "k" * 20})
+                            json={"api_key": "sk-beta-old-" + "k" * 20, "confirm_to": "beta"})
     assert confirmed.status_code == 200, confirmed.text
     assert (confirmed.json()["owner"], confirmed.json()["owner_confirmed"]) == ("beta", True)
     assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
@@ -404,7 +404,7 @@ def test_a_profile_labelled_for_no_workspace_is_the_owners_once_its_key_is_prove
     and the refusal's next step — add it again — has no screen."""
     _legacy_rows(client, [("typed-old", "Kunal", "Mine", OWNER_URL)])
     confirmed = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN,
-                            json={"api_key": "sk-typed-old-" + "k" * 20})
+                            json={"api_key": "sk-typed-old-" + "k" * 20, "confirm_to": "local"})
     assert confirmed.status_code == 200, confirmed.text
     assert client.app.state.provider_profiles.ownership("typed-old") == ("local", True)
 
@@ -426,7 +426,7 @@ def test_confirm_goes_by_the_profiles_label_whoever_the_cookie_names(client):
     _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL)])
     _login(client, "beta")
     answer = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN,
-                         json={"api_key": "sk-owner-old-" + "k" * 20})
+                         json={"api_key": "sk-owner-old-" + "k" * 20, "confirm_to": "local"})
     assert answer.status_code == 200, answer.text
     assert client.app.state.provider_profiles.ownership("owner-old") == ("local", True)
 
@@ -465,7 +465,7 @@ def test_confirming_needs_the_key_the_profile_holds(client, seen):
     assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
     assert _sent_to(seen, ATTACKER) == []
     proved = client.post("/api/v1/provider-profiles/beta-api/confirm", headers=ADMIN,
-                         json={"api_key": "sk-beta-api-" + "k" * 20})
+                         json={"api_key": "sk-beta-api-" + "k" * 20, "confirm_to": "local"})
     assert proved.status_code == 200, proved.text
 
 
@@ -498,7 +498,7 @@ def test_the_owners_default_profile_stays_the_owners_whatever_a_workspace_is_cal
     listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"]
     assert [(item["id"], item["confirm_to"]) for item in listed] == [("owner-old", "local")]
     confirmed = client.post("/api/v1/provider-profiles/owner-old/confirm", headers=ADMIN,
-                            json={"api_key": "sk-owner-old-" + "k" * 20})
+                            json={"api_key": "sk-owner-old-" + "k" * 20, "confirm_to": "local"})
     assert confirmed.status_code == 200, confirmed.text
     assert client.app.state.provider_profiles.ownership("owner-old") == ("local", True)
     _login(client, "default")
@@ -528,3 +528,36 @@ def test_a_profile_with_no_key_is_refused_for_the_true_reason(client):
     detail = refused.json()["detail"]
     assert "nothing proves it is yours" in detail
     assert "server variable" not in detail and "nothing can use it" not in detail
+
+
+# ── Sixth check of 2026-09-28: Confirm goes where the list said ────────────
+
+
+def test_confirm_goes_only_where_the_button_said(client):
+    """D-194: the list worked out where Confirm would put a profile, and the
+    click worked it out again. With a workspace created in between, a profile
+    shown as "Confirm as yours" went to that workspace, key and all. The click
+    now names its destination, and only a destination the list offers is taken:
+    "as yours" always — the key proves it — and a workspace its label names."""
+    _legacy_rows(client, [("typed-old", "kunal", "Mine", OWNER_URL)])
+    listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"][0]
+    assert (listed["confirm_to"], listed["confirm_options"]) == ("local", ["local"])
+    assert client.post("/api/v1/workspaces", headers=ADMIN, json={
+        "username": "kunal-user", "workspace_id": "kunal", "password": "kunal-password-1"}).status_code == 201
+    key = "sk-typed-old-" + "k" * 20
+    unnamed = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN, json={"api_key": key})
+    assert unnamed.status_code == 409
+    elsewhere = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN,
+                            json={"api_key": key, "confirm_to": "beta"})
+    assert elsewhere.status_code == 409
+    assert client.app.state.provider_profiles.ownership("typed-old") == ("kunal", False)
+    stale = client.post("/api/v1/provider-profiles/typed-old/confirm", headers=ADMIN,
+                        json={"api_key": key, "confirm_to": "local"})
+    assert stale.status_code == 200, stale.text
+    assert client.app.state.provider_profiles.ownership("typed-old") == ("local", True)
+
+
+def test_a_profile_saved_for_a_client_can_go_back_to_it_or_be_the_owners(client):
+    _legacy_rows(client, [("beta-old", "beta", "Fast", ATTACKER)])
+    listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"][0]
+    assert (listed["confirm_to"], listed["confirm_options"]) == ("beta", ["beta", "local"])

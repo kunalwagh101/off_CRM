@@ -7,15 +7,15 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-26
+Last updated: 2026-09-28
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-26, on `develop` with the fifth check's fixes): **2499 Python
+Tests (2026-09-28, on `develop` with the sixth check's fixes): **2501 Python
 passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **170 passed** and a clean production build. Board verifier
+clean. Frontend **171 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-25).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -57,9 +57,9 @@ hid why (`D-149`, `D-150`).
   phases). **Not built.** Until phase 1 (`S-06.03.02`) lands, everything on
   Render — keys included — is still wiped on every deploy.
 
-**Built, in IN_REVIEW:** `S-06.02.31` (keys only from the app), `S-06.02.32`
-(limit presets), `S-06.02.33` (trust per provider and model; also `D-152`,
-`D-153`). Two fresh-context reviews have run. The first found `D-154` to
+**Built, DONE on 2026-09-28:** `S-06.02.31` (keys only from the app),
+`S-06.02.32` (limit presets), `S-06.02.33` (trust per provider and model; also
+`D-152`, `D-153`). Six fresh-context checks ran. The first found `D-154` to
 `D-164`, two critical, in older code: a draft request or a profile could send
 any server environment variable to any URL, and a client login could re-point
 the owner's profile to receive the owner's key. The second found `D-165` to
@@ -70,8 +70,15 @@ found `D-171` — the full-data grant never sent more, older than this session �
 and `D-172` to `D-175`. The third and fourth reviews (2026-09-26) found
 nothing critical or high: `D-176` to `D-189`, four medium; the fourth
 reviewer's look at its own findings' fixes found `D-190` to `D-193`, one of
-them a regression in those fixes. All fixed test-first. DONE waits for one
-last look at the `D-190` fixes by a context that did not write them.
+them a regression in those fixes. The sixth check (2026-09-28) looked at those
+fixes and found `D-194`, medium: the list and the click each worked out where a
+waiting profile would go, so a workspace created in between could receive the
+owner's key; and `D-195`, a screen-reader label that hid the destination. Both
+fixed test-first; those two fixes were checked by tests and a real browser walk,
+not by a seventh review. It also found `D-196`, older than this work — filed.
+Re-reading the `D-194` fix before pushing found `D-197`: Enter in the key box,
+or a browser that does not report the pressed button, took the first button —
+the client workspace. Fixed test-first and walked in real Chromium.
 
 **How profiles and trust work now — read before touching either:**
 - A provider profile's owner is recorded by the server from the login — the
@@ -87,13 +94,19 @@ last look at the `D-190` fixes by a context that did not write them.
   answer per switched-on model (`describe`, `_grant_refusal` in
   `ai/workspace.py`). Change the rule in one place.
 - Old profiles are settled in Settings, "Provider profiles to confirm":
-  confirming takes the API key the profile holds — its label proves nothing —
-  and gives it back to a client workspace its label names, else to the owner
-  (`DD-68`). A grant only ever lifts what is sent (`DD-67`).
+  confirming takes the API key the profile holds — its label proves nothing.
+  The list offers each one's destinations (`confirm_options`: the owner
+  always, plus the client workspace its label names) and the pressed button
+  sends one as `confirm_to`, by its own click; Enter confirms only a profile
+  with one place to go. The server takes only an offered one, worked out
+  again at the click (`DD-68`, `D-194`, `D-197`). A grant only ever lifts what
+  is sent (`DD-67`).
 
 **Found, not fixed:** `D-173` — Drafts reach a model only through provider
 profiles, and no screen adds one since providers moved to Connectors. `Q-28`
 asks which way drafts should go; `S-06.02.35` is filed for either answer.
+`D-196` — a login made in workspace `local` acts as the install owner, and
+nothing asks whether that was meant; `S-06.02.36`.
 
 **Planned, not built:** `S-06.02.34` — show what is left per provider. Checked
 on 2026-09-25: NVIDIA reports nothing; OpenRouter and DeepSeek do. A model

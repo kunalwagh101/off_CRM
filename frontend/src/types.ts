@@ -596,8 +596,10 @@ export type ProviderProfile = {
   credential_source: "encrypted_local" | "none";
   /** Recorded by the server from the login that saved it; older profiles wait for the owner (D-166). */
   owner_confirmed: boolean;
-  /** For a waiting profile: the workspace Confirm will put it in — "local" is the owner (D-190). */
+  /** For a waiting profile: where Confirm suggests it goes — "local" is the owner (D-190). */
   confirm_to?: string;
+  /** For a waiting profile: every place Confirm may put it, the suggestion first (D-194). */
+  confirm_options?: string[];
   data_policy: "minimal" | "standard" | "full";
   audit_payloads: boolean;
   fallback_strategy: "priority" | "round_robin" | "parallel";

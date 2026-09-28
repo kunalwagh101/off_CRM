@@ -281,16 +281,18 @@ class ProviderProfileStore:
         profile_id: str,
         *,
         caller: str,
-        owner_for: Callable[[str], str],
+        options_for: Callable[[str], list[str]],
         api_key: str,
+        expect: str,
     ) -> dict[str, Any]:
         """Record whose a profile saved before ownership was is (D-166, D-177).
 
         The caller proves it by typing the key the profile holds: its label
         proves nothing, as every login's saves were once labelled "default"
-        (D-185). `owner_for` turns the label into the workspace it goes to, so
-        confirming never moves a profile into the caller's chain by default. A
-        confirmed profile of another workspace stays theirs, key and all.
+        (D-185). It goes where the caller names — `expect`, the button pressed
+        — and only if `options_for` offers that for the profile's label, so a
+        page loaded before a workspace was made cannot send it elsewhere
+        (D-194). A confirmed profile of another workspace stays theirs.
         """
         with self._lock:
             profiles = self._profiles()
@@ -319,7 +321,14 @@ class ProviderProfileStore:
                     "That is not the key this profile holds, so off_CRM cannot tell it is yours. "
                     "Type the API key saved in it, or remove it if you did not set it up."
                 )
-            profile.update(owner=owner_for(current), owner_confirmed=True, updated_at=to_utc_iso())
+            options = options_for(current)
+            if expect not in options:
+                choices = " or ".join("you" if item == "local" else f"workspace {item}" for item in options)
+                raise ProfileOwnedElsewhere(
+                    f"This profile can go to {choices}. Reload the page and press the button "
+                    "for where it should go."
+                )
+            profile.update(owner=expect, owner_confirmed=True, updated_at=to_utc_iso())
             _atomic_json(self.profile_path, profiles)
             return self._public(profile, secrets)
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **The sixth check, closed** (2026-09-28). Confirm now goes exactly where the
+  button you pressed says (`D-194`): a waiting profile can always be confirmed
+  as yours — its key proves it — or, if its label names a client workspace,
+  returned to that workspace; each button says which, for screen readers too
+  (`D-195`). Each button sends its own choice, so older browsers get it right,
+  and Enter in the key box no longer picks for you when there are two
+  (`D-197`). Filed, not fixed: a login made in workspace `local` acts as the
+  install owner with nothing asking for that (`D-196`, `S-06.02.36`).
+  `S-06.02.31`, `S-06.02.32` and `S-06.02.33` are DONE. The last two fixes were
+  checked by tests and a real browser walk, not by another fresh review.
+
 - **The fifth check, closed** (2026-09-26). The fourth reviewer confirmed its
   six findings fixed, and found one regression in the fix: with a client
   workspace named "default", confirming your own old "default" profile gave it

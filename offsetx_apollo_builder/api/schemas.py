@@ -317,6 +317,9 @@ class ProviderProfileConfirm(StrictModel):
     # The key the profile holds: typing it proves the profile is the
     # confirmer's; its old label proves nothing (D-185).
     api_key: str = Field(default="", max_length=10000)
+    # Where the list said Confirm would put it. Checked again as it is
+    # written, so a stale page cannot send it anywhere else (D-194).
+    confirm_to: str = Field(default="", max_length=64)
 
 
 class ProviderHealthRequest(StrictModel):

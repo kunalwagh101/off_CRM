@@ -7,7 +7,7 @@ import type { ProviderProfile } from "../types";
 type Row = Pick<
   ProviderProfile,
   "id" | "owner" | "name" | "provider_type" | "model" | "base_url" | "has_stored_secret" | "owner_confirmed"
-> & { confirm_to?: string };
+> & { confirm_to?: string; confirm_options?: string[] };
 
 /** What the Drafts screen says under its model option. It pointed at a
  * Settings form that no longer exists (D-173), and could not say that the
@@ -23,6 +23,16 @@ export function draftsProfileNote(total: number, waiting: number): string {
   return "Personalising with a model needs a provider profile, and no screen adds one yet. Drafts use local templates until then.";
 }
 
+/** Where Enter in the key box confirms a profile: the one place it can go,
+ * or nowhere when there is a choice. Enter presses no button of its own, and
+ * letting the first one choose sent the owner's key to a client (D-197). */
+export function enterDestination(destinations: string[]): string {
+  return destinations.length === 1 ? destinations[0] : "";
+}
+
+const typedKey = (form: HTMLFormElement | null) =>
+  (form?.elements.namedItem("api_key") as HTMLInputElement | null)?.value ?? "";
+
 /** Confirming takes the key the profile holds: its label proves nothing —
  * every login's saves were once labelled "default" — and the key is what a
  * client's planted profile cannot give you (D-185). A profile labelled for a
@@ -35,14 +45,22 @@ export default function LegacyProfiles({
 }: {
   items: Row[];
   busy: string;
-  onConfirm: (profile: Row, apiKey: string) => void;
+  onConfirm: (profile: Row, apiKey: string, destination: string) => void;
   onRemove: (profile: Row) => void;
 }) {
   const waiting = items.filter((item) => !item.owner_confirmed);
   if (!waiting.length) return null;
   return (
     <ul className="legacy-profiles">
-      {waiting.map((item) => (
+      {waiting.map((item) => {
+        // One button per place it may go, each saying where, and heard by
+        // screen readers too: a button's label replaces its text (D-190,
+        // D-195). The one pressed is the one sent (D-194) — by its own
+        // click, as not every browser reports a form's pressed button (D-197).
+        const destinations = item.confirm_options ?? [item.confirm_to ?? "local"];
+        const words = (destination: string) =>
+          destination === "local" ? "as yours" : `for workspace ${destination}`;
+        return (
         <li key={item.id}>
           <div className="legacy-profile-facts">
             <strong>{item.name}</strong>
@@ -58,8 +76,7 @@ export default function LegacyProfiles({
                 className="legacy-profile-confirm"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const field = event.currentTarget.elements.namedItem("api_key") as HTMLInputElement | null;
-                  onConfirm(item, field?.value ?? "");
+                  onConfirm(item, typedKey(event.currentTarget), enterDestination(destinations));
                 }}
               >
                 <input
@@ -69,15 +86,18 @@ export default function LegacyProfiles({
                   placeholder="Its API key"
                   aria-label={`API key of ${item.name}`}
                 />
-                {/* Where it will go, before the click: the server's own answer (D-190). */}
-                <Button
-                  type="submit"
-                  tone="ghost"
-                  aria-label={`Confirm ${item.name}`}
-                  busy={busy === `provider-confirm-${item.id}`}
-                >
-                  {item.confirm_to && item.confirm_to !== "local" ? `Confirm for workspace ${item.confirm_to}` : "Confirm as yours"}
-                </Button>
+                {destinations.map((destination) => (
+                  <Button
+                    key={destination}
+                    type="button"
+                    tone="ghost"
+                    aria-label={`Confirm ${item.name} ${words(destination)}`}
+                    busy={busy === `provider-confirm-${item.id}`}
+                    onClick={(event) => onConfirm(item, typedKey(event.currentTarget.form), destination)}
+                  >
+                    Confirm {words(destination)}
+                  </Button>
+                ))}
               </form>
             ) : (
               // Without a key nothing proves whose it is; some types need none,
@@ -94,7 +114,8 @@ export default function LegacyProfiles({
             </Button>
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

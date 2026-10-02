@@ -814,14 +814,22 @@ class AgentRoutinePrivacyAdapter:
 
 
 class WorkspaceAccountPrivacyAdapter:
-    """Workspace usernames that are themselves verified subject identifiers."""
+    """Workspace usernames that are themselves verified subject identifiers.
+
+    Read through the login store when it is given, so a request reaches the
+    logins wherever they are kept — the hosted database included, where a
+    path into the data folder found nothing to erase (`S-06.03.02`).
+    """
 
     name = "workspace_accounts"
 
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, accounts: Any = None) -> None:
         self.path = Path(path)
+        self.accounts = accounts
 
     def _rows(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
+        if self.accounts is not None:
+            return self.accounts.subject_rows(subject.workspace_id, subject.emails)
         if not self.path.exists() or not subject.emails:
             return []
         connection = sqlite3.connect(self.path, timeout=5)
@@ -863,6 +871,8 @@ class WorkspaceAccountPrivacyAdapter:
         if not rows:
             return {"workspace_accounts": 0}
         usernames = tuple(str(row["username"]) for row in rows)
+        if self.accounts is not None:
+            return {"workspace_accounts": self.accounts.delete_rows(subject.workspace_id, usernames)}
         connection = sqlite3.connect(self.path, timeout=5)
         try:
             cursor = connection.execute(
@@ -1647,6 +1657,7 @@ class PrivacyService:
         ai_recall: SentMailIndex | None = None,
         ai_egress: EgressLog | None = None,
         export_dir: Path | str | None = None,
+        workspace_accounts: Any = None,
     ) -> "PrivacyService":
         root = Path(data_dir)
         owned: list[Any] = []
@@ -1673,7 +1684,7 @@ class PrivacyService:
             ),
             CompanionProfilePrivacyAdapter(root / "ai_tools.db"),
             AgentRoutinePrivacyAdapter(root / "agent_routines.db"),
-            WorkspaceAccountPrivacyAdapter(root / "workspace_auth.db"),
+            WorkspaceAccountPrivacyAdapter(root / "workspace_auth.db", workspace_accounts),
             MeetingTranscriptPrivacyAdapter(root / "meeting_transcripts.db"),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),

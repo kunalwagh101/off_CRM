@@ -3,7 +3,10 @@
 #   off-crm-develop  <- develop  where every change lands first
 #
 # Both are on the free plan, and on the free plan the filesystem does not
-# survive a restart or a redeploy: everything under /tmp is wiped. That is why
+# survive a restart, a redeploy or a spin-down after 15 minutes idle:
+# everything under /tmp is wiped. With OFFSETX_DATABASE_URL set, keys, AI
+# settings, usage counters and logins live in that database instead; the CRM
+# itself still lives on the wiped disk until S-06.03.03. That is why
 # neither sets OFFSETX_PRODUCTION — the app refuses a production start on /tmp,
 # and a demo must never look like the place to keep customers.
 #
@@ -42,6 +45,17 @@ services:
         generateValue: true
       - key: OFFSETX_SESSION_HOURS
         value: 8
+      # Unsubscribe links in sent mail keep working after a restart (D-203).
+      - key: OFFSETX_UNSUBSCRIBE_SECRET
+        generateValue: true
+      # Provider keys, AI settings, usage counters and logins outlive the wiped
+      # disk in a hosted PostgreSQL (docs/architecture/HOSTED_STORAGE.md). Set
+      # both or neither, and give each service its own database: develop runs
+      # unreviewed code. The key comes from `offsetx-db new-secrets-key`.
+      - key: OFFSETX_DATABASE_URL
+        sync: false
+      - key: OFFSETX_SECRETS_KEY
+        sync: false
 
   - type: web
     name: off-crm-develop
@@ -69,3 +83,14 @@ services:
         generateValue: true
       - key: OFFSETX_SESSION_HOURS
         value: 8
+      # Unsubscribe links in sent mail keep working after a restart (D-203).
+      - key: OFFSETX_UNSUBSCRIBE_SECRET
+        generateValue: true
+      # Provider keys, AI settings, usage counters and logins outlive the wiped
+      # disk in a hosted PostgreSQL (docs/architecture/HOSTED_STORAGE.md). Set
+      # both or neither, and give each service its own database: develop runs
+      # unreviewed code. The key comes from `offsetx-db new-secrets-key`.
+      - key: OFFSETX_DATABASE_URL
+        sync: false
+      - key: OFFSETX_SECRETS_KEY
+        sync: false

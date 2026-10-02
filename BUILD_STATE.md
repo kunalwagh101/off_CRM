@@ -7,15 +7,18 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-09-28
+Last updated: 2026-10-02
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-09-28, on `develop` with the sixth check's fixes): **2501 Python
-passed, 0 failed**, 4 environment-gated skips. The whole suite last ran on a real Python 3.10 on
+Tests (2026-10-02, on `develop` with `S-06.03.01` and `S-06.03.02`): **2519
+Python passed, 0 failed**, 6 environment-gated skips — two of them the
+PostgreSQL-only tests, which pass against a real PostgreSQL 16 with
+`OFF_CRM_TEST_POSTGRES_URL` set (295 passed across the storage, AI, auth,
+privacy and recovery files that way). The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **171 passed** and a clean production build. Board verifier
+clean. Frontend **172 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-28).
 
 **Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
@@ -39,6 +42,43 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-10-02 — `F-06.03` phases 0 and 1: keys, settings and logins outlive the disk
+
+**Built, in IN_REVIEW:** `S-06.03.01` (the inventory of every store,
+`db/inventory.py`, `offsetx-db inventory`, the table in `HOSTED_STORAGE.md`)
+and `S-06.03.02`. With `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` set,
+provider keys (encrypted with that key, never stored), each workspace's AI
+settings, limits and trust, the usage counters, workspace logins and the egress
+log live in the database. With neither set, nothing changed.
+
+**The owner's word, 2026-10-02:** not only Neon — Render's PostgreSQL too — and
+build so the install can move to a PostgreSQL on AWS or Azure later (`DD-66`
+amended, `DD-70`). The code names no host. Checked that day: Render's free
+database is deleted with its data after 30 days plus 14 days' grace and has no
+backups, so the free recommendation is Neon.
+
+**Proof, not just tests:** a real app process (`run_offsetx_web.py`) on a real
+PostgreSQL 16 was configured in headless Chromium — a key with the 200-a-day
+and $5 presets, a trust raise with its reason, a colleague's login, a logged
+call — then stopped and its data folder deleted. A new process on an empty
+folder with the same two settings showed all of it, and the colleague signed
+in. A different key, and no key, each stopped the start with a sentence. The
+database held no plain-text key.
+
+**Found and fixed on the way:** a PostgreSQL store never reopened a dropped
+connection, so every hosted store would have failed after Neon's first
+five-minute sleep (`D-199`, high); daily limits restarted at every spin-down
+(`D-198`, high); privacy requests could not reach hosted logins (`D-200`); the
+eval tool split the egress log (`D-201`); "encrypted on this machine" stopped
+being true (`D-202`); unsubscribe links died at every restart on Render
+(`D-203`); `.env.example` still offered provider-key variables (`D-204`).
+
+**Read before touching storage:** `db/hosted.py` (documents, the key check),
+`db/schema.py` (a version per store, forward-only, under a lock),
+`db/connection.py` (reopen before a statement, never re-send one, never swap
+inside a transaction). `S-06.03.06` is filed for the stores the inventory found
+with no phase.
 
 ## 2026-09-25 — live bugs fixed; the owner's keys, limits, trust and storage decisions; two reviews
 

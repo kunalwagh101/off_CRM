@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Keys, settings and logins can outlive the disk** (2026-10-02, `S-06.03.01`,
+  `S-06.03.02`). Set `OFFSETX_DATABASE_URL` to any PostgreSQL 13 or newer —
+  Neon or Render now, AWS or Azure later — and `OFFSETX_SECRETS_KEY` to what
+  `offsetx-db new-secrets-key` prints. Provider keys (encrypted), AI settings
+  and trust, the counters behind each daily limit, workspace logins and the
+  egress log then live in that database. A missing or wrong key stops the start
+  with what to do. `offsetx-db inventory` lists every store and where it lives.
+  Hosted stores now reopen a dropped connection (`D-199`) and daily limits no
+  longer restart at a Render spin-down (`D-198`). The CRM itself moves next
+  (`S-06.03.03`).
+
 - **The sixth check, closed** (2026-09-28). Confirm now goes exactly where the
   button you pressed says (`D-194`): a waiting profile can always be confirmed
   as yours — its key proves it — or, if its label names a client workspace,

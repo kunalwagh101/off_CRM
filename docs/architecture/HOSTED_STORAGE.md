@@ -1,8 +1,12 @@
 # Hosted storage — data that survives a deploy on the free plan
 
-**Status: design, not built.** Answers `Q-26` with the owner's choice of
-2026-09-25: keep Render free, and keep the data in a free hosted PostgreSQL.
-Stories: `S-06.03.01` to `S-06.03.05` (feature `F-06.03`). Decision: `DD-66`.
+**Status: phases 0 and 1 built, in review (2026-10-02).** `S-06.03.01` is the
+inventory below; with `S-06.03.02`, provider keys, AI settings and trust, the
+usage counters, logins and the egress log live in the database
+`OFFSETX_DATABASE_URL` names. The CRM itself still lives in the data folder
+until `S-06.03.03`. Answers `Q-26` with the owner's choice of
+2026-09-25: keep Render free, and keep the data in a hosted PostgreSQL. Stories:
+`S-06.03.01` to `S-06.03.06` (feature `F-06.03`). Decision: `DD-66`.
 
 ## Why
 
@@ -33,34 +37,151 @@ the login-signing key must not make every stored provider key unreadable.
 
 ## Which host
 
-Any PostgreSQL URL works — the code must not care. The recommended free host is
-**Neon**, checked on 2026-09-25 (`neon.com/docs/introduction/plans`):
+**Any PostgreSQL 13 or newer — the code must not care.** The owner, 2026-10-02:
+start on Render's or Neon's PostgreSQL, and build so the same install moves to a
+PostgreSQL on AWS or Azure once there is funding or real users. Nothing in the
+code names a host; moving is a `pg_dump` and a `pg_restore`.
 
-| | Neon free | Supabase free |
-|---|---|---|
-| Storage | 0.5 GB per project | 500 MB |
-| Idle | compute sleeps after 5 minutes, wakes on the next query | **the project is paused after a week without activity and must be unpaused by hand** |
-| Restore history | 6 hours | none on free |
+| | Render free | Neon free | Supabase free | Paid: Render, AWS RDS, Azure |
+|---|---|---|---|---|
+| Lasts | **deleted with all its data 30 days after creation, plus 14 days' grace to upgrade** | no expiry | **paused after a week idle; unpaused by hand** | while paid |
+| Storage | 1 GB | 0.5 GB per project | 500 MB | chosen |
+| Backups | **none, of any kind** | 6 hours of history | none | daily backups and point-in-time restore |
+| Idle | — | compute sleeps after 5 minutes, wakes on the next query | — | — |
+| Limit | one free database per Render workspace | — | — | — |
 
+Checked on 2026-10-02 (`render.com/docs/free`) and 2026-09-25
+(`neon.com/docs/introduction/plans`). The same Render page: a free web service
+also loses its disk when it spins down after 15 minutes idle, not only on a
+deploy — so on the free plan the data folder lives minutes, not days.
+
+**Recommendation.** Neon free to start: it costs nothing and does not expire.
+If the database should sit next to the app on Render, a paid Render database
+from day one, reached by its *internal* URL in the same region (Singapore).
+Render's free database is a trial only — it is deleted with everything in it.
 Supabase's pause is disqualifying for an app whose owner may not log in for a
-week. Neon's limits are real and shape the design: 0.5 GB means files do not go
-in the database, and a 6-hour restore window means Neon's history is not the
-backup.
+week. On every free option, backups are this install's own job (`S-06.03.04`):
+0.5 GB and 1 GB mean files do not go in the database.
+
+### What keeps it portable
+
+Built in `S-06.03.02`, each for a host the owner named:
+
+- **One URL.** `OFFSETX_DATABASE_URL` is passed to the driver untouched, so the
+  host's own options ride in it: `sslmode=require` for Neon, Render's external
+  URL, AWS and Azure; `sslrootcert=` for AWS's certificate bundle.
+- **A dropped connection is reopened.** Neon's compute sleeps; AWS and Azure
+  close idle connections behind their load balancers. A connection idle for a
+  while is checked before use and reopened if the server dropped it. A
+  statement that fails mid-flight is never sent again by itself — whether it
+  ran is unknown.
+- **Pooled URLs work.** No server-side prepared statements, which a pooler in
+  transaction mode — PgBouncer, Neon's pooled URL, RDS Proxy — would break.
+- **A schema version per store** (`offcrm_schema`), so a database moved to a
+  new host, or opened by a newer release, is upgraded from where it is.
+- **The key that opens the provider keys stays out of the database.**
+  `OFFSETX_SECRETS_KEY` comes from the environment, which is where AWS Secrets
+  Manager and Azure Key Vault deliver a secret. Fernet tokens leave rotation
+  open (`MultiFernet`) without rewriting the stored rows; rotation itself is
+  not built.
+
+## Switching it on
+
+The install owner does this once per service — a database for each: `develop`
+runs unreviewed code and must never reach `main`'s keys.
+
+1. Make a PostgreSQL database: Neon (free, no expiry), a paid Render database,
+   or AWS or Azure later. Copy its connection URL. From Render, inside the same
+   region, use the *internal* URL; from anywhere else the URL must carry
+   `sslmode=require`.
+2. Run `offsetx-db new-secrets-key` on any machine with off_CRM installed. Keep
+   what it prints in a password manager: it is stored nowhere else, and without
+   it nobody can read the provider keys in the database.
+3. Set `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` where the service's
+   environment is set (on Render: the service's Environment page), and deploy.
+4. `/health/ready` answers `ready`; type the provider keys in Connectors again,
+   once — the ones typed before were on the wiped disk.
+
+What the app does with them: half the pair, or a key that is not a key, stops
+the start with a sentence saying what to set. A key that cannot open what the
+database holds stops the start too — checked before anything is served, even
+before any provider key is stored. A lost key is not recoverable by anyone:
+`offsetx-db forget-provider-keys --yes` clears the stored keys so the app
+starts with a new one, and each workspace pastes its keys again; settings,
+limits, trust and logins stay.
+
+### Limits of phase 1, plainly
+
+- **The CRM is still on the wiped disk** until `S-06.03.03`: campaigns,
+  contacts and drafts are lost on a free-plan deploy, as before.
+- **Local backup is refused while anything is hosted**, as it already was for
+  the egress log: it cannot capture the database. Backups of the hosted
+  database are `S-06.03.04`; until then, the host's own history is all there
+  is — 6 hours on Neon free, none on Render free.
+- **One connection per store.** Fine for one instance and a handful of people.
+  When session checks wait on each other — p95 above 200 ms, or a second web
+  instance — the stores move to `psycopg_pool`; the seam allows it.
+- **The usage counters are read once per process** and written after each
+  call. Two processes counting at once — the app and the eval tool — keep the
+  last one's numbers, as two processes sharing the file always did.
 
 ## What moves, in order — each phase green before the next
 
 | Phase | Story | Moves | Proof |
 |---|---|---|---|
 | 0 | `S-06.03.01` | nothing — an inventory: every store, its backend today, its size on a real install | a test lists every store opened in `_open_runtime` and its backend; the doc's table is generated from it |
-| 1 | `S-06.03.02` | provider keys (encrypted with `OFFSETX_SECRETS_KEY`), AI workspace settings, trust overrides, workspace logins, the egress log | a key typed in Connectors survives a real container being destroyed and recreated with only the two settings |
+| 1 | `S-06.03.02` | provider keys (encrypted with `OFFSETX_SECRETS_KEY`), AI workspace settings, trust overrides, the spend and call counters behind each limit, workspace logins, the egress log | a key typed in Connectors survives a real container being destroyed and recreated with only the two settings |
 | 2 | `S-06.03.03` | the CRM store (`OutreachStore`, SQLite today, about 90 methods), with a copy tool from an existing SQLite file | the CRM suite runs against both backends; a real install's CRM copied across with counts reconciled |
 | 3 | `S-06.03.04` | backups: a nightly encrypted export of the database, kept outside it; restore from it tested | an export restored into an empty database gives the same counts; the owner can download it |
+| 2b | `S-06.03.06` | the stores the inventory found with no phase: template results, sent-mail recall, tools, routines, meetings, imagery, posts, trends, the Notion link, the timers, privacy requests, the crawler | each one's home decided — the hosted database, or disposable and saying so — and the decided ones moved |
 | 4 | `S-06.03.05` | the production contract: `validate_storage` accepts the hosted topology and refuses a half-hosted one | production refuses to start with a hosted CRM but a local key vault, and the reverse |
+
+The spend and call counters joined phase 1 when the inventory was taken: a
+daily limit whose count is wiped at every spin-down is not a limit (`DD-69`).
 
 **Files stay disposable until a later decision.** Media uploads, video files,
 agent screenshots and exports are files, not rows, and 0.5 GB would not hold
 them. On the free plan they are still lost on a deploy; the screens that hold
 them must say so. Object storage is its own question, raised when phase 2 lands.
+
+## Inventory
+
+Generated from `offsetx_apollo_builder/db/inventory.py` by
+`offsetx-db inventory --markdown`; `tests/test_storage_inventory.py` fails if
+this table, the running app's services or the files it writes drift apart.
+Sizes are per install: `offsetx-db inventory` prints them for the data folder
+it is pointed at. No real install was available to measure — the two on Render
+are wiped — so the owner's numbers are still to be taken.
+
+<!-- inventory:start -->
+| Store | What is lost if it is wiped | Kept today | On the hosted topology |
+|---|---|---|---|
+| AI settings and trust | each workspace's providers, limits, trust changes and who made them | JSON file | hosted database — `S-06.03.02` |
+| Provider keys | every key typed in Connectors, encrypted | encrypted file and its key file | hosted database — `S-06.03.02`; the key that opens them is `OFFSETX_SECRETS_KEY` |
+| Spend and call counters | how much of each daily limit is used | JSON file | hosted database — `S-06.03.02` |
+| Workspace logins | usernames and password hashes | SQLite file | hosted database — `S-06.03.02` |
+| Egress log | what was sent to which provider, and when | SQLite file | follows `OFFSETX_DATABASE_URL` already; checked in `S-06.03.02` |
+| Video timelines | edit history, transcripts | SQLite file | follows `OFFSETX_DATABASE_URL` already |
+| Products and plans | the GTM engine's products, plans and reviews | SQLite file | follows `OFFSETX_DATABASE_URL` already |
+| CRM | campaigns, contacts, drafts, sends, replies, delivery jobs | SQLite file (`OFFSETX_OUTREACH_DB`) | hosted database — `S-06.03.03` |
+| Template results | what each template sent and how it did | SQLite file | not decided — `S-06.03.06` |
+| Sent-mail recall | the index of sent mail drafts learn from | SQLite file | not decided — `S-06.03.06` |
+| Tools and companions | registered tools and companion profiles | SQLite file | not decided — `S-06.03.06` |
+| Agent routines | routines and their runs | SQLite file and trace files | not decided — `S-06.03.06` |
+| Meeting transcripts | uploaded meetings' transcripts | SQLite file | not decided — `S-06.03.06` |
+| Imagery | generated pictures' records | SQLite file | not decided — `S-06.03.06` |
+| Posts | scheduled and sent posts' records | SQLite file | not decided — `S-06.03.06` |
+| Trends | trend snapshots the content engine reads | SQLite file | not decided — `S-06.03.06` |
+| Notion link | the Notion token, encrypted, and target pages | JSON and encrypted files | not decided — `S-06.03.06` |
+| Timers | the email and content timers' settings | JSON files | not decided — `S-06.03.06` |
+| Privacy requests | data-subject requests and their artifacts | SQLite file | not decided — `S-06.03.06` |
+| Crawler | the discovery crawler's frontier | SQLite file | not decided — `S-06.03.06` |
+| Provider profiles (old) | profiles saved before Connectors, and their keys | JSON and encrypted files | not moved: `S-06.02.35` decides whether they stay at all |
+| Response cache | answers reused for fact-shaped tasks | SQLite file | stays on disk: a cache, rebuilt by use |
+| Media and outboxes | picture files, rendered video, post and mail outboxes, exports | files | files: lost on a free-plan deploy until object storage is decided |
+| Install secrets | the session-signing secret, the local API token, the unsubscribe-link key | files | a deployment setting on a hosted install, set once: `OFFSETX_SESSION_SECRET`, `OFFSETX_UNSUBSCRIBE_SECRET` |
+| Restore and lease files | an interrupted restore's journal and the workspace lease | files | local only: a hosted install refuses local backup |
+<!-- inventory:end -->
 
 ## What does not change
 

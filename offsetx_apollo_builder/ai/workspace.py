@@ -21,6 +21,7 @@ from typing import Any, Callable, Iterator
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from ..db.hosted import PROVIDER_KEYS, SETTINGS, HostedStorage, HostedStorageError
 from ..outreach.models import to_utc_iso
 from .broker import WorkspaceEgressSettings
 from .errors import RegistryError
@@ -138,11 +139,24 @@ def _raise_needs_reason(name: str, before: Any, after: Any) -> str:
 
 
 class WorkspaceAISettingsStore:
-    """Reads and writes one JSON document per install, keyed by workspace."""
+    """Reads and writes one JSON document per install, keyed by workspace.
 
-    def __init__(self, data_dir: Path | str, registry: ProviderRegistry) -> None:
+    The document and the encrypted keys are files in the data folder, or —
+    given hosted storage (`S-06.03.02`) — documents in the hosted database,
+    the keys encrypted with `OFFSETX_SECRETS_KEY`. Only where they are read and
+    written differs; everything the store decides is the same code.
+    """
+
+    def __init__(
+        self,
+        data_dir: Path | str,
+        registry: ProviderRegistry,
+        *,
+        hosted: HostedStorage | None = None,
+    ) -> None:
         self.data_dir = Path(data_dir)
         self.registry = registry
+        self._hosted = hosted
         self.settings_path = self.data_dir / "ai_workspaces.json"
         self.secret_path = self.data_dir / "ai_provider_keys.enc"
         self.key_path = self.data_dir / ".ai_master.key"
@@ -152,6 +166,10 @@ class WorkspaceAISettingsStore:
     @contextmanager
     def _exclusive_write(self) -> Iterator[None]:
         """Serialize the complete read-modify-replace window across processes."""
+        if self._hosted is not None:
+            with self._lock, self._hosted.exclusive():
+                yield
+            return
         self.data_dir.mkdir(parents=True, exist_ok=True)
         with self._lock:
             connection = sqlite3.connect(
@@ -174,6 +192,8 @@ class WorkspaceAISettingsStore:
     # ── encrypted keys ──────────────────────────────────────────────────────
 
     def _fernet(self, *, create: bool) -> Fernet:
+        if self._hosted is not None:
+            return self._hosted.fernet
         if not self.key_path.exists():
             if not create:
                 raise RegistryError(_KEY_STORE_HELP.format(fault="its master key, .ai_master.key, is missing"))
@@ -189,6 +209,17 @@ class WorkspaceAISettingsStore:
             raise RegistryError(_KEY_STORE_HELP.format(fault="its master key, .ai_master.key, is not a valid key")) from exc
 
     def _secrets(self) -> dict[str, str]:
+        if self._hosted is not None:
+            token = self._hosted.read(PROVIDER_KEYS)
+            if token is None:
+                return {}
+            try:
+                payload = json.loads(self._hosted.open(token).decode("utf-8"))
+            except HostedStorageError as exc:
+                # Checked at start-up; only a key changed underneath a running
+                # app lands here, and it gets the same next step.
+                raise RegistryError(str(exc)) from exc
+            return {str(k): str(v) for k, v in payload.items()} if isinstance(payload, dict) else {}
         if not self.secret_path.exists():
             return {}
         try:
@@ -203,10 +234,13 @@ class WorkspaceAISettingsStore:
         return {str(k): str(v) for k, v in payload.items()} if isinstance(payload, dict) else {}
 
     def _write_secrets(self, secrets: dict[str, str]) -> None:
-        self.data_dir.mkdir(parents=True, exist_ok=True)
         token = self._fernet(create=True).encrypt(
             json.dumps(secrets, ensure_ascii=False).encode("utf-8")
         )
+        if self._hosted is not None:
+            self._hosted.write(PROVIDER_KEYS, token.decode("ascii"))
+            return
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("wb", dir=self.data_dir, delete=False) as handle:
             handle.write(token)
             temporary = Path(handle.name)
@@ -257,13 +291,23 @@ class WorkspaceAISettingsStore:
     # ── settings document ───────────────────────────────────────────────────
 
     def _document(self) -> dict[str, Any]:
-        if not self.settings_path.exists():
-            return {}
         try:
-            payload = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            if self._hosted is not None:
+                body = self._hosted.read(SETTINGS)
+                payload = json.loads(body) if body is not None else {}
+            elif self.settings_path.exists():
+                payload = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            else:
+                return {}
         except (OSError, json.JSONDecodeError):
             return {}
         return payload if isinstance(payload, dict) else {}
+
+    def _write_document(self, document: dict[str, Any]) -> None:
+        if self._hosted is not None:
+            self._hosted.write(SETTINGS, json.dumps(document, ensure_ascii=False))
+        else:
+            _atomic_json(self.settings_path, document)
 
     def _blank(self, workspace_id: str) -> dict[str, Any]:
         return {
@@ -293,7 +337,7 @@ class WorkspaceAISettingsStore:
             current["workspace_id"] = workspace_id
             current["updated_at"] = to_utc_iso()
             document[workspace_id] = current
-            _atomic_json(self.settings_path, document)
+            self._write_document(document)
             return dict(current)
 
     def save(self, workspace_id: str, values: dict[str, Any]) -> dict[str, Any]:

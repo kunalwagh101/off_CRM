@@ -16,9 +16,14 @@ the example below uses the default.
 
 ## Scope, plainly
 
-**One store is on Postgres: the egress log.** The CRM database, the context
-layer, the recall index, the evals scoreboard, the response cache and the sales
-tracker are all still SQLite-only. That is a real limit, not a phrasing of one.
+**On PostgreSQL when `OFFSETX_DATABASE_URL` is set:** the egress log, video
+timelines, the GTM engine's products and plans, and — since `S-06.03.02` —
+provider keys (encrypted with `OFFSETX_SECRETS_KEY`), AI settings and trust,
+the usage counters and workspace logins. The CRM database, the context layer,
+the recall index, the evals scoreboard, the response cache and the sales
+tracker are still SQLite-only. That is a real limit, not a phrasing of one;
+`docs/architecture/HOSTED_STORAGE.md` has the inventory and the order they
+move in.
 
 The seam they will use exists and is tested; they have not been moved.
 
@@ -186,16 +191,18 @@ working on SQLite in the same process.
 
 ## What is not built
 
-- **The other five stores.** CRM, context, recall, scoreboard, cache, sales —
-  all SQLite-only. The seam is there; the work is not done.
-- **Schema migrations for Postgres.** The log creates its table with
-  `CREATE TABLE IF NOT EXISTS` and has never needed a migration.
-  `outreach/store.py` has a real migration path (`PRAGMA table_info`,
-  `PRAGMA user_version`) with no Postgres equivalent yet — `information_schema`
-  and a settings row are the answer, and neither is written.
+- **The other stores.** CRM, context, recall, scoreboard, cache, sales — all
+  SQLite-only. The seam is there; the work is `S-06.03.03` and `S-06.03.06`.
+- **Schema migrations for the older stores.** `db/schema.py` gives a store a
+  version and forward-only steps in `offcrm_schema` (`S-06.03.02`); the
+  documents and the logins use it. The egress log, video and GTM stores still
+  create their tables with `CREATE TABLE IF NOT EXISTS`, and
+  `outreach/store.py`'s `PRAGMA user_version` path has no PostgreSQL
+  equivalent until the CRM moves.
 - **FTS.** `expert_chunks_fts` is a SQLite `fts5` virtual table. Postgres uses
   `tsvector`, which is a genuinely different implementation and not a
   translation.
-- **Connection pooling.** One connection per store, as today. Fine for one
-  process; a multi-worker deployment wants `psycopg_pool`.
+- **Connection pooling.** One connection per store, reopened when the server
+  drops it (`D-199`). Fine for one process; a multi-worker deployment wants
+  `psycopg_pool`.
 - **Moving anything back.** `copy-log` goes SQLite → Postgres only.

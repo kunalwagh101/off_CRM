@@ -162,12 +162,16 @@ belongs under that root, and must be opened in `_open_runtime` and closed in
 `RUNTIME_CLOSE_ORDER` — `tests/test_audit_wp1.py` fails if it is not.
 
 **Both Render services run on the free plan with data under `/tmp`, which is
-wiped on every restart and deploy.** That loses CRM data, encrypted keys and
-audit records, and it is a production release blocker until the owner moves
-`main` to a paid service with a disk (`OPEN_QUESTIONS.md` Q-26). With
+wiped on every restart, deploy and spin-down.** That loses CRM data, encrypted
+keys and audit records, and it is a production release blocker until the owner
+moves `main` to a paid service with a disk (`OPEN_QUESTIONS.md` Q-26). With
 `OFFSETX_PRODUCTION=1` the app refuses to start on `/tmp` at all. The owner's
-answer (2026-09-25) is a hosted PostgreSQL on the free plan:
-`docs/architecture/HOSTED_STORAGE.md`, feature `F-06.03`, not built yet.
+answer is a hosted PostgreSQL — any host, Render or Neon now, AWS or Azure
+later (`DD-66`, `DD-70`): `docs/architecture/HOSTED_STORAGE.md`, feature
+`F-06.03`. Phase 1 is built (`S-06.03.02`): with `OFFSETX_DATABASE_URL` and
+`OFFSETX_SECRETS_KEY` set, provider keys, AI settings, usage counters, logins
+and the egress log live in that database; the CRM does not yet (`S-06.03.03`).
+`OFFSETX_SECRETS_KEY` is the install's master key, not a provider key.
 Provider keys come only from the app — there is no environment-variable
 fallback any more (`DD-64`, `D-151`); never tell a user to set one.
 

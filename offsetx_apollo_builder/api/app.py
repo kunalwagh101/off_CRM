@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import threading
 import uuid
@@ -62,6 +63,8 @@ from ..video.timeline import (
     TICKS_PER_SECOND,
 )
 from ..db import resolve_target as resolve_database_target
+from ..db import DatabaseError
+from ..db.hosted import HostedStorage
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..meetings import MeetingError, MeetingStore, MeetingTranscriber, MeetingTranscriptionError
@@ -276,6 +279,10 @@ RUNTIME_CLOSE_ORDER: tuple[str, ...] = (
     "gtm_store",
     "ai_context",
     "ai_recall",
+    # Created once for the install, not per restore; each reopens its
+    # connection on the next use after a close (S-06.03.02).
+    "workspace_auth",
+    "hosted_storage",
 )
 PUBLIC_HEALTH_PATHS: frozenset[str] = frozenset({
     "/health/live",
@@ -305,6 +312,8 @@ class CampaignLocks:
 #: How long start-up waits for another process — the email worker, mid-cycle —
 #: to let go of the workspace before rolling back an interrupted restore.
 RECOVERY_WAIT_SECONDS = 120.0
+
+LOG = logging.getLogger(__name__)
 
 #: The workspace of the request being served: its login's, or `local` for the
 #: install token. "" for a request nobody signed. Unset (None) outside a request,
@@ -444,10 +453,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved.validate()
     resolved.prepare()
     resolved.ensure_session_secret()
+    # With OFFSETX_DATABASE_URL, keys, AI settings, the usage counters and the
+    # logins live in that database, not in a data folder a free-plan deploy
+    # wipes (S-06.03.02). The key is checked against what is stored before
+    # anything is served: a start with keys it cannot read is refused here.
+    hosted = HostedStorage.configured(resolved.secrets_key)
+    if hosted is not None:
+        hosted.check_secrets_key()
     workspace_auth = WorkspaceAuthStore(
         resolved.data_dir / "workspace_auth.db",
         session_secret=resolved.session_secret,
         session_hours=resolved.session_hours,
+        database_target=hosted.target if hosted is not None else None,
     )
     workspace_auth.bootstrap(
         username=resolved.demo_username,
@@ -560,6 +577,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         the state being replaced; the few hooks set on it from outside — a
         discovery fetcher, a delivery provider — are carried across.
         """
+        app.state.hosted_storage = hosted
+        app.state.workspace_auth = workspace_auth
         # Both are built before the engine: sending writes through them.
         app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
@@ -616,7 +635,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
         app.state.ai_registry = ProviderRegistry()
         app.state.ai_workspaces = WorkspaceAISettingsStore(
-            resolved.data_dir, app.state.ai_registry
+            resolved.data_dir, app.state.ai_registry, hosted=hosted
         )
         # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
         # can move the log off a disposable disk without every call site
@@ -625,7 +644,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_egress_log = EgressLog(
             resolve_database_target(default=resolved.data_dir / "ai_egress.db")
         )
-        app.state.ai_quota = QuotaTracker(resolved.data_dir)
+        app.state.ai_quota = QuotaTracker(resolved.data_dir, hosted=hosted)
         # The cache only reuses answers for task types on its allowlist — work
         # whose output is a fact, never work whose output is a message. Drafting
         # is excluded by name: at pseudonymous policy two prospects with the same
@@ -690,6 +709,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ai_recall=app.state.ai_recall,
             ai_egress=app.state.ai_egress_log,
             export_dir=resolved.export_dir,
+            # Hosted logins are not in the data folder a path would read.
+            workspace_accounts=workspace_auth if hosted is not None else None,
         )
         # The product and its plans are the owner's work, like a timeline, so
         # they follow OFFSETX_DATABASE_URL onto Postgres the same way.
@@ -951,6 +972,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ).clean:
             message = "The supplied value is invalid for this operation."
         return JSONResponse(status_code=422, content={"detail": message})
+
+    @app.exception_handler(DatabaseError)
+    async def database_unavailable(_: Request, exc: DatabaseError) -> JSONResponse:
+        """The hosted database did not answer (S-06.03.02).
+
+        A sentence and 503, not a bare 500. What failed and where goes to the
+        server's log only: it names the database host, which is no business of
+        every login, and readiness names the store for the owner.
+        """
+        LOG.warning("A request could not reach the database: %s", exc)
+        return JSONResponse(status_code=503, content={"detail": (
+            "off_CRM cannot reach its database right now. Try again in a minute; "
+            "if it keeps failing, tell the install owner — the server's log says why."
+        )})
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:

@@ -341,6 +341,10 @@ reply rates.
 and keep the data in a free hosted PostgreSQL. Design:
 `docs/architecture/HOSTED_STORAGE.md`; feature `F-06.03`; decision `DD-66`.
 Until `S-06.03.02` lands, data on Render is still wiped on every deploy.
+Added by the owner 2026-10-02: Render's PostgreSQL is an option as well as
+Neon's, and the system must be able to move to a PostgreSQL on AWS or Azure
+later (`DD-66` amended, `DD-70`). Render's free database is deleted after 30
+days plus 14 days' grace, so it is a trial, not a home.
 Raised 2026-09-23 at the branch consolidation (`S-06.02.19`).
 
 **Ambiguity.** Both Render services — `off-crm-demo` on `main` and

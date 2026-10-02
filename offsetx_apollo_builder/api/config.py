@@ -7,6 +7,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..db.connection import DATABASE_URL_ENV
+from ..db.hosted import SECRETS_KEY_ENV, validate_pair
 from ..data_paths import data_dir as _data_dir
 from ..data_paths import database_path as _database_path
 from ..data_paths import gmail_token_path as _gmail_token_path
@@ -54,6 +56,10 @@ class AppSettings:
     own_email: str = ""
     public_base_url: str = ""
     unsubscribe_secret: str = ""
+    #: `OFFSETX_SECRETS_KEY`: opens the provider keys kept in the hosted
+    #: database (`S-06.03.02`). Only with `OFFSETX_DATABASE_URL`, and never
+    #: written anywhere — a local install has its own key file instead.
+    secrets_key: str = ""
     #: Host header values this server answers to. Empty means "derive from
     #: `host` plus the loopback names", which is right for a local install and
     #: wrong for a public deployment — that one names its own domain.
@@ -98,6 +104,7 @@ class AppSettings:
             own_email=os.getenv("OFFSETX_OWN_EMAIL", "").strip().lower(),
             public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
             unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),
+            secrets_key=os.getenv(SECRETS_KEY_ENV, ""),
             # Render sets RENDER_EXTERNAL_HOSTNAME to the service's own public
             # name; without it an unconfigured service answered 421 to itself.
             allowed_hosts=tuple(
@@ -158,6 +165,7 @@ class AppSettings:
             raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
         if self.backup_max_bytes < 1024 * 1024:
             raise ValueError("OFFSETX_BACKUP_MAX_BYTES must be at least 1 MiB")
+        validate_pair(os.getenv(DATABASE_URL_ENV, "").strip(), self.secrets_key)
         self.validate_storage()
 
     def validate_storage(self) -> None:

@@ -18,11 +18,14 @@ call count without spending anything.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from ..data_paths import data_dir, resolved
+from ..db import resolve_target
+from ..db.hosted import SECRETS_KEY_ENV, HostedStorage
 from ..outreach.workspace_lock import cli_workspace_lease
 from .broker import EgressBroker
 from .evals import EvalRunner, default_evals_path, load_suites, suite_summary
@@ -41,7 +44,13 @@ MODE_COST_MULTIPLE = {"simple": 1.0, "compare": 3.0, "orchestrated": 2.5}
 
 def _build(data_dir: Path):
     registry = ProviderRegistry()
-    workspaces = WorkspaceAISettingsStore(data_dir, registry)
+    # The app's own stores: with OFFSETX_DATABASE_URL the keys, the counters
+    # and the log are in that database, and a file in the data folder would be
+    # an empty key store and a second, partial log (S-06.03.02).
+    hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+    if hosted is not None:
+        hosted.check_secrets_key()
+    workspaces = WorkspaceAISettingsStore(data_dir, registry, hosted=hosted)
     # No cache, deliberately. An eval exists to measure a model; a cached
     # answer would make it measure the cache instead, and the numbers feed a
     # promotion decision. The same reasoning as the verify loop using the eval
@@ -50,8 +59,8 @@ def _build(data_dir: Path):
     broker = EgressBroker(
         registry=registry,
         credential_resolver=lambda provider_id: "",
-        quota=QuotaTracker(data_dir),
-        logger=EgressLog(data_dir / "ai_egress.db").record,
+        quota=QuotaTracker(data_dir, hosted=hosted),
+        logger=EgressLog(resolve_target(default=data_dir / "ai_egress.db")).record,
         cache=None,
     )
     board = Scoreboard(data_dir / "ai_evals.db")

@@ -84,15 +84,16 @@ Waits on the owner's answer to `Q-28`.)*
 workspace `local` acts as the install owner with nothing asking for that.)*
 
 - S-06.02.36 · A second owner login is made on purpose
-- S-06.03.01 · Every store's backend is known
-  design: docs/architecture/HOSTED_STORAGE.md
-- S-06.03.02 · Keys, settings and logins live in the hosted database
-  design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.03 · The CRM lives in the hosted database
   design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.05 · Production refuses a half-hosted install
+  design: docs/architecture/HOSTED_STORAGE.md
+
+*(Filed 2026-10-02 from the inventory, `S-06.03.01`: stores with no phase.)*
+
+- S-06.03.06 · Every other store has a decided home
   design: docs/architecture/HOSTED_STORAGE.md
 
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
@@ -137,6 +138,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
 
+- S-06.03.01 · Every store's backend is known
+  work_order: docs/work-orders/S-06.03.01-store-inventory.md
+- S-06.03.02 · Keys, settings and logins live in the hosted database
+  work_order: docs/work-orders/S-06.03.02-keys-settings-logins-hosted.md
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 - S-06.02.22 · A created or selected campaign stays the active workspace

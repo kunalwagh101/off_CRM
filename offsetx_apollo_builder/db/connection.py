@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Sequence
@@ -27,6 +28,12 @@ _POSTGRES_SCHEMES = ("postgres://", "postgresql://", "psql://")
 
 class DatabaseError(RuntimeError):
     """Connection or configuration problem, with the fix in the message."""
+
+
+class DatabaseUnavailable(DatabaseError):
+    """The database did not answer — down, unreachable, or it dropped the
+    connection mid-statement. Whether a statement that failed this way ran is
+    unknown, so nothing here sends it again."""
 
 
 def is_postgres_url(target: object) -> bool:
@@ -81,6 +88,10 @@ class Database:
     """Base class. Concrete backends fill in connect and translate."""
 
     name = "unknown"
+
+    #: The backend's "a constraint refused this row" — a duplicate key, say.
+    #: Caught by class, never by message: the two word it differently.
+    integrity_error: type[BaseException] = Exception
 
     def __init__(self, target: str) -> None:
         self.target = target
@@ -140,6 +151,7 @@ class SQLiteDatabase(Database):
     """
 
     name = "sqlite"
+    integrity_error = sqlite3.IntegrityError
 
     def __init__(self, target: str, *, wal: bool = True) -> None:
         super().__init__(target)
@@ -190,9 +202,20 @@ class PostgresDatabase(Database):
     need one and otherwise expect a statement to be durable when it returns.
     Leaving psycopg's default transaction block in place would silently change
     that contract for every existing caller.
+
+    Written for any host (DD-70). The URL goes to the driver untouched, so a
+    host's own options — ``sslmode``, ``sslrootcert``, ``channel_binding`` —
+    ride in it. A server drops idle connections: Neon's compute sleeps after
+    five minutes, and AWS and Azure close idle ones behind their load
+    balancers. One connection held for the life of the process failed every
+    query after the first such drop, until a restart (D-199).
     """
 
     name = "postgres"
+
+    #: A connection idle this long is checked before it is used. Cheaper than
+    #: a check per statement, and a drop is only likely after a quiet spell.
+    idle_check_seconds: float = 30.0
 
     def __init__(self, target: str, *, connect_timeout: int = 10) -> None:
         super().__init__(target)
@@ -208,17 +231,58 @@ class PostgresDatabase(Database):
             ) from exc
 
         self._psycopg = psycopg
+        self.integrity_error = psycopg.IntegrityError
+        self._dict_row = dict_row
+        self._connect_timeout = connect_timeout
+        self.raw = self._connect()
+        self._last_used = time.monotonic()
+        self._transaction_depth = 0
+
+    def _connect(self) -> Any:
         try:
-            self.raw = psycopg.connect(
-                target,
+            # No server-side prepared statements (`prepare_threshold=None`): a
+            # pooler in transaction mode — PgBouncer, Neon's pooled URL, RDS
+            # Proxy — hands each transaction a different server connection,
+            # where a statement prepared on another does not exist.
+            return self._psycopg.connect(
+                self.target,
                 autocommit=True,
-                row_factory=dict_row,
-                connect_timeout=connect_timeout,
+                row_factory=self._dict_row,
+                connect_timeout=self._connect_timeout,
+                prepare_threshold=None,
             )
-        except psycopg.Error as exc:
-            raise DatabaseError(
-                f"Could not connect to {describe_target(target)}: {exc}"
+        except self._psycopg.Error as exc:
+            raise DatabaseUnavailable(
+                f"Could not connect to {describe_target(self.target)}: {exc}"
             ) from exc
+
+    def _live(self) -> Any:
+        """The connection, reopened if the server is known to have dropped it.
+
+        Only ever *before* a statement. A statement that fails mid-flight is
+        not sent again: whether it ran is unknown, and repeating a write that
+        did run is how a record gets made twice. The failure goes to the
+        caller, and the broken connection is replaced before the next one.
+        """
+        raw = self.raw
+        if self._transaction_depth:
+            # Never swapped inside a transaction: the statements after it
+            # would run outside it, committed one by one.
+            return raw
+        dropped = raw.closed or raw.broken
+        if not dropped and time.monotonic() - self._last_used >= self.idle_check_seconds:
+            try:
+                raw.execute("SELECT 1")
+            except self._psycopg.OperationalError:
+                dropped = True
+        if dropped:
+            try:
+                raw.close()
+            except self._psycopg.Error:
+                pass
+            self.raw = self._connect()
+        self._last_used = time.monotonic()
+        return self.raw
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Any:
         with self._lock:
@@ -226,13 +290,25 @@ class PostgresDatabase(Database):
             # placeholder marker when parameters are present, so passing None
             # sometimes and a tuple other times would make the same translated
             # SQL mean two different things.
-            return self.raw.execute(translate_params(sql), tuple(params or ()))
+            raw = self._live()
+            try:
+                return raw.execute(translate_params(sql), tuple(params or ()))
+            except self._psycopg.OperationalError as exc:
+                raise DatabaseUnavailable(
+                    f"{describe_target(self.target)} stopped answering: {exc}"
+                ) from exc
 
     def executescript(self, sql: str) -> None:
         with self._lock:
             # No parameters here, so `%` is not special and the SQL goes as
             # written. psycopg runs multiple statements in one call.
-            self.raw.execute(sql)
+            raw = self._live()
+            try:
+                raw.execute(sql)
+            except self._psycopg.OperationalError as exc:
+                raise DatabaseUnavailable(
+                    f"{describe_target(self.target)} stopped answering: {exc}"
+                ) from exc
 
     def columns(self, table: str) -> set[str]:
         rows = self.execute(
@@ -245,8 +321,13 @@ class PostgresDatabase(Database):
     @contextmanager
     def transaction(self) -> Iterator["PostgresDatabase"]:
         with self._lock:
-            with self.raw.transaction():
-                yield self
+            raw = self._live()
+            self._transaction_depth += 1
+            try:
+                with raw.transaction():
+                    yield self
+            finally:
+                self._transaction_depth -= 1
 
     def close(self) -> None:
         with self._lock:

@@ -4,15 +4,19 @@ import base64
 import binascii
 import hashlib
 import hmac
+import re
 import secrets
 import sqlite3
 import threading
 import time
-import re
-from pathlib import Path
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator, Sequence
 
+from ..db import Database, open_database
+from ..db.schema import ensure_schema
 
 SESSION_COOKIE = "offsetx_crm_session"
 
@@ -45,6 +49,27 @@ class WorkspaceAuthError(ValueError):
     """Workspace account configuration is invalid."""
 
 
+def _create_users(database: Database) -> None:
+    """The logins table in a hosted database (`S-06.03.02`): the local schema,
+    with PostgreSQL's names for bytes and for times past 2038."""
+    binary = "BYTEA" if database.name == "postgres" else "BLOB"
+    database.execute(
+        "CREATE TABLE workspace_users ("
+        " username TEXT PRIMARY KEY,"
+        " workspace_id TEXT NOT NULL UNIQUE,"
+        f" password_salt {binary} NOT NULL,"
+        f" password_hash {binary} NOT NULL,"
+        " session_version INTEGER NOT NULL DEFAULT 1,"
+        " enabled INTEGER NOT NULL DEFAULT 1,"
+        " created_at BIGINT NOT NULL,"
+        " updated_at BIGINT NOT NULL)"
+    )
+
+
+#: Oldest first; a step's position is its version (`db/schema.py`).
+USER_STEPS = (_create_users,)
+
+
 class WorkspaceAuthStore:
     """Persistent workspace-bound logins and signed sessions.
 
@@ -52,6 +77,10 @@ class WorkspaceAuthStore:
     workspace id, expiry, session version and a nonce, signed with the install's
     session secret. Bumping session_version invalidates every old cookie for an
     account without storing server-side sessions.
+
+    The logins are a SQLite file in the data folder, or — given the hosted
+    database's address (`S-06.03.02`) — a table there, through one connection
+    reopened after a close. The SQL is the same for both.
     """
 
     SCHEMA = """
@@ -67,13 +96,28 @@ class WorkspaceAuthStore:
     );
     """
 
-    def __init__(self, path: Path | str, *, session_secret: str, session_hours: int) -> None:
+    def __init__(
+        self,
+        path: Path | str,
+        *,
+        session_secret: str,
+        session_hours: int,
+        database_target: str | None = None,
+    ) -> None:
         if not session_secret or len(session_secret) < 32:
             raise WorkspaceAuthError("Workspace sessions require a 32+ character session secret")
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._secret = session_secret.encode("utf-8")
         self.session_seconds = int(session_hours) * 60 * 60
+        self._target = database_target
+        self._database: Database | None = None
+        self._database_lock = threading.RLock()
+        if self._target is not None:
+            # Opened now, so an unreachable database stops the start with its
+            # reason instead of failing the first login.
+            self._hosted()
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as conn:
             conn.executescript(self.SCHEMA)
         try:
@@ -81,11 +125,43 @@ class WorkspaceAuthStore:
         except OSError:
             pass
 
-    def _connection(self) -> sqlite3.Connection:
+    def _hosted(self) -> Database:
+        with self._database_lock:
+            if self._database is None:
+                database = open_database(self._target)
+                try:
+                    ensure_schema(database, "workspace_users", USER_STEPS)
+                except BaseException:
+                    database.close()
+                    raise
+                self._database = database
+            return self._database
+
+    @contextmanager
+    def _connection(self) -> Iterator[Any]:
+        if self._target is not None:
+            yield self._hosted()
+            return
         conn = sqlite3.connect(self.path, timeout=5)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout=5000")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    @property
+    def _integrity_error(self) -> type[BaseException]:
+        return self._hosted().integrity_error if self._target is not None else sqlite3.IntegrityError
+
+    def close(self) -> None:
+        """Close the hosted connection; the next use opens it again. A local
+        store holds nothing open between calls."""
+        with self._database_lock:
+            if self._database is not None:
+                self._database.close()
+                self._database = None
 
     @staticmethod
     def _workspace(value: str) -> str:
@@ -157,7 +233,7 @@ class WorkspaceAuthStore:
                     """,
                     (user, workspace, salt, digest, now, now),
                 )
-        except sqlite3.IntegrityError as exc:
+        except self._integrity_error as exc:
             raise WorkspaceAuthError(
                 "username or workspace_id already exists"
             ) from exc
@@ -278,7 +354,7 @@ class WorkspaceAuthStore:
         digest = self._derive(secret, salt)
         now = int(time.time())
         with self._connection() as conn:
-            cursor = conn.execute(
+            changed = conn.execute(
                 """
                 UPDATE workspace_users
                 SET password_salt = ?, password_hash = ?,
@@ -286,23 +362,51 @@ class WorkspaceAuthStore:
                 WHERE username = ?
                 """,
                 (salt, digest, now, str(username).strip()),
-            )
-        if cursor.rowcount != 1:
+            ).rowcount
+        if changed != 1:
             raise WorkspaceAuthError("workspace account not found")
 
     def set_enabled(self, username: str, enabled: bool) -> None:
         now = int(time.time())
         with self._connection() as conn:
-            cursor = conn.execute(
+            changed = conn.execute(
                 """
                 UPDATE workspace_users
                 SET enabled = ?, session_version = session_version + 1, updated_at = ?
                 WHERE username = ?
                 """,
                 (int(bool(enabled)), now, str(username).strip()),
-            )
-        if cursor.rowcount != 1:
+            ).rowcount
+        if changed != 1:
             raise WorkspaceAuthError("workspace account not found")
+
+    # ── privacy (`privacy.py`), wherever the logins are kept ────────────────
+
+    def subject_rows(self, workspace_id: str, usernames: Sequence[str]) -> list[dict[str, Any]]:
+        """The logins of a workspace whose username, lower-cased, is one of these."""
+        if not usernames:
+            return []
+        marks = ",".join("?" for _ in usernames)
+        with self._connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT username, workspace_id, enabled, created_at, updated_at
+                FROM workspace_users
+                WHERE workspace_id = ? AND lower(username) IN ({marks})
+                """,
+                (workspace_id, *usernames),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_rows(self, workspace_id: str, usernames: Sequence[str]) -> int:
+        if not usernames:
+            return 0
+        marks = ",".join("?" for _ in usernames)
+        with self._connection() as conn:
+            return int(conn.execute(
+                f"DELETE FROM workspace_users WHERE workspace_id = ? AND username IN ({marks})",
+                (workspace_id, *usernames),
+            ).rowcount or 0)
 
 
 class DemoSessionAuth:

@@ -12,6 +12,7 @@ gives the owner a usage display even for providers with no usage endpoint.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -19,6 +20,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
+
+from ..db.hosted import QUOTA, HostedStorage
+
+LOG = logging.getLogger(__name__)
 
 #: Spend and call ceilings the owner can set per provider, independent of the
 #: provider's own free-tier limits.
@@ -88,16 +93,38 @@ class QuotaTracker:
     Deliberately file-backed rather than in the CRM database: the AI module has
     to be liftable into its own repository (§4M), so it does not reach into the
     CRM's schema for its own bookkeeping.
+
+    Or, given hosted storage, the same document in the hosted database
+    (`S-06.03.02`, `DD-69`): a free Render service loses its disk at every
+    spin-down, and a daily limit counted there started again from zero each
+    time — not a limit at all (D-198).
     """
 
-    def __init__(self, data_dir: Path | str) -> None:
+    def __init__(self, data_dir: Path | str, *, hosted: HostedStorage | None = None) -> None:
         self.path = Path(data_dir) / "ai_quota.json"
+        self._hosted = hosted
         self._lock = threading.RLock()
         self._states: dict[str, QuotaState] = {}
         self._loaded = False
 
     def _load(self) -> None:
         if self._loaded:
+            return
+        if self._hosted is not None:
+            # Not caught: counting from zero after a failed read, then saving,
+            # would overwrite the day's real counts. The call waits on the
+            # database instead, and the next one reads again.
+            body = self._hosted.read(QUOTA)
+            try:
+                payload = json.loads(body) if body is not None else {}
+            except json.JSONDecodeError:
+                payload = {}
+            self._states = {
+                str(key): QuotaState.from_dict(value)
+                for key, value in (payload.items() if isinstance(payload, dict) else ())
+                if isinstance(value, dict)
+            }
+            self._loaded = True
             return
         if self.path.exists():
             try:
@@ -115,8 +142,17 @@ class QuotaTracker:
         self._loaded = True
 
     def _save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {key: value.to_dict() for key, value in self._states.items()}
+        if self._hosted is not None:
+            try:
+                self._hosted.write(QUOTA, json.dumps(payload, ensure_ascii=False))
+            except Exception as exc:  # noqa: BLE001 - the count stays right in memory
+                # As with the file: a counter that could not be written must not
+                # fail the call that was already made. This process keeps the
+                # right count and the next save writes it.
+                LOG.warning("Could not save the AI usage counters: %s", type(exc).__name__)
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
                 json.dump(payload, handle, ensure_ascii=False, indent=2)

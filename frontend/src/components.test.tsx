@@ -657,3 +657,12 @@ describe("the Models panel says when a save cut the level (D-193)", () => {
     );
   });
 });
+
+describe("where a key is kept is said truly, hosted or not (D-202)", () => {
+  it("promises nothing about staying on this machine", () => {
+    // With OFFSETX_DATABASE_URL the server encrypts a key and keeps it in the
+    // hosted database; on Render "this machine" was never the user's own.
+    const source = readFileSync(join(process.cwd(), "src", "pages", "Connectors.tsx"), "utf-8");
+    expect(source.match(/on this machine/g) ?? []).toEqual([]);
+  });
+});

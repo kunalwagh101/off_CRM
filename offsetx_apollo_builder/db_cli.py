@@ -5,6 +5,9 @@ Usage::
     offsetx-db check                                  # what would be opened, and can it be reached
     offsetx-db check --target postgresql://…
     offsetx-db copy-log --from <data dir>/ai_egress.db --to postgresql://…
+    offsetx-db inventory                              # every store, where it lives, its size here
+    offsetx-db new-secrets-key                        # the key for provider keys in a hosted database
+    offsetx-db forget-provider-keys --yes             # a lost key: clear the stored keys to start again
 
 The data directory is ``OFFSETX_DATA_DIR``, or ``local_data`` when it is unset.
 
@@ -20,16 +23,20 @@ import sys
 from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+
 from .ai.log import copy_egress_log
 from .data_paths import data_dir, database_path
 from .db import (
     DATABASE_URL_ENV,
     DatabaseError,
     describe_target,
+    inventory,
     open_database,
     resolve_target,
 )
 from .db.connection import is_postgres_url
+from .db.hosted import SECRETS_KEY_ENV, HostedStorage
 from .outreach.workspace_lock import cli_workspace_lease
 
 
@@ -112,10 +119,91 @@ def _cmd_copy_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def _size(count: int) -> str:
+    if count < 1024:
+        return f"{count} B"
+    for unit in ("KB", "MB", "GB"):
+        count /= 1024
+        if count < 1024 or unit == "GB":
+            return f"{count:.1f} {unit}"
+    return f"{count:.1f} GB"  # pragma: no cover - the loop always returns
+
+
+def _cmd_inventory(args: argparse.Namespace) -> int:
+    """Every store, how it is kept, and what it holds on this install's disk.
+
+    Read only, so it takes no lease: it is what an owner runs to see what a
+    move to a hosted database involves, and what a free-plan deploy would wipe.
+    """
+    if args.markdown:
+        print(inventory.markdown_table())
+        return 0
+    root = Path(args.data_dir) if args.data_dir else data_dir(Path.cwd())
+    print(f"Data folder: {root}")
+    width = max(len(thing.name) for thing in inventory.STORES)
+    for thing, total in inventory.sizes(root):
+        print(f"{thing.name.ljust(width)}  {_size(total).rjust(9)}  {thing.hosted}")
+    return 0
+
+
+def _cmd_new_secrets_key(args: argparse.Namespace) -> int:
+    """Print a fresh key for the provider keys kept in a hosted database.
+
+    Printed once and stored nowhere: the install owner sets it where the app's
+    environment is set, and keeps a copy. Generated, never typed, so it cannot
+    be a password someone could guess (`S-06.03.02`).
+    """
+    key = Fernet.generate_key().decode("ascii")
+    print(f"Set {SECRETS_KEY_ENV} to this key, once, where the app's settings live")
+    print("(on Render: the service's Environment page):")
+    print()
+    print(f"    {key}")
+    print()
+    print("Keep a copy somewhere safe, such as a password manager. It is stored nowhere")
+    print("else, and without it nobody can read the provider keys saved in the database.")
+    return 0
+
+
+def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
+    """The way back from a lost secrets key: clear the stored provider keys.
+
+    Consequential — every workspace has to paste its keys again — so it does
+    nothing without `--yes`. Settings, limits, trust and logins stay.
+    """
+    try:
+        target = resolve_target(args.target or None, default="")
+    except DatabaseError as exc:  # pragma: no cover - a default is always given
+        print(str(exc), file=sys.stderr)
+        return 2
+    if not target:
+        print(f"Set {DATABASE_URL_ENV}, or pass --target, to name the database.", file=sys.stderr)
+        return 2
+    if not args.yes:
+        print(
+            f"This clears every workspace's provider keys stored in {describe_target(target)}.\n"
+            "Settings, limits, trust and logins stay; each workspace pastes its keys again\n"
+            "in Connectors. Stop the app first, then run this again with --yes.",
+            file=sys.stderr,
+        )
+        return 2
+    storage = HostedStorage(target, None)
+    try:
+        with _lease(target):
+            storage.forget_provider_keys()
+    except DatabaseError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    finally:
+        storage.close()
+    print(f"The stored provider keys in {describe_target(target)} are cleared.")
+    print(f"Start the app with the new {SECRETS_KEY_ENV}, then paste each key in Connectors.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-db",
-        description="Inspect the database backend and move the egress log.",
+        description="Inspect the database backend, list the stores and move the egress log.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -135,6 +223,21 @@ def main(argv: list[str] | None = None) -> int:
         "--to", dest="destination", required=True, help="postgresql:// URL to write"
     )
     copy.set_defaults(func=_cmd_copy_log)
+
+    stores = sub.add_parser("inventory", help="every store, where it lives and its size here")
+    stores.add_argument("--data-dir", default="", help="the data folder to measure")
+    stores.add_argument("--markdown", action="store_true", help="print the design document's table")
+    stores.set_defaults(func=_cmd_inventory)
+
+    fresh = sub.add_parser("new-secrets-key", help=f"print a new {SECRETS_KEY_ENV}")
+    fresh.set_defaults(func=_cmd_new_secrets_key)
+
+    forget = sub.add_parser(
+        "forget-provider-keys", help="clear the stored provider keys after a lost secrets key"
+    )
+    forget.add_argument("--target", default="", help=f"postgresql:// URL; defaults to {DATABASE_URL_ENV}")
+    forget.add_argument("--yes", action="store_true", help="really clear them")
+    forget.set_defaults(func=_cmd_forget_provider_keys)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

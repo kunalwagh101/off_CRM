@@ -210,6 +210,14 @@ def runtime_health(state: Any, settings: Any, *, include_maintenance: bool = Tru
         state.ai_tools.connection().execute("SELECT 1").fetchone()
     except Exception as exc:
         failures.append(f"ai_tools:{type(exc).__name__}")
+    # The keys, AI settings and logins, when OFFSETX_DATABASE_URL holds them:
+    # unreachable, no workspace can use a provider or sign in (S-06.03.02).
+    hosted = getattr(state, "hosted_storage", None)
+    if hosted is not None:
+        try:
+            hosted.probe()
+        except Exception as exc:
+            failures.append(f"hosted_storage:{type(exc).__name__}")
     # Services built on the CRM store must be on the live one, not a store a
     # restore closed — the shape of audit A03, reproduced on main in September.
     engine_store = state.engine.store
@@ -343,7 +351,9 @@ async def _maintenance(state):
 
 
 def _require_local_backup(state):
-    if any(
+    # The keys, settings and logins in a hosted database are outside the data
+    # folder too, whatever its address names (S-06.03.02).
+    if getattr(state, "hosted_storage", None) is not None or any(
         is_postgres_url(getattr(store, "target", ""))
         for store in (state.ai_egress_log, state.video_store, state.gtm_store)
     ):

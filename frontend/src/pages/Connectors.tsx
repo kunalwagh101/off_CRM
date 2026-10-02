@@ -110,7 +110,7 @@ export default function Connectors() {
           "warning"
         );
       } else {
-        notify(`${row.name} connected. Key encrypted on this machine.`, "success");
+        notify(`${row.name} connected. Its key is encrypted before it is saved.`, "success");
       }
       setOpenProvider("");
       providers.reload();
@@ -524,7 +524,7 @@ function ProviderCard({
       {usage && (usage.day_limit > 0 || usage.minute_limit > 0) ? (
         <p className="provider-usage">
           Used today: {usage.day_used}
-          {usage.day_limit > 0 ? ` / ${usage.day_limit}` : ""} · counted on this machine
+          {usage.day_limit > 0 ? ` / ${usage.day_limit}` : ""} · counted by off_CRM
           {usage.exhausted ? <em className="provider-warn"> Out of quota — skipped until it resets.</em> : null}
         </p>
       ) : null}
@@ -578,7 +578,7 @@ function ProviderCard({
             Open the {row.name} key page →
           </a>
 
-          <Field label="API key" hint="Encrypted on this machine before it touches disk.">
+          <Field label="API key" hint="Encrypted before it is saved, wherever this install keeps its data.">
             <input
               name="api_key"
               type="password"

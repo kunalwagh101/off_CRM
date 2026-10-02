@@ -862,7 +862,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
 | R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
 | R-164 | A login that will act as the install owner is made so on purpose, never by picking a workspace name | S-06.02.36 |
-| R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05 |
+| R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -2056,7 +2056,17 @@ the data in a free hosted PostgreSQL. Design: `docs/architecture/HOSTED_STORAGE.
 #### S-06.03.05 — Production refuses a half-hosted install
 - **Given** `OFFSETX_PRODUCTION=1`, **when** some stores are hosted and others
   are on a wiped disk, **then** the app refuses to start and names them.
-- **Dependencies:** `S-06.03.04`. **Size:** S.
+- **Dependencies:** `S-06.03.04`, `S-06.03.06`. **Size:** S.
+
+#### S-06.03.06 — Every other store has a decided home
+*(Filed 2026-10-02 from the inventory, `S-06.03.01`: these stores had no phase.)*
+- **Given** the inventory's stores marked "not decided" — template results,
+  sent-mail recall, tools and companions, routines, meetings, imagery, posts,
+  trends, the Notion link, the timers, privacy requests, the crawler — **when**
+  each is decided, **then** it is either in the hosted database with the same
+  proof as `S-06.03.02`, or marked disposable with the screen that holds it
+  saying so.
+- **Dependencies:** `S-06.03.03`. **Size:** L.
 
 ## 3b. Amendments to shipped definitions
 

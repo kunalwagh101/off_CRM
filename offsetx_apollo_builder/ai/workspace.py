@@ -282,6 +282,13 @@ class WorkspaceAISettingsStore:
             except RegistryError:
                 return ""
 
+    def snapshot(self) -> tuple[dict[str, Any], dict[str, str]]:
+        """The whole settings document and every stored key, for moving an
+        install's stores into the hosted database (`offsetx-db import-local`).
+        Raises the key store's own sentence if the keys cannot be read."""
+        with self._lock:
+            return self._document(), self._secrets()
+
     def credential_resolver(self, workspace_id: str):
         def resolve(provider_id: str) -> str:
             return self.key_for(workspace_id, provider_id)

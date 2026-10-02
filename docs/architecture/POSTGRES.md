@@ -158,9 +158,12 @@ middle rung lets a deployment set one variable without every call site learning
 about it; the top rung keeps a test's scratch file safe from an environment
 variable reaching in.
 
-Only an explicit `postgresql://`, `postgres://` or `psql://` scheme means
-Postgres. Everything else is a path — so a mistyped DSN fails loudly instead of
-silently creating an empty SQLite file that looks like it worked.
+Only an explicit `postgresql://` or `postgres://` scheme means Postgres —
+`psql://` was accepted once, and the driver cannot read it (`D-213`). For a
+store given its own target, everything else is a path. For the app's
+`OFFSETX_DATABASE_URL`, anything but a PostgreSQL URL or an absolute SQLite path
+is refused at start (`D-206`): a connection string in another form used to
+become a SQLite file named after it, password included.
 
 Install with `uv pip install 'offsetx-apollo-builder[postgres]'`. Without
 psycopg, a Postgres URL raises a message containing that command rather than

@@ -460,6 +460,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     hosted = HostedStorage.configured(resolved.secrets_key)
     if hosted is not None:
         hosted.check_secrets_key()
+        # A data folder that still holds these stores is the owner's call,
+        # never hidden in silence (D-210).
+        hosted.check_local_folder(resolved.data_dir)
     workspace_auth = WorkspaceAuthStore(
         resolved.data_dir / "workspace_auth.db",
         session_secret=resolved.session_secret,
@@ -838,6 +841,27 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Offsetx-Token"],
     )
 
+    def _database_unreachable(exc: Exception) -> JSONResponse:
+        """The hosted database did not answer (S-06.03.02).
+
+        A sentence and 503, not a bare 500. What failed and where goes to the
+        server's log only: it names the database host, which is no business of
+        every login, and readiness names the store for the owner.
+        """
+        LOG.warning("A request could not reach the database: %s", exc)
+        return security_headers(JSONResponse(status_code=503, content={"detail": (
+            "off_CRM cannot reach its database right now. Try again in a minute; "
+            "if it keeps failing, tell the install owner — the server's log says why."
+        )}))
+
+    def _request_caller(request: Request) -> str | None:
+        """The caller, for an API request only. The health checks and the
+        screens' files need no login, and asking the database whose a cookie is
+        made being alive depend on it (D-209)."""
+        if not request.url.path.startswith("/api/"):
+            return None
+        return _caller(request)
+
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any):
         # DNS rebinding is what makes "it only listens on localhost" untrue: a
@@ -852,7 +876,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # are about being reachable from somewhere real and a harness is not.
             # Both are covered by their own tests against a production-shaped
             # config, so nothing here goes unexercised.
-            return await serve_as(_caller(request), request, call_next)
+            try:
+                caller = _request_caller(request)
+            except DatabaseError as exc:
+                return _database_unreachable(exc)
+            return await serve_as(caller, request, call_next)
         sent_host = (request.headers.get("host") or "").strip().lower()
         if sent_host.startswith("["):          # [::1]:8766  ->  ::1
             bare_host = sent_host[1:].split("]", 1)[0]
@@ -885,7 +913,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         protected = request.url.path.startswith("/api/") and not is_public
         if resolved.allow_unauthenticated:
             protected = False
-        caller = _caller(request)
+        # The session check reads the logins, which may be in the hosted
+        # database: the route handlers' 503 does not cover the middleware, so a
+        # signed-in browser got a bare 500 here during an outage (D-209).
+        try:
+            caller = _request_caller(request)
+        except DatabaseError as exc:
+            return _database_unreachable(exc)
         if protected and caller is None:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
@@ -975,17 +1009,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.exception_handler(DatabaseError)
     async def database_unavailable(_: Request, exc: DatabaseError) -> JSONResponse:
-        """The hosted database did not answer (S-06.03.02).
-
-        A sentence and 503, not a bare 500. What failed and where goes to the
-        server's log only: it names the database host, which is no business of
-        every login, and readiness names the store for the owner.
-        """
-        LOG.warning("A request could not reach the database: %s", exc)
-        return JSONResponse(status_code=503, content={"detail": (
-            "off_CRM cannot reach its database right now. Try again in a minute; "
-            "if it keeps failing, tell the install owner — the server's log says why."
-        )})
+        return _database_unreachable(exc)
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:

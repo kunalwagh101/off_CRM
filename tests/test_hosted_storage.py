@@ -394,3 +394,294 @@ def test_a_database_that_stops_answering_gets_a_sentence_not_a_bare_500(hosted_u
         assert "cannot reach its database" in detail
         # What failed and where goes to the server's log, not to every login.
         assert "127.0.0.1" not in detail and "not-the-password" not in detail
+
+
+# ── the fresh-context review's findings (D-206 to D-215) ──────────────────────
+
+DEAD_DATABASE = "postgresql://nobody:not-the-password@127.0.0.1:1/gone"
+
+
+def _cut_off(app) -> None:
+    """The hosted database stops answering, for every hosted store at once."""
+    for store in (app.state.hosted_storage, app.state.workspace_auth):
+        store.close()
+    app.state.hosted_storage.target = DEAD_DATABASE
+    app.state.workspace_auth._target = DEAD_DATABASE
+
+
+@pytest.mark.parametrize("value", [
+    "host=127.0.0.1 port=5432 dbname=offcrm user=offcrm password=the-password",
+    '"postgresql://offcrm:the-password@127.0.0.1:5432/offcrm"',
+    "offcrm.sqlite3",
+    "psql://offcrm:the-password@127.0.0.1:5432/offcrm",
+], ids=["libpq-key-value", "quoted-url", "relative-path", "psql-scheme"])
+def test_a_database_setting_that_is_not_a_url_is_refused_and_never_becomes_a_file(value, tmp_path, monkeypatch):
+    """D-206: such a value used to be a SQLite file in the working directory,
+    named after the string — password included — on the disk a deploy wipes."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", value)
+    with pytest.raises(ValueError) as refused:
+        create_app(_settings(tmp_path / "data", _new_key()))
+    assert "postgresql://" in str(refused.value)
+    assert "the-password" not in str(refused.value)
+    assert sorted(path.name for path in tmp_path.iterdir()) == []
+
+
+def test_an_answer_already_billed_survives_the_database_going_away(hosted_url, tmp_path, monkeypatch):
+    """D-207: the counters were first read after the call, so a database that
+    went away meanwhile threw a billed answer away and told the user to retry."""
+    from offsetx_apollo_builder.ai import broker as broker_module
+
+    calls: list[str] = []
+    holder: dict[str, object] = {}
+
+    class _Model:
+        last_usage = None
+
+        def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+            calls.append("billed")
+            _cut_off(holder["app"])  # the database goes while the model thinks
+            return "the answer the provider produced"
+
+    monkeypatch.setattr(broker_module, "create_provider", lambda config, *, environ: _Model())
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    with _running(tmp_path / "data", _new_key()) as (app, client):
+        holder["app"] = app
+        connected = client.post(f"{API}/ai/providers/openai/connect", json={
+            "api_key": "openai-test-key", "model_ids": ["gpt-4o-mini"]})
+        assert connected.status_code == 200, connected.text
+        ran = client.post(f"{API}/ai/run", json={"instructions": "Say hello.", "data_class": "public"})
+        assert (ran.status_code, len(calls)) == (200, 1), ran.text
+
+
+def test_nothing_is_billed_when_the_counters_cannot_be_read_first(hosted_url, tmp_path, monkeypatch):
+    from offsetx_apollo_builder.ai import broker as broker_module
+
+    calls: list[str] = []
+
+    class _Model:
+        last_usage = None
+
+        def generate(self, *, system_prompt: str, user_prompt: str) -> str:
+            calls.append("billed")
+            return "never asked"
+
+    monkeypatch.setattr(broker_module, "create_provider", lambda config, *, environ: _Model())
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    with _running(tmp_path / "data", _new_key()) as (app, client):
+        assert client.post(f"{API}/ai/providers/openai/connect", json={
+            "api_key": "openai-test-key", "model_ids": ["gpt-4o-mini"]}).status_code == 200
+        _cut_off(app)
+        ran = client.post(f"{API}/ai/run", json={"instructions": "Say hello.", "data_class": "public"})
+        assert (ran.status_code, calls) == (503, [])
+
+
+@needs_postgres
+def test_a_connection_asks_the_network_to_notice_a_silent_drop(postgres_url):
+    """D-208: with no bound, a check on a flow a load balancer forgot waited
+    until TCP gave up — about fifteen minutes — holding the store's lock."""
+    database = open_database(postgres_url)
+    try:
+        parameters = database.raw.info.get_parameters()
+        assert parameters.get("tcp_user_timeout") == "15000"
+        assert parameters.get("keepalives_idle") == "15"
+    finally:
+        database.close()
+    joiner = "&" if "?" in postgres_url else "?"
+    chosen = open_database(f"{postgres_url}{joiner}keepalives_idle=60")
+    try:
+        assert chosen.raw.info.get_parameters().get("keepalives_idle") == "60", "the URL's own choice wins"
+    finally:
+        chosen.close()
+
+
+def test_a_signed_in_browser_gets_the_sentence_during_an_outage(hosted_url, tmp_path, monkeypatch):
+    """D-209: the session check runs in the middleware, which the 503 handler
+    did not cover — every signed-in request answered a bare 500."""
+    from offsetx_apollo_builder.api.auth import SESSION_COOKIE
+
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    with _running(tmp_path / "data", _new_key()) as (app, client):
+        assert client.post(f"{API}/workspaces", json={
+            "username": "colleague", "workspace_id": "beta", "password": "beta-password-1"}).status_code == 201
+        signed_in = TestClient(app, raise_server_exceptions=False)
+        assert signed_in.post(f"{API}/auth/login", json={
+            "username": "colleague", "password": "beta-password-1"}).status_code == 200
+        assert signed_in.cookies.get(SESSION_COOKIE)
+        _cut_off(app)
+        answer = signed_in.get(f"{API}/ai/providers")
+        assert answer.status_code == 503, answer.text
+        assert "cannot reach its database" in answer.json()["detail"]
+        assert signed_in.get("/health/live").status_code == 200, "being alive does not need the database"
+
+
+def _local_install_with_data(data: Path, monkeypatch) -> None:
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    with _running(data, "") as (app, client):
+        _connect(client, "nvapi-on-the-disk")
+        assert client.post(f"{API}/ai/providers/deepseek/trust", json={
+            "tier": "B", "reason": "Signed terms, recorded on the disk"}).status_code == 200
+        assert client.post(f"{API}/workspaces", json={
+            "username": "colleague", "workspace_id": "beta", "password": "beta-password-1"}).status_code == 201
+        app.state.ai_quota.record("nvidia", spend_usd=0.5)
+
+
+def test_switching_on_beside_a_folder_that_holds_data_is_refused_with_both_choices(hosted_url, tmp_path, monkeypatch):
+    """D-210: the logins, keys and trust on the disk were silently hidden."""
+    data = tmp_path / "local_data"
+    _local_install_with_data(data, monkeypatch)
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    with pytest.raises(ValueError) as refused:
+        create_app(_settings(data, _new_key()))
+    message = str(refused.value)
+    for named in ("ai_workspaces.json", "ai_provider_keys.enc", "workspace_auth.db",
+                  "offsetx-db import-local --yes", "offsetx-db import-local --skip"):
+        assert named in message
+
+
+def test_import_local_brings_the_folder_into_the_database(hosted_url, tmp_path, monkeypatch):
+    data = tmp_path / "local_data"
+    _local_install_with_data(data, monkeypatch)
+    key = _new_key()
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", key)
+    before = sorted(path.name for path in data.iterdir())
+    assert db_cli.main(["import-local", "--data-dir", str(data)]) == 2, "nothing happens without --yes"
+    assert db_cli.main(["import-local", "--data-dir", str(data), "--yes"]) == 0
+    assert db_cli.main(["import-local", "--data-dir", str(data), "--yes"]) == 2, "never imports over what is there"
+    assert sorted(path.name for path in data.iterdir()) == before, "the files are left as they were"
+    with _running(data, key) as (app, client):
+        rows = {row["id"]: row for row in client.get(f"{API}/ai/providers").json()["providers"]}
+        assert app.state.ai_workspaces.key_for("local", "nvidia") == "nvapi-on-the-disk"
+        assert rows["deepseek"]["override"]["trust_reason"] == "Signed terms, recorded on the disk"
+        assert rows["nvidia"]["usage"]["day_spend_usd"] == 0.5
+        assert client.post(f"{API}/auth/login", json={
+            "username": "colleague", "password": "beta-password-1"}).status_code == 200
+
+
+def test_skip_keeps_the_database_as_it_is_and_says_so_once(hosted_url, tmp_path, monkeypatch):
+    data = tmp_path / "local_data"
+    _local_install_with_data(data, monkeypatch)
+    key = _new_key()
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", key)
+    assert db_cli.main(["import-local", "--data-dir", str(data), "--skip"]) == 0
+    with _running(data, key) as (app, client):
+        assert app.state.ai_workspaces.key_for("local", "nvidia") == ""
+    assert (data / "ai_provider_keys.enc").exists(), "skipping deletes nothing"
+
+
+def test_a_key_read_the_database_could_not_answer_is_not_the_providers_fault(hosted_url, tmp_path, monkeypatch):
+    """D-211: it failed over, counted a call nothing sent, logged the database's
+    address where every login can read it, and could blame the provider's key."""
+    from offsetx_apollo_builder.ai import broker as broker_module
+    from offsetx_apollo_builder.db.connection import DatabaseUnavailable
+
+    called: list[str] = []
+    monkeypatch.setattr(broker_module, "create_provider",
+                        lambda config, *, environ: called.append(config.model) or None)
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
+    with _running(tmp_path / "data", _new_key()) as (app, client):
+        for provider, model in (("mistral", "mistral-small-latest"), ("nvidia", MODEL)):
+            assert client.post(f"{API}/ai/providers/{provider}/connect", json={
+                "api_key": f"{provider}-test-key", "model_ids": [model]}).status_code == 200
+
+        def broken(_workspace_id):
+            def resolve(_provider_id):
+                raise DatabaseUnavailable("postgres at postgresql://u:***@db.internal/x stopped answering")
+            return resolve
+
+        monkeypatch.setattr(app.state.ai_workspaces, "credential_resolver", broken)
+        ran = client.post(f"{API}/ai/run", json={"instructions": "Say hello.", "data_class": "public"})
+        assert ran.status_code == 503, ran.text
+        assert called == [], "no provider was asked, so none was failed over to"
+        assert client.get(f"{API}/ai/egress-log").json()["items"] == []
+        assert all(not state.day_count for state in app.state.ai_quota._states.values())
+        assert app.state.ai_broker._failures == {}
+
+
+@needs_postgres
+def test_a_dropped_connection_at_begin_or_commit_is_the_databases_sentence(postgres_url):
+    """D-212: BEGIN and COMMIT on a dropped connection raised the driver's own
+    error, which the screens showed as a bare 500."""
+    from offsetx_apollo_builder.db.connection import DatabaseUnavailable
+
+    database = open_database(postgres_url)
+    killer = open_database(postgres_url)
+    try:
+        def drop() -> None:
+            pid = database.raw.info.backend_pid
+            killer.execute("SELECT pg_terminate_backend(?)", [pid])
+
+        database.execute("SELECT 1")
+        drop()
+        with pytest.raises(DatabaseUnavailable, match="nothing in it ran"):
+            with database.transaction():
+                database.execute("SELECT 1")
+        database.execute("CREATE TABLE IF NOT EXISTS commits (id TEXT)")
+        with pytest.raises(DatabaseUnavailable, match="unknown"):
+            with database.transaction():
+                database.execute("INSERT INTO commits VALUES ('a')")
+                drop()
+    finally:
+        killer.close()
+        database.close()
+
+
+def test_no_message_or_description_repeats_the_database_password(hosted_url, tmp_path, monkeypatch, capsys):
+    """D-213: a password in the URL's query string, or a scheme the driver could
+    not read, came back in the start-up refusal and the commands' output."""
+    from offsetx_apollo_builder.db import describe_target
+    from offsetx_apollo_builder.db.connection import DatabaseUnavailable
+
+    assert "hunter2" not in describe_target("postgresql://kunal@db.example.com/off?password=hunter2&sslmode=require")
+    assert "sslmode=require" in describe_target("postgresql://kunal@db.example.com/off?password=hunter2&sslmode=require")
+    with pytest.raises(DatabaseUnavailable) as failed:
+        open_database("postgresql://offcrm:not-the-password@127.0.0.1:1/gone")
+    assert "not-the-password" not in str(failed.value)
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", "postgresql://offcrm@127.0.0.1:1/gone?password=not-the-password")
+    assert db_cli.main(["forget-provider-keys", "--yes"]) == 2
+    assert "not-the-password" not in capsys.readouterr().err
+
+
+def test_two_instances_starting_together_both_start(hosted_url, tmp_path, monkeypatch):
+    """D-214: the configured login was checked for, then created, so the second
+    of two instances starting at once failed on the unique key."""
+    from offsetx_apollo_builder.api.auth import WorkspaceAuthStore
+
+    stores = [WorkspaceAuthStore(tmp_path / f"auth-{index}.db", session_secret=SESSION_SECRET,
+                                 session_hours=8, database_target=hosted_url) for index in range(2)]
+    try:
+        stores[0].bootstrap(username="owner", password="owner-password-12")
+        # The second checked before the first created it: it reaches the insert.
+        monkeypatch.setattr(stores[1], "_connection", stores[1]._connection)
+        original_execute = stores[1]._hosted().execute
+
+        missed: list[str] = []
+
+        def miss_the_first_check(sql, params=None):
+            if sql.startswith("SELECT 1 FROM workspace_users") and not missed:
+                missed.append(sql)
+                return original_execute("SELECT 1 FROM workspace_users WHERE 1 = 0")
+            return original_execute(sql, params)
+
+        monkeypatch.setattr(stores[1]._hosted(), "execute", miss_the_first_check)
+        stores[1].bootstrap(username="owner", password="owner-password-12")
+        assert stores[1].authenticate("owner", "owner-password-12") is not None
+    finally:
+        for store in stores:
+            store.close()
+
+
+def test_the_classifier_never_blames_a_provider_for_the_database():
+    """D-211, at its root: a database's "password authentication failed" read
+    as the provider rejecting its key, telling the owner to replace a good key."""
+    from offsetx_apollo_builder.ai.failures import FailureAction, classify
+    from offsetx_apollo_builder.db.connection import DatabaseUnavailable
+
+    failure = classify(DatabaseUnavailable(
+        'Could not connect to postgres at postgresql://u:***@db/x: password authentication failed for user "u"'))
+    assert failure.kind.value != "auth"
+    assert failure.action is FailureAction.STOP_REQUEST
+    assert not failure.counts_against_provider
+    assert "database" in failure.owner_action and "key" in failure.owner_action

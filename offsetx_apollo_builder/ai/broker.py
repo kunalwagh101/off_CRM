@@ -33,6 +33,7 @@ from ..outreach.providers import (
     create_provider,
     normalize_generation_output,
 )
+from ..db.connection import DatabaseError
 from ..outreach.models import ProviderConfig
 from .errors import (
     EgressBlocked,
@@ -467,7 +468,11 @@ class EgressBroker:
         )
 
         # Quota filter: skip providers with nothing left rather than calling
-        # them and eating a 429.
+        # them and eating a 429. The counters are read first even when no
+        # candidate has limits: read only after a call, a database that could
+        # not answer threw away an answer already billed (D-207).
+        if self.quota is not None:
+            self.quota.prepare()
         with_budget: list[ResolvedProvider] = []
         for candidate in adjusted:
             limits = settings.quota_limits.get(candidate.id)
@@ -720,6 +725,11 @@ class EgressBroker:
                     user_prompt=json.dumps(payload, ensure_ascii=False),
                 )
                 text = normalize_generation_output(raw) if expect_json else str(raw)
+            except DatabaseError:
+                # The key store did not answer: nothing was sent, so nothing is
+                # the provider's fault — no failover, no count, no breaker, no
+                # log row naming the database's address (D-211).
+                raise
             except Exception as exc:  # noqa: BLE001 - classified, then handled
                 status = "failed"
                 error = str(exc)[:500]
@@ -915,6 +925,8 @@ class EgressBroker:
             try:
                 provider = self._instantiate(candidate, adapter_override="openai_image")
                 images = provider.generate_images(prompt=prompt)
+            except DatabaseError:
+                raise  # the key store, not the provider (D-211)
             except Exception as exc:  # noqa: BLE001 - recorded, then failover
                 status = "failed"
                 error = str(exc)[:500]
@@ -1077,6 +1089,8 @@ class EgressBroker:
                     language=language,
                     prompt=hint,
                 )
+            except DatabaseError:
+                raise  # the key store, not the provider (D-211)
             except Exception as exc:  # noqa: BLE001 - recorded, then failover
                 status = "failed"
                 error = str(exc)[:500]

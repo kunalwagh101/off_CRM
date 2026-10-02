@@ -13,9 +13,11 @@ import os
 import sqlite3
 import threading
 import time
-from contextlib import contextmanager
+from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Sequence
+from urllib.parse import unquote
 
 from .translate import translate_params
 
@@ -23,7 +25,23 @@ from .translate import translate_params
 #: its own target explicitly, which wins.
 DATABASE_URL_ENV = "OFFSETX_DATABASE_URL"
 
-_POSTGRES_SCHEMES = ("postgres://", "postgresql://", "psql://")
+#: The two schemes libpq itself reads. `psql://` used to be accepted here, and
+#: libpq cannot read it: the connection failed quoting the whole URL, password
+#: included (D-213).
+_POSTGRES_SCHEMES = ("postgres://", "postgresql://")
+
+#: Network liveness for every PostgreSQL connection, unless the URL sets its
+#: own. A flow a load balancer forgot without a reset — Azure's default — left a
+#: statement waiting until TCP gave up, about fifteen minutes, holding the
+#: store's lock; with these it fails in about fifteen seconds (D-208).
+_LIVENESS = {
+    "connect_timeout": "10",
+    "keepalives": "1",
+    "keepalives_idle": "15",
+    "keepalives_interval": "5",
+    "keepalives_count": "3",
+    "tcp_user_timeout": "15000",
+}
 
 
 class DatabaseError(RuntimeError):
@@ -71,21 +89,50 @@ def resolve_target(explicit: object = None, *, default: object = None) -> str:
     )
 
 
+def _split(target: str) -> tuple[str, str, str, str]:
+    """scheme, credentials, the rest before the query, and the query."""
+    scheme, _, rest = target.partition("://")
+    before, _, query = rest.partition("?")
+    credentials, at, place = before.rpartition("@")
+    return scheme, credentials if at else "", place if at else before, query
+
+
+def _passwords(target: str) -> list[str]:
+    """The password a URL carries — after the user, or as `?password=` — as
+    written and decoded, so a message can be cleaned of it."""
+    _, credentials, _, query = _split(target)
+    found = [credentials.split(":", 1)[1]] if ":" in credentials else []
+    for item in query.split("&"):
+        name, _, value = item.partition("=")
+        if name.lower() == "password":
+            found.append(value)
+    return [secret for secret in {*found, *(unquote(item) for item in found)} if secret]
+
+
+def redact(text: str, target: object) -> str:
+    """`text` with the target's password replaced, wherever the driver put it."""
+    for secret in sorted(_passwords(str(target or "")), key=len, reverse=True):
+        text = text.replace(secret, "***")
+    return text
+
+
 def describe_target(target: object) -> str:
-    """A one-line description safe to print — the password is never shown."""
+    """A one-line description safe to print — the password is never shown,
+    in the user part or the query string (D-213)."""
     if not is_postgres_url(target):
         return f"sqlite at {target}"
-    text = str(target)
-    if "@" in text:
-        scheme, _, rest = text.partition("://")
-        credentials, _, host = rest.rpartition("@")
-        user = credentials.split(":", 1)[0]
-        return f"postgres at {scheme}://{user}:***@{host}"
-    return f"postgres at {text}"
+    scheme, credentials, place, query = _split(str(target))
+    user = f"{credentials.split(':', 1)[0]}:***@" if credentials else ""
+    kept = [item for item in query.split("&") if item and item.partition("=")[0].lower() != "password"]
+    return f"postgres at {scheme}://{user}{place}" + (f"?{'&'.join(kept)}" if kept else "")
 
 
-class Database:
-    """Base class. Concrete backends fill in connect and translate."""
+class Database(ABC):
+    """Base class. Concrete backends fill in connect and translate.
+
+    Abstract, so a backend missing one of the surface's methods cannot be made
+    at all, rather than failing the first time a store calls it.
+    """
 
     name = "unknown"
 
@@ -99,12 +146,15 @@ class Database:
 
     # ── the surface stores use ──────────────────────────────────────────────
 
+    @abstractmethod
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Any:
-        raise NotImplementedError
+        """Run one statement with ``?`` placeholders; rows read as mappings."""
 
+    @abstractmethod
     def executescript(self, sql: str) -> None:
-        raise NotImplementedError
+        """Run several statements with no parameters."""
 
+    @abstractmethod
     def columns(self, table: str) -> set[str]:
         """The column names of a table, or an empty set if it does not exist.
 
@@ -112,7 +162,6 @@ class Database:
         — SQLite has ``PRAGMA table_info``, Postgres has ``information_schema``
         — so it lives here rather than in every store that needs a migration.
         """
-        raise NotImplementedError
 
     def add_column_if_missing(self, table: str, column: str, definition: str) -> bool:
         """Additive migration, and the only kind either backend gets for free.
@@ -128,12 +177,13 @@ class Database:
         self.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         return True
 
-    @contextmanager
-    def transaction(self) -> Iterator["Database"]:
-        raise NotImplementedError
+    @abstractmethod
+    def transaction(self) -> AbstractContextManager["Database"]:
+        """One transaction: committed when the block ends, rolled back if it raises."""
 
+    @abstractmethod
     def close(self) -> None:
-        raise NotImplementedError
+        """Close the connection."""
 
     def __enter__(self) -> "Database":
         return self
@@ -161,9 +211,30 @@ class SQLiteDatabase(Database):
             self.path, check_same_thread=False, isolation_level=None
         )
         self.raw.row_factory = sqlite3.Row
-        if wal:
-            self.raw.execute("PRAGMA journal_mode=WAL")
         self.raw.execute("PRAGMA busy_timeout=5000")
+        if wal:
+            self._use_wal()
+
+    def _use_wal(self) -> None:
+        """Switch a new database file to WAL, whichever connection gets there first.
+
+        Changing the journal mode needs the file to itself, and SQLite answers
+        "database is locked" at once, not after the busy timeout, while another
+        connection is writing — so two connections opening a brand-new file
+        together failed one of them (D-216). Setting the mode is safe to repeat,
+        and once one connection has set it every other one finds it set.
+        """
+        for attempt in range(50):
+            try:
+                mode = self.raw.execute("PRAGMA journal_mode").fetchone()[0]
+                if str(mode).lower() != "wal":
+                    self.raw.execute("PRAGMA journal_mode=WAL")
+                return
+            except sqlite3.OperationalError as exc:
+                busy = getattr(exc, "sqlite_errorname", "") == "SQLITE_BUSY" or str(exc) == "database is locked"
+                if not busy or attempt == 49:
+                    raise
+                time.sleep(0.1)
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Any:
         with self._lock:
@@ -221,6 +292,7 @@ class PostgresDatabase(Database):
         super().__init__(target)
         try:
             import psycopg
+            from psycopg.conninfo import conninfo_to_dict
             from psycopg.rows import dict_row
         except ImportError as exc:  # pragma: no cover - depends on the install
             raise DatabaseError(
@@ -231,6 +303,7 @@ class PostgresDatabase(Database):
             ) from exc
 
         self._psycopg = psycopg
+        self._conninfo_to_dict = conninfo_to_dict
         self.integrity_error = psycopg.IntegrityError
         self._dict_row = dict_row
         self._connect_timeout = connect_timeout
@@ -240,6 +313,13 @@ class PostgresDatabase(Database):
 
     def _connect(self) -> Any:
         try:
+            chosen = set(self._conninfo_to_dict(self.target))
+        except self._psycopg.Error:
+            chosen = set()  # unreadable: the connect below says why
+        defaults = {name: value for name, value in _LIVENESS.items() if name not in chosen}
+        if "connect_timeout" in defaults:
+            defaults["connect_timeout"] = str(self._connect_timeout)
+        try:
             # No server-side prepared statements (`prepare_threshold=None`): a
             # pooler in transaction mode — PgBouncer, Neon's pooled URL, RDS
             # Proxy — hands each transaction a different server connection,
@@ -248,13 +328,13 @@ class PostgresDatabase(Database):
                 self.target,
                 autocommit=True,
                 row_factory=self._dict_row,
-                connect_timeout=self._connect_timeout,
                 prepare_threshold=None,
+                **defaults,
             )
         except self._psycopg.Error as exc:
             raise DatabaseUnavailable(
-                f"Could not connect to {describe_target(self.target)}: {exc}"
-            ) from exc
+                f"Could not connect to {describe_target(self.target)}: {redact(str(exc), self.target)}"
+            ) from None
 
     def _live(self) -> Any:
         """The connection, reopened if the server is known to have dropped it.
@@ -295,7 +375,7 @@ class PostgresDatabase(Database):
                 return raw.execute(translate_params(sql), tuple(params or ()))
             except self._psycopg.OperationalError as exc:
                 raise DatabaseUnavailable(
-                    f"{describe_target(self.target)} stopped answering: {exc}"
+                    f"{describe_target(self.target)} stopped answering: {redact(str(exc), self.target)}"
                 ) from exc
 
     def executescript(self, sql: str) -> None:
@@ -307,7 +387,7 @@ class PostgresDatabase(Database):
                 raw.execute(sql)
             except self._psycopg.OperationalError as exc:
                 raise DatabaseUnavailable(
-                    f"{describe_target(self.target)} stopped answering: {exc}"
+                    f"{describe_target(self.target)} stopped answering: {redact(str(exc), self.target)}"
                 ) from exc
 
     def columns(self, table: str) -> set[str]:
@@ -323,9 +403,23 @@ class PostgresDatabase(Database):
         with self._lock:
             raw = self._live()
             self._transaction_depth += 1
+            began = False
             try:
                 with raw.transaction():
+                    began = True
                     yield self
+            except self._psycopg.OperationalError as exc:
+                # BEGIN or COMMIT, on a connection the server dropped: the
+                # statements inside raise their own. A bare driver error was a
+                # 500 on every screen (D-212).
+                where = (
+                    "as the transaction ended, so whether it was saved is unknown"
+                    if began else "before the transaction began; nothing in it ran"
+                )
+                raise DatabaseUnavailable(
+                    f"{describe_target(self.target)} stopped answering {where}: "
+                    f"{redact(str(exc), self.target)}"
+                ) from exc
             finally:
                 self._transaction_depth -= 1
 

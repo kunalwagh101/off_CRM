@@ -94,3 +94,18 @@ def test_the_inventory_command_reports_each_store_and_what_it_holds_on_disk(tmp_
     assert "hosted database" in rows["Workspace logins"]
     assert db_cli.main(["inventory", "--markdown"]) == 0
     assert capsys.readouterr().out.strip() == inventory.markdown_table()
+
+
+def test_every_file_the_code_names_in_the_data_folder_belongs_to_a_store():
+    """D-215: a file a store writes only later — the Gmail token on refresh — or
+    a command-line tool writes was in no entry, and the run above cannot see it.
+    So the code itself is read: every name joined onto a data folder."""
+    import re
+
+    package = Path(__file__).resolve().parents[1] / "offsetx_apollo_builder"
+    joined = re.compile(r"\bdata_dir(?:\([^)]*\))?\s*/\s*\"([^\"]+)\"")
+    named = set()
+    for source in package.rglob("*.py"):
+        named.update(joined.findall(source.read_text(encoding="utf-8")))
+    assert named, "the pattern no longer finds the data folder's files"
+    assert sorted(name for name in named if inventory.owner_of(name) is None) == []

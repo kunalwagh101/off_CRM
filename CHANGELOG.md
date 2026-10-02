@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **The hosted storage, reviewed and DONE** (2026-10-02, `S-06.03.01`,
+  `S-06.03.02`). Only a PostgreSQL URL is accepted, and never repeated back
+  (`D-206`). A paid answer is never thrown away by a usage-counter read
+  (`D-207`). A silently dropped connection is noticed in about 15 seconds
+  (`D-208`). Signed-in screens show a sentence during an outage, and the app
+  recovers by itself when the database returns (`D-209`). An install with its
+  own disk is asked once, with `offsetx-db import-local --yes` or `--skip`,
+  what happens to the keys and logins already in its data folder (`D-210`). A
+  database blip is never blamed on a provider (`D-211`). Also `D-212` to
+  `D-216`.
+
 - **Keys, settings and logins can outlive the disk** (2026-10-02, `S-06.03.01`,
   `S-06.03.02`). Set `OFFSETX_DATABASE_URL` to any PostgreSQL 13 or newer —
   Neon or Render now, AWS or Azure later — and `OFFSETX_SECRETS_KEY` to what

@@ -16,15 +16,18 @@ in the tests, is a SQLite file through the same seam.
 
 from __future__ import annotations
 
+import json
 import os
+import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterator
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from .connection import DATABASE_URL_ENV, Database, describe_target, open_database
+from .connection import DATABASE_URL_ENV, Database, describe_target, is_postgres_url, open_database
 from .schema import ensure_schema
 
 SECRETS_KEY_ENV = "OFFSETX_SECRETS_KEY"
@@ -36,6 +39,14 @@ SETTINGS = "ai_workspaces"
 PROVIDER_KEYS = "ai_provider_keys"
 QUOTA = "ai_quota"
 KEY_CHECK = "secrets_key_check"
+#: What the owner decided about a data folder that held these stores before
+#: the database did: imported, or skipped (D-210).
+LOCAL_IMPORT = "local_import"
+
+#: Where a local install keeps what this database takes over.
+LOCAL_FILES = ("ai_workspaces.json", "ai_provider_keys.enc", "ai_quota.json", "workspace_auth.db")
+IMPORT_COMMAND = "offsetx-db import-local --yes"
+SKIP_COMMAND = "offsetx-db import-local --skip"
 
 _CHECK_PLAINTEXT = b"off_CRM: the key the provider keys were stored with"
 
@@ -68,6 +79,16 @@ def validate_pair(database_url: str, secrets_key: str) -> None:
     """The hosted database and the key that opens its provider keys come as a
     pair; refuse half of one, and a key that is not a key, before any use."""
     key = secrets_key.strip()
+    if database_url and not (is_postgres_url(database_url) or Path(database_url).is_absolute()):
+        # Never repeated back: a libpq key/value string or a quoted URL carries
+        # the password, and it used to become the name of a SQLite file in the
+        # working directory, on the disk a deploy wipes (D-206).
+        raise HostedStorageError(
+            f"{DATABASE_URL_ENV} must be a PostgreSQL URL — postgresql://user:password@host/dbname "
+            "— copied exactly as the database host shows it, without quotes or spaces. What is "
+            "set is not one, so nothing was opened and nothing was written. (On a machine with "
+            "its own disk, the absolute path of a SQLite file also works.)"
+        )
     if database_url and not key:
         raise HostedStorageError(
             f"{DATABASE_URL_ENV} is set, so provider keys are kept in that database, "
@@ -95,6 +116,31 @@ def _create_documents(database: Database) -> None:
 
 #: Oldest first; a step's position is its version (`db/schema.py`).
 DOCUMENT_STEPS = (_create_documents,)
+
+
+def local_leftovers(data_dir: Path) -> list[str]:
+    """The files of a local install that hold what the database now keeps.
+
+    A login file with no logins is not counted: every local start makes one.
+    One that cannot be read is, so the owner decides rather than this code.
+    """
+    found = []
+    for name in LOCAL_FILES:
+        path = Path(data_dir) / name
+        if not path.is_file():
+            continue
+        if name == "workspace_auth.db":
+            try:
+                reader = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=5)
+                try:
+                    if reader.execute("SELECT 1 FROM workspace_users LIMIT 1").fetchone() is None:
+                        continue
+                finally:
+                    reader.close()
+            except sqlite3.Error:
+                pass
+        found.append(name)
+    return found
 
 
 class HostedStorage:
@@ -206,6 +252,28 @@ class HostedStorage:
             return self.fernet.decrypt(token.encode("ascii"))
         except (InvalidToken, UnicodeEncodeError):
             raise self._wrong_key() from None
+
+    def check_local_folder(self, data_dir: Path) -> None:
+        """Refuse to hide a data folder's keys, settings and logins (D-210).
+
+        An install with a real disk that switches the database on keeps those
+        files, and nothing reads them any more: colleagues could not sign in,
+        and keys and trust decisions vanished from every screen without a word.
+        The owner says once what happens to them.
+        """
+        found = local_leftovers(data_dir)
+        if found and self.read(LOCAL_IMPORT) is None:
+            raise HostedStorageError(
+                f"This data folder still holds {', '.join(found)} from before {DATABASE_URL_ENV} "
+                "was set, and the database has not been told what to do with them. Copy them in "
+                f"with `{IMPORT_COMMAND}`, or keep the database as it is with `{SKIP_COMMAND}`. "
+                "The files stay where they are either way."
+            )
+
+    def record_local_decision(self, decision: dict) -> None:
+        """Write what was decided about the data folder; the caller holds `exclusive`."""
+        self.write(LOCAL_IMPORT, json.dumps(
+            {**decision, "at": datetime.now(timezone.utc).isoformat()}, ensure_ascii=False))
 
     def forget_provider_keys(self) -> None:
         """Clear the stored keys and the check: the way back from a lost key.

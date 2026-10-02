@@ -62,6 +62,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from ..db.connection import DatabaseError
+
 
 class FailureKind(str, Enum):
     """What went wrong. One member per distinguishable, actionable cause."""
@@ -267,6 +269,19 @@ def classify(error: object, *, status_code: int | None = None) -> Failure:
     would replace a useful message with a useless one.
     """
     text = str(error or "").strip()
+    if isinstance(error, DatabaseError):
+        # off_CRM's own database, not the provider: its "password
+        # authentication failed" read as the provider rejecting its key, and
+        # failing over would need the same key store (D-211).
+        return Failure(
+            kind=FailureKind.UNKNOWN,
+            action=FailureAction.STOP_REQUEST,
+            detail="off_CRM's own database did not answer; nothing was sent.",
+            owner_action=(
+                "off_CRM's own database did not answer, so nothing reached the provider and "
+                "its key is not the problem. Try again once the database answers."
+            ),
+        )
     code = status_code if status_code is not None else _status_from(text)
 
     kind: FailureKind | None = None

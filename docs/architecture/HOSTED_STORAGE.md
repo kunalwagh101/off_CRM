@@ -45,13 +45,14 @@ code names a host; moving is a `pg_dump` and a `pg_restore`.
 | | Render free | Neon free | Supabase free | Paid: Render, AWS RDS, Azure |
 |---|---|---|---|---|
 | Lasts | **deleted with all its data 30 days after creation, plus 14 days' grace to upgrade** | no expiry | **paused after a week idle; unpaused by hand** | while paid |
-| Storage | 1 GB | 0.5 GB per project | 500 MB | chosen |
+| Storage | 1 GB | 1 GB per project, 20 GB per account | 500 MB | chosen |
 | Backups | **none, of any kind** | 6 hours of history | none | daily backups and point-in-time restore |
 | Idle | — | compute sleeps after 5 minutes, wakes on the next query | — | — |
 | Limit | one free database per Render workspace | — | — | — |
 
-Checked on 2026-10-02 (`render.com/docs/free`) and 2026-09-25
-(`neon.com/docs/introduction/plans`). The same Render page: a free web service
+Checked on 2026-10-02 (`render.com/docs/free`, `neon.com/docs/introduction/plans`);
+Neon's storage was 0.5 GB when first checked on 2026-09-25, and is now 1 GB, with
+100 compute-hours a month per project. The same Render page: a free web service
 also loses its disk when it spins down after 15 minutes idle, not only on a
 deploy — so on the free plan the data folder lives minutes, not days.
 
@@ -60,8 +61,8 @@ If the database should sit next to the app on Render, a paid Render database
 from day one, reached by its *internal* URL in the same region (Singapore).
 Render's free database is a trial only — it is deleted with everything in it.
 Supabase's pause is disqualifying for an app whose owner may not log in for a
-week. On every free option, backups are this install's own job (`S-06.03.04`):
-0.5 GB and 1 GB mean files do not go in the database.
+week. On every free option, backups are this install's own job (`S-06.03.04`),
+and 1 GB means files do not go in the database.
 
 ### What keeps it portable
 
@@ -70,11 +71,17 @@ Built in `S-06.03.02`, each for a host the owner named:
 - **One URL.** `OFFSETX_DATABASE_URL` is passed to the driver untouched, so the
   host's own options ride in it: `sslmode=require` for Neon, Render's external
   URL, AWS and Azure; `sslrootcert=` for AWS's certificate bundle.
+- **Only a PostgreSQL URL.** Anything else in `OFFSETX_DATABASE_URL` — a
+  key/value connection string, a URL in quotes — is refused at start without
+  being repeated (`D-206`); an absolute SQLite path is the one exception, for a
+  machine with its own disk and for the tests.
 - **A dropped connection is reopened.** Neon's compute sleeps; AWS and Azure
   close idle connections behind their load balancers. A connection idle for a
-  while is checked before use and reopened if the server dropped it. A
+  while is checked before use and reopened if the server dropped it, and the
+  network is asked to notice a silent drop in about 15 seconds (`D-208`). A
   statement that fails mid-flight is never sent again by itself — whether it
-  ran is unknown.
+  ran is unknown — so a drop during active use fails that one request with a
+  sentence, and the next one reconnects.
 - **Pooled URLs work.** No server-side prepared statements, which a pooler in
   transaction mode — PgBouncer, Neon's pooled URL, RDS Proxy — would break.
 - **A schema version per store** (`offcrm_schema`), so a database moved to a
@@ -101,6 +108,14 @@ runs unreviewed code and must never reach `main`'s keys.
    environment is set (on Render: the service's Environment page), and deploy.
 4. `/health/ready` answers `ready`; type the provider keys in Connectors again,
    once — the ones typed before were on the wiped disk.
+
+If the data folder already holds keys, settings or logins — a server with its
+own disk, not Render's free plan — the app refuses to start and names the
+files (`D-210`). `offsetx-db import-local --yes` copies them into the database,
+the keys decrypted with the folder's own key and stored again under
+`OFFSETX_SECRETS_KEY`; `offsetx-db import-local --skip` keeps the database as it
+is. Either way the files are not touched, so unsetting the two settings goes
+back to them. The egress log has its own command, `offsetx-db copy-log`.
 
 What the app does with them: half the pair, or a key that is not a key, stops
 the start with a sentence saying what to set. A key that cannot open what the
@@ -176,6 +191,9 @@ are wiped — so the owner's numbers are still to be taken.
 | Timers | the email and content timers' settings | JSON files | not decided — `S-06.03.06` |
 | Privacy requests | data-subject requests and their artifacts | SQLite file | not decided — `S-06.03.06` |
 | Crawler | the discovery crawler's frontier | SQLite file | not decided — `S-06.03.06` |
+| Prospecting files | who was already contacted or ruled out, rejected matches, and lists waiting to be read | CSV files and folders | not decided — `S-06.03.06` |
+| Gmail link | the Gmail sign-in token, saved again whenever it is refreshed | JSON file | not decided — `S-06.03.06` |
+| Model scores | the eval tool's scoreboard of how each model did | SQLite file | stays on disk: written by the eval tool, not the app |
 | Provider profiles (old) | profiles saved before Connectors, and their keys | JSON and encrypted files | not moved: `S-06.02.35` decides whether they stay at all |
 | Response cache | answers reused for fact-shaped tasks | SQLite file | stays on disk: a cache, rebuilt by use |
 | Media and outboxes | picture files, rendered video, post and mail outboxes, exports | files | files: lost on a free-plan deploy until object storage is decided |

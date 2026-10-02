@@ -8,6 +8,7 @@ Usage::
     offsetx-db inventory                              # every store, where it lives, its size here
     offsetx-db new-secrets-key                        # the key for provider keys in a hosted database
     offsetx-db forget-provider-keys --yes             # a lost key: clear the stored keys to start again
+    offsetx-db import-local --yes | --skip            # a data folder's keys and logins: copy in, or leave
 
 The data directory is ``OFFSETX_DATA_DIR``, or ``local_data`` when it is unset.
 
@@ -19,6 +20,7 @@ survive a restart, or more than one process writing.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
@@ -200,6 +202,53 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_local(args: argparse.Namespace) -> int:
+    """Say once what happens to a data folder's keys, settings and logins (D-210).
+
+    `--yes` copies them into the hosted database; `--skip` keeps the database
+    as it is. The files are left untouched either way.
+    """
+    from .ai.errors import RegistryError
+    from .db.hosted import HostedStorageError
+    from .hosted_import import import_local, skip_local
+
+    if args.yes == args.skip:
+        print(
+            "Choose one: --yes copies the data folder's keys, settings, counters and logins into "
+            "the database; --skip keeps the database as it is. The files stay where they are "
+            "either way.",
+            file=sys.stderr,
+        )
+        return 2
+    root = Path(args.data_dir) if args.data_dir else data_dir(Path.cwd())
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+    except HostedStorageError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    if hosted is None:
+        print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first: they name the database.", file=sys.stderr)
+        return 2
+    try:
+        with cli_workspace_lease(root):
+            hosted.check_secrets_key()
+            names = import_local(hosted, root) if args.yes else skip_local(hosted, root)
+    except (HostedStorageError, RegistryError, DatabaseError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    finally:
+        hosted.close()
+    listed = ", ".join(names) if names else "nothing"
+    if args.yes:
+        print(f"Copied into {describe_target(hosted.target)}: {listed}. The files are untouched.")
+    else:
+        print(f"The database stays as it is; {listed} stay in {root}, unread.")
+    if (root / "ai_egress.db").is_file():
+        print(f"The egress log has its own copy: offsetx-db copy-log --from {root / 'ai_egress.db'} "
+              f"--to \"${DATABASE_URL_ENV}\"")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-db",
@@ -238,6 +287,15 @@ def main(argv: list[str] | None = None) -> int:
     forget.add_argument("--target", default="", help=f"postgresql:// URL; defaults to {DATABASE_URL_ENV}")
     forget.add_argument("--yes", action="store_true", help="really clear them")
     forget.set_defaults(func=_cmd_forget_provider_keys)
+
+    move = sub.add_parser(
+        "import-local", help="copy a data folder's keys, settings and logins into the database, or skip"
+    )
+    move.add_argument("--data-dir", default="", help="the data folder; defaults to OFFSETX_DATA_DIR")
+    choice = move.add_mutually_exclusive_group()
+    choice.add_argument("--yes", action="store_true", help="copy them in")
+    choice.add_argument("--skip", action="store_true", help="keep the database as it is")
+    move.set_defaults(func=_cmd_import_local)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

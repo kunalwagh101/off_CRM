@@ -106,14 +106,27 @@ class QuotaTracker:
         self._lock = threading.RLock()
         self._states: dict[str, QuotaState] = {}
         self._loaded = False
+        #: Calls recorded while the counters could not be read: (provider,
+        #: spend, rate limited, day), counted in at the next good read (D-207).
+        self._pending: list[tuple[str, float, bool, str]] = []
+
+    def prepare(self) -> None:
+        """Read the counters before any call is made.
+
+        The broker asks this before it calls a provider, so a database that
+        cannot answer fails the task while nothing has been sent or billed —
+        not after, when the answer would be lost (D-207).
+        """
+        with self._lock:
+            self._load()
 
     def _load(self) -> None:
         if self._loaded:
             return
         if self._hosted is not None:
             # Not caught: counting from zero after a failed read, then saving,
-            # would overwrite the day's real counts. The call waits on the
-            # database instead, and the next one reads again.
+            # would overwrite the day's real counts. `prepare` reads before a
+            # call, so the call is refused instead, and the next one reads again.
             body = self._hosted.read(QUOTA)
             try:
                 payload = json.loads(body) if body is not None else {}
@@ -125,6 +138,13 @@ class QuotaTracker:
                 if isinstance(value, dict)
             }
             self._loaded = True
+            pending, self._pending = self._pending, []
+            today = _today()
+            for provider_id, spend_usd, rate_limited, day in pending:
+                if day == today:
+                    self._count(self._state(provider_id), spend_usd, rate_limited)
+            if pending:
+                self._save()
             return
         if self.path.exists():
             try:
@@ -203,16 +223,28 @@ class QuotaTracker:
             return True, ""
 
     def record(self, provider_id: str, *, spend_usd: float = 0.0, rate_limited: bool = False) -> None:
+        """Count a call that was made. Never raises: the answer it counts was
+        already produced and billed, and losing it to a counter read would
+        make the user pay for it twice (D-207)."""
         with self._lock:
-            state = self._state(provider_id)
-            state.minute_count += 1
-            state.day_count += 1
-            state.day_spend_usd += max(0.0, spend_usd)
-            state.last_call_at = time.time()
-            state.consecutive_rate_limits = (
-                state.consecutive_rate_limits + 1 if rate_limited else 0
-            )
+            try:
+                state = self._state(provider_id)
+            except Exception as exc:  # noqa: BLE001 - counted at the next good read
+                self._pending.append((provider_id, spend_usd, rate_limited, _today()))
+                LOG.warning("Could not read the AI usage counters: %s", type(exc).__name__)
+                return
+            self._count(state, spend_usd, rate_limited)
             self._save()
+
+    @staticmethod
+    def _count(state: QuotaState, spend_usd: float, rate_limited: bool) -> None:
+        state.minute_count += 1
+        state.day_count += 1
+        state.day_spend_usd += max(0.0, spend_usd)
+        state.last_call_at = time.time()
+        state.consecutive_rate_limits = (
+            state.consecutive_rate_limits + 1 if rate_limited else 0
+        )
 
     def usage(self, provider_id: str, limits: QuotaLimits) -> dict[str, Any]:
         """Shape the Connectors screen renders as a usage bar."""

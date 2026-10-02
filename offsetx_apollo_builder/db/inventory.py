@@ -35,7 +35,7 @@ class StoredThing:
         top = relative.split("/", 1)[0]
         for name in self.files:
             if name.endswith("/"):
-                if top == name[:-1]:
+                if fnmatch(top, name[:-1]):
                     return True
             elif fnmatch(relative, name):
                 return True
@@ -124,6 +124,20 @@ STORES: tuple[StoredThing, ...] = (
     StoredThing(
         "Crawler", "the discovery crawler's frontier", ("crawler_frontier.sqlite3*", "crawler_runtime/"),
         SQLITE, LATER,
+    ),
+    StoredThing(
+        "Prospecting files",
+        "who was already contacted or ruled out, rejected matches, and lists waiting to be read",
+        ("old_pois/", "poi_file_queue/", "offsetx_apollo_rejection_ledger.csv", "output*/"),
+        "CSV files and folders", LATER,
+    ),
+    StoredThing(
+        "Gmail link", "the Gmail sign-in token, saved again whenever it is refreshed",
+        ("gmail_token.json",), "JSON file", LATER,
+    ),
+    StoredThing(
+        "Model scores", "the eval tool's scoreboard of how each model did", ("ai_evals.db*",),
+        SQLITE, "stays on disk: written by the eval tool, not the app",
     ),
     StoredThing(
         "Provider profiles (old)", "profiles saved before Connectors, and their keys",

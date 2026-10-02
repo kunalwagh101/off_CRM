@@ -12,11 +12,10 @@ Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-10-02, on `develop` with `S-06.03.01` and `S-06.03.02`): **2519
-Python passed, 0 failed**, 6 environment-gated skips — two of them the
+Tests (2026-10-02, on `develop` with `S-06.03.01` and `S-06.03.02` DONE): **2535
+Python passed, 0 failed**, 8 environment-gated skips — four of them the
 PostgreSQL-only tests, which pass against a real PostgreSQL 16 with
-`OFF_CRM_TEST_POSTGRES_URL` set (295 passed across the storage, AI, auth,
-privacy and recovery files that way). The whole suite last ran on a real Python 3.10 on
+`OFF_CRM_TEST_POSTGRES_URL` set (112 passed across the storage files that way). The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
 clean. Frontend **172 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-28).
@@ -45,7 +44,7 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 ## 2026-10-02 — `F-06.03` phases 0 and 1: keys, settings and logins outlive the disk
 
-**Built, in IN_REVIEW:** `S-06.03.01` (the inventory of every store,
+**DONE on 2026-10-02:** `S-06.03.01` (the inventory of every store,
 `db/inventory.py`, `offsetx-db inventory`, the table in `HOSTED_STORAGE.md`)
 and `S-06.03.02`. With `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` set,
 provider keys (encrypted with that key, never stored), each workspace's AI
@@ -73,6 +72,21 @@ five-minute sleep (`D-199`, high); daily limits restarted at every spin-down
 eval tool split the egress log (`D-201`); "encrypted on this machine" stopped
 being true (`D-202`); unsubscribe links died at every restart on Render
 (`D-203`); `.env.example` still offered provider-key variables (`D-204`).
+
+**The fresh-context review of `646c593`** found ten defects, six medium, none
+critical — the key core was sound. All fixed test-first (`D-206` to `D-215`):
+a non-URL connection string became a local file (now refused); a billed answer
+could be lost to a counter read (counters are read before a call, and counting
+never fails it); a silently dropped flow hung the store (network keepalives,
+about 15 seconds); signed-in browsers got a bare 500 in an outage (the
+middleware answers the sentence); switching on beside a folder with data hid
+it (refused until `offsetx-db import-local --yes` or `--skip`); a database
+error read as the provider failing (passed through untouched). One more, older,
+turned up under load: two connections opening a new SQLite file together
+(`D-216`). A live outage — PostgreSQL stopped under a signed-in browser, then
+started — showed the sentence and recovered with no restart. The fixes were
+checked by tests, the reviewer's own reproductions and browser walks, not by a
+second review.
 
 **Read before touching storage:** `db/hosted.py` (documents, the key check),
 `db/schema.py` (a version per store, forward-only, under a lock),

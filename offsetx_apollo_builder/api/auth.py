@@ -249,7 +249,18 @@ class WorkspaceAuthStore:
                 (str(username).strip(), self._workspace(workspace_id)),
             ).fetchone()
         if existing is None:
-            self.create(username=username, workspace_id=workspace_id, password=password)
+            try:
+                self.create(username=username, workspace_id=workspace_id, password=password)
+            except WorkspaceAuthError:
+                # Another instance, starting at the same moment on the same
+                # database, made it between the check and the insert (D-214).
+                with self._connection() as conn:
+                    made = conn.execute(
+                        "SELECT 1 FROM workspace_users WHERE username = ? OR workspace_id = ?",
+                        (str(username).strip(), self._workspace(workspace_id)),
+                    ).fetchone()
+                if made is None:
+                    raise
 
     def list_accounts(self) -> list[dict[str, object]]:
         with self._connection() as conn:

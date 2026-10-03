@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 
 from .campaigns import CampaignKindError
 from .campaigns import list_kinds as list_campaign_kinds
-from .data_paths import data_dir, database_path, gmail_token_path
+from .data_paths import crm_target, data_dir, gmail_token_path
+from .db import is_postgres_url
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
     GmailMailProvider,
@@ -32,8 +33,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="off_CRM local outreach CRM")
     parser.add_argument(
         "--db",
-        default=str(database_path()),
-        help="Local SQLite database path",
+        # No default here: one baked in hid OFFSETX_DATABASE_URL, and this tool
+        # opened a local file while the web app's CRM was in the database.
+        help="CRM to open: a SQLite path or postgresql:// URL "
+        "(default: OFFSETX_DATABASE_URL, then OFFSETX_OUTREACH_DB)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -132,7 +135,8 @@ def _run(args: argparse.Namespace) -> int:
         _json({"connected": True, "token_path": str(token)})
         return 0
 
-    engine = OutreachEngine(Path(args.db))
+    crm = crm_target(args.db)
+    engine = OutreachEngine(crm)
     try:
         if args.command == "create-campaign":
             campaign_id = engine.create_campaign(
@@ -193,7 +197,10 @@ def _run(args: argparse.Namespace) -> int:
                     )
                 mail = GmailMailProvider(client_secrets_path=client, token_path=_gmail_token())
             else:
-                mail = LocalOutboxProvider(Path(args.db).parent / "mail")
+                # Beside a CRM file, as before; a database has no folder, so
+                # the data folder's, where the web app keeps its outbox.
+                outbox = data_dir(Path.cwd()) if is_postgres_url(crm) else Path(crm).parent
+                mail = LocalOutboxProvider(outbox / "mail")
             _json(
                 engine.run_due(
                     args.campaign_id,

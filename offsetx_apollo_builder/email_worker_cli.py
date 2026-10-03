@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .api.config import AppSettings
+from .db import resolve_target
 from .outreach.deliverability.models import PermanentDeliveryError
 from .outreach.deliverability.service import EmailDeliveryService
 from .outreach.deliverability.ses import SesMailProvider
@@ -23,7 +24,9 @@ def _parser() -> argparse.ArgumentParser:
         prog="offsetx-email-worker",
         description="Process off_CRM's durable email delivery jobs.",
     )
-    parser.add_argument("--database", type=Path, help="Override OFFSETX_OUTREACH_DB")
+    parser.add_argument(
+        "--database", type=Path, help="Override OFFSETX_DATABASE_URL and OFFSETX_OUTREACH_DB"
+    )
     parser.add_argument("--data-dir", type=Path, help="Override OFFSETX_DATA_DIR")
     parser.add_argument("--max-jobs", type=int, default=25)
     parser.add_argument(
@@ -91,7 +94,12 @@ def main(argv: list[str] | None = None) -> int:
                     if restore_pending(settings.data_dir):
                         raise WorkspaceBusy("restore pending")
                     settings.prepare()
-                    engine = OutreachEngine(settings.database_path)
+                    # The CRM the web app opens: `--database`, then
+                    # OFFSETX_DATABASE_URL, then the file. Reopening only the
+                    # file sent nothing once the CRM was in the database.
+                    engine = OutreachEngine(
+                        resolve_target(args.database, default=settings.database_path)
+                    )
                     try:
                         result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
                     finally:

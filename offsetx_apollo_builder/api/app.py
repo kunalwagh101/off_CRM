@@ -65,6 +65,7 @@ from ..video.timeline import (
 from ..db import resolve_target as resolve_database_target
 from ..db import DatabaseError
 from ..db.hosted import HostedStorage
+from ..outreach.store_copy import check_local_crm
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..meetings import MeetingError, MeetingStore, MeetingTranscriber, MeetingTranscriptionError
@@ -463,6 +464,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # A data folder that still holds these stores is the owner's call,
         # never hidden in silence (D-210).
         hosted.check_local_folder(resolved.data_dir)
+    # The CRM follows the database too, by the rule every hosted store uses
+    # (S-06.03.03); a CRM file left from before is the owner's call, as above.
+    crm = resolve_database_target(default=resolved.database_path)
+    if hosted is not None:
+        check_local_crm(hosted, resolved.database_path, crm)
     workspace_auth = WorkspaceAuthStore(
         resolved.data_dir / "workspace_auth.db",
         session_secret=resolved.session_secret,
@@ -587,7 +593,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
         app.state.engine = _attach_products(
             OutreachEngine(
-                resolved.database_path,
+                crm,
                 template_counter=app.state.ai_context,
                 mail_archive=app.state.ai_recall,
             ),
@@ -728,7 +734,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # The unattended sender records too, or overnight runs go unlogged.
             engine_factory=lambda: _attach_products(
                 OutreachEngine(
-                    resolved.database_path,
+                    crm,
                     template_counter=app.state.ai_context,
                     mail_archive=app.state.ai_recall,
                 ),

@@ -32,6 +32,17 @@ def database_path(root: Path | str | None = None) -> Path:
     )
 
 
+def crm_target(explicit: str | Path | None = None, root: Path | str | None = None) -> str:
+    """The CRM to open: one named on the command line, then `OFFSETX_DATABASE_URL`,
+    then `OFFSETX_OUTREACH_DB` — the order every hosted store follows, so a tool
+    opens the CRM the web app does (`S-06.03.03`). Before it, the tools baked
+    the file in as their default, and the email worker would have sent from an
+    empty local CRM while the web app's was in the database."""
+    from .db.connection import resolve_target
+
+    return resolve_target(explicit, default=database_path(root))
+
+
 def gmail_token_path(root: Path | str | None = None) -> Path | None:
     """The Gmail token file; None when OFFSETX_GMAIL_TOKEN is set but empty,
     which is how the web app has always read "Gmail is off"."""

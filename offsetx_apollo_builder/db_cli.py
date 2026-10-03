@@ -249,6 +249,48 @@ def _cmd_import_local(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_crm(args: argparse.Namespace) -> int:
+    """Say once what happens to a local CRM file (S-06.03.03), as `import-local`
+    does for keys and logins: copied into the database's CRM, or left unread."""
+    from .db.hosted import HostedStorageError
+    from .outreach.store_copy import CrmCopyError, import_crm, skip_crm
+
+    if args.yes == args.skip:
+        print(
+            "Choose one: --yes copies the CRM file into the database's CRM; --skip starts on "
+            "the database's CRM as it is. The file stays where it is either way.",
+            file=sys.stderr,
+        )
+        return 2
+    crm_file = Path(args.database).resolve() if args.database else database_path(Path.cwd())
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+    except HostedStorageError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    if hosted is None:
+        print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first: they name the database.", file=sys.stderr)
+        return 2
+    try:
+        with cli_workspace_lease(data_dir(Path.cwd())):
+            hosted.check_secrets_key()
+            if args.yes:
+                report = import_crm(hosted, crm_file, hosted.target)
+            else:
+                rows = skip_crm(hosted, crm_file)
+    except (HostedStorageError, CrmCopyError, DatabaseError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    finally:
+        hosted.close()
+    if args.yes:
+        print(report.describe())
+        print(f"Copied into {describe_target(hosted.target)}. The file is untouched.")
+    else:
+        print(f"The database's CRM stays as it is; {rows} rows stay in {crm_file}, unread.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-db",
@@ -296,6 +338,15 @@ def main(argv: list[str] | None = None) -> int:
     choice.add_argument("--yes", action="store_true", help="copy them in")
     choice.add_argument("--skip", action="store_true", help="keep the database as it is")
     move.set_defaults(func=_cmd_import_local)
+
+    crm = sub.add_parser(
+        "import-crm", help="copy a local CRM file into the database's CRM, or start without it"
+    )
+    crm.add_argument("--database", default="", help="the CRM file; defaults to OFFSETX_OUTREACH_DB")
+    crm_choice = crm.add_mutually_exclusive_group()
+    crm_choice.add_argument("--yes", action="store_true", help="copy it in")
+    crm_choice.add_argument("--skip", action="store_true", help="start on the database's CRM as it is")
+    crm.set_defaults(func=_cmd_import_crm)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

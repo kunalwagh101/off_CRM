@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .ai.context import ContextLayer
-from .data_paths import data_dir, database_path
+from .data_paths import crm_target, data_dir
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -62,7 +62,7 @@ def _cmd_targets(_: argparse.Namespace) -> int:
 
 
 def _exporter(args: argparse.Namespace) -> tuple[NotebookExport, OutreachStore, ContextLayer | None]:
-    store = OutreachStore(args.db)
+    store = OutreachStore(crm_target(args.db))
     store.initialize()
     context: ContextLayer | None = None
     context_path = Path(args.context)
@@ -170,7 +170,10 @@ def _parser() -> argparse.ArgumentParser:
         prog="offsetx-notebook",
         description="Build research-notebook sources from a campaign.",
     )
-    parser.add_argument("--db", default=str(database_path()), help="outreach database path")
+    # No default here, as in `offsetx-outreach`: the CRM the web app opens.
+    parser.add_argument(
+        "--db", help="CRM to open (default: OFFSETX_DATABASE_URL, then OFFSETX_OUTREACH_DB)"
+    )
     # Where the web app keeps it, not beside the CRM: the two differ once the
     # CRM database is named elsewhere (D-141).
     parser.add_argument(

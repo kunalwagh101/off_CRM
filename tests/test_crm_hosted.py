@@ -6,8 +6,8 @@ replies, delivery jobs — stayed in `OFFSETX_OUTREACH_DB`, a file on a disk the
 free plan wipes. These tests hold the CRM to the same promise: what a person
 typed survives the disk, on SQLite and PostgreSQL alike.
 
-The tests arrive with the task that makes them pass; the rest wait beside the
-work order, `docs/work-orders/S-06.03.03/test_crm_hosted.py`.
+Each test arrived with the task that made it pass, in the order of the work
+order, `docs/work-orders/S-06.03.03-crm-hosted.md`.
 
 The PostgreSQL half runs when `OFF_CRM_TEST_POSTGRES_URL` is set, each test in
 a schema of its own, dropped afterwards:
@@ -17,21 +17,41 @@ a schema of its own, dropped afterwards:
 from __future__ import annotations
 
 import os
+import shutil
+import sqlite3
 import threading
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from cryptography.fernet import Fernet
+from fastapi.testclient import TestClient
 
+from offsetx_apollo_builder import db_cli
+from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.db import DatabaseError
+from offsetx_apollo_builder.db.hosted import HostedStorageError
 from offsetx_apollo_builder.outreach.models import ContactInput
 from offsetx_apollo_builder.outreach.schema import CRM_TABLES
 from offsetx_apollo_builder.outreach.store import OutreachStore
 
+API = "/api/v1"
+TOKEN = "hosted-crm-token-" + "z" * 24
+SESSION_SECRET = "hosted-crm-session-secret-" + "s" * 32
 POSTGRES_URL = os.getenv("OFF_CRM_TEST_POSTGRES_URL", "").strip()
 BACKENDS = ["sqlite"] + (["postgres"] if POSTGRES_URL else [])
 CRM_WRITE_LOCK = 7_103_206_302
+
+
+#: A test whose subject is a local CRM *file* — refusing to hide one, importing
+#: it, copying from it, keeping it. The harness's PostgreSQL mode swaps every
+#: file for a database, so these run against PostgreSQL in the normal mode,
+#: with OFF_CRM_TEST_POSTGRES_URL, and not in that one.
+ABOUT_A_CRM_FILE = pytest.mark.crm_sqlite_only(
+    "its subject is a local CRM file; it runs against PostgreSQL in the normal mode"
+)
 
 
 def _in_schema(url: str, schema: str) -> str:
@@ -461,3 +481,322 @@ def test_a_closed_store_stays_closed(crm_target):
     store.close()
     with pytest.raises((sqlite3.ProgrammingError, DatabaseError)):
         store.connection.execute("SELECT 1")
+
+
+# ── task e: the app and every tool open the CRM OFFSETX_DATABASE_URL names ──
+
+def _settings(data: Path, secrets_key: str) -> AppSettings:
+    return AppSettings(
+        project_root=Path.cwd(),
+        database_path=data / "offsetx_outreach.db",
+        data_dir=data,
+        export_dir=data / "exports",
+        frontend_dist=data.parent / "no-frontend",
+        host="127.0.0.1",
+        api_token=TOKEN,
+        session_secret=SESSION_SECRET,
+        allowed_hosts=("testserver",),
+        secrets_key=secrets_key,
+    )
+
+
+@contextmanager
+def _running(data: Path, secrets_key: str):
+    with TestClient(create_app(_settings(data, secrets_key)), headers={"X-Offsetx-Token": TOKEN}) as client:
+        yield client
+
+
+def _hosted(monkeypatch, target: str) -> str:
+    key = Fernet.generate_key().decode()
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", target)
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", key)
+    return key
+
+
+def _names(target: object) -> list[str]:
+    with _open(target) as store:
+        return sorted(row["name"] for row in store.list_campaigns()[0])
+
+
+def test_a_campaign_made_in_the_app_outlives_the_disk(crm_target, tmp_path, monkeypatch):
+    key = _hosted(monkeypatch, crm_target)
+    first = tmp_path / "first"
+    with _running(first, key) as client:
+        made = client.post(f"{API}/campaigns", json={"name": "Survives the deploy"})
+        assert made.status_code == 201, made.text
+        assert not (first / "offsetx_outreach.db").exists()
+    shutil.rmtree(first)  # the disk is gone, as on a free-plan deploy
+
+    with _running(tmp_path / "second", key) as client:
+        listed = client.get(f"{API}/campaigns", params={"search": "survives"}).json()
+        assert [item["name"] for item in listed["items"]] == ["Survives the deploy"]
+        assert client.get("/health/ready").json() == {"status": "ready"}
+
+
+@ABOUT_A_CRM_FILE
+def test_a_local_crm_left_behind_stops_the_start_and_names_both_choices(crm_target, tmp_path, monkeypatch):
+    data = tmp_path / "own-disk"
+    with _open(data / "offsetx_outreach.db") as store:
+        _seed(store)
+    key = _hosted(monkeypatch, crm_target)
+    with pytest.raises(HostedStorageError) as refused:
+        create_app(_settings(data, key))
+    assert "offsetx-db import-crm --yes" in str(refused.value)
+    assert "offsetx-db import-crm --skip" in str(refused.value)
+
+
+def test_a_local_crm_holding_only_what_every_start_writes_does_not_stop_the_start(
+    crm_target, tmp_path, monkeypatch
+):
+    # Every start writes the built-in templates and expert notes, the hosted
+    # CRM's included, and rewrites a changed built-in template: a file holding
+    # only those has nothing to lose. Counting them refused every install that
+    # had ever started once (found by phase 1's own import tests).
+    from offsetx_apollo_builder.outreach.engine import OutreachEngine
+
+    data = tmp_path / "own-disk"
+    OutreachEngine(data / "offsetx_outreach.db").close()
+    with _open(data / "offsetx_outreach.db") as store:
+        assert store.table_counts()["email_templates"] > 0
+    key = _hosted(monkeypatch, crm_target)
+    with _running(data, key) as client:
+        assert client.get("/health/ready").json() == {"status": "ready"}
+
+
+@ABOUT_A_CRM_FILE
+def test_a_template_the_owner_wrote_is_not_mistaken_for_a_built_in_one(tmp_path):
+    from offsetx_apollo_builder.outreach.engine import OutreachEngine
+    from offsetx_apollo_builder.outreach.store_copy import local_crm_rows
+
+    local = tmp_path / "offsetx_outreach.db"
+    OutreachEngine(local).close()
+    assert local_crm_rows(local) == 0
+    with _open(local) as store:
+        store.upsert_template({
+            "id": "owners-own", "name": "Owner's", "stage": "initial", "variant_id": "A",
+            "subject_template": "Hello {first_name}", "body_template": "Written by the owner.",
+        })
+        store.add_expert_chunk(document_name="Notes", content="The owner's own notes on the market.")
+    assert local_crm_rows(local) == 2
+
+
+@ABOUT_A_CRM_FILE
+def test_with_no_database_url_the_crm_stays_in_its_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    data = tmp_path / "local"
+    with TestClient(create_app(_settings(data, "")), headers={"X-Offsetx-Token": TOKEN}) as client:
+        assert client.post(f"{API}/campaigns", json={"name": "Local only"}).status_code == 201
+    with sqlite3.connect(data / "offsetx_outreach.db") as reader:
+        assert reader.execute("SELECT name FROM campaigns").fetchall() == [("Local only",)]
+
+
+@ABOUT_A_CRM_FILE
+def test_import_crm_brings_the_file_in_once(crm_target, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)  # the command takes its lease in the working folder's data dir
+    data = tmp_path / "own-disk"
+    local = data / "offsetx_outreach.db"
+    with _open(local) as store:
+        ids = _seed(store)
+    key = _hosted(monkeypatch, crm_target)
+
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 0
+    printed = capsys.readouterr().out
+    assert "campaigns 1 -> 1" in printed and "contacts 1 -> 1" in printed
+    with _running(data, key) as client:
+        listed = client.get(f"{API}/campaigns").json()["items"]
+        assert [item["name"] for item in listed] == ["Autumn launch"]
+    with _open(crm_target) as store:
+        assert store.get_contact(ids["contact"])["company"] == "Acme Corp"
+    assert _names(local) == ["Autumn launch"]  # the file is untouched
+
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 2
+    assert "already told" in capsys.readouterr().err
+
+
+def test_import_crm_skip_keeps_the_database_as_it_is(crm_target, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # the command takes its lease in the working folder's data dir
+    data = tmp_path / "own-disk"
+    local = data / "offsetx_outreach.db"
+    with _open(local) as store:
+        _seed(store)
+    key = _hosted(monkeypatch, crm_target)
+
+    assert db_cli.main(["import-crm", "--skip", "--database", str(local)]) == 0
+    with _running(data, key) as client:
+        assert client.get(f"{API}/campaigns").json()["items"] == []
+    assert _names(local) == ["Autumn launch"]
+
+
+@ABOUT_A_CRM_FILE
+def test_import_crm_will_not_merge_into_a_crm(crm_target, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)  # the command takes its lease in the working folder's data dir
+    data = tmp_path / "own-disk"
+    local = data / "offsetx_outreach.db"
+    with _open(local) as store:
+        _seed(store)
+    with _open(crm_target) as store:
+        store.create_campaign(name="Already here", daily_send_limit=5)
+    _hosted(monkeypatch, crm_target)
+
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 2
+    assert "already holds" in capsys.readouterr().err
+    assert _names(crm_target) == ["Already here"]
+
+
+def test_the_crm_target_is_an_explicit_one_then_the_database_url_then_the_file(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.data_paths import crm_target
+
+    monkeypatch.setenv("OFFSETX_OUTREACH_DB", str(tmp_path / "file.db"))
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    assert crm_target(root=tmp_path) == str(tmp_path / "file.db")
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", "postgresql://crm@db.example/crm")
+    assert crm_target(root=tmp_path) == "postgresql://crm@db.example/crm"
+    assert crm_target(tmp_path / "explicit.db", root=tmp_path) == str(tmp_path / "explicit.db")
+
+
+def test_a_tool_opens_the_crm_the_app_opens(crm_target, tmp_path, monkeypatch):
+    from offsetx_apollo_builder import notebook_cli, outreach_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    _hosted(monkeypatch, crm_target)
+
+    assert outreach_cli.main(["create-campaign", "From the tool"]) == 0
+    assert _names(crm_target) == ["From the tool"]
+    with _open(crm_target) as store:
+        campaign_id = store.list_campaigns()[0][0]["id"]
+    assert notebook_cli.main(["plan", "--campaign", campaign_id]) == 0
+    assert not (tmp_path / "data" / "offsetx_outreach.db").exists()
+
+    explicit = tmp_path / "explicit.db"
+    assert outreach_cli.main(["--db", str(explicit), "create-campaign", "Explicit"]) == 0
+    assert _names(explicit) == ["Explicit"]
+    assert _names(crm_target) == ["From the tool"]
+
+
+def test_the_email_worker_sends_from_the_crm_the_app_opens(crm_target, tmp_path, monkeypatch):
+    # The worker reopened `OFFSETX_OUTREACH_DB` every cycle: with the app's CRM
+    # in the database, it would have worked an empty local file and sent nothing.
+    from offsetx_apollo_builder import email_worker_cli
+    from offsetx_apollo_builder.outreach.deliverability.service import EmailDeliveryService
+    from offsetx_apollo_builder.outreach.deliverability.store import DeliverabilityStore
+    from offsetx_apollo_builder.outreach.deliverability.unsubscribe import UnsubscribeService
+    from offsetx_apollo_builder.outreach.engine import OutreachEngine
+    from offsetx_apollo_builder.outreach.gmail import LocalOutboxProvider
+    from offsetx_apollo_builder.outreach.models import INITIAL
+
+    data = tmp_path / "data"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(data))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    _hosted(monkeypatch, crm_target)
+
+    contacts = tmp_path / "contacts.csv"
+    contacts.write_text(
+        "Full Name,Email,Company,Title,Category,Public Hook,Hook Source,Tension\n"
+        "Anita Rao,anita@example.com,Example Exports,Climate Lead,CBAM,"
+        "Published a supplier emissions brief,https://example.com/anita,Supplier evidence handoff\n",
+        encoding="utf-8",
+    )
+    engine = OutreachEngine(crm_target)
+    try:
+        campaign_id = engine.create_campaign(name="Delivery", daily_send_limit=25)
+        assert engine.import_contacts(campaign_id, contacts)["added"] == 1
+        assert engine.generate_drafts(campaign_id, stages=[INITIAL])["generated"] == 1
+        assert engine.approve_drafts(campaign_id, stages=[INITIAL])["approved"] == 1
+        service = EmailDeliveryService(
+            engine,
+            unsubscribe=UnsubscribeService(
+                DeliverabilityStore(engine.store),
+                secret=b"test-unsubscribe-secret-that-is-long-enough",
+                public_base_url="https://crm.example",
+            ),
+            provider_factory=lambda _job, _identity: LocalOutboxProvider(data / "mail"),
+        )
+        job_id = service.enqueue_campaign(campaign_id)["queued"][0]["job_id"]
+    finally:
+        engine.close()
+
+    assert email_worker_cli.main(["--max-jobs", "5"]) == 0
+    with _open(crm_target) as store:
+        assert DeliverabilityStore(store).get_job(job_id)["status"] == "accepted"
+    assert len(list((data / "mail" / "outbox").glob("*.json"))) == 1
+    assert not (data / "offsetx_outreach.db").exists()
+
+
+# ── copying a CRM across, and back ───────────────────────────────────────────
+
+def _counts(target: object) -> dict[str, int]:
+    with _open(target) as store:
+        return store.table_counts()
+
+
+@ABOUT_A_CRM_FILE
+def test_the_copy_reconciles_every_table_and_so_does_the_inverse(tmp_path, postgres_target):
+    from offsetx_apollo_builder.outreach.store_copy import copy_crm
+
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        ids = _seed(store)
+        store.add_contact_to_campaign(ids["campaign"], ids["contact"])
+        store.add_expert_chunk(document_name="Playbook", content="Lead with the outcome the buyer wants.")
+    original = _counts(source)
+    assert sum(original.values()) >= 4
+
+    forward = copy_crm(source, postgres_target)
+    assert forward.ok, forward.describe()
+    assert _counts(postgres_target) == original
+
+    returned = tmp_path / "returned.db"
+    inverse = copy_crm(postgres_target, returned)
+    assert inverse.ok, inverse.describe()
+    assert _counts(returned) == original
+    with _open(returned) as store:
+        assert store.get_contact(ids["contact"])["company"] == "Acme Corp"
+        # SQLite's search index is rebuilt for what arrived.
+        assert [row["document_name"] for row in store.search_expert_chunks("buyer outcome")] == ["Playbook"]
+
+
+@ABOUT_A_CRM_FILE
+def test_the_copy_refuses_a_destination_that_already_holds_a_crm(tmp_path, postgres_target):
+    from offsetx_apollo_builder.outreach.store_copy import CrmCopyError, copy_crm
+
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+    with _open(postgres_target) as store:
+        store.create_campaign(name="Already here", daily_send_limit=5)
+    with pytest.raises(CrmCopyError, match="already holds"):
+        copy_crm(source, postgres_target)
+    assert _names(postgres_target) == ["Already here"]
+
+
+@ABOUT_A_CRM_FILE
+def test_the_copy_leaves_its_source_untouched(tmp_path, postgres_target):
+    from offsetx_apollo_builder.outreach.store_copy import copy_crm
+
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+    with sqlite3.connect(source) as reader:
+        reader.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    before = source.read_bytes()
+    assert copy_crm(source, postgres_target).ok
+    assert source.read_bytes() == before
+    assert not Path(f"{source}-wal").exists() or Path(f"{source}-wal").stat().st_size == 0
+
+
+@ABOUT_A_CRM_FILE
+def test_a_copy_that_fails_half_way_leaves_the_destination_empty(tmp_path, postgres_target):
+    # One bad value aborts the whole copy: a half-copied CRM would look whole.
+    from offsetx_apollo_builder.outreach.store_copy import CrmCopyError, copy_crm
+
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+        # SQLite keeps text in a BIGINT column; PostgreSQL will not.
+        store.connection.execute("UPDATE campaigns SET daily_send_limit = 'twenty'")
+    with pytest.raises(CrmCopyError, match="campaigns"):
+        copy_crm(source, postgres_target)
+    assert sum(_counts(postgres_target).values()) == 0

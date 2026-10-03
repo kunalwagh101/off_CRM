@@ -16,20 +16,25 @@ from dotenv import dotenv_values
 
 from offsetx_apollo_builder import db_cli, notebook_cli, outreach_cli
 from offsetx_apollo_builder.api.config import AppSettings
+from offsetx_apollo_builder.data_paths import crm_target
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def _every_default(tmp_path: Path) -> set[Path]:
+    # What each tool will open, through the rule it calls (S-06.03.03): its
+    # `--db` has no default of its own any more, since one baked in at start
+    # hid OFFSETX_DATABASE_URL.
     return {
         AppSettings.from_env(tmp_path).database_path,
-        Path(outreach_cli._parser().parse_args(["list-campaigns"]).db),
-        Path(notebook_cli._parser().parse_args(["targets"]).db),
+        Path(crm_target(outreach_cli._parser().parse_args(["list-campaigns"]).db)).resolve(),
+        Path(crm_target(notebook_cli._parser().parse_args(["targets"]).db)).resolve(),
     }
 
 
 def test_the_clis_open_the_web_apps_database_when_the_data_dir_moves(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
     monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "durable"))
     monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
     assert _every_default(tmp_path) == {(tmp_path / "durable" / "offsetx_outreach.db").resolve()}
@@ -37,6 +42,7 @@ def test_the_clis_open_the_web_apps_database_when_the_data_dir_moves(tmp_path, m
 
 def test_a_named_database_still_wins_everywhere(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
     monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "durable"))
     monkeypatch.setenv("OFFSETX_OUTREACH_DB", "elsewhere/crm.db")
     assert _every_default(tmp_path) == {(tmp_path / "elsewhere" / "crm.db").resolve()}

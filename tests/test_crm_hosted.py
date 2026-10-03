@@ -800,3 +800,107 @@ def test_a_copy_that_fails_half_way_leaves_the_destination_empty(tmp_path, postg
     with pytest.raises(CrmCopyError, match="campaigns"):
         copy_crm(source, postgres_target)
     assert sum(_counts(postgres_target).values()) == 0
+
+
+# ── task f: `offsetx-db copy-crm`, either way ────────────────────────────────
+
+def _with_password(url: str) -> str:
+    # The test server trusts every login, so a password in the URL is ignored
+    # by it and is there only to prove the output never shows it.
+    return url.replace("postgres@", "postgres:s3cret-pass@", 1)
+
+
+def _every_row(target: object) -> dict[str, list[str]]:
+    with _open(target) as store:
+        return {
+            table: sorted(
+                repr(sorted(dict(row).items()))
+                for row in store.connection.execute(f"SELECT * FROM {table}").fetchall()
+            )
+            for table in sorted(CRM_TABLES)
+        }
+
+
+def _rich(store: OutreachStore) -> None:
+    """Values a copy could quietly change: accents, a fraction, an empty string."""
+    from offsetx_apollo_builder.outreach.sales import SalesTracker
+
+    ids = _seed(store)
+    store.add_contact_to_campaign(ids["campaign"], ids["contact"])
+    store.upsert_contact(ContactInput(full_name="Zoë Ångström", email="zoe@example.se", company="Ünïcode AB"))
+    store.add_expert_chunk(document_name="Playbook", content="Lead with the outcome the buyer wants — 3½ steps.")
+    SalesTracker(store).create_lead({
+        "lead_name": "Asha Rao", "company": "Acme Corp", "email": "asha@acme.example",
+        "offer_made": 1234.56,
+    })
+
+
+@ABOUT_A_CRM_FILE
+def test_copy_crm_copies_a_file_into_the_database_and_back_value_for_value(
+    tmp_path, postgres_target, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _rich(store)
+    url = _with_password(postgres_target)
+
+    assert db_cli.main(["copy-crm", "--from", str(source), "--to", url]) == 0
+    forward = capsys.readouterr()
+    assert "campaigns 1 -> 1" in forward.out and "contacts 2 -> 2" in forward.out
+    returned = tmp_path / "returned.db"
+    assert db_cli.main(["copy-crm", "--from", url, "--to", str(returned)]) == 0
+    back = capsys.readouterr()
+
+    assert _every_row(returned) == _every_row(source)
+    assert "s3cret-pass" not in forward.out + forward.err + back.out + back.err
+
+
+@ABOUT_A_CRM_FILE
+def test_copy_crm_will_not_copy_into_a_crm(tmp_path, postgres_target, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+    with _open(postgres_target) as store:
+        store.create_campaign(name="Already here", daily_send_limit=5)
+
+    assert db_cli.main(["copy-crm", "--from", str(source), "--to", postgres_target]) == 2
+    assert "already holds" in capsys.readouterr().err
+    assert _names(postgres_target) == ["Already here"]
+
+
+@ABOUT_A_CRM_FILE
+def test_a_copy_reads_its_source_at_one_moment(tmp_path, crm_target):
+    # Read table by table, a write landing mid-copy could leave a child row
+    # whose parent was already read past: a failed copy, or counts that differ.
+    from offsetx_apollo_builder.outreach.store_copy import _Source
+
+    with _open(crm_target) as store:
+        _seed(store)
+    reader = _Source(crm_target)
+    try:
+        assert reader.counts()["campaigns"] == 1
+        with _open(crm_target) as store:
+            store.create_campaign(name="Written during the copy", daily_send_limit=5)
+        assert reader.counts()["campaigns"] == 1
+    finally:
+        reader.close()
+    assert len(_names(crm_target)) == 2
+
+
+def test_copy_log_never_prints_the_password_it_was_given(tmp_path, postgres_target, monkeypatch, capsys):
+    # It ended by printing OFFSETX_DATABASE_URL=<the --to URL>, password and
+    # all, into the terminal and whatever logs it (D-225).
+    from offsetx_apollo_builder.ai.log import EgressLog
+
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "ai_egress.db"
+    log = EgressLog(source)
+    log.record(provider_id="nvidia", status="ok", task_type="copy-check")
+    log.close()
+
+    assert db_cli.main(["copy-log", "--from", str(source), "--to", _with_password(postgres_target)]) == 0
+    printed = capsys.readouterr()
+    assert "s3cret-pass" not in printed.out + printed.err
+    assert "OFFSETX_DATABASE_URL" in printed.out

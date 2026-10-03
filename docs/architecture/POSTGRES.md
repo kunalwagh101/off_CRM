@@ -128,10 +128,12 @@ From : sqlite at local_data/ai_egress.db
 To   : postgres at postgresql://off_crm:***@db.internal/off_crm
 120 row(s) copied. Source now holds 120, destination 120.
 
-The SQLite file was not modified. To switch over, set:
-    OFFSETX_DATABASE_URL=postgresql://off_crm@db.internal/off_crm
-and restart. To go back, unset it.
+The SQLite file was not modified. To switch over, set OFFSETX_DATABASE_URL to the URL
+passed with --to, and restart. To go back, unset it.
 ```
+
+The URL is named, never printed back: it may carry a password, and this output
+lands in terminals and CI logs (`D-225`).
 
 Four properties, each chosen against a specific way this goes wrong:
 

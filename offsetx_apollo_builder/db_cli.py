@@ -115,9 +115,33 @@ def _cmd_copy_log(args: argparse.Namespace) -> int:
         )
         return 2
     print()
-    print("The SQLite file was not modified. To switch over, set:")
-    print(f"    {DATABASE_URL_ENV}={args.destination}")
-    print("and restart. To go back, unset it.")
+    # Named, never repeated: the URL may carry a password, and this lands in
+    # terminals and CI logs (D-225).
+    print(f"The SQLite file was not modified. To switch over, set {DATABASE_URL_ENV} to the URL")
+    print("passed with --to, and restart. To go back, unset it.")
+    return 0
+
+
+def _cmd_copy_crm(args: argparse.Namespace) -> int:
+    """Copy a whole CRM into an empty one, either way (S-06.03.03): a local file
+    into the database, or the database back to a file."""
+    from .outreach.store_copy import CrmCopyError, copy_crm
+
+    try:
+        with _lease(args.source, args.destination):
+            report = copy_crm(args.source, args.destination)
+    except (CrmCopyError, DatabaseError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    print(report.describe())
+    if not report.ok:
+        print(
+            "Row counts do not reconcile. The source was not modified; investigate before "
+            "using the copy.",
+            file=sys.stderr,
+        )
+        return 2
+    print("Every table reconciles. The source was not modified.")
     return 0
 
 
@@ -314,6 +338,17 @@ def main(argv: list[str] | None = None) -> int:
         "--to", dest="destination", required=True, help="postgresql:// URL to write"
     )
     copy.set_defaults(func=_cmd_copy_log)
+
+    crm_copy = sub.add_parser(
+        "copy-crm", help="copy a whole CRM into an empty one: a file into the database, or back"
+    )
+    crm_copy.add_argument(
+        "--from", dest="source", required=True, help="the CRM to read: a SQLite path or postgresql:// URL"
+    )
+    crm_copy.add_argument(
+        "--to", dest="destination", required=True, help="an empty CRM to write: a SQLite path or URL"
+    )
+    crm_copy.set_defaults(func=_cmd_copy_crm)
 
     stores = sub.add_parser("inventory", help="every store, where it lives and its size here")
     stores.add_argument("--data-dir", default="", help="the data folder to measure")

@@ -27,6 +27,7 @@ import re
 import sqlite3
 import tempfile
 import threading
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
@@ -93,9 +94,16 @@ class _Source:
 
     def __init__(self, target: Path | str) -> None:
         self.target = str(target)
+        # Every read sees the CRM as it was at the first: read table by table
+        # while the app writes, a contact added mid-copy could reference a
+        # campaign already read past — a failed copy, or counts that differ.
+        self._snapshot = ExitStack()
         if is_postgres_url(self.target):
             self._database = open_database(self.target)
             self._sqlite = None
+            self._snapshot.enter_context(self._database.transaction())
+            self._database.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            self._database.execute("SELECT 1")  # the snapshot is taken at the first read
             return
         path = Path(self.target)
         if not path.is_file():
@@ -111,6 +119,10 @@ class _Source:
         )
         self._sqlite.row_factory = sqlite3.Row
         self._database = None
+        # A read transaction, pinned by its first read: WAL keeps this view
+        # while the app goes on writing.
+        self._sqlite.execute("BEGIN")
+        self._sqlite.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()
 
     def columns(self, table: str) -> list[str]:
         if self._database is not None:
@@ -155,7 +167,10 @@ class _Source:
         return int(row["count"])
 
     def close(self) -> None:
-        (self._database or self._sqlite).close()
+        try:
+            self._snapshot.close()  # PostgreSQL: ends the read-only transaction
+        finally:
+            (self._database or self._sqlite).close()
 
 
 def copy_crm(source: Path | str, destination: Path | str) -> CrmCopyReport:

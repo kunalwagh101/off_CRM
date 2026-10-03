@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
 from ..campaigns import DEFAULT_KIND, assert_runnable, coerce_kind, kind_spec
+from ..db import Database, DatabaseError, is_postgres_url, open_database
+from ..db.schema import ensure_schema
 from .models import (
     ContactInput,
     DraftContent,
@@ -23,7 +25,36 @@ from .models import (
     parse_datetime,
     to_utc_iso,
 )
-from .schema import POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
+from .schema import CRM_TABLES, POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
+
+#: PostgreSQL's advisory lock for a CRM transaction asked for as `immediate`:
+#: one writer at a time across processes, as `BEGIN IMMEDIATE` is on SQLite —
+#: the web app and the email worker both claim delivery jobs (DD-72). Next to
+#: `db/schema.py`'s 7_103_206_301, never equal to it.
+_CRM_WRITE_LOCK = 7_103_206_302
+
+#: A path part that is a URL's scheme: "postgresql:" is what `Path` leaves of
+#: "postgresql://", folding the double slash (D-217). Two letters or more, so a
+#: Windows drive ("C:") is never one; the whole part, so "crm 10:30" is not.
+_SCHEME_PART = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]+:$")
+
+
+def names_a_url(target: object) -> bool:
+    """Whether `target` is a URL rather than a file, even after `Path` has
+    folded its "://" — the one rule for what the CRM may open as a file."""
+    return "://" in str(target) or any(_SCHEME_PART.match(part) for part in Path(str(target)).parts)
+
+
+def _postgres_baseline(database: Database) -> None:
+    # The whole schema as SQLite has it at version 9, in one step: no
+    # PostgreSQL CRM is older than this, so there is no legacy shape to mend.
+    # No FTS5 table — expert search takes the store's plain path there.
+    database.executescript(SCHEMA_SQL)
+    database.executescript(POST_MIGRATION_SQL)
+
+
+#: The PostgreSQL CRM's schema steps, oldest first; see `schema.SCHEMA_VERSION`.
+_POSTGRES_STEPS = (_postgres_baseline,)
 
 
 class GuardedConnection:
@@ -123,9 +154,36 @@ class GuardedConnection:
 
 
 class OutreachStore:
-    """SQLite source of truth for one local user's outreach workspace."""
+    """The CRM: a SQLite file on the machine, or a PostgreSQL database that
+    outlives it (`S-06.03.03`). The SQL is the same for both; only opening,
+    transactions and the schema's first creation know which one this is."""
 
     def __init__(self, path: Path | str):
+        self.database: Database | None = None
+        if is_postgres_url(path):
+            self.backend = "postgres"
+            self._write_lock = threading.RLock()
+            self.fts_enabled = False
+            self.path: Path | None = None
+            # `PostgresDatabase` already has the surface the CRM's callers use —
+            # `execute` with `?`, rows read by name, `executescript`, `close` —
+            # and holds its own lock across a whole transaction, so a bare
+            # statement from another thread waits instead of joining one.
+            self.database = open_database(str(path))
+            self.connection = self.database
+            self.integrity_error: type[BaseException] = self.database.integrity_error
+            return
+        if names_a_url(path):
+            # It used to become a SQLite file named after the URL, password and
+            # all — in the working folder, or under the data folder when it came
+            # through `OFFSETX_OUTREACH_DB` — and the CRM looked saved (D-217).
+            # Not repeated here: it may carry a password.
+            raise DatabaseError(
+                "The CRM's database must be a SQLite file path or a postgresql:// URL. "
+                "The one given is neither, so nothing was opened or created."
+            )
+        self.backend = "sqlite"
+        self.integrity_error = sqlite3.IntegrityError
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # `check_same_thread=False` hands one connection to every thread, and
@@ -170,7 +228,7 @@ class OutreachStore:
         self.connection.close()
 
     @contextmanager
-    def transaction(self, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
+    def transaction(self, *, immediate: bool = False) -> Iterator[Any]:
         """One writer at a time, for the whole transaction rather than per statement.
 
         **The lock is the correctness, not an optimisation.** Without it two
@@ -190,7 +248,18 @@ class OutreachStore:
 
         `db/connection.py` already does exactly this. This module predates it
         and never got the same treatment.
+
+        On PostgreSQL, `PostgresDatabase.transaction` does all of it: a nested
+        call is a savepoint, and its lock holds bare statements back. What
+        `BEGIN IMMEDIATE` adds on SQLite — other processes wait — is an advisory
+        lock there (DD-72).
         """
+        if self.database is not None:
+            with self._write_lock, self.database.transaction():
+                if immediate:
+                    self.database.execute("SELECT pg_advisory_xact_lock(?)", [_CRM_WRITE_LOCK])
+                yield self.connection
+            return
         with self._write_lock:
             # "Reentrant" above was true of the lock and false of SQLite: a
             # second BEGIN inside an open transaction raised "cannot start a
@@ -216,6 +285,12 @@ class OutreachStore:
                 raise
 
     def initialize(self) -> None:
+        if self.database is not None:
+            # Versioned and locked, so two instances starting together cannot
+            # both create it, and a database moved between hosts is upgraded
+            # from where it is (`db/schema.py`).
+            ensure_schema(self.database, "crm", _POSTGRES_STEPS)
+            return
         self.connection.executescript(SCHEMA_SQL)
         self._migrate_legacy_schema()
         self.connection.executescript(POST_MIGRATION_SQL)
@@ -302,6 +377,13 @@ class OutreachStore:
                     self.connection.execute(
                         f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                     )
+
+    def table_counts(self) -> dict[str, int]:
+        """Rows in every CRM table, by name — what a copy must reconcile."""
+        return {
+            table: int(self.connection.execute(f"SELECT COUNT(*) AS count FROM {table}").fetchone()["count"])
+            for table in sorted(CRM_TABLES)
+        }
 
     def _table_exists(self, name: str) -> bool:
         row = self.connection.execute(
@@ -1301,7 +1383,7 @@ class OutreachStore:
                         (now, now, campaign_contact_id),
                     )
                 updated.append(campaign_contact_id)
-            except sqlite3.IntegrityError:
+            except self.integrity_error:
                 continue
         return updated
 

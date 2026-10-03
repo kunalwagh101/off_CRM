@@ -22,6 +22,7 @@ mode is a bug in the CRM's PostgreSQL path.
 """
 from __future__ import annotations
 
+import functools
 import os
 import uuid
 from pathlib import Path
@@ -72,14 +73,18 @@ def _crm_on_postgres(monkeypatch: pytest.MonkeyPatch):
 
     import psycopg
 
-    from offsetx_apollo_builder.db import is_postgres_url
     from offsetx_apollo_builder.outreach import store as store_module
 
     schemas: dict[str, str] = {}
     original = store_module.OutreachStore.__init__
 
+    # `wraps`, so a test that reads the store's own `__init__` — the audit's
+    # autocommit check — still reads the store's, not this.
+    @functools.wraps(original)
     def opened_on_postgres(self, target, *args, **kwargs):
-        if not is_postgres_url(target):
+        # Only a file path moves. A URL of any kind — folded by `Path` or not —
+        # goes to the store as given, so its refusal is still tested here.
+        if not store_module.names_a_url(target):
             key = str(Path(target).resolve())
             if key not in schemas:
                 schemas[key] = f"crm_{uuid.uuid4().hex[:12]}"

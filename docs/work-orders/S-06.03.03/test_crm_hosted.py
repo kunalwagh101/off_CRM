@@ -98,22 +98,7 @@ def _counts(target: object) -> dict[str, int]:
 
 
 # ── the store, on either backend ─────────────────────────────────────────────
-
-def test_a_contact_and_a_campaign_outlive_the_store_that_wrote_them(crm_target):
-    with _open(crm_target) as store:
-        ids = _seed(store)
-    with _open(crm_target) as store:
-        assert store.get_contact(ids["contact"])["company"] == "Acme Corp"
-        assert store.get_campaign(ids["campaign"])["name"] == "Autumn launch"
-
-
-def test_opening_twice_changes_nothing_the_second_time(crm_target):
-    with _open(crm_target) as store:
-        _seed(store)
-        before = store.table_counts()
-    with _open(crm_target) as store:
-        assert store.table_counts() == before
-
+# (Task b's tests are in tests/test_crm_hosted.py.)
 
 def test_search_ignores_case_on_every_backend(crm_target):
     # SQLite's LIKE ignores ASCII case and PostgreSQL's does not, so the same
@@ -125,50 +110,6 @@ def test_search_ignores_case_on_every_backend(crm_target):
         assert (total, [row["name"] for row in campaigns]) == (1, ["Autumn launch"])
         members, total = store.list_campaign_contacts(ids["campaign"], search="ACME")
         assert total == 1 and members[0]["full_name"] == "Asha Rao"
-
-
-def test_a_duplicate_is_refused_as_the_backends_integrity_error(crm_target):
-    with _open(crm_target) as store:
-        _seed(store)
-        with pytest.raises(store.integrity_error):
-            store.connection.execute(
-                "INSERT INTO contacts(id, identity_key, full_name, created_at, updated_at)"
-                " SELECT ?, identity_key, full_name, created_at, updated_at FROM contacts LIMIT 1",
-                (str(uuid.uuid4()),),
-            )
-
-
-def test_a_failed_transaction_leaves_nothing_behind(crm_target):
-    with _open(crm_target) as store:
-        with pytest.raises(RuntimeError):
-            with store.transaction():
-                store.create_campaign(name="Never kept", daily_send_limit=5)
-                raise RuntimeError("the request failed half way")
-        assert store.list_campaigns(search="never kept")[1] == 0
-
-
-def test_no_postgres_column_is_narrower_than_its_sqlite_value(postgres_target):
-    # SQLite's REAL is 8 bytes and its INTEGER up to 8; PostgreSQL's REAL is 4
-    # bytes (about 7 digits) and its INTEGER 4 (about 2.1 billion).
-    import psycopg
-
-    _open(postgres_target).close()
-    schema = postgres_target.rsplit("%3D", 1)[1]
-    with psycopg.connect(POSTGRES_URL) as admin:
-        types = admin.execute(
-            "SELECT data_type, count(*) FROM information_schema.columns"
-            " WHERE table_schema = %s GROUP BY data_type",
-            (schema,),
-        ).fetchall()
-    found = dict(types)
-    assert sum(found.values()) > 300, found  # the schema really is there
-    assert not {"real", "integer", "smallint"} & set(found), found
-
-
-def test_a_postgres_url_never_becomes_a_file(postgres_target, tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    _open(postgres_target).close()
-    assert list(tmp_path.iterdir()) == []
 
 
 # ── copying an existing CRM across, and back ─────────────────────────────────

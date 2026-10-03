@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, useSyncExternalStore } from "react";
 import { api, AUTH_REQUIRED_EVENT, getToken, setToken, idempotencyKey } from "./api";
-import { Button, Field, Modal, StatePanel } from "./components";
+import { Button, Field, Modal, StatePanel, StorageNote } from "./components";
 import { AppContext } from "./context";
 import { CampaignSelection } from "./campaignSelection";
 import Dashboard from "./pages/Dashboard";
@@ -24,7 +24,8 @@ import Memory from "./pages/Memory";
 import Meetings from "./pages/Meetings";
 import Recall from "./pages/Recall";
 import Settings from "./pages/Settings";
-import type { AuthSession, Campaign, Paginated } from "./types";
+import { useResource } from "./hooks";
+import type { AuthSession, Campaign, Paginated, SettingsStatus } from "./types";
 
 const CAMPAIGN_KEY = "offsetx-active-campaign";
 const pages = {
@@ -167,6 +168,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
   const [tokenValue, setTokenValue] = useState(getToken());
   const [toast, setToast] = useState<{ message: string; tone: "success" | "error" | "info" | "warning" } | null>(null);
   const activeCampaign = campaigns.find((campaign) => campaign.id === campaignId) ?? null;
+  const storageStatus = useResource(() => api.get<SettingsStatus>("/settings/status"), []);
 
   useEffect(() => {
     const handler = () => setPage(currentPage());
@@ -243,7 +245,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
           </nav>
           <div className="sidebar-footer">
             <span className="local-dot" aria-hidden="true" />
-            <div><strong>Local workspace</strong><small>SQLite on this device</small></div>
+            <StorageNote storage={storageStatus.data?.storage} />
           </div>
         </aside>
         <div className="app-main">

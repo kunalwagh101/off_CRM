@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, getToken, setToken } from "../api";
-import { Badge, Button, Field, PageHeader, Panel } from "../components";
+import { Badge, Button, Field, PageHeader, Panel, storageWording } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
 import type { AutomationStatus, MemoryItem, NotionDatabase, NotionExportResult, NotionStatus, Paginated, ProviderCall, ProviderProfile, SettingsStatus } from "../types";
@@ -329,12 +329,12 @@ export default function Settings() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Workspace files and local credentials are stored on the application host. Provider keys are encrypted outside the CRM database." />
+      <PageHeader title="Settings" description="Workspace files are stored on the application host. Provider keys are stored encrypted, and the key that opens them is kept apart from them." />
       <div className="settings-grid">
-        <Panel title="Local storage" subtitle="SQLite is the source of truth">
+        <Panel title="Storage" subtitle={storageWording(status.data?.storage).panel}>
           {status.loading || status.error ? <Loadable loading={status.loading} error={status.error} /> : status.data ? (
             <dl className="definition-list">
-              <div><dt>Database</dt><dd><code>{status.data.database_path}</code></dd></div>
+              <div><dt>Database</dt><dd><code>{status.data.database_path || status.data.database}</code></dd></div>
               <div><dt>Local outbox</dt><dd><code>{status.data.local_outbox}</code></dd></div>
               <div><dt>Gmail</dt><dd><Badge tone={status.data.gmail_configured ? "success" : "warning"}>{status.data.gmail_configured ? `Connected as ${status.data.own_email}` : "Not connected"}</Badge></dd></div>
               <div><dt>Expert library</dt><dd>{Object.values(status.data.expert_sources).reduce((sum, value) => sum + value, 0)} indexed chunks</dd></div>

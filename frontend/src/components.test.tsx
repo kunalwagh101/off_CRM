@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Badge, Button, PageHeader, Progress, StatePanel, StatCard } from "./components";
+import { Badge, Button, PageHeader, Progress, StatePanel, StatCard, StorageNote, storageWording } from "./components";
 import { LoginScreen, focusMainContent } from "./App";
 import { AppContext } from "./context";
 import { stageLabel } from "./hooks";
@@ -666,3 +666,30 @@ describe("where a key is kept is said truly, hosted or not (D-202)", () => {
     expect(source.match(/on this machine/g) ?? []).toEqual([]);
   });
 });
+
+describe("where the data is kept (D-226)", () => {
+  // The sidebar said "SQLite on this device" whatever was true, on a server
+  // whose CRM was in PostgreSQL and whose disk is wiped at every deploy.
+  it("says hosted when the CRM is in PostgreSQL", () => {
+    const html = renderToStaticMarkup(<StorageNote storage="hosted_postgres" />);
+    expect(html).toContain("Hosted database");
+    expect(html).toContain("PostgreSQL");
+    expect(html).not.toContain("SQLite on this device");
+  });
+
+  it("says local when the CRM is a file on this machine", () => {
+    const html = renderToStaticMarkup(<StorageNote storage="local_sqlite" />);
+    expect(html).toContain("Local workspace");
+    expect(html).toContain("SQLite on this device");
+  });
+
+  it("claims nothing until it knows", () => {
+    for (const storage of [undefined, "", "something_new"]) {
+      const html = renderToStaticMarkup(<StorageNote storage={storage} />);
+      expect(html).not.toContain("SQLite on this device");
+      expect(html).not.toContain("Hosted database");
+    }
+    expect(storageWording(undefined).detail).toBe("Checking where data is kept");
+  });
+});
+

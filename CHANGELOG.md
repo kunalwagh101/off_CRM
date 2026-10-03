@@ -16,7 +16,9 @@
   (`D-222`); `offsetx-db copy-log` printed its database URL with the password
   (`D-225`); a PostgreSQL URL given as the CRM's file path became a file named
   after it (`D-217`). Search in the CRM ignores capital letters on PostgreSQL
-  as it always did on SQLite. Not yet: backups of the hosted database
+  as it always did on SQLite. The sidebar and Settings now say where the CRM
+  really is — they said "SQLite on this device" whatever was true (`D-226`).
+  Not yet: backups of the hosted database
   (`S-06.03.04`); expert-library search is unranked on PostgreSQL.
 
 - **The hosted storage, reviewed and DONE** (2026-10-02, `S-06.03.01`,

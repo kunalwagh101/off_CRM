@@ -245,3 +245,21 @@ export function Progress({ value }: { value: number }) {
     </div>
   );
 }
+
+/** What the screens say about where the CRM is kept: read from the server's
+ *  status, never assumed. The sidebar said "SQLite on this device" on a server
+ *  whose CRM was in PostgreSQL and whose disk a deploy wipes (D-226). */
+export function storageWording(storage: string | undefined): { title: string; detail: string; panel: string } {
+  if (storage === "hosted_postgres") {
+    return { title: "Hosted database", detail: "CRM and keys in PostgreSQL", panel: "PostgreSQL is the source of truth" };
+  }
+  if (storage === "local_sqlite") {
+    return { title: "Local workspace", detail: "SQLite on this device", panel: "SQLite is the source of truth" };
+  }
+  return { title: "Workspace", detail: "Checking where data is kept", panel: "Checking where data is kept" };
+}
+
+export function StorageNote({ storage }: { storage?: string }) {
+  const wording = storageWording(storage);
+  return <div><strong>{wording.title}</strong><small>{wording.detail}</small></div>;
+}

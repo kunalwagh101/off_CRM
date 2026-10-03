@@ -16,6 +16,7 @@ a schema of its own, dropped afterwards:
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sqlite3
@@ -904,3 +905,37 @@ def test_copy_log_never_prints_the_password_it_was_given(tmp_path, postgres_targ
     printed = capsys.readouterr()
     assert "s3cret-pass" not in printed.out + printed.err
     assert "OFFSETX_DATABASE_URL" in printed.out
+
+
+# ── task h: the screens say where the CRM is ─────────────────────────────────
+
+@ABOUT_A_CRM_FILE
+def test_the_status_says_where_the_crm_really_is(crm_target, tmp_path, monkeypatch):
+    # The status said "local_sqlite" and the CRM file's path whatever was
+    # true, and the sidebar said "SQLite on this device" — on a server whose
+    # CRM was in PostgreSQL and whose disk is wiped at every deploy (D-226).
+    url = _with_password(crm_target) if crm_target.startswith("postgresql") else crm_target
+    key = _hosted(monkeypatch, url)
+    data = tmp_path / "data"
+    with _running(data, key) as client:
+        status = client.get(f"{API}/settings/status").json()
+    if crm_target.startswith("postgresql"):
+        assert status["storage"] == "hosted_postgres"
+        assert status["database"].startswith("postgres at ")
+        assert status["database_path"] == ""
+    else:
+        assert status["storage"] == "local_sqlite"
+        assert status["database_path"] == crm_target  # the file it really uses
+        assert status["database"] == f"sqlite at {crm_target}"
+    assert "s3cret-pass" not in json.dumps(status)
+    assert not (data / "offsetx_outreach.db").exists()
+
+
+@ABOUT_A_CRM_FILE
+def test_a_local_install_still_says_local(tmp_path, monkeypatch):
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    data = tmp_path / "local"
+    with TestClient(create_app(_settings(data, "")), headers={"X-Offsetx-Token": TOKEN}) as client:
+        status = client.get(f"{API}/settings/status").json()
+    assert status["storage"] == "local_sqlite"
+    assert status["database_path"] == str(data / "offsetx_outreach.db")

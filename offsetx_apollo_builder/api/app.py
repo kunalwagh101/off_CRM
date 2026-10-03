@@ -62,6 +62,7 @@ from ..video.timeline import (
     PRESETS as CANVAS_PRESETS,
     TICKS_PER_SECOND,
 )
+from ..db import describe_target as describe_database_target
 from ..db import resolve_target as resolve_database_target
 from ..db import DatabaseError
 from ..db.hosted import HostedStorage
@@ -1334,9 +1335,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/settings/status")
     def settings_status(request: Request) -> dict[str, Any]:
         settings = _settings(request)
+        # Read from the CRM the app opened, never assumed: this said
+        # "local_sqlite" and the file's path on a server whose CRM was in
+        # PostgreSQL, and the screens said "SQLite on this device" (D-226).
+        crm_store = _engine(request).store
         return {
-            "storage": "local_sqlite",
-            "database_path": str(settings.database_path),
+            "storage": "hosted_postgres" if crm_store.backend == "postgres" else "local_sqlite",
+            # Where the CRM is, safe to show: a password is never in it.
+            "database": describe_database_target(crm_store.target),
+            # The CRM's own file; empty when it has none.
+            "database_path": str(crm_store.path) if crm_store.path else "",
             "api_token_enabled": bool(settings.api_token),
             "gmail_configured": bool(
                 settings.gmail_client_secrets

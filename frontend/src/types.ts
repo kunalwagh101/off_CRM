@@ -570,6 +570,9 @@ export type VideoProjectRow = {
 
 export type SettingsStatus = {
   storage: string;
+  /** Where the CRM is, safe to show: never with a password. */
+  database: string;
+  /** The CRM's own file; empty when the CRM is in a hosted database. */
   database_path: string;
   api_token_enabled: boolean;
   gmail_configured: boolean;

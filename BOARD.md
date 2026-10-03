@@ -84,8 +84,6 @@ Waits on the owner's answer to `Q-28`.)*
 workspace `local` acts as the install owner with nothing asking for that.)*
 
 - S-06.02.36 · A second owner login is made on purpose
-- S-06.03.03 · The CRM lives in the hosted database
-  design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.05 · Production refuses a half-hosted install
@@ -132,6 +130,16 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
 ## IN_PROGRESS
+
+*(Pulled 2026-10-03. Its work order was written first, which made it READY: its
+one dependency, `S-06.03.02`, is DONE, and no open question changes its shape —
+`Q-27`'s default keeps one shared CRM. The failing tests are beside the work
+order until task `a` moves them into `tests/`. XL, so it is built as tasks `a`
+to `i`, each committed green.)*
+
+- S-06.03.03 · The CRM lives in the hosted database
+  work_order: docs/work-orders/S-06.03.03-crm-hosted.md
+  design: docs/architecture/HOSTED_STORAGE.md
 
 ## IN_REVIEW
 

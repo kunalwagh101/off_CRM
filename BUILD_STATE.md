@@ -7,20 +7,25 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-10-02
+Last updated: 2026-10-03
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-10-02, on `develop` with `S-06.03.01` and `S-06.03.02` DONE): **2535
-Python passed, 0 failed**, 8 environment-gated skips — four of them the
-PostgreSQL-only tests, which pass against a real PostgreSQL 16 with
-`OFF_CRM_TEST_POSTGRES_URL` set (112 passed across the storage files that way). The whole suite last ran on a real Python 3.10 on
+Tests (2026-10-03, on `develop` at `S-06.03.03` task f): **2576 Python passed,
+0 failed**, 19 environment-gated skips — most of them PostgreSQL-only tests,
+which pass against a real PostgreSQL 16 with `OFF_CRM_TEST_POSTGRES_URL` set
+(233 passed across the storage and tool files that way). With
+`OFF_CRM_TEST_CRM_ON_POSTGRES=1` as well, the **whole suite runs with the CRM on
+PostgreSQL: 2603 passed, 0 failed**, 53 skipped — 52 about SQLite itself, each
+with its reason, and one sandbox image (`tests/conftest.py`). The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
 clean. Frontend **172 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-28).
 
-**Newest: the GTM engine, Phase 1 and 2** (`E-12`) — section 3's first entry.
+**Newest: the CRM in the hosted database** (`S-06.03.03`, in progress: tasks
+a–f built, g–i left) — the dated section just below. Before it, the GTM engine,
+Phase 1 and 2 (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
 
 The video editor is built: `offsetx_apollo_builder/video/` plus
@@ -41,6 +46,43 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-10-03 — `F-06.03` phase 2: the CRM outlives the disk (`S-06.03.03`)
+
+**IN_PROGRESS.** Built and pushed, tasks a–f; docs g; left: the browser walk
+(h) and a review in a fresh context (i), then the evidence block. The work
+order, `docs/work-orders/S-06.03.03-crm-hosted.md`, holds every task's numbers.
+
+**What it does.** With `OFFSETX_DATABASE_URL` set, the CRM — every one of its
+31 tables — is in that database, for the web app and every tool
+(`data_paths.crm_target`: a `--db` given, then the URL, then
+`OFFSETX_OUTREACH_DB`). `outreach/store.py` runs the same SQL on both backends
+and knows which it has only at opening, in transactions, at its first schema
+and for search's index. A local CRM file holding the owner's rows stops a
+hosted start until `offsetx-db import-crm --yes` or `--skip` (`DD-74`).
+`offsetx-db copy-crm` copies a whole CRM either way: empty destination only,
+one transaction, the source read at one moment and never written.
+
+**How it is proved.** `tests/conftest.py` runs the whole suite with every CRM
+on PostgreSQL (`OFF_CRM_TEST_CRM_ON_POSTGRES=1`); a test about SQLite itself is
+marked `crm_sqlite_only` with its reason, and where its property also holds on
+PostgreSQL, `tests/test_crm_hosted.py` proves it on both. Live: the real server
+on PostgreSQL 16 kept a campaign through its data folder being deleted; a CRM
+the app's own engine wrote (9,442 rows) went to PostgreSQL and back with every
+value equal.
+
+**Found and fixed on the way:** the email worker failed on PostgreSQL at
+every send-window deferral (`D-221`); a closed connection reopened itself
+(`D-222`, older); `copy-log` printed its URL's password (`D-225`, older); a
+PostgreSQL URL as the CRM's path became a file named after it (`D-217`). The
+work order's list of modules touching the CRM was built by text search and
+missed one (`D-220`); the exact list came from tracing every statement.
+
+**Not done, and where it goes:** backups of the hosted database
+(`S-06.03.04`); production refusing a half-hosted install (`S-06.03.05`); the
+stores with no decided home (`S-06.03.06`); expert search on PostgreSQL is
+unranked — no full-text index there. A copy over the network to a hosted
+database, and the CRM's load on Neon's compute hours, are unmeasured.
 
 ## 2026-10-02 — `F-06.03` phases 0 and 1: keys, settings and logins outlive the disk
 
@@ -2622,7 +2664,7 @@ Listed honestly. Nothing below is silently assumed done.
 | 4J | Bring-your-own tools, sandboxed | **Built.** Isolation in `ai/sandbox.py`, registry in `ai/tools.py`, CLI `offsetx-tools`. §5.12(c) covered. Remaining: no model-facing path yet (nothing hands the catalogue to a model or lets a plan call a tool — deliberate), no UI screen, and the container flags still need one live run against a real daemon. |
 | 4K | Graphify code graph | **Built** (`codegraph.py`, `offsetx-codegraph`). Remaining: no CI job, no automatic rebuild on commit (Graphify's git hooks are on the refused list), and nothing inside off_CRM reads the graph — handing a model a map of the codebase is a separate decision. |
 | — | Campaign `kind` column | **Built** (`campaigns.py`, schema v8). Remaining: no `settings_json` blob — deliberately deferred until there is a kind whose settings are known, since a validator has to exist before the blob does. |
-| — | Postgres | **Partly done.** The seam is built and tested (`db/`), and the **egress log** runs on either backend. The other five stores — CRM, context, recall, scoreboard, cache, sales — are still SQLite-only. Also missing: a Postgres migration path (`PRAGMA table_info` / `user_version` have no equivalent yet), FTS (`fts5` → `tsvector` is a reimplementation), and connection pooling. |
+| — | Postgres | **Partly done.** The seam is built and tested (`db/`). On either backend now: the egress log, video, GTM, keys, settings and logins (`S-06.03.02`), and the **CRM with its sales tables** (`S-06.03.03`). Still SQLite-only: context, recall, scoreboard, cache — `S-06.03.06` decides each. Migrations: a schema version per store in `offcrm_schema` (`db/schema.py`), the CRM's under `crm`. Still missing: FTS (`fts5` → `tsvector` is a reimplementation; expert search is unranked on PostgreSQL) and connection pooling. |
 | E-12 | GTM engine, the rest | Phase 1 and 2 are built (section 3). Remaining, each with a backlog id: the video director reading the product (`S-12.01.03`), the expert corpus (`S-12.02.05`), posting from the screens (`S-12.02.06`), video in the email (`F-12.03`), driving external GTM tools (`F-12.04`), audience → Apollo search (`F-12.05`). |
 | 10 | Rebuild guide | **Written** — `docs/architecture/REBUILD_GUIDE.md`. Stage order with the reason each stage must precede the next, the 15 traps, the invariants that are enforced by AST tests, and what is deliberately absent. |
 

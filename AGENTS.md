@@ -170,7 +170,9 @@ answer is a hosted PostgreSQL — any host, Render or Neon now, AWS or Azure
 later (`DD-66`, `DD-70`): `docs/architecture/HOSTED_STORAGE.md`, feature
 `F-06.03`. Phase 1 is built (`S-06.03.02`): with `OFFSETX_DATABASE_URL` and
 `OFFSETX_SECRETS_KEY` set, provider keys, AI settings, usage counters, logins
-and the egress log live in that database; the CRM does not yet (`S-06.03.03`).
+and the egress log live in that database; with `S-06.03.03`, so does the CRM,
+for the web app and every command-line tool alike (`data_paths.crm_target`).
+Files — media, renders, outboxes, exports — are still on the wiped disk.
 `OFFSETX_SECRETS_KEY` is the install's master key, not a provider key.
 Provider keys come only from the app — there is no environment-variable
 fallback any more (`DD-64`, `D-151`); never tell a user to set one.

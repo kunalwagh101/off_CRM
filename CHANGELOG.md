@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **The CRM outlives the disk too** (2026-10-03, `S-06.03.03`, in review). With
+  `OFFSETX_DATABASE_URL` set, campaigns, contacts, drafts, sends, replies and
+  delivery jobs live in that database, on SQLite and PostgreSQL alike — for the
+  web app, the email worker, `offsetx-outreach` and `offsetx-notebook`, which
+  all open the same CRM; a `--db` given on the command line still wins. A
+  server whose own disk still holds a CRM file with your data asks once:
+  `offsetx-db import-crm --yes` copies it in, `--skip` starts without it.
+  `offsetx-db copy-crm --from X --to Y` copies a whole CRM either way, into an
+  empty one only, and checks every table's count. Fixed on the way: the email
+  worker failed on PostgreSQL every time it put a job back to wait for its
+  send window (`D-221`); a closed database connection quietly reopened itself
+  (`D-222`); `offsetx-db copy-log` printed its database URL with the password
+  (`D-225`); a PostgreSQL URL given as the CRM's file path became a file named
+  after it (`D-217`). Search in the CRM ignores capital letters on PostgreSQL
+  as it always did on SQLite. Not yet: backups of the hosted database
+  (`S-06.03.04`); expert-library search is unranked on PostgreSQL.
+
 - **The hosted storage, reviewed and DONE** (2026-10-02, `S-06.03.01`,
   `S-06.03.02`). Only a PostgreSQL URL is accepted, and never repeated back
   (`D-206`). A paid answer is never thrown away by a usage-counter read

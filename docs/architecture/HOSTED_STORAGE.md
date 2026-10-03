@@ -1,10 +1,11 @@
 # Hosted storage — data that survives a deploy on the free plan
 
-**Status: phases 0 and 1 built, in review (2026-10-02).** `S-06.03.01` is the
-inventory below; with `S-06.03.02`, provider keys, AI settings and trust, the
-usage counters, logins and the egress log live in the database
-`OFFSETX_DATABASE_URL` names. The CRM itself still lives in the data folder
-until `S-06.03.03`. Answers `Q-26` with the owner's choice of
+**Status: phases 0 and 1 DONE (2026-10-02); phase 2 built, in review
+(2026-10-03).** `S-06.03.01` is the inventory below; with `S-06.03.02`, provider
+keys, AI settings and trust, the usage counters, logins and the egress log live
+in the database `OFFSETX_DATABASE_URL` names; with `S-06.03.03`, so does the
+CRM — campaigns, contacts, drafts, sends, replies and delivery jobs — for the
+web app and every command-line tool. Answers `Q-26` with the owner's choice of
 2026-09-25: keep Render free, and keep the data in a hosted PostgreSQL. Stories:
 `S-06.03.01` to `S-06.03.06` (feature `F-06.03`). Decision: `DD-66`.
 
@@ -107,7 +108,8 @@ runs unreviewed code and must never reach `main`'s keys.
 3. Set `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` where the service's
    environment is set (on Render: the service's Environment page), and deploy.
 4. `/health/ready` answers `ready`; type the provider keys in Connectors again,
-   once — the ones typed before were on the wiped disk.
+   once — the ones typed before were on the wiped disk. The CRM starts empty in
+   the database for the same reason; from now on it outlives every deploy.
 
 If the data folder already holds keys, settings or logins — a server with its
 own disk, not Render's free plan — the app refuses to start and names the
@@ -117,6 +119,28 @@ the keys decrypted with the folder's own key and stored again under
 is. Either way the files are not touched, so unsetting the two settings goes
 back to them. The egress log has its own command, `offsetx-db copy-log`.
 
+The CRM is asked the same question, separately (`S-06.03.03`). If its file
+(`OFFSETX_OUTREACH_DB`) holds campaigns, contacts or anything else the owner
+put there, the start stops and names `offsetx-db import-crm --yes`, which
+copies the file into the database's CRM, and `offsetx-db import-crm --skip`,
+which starts on the database's CRM as it is. The built-in templates and notes
+every start writes are not counted (`DD-74`): a file holding only those starts
+straight away. The file is never changed, so unsetting the URL goes back to it.
+
+`offsetx-db copy-crm --from X --to Y` copies a whole CRM either way — a file
+into a database, or a database back into a file, which is the way out. Only
+into an empty CRM; one transaction, so a failure leaves it empty; the source
+read at one moment and never written; every table's count printed and
+compared, the URL's password never shown. 9,442 rows took 1.6 s to a local
+PostgreSQL 16 and 0.9 s back; over the network to a hosted one it is slower,
+by a round trip per 200 rows, and that has not been measured.
+
+The web app, `offsetx-email-worker`, `offsetx-outreach` and `offsetx-notebook`
+all open the CRM by one rule: a `--db` or `--database` given on the command
+line, then `OFFSETX_DATABASE_URL`, then `OFFSETX_OUTREACH_DB`. A worker on
+another machine therefore needs the same two settings as the app, or it works
+an empty file and sends nothing.
+
 What the app does with them: half the pair, or a key that is not a key, stops
 the start with a sentence saying what to set. A key that cannot open what the
 database holds stops the start too — checked before anything is served, even
@@ -125,10 +149,17 @@ before any provider key is stored. A lost key is not recoverable by anyone:
 starts with a new one, and each workspace pastes its keys again; settings,
 limits, trust and logins stay.
 
-### Limits of phase 1, plainly
+### Limits, plainly
 
-- **The CRM is still on the wiped disk** until `S-06.03.03`: campaigns,
-  contacts and drafts are lost on a free-plan deploy, as before.
+- **Files are still on the wiped disk**: uploaded media, rendered video, the
+  local mail outbox and exports (see below), and the stores the inventory marks
+  "not decided" (`S-06.03.06`).
+- **Expert search is plainer on PostgreSQL.** SQLite ranks the expert library
+  with its full-text index (BM25); PostgreSQL has no such index here, so search
+  keeps notes holding any of the question's first six words (of three letters
+  or more) and returns the newest first, not the most relevant.
+  Drafts that draw on a large expert library may pick less relevant notes
+  there. Moving it to PostgreSQL's own full-text search is not built.
 - **Local backup is refused while anything is hosted**, as it already was for
   the egress log: it cannot capture the database. Backups of the hosted
   database are `S-06.03.04`; until then, the host's own history is all there
@@ -206,7 +237,9 @@ are wiped — so the owner's numbers are still to be taken.
 - The seam: stores already open their database through
   `db/connection.py::open_database`, and the egress log already runs on
   PostgreSQL (`docs/architecture/POSTGRES.md`). Phases 1 and 2 put more stores
-  behind the same seam; no store learns which backend it has.
+  behind the same seam. The CRM store knows which backend it has in four
+  places only — opening, transactions, its first schema, and search's
+  index — and runs the same SQL everywhere else.
 - The AI rules in `AGENTS.md`: the key vault moving to a database changes where
   ciphertext rests, not who may read it. No model gets a query path to it
   (rule 6).
@@ -217,12 +250,16 @@ are wiped — so the owner's numbers are still to be taken.
 
 - **Compute hours.** 100 CU-hours a month is about 400 hours at the smallest
   size. The scheduled jobs keep the database awake while the service runs; on
-  Render free the service itself sleeps when idle, which helps. Phase 1 records
-  real usage for a week before phase 2 moves the CRM.
+  Render free the service itself sleeps when idle, which helps. The design
+  asked for a week of phase 1's real usage before the CRM moved; the owner
+  chose not to wait (2026-10-03), so the CRM's load on compute hours is
+  unmeasured until a real install runs on it.
 - **Latency.** Every query crosses the network; a cold database takes a moment
   to wake. Screens must show loading, never a blank.
-- **Migration on live data.** Phase 2's copy tool is run on a copy of a real
-  CRM first, with its inverse (back to SQLite) written and run once.
+- **Migration on live data.** The copy and its inverse have run on a CRM the
+  app's own engine wrote — 9,442 rows, 10.1 MB, every value compared after the
+  round trip — not yet on the owner's real CRM, which was not available. Run
+  `copy-crm` on a copy of it first.
 - **Two stores for one install during phase 1** (keys in the database, CRM
   still local and wiped): acceptable for the free demo, and the reason phase 4
   exists — production refuses the half state.

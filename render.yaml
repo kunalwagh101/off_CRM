@@ -5,8 +5,10 @@
 # Both are on the free plan, and on the free plan the filesystem does not
 # survive a restart, a redeploy or a spin-down after 15 minutes idle:
 # everything under /tmp is wiped. With OFFSETX_DATABASE_URL set, keys, AI
-# settings, usage counters and logins live in that database instead; the CRM
-# itself still lives on the wiped disk until S-06.03.03. That is why
+# settings, usage counters, logins and the CRM live in that database instead
+# (S-06.03.02, S-06.03.03); files - media, renders, exports - and the stores
+# not yet moved (S-06.03.06) are still wiped, and nothing backs the database
+# up yet (S-06.03.04). That is why
 # neither sets OFFSETX_PRODUCTION — the app refuses a production start on /tmp,
 # and a demo must never look like the place to keep customers.
 #

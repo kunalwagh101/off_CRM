@@ -340,7 +340,10 @@ reply rates.
 **Status:** answered 2026-09-25 — a fourth option: stay on Render's free plan
 and keep the data in a free hosted PostgreSQL. Design:
 `docs/architecture/HOSTED_STORAGE.md`; feature `F-06.03`; decision `DD-66`.
-Until `S-06.03.02` lands, data on Render is still wiped on every deploy.
+`S-06.03.02` (keys, settings, logins) is DONE; with `S-06.03.03` the CRM
+follows the same database (built 2026-10-03, in review). Asked 2026-10-03
+whether to wait the design's week of phase-1 use before moving the CRM, the
+owner said not to wait.
 Added by the owner 2026-10-02: Render's PostgreSQL is an option as well as
 Neon's, and the system must be able to move to a PostgreSQL on AWS or Azure
 later (`DD-66` amended, `DD-70`). Render's free database is deleted after 30

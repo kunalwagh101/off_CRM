@@ -598,7 +598,7 @@ class OutreachStore:
             where.append("c.status = ?")
             params.append(status)
         if search:
-            where.append("c.name LIKE ? ESCAPE '\\'")
+            where.append("lower(c.name) LIKE lower(?) ESCAPE '\\'")
             params.append(self._like(search))
         clause = " WHERE " + " AND ".join(where) if where else ""
         total_row = self.connection.execute(
@@ -754,7 +754,10 @@ class OutreachStore:
         params: list[Any] = [campaign_id]
         if search:
             value = self._like(search)
-            where.append("(c.full_name LIKE ? ESCAPE '\\' OR c.email LIKE ? ESCAPE '\\' OR c.company LIKE ? ESCAPE '\\')")
+            where.append(
+                "(lower(c.full_name) LIKE lower(?) ESCAPE '\\' OR lower(c.email) LIKE lower(?) ESCAPE '\\'"
+                " OR lower(c.company) LIKE lower(?) ESCAPE '\\')"
+            )
             params.extend([value, value, value])
         if status:
             where.append("cc.status = ?")
@@ -998,7 +1001,10 @@ class OutreachStore:
             params.append(int(sendable))
         if search:
             value = self._like(search)
-            where.append("(c.full_name LIKE ? ESCAPE '\\' OR c.email LIKE ? ESCAPE '\\' OR c.company LIKE ? ESCAPE '\\')")
+            where.append(
+                "(lower(c.full_name) LIKE lower(?) ESCAPE '\\' OR lower(c.email) LIKE lower(?) ESCAPE '\\'"
+                " OR lower(c.company) LIKE lower(?) ESCAPE '\\')"
+            )
             params.extend([value, value, value])
         clause = " AND ".join(where)
         count_row = self.connection.execute(
@@ -1618,9 +1624,11 @@ class OutreachStore:
         with self.transaction() as conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO idempotency_records (
+                INSERT INTO idempotency_records (
                     scope, request_key, response_json, created_at
                 ) VALUES (?, ?, ?, ?)
+                ON CONFLICT (scope, request_key) DO UPDATE SET
+                    response_json = excluded.response_json, created_at = excluded.created_at
                 """,
                 (scope, request_key, json.dumps(response, default=str), to_utc_iso()),
             )
@@ -2008,13 +2016,14 @@ class OutreachStore:
         with self.transaction() as conn:
             cursor = conn.execute(
                 """
-                INSERT OR IGNORE INTO discovery_candidates (
+                INSERT INTO discovery_candidates (
                     id, run_id, identity_key, full_name, first_name, last_name,
                     email, company, company_domain, title, category, route,
                     country, linkedin_url, source_url, public_hook, confidence,
                     status, exclusion_reason, evidence_json, source_json,
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
                 """,
                 (
                     candidate_id,
@@ -2284,10 +2293,11 @@ class OutreachStore:
         with self.transaction() as conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO research_observations (
+                INSERT INTO research_observations (
                     id, workspace_id, run_id, candidate_id, entity_id,
                     source_url, evidence_hash, evidence_json, observed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
                 """,
                 (
                     observation_id,
@@ -2322,7 +2332,9 @@ class OutreachStore:
             params.extend([workspace_id, run_id])
         if query:
             token = self._like(clean_text(query))
-            where.append("(e.name LIKE ? ESCAPE '\\' OR e.properties_json LIKE ? ESCAPE '\\')")
+            where.append(
+                "(lower(e.name) LIKE lower(?) ESCAPE '\\' OR lower(e.properties_json) LIKE lower(?) ESCAPE '\\')"
+            )
             params.extend([token, token])
         nodes = self._rows(
             f"""
@@ -2470,10 +2482,11 @@ class OutreachStore:
         with self.transaction() as conn:
             cursor = conn.execute(
                 """
-                INSERT OR IGNORE INTO expert_chunks (
+                INSERT INTO expert_chunks (
                     id, document_name, expert_name, content, tags, source_ref,
                     source_url, source_type, rights_basis, content_sha256, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
                 """,
                 (
                     chunk_id,

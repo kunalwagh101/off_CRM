@@ -98,19 +98,7 @@ def _counts(target: object) -> dict[str, int]:
 
 
 # ── the store, on either backend ─────────────────────────────────────────────
-# (Task b's tests are in tests/test_crm_hosted.py.)
-
-def test_search_ignores_case_on_every_backend(crm_target):
-    # SQLite's LIKE ignores ASCII case and PostgreSQL's does not, so the same
-    # query found "Acme" on one backend and silently nothing on the other.
-    with _open(crm_target) as store:
-        ids = _seed(store)
-        store.add_contact_to_campaign(ids["campaign"], ids["contact"])
-        campaigns, total = store.list_campaigns(search="autumn")
-        assert (total, [row["name"] for row in campaigns]) == (1, ["Autumn launch"])
-        members, total = store.list_campaign_contacts(ids["campaign"], search="ACME")
-        assert total == 1 and members[0]["full_name"] == "Asha Rao"
-
+# (Task b's and c's tests are in tests/test_crm_hosted.py.)
 
 # ── copying an existing CRM across, and back ─────────────────────────────────
 

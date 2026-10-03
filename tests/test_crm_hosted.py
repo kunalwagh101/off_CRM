@@ -245,3 +245,34 @@ def test_a_url_in_the_crm_file_setting_is_refused_however_it_arrives(value, tmp_
 def test_an_ordinary_path_with_a_colon_still_opens(tmp_path):
     with _open(tmp_path / "crm 10:30" / "a:b.db") as store:
         assert store.table_counts()["campaigns"] == 0
+
+
+# ── task c: one SQL for both backends ────────────────────────────────────────
+
+def test_search_ignores_case_on_every_backend(crm_target):
+    # SQLite's LIKE ignores ASCII case and PostgreSQL's does not, so the same
+    # query found "Acme" on one backend and silently nothing on the other.
+    with _open(crm_target) as store:
+        ids = _seed(store)
+        store.add_contact_to_campaign(ids["campaign"], ids["contact"])
+        campaigns, total = store.list_campaigns(search="autumn")
+        assert (total, [row["name"] for row in campaigns]) == (1, ["Autumn launch"])
+        members, total = store.list_campaign_contacts(ids["campaign"], search="ACME")
+        assert total == 1 and members[0]["full_name"] == "Asha Rao"
+
+
+def test_a_repeated_answer_replaces_the_one_saved(crm_target):
+    with _open(crm_target) as store:
+        store.save_idempotency("campaigns", "key-1", {"id": "first"})
+        store.save_idempotency("campaigns", "key-1", {"id": "second"})
+        assert store.get_idempotency("campaigns", "key-1") == {"id": "second"}
+        assert store.table_counts()["idempotency_records"] == 1
+
+
+def test_the_same_expert_text_is_kept_once_and_found(crm_target):
+    with _open(crm_target) as store:
+        text = "Lead with the outcome the buyer already wants, then the proof."
+        assert store.add_expert_chunk(document_name="Playbook", content=text) is True
+        assert store.add_expert_chunk(document_name="Playbook copy", content=text) is False
+        assert store.table_counts()["expert_chunks"] == 1
+        assert [row["document_name"] for row in store.search_expert_chunks("buyer outcome")] == ["Playbook"]

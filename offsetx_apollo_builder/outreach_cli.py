@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from .campaigns import CampaignKindError
 from .campaigns import list_kinds as list_campaign_kinds
-from .data_paths import crm_target, data_dir, gmail_token_path
+from .data_paths import crm_target, data_dir, database_path, gmail_token_path
 from .db import is_postgres_url
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
@@ -110,6 +110,18 @@ def _gmail_token() -> Path:
     return token
 
 
+def _refuse_a_hidden_local_crm(crm: str) -> None:
+    """Stop, as the web app does, while a local CRM file holds the owner's rows
+    and the database's CRM would be opened instead (`S-06.03.03`)."""
+    from .db.hosted import SECRETS_KEY_ENV, HostedStorageError
+    from .outreach.store_copy import refuse_a_hidden_local_crm
+
+    try:
+        refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
+    except HostedStorageError as exc:
+        raise SystemExit(str(exc)) from None
+
+
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     args = _parser().parse_args(argv)
@@ -136,6 +148,8 @@ def _run(args: argparse.Namespace) -> int:
         return 0
 
     crm = crm_target(args.db)
+    if not args.db:
+        _refuse_a_hidden_local_crm(crm)
     engine = OutreachEngine(crm)
     try:
         if args.command == "create-campaign":

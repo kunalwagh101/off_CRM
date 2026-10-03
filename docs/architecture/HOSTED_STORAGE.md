@@ -160,6 +160,13 @@ limits, trust and logins stay.
   or more) and returns the newest first, not the most relevant.
   Drafts that draw on a large expert library may pick less relevant notes
   there. Moving it to PostgreSQL's own full-text search is not built.
+- **Accented letters fold on PostgreSQL only.** Search ignores A–Z case on
+  both backends; "évora" finds "Évora" on PostgreSQL but not on SQLite, whose
+  `lower` folds ASCII alone (`DD-75`).
+- **Several installs on one database.** Whether a local CRM file was copied in
+  or skipped is recorded once per database, as phase 1's keys and logins are:
+  a second install's file is then neither asked about nor named
+  (`S-06.03.07`).
 - **Local backup is refused while anything is hosted**, as it already was for
   the egress log: it cannot capture the database. Backups of the hosted
   database are `S-06.03.04`; until then, the host's own history is all there
@@ -253,7 +260,12 @@ are wiped — so the owner's numbers are still to be taken.
   Render free the service itself sleeps when idle, which helps. The design
   asked for a week of phase 1's real usage before the CRM moved; the owner
   chose not to wait (2026-10-03), so the CRM's load on compute hours is
-  unmeasured until a real install runs on it.
+  unmeasured until a real install runs on it. `offsetx-email-worker --watch`
+  opens the CRM every `--poll-seconds` (2 by default): about 11 statements a
+  time, which alone keeps a Neon compute awake around the clock. On a hosted
+  install run it with `--poll-seconds 60` or more, or not at all where the web
+  app's own timer sends. A database that is away for a moment no longer ends
+  it: it says so and tries again, waiting longer each time up to a minute.
 - **Latency.** Every query crosses the network; a cold database takes a moment
   to wake. Screens must show loading, never a blank.
 - **Migration on live data.** The copy and its inverse have run on a CRM the

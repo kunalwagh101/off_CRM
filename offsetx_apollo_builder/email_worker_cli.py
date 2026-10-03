@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from .api.config import AppSettings
-from .db import resolve_target
+from .db import DatabaseBusy, DatabaseError, DatabaseUnavailable, resolve_target
+from .db.hosted import HostedStorageError
+from .outreach.store import names_a_url
+from .outreach.store_copy import refuse_a_hidden_local_crm
 from .outreach.deliverability.models import PermanentDeliveryError
 from .outreach.deliverability.service import EmailDeliveryService
 from .outreach.deliverability.ses import SesMailProvider
@@ -24,8 +28,11 @@ def _parser() -> argparse.ArgumentParser:
         prog="offsetx-email-worker",
         description="Process off_CRM's durable email delivery jobs.",
     )
+    # A string, not a Path: Path folds `postgresql://` to `postgresql:/`, and
+    # the URL this help offers ended in a traceback.
     parser.add_argument(
-        "--database", type=Path, help="Override OFFSETX_DATABASE_URL and OFFSETX_OUTREACH_DB"
+        "--database",
+        help="A SQLite path or postgresql:// URL; overrides OFFSETX_DATABASE_URL and OFFSETX_OUTREACH_DB",
     )
     parser.add_argument("--data-dir", type=Path, help="Override OFFSETX_DATA_DIR")
     parser.add_argument("--max-jobs", type=int, default=25)
@@ -75,11 +82,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.poll_seconds < 0.25:
         raise SystemExit("--poll-seconds must be at least 0.25")
     settings = AppSettings.from_env()
-    if args.database:
-        settings.database_path = args.database.resolve()
+    if args.database and not names_a_url(args.database):
+        args.database = settings.database_path = Path(args.database).resolve()
     if args.data_dir:
         settings.data_dir = args.data_dir.resolve()
     settings.validate()
+    failures = 0
     try:
         while True:
             try:
@@ -97,14 +105,38 @@ def main(argv: list[str] | None = None) -> int:
                     # The CRM the web app opens: `--database`, then
                     # OFFSETX_DATABASE_URL, then the file. Reopening only the
                     # file sent nothing once the CRM was in the database.
-                    engine = OutreachEngine(
-                        resolve_target(args.database, default=settings.database_path)
-                    )
+                    crm = resolve_target(args.database, default=settings.database_path)
+                    if not args.database:
+                        # Not while a local CRM file holds the owner's rows: it
+                        # would work the database's CRM and leave theirs unsent.
+                        try:
+                            refuse_a_hidden_local_crm(crm, settings.database_path, settings.secrets_key)
+                        except HostedStorageError as exc:
+                            raise SystemExit(str(exc)) from None
+                    engine = OutreachEngine(crm)
                     try:
                         result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
                     finally:
                         engine.close()
                     print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
+                    failures = 0
+            except (DatabaseUnavailable, DatabaseBusy) as exc:
+                # Away for a moment — a sleeping Neon compute, a dropped
+                # connection, a busy writer — ended a watching worker and mail
+                # stopped until someone restarted it (review finding 4). A
+                # setting that is wrong is a DatabaseError of another kind, and
+                # still stops it: retrying would only hide it.
+                if not args.watch:
+                    raise SystemExit(str(exc)) from None
+                failures += 1
+                wait = min(args.poll_seconds * 2 ** failures, 60.0)
+                print(f"{exc} Trying again in {wait:g} s.", file=sys.stderr, flush=True)
+                time.sleep(wait)
+                continue
+            except DatabaseError as exc:
+                # A target that is wrong, not away: say so and stop, rather than
+                # a traceback, or a retry that would only hide it.
+                raise SystemExit(str(exc)) from None
             except WorkspaceBusy:
                 if not args.watch:
                     raise SystemExit(

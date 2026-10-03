@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import math
@@ -13,7 +14,14 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
 from ..campaigns import DEFAULT_KIND, assert_runnable, coerce_kind, kind_spec
-from ..db import Database, DatabaseError, is_postgres_url, open_database
+from ..db import (
+    Database,
+    DatabaseBusy,
+    DatabaseError,
+    DatabaseUnavailable,
+    is_postgres_url,
+    open_database,
+)
 from ..db.schema import ensure_schema
 from .models import (
     ContactInput,
@@ -32,6 +40,10 @@ from .schema import CRM_TABLES, POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION
 #: the web app and the email worker both claim delivery jobs (DD-72). Next to
 #: `db/schema.py`'s 7_103_206_301, never equal to it.
 _CRM_WRITE_LOCK = 7_103_206_302
+
+#: How long a CRM transaction on PostgreSQL waits for a lock, as SQLite's
+#: `busy_timeout = 5000` does.
+_LOCK_WAIT_SECONDS = 5
 
 #: A path part that is a URL's scheme: "postgresql:" is what `Path` leaves of
 #: "postgresql://", folding the double slash (D-217). Two letters or more, so a
@@ -260,8 +272,23 @@ class OutreachStore:
         """
         if self.database is not None:
             with self._write_lock, self.database.transaction():
+                # SQLite's busy_timeout, here: a lock wait ends after 5 s. It
+                # waited for ever, holding the store's lock, so every other
+                # request queued behind one stuck writer (review finding 3).
+                self.database.execute(f"SET LOCAL lock_timeout = '{_LOCK_WAIT_SECONDS}s'")
                 if immediate:
-                    self.database.execute("SELECT pg_advisory_xact_lock(?)", [_CRM_WRITE_LOCK])
+                    try:
+                        self.database.execute("SELECT pg_advisory_xact_lock(?)", [_CRM_WRITE_LOCK])
+                    except DatabaseUnavailable as exc:
+                        # SQLSTATE 55P03, lock_not_available: PostgreSQL's
+                        # stable name for it, not the driver's class name.
+                        if getattr(exc.__cause__, "sqlstate", None) != "55P03":
+                            raise
+                        # Not "stopped answering": it answered, and was busy.
+                        raise DatabaseBusy(
+                            f"The CRM is busy: another writer held it for {_LOCK_WAIT_SECONDS} "
+                            "seconds. Nothing was changed; try again."
+                        ) from None
                 yield self.connection
             return
         with self._write_lock:
@@ -1306,6 +1333,17 @@ class OutreachStore:
         return message_id
 
     def record_reply(self, campaign_id: str, incoming: IncomingMessage) -> list[str]:
+        # A mailbox's text arrives as it was sent. NUL means nothing in it, and
+        # PostgreSQL refuses it: the error escaped reply sync, and that
+        # campaign's runs failed while the reply stayed in the window (review
+        # finding 7). The raw JSON keeps it, escaped as \u0000.
+        incoming = dataclasses.replace(incoming, **{
+            name: str(getattr(incoming, name)).replace("\x00", "")
+            for name in (
+                "provider_message_id", "thread_id", "from_email", "subject",
+                "body_preview", "internet_message_id",
+            )
+        })
         if incoming.provider_message_id:
             duplicate = self._row(
                 "SELECT id FROM messages WHERE provider_message_id = ?",

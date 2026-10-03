@@ -43,7 +43,9 @@ def parse_datetime(value: str | datetime | None) -> datetime | None:
 def clean_text(value: object) -> str:
     if value is None:
         return ""
-    text = str(value).strip()
+    # NUL means nothing in a name or a note, and PostgreSQL refuses it where
+    # SQLite stored it (S-06.03.03, review finding 7).
+    text = str(value).replace("\x00", "").strip()
     if text.lower() in {"nan", "none", "null"}:
         return ""
     return re.sub(r"\s+", " ", text)

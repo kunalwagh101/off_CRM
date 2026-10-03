@@ -862,7 +862,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
 | R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
 | R-164 | A login that will act as the install owner is made so on purpose, never by picking a workspace name | S-06.02.36 |
-| R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06 |
+| R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -2067,6 +2067,16 @@ the data in a free hosted PostgreSQL. Design: `docs/architecture/HOSTED_STORAGE.
   proof as `S-06.03.02`, or marked disposable with the screen that holds it
   saying so.
 - **Dependencies:** `S-06.03.03`. **Size:** L.
+
+#### S-06.03.07 — A local install's decision belongs to that install
+*(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*
+- **Given** two installs with their own disks sharing one hosted database,
+  **when** the first has imported or skipped its local CRM file — or its keys
+  and logins (`D-210`) — **then** the second is still asked about its own
+  files, and neither install's data is hidden without a word.
+- **Open first:** whether two installs may share one database at all is the
+  owner's call; if not, the start refuses the second instead.
+- **Dependencies:** `S-06.03.03`. **Size:** S.
 
 ## 3b. Amendments to shipped definitions
 

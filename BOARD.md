@@ -94,6 +94,11 @@ workspace `local` acts as the install owner with nothing asking for that.)*
 - S-06.03.06 · Every other store has a decided home
   design: docs/architecture/HOSTED_STORAGE.md
 
+*(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*
+
+- S-06.03.07 · A local install's decision belongs to that install
+  design: docs/architecture/HOSTED_STORAGE.md
+
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 

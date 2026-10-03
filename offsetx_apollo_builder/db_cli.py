@@ -127,6 +127,15 @@ def _cmd_copy_crm(args: argparse.Namespace) -> int:
     into the database, or the database back to a file."""
     from .outreach.store_copy import CrmCopyError, copy_crm
 
+    if not is_postgres_url(args.destination) and Path(args.destination).exists():
+        # A file already there may be another store's: the CRM's tables went
+        # into one and this said it had worked (review finding 9).
+        print(
+            f"{args.destination} already exists. Copy a CRM into a new file, or into an empty "
+            "PostgreSQL database; nothing was copied.",
+            file=sys.stderr,
+        )
+        return 2
     try:
         with _lease(args.source, args.destination):
             report = copy_crm(args.source, args.destination)

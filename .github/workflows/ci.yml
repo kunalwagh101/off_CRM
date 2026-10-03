@@ -73,3 +73,44 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  # S-06.03.03's acceptance: the CRM's tests pass against SQLite and PostgreSQL
+  # alike. Without this job every PostgreSQL case was skipped in CI, so a break
+  # on that side merged green (review finding 5). Two runs: the storage tests
+  # with a real database, then the whole suite with every CRM swapped onto it
+  # (`tests/conftest.py`). The `postgres` extra installs the driver, which a
+  # plain sync leaves out.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      OFF_CRM_TEST_POSTGRES_URL: postgresql://postgres:ci-only-password@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies, PostgreSQL driver included
+        run: uv sync --extra dev --extra email --extra postgres --locked
+      - name: Storage tests against PostgreSQL
+        run: >-
+          uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py
+          tests/test_db_backend.py tests/test_storage_inventory.py
+          tests/test_video_postgres.py tests/test_crm_harness.py
+      - name: Whole suite with every CRM on PostgreSQL
+        env:
+          OFF_CRM_TEST_CRM_ON_POSTGRES: "1"
+        run: uv run pytest -q

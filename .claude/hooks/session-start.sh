@@ -34,8 +34,10 @@ fi
 # ── 2. Python. `uv sync` uses pyproject + uv.lock, so it installs the full ──
 # dependency set including `scrapling`, which requirements.txt omits. That
 # omission is why tests/test_discovery.py has been failing in web sessions.
-echo "[setup] python deps via uv sync --extra dev"
-uv sync --extra dev
+# `--extra postgres` too: without the driver every PostgreSQL test skips in
+# silence, and a session that runs them later found it gone (S-06.03.03).
+echo "[setup] python deps via uv sync --extra dev --extra postgres"
+uv sync --extra dev --extra postgres
 
 # `uv run` is how CI invokes pytest; make the same interpreter the default so
 # a plain `python -m pytest` in a session behaves the same way.

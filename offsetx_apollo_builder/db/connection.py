@@ -48,6 +48,11 @@ class DatabaseError(RuntimeError):
     """Connection or configuration problem, with the fix in the message."""
 
 
+class DatabaseBusy(DatabaseError):
+    """The database answered, but a lock it waited for stayed taken too long.
+    Nothing was changed; trying again later is safe."""
+
+
 class DatabaseUnavailable(DatabaseError):
     """The database did not answer — down, unreachable, or it dropped the
     connection mid-statement. Whether a statement that failed this way ran is
@@ -97,6 +102,12 @@ def _split(target: str) -> tuple[str, str, str, str]:
     return scheme, credentials if at else "", place if at else before, query
 
 
+def _secret(name: str) -> bool:
+    """A query option whose value is a secret: `password`, and `sslpassword` —
+    the client key's passphrase — which was shown (review finding 6)."""
+    return "password" in name.lower()
+
+
 def _passwords(target: str) -> list[str]:
     """The password a URL carries — after the user, or as `?password=` — as
     written and decoded, so a message can be cleaned of it."""
@@ -104,7 +115,7 @@ def _passwords(target: str) -> list[str]:
     found = [credentials.split(":", 1)[1]] if ":" in credentials else []
     for item in query.split("&"):
         name, _, value = item.partition("=")
-        if name.lower() == "password":
+        if _secret(name):
             found.append(value)
     return [secret for secret in {*found, *(unquote(item) for item in found)} if secret]
 
@@ -123,7 +134,7 @@ def describe_target(target: object) -> str:
         return f"sqlite at {target}"
     scheme, credentials, place, query = _split(str(target))
     user = f"{credentials.split(':', 1)[0]}:***@" if credentials else ""
-    kept = [item for item in query.split("&") if item and item.partition("=")[0].lower() != "password"]
+    kept = [item for item in query.split("&") if item and not _secret(item.partition("=")[0])]
     return f"postgres at {scheme}://{user}{place}" + (f"?{'&'.join(kept)}" if kept else "")
 
 

@@ -1339,12 +1339,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # "local_sqlite" and the file's path on a server whose CRM was in
         # PostgreSQL, and the screens said "SQLite on this device" (D-226).
         crm_store = _engine(request).store
+        # Where the database is — host, user, name — is the install owner's to
+        # see, not every workspace login's, a client's included (finding 6).
+        owner = _profile_scope(request) == ""
+        kind = "PostgreSQL" if crm_store.backend == "postgres" else "SQLite file"
         return {
             "storage": "hosted_postgres" if crm_store.backend == "postgres" else "local_sqlite",
             # Where the CRM is, safe to show: a password is never in it.
-            "database": describe_database_target(crm_store.target),
-            # The CRM's own file; empty when it has none.
-            "database_path": str(crm_store.path) if crm_store.path else "",
+            "database": describe_database_target(crm_store.target) if owner else kind,
+            # The CRM's own file; empty when it has none, or for another login.
+            "database_path": str(crm_store.path) if crm_store.path and owner else "",
             "api_token_enabled": bool(settings.api_token),
             "gmail_configured": bool(
                 settings.gmail_client_secrets

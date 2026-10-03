@@ -52,6 +52,10 @@ class CrmCopyError(RuntimeError):
     """Why a copy did not happen, as a sentence with the next step."""
 
 
+class CrmNotEmpty(CrmCopyError):
+    """The destination already holds a CRM of the owner's."""
+
+
 @dataclass(frozen=True)
 class CrmCopyReport:
     source: str
@@ -156,6 +160,35 @@ class _Source:
             return int(self._database.execute(sql).fetchone()["count"])
         return int(self._sqlite.execute(sql).fetchone()["count"])
 
+    def wrong_kinds(self, table: str) -> list[tuple[str, int, str]]:
+        """Columns holding values of another kind than declared: (column,
+        how many, the kind declared). SQLite keeps 87.5 in a BIGINT column;
+        PostgreSQL rounds it to 88 and the counts still match (review finding
+        2). PostgreSQL enforces its own types, so only a SQLite source is read."""
+        if self._sqlite is None:
+            return []
+        found = []
+        for row in self._sqlite.execute(f"PRAGMA table_info({table})").fetchall():
+            declared = str(row["type"]).upper()
+            if "INT" in declared:
+                allowed, kind = ("integer",), "whole number"
+            elif any(word in declared for word in ("REAL", "DOUB", "FLOA")):
+                allowed, kind = ("real", "integer"), "number"
+            elif any(word in declared for word in ("TEXT", "CHAR", "CLOB")):
+                allowed, kind = ("text",), "piece of text"
+            else:
+                continue
+            column = str(row["name"])
+            marks = ", ".join("?" for _ in allowed)
+            wrong = self._sqlite.execute(
+                f"SELECT COUNT(*) AS count FROM {table} WHERE {column} IS NOT NULL"
+                f" AND typeof({column}) NOT IN ({marks})",
+                allowed,
+            ).fetchone()["count"]
+            if wrong:
+                found.append((column, int(wrong), kind))
+        return found
+
     def matching(self, table: str, column: str, values: frozenset[str]) -> int:
         """Rows of `table` whose `column` is one of `values` (SQLite only)."""
         if not values:
@@ -175,22 +208,45 @@ class _Source:
 
 def copy_crm(source: Path | str, destination: Path | str) -> CrmCopyReport:
     """Copy every CRM row from `source` into an empty CRM at `destination`."""
-    if str(source) == str(destination):
+    if _same_crm(source, destination):
+        # Before anything opens the destination: opening it initialises it,
+        # which on the source itself would migrate what is being copied.
         raise CrmCopyError("The source and the destination are the same CRM; nothing was copied.")
+    templates, notes = _built_in()
     reader = _Source(source)
     try:
         if not any(reader.columns(table) for table in CRM_TABLES):
             raise CrmCopyError(f"{describe_target(source)} holds no CRM tables; nothing was copied.")
         with OutreachStore(destination) as store:
             store.initialize()
-            held = {table: rows for table, rows in store.table_counts().items() if rows}
+            # What every start writes is not a CRM: a worker or a deploy that
+            # started first left the built-ins, and counting them refused the
+            # import for good (review finding 1).
+            held = {table: rows for table, rows in _owner_rows(store).items() if rows}
             if held:
-                raise CrmCopyError(
+                raise CrmNotEmpty(
                     f"{describe_target(destination)} already holds a CRM ({_listed(held)}). Copying "
                     "into it would mix two; nothing was copied. Copy into an empty database."
                 )
+            for table in _copy_order():
+                for column, wrong, kind in reader.wrong_kinds(table):
+                    raise CrmCopyError(
+                        f"The source's {table}.{column} holds {wrong} value"
+                        f"{'s' if wrong != 1 else ''} that {'are' if wrong != 1 else 'is'} not a {kind}. "
+                        "PostgreSQL would change or refuse them, so nothing was copied. "
+                        "Correct those rows in the source first."
+                    )
             try:
                 with store.transaction(immediate=True) as connection:
+                    # The source brings its own; nothing references either.
+                    connection.execute(
+                        f"DELETE FROM email_templates WHERE id IN ({_marks(templates)})", sorted(templates)
+                    )
+                    connection.execute(
+                        f"DELETE FROM expert_chunks WHERE content_sha256 IN ({_marks(notes)})", sorted(notes)
+                    )
+                    if store.fts_enabled:
+                        connection.execute("DELETE FROM expert_chunks_fts")  # rebuilt below
                     for table in _copy_order():
                         _copy_table(reader, connection, table, set(_store_columns(store, table)))
                     if store.fts_enabled:
@@ -213,6 +269,32 @@ def copy_crm(source: Path | str, destination: Path | str) -> CrmCopyReport:
         destination=describe_target(destination),
         tables={table: (before[table], after[table]) for table in sorted(CRM_TABLES)},
     )
+
+
+def _same_crm(source: Path | str, destination: Path | str) -> bool:
+    if is_postgres_url(source) or is_postgres_url(destination):
+        return str(source) == str(destination)
+    return Path(source).resolve() == Path(destination).resolve()
+
+
+def _marks(values: frozenset[str]) -> str:
+    return ", ".join("?" for _ in values) or "NULL"
+
+
+def _owner_rows(store: OutreachStore) -> dict[str, int]:
+    """Rows in a CRM, less the built-in templates and notes every start writes."""
+    counts = store.table_counts()
+    templates, notes = _built_in()
+    for table, column, values in (
+        ("email_templates", "id", templates), ("expert_chunks", "content_sha256", notes)
+    ):
+        if counts[table] and values:
+            built_in = store.connection.execute(
+                f"SELECT COUNT(*) AS count FROM {table} WHERE {column} IN ({_marks(values)})",
+                sorted(values),
+            ).fetchone()["count"]
+            counts[table] -= int(built_in)
+    return counts
 
 
 def _store_columns(store: OutreachStore, table: str) -> list[str]:
@@ -334,13 +416,46 @@ def check_local_crm(hosted: HostedStorage, database_path: Path, crm: str) -> Non
         )
 
 
+def refuse_a_hidden_local_crm(crm: str, database_path: Path, secrets_key: str) -> None:
+    """`check_local_crm` for the tools — the worker, `offsetx-outreach`,
+    `offsetx-notebook` — before they open the CRM, as `create_app` does. Only
+    the web app refused: the worker opened the hosted CRM, seeded and worked it,
+    the owner's file unread (review finding 1). Raises `HostedStorageError`."""
+    if not is_postgres_url(crm) and Path(crm).resolve() == Path(database_path).resolve():
+        return
+    if not local_crm_rows(database_path):
+        return  # nothing of the owner's there: no need to reach the database
+    hosted = HostedStorage.configured(secrets_key)
+    if hosted is None:
+        return
+    try:
+        check_local_crm(hosted, database_path, crm)
+    finally:
+        hosted.close()
+
+
 def import_crm(hosted: HostedStorage, database_path: Path, crm: str) -> CrmCopyReport:
     """Copy a local CRM file into the database's CRM, once."""
     if _decided(hosted):
         raise HostedStorageError(
             "The database was already told what to do with a CRM file; nothing was changed."
         )
-    report = copy_crm(database_path, crm)
+    try:
+        report = copy_crm(database_path, crm)
+    except CrmNotEmpty as exc:
+        # The likeliest way here: an earlier import copied it and stopped
+        # before the decision below was written. "Copy into an empty
+        # database" sent the owner the wrong way (review finding 8).
+        raise CrmCopyError(
+            f"{exc} If an earlier `{IMPORT_CRM_COMMAND}` already copied this file in, "
+            f"record that with `{SKIP_CRM_COMMAND}`: the database keeps what it holds."
+        ) from None
+    if not report.ok:
+        # Never recorded as imported unless it is: the start keeps asking.
+        raise CrmCopyError(
+            "The copy's counts do not reconcile, so it was not recorded as imported and the "
+            f"app will keep asking.\n{report.describe()}"
+        )
     # After the copy, not around it: the copy takes its own transaction, and on
     # SQLite two at once on one file would wait on each other.
     with hosted.exclusive():

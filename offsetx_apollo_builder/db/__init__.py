@@ -15,6 +15,7 @@ queries.
 from .connection import (
     DATABASE_URL_ENV,
     Database,
+    DatabaseBusy,
     DatabaseError,
     DatabaseUnavailable,
     PostgresDatabase,
@@ -29,6 +30,7 @@ from .translate import translate_params
 __all__ = [
     "DATABASE_URL_ENV",
     "Database",
+    "DatabaseBusy",
     "DatabaseError",
     "DatabaseUnavailable",
     "PostgresDatabase",

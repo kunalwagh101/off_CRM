@@ -15,13 +15,14 @@ cheaper than after.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Sequence
 
 from .ai.context import ContextLayer
-from .data_paths import crm_target, data_dir
+from .data_paths import crm_target, data_dir, database_path
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -62,7 +63,17 @@ def _cmd_targets(_: argparse.Namespace) -> int:
 
 
 def _exporter(args: argparse.Namespace) -> tuple[NotebookExport, OutreachStore, ContextLayer | None]:
-    store = OutreachStore(crm_target(args.db))
+    crm = crm_target(args.db)
+    if not args.db:
+        # As the web app does: not while a local CRM file holds the owner's rows.
+        from .db.hosted import SECRETS_KEY_ENV, HostedStorageError
+        from .outreach.store_copy import refuse_a_hidden_local_crm
+
+        try:
+            refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
+        except HostedStorageError as exc:
+            raise SystemExit(str(exc)) from None
+    store = OutreachStore(crm)
     store.initialize()
     context: ContextLayer | None = None
     context_path = Path(args.context)

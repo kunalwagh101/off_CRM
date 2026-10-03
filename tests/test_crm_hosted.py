@@ -939,3 +939,288 @@ def test_a_local_install_still_says_local(tmp_path, monkeypatch):
         status = client.get(f"{API}/settings/status").json()
     assert status["storage"] == "local_sqlite"
     assert status["database_path"] == str(data / "offsetx_outreach.db")
+
+
+# ── task i: the fresh-context review's findings ──────────────────────────────
+
+def _engine_made(target: object) -> None:
+    """A CRM the way a real start leaves it: the built-in templates and note in."""
+    from offsetx_apollo_builder.outreach.engine import OutreachEngine
+
+    OutreachEngine(target).close()
+
+
+@ABOUT_A_CRM_FILE
+def test_import_crm_works_after_something_already_started_on_the_database(
+    crm_target, tmp_path, monkeypatch, capsys
+):
+    # A worker or a deploy that started first writes the built-in rows into the
+    # hosted CRM, and the import was refused for good: "already holds a CRM",
+    # leaving only --skip, which hides the owner's CRM (review finding 1).
+    monkeypatch.chdir(tmp_path)
+    local = tmp_path / "own-disk" / "offsetx_outreach.db"
+    _engine_made(local)
+    with _open(local) as store:
+        _seed(store)
+    _engine_made(crm_target)
+    _hosted(monkeypatch, crm_target)
+
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 0, capsys.readouterr().err
+    assert _counts(crm_target) == _counts(local)
+    assert _names(crm_target) == ["Autumn launch"]
+
+
+@ABOUT_A_CRM_FILE
+def test_every_tool_waits_while_a_local_crm_is_left_behind(crm_target, tmp_path, monkeypatch):
+    # Only the web app refused; the worker and the tools opened the hosted CRM,
+    # seeded it and worked it, the owner's file unread (review finding 1).
+    from offsetx_apollo_builder import email_worker_cli, notebook_cli, outreach_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    local = tmp_path / "data" / "offsetx_outreach.db"
+    _engine_made(local)
+    with _open(local) as store:
+        _seed(store)
+    _hosted(monkeypatch, crm_target)
+
+    for run in (
+        lambda: outreach_cli.main(["list-campaigns"]),
+        lambda: notebook_cli.main(["plan", "--campaign", "any"]),
+        lambda: email_worker_cli.main([]),
+    ):
+        with pytest.raises(SystemExit, match="offsetx-db import-crm --yes"):
+            run()
+    assert _names(crm_target) == []  # nothing seeded or worked meanwhile
+
+    assert outreach_cli.main(["--db", str(local), "list-campaigns"]) == 0  # named: it wins
+    assert db_cli.main(["import-crm", "--skip"]) == 0
+    assert outreach_cli.main(["list-campaigns"]) == 0
+
+
+@ABOUT_A_CRM_FILE
+def test_copy_crm_will_not_write_into_an_existing_file(tmp_path, monkeypatch, capsys):
+    # It wrote 38 tables into another store's file and said it had worked
+    # (review finding 9). The way back is to a new file.
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+    other = tmp_path / "another-store.db"
+    with sqlite3.connect(other) as writer:
+        writer.execute("CREATE TABLE things (id TEXT)")
+    before = other.read_bytes()
+
+    assert db_cli.main(["copy-crm", "--from", str(source), "--to", str(other)]) == 2
+    assert "new file" in capsys.readouterr().err
+    assert other.read_bytes() == before
+
+
+@ABOUT_A_CRM_FILE
+def test_the_same_file_by_another_name_is_refused_before_anything_is_written(tmp_path):
+    from offsetx_apollo_builder.outreach.store_copy import CrmCopyError, copy_crm
+
+    source = tmp_path / "x" / "crm.db"
+    with _open(source) as store:
+        _seed(store)
+    with sqlite3.connect(source) as reader:
+        reader.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    before = source.read_bytes()
+    with pytest.raises(CrmCopyError, match="same CRM"):
+        copy_crm(source, f"{tmp_path}/x/./crm.db")
+    assert source.read_bytes() == before
+
+
+@ABOUT_A_CRM_FILE
+@pytest.mark.parametrize("value, kind", [(87.5, "whole number"), ("twenty", "whole number")])
+def test_a_value_postgresql_would_change_stops_the_copy_and_is_named(tmp_path, postgres_target, value, kind):
+    # SQLite kept 87.5 in a BIGINT column; PostgreSQL rounded it to 88 and the
+    # counts still matched (review finding 2). Text there it refused, but late.
+    from offsetx_apollo_builder.outreach.store_copy import CrmCopyError, copy_crm
+
+    source = tmp_path / "existing.db"
+    with _open(source) as store:
+        _seed(store)
+        store.connection.execute("UPDATE campaigns SET daily_send_limit = ?", (value,))
+    with pytest.raises(CrmCopyError, match=rf"campaigns\.daily_send_limit .*1 value.* not a {kind}"):
+        copy_crm(source, postgres_target)
+    assert sum(_counts(postgres_target).values()) == 0
+
+
+
+def test_a_writer_waits_for_another_at_most_five_seconds(postgres_target):
+    # It waited for ever, holding the store's lock, so plain reads on other
+    # threads queued behind it; SQLite gives up after 5 s (review finding 3).
+    import time
+
+    import psycopg
+
+    with _open(postgres_target) as store, psycopg.connect(POSTGRES_URL, autocommit=True) as other:
+        other.execute("SELECT pg_advisory_lock(%s)", (CRM_WRITE_LOCK,))
+        started = time.monotonic()
+        with pytest.raises(DatabaseError, match="busy"), store.transaction(immediate=True):
+            pass
+        waited = time.monotonic() - started
+        assert 4 < waited < 9, waited
+        assert store.table_counts()["campaigns"] == 0  # the store still answers
+        other.execute("SELECT pg_advisory_unlock(%s)", (CRM_WRITE_LOCK,))
+        with store.transaction(immediate=True):
+            pass
+
+
+def test_a_watching_worker_rides_out_a_database_that_is_away(tmp_path, monkeypatch, capsys):
+    # One unreachable moment — a Neon compute waking, a dropped connection —
+    # ended the watching worker; mail stopped until someone restarted it
+    # (review finding 4). It now says so and waits a little longer each time.
+    from offsetx_apollo_builder import email_worker_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    _hosted(monkeypatch, "postgresql://postgres:s3cret-pass@127.0.0.1:1/away")
+    waits: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 3:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(email_worker_cli.time, "sleep", sleep)
+    assert email_worker_cli.main(["--watch", "--poll-seconds", "0.25"]) == 130
+    assert waits == [0.5, 1.0, 2.0]
+    printed = capsys.readouterr().err
+    assert printed.count("Trying again in") == 3 and "s3cret-pass" not in printed
+
+
+def test_a_worker_run_once_says_why_the_database_is_away(tmp_path, monkeypatch):
+    from offsetx_apollo_builder import email_worker_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    _hosted(monkeypatch, "postgresql://postgres@127.0.0.1:1/away")
+    with pytest.raises(SystemExit, match="Could not connect"):
+        email_worker_cli.main([])
+
+
+def test_the_worker_opens_the_database_its_option_names(crm_target, tmp_path, monkeypatch):
+    # `--database` was parsed as a path, which folds `postgresql://` to
+    # `postgresql:/`: a URL there, which its help offered, ended in a traceback
+    # (found by task i's walk with the real commands).
+    from offsetx_apollo_builder import email_worker_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    assert email_worker_cli.main(["--database", str(crm_target)]) == 0
+    assert _counts(crm_target)["email_templates"] == 8  # that CRM, and no other, was opened
+    assert not [path for path in tmp_path.rglob("postgres*")]  # no URL-named file
+    assert not (tmp_path / "data" / "offsetx_outreach.db").exists()
+
+
+def test_a_worker_told_a_wrong_database_says_so_in_a_sentence(tmp_path, monkeypatch):
+    from offsetx_apollo_builder import email_worker_cli
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    with pytest.raises(SystemExit, match="must be a SQLite file path or a postgresql:// URL"):
+        email_worker_cli.main(["--database", "mysql://app@db.example.com/crm"])
+
+
+def test_no_password_of_any_name_is_ever_shown():
+    # Only `password` was taken out; `sslpassword` — the passphrase of the
+    # client key — went to every signed-in screen (review finding 6).
+    from offsetx_apollo_builder.db.connection import describe_target, redact
+
+    url = "postgresql://app:pw@db.example.com/crm?sslmode=verify-full&sslpassword=KeyPassphrase1&sslkey=/k.pem"
+    shown = describe_target(url)
+    assert "KeyPassphrase1" not in shown and ":pw@" not in shown
+    assert "sslmode=verify-full" in shown
+    assert "KeyPassphrase1" not in redact(f"failed for {url}", url)
+
+
+@ABOUT_A_CRM_FILE
+def test_only_the_install_owner_is_told_where_the_database_is(crm_target, tmp_path, monkeypatch):
+    # Host, user and database name went to every workspace login, a client's
+    # included (review finding 6).
+    url = _with_password(crm_target) if crm_target.startswith("postgresql") else crm_target
+    key = _hosted(monkeypatch, url)
+    app = create_app(_settings(tmp_path / "data", key))
+    with TestClient(app, headers={"X-Offsetx-Token": TOKEN}) as owner:
+        made = owner.post(f"{API}/workspaces", json={
+            "username": "client", "workspace_id": "beta", "password": "beta-password-1"})
+        assert made.status_code == 201, made.text
+        assert owner.get(f"{API}/settings/status").json()["database"] != ""
+    with TestClient(app) as client:
+        assert client.post(f"{API}/auth/login", json={
+            "username": "client", "password": "beta-password-1"}).status_code == 200
+        status = client.get(f"{API}/settings/status").json()
+    assert status["database"] in ("PostgreSQL", "SQLite file")
+    assert status["database_path"] == ""
+    assert "127.0.0.1" not in json.dumps(status) and "s3cret" not in json.dumps(status)
+
+
+def test_a_nul_in_outside_text_is_dropped_on_every_backend(crm_target):
+    # SQLite stored "\x00"; PostgreSQL refused it, and the error escaped reply
+    # sync, so that campaign's runs failed while the reply stayed in the sync
+    # window (review finding 7). NUL means nothing in an email or a name.
+    from offsetx_apollo_builder.outreach.models import IncomingMessage
+
+    with _open(crm_target) as store:
+        ids = _seed(store)
+        store.add_contact_to_campaign(ids["campaign"], ids["contact"])
+        named = store.upsert_contact(ContactInput(full_name="Zoë\x00 Rao", email="zoe@example.com"))
+        assert store.get_contact(named)["full_name"] == "Zoë Rao"
+        updated = store.record_reply(ids["campaign"], IncomingMessage(
+            provider_message_id="reply-1", thread_id="", from_email="asha@acme.example",
+            subject="Re:\x00 your note", body_preview="Thanks\x00 — yes, let's talk.",
+        ))
+        assert len(updated) == 1
+        row = store.connection.execute(
+            "SELECT subject, body FROM messages WHERE provider_message_id = 'reply-1'"
+        ).fetchone()
+        assert (row["subject"], row["body"]) == ("Re: your note", "Thanks — yes, let's talk.")
+
+
+@ABOUT_A_CRM_FILE
+def test_import_crm_records_nothing_unless_every_table_reconciles(crm_target, tmp_path, monkeypatch, capsys):
+    # It recorded "imported" without looking at the counts (review finding 8).
+    from offsetx_apollo_builder.outreach import store_copy
+
+    monkeypatch.chdir(tmp_path)
+    local = tmp_path / "own-disk" / "offsetx_outreach.db"
+    with _open(local) as store:
+        _seed(store)
+    key = _hosted(monkeypatch, crm_target)
+    real = store_copy.copy_crm
+
+    def short_by_one(source, destination):
+        report = real(source, destination)
+        tables = dict(report.tables)
+        before, after = tables["contacts"]
+        tables["contacts"] = (before + 1, after)
+        return store_copy.CrmCopyReport(report.source, report.destination, tables)
+
+    monkeypatch.setattr(store_copy, "copy_crm", short_by_one)
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 2
+    assert "do not reconcile" in capsys.readouterr().err
+    with pytest.raises(HostedStorageError, match="import-crm"):
+        create_app(_settings(local.parent, key))  # still undecided: the start still asks
+
+
+@ABOUT_A_CRM_FILE
+def test_an_import_that_already_happened_points_to_skip(crm_target, tmp_path, monkeypatch, capsys):
+    # A copy that committed before its decision was written left the owner
+    # told to "copy into an empty database" — the wrong way (review finding 8).
+    from offsetx_apollo_builder.outreach.store_copy import copy_crm
+
+    monkeypatch.chdir(tmp_path)
+    local = tmp_path / "own-disk" / "offsetx_outreach.db"
+    with _open(local) as store:
+        _seed(store)
+    assert copy_crm(local, crm_target).ok  # the copy landed; the decision did not
+    _hosted(monkeypatch, crm_target)
+    assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 2
+    assert "offsetx-db import-crm --skip" in capsys.readouterr().err

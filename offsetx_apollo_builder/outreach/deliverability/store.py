@@ -77,20 +77,16 @@ class DeliverabilityStore:
             "max_batch_size": int(values.get("max_batch_size", 25)),
             "status": clean_text(values.get("status")) or "active",
         }
+        row = {**payload, "created_at": created_at, "updated_at": now}
         with self.outreach.transaction(immediate=True) as conn:
+            # `?` placeholders built from the row's own keys: PostgreSQL's
+            # driver does not read SQLite's `:name` style, and naming the
+            # columns once keeps them in step with their values. The keys are
+            # this method's literals, never input.
             conn.execute(
-                """
-                INSERT INTO email_sending_identities (
-                    id, name, provider_type, stream, from_email, reply_to, domain,
-                    ses_identity, aws_region, configuration_set, dkim_selector,
-                    mail_from_domain, sns_topic_arn, max_per_second, max_batch_size,
-                    status, created_at, updated_at
-                ) VALUES (
-                    :id, :name, :provider_type, :stream, :from_email, :reply_to, :domain,
-                    :ses_identity, :aws_region, :configuration_set, :dkim_selector,
-                    :mail_from_domain, :sns_topic_arn, :max_per_second, :max_batch_size,
-                    :status, :created_at, :updated_at
-                )
+                f"""
+                INSERT INTO email_sending_identities ({", ".join(row)})
+                VALUES ({", ".join("?" for _ in row)})
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     provider_type = excluded.provider_type,
@@ -109,7 +105,7 @@ class DeliverabilityStore:
                     status = excluded.status,
                     updated_at = excluded.updated_at
                 """,
-                {**payload, "created_at": created_at, "updated_at": now},
+                tuple(row.values()),
             )
         return self.get_identity(identity_id)
 
@@ -180,9 +176,10 @@ class DeliverabilityStore:
         with self.outreach.transaction() as conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO email_campaign_settings (
+                INSERT INTO email_campaign_settings (
                     campaign_id, daily_limit, created_at, updated_at
                 ) VALUES (?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
                 """,
                 (campaign_id, int(campaign["daily_send_limit"]), now, now),
             )
@@ -671,10 +668,13 @@ class DeliverabilityStore:
         """Return a claimed job to the queue for a temporary policy condition."""
         now = to_utc_iso()
         with self.outreach.transaction(immediate=True) as conn:
+            # A CASE, not SQLite's two-argument MAX: PostgreSQL has no such
+            # function, and the worker failed there on every deferral.
             cursor = conn.execute(
                 """
                 UPDATE email_send_jobs SET status = 'retry_wait', available_at = ?,
-                    attempt_count = MAX(0, attempt_count - 1), lease_expires_at = NULL,
+                    attempt_count = CASE WHEN attempt_count > 0 THEN attempt_count - 1 ELSE 0 END,
+                    lease_expires_at = NULL,
                     last_error = ?, updated_at = ?
                 WHERE id = ? AND status = 'sending'
                 """,
@@ -869,13 +869,19 @@ class DeliverabilityStore:
     def record_delivery_event(self, values: dict[str, Any]) -> bool:
         now = to_utc_iso()
         with self.outreach.transaction(immediate=True) as conn:
+            # `ON CONFLICT DO NOTHING` skips only a duplicate, where `INSERT OR
+            # IGNORE` also skipped a row its CHECK refused — an unknown event
+            # type counted as a duplicate. Every caller sends a known type
+            # (`SesEventParser` drops the rest), so nothing reachable changes;
+            # one that is not now fails aloud.
             cursor = conn.execute(
                 """
-                INSERT OR IGNORE INTO email_delivery_events (
+                INSERT INTO email_delivery_events (
                     id, provider_type, provider_event_id, job_id, campaign_id,
                     identity_id, provider_message_id, event_type, recipient_email,
                     diagnostic, raw_json, occurred_at, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT DO NOTHING
                 """,
                 (
                     str(uuid.uuid4()),

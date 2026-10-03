@@ -568,8 +568,9 @@ class SalesTracker:
         if search:
             term = self.store._like(clean_text(search))
             conditions.append(
-                "(lead_name LIKE ? ESCAPE '\\' OR company LIKE ? ESCAPE '\\' "
-                "OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\')"
+                # lower() on both sides, as in the store (DD-73).
+                "(lower(lead_name) LIKE lower(?) ESCAPE '\\' OR lower(company) LIKE lower(?) ESCAPE '\\' "
+                "OR lower(email) LIKE lower(?) ESCAPE '\\' OR lower(phone) LIKE lower(?) ESCAPE '\\')"
             )
             params.extend([term, term, term, term])
         return " AND ".join(conditions), params

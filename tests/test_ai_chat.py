@@ -16,6 +16,9 @@ def service(tmp_path):
     store.close()
 
 
+@pytest.mark.crm_sqlite_only(
+    'reads sqlite_master; a PostgreSQL CRM is created at the current schema'
+)
 def test_schema_creates_ai_chat_tables(service):
     names = {
         row[0]
@@ -180,6 +183,9 @@ def test_send_message_rejects_empty_content(service):
         )
 
 
+@pytest.mark.crm_sqlite_only(
+    'upgrades an old SQLite file; a PostgreSQL CRM is created at the current schema'
+)
 def test_existing_v6_database_migrates_and_works(tmp_path):
     """A database created before the AI chat feature must gain the new tables."""
     db = tmp_path / "legacy.db"

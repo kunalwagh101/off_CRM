@@ -92,8 +92,9 @@ def test_production_configuration_refuses_ephemeral_customer_state(tmp_path, mon
 def test_failed_concurrent_transaction_cannot_rollback_another_writer(tmp_path):
     store = OutreachStore(tmp_path / "crm.db")
     store.initialize()
+    # No commit: the store runs in autocommit on both backends, so the table
+    # exists once this returns (and PostgreSQL's connection has no commit).
     store.connection.execute("CREATE TABLE wp1_tx(id TEXT PRIMARY KEY)")
-    store.connection.commit()
 
     first_started = threading.Event()
     second_attempted = threading.Event()
@@ -128,15 +129,15 @@ def test_failed_concurrent_transaction_cannot_rollback_another_writer(tmp_path):
     assert not a.is_alive() and not b.is_alive()
     assert not errors
     rows = store.connection.execute("SELECT id FROM wp1_tx ORDER BY id").fetchall()
-    assert [row[0] for row in rows] == ["first"]
+    assert [row["id"] for row in rows] == ["first"]
     store.close()
 
 
 def test_nested_transactions_use_savepoints_without_releasing_outer_ownership(tmp_path):
     store = OutreachStore(tmp_path / "crm.db")
     store.initialize()
+    # No commit: autocommit on both backends (see the test above).
     store.connection.execute("CREATE TABLE wp1_nested(id TEXT PRIMARY KEY)")
-    store.connection.commit()
     with store.transaction() as outer:
         outer.execute("INSERT INTO wp1_nested(id) VALUES ('outer')")
         with pytest.raises(RuntimeError):
@@ -145,7 +146,7 @@ def test_nested_transactions_use_savepoints_without_releasing_outer_ownership(tm
                 raise RuntimeError("rollback inner only")
         outer.execute("INSERT INTO wp1_nested(id) VALUES ('outer-2')")
     rows = store.connection.execute("SELECT id FROM wp1_nested ORDER BY id").fetchall()
-    assert [row[0] for row in rows] == ["outer", "outer-2"]
+    assert [row["id"] for row in rows] == ["outer", "outer-2"]
     store.close()
 
 
@@ -239,6 +240,9 @@ def test_backup_larger_than_general_upload_limit_remains_restorable(tmp_path):
     assert (target / "large-evidence.bin").read_bytes() == payload
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_rejected_backup_does_not_break_existing_workspace(tmp_path):
     app = create_app(_settings(tmp_path))
     with TestClient(app) as client:
@@ -255,6 +259,9 @@ def test_rejected_backup_does_not_break_existing_workspace(tmp_path):
         assert client.get("/health/ready").status_code == 200
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_restore_rebinds_every_service_that_holds_the_outreach_store(tmp_path):
     app = create_app(_settings(tmp_path))
     with TestClient(app) as client:
@@ -301,6 +308,9 @@ def test_readiness_fails_when_required_database_is_unavailable(tmp_path):
         assert "outreach_db" in json.dumps(payload)
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04; its readiness half is routing, the same on both"
+)
 def test_readiness_and_backups_answer_when_the_frontend_is_built(tmp_path):
     """The built image serves the frontend at "/". Render's health check is
     /health/ready, and it must reach the route, not the page."""
@@ -335,6 +345,9 @@ def test_every_open_service_is_closed_for_a_restore(tmp_path):
     assert closable - set(RUNTIME_CLOSE_ORDER) == set()
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_a_restore_brings_back_every_store_the_workspace_has(tmp_path):
     """The old backup named four stores; the GTM products, images, video and
     posts were not among them (D-114). Whole-workspace backup covers a store

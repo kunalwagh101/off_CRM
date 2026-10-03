@@ -272,6 +272,9 @@ def test_frontend_capture_uses_local_mic_system_audio_and_media_recorder():
 
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_encrypted_backup_restores_meeting_transcript_state(tmp_path):
     settings = _settings(tmp_path)
     headers = {"X-Offsetx-Token": TOKEN}

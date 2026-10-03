@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.api.app import create_app
@@ -89,7 +90,7 @@ def test_encrypted_backup_round_trip_restores_database_and_local_controls(tmp_pa
     connection.close()
 
 
-def test_provider_automation_and_backup_api(tmp_path):
+def test_provider_and_automation_api(tmp_path):
     with TestClient(create_app(_settings(tmp_path))) as client:
         saved = client.post(
             "/api/v1/provider-profiles",
@@ -124,15 +125,25 @@ def test_provider_automation_and_backup_api(tmp_path):
         assert automation.json()["mode"] == "local"
         assert client.post("/api/v1/automation/run", json={}).status_code == 200
 
+        status = client.get("/api/v1/settings/status").json()
+        assert status["provider_profiles"] == 1
+        assert status["automation"]["enabled"] is True
+
+
+# Split from the test above (S-06.03.03): the provider and automation half
+# runs on PostgreSQL too; a local backup archives the CRM's file.
+@pytest.mark.crm_sqlite_only(
+    "a local backup archives the CRM's SQLite file; on PostgreSQL it is refused "
+    "(test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres)"
+)
+def test_backup_export_api(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as client:
         exported = client.post(
             "/api/v1/backups/export",
             json={"passphrase": "correct horse battery staple"},
         )
         assert exported.status_code == 200
         assert exported.content.startswith(b"OFFSETXBACKUP1")
-        status = client.get("/api/v1/settings/status").json()
-        assert status["provider_profiles"] == 1
-        assert status["automation"]["enabled"] is True
 
 
 def test_web_api_rejects_local_command_provider_profiles(tmp_path):

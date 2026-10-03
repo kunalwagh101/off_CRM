@@ -355,7 +355,7 @@ def _require_local_backup(state):
     # folder too, whatever its address names (S-06.03.02).
     if getattr(state, "hosted_storage", None) is not None or any(
         is_postgres_url(getattr(store, "target", ""))
-        for store in (state.ai_egress_log, state.video_store, state.gtm_store)
+        for store in (state.engine.store, state.ai_egress_log, state.video_store, state.gtm_store)
     ):
         raise HTTPException(
             409,

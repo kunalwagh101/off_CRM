@@ -18,7 +18,7 @@ CONFTEST = (Path(__file__).parent / "conftest.py").read_text(encoding="utf-8")
 MARKED = """
 import pytest
 
-@pytest.mark.crm_sqlite_file({reason})
+@pytest.mark.crm_sqlite_only({reason})
 def test_reads_the_file():
     pass
 """
@@ -42,7 +42,7 @@ def test_a_file_test_is_skipped_on_postgres_and_says_why(harness, monkeypatch):
     harness.makepyfile(MARKED.format(reason='"opens the backup archive"'))
     result = harness.runpytest_subprocess("-rs")
     result.assert_outcomes(skipped=1)
-    result.stdout.fnmatch_lines(["*reads the CRM's SQLite file: opens the backup archive*"])
+    result.stdout.fnmatch_lines(["*SQLite only: opens the backup archive*"])
 
 
 @pytest.mark.parametrize("reason", ["", '""', '"   "'])
@@ -50,7 +50,7 @@ def test_a_skip_with_no_reason_is_refused(harness, reason):
     harness.makepyfile(MARKED.format(reason=reason))
     result = harness.runpytest_subprocess()
     assert result.ret != 0
-    result.stderr.fnmatch_lines(["*crm_sqlite_file needs a reason*"])
+    result.stderr.fnmatch_lines(["*crm_sqlite_only needs a reason*"])
 
 
 def test_the_mode_without_a_database_is_refused(harness, monkeypatch):

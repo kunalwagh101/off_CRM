@@ -310,6 +310,7 @@ class PostgresDatabase(Database):
         self.raw = self._connect()
         self._last_used = time.monotonic()
         self._transaction_depth = 0
+        self._closed = False
 
     def _connect(self) -> Any:
         try:
@@ -344,6 +345,13 @@ class PostgresDatabase(Database):
         did run is how a record gets made twice. The failure goes to the
         caller, and the broken connection is replaced before the next one.
         """
+        if self._closed:
+            # Closed on purpose is not dropped by the server. Reopened, a
+            # reference kept past a restore's close went on reading and writing
+            # the database the restore had just let go of (D-222).
+            raise DatabaseError(
+                f"This connection to {describe_target(self.target)} was closed. Open the store again."
+            )
         raw = self.raw
         if self._transaction_depth:
             # Never swapped inside a transaction: the statements after it
@@ -425,6 +433,7 @@ class PostgresDatabase(Database):
 
     def close(self) -> None:
         with self._lock:
+            self._closed = True
             self.raw.close()
 
 

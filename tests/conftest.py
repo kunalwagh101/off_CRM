@@ -14,11 +14,14 @@ own instead. The same path within one test is the same schema, because tests
 close a store and open it again to prove something survived. Each schema is
 dropped when the test ends. With the variable unset, nothing here does anything.
 
-A test that reads the CRM's *file* — `sqlite3.connect` on it, its bytes, a
-backup archive of it — has no PostgreSQL form. It is marked
-`@pytest.mark.crm_sqlite_file("why")` and skipped in that mode only, with its
-reason in the report. Nothing else may be marked: any other failure in that
-mode is a bug in the CRM's PostgreSQL path.
+A test about SQLite itself has no PostgreSQL form: one that reads the CRM's
+*file* — `sqlite3.connect` on it, its bytes, a backup archive of it — or
+upgrades an old SQLite file, or tests SQLite's own connection object
+(`GuardedConnection`). It is marked `@pytest.mark.crm_sqlite_only("why")` and
+skipped in that mode only, with its reason in the report. Where the property
+it protects also holds on PostgreSQL, the reason names the test in
+`tests/test_crm_hosted.py` that proves it on both. Nothing else may be marked:
+any other failure in that mode is a bug in the CRM's PostgreSQL path.
 """
 from __future__ import annotations
 
@@ -42,8 +45,8 @@ def in_schema(url: str, schema: str) -> str:
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
-        "crm_sqlite_file(reason): reads the CRM's SQLite file itself, so it is skipped "
-        "when OFF_CRM_TEST_CRM_ON_POSTGRES=1",
+        "crm_sqlite_only(reason): about SQLite itself — the CRM's file, an old file's "
+        "upgrade, or SQLite's connection object — so skipped when OFF_CRM_TEST_CRM_ON_POSTGRES=1",
     )
     if CRM_ON_POSTGRES and not POSTGRES_URL:
         raise pytest.UsageError(
@@ -54,15 +57,15 @@ def pytest_configure(config: pytest.Config) -> None:
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     for item in items:
-        marker = item.get_closest_marker("crm_sqlite_file")
+        marker = item.get_closest_marker("crm_sqlite_only")
         if marker is None:
             continue
         reason = str(marker.args[0]).strip() if marker.args else ""
         if not reason:
             # An unexplained skip is how a real failure gets hidden.
-            raise pytest.UsageError(f"{item.nodeid}: crm_sqlite_file needs a reason.")
+            raise pytest.UsageError(f"{item.nodeid}: crm_sqlite_only needs a reason.")
         if CRM_ON_POSTGRES:
-            item.add_marker(pytest.mark.skip(reason=f"reads the CRM's SQLite file: {reason}"))
+            item.add_marker(pytest.mark.skip(reason=f"SQLite only: {reason}"))
 
 
 @pytest.fixture(autouse=True)

@@ -301,6 +301,9 @@ def test_workspace_admin_routes_are_not_available_to_a_workspace_session(tmp_pat
         assert response.status_code == 403
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_a_workspace_login_cannot_export_or_restore_the_whole_install(tmp_path):
     """A backup holds every workspace at once — each login, each provider key,
     the install token and the key that signs every session — and a restore
@@ -452,6 +455,9 @@ def test_only_the_install_owner_runs_or_configures_the_content_timer(tmp_path):
         assert client.post("/api/v1/content-automation/run", headers=owner).status_code == 200
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_the_demo_login_is_the_install_owner_and_keeps_its_backups(tmp_path):
     """On Render the owner signs in with the demo login and has no install
     token — one is made only when no login is configured. On the free plan a
@@ -470,6 +476,9 @@ def test_the_demo_login_is_the_install_owner_and_keeps_its_backups(tmp_path):
         assert exported.status_code == 200
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_backup_restores_workspace_keys_logins_and_routines_together(tmp_path):
     settings = _settings(tmp_path)
     headers = {"X-Offsetx-Token": ADMIN_TOKEN}

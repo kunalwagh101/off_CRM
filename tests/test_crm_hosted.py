@@ -17,6 +17,7 @@ a schema of its own, dropped afterwards:
 from __future__ import annotations
 
 import os
+import threading
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -276,3 +277,187 @@ def test_the_same_expert_text_is_kept_once_and_found(crm_target):
         assert store.add_expert_chunk(document_name="Playbook copy", content=text) is False
         assert store.table_counts()["expert_chunks"] == 1
         assert [row["document_name"] for row in store.search_expert_chunks("buyer outcome")] == ["Playbook"]
+
+
+# ── task d: the CRM's other modules, and the safety the SQLite guard gave ────
+#
+# `tests/test_security_audit.py` proves these properties for SQLite's
+# `GuardedConnection`, through its own probe table, `sqlite3.IntegrityError`
+# and `row[0]`. The same properties, on a CRM table, through the store's own
+# error class, for both backends.
+
+def _put(conn, key: str) -> None:
+    conn.execute(
+        "INSERT INTO idempotency_records (scope, request_key, response_json, created_at)"
+        " VALUES ('probe', ?, '{}', '2026-10-03T00:00:00+00:00')",
+        (key,),
+    )
+
+
+def _probes(store: OutreachStore) -> list[str]:
+    return sorted(
+        row["request_key"] for row in store.connection.execute(
+            "SELECT request_key FROM idempotency_records WHERE scope = 'probe'"
+        ).fetchall()
+    )
+
+
+def _run(threads: list[threading.Thread]) -> None:
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+    assert not any(thread.is_alive() for thread in threads), "a thread never finished — deadlock"
+
+
+def test_concurrent_transactions_lose_no_writes(crm_target):
+    with _open(crm_target) as store:
+        barrier, errors = threading.Barrier(4), []
+
+        def write(name: str) -> None:
+            try:
+                barrier.wait(timeout=10)
+                for index in range(40):
+                    with store.transaction() as conn:
+                        _put(conn, f"{name}-{index}")
+            except Exception as exc:  # noqa: BLE001 - the failure is the assertion
+                errors.append(f"{name}: {type(exc).__name__}: {exc}")
+
+        _run([threading.Thread(target=write, args=(name,)) for name in "ABCD"])
+        assert errors == []
+        assert len(_probes(store)) == 160
+
+
+def test_immediate_transactions_from_threads_are_serialised(crm_target):
+    with _open(crm_target) as store:
+        barrier, errors = threading.Barrier(3), []
+
+        def claim(name: str) -> None:
+            try:
+                barrier.wait(timeout=10)
+                for index in range(25):
+                    with store.transaction(immediate=True) as conn:
+                        _put(conn, f"{name}-{index}")
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{name}: {type(exc).__name__}: {exc}")
+
+        _run([threading.Thread(target=claim, args=(name,)) for name in "XYZ"])
+        assert errors == []
+        assert len(_probes(store)) == 75
+
+
+def test_a_failing_transaction_rolls_back_and_releases(crm_target):
+    with _open(crm_target) as store:
+        with pytest.raises(store.integrity_error):
+            with store.transaction() as conn:
+                _put(conn, "first")
+                _put(conn, "first")
+        assert _probes(store) == []
+
+        done = threading.Event()
+
+        def after() -> None:
+            with store.transaction() as conn:
+                _put(conn, "after")
+            done.set()
+
+        _run([threading.Thread(target=after)])
+        assert done.is_set(), "the failing transaction did not release the lock"
+        assert _probes(store) == ["after"]
+
+
+def test_a_bare_write_survives_another_threads_failed_transaction(crm_target):
+    with _open(crm_target) as store:
+        rounds, bystanders = 12, 4
+        barrier, errors = threading.Barrier(bystanders + 1), []
+
+        def failing() -> None:
+            try:
+                barrier.wait(timeout=20)
+                for index in range(rounds):
+                    try:
+                        with store.transaction() as conn:
+                            _put(conn, f"doomed-{index}")
+                            raise RuntimeError("this request failed")
+                    except RuntimeError:
+                        pass
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"holder: {type(exc).__name__}: {exc}")
+
+        def bare(name: str) -> None:
+            try:
+                barrier.wait(timeout=20)
+                for index in range(rounds):
+                    _put(store.connection, f"{name}-{index}")
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{name}: {type(exc).__name__}: {exc}")
+
+        _run([threading.Thread(target=failing)]
+             + [threading.Thread(target=bare, args=(f"bare{n}",)) for n in range(bystanders)])
+        assert errors == []
+        kept = _probes(store)
+        assert not [key for key in kept if key.startswith("doomed")], "a failed transaction committed"
+        assert len(kept) == rounds * bystanders
+
+
+def test_a_read_never_sees_another_threads_uncommitted_rows(crm_target):
+    with _open(crm_target) as store:
+        started, may_commit, seen = threading.Event(), threading.Event(), []
+
+        def holder() -> None:
+            with store.transaction() as conn:
+                _put(conn, "uncommitted")
+                started.set()
+                may_commit.wait(timeout=10)
+
+        def reader() -> None:
+            started.wait(timeout=10)
+            may_commit.set()
+            seen.append(len(_probes(store)))  # waits for the commit, then counts
+
+        _run([threading.Thread(target=holder), threading.Thread(target=reader)])
+        assert seen == [1]
+
+
+def test_lead_search_ignores_case_on_every_backend(crm_target):
+    from offsetx_apollo_builder.outreach.sales import SalesTracker
+
+    with _open(crm_target) as store:
+        sales = SalesTracker(store)
+        sales.create_lead({"lead_name": "Asha Rao", "company": "Acme Corp", "email": "asha@acme.example"})
+        leads, total = sales.list_leads(search="ACME")
+        assert total == 1 and leads[0]["lead_name"] == "Asha Rao"
+
+
+def test_local_backup_is_refused_while_the_crm_is_on_postgres(postgres_target):
+    # `outreach/backup.py` archives the CRM's file; on PostgreSQL there is
+    # none, and the answer was "CRM database does not exist". Hosted backups
+    # are `S-06.03.04`.
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from offsetx_apollo_builder.api.production_runtime import _require_local_backup
+
+    with _open(postgres_target) as store:
+        local = SimpleNamespace(target="")
+        state = SimpleNamespace(
+            hosted_storage=None, engine=SimpleNamespace(store=store),
+            ai_egress_log=local, video_store=local, gtm_store=local,
+        )
+        with pytest.raises(HTTPException) as refused:
+            _require_local_backup(state)
+        assert refused.value.status_code == 409
+        assert "PostgreSQL" in refused.value.detail
+
+
+def test_a_closed_store_stays_closed(crm_target):
+    # PostgreSQL's connection reopens itself after the server drops it. It
+    # also reopened after the store was closed on purpose, so a reference held
+    # past a restore's close went on reading and writing (D-222).
+    import sqlite3
+
+    store = _open(crm_target)
+    store.close()
+    with pytest.raises((sqlite3.ProgrammingError, DatabaseError)):
+        store.connection.execute("SELECT 1")

@@ -67,6 +67,9 @@ def test_backup_refuses_symlink_outside_workspace(tmp_path):
         backup.create_encrypted_backup(database_path=data / 'crm.db', data_dir=data, passphrase=PASSPHRASE)
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_bare_cursor_write_waits_for_rollback_then_autocommits(tmp_path):
     with OutreachStore(tmp_path / 'crm.db') as store:
         store.connection.execute('CREATE TABLE probe(value TEXT)')
@@ -124,6 +127,9 @@ def _restore(client, content):
     return client.post('/api/v1/backups/restore', files={'file': ('workspace.oxbackup', content)}, data={'passphrase': PASSPHRASE})
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_failed_rebind_rolls_back_and_routes_remain_usable(tmp_path, monkeypatch):
     from offsetx_apollo_builder.api import production_runtime as runtime
     app = create_app(_settings(tmp_path))
@@ -146,6 +152,9 @@ def test_failed_rebind_rolls_back_and_routes_remain_usable(tmp_path, monkeypatch
         assert not app.state.recovery_gate.maintenance
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_failed_rollback_keeps_maintenance_closed(tmp_path, monkeypatch):
     from offsetx_apollo_builder.api import production_runtime as runtime
     app = create_app(_settings(tmp_path))
@@ -161,6 +170,9 @@ def test_failed_rollback_keeps_maintenance_closed(tmp_path, monkeypatch):
         assert app.state.recovery_gate.failed
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_restore_waits_for_full_response_and_rejects_new_requests(tmp_path):
     from starlette.responses import StreamingResponse
     app = create_app(_settings(tmp_path))
@@ -214,6 +226,9 @@ def test_all_thread_local_connections_close_before_state_swap(tmp_path):
         store.close()
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_full_workspace_restore_relocates_assets_and_preserves_secrets(tmp_path):
     settings = _settings(tmp_path / 'original')
     app = create_app(settings)
@@ -264,6 +279,9 @@ def test_oversized_multipart_body_is_refused_before_parsing_finishes(tmp_path):
         assert client.get('/health/ready').status_code == 200
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_external_worker_lease_prevents_workspace_replacement(tmp_path):
     from offsetx_apollo_builder.outreach.workspace_lock import WorkspaceLock
     settings = _settings(tmp_path)
@@ -324,6 +342,9 @@ backup.discard_restore_safety(result)
     assert not backup.recover_interrupted_restore(database_path=data / 'crm.db', data_dir=data)
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_legacy_corrupt_database_is_rejected_before_maintenance(tmp_path):
     import os
     salt = os.urandom(16)
@@ -361,6 +382,9 @@ def test_production_rejects_missing_persistent_mount(monkeypatch):
 
 
 @pytest.mark.parametrize('operation', ['raw-commit', 'raw-rollback', 'cursor-insert'])
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_other_thread_cannot_finish_the_owned_transaction(tmp_path, operation):
     with OutreachStore(tmp_path / 'crm.db') as store:
         store.connection.execute('CREATE TABLE probe(value TEXT)')
@@ -400,6 +424,9 @@ def test_readiness_rejects_missing_or_changed_local_signing_key(tmp_path):
 
 
 @pytest.mark.parametrize('reject_restore', [False, True])
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_file_managed_authentication_follows_restore_and_rollback(tmp_path, monkeypatch, reject_restore):
     from offsetx_apollo_builder.api import production_runtime as runtime
 
@@ -593,6 +620,9 @@ def test_a_timer_started_again_while_stopping_keeps_running(tmp_path):
     asyncio.run(scenario())
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_a_long_scheduled_run_refuses_the_backup_instead_of_holding_requests(tmp_path, monkeypatch):
     """Maintenance closed the request gate, then waited — with no bound — for
     the scheduled jobs: a routine waiting half an hour for a browser lease held

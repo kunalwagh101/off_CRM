@@ -225,6 +225,9 @@ def test_a_new_campaign_is_an_email_campaign(store):
     assert store.list_campaigns()[0][0]["kind"] == "email"
 
 
+@pytest.mark.crm_sqlite_only(
+    'upgrades an old SQLite file; a PostgreSQL CRM is created at the current schema'
+)
 def test_an_existing_database_gains_the_column_and_keeps_its_rows(tmp_path):
     """The real upgrade path, driven through a database built without the column.
 
@@ -263,6 +266,9 @@ def test_an_existing_database_gains_the_column_and_keeps_its_rows(tmp_path):
         upgraded.close()
 
 
+@pytest.mark.crm_sqlite_only(
+    "upgrades an old SQLite file; a PostgreSQL CRM is created at the current schema; both paths here are SQLite's, fresh and upgraded"
+)
 def test_the_index_over_the_new_column_exists_on_both_paths(tmp_path):
     """It cannot live in SCHEMA_SQL, which runs before the migration.
 

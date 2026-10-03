@@ -134,7 +134,20 @@ def test_a_tool_refuses_while_a_restore_waits_to_be_rolled_back(command, tmp_pat
     assert _state(store) == before
 
 
-@pytest.mark.parametrize("command", COMMANDS)
+#: The two tools that open the CRM are checked below by its file, which a
+#: PostgreSQL CRM does not have; which CRM they open there is task e of
+#: S-06.03.03. Every other tool runs in that mode as usual.
+_OPENS_THE_CRM_FILE = pytest.mark.crm_sqlite_only(
+    "checks the CRM's SQLite file exists; which CRM a tool opens on PostgreSQL is S-06.03.03 task e"
+)
+RESTORE_LETS_IN = [
+    pytest.param(*command.values, marks=[*command.marks, _OPENS_THE_CRM_FILE], id=command.id)
+    if command.id in {"offsetx-outreach", "offsetx-notebook"} else command
+    for command in COMMANDS
+]
+
+
+@pytest.mark.parametrize("command", RESTORE_LETS_IN)
 def test_a_tool_lets_a_restore_in_once_it_finishes(command, tmp_path, monkeypatch):
     settings = _settings(tmp_path)
     _point_at(settings, tmp_path, monkeypatch)

@@ -35,6 +35,9 @@ def _probe_store(tmp_path) -> OutreachStore:
     return store
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_concurrent_transactions_do_not_lose_writes(tmp_path):
     """The one that cost forty rows.
 
@@ -74,6 +77,9 @@ def test_concurrent_transactions_do_not_lose_writes(tmp_path):
     assert total == writers * rows_each, f"lost {writers * rows_each - total} committed rows"
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_an_immediate_transaction_is_also_serialised(tmp_path):
     """`claim_next` — the email worker's exclusive claim — uses `immediate=True`.
 
@@ -104,6 +110,9 @@ def test_an_immediate_transaction_is_also_serialised(tmp_path):
     assert store.connection.execute("SELECT COUNT(*) FROM audit_probe").fetchone()[0] == 75
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_a_failing_transaction_still_rolls_back_and_releases(tmp_path):
     """A lock that is not released on the error path turns data loss into a hang."""
     store = _probe_store(tmp_path)
@@ -378,6 +387,9 @@ def test_the_advertised_token_header_is_the_one_the_server_reads(tmp_path):
 # with work it had nothing to do with.
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure(tmp_path):
     """The demonstration that named the story.
 
@@ -432,6 +444,9 @@ def test_a_bare_write_is_not_rolled_back_by_someone_else_s_failure(tmp_path):
     )
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_a_bare_write_is_not_committed_early_by_someone_else(tmp_path):
     """The mirror of the last one. A bare write must not be made durable by
     another thread's commit before its own statement finished — and a read must
@@ -462,6 +477,9 @@ def test_a_bare_write_is_not_committed_early_by_someone_else(tmp_path):
     assert seen == [1], f"reader saw {seen}, expected the committed row only"
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_the_guard_still_behaves_like_a_connection(tmp_path):
     """155 call sites reach through this object. Replacing it is only safe if it
     keeps the shape they were written against."""
@@ -496,6 +514,9 @@ def test_the_guard_still_behaves_like_a_connection(tmp_path):
     assert manual.fetchone()[0] == 4
 
 
+@pytest.mark.crm_sqlite_only(
+    "tests SQLite's GuardedConnection — its commit, rollback, cursor or row[0]; the same properties on both backends are test_crm_hosted.py's concurrency tests"
+)
 def test_backup_reaches_the_real_connection_underneath(tmp_path):
     """`Connection.backup` needs a real connection as its target, not a wrapper —
     the one call site would raise a TypeError if this were forwarded naively."""

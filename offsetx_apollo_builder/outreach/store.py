@@ -160,6 +160,10 @@ class OutreachStore:
 
     def __init__(self, path: Path | str):
         self.database: Database | None = None
+        # What was opened, as the other stores name it: readiness probes a
+        # store by its `target` (`api/production_runtime.py`). It may carry a
+        # password; nothing prints it.
+        self.target = str(path)
         if is_postgres_url(path):
             self.backend = "postgres"
             self._write_lock = threading.RLock()

@@ -328,6 +328,9 @@ def test_companion_api_is_authenticated_persistent_and_memory_scoped(tmp_path):
         assert refused.status_code == 400
 
 
+@pytest.mark.crm_sqlite_only(
+    "a local backup or restore archives the CRM's SQLite file; on PostgreSQL it is refused (test_crm_hosted.py::test_local_backup_is_refused_while_the_crm_is_on_postgres), and hosted backups are S-06.03.04"
+)
 def test_backup_restore_reopens_companion_and_tool_store(tmp_path):
     token = "r" * 40
     settings = AppSettings(

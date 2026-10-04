@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Screens open at their top** (2026-10-04, `S-06.02.25`). Navigation keeps
+  keyboard focus on the main content without scrolling it beneath the sticky
+  bar, then resets the page to its top. Campaign warnings stay visible at
+  desktop and phone widths, including warnings arriving after navigation.
+  Fixes `D-137`; campaign selection and initial-load safety gates are unchanged.
+
+
 - **The CRM outlives the disk too** (2026-10-03, `S-06.03.03`, DONE). With
   `OFFSETX_DATABASE_URL` set, campaigns, contacts, drafts, sends, replies and
   delivery jobs live in that database, on SQLite and PostgreSQL alike — for the

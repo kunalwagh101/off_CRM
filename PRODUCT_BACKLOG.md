@@ -862,7 +862,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
 | R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
 | R-164 | A login that will act as the install owner is made so on purpose, never by picking a workspace name | S-06.02.36 |
-| R-165 | Any failure leaves one secret-free log line with an error id the user is also shown | S-06.02.37 |
+| R-165 | Skip navigation focuses the current screen without changing its route | S-06.02.37 |
+| R-166 | Any failure leaves one secret-free log line with an error id the user is also shown | S-06.02.38 |
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
@@ -1613,6 +1614,20 @@ past its own error.
   hidden on arrival — target zero.
 - **Why:** `D-137`. Work order: `docs/work-orders/S-06.02.25-screen-opens-at-top.md`.
 
+#### S-06.02.37 — Skip navigation keeps the current screen
+**As an** owner using the keyboard, **I want** Skip to main content to focus
+the screen I am reading, **so that** skipping navigation does not send me to
+Dashboard.
+- **Given** Settings or another screen, **when** Skip to main content is
+  activated with Enter, **then** the route and screen stay unchanged and main
+  receives focus.
+- **Given** a pointer activation of the same link, **when** it is used,
+  **then** the same screen stays open and its top is visible.
+- **Dependencies:** none. **Size:** S. **Indicator:** skip activations changing
+  screens — target zero.
+- **Why:** `D-239`, found in the independent review of `S-06.02.25` and
+  reproduced in real Chromium; filed separately under change control.
+
 #### S-06.02.26 — CI runs the suite on every Python the package supports
 **As an** owner, **I want** the suite run on every Python version
 `pyproject.toml` declares and the one the image runs, **so that** a failure on
@@ -1699,7 +1714,7 @@ trusted, **so that** the defaults are a starting point and not a verdict.
   a recorded reason for a raise — target zero.
 - **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
 
-#### S-06.02.37 — Any error can be traced back the next day
+#### S-06.02.38 — Any error can be traced back the next day
 **As an** install owner, **I want** every failure to leave one log line with
 an error id that the screen also shows, **so that** "it broke yesterday" can be
 found and explained, on Render as well as on a laptop.
@@ -1716,7 +1731,7 @@ found and explained, on Render as well as on a laptop.
   access record (method, route, status, time taken) — no bodies.
 - **Dependencies:** none. **Size:** M. **Indicator:** failures with no log
   line and id — target zero.
-- **Why:** owner's instruction, 2026-10-04 (`AGENTS.md`, "Logging"); `D-239`.
+- **Why:** owner's instruction, 2026-10-04 (`AGENTS.md`, "Logging"); `D-242`.
 
 #### S-06.02.36 — A second owner login is made on purpose
 **As an** install owner, **I want** a login in workspace `local` to be created

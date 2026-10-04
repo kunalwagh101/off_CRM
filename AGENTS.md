@@ -215,4 +215,4 @@ should be able to take the words on a screen, or a time, and find the cause.
   The two are different: the log says what happened at 3:12 today, the defect
   log says what was wrong and how it was found.
 
-Built by `S-06.02.37`; until it is DONE, the app does not yet meet this.
+Built by `S-06.02.38`; until it is DONE, the app does not yet meet this.

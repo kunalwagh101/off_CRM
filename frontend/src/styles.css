@@ -94,6 +94,7 @@ code { font-size: 0.82rem; overflow-wrap: anywhere; color: #33425d; }
 .logout-button { width: auto; padding: 0 11px; }
 .mobile-nav { display: none; }
 .page-content { max-width: 1540px; margin: 0 auto; padding: 34px 38px 60px; }
+#main-content { scroll-margin-top: 68px; }
 
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 25px; }
 .eyebrow { margin-bottom: 7px; color: var(--blue); font-size: .67rem; font-weight: 800; text-transform: uppercase; letter-spacing: .13em; }
@@ -329,6 +330,9 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 /* --- Accessibility & comfort floor --- */
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 6px; }
 .page-content:focus { outline: none; }
+@media (max-width: 860px) {
+  #main-content { scroll-margin-top: 60px; }
+}
 .skip-link:focus { z-index: 10000; }
 .field small, .form-note span { line-height: 1.55; }
 @media (prefers-reduced-motion: reduce) {

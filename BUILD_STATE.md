@@ -7,7 +7,7 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
@@ -24,8 +24,9 @@ the runners are down (`S-06.02.18`). The whole suite last ran on a real Python 3
 clean. Frontend **175 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-28).
 
-**Newest: the CRM in the hosted database** (`S-06.03.03`, DONE; next in
-`F-06.03`: `S-06.03.04` backups, `S-06.03.07` filed by its review) — the dated section just below. Before it, the GTM engine,
+**Newest: screens open at their top** (`S-06.02.25`, IN_REVIEW; checks passed
+below). The CRM in the hosted database (`S-06.03.03`, DONE; next in
+`F-06.03`: `S-06.03.04` backups, `S-06.03.07` filed by its review). Before it, the GTM engine,
 Phase 1 and 2 (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
 
@@ -47,6 +48,41 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-10-04 — Screen navigation keeps its top in view (`S-06.02.25`)
+
+Frontend implementation and independent review complete.
+Pushed to `develop` at `815c72bbc7affdef29b2c288e4d7494a836ea292`; no `main` promotion.
+Navigation focuses main without browser scrolling, then explicitly opens the
+screen at scroll 0.
+The main area's scroll margin matches the 68px desktop / 60px phone top bar.
+No campaign store, screen component, API, database schema or credential setting
+changed. Late campaign warnings stayed in view without adding another scroll
+on background failures (`DD-79`). `D-137` is fixed.
+
+Evidence this session: baseline and final full Python suites both **2570
+passed, 43 skipped**, no PostgreSQL server configured; frontend **175 passed**,
+production build passed; accessibility **12 passed**; egress wall **42 passed**;
+Ruff passed. Real Chromium 153 through `run_offsetx_web.py` and the actual API
+passed **32 checks** on Settings, Contacts, AI and Product at 1280x900 and
+390x900: healthy navigation, delayed/existing campaign warnings, initial
+failure recovery and preserved campaign-load gates. The full warning and
+screen title are visible; long forms/chat panels may extend below the viewport,
+but their beginning and first header/action are visible. Browser output and
+the reusable launcher are linked from the work order.
+
+Independent review corrected the browser selectors, render waits and disposable
+launcher's inherited hosted-key configuration. It found an older skip-link
+route defect (`D-239`), reproduced and filed as `S-06.02.37`; no additional
+feature was absorbed. Whole-board evidence verification re-ran all 70 existing
+DONE commands: **70 passed**. Historical commit ancestry was not checked because
+the exact source snapshot has no local Git history. The story remains IN_REVIEW
+for the full-checkout history and develop CI gates.
+The baseline GitHub quality job also fails three older tests because it omits
+the PostgreSQL driver; its separate postgres job passes (`D-241`, filed against
+`S-06.02.19`). This is
+work for `develop`; it is not a `main` promotion or a verified hosted release.
+Existing blocked work remains on the board.
 
 ## 2026-10-03 — `F-06.03` phase 2: the CRM outlives the disk (`S-06.03.03`)
 

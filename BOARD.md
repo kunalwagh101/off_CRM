@@ -84,6 +84,11 @@ Waits on the owner's answer to `Q-28`.)*
 workspace `local` acts as the install owner with nothing asking for that.)*
 
 - S-06.02.36 · A second owner login is made on purpose
+
+*(Filed 2026-10-04 from the owner's instruction: every error traceable the
+next day, `AGENTS.md` "Logging".)*
+
+- S-06.02.37 · Any error can be traced back the next day
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.05 · Production refuses a half-hosted install

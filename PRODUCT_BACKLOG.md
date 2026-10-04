@@ -862,6 +862,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-161 | Connectors show what is left: our own count for every provider, the provider's figure where it reports one | S-06.02.34 |
 | R-163 | A draft personalised with a model reaches it through a path the owner can set up from the screens, with the trust rules applied | S-06.02.35 |
 | R-164 | A login that will act as the install owner is made so on purpose, never by picking a workspace name | S-06.02.36 |
+| R-165 | Any failure leaves one secret-free log line with an error id the user is also shown | S-06.02.37 |
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
@@ -1697,6 +1698,25 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without
   a recorded reason for a raise — target zero.
 - **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
+
+#### S-06.02.37 — Any error can be traced back the next day
+**As an** install owner, **I want** every failure to leave one log line with
+an error id that the screen also shows, **so that** "it broke yesterday" can be
+found and explained, on Render as well as on a laptop.
+- **Given** any request that fails with a 5xx, **then** the response carries a
+  readable sentence and an error id, and standard output carries one JSON line
+  with that id, the time, the route, the workspace and the traceback.
+- **Given** a failed worker cycle, command or background job, **then** the same:
+  one line, an id, and the id printed with the sentence.
+- **Given** a local install, **then** the lines also go to a size-capped
+  rotating file under `OFFSETX_DATA_DIR/logs/`; on Render, standard output only.
+- **Given** a failure whose message holds a password, key, token, cookie or a
+  database URL with credentials, **then** none of it reaches a log line.
+- **Given** a successful request, **then** nothing is logged beyond a one-line
+  access record (method, route, status, time taken) — no bodies.
+- **Dependencies:** none. **Size:** M. **Indicator:** failures with no log
+  line and id — target zero.
+- **Why:** owner's instruction, 2026-10-04 (`AGENTS.md`, "Logging"); `D-239`.
 
 #### S-06.02.36 — A second owner login is made on purpose
 **As an** install owner, **I want** a login in workspace `local` to be created

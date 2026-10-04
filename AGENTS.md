@@ -187,3 +187,32 @@ fallback any more (`DD-64`, `D-151`); never tell a user to set one.
   code change.
 - Comments explain *why*, especially where a simpler-looking approach was
   rejected for a reason. Match that density — do not add narration.
+
+## Logging — standing owner instruction (2026-10-04)
+
+Every error must be traceable the next day from what the user saw. The owner
+should be able to take the words on a screen, or a time, and find the cause.
+
+- **One log line per failure, with an error id.** Any request that fails with
+  a 5xx, and every background job, worker cycle or command that fails, writes
+  one line: time (UTC), error id, what was being done, the route or command,
+  workspace, and the exception with its traceback. The same error id is shown
+  on the screen or printed by the command ("Reference: E-7F3A…"), so the user
+  can quote it and the line can be found by searching for it.
+- **Write to standard output, as JSON lines.** That is what Render keeps and
+  shows under Logs. A log *file* under the data folder is wiped with it on the
+  free plan (`/tmp`), so a file alone is no record there. A local install also
+  writes a rotating file under `OFFSETX_DATA_DIR/logs/`, size-capped.
+- **Never log a secret or customer content.** No passwords, keys, tokens,
+  cookies, database URLs with credentials, email bodies or prompts. Pass
+  anything that may hold one through `db.connection.redact`; log ids and
+  counts, not contents. A test proves it for each new log line.
+- **Do not log and swallow.** Logging an error is not handling it: the caller
+  still gets the readable sentence and next step (Conventions, first rule).
+- **New code must log its own failure paths.** A feature is not done while a
+  failure in it leaves no line (`DEFINITION_OF_DONE.md`).
+- **Errors in the code are `DEFECT_LOG.md`; this is about the running app.**
+  The two are different: the log says what happened at 3:12 today, the defect
+  log says what was wrong and how it was found.
+
+Built by `S-06.02.37`; until it is DONE, the app does not yet meet this.

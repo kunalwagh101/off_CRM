@@ -62,6 +62,9 @@ the whole deployment. Existing production blockers must remain visible.
       For persistence changes, verify backup/restoration and migration recovery.
       For external effects, prove retry/duplicate protection and explicit
       handling of uncertain outcomes.
+- [ ] **Every new failure path leaves a log line with an error id**, the same
+      id the user is shown, and no secret or customer content in it
+      (`AGENTS.md`, "Logging").
 - [ ] **Operational evidence fits the change.** Relevant logs protect secrets,
       failures give an actionable next step, and affected health checks,
       time/spend bounds and rollback procedures are verified.

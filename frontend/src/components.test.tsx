@@ -200,23 +200,27 @@ describe("keyboard and screen-reader contract", () => {
     expect(loading).toContain('aria-busy="true"');
   });
 
-  it("page navigation moves programmatic focus to main content", () => {
-    let focused = false;
+  it("page navigation focuses main without scrolling, then opens the screen at its top", () => {
+    const calls: unknown[] = [];
     const previousWindow = globalThis.window;
     const previousDocument = globalThis.document;
     (globalThis as Record<string, unknown>).window = {
       requestAnimationFrame: (callback: () => void) => {
         callback();
         return 1;
-      }
+      },
+      scrollTo: (options: ScrollToOptions) => calls.push(["scroll", options])
     };
     (globalThis as Record<string, unknown>).document = {
       getElementById: (id: string) =>
-        id === "main-content" ? { focus: () => { focused = true; } } : null
+        id === "main-content" ? { focus: (options: FocusOptions) => calls.push(["focus", options]) } : null
     };
     try {
       focusMainContent();
-      expect(focused).toBe(true);
+      expect(calls).toEqual([
+        ["focus", { preventScroll: true }],
+        ["scroll", { top: 0, behavior: "instant" }]
+      ]);
     } finally {
       (globalThis as Record<string, unknown>).window = previousWindow;
       (globalThis as Record<string, unknown>).document = previousDocument;
@@ -692,4 +696,3 @@ describe("where the data is kept (D-226)", () => {
     expect(storageWording(undefined).detail).toBe("Checking where data is kept");
   });
 });
-

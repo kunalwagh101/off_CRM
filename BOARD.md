@@ -31,6 +31,8 @@ reaches DONE only with the evidence block `DEFINITION_OF_DONE.md` describes.
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
 
+- S-06.02.37 · Skip navigation keeps the current screen
+
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation
@@ -113,8 +115,6 @@ an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 `S-06.02.25` is `D-137`.)*
 
 
-- S-06.02.25 · Every screen opens at its top, its warnings in view
-  work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
@@ -140,6 +140,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*
+
+- S-06.02.25 · Every screen opens at its top, its warnings in view
+  work_order: docs/work-orders/S-06.02.25-screen-opens-at-top.md
+  tests: frontend/src/components.test.tsx, tests/test_frontend_accessibility_contract.py, scripts/live/screen_opens_at_top.mjs
+  command: uv run pytest tests/test_frontend_accessibility_contract.py -q && (cd frontend && npm test && npm run build)
+  result: 12 accessibility tests passed; frontend 175 passed and production build passed; Chromium 32 checks passed at 1280x900 and 390x900 (2026-10-04)
+  code: frontend/src/App.tsx, frontend/src/styles.css
+  live: Real web entry point and API with disposable SQLite data; complete campaign warning, title, first panel start/header visible; focus main and scroll 0. Long forms/chat can extend below the viewport. Fresh-context review passed. Full board verification re-ran 70 existing DONE commands: 70 passed. Git ancestry was not checked in this source snapshot; historical ancestry and develop CI remain release checks. Work order records browser command/output and limitations; not deployed.
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md

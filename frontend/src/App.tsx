@@ -101,7 +101,11 @@ function currentPage(): Page {
 
 export function focusMainContent() {
   window.requestAnimationFrame(() => {
-    document.getElementById("main-content")?.focus();
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    // Focus must not tuck the screen under the sticky navigation bar.
+    main.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: "instant" });
   });
 }
 

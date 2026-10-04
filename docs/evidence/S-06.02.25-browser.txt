@@ -1,0 +1,28 @@
+Chromium 153.0.8010.0
+PASS 1280 settings: title visible, focus main, scroll 0
+PASS 1280 contacts: title visible, focus main, scroll 0
+PASS 1280 ai: title visible, focus main, scroll 0
+PASS 1280 product: title visible, focus main, scroll 0
+PASS 1280 settings: delayed warning and title visible, focus main
+PASS 1280 contacts: delayed warning and title visible, focus main
+PASS 1280 ai: delayed warning and title visible, focus main
+PASS 1280 product: delayed warning and title visible, focus main
+PASS 1280 settings: existing warning and title visible
+PASS 1280 contacts: existing warning and title visible
+PASS 1280 ai: existing warning and title visible
+PASS 1280 product: existing warning and title visible
+PASS 1280: initial failure recovery screens visible; campaign-dependent screens gated
+PASS 390 settings: title visible, focus main, scroll 0
+PASS 390 contacts: title visible, focus main, scroll 0
+PASS 390 ai: title visible, focus main, scroll 0
+PASS 390 product: title visible, focus main, scroll 0
+PASS 390 settings: delayed warning and title visible, focus main
+PASS 390 contacts: delayed warning and title visible, focus main
+PASS 390 ai: delayed warning and title visible, focus main
+PASS 390 product: delayed warning and title visible, focus main
+PASS 390 settings: existing warning and title visible
+PASS 390 contacts: existing warning and title visible
+PASS 390 ai: existing warning and title visible
+PASS 390 product: existing warning and title visible
+PASS 390: initial failure recovery screens visible; campaign-dependent screens gated
+32 browser checks passed

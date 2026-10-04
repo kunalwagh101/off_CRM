@@ -51,8 +51,10 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 ## 2026-10-04 — Screen navigation keeps its top in view (`S-06.02.25`)
 
-Frontend implementation and independent review complete. Navigation focuses
-main without browser scrolling, then explicitly opens the screen at scroll 0.
+Frontend implementation and independent review complete.
+Pushed to `develop` at `815c72bbc7affdef29b2c288e4d7494a836ea292`; no `main` promotion.
+Navigation focuses main without browser scrolling, then explicitly opens the
+screen at scroll 0.
 The main area's scroll margin matches the 68px desktop / 60px phone top bar.
 No campaign store, screen component, API, database schema or credential setting
 changed. Late campaign warnings stayed in view without adding another scroll

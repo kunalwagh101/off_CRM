@@ -147,6 +147,7 @@ write the code, then the evidence block.)*
   command: uv run pytest tests/test_frontend_accessibility_contract.py -q && (cd frontend && npm test && npm run build)
   result: 12 accessibility tests passed; frontend 175 passed and production build passed; Chromium 32 checks passed at 1280x900 and 390x900 (2026-10-04)
   code: frontend/src/App.tsx, frontend/src/styles.css
+  commit: 815c72bbc7affdef29b2c288e4d7494a836ea292
   live: Real web entry point and API with disposable SQLite data; complete campaign warning, title, first panel start/header visible; focus main and scroll 0. Long forms/chat can extend below the viewport. Fresh-context review passed. Full board verification re-ran 70 existing DONE commands: 70 passed. Git ancestry was not checked in this source snapshot; historical ancestry and develop CI remain release checks. Work order records browser command/output and limitations; not deployed.
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)

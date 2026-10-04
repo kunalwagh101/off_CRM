@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **The CRM outlives the disk too** (2026-10-03, `S-06.03.03`, in review). With
+- **The CRM outlives the disk too** (2026-10-03, `S-06.03.03`, DONE). With
   `OFFSETX_DATABASE_URL` set, campaigns, contacts, drafts, sends, replies and
   delivery jobs live in that database, on SQLite and PostgreSQL alike — for the
   web app, the email worker, `offsetx-outreach` and `offsetx-notebook`, which
@@ -18,6 +18,13 @@
   after it (`D-217`). Search in the CRM ignores capital letters on PostgreSQL
   as it always did on SQLite. The sidebar and Settings now say where the CRM
   really is — they said "SQLite on this device" whatever was true (`D-226`).
+  After review: the import works even when the worker or a deploy started on
+  the database first, and the worker and tools wait, as the app does, while
+  a local CRM is left behind (`D-227`); a copy stops on a value PostgreSQL
+  would change (`D-228`); a write waits at most 5 seconds for another
+  (`D-229`); a watching worker rides out a database that is away (`D-230`)
+  and takes a URL as `--database` (`D-238`); the database's address and any
+  password option are shown to the install owner only (`D-232`).
   Not yet: backups of the hosted database
   (`S-06.03.04`); expert-library search is unranked on PostgreSQL.
 

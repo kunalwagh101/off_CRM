@@ -12,19 +12,20 @@ Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
 `scripts/archive_old_branches.sh` — this session was refused (HTTP 403).
-Tests (2026-10-03, on `develop` at `S-06.03.03` task f): **2576 Python passed,
-0 failed**, 19 environment-gated skips — most of them PostgreSQL-only tests,
-which pass against a real PostgreSQL 16 with `OFF_CRM_TEST_POSTGRES_URL` set
-(233 passed across the storage and tool files that way). With
-`OFF_CRM_TEST_CRM_ON_POSTGRES=1` as well, the **whole suite runs with the CRM on
-PostgreSQL: 2603 passed, 0 failed**, 53 skipped — 52 about SQLite itself, each
-with its reason, and one sandbox image (`tests/conftest.py`). The whole suite last ran on a real Python 3.10 on
+Tests (2026-10-03, on `develop` at `S-06.03.03` DONE): with
+`OFF_CRM_TEST_POSTGRES_URL` on a real PostgreSQL 16, **2681 Python passed,
+0 failed**, 1 skipped (a sandbox image); without the URL the PostgreSQL-only
+tests skip. With `OFF_CRM_TEST_CRM_ON_POSTGRES=1` as well, the **whole suite
+runs with the CRM on PostgreSQL: 2612 passed, 0 failed**, 70 skipped — tests
+about SQLite itself or about a CRM file, each with its reason, and one sandbox
+image (`tests/conftest.py`). CI has a `postgres` job for both, not yet run:
+the runners are down (`S-06.02.18`). The whole suite last ran on a real Python 3.10 on
 2026-09-24 (2404 passed); it has not been re-run on 3.10 since. Ruff gate
-clean. Frontend **172 passed** and a clean production build. Board verifier
+clean. Frontend **175 passed** and a clean production build. Board verifier
 OK with every DONE story's evidence command re-run (2026-09-28).
 
-**Newest: the CRM in the hosted database** (`S-06.03.03`, in progress: tasks
-a–f built, g–i left) — the dated section just below. Before it, the GTM engine,
+**Newest: the CRM in the hosted database** (`S-06.03.03`, DONE; next in
+`F-06.03`: `S-06.03.04` backups, `S-06.03.07` filed by its review) — the dated section just below. Before it, the GTM engine,
 Phase 1 and 2 (`E-12`) — section 3's first entry.
 Read `docs/architecture/GTM_ENGINE.md` before touching `offsetx_apollo_builder/gtm/`.
 
@@ -49,8 +50,8 @@ session-start hook installs via `uv sync --extra dev` and the test passes.
 
 ## 2026-10-03 — `F-06.03` phase 2: the CRM outlives the disk (`S-06.03.03`)
 
-**IN_PROGRESS.** Built and pushed, tasks a–f; docs g; left: the browser walk
-(h) and a review in a fresh context (i), then the evidence block. The work
+**DONE** (2026-10-03). Tasks a–i built, walked in a browser, reviewed in a
+fresh context and pushed to `develop`; not deployed. The work
 order, `docs/work-orders/S-06.03.03-crm-hosted.md`, holds every task's numbers.
 
 **What it does.** With `OFFSETX_DATABASE_URL` set, the CRM — every one of its
@@ -70,6 +71,14 @@ PostgreSQL, `tests/test_crm_hosted.py` proves it on both. Live: the real server
 on PostgreSQL 16 kept a campaign through its data folder being deleted; a CRM
 the app's own engine wrote (9,442 rows) went to PostgreSQL and back with every
 value equal.
+
+**The fresh-context review** (task i) found 11 defects, `D-227` to `D-237`.
+The worst: once any tool had started on the database, the owner's local CRM
+could no longer be imported, and only the web app refused to start while it
+was left behind. Ten fixed test-first; one filed as `S-06.03.07` (installs
+sharing one database). Walking that worst one with the real commands found
+`D-238`, fixed. New decisions `DD-75` to `DD-78`; `DD-75` corrects `DD-73`:
+accented letters fold on PostgreSQL only.
 
 **Found and fixed on the way:** the email worker failed on PostgreSQL at
 every send-window deferral (`D-221`); a closed connection reopened itself

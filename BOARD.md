@@ -136,16 +136,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-*(Pulled 2026-10-03. Its work order was written first, which made it READY: its
-one dependency, `S-06.03.02`, is DONE, and no open question changes its shape —
-`Q-27`'s default keeps one shared CRM. The failing tests are beside the work
-order until task `a` moves them into `tests/`. XL, so it is built as tasks `a`
-to `i`, each committed green.)*
-
-- S-06.03.03 · The CRM lives in the hosted database
-  work_order: docs/work-orders/S-06.03.03-crm-hosted.md
-  design: docs/architecture/HOSTED_STORAGE.md
-
 ## IN_REVIEW
 
 *(Code and tests pass; DONE waits for a review in a context that did not
@@ -191,6 +181,15 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.03.03 · The CRM lives in the hosted database
+  work_order: docs/work-orders/S-06.03.03-crm-hosted.md
+  tests: tests/test_crm_hosted.py::test_a_contact_and_a_campaign_outlive_the_store_that_wrote_them, tests/test_crm_hosted.py::test_an_immediate_transaction_holds_other_processes_back, tests/test_crm_hosted.py::test_no_postgres_column_is_narrower_than_its_sqlite_value, tests/test_crm_hosted.py::test_a_url_in_the_crm_file_setting_is_refused_however_it_arrives, tests/test_crm_hosted.py::test_search_ignores_case_on_every_backend, tests/test_crm_hosted.py::test_concurrent_transactions_lose_no_writes, tests/test_crm_hosted.py::test_a_closed_store_stays_closed, tests/test_crm_hosted.py::test_a_campaign_made_in_the_app_outlives_the_disk, tests/test_crm_hosted.py::test_a_local_crm_left_behind_stops_the_start_and_names_both_choices, tests/test_crm_hosted.py::test_with_no_database_url_the_crm_stays_in_its_file, tests/test_crm_hosted.py::test_import_crm_brings_the_file_in_once, tests/test_crm_hosted.py::test_the_email_worker_sends_from_the_crm_the_app_opens, tests/test_crm_hosted.py::test_the_copy_reconciles_every_table_and_so_does_the_inverse, tests/test_crm_hosted.py::test_copy_crm_copies_a_file_into_the_database_and_back_value_for_value, tests/test_crm_hosted.py::test_a_copy_reads_its_source_at_one_moment, tests/test_crm_hosted.py::test_the_status_says_where_the_crm_really_is, tests/test_crm_hosted.py::test_import_crm_works_after_something_already_started_on_the_database, tests/test_crm_hosted.py::test_every_tool_waits_while_a_local_crm_is_left_behind, tests/test_crm_hosted.py::test_a_value_postgresql_would_change_stops_the_copy_and_is_named, tests/test_crm_hosted.py::test_a_writer_waits_for_another_at_most_five_seconds, tests/test_crm_hosted.py::test_a_watching_worker_rides_out_a_database_that_is_away, tests/test_crm_hosted.py::test_the_worker_opens_the_database_its_option_names, tests/test_crm_hosted.py::test_only_the_install_owner_is_told_where_the_database_is, tests/test_crm_hosted.py::test_a_nul_in_outside_text_is_dropped_on_every_backend, tests/test_crm_harness.py, frontend/src/components.test.tsx
+  command: uv run pytest tests/test_crm_hosted.py tests/test_crm_harness.py -q && (cd frontend && npm test -- src/components.test.tsx)
+  result: with OFF_CRM_TEST_POSTGRES_URL on a real PostgreSQL 16, tests/test_crm_hosted.py 96 passed (2026-10-03); whole suite 2681 passed, 1 skipped, 0 failed; whole suite with every CRM on PostgreSQL (OFF_CRM_TEST_CRM_ON_POSTGRES=1) 2612 passed, 70 skipped (each marked SQLite-only or about a CRM file, 1 sandbox image), 0 failed; egress wall 42 passed; frontend 175 passed, build clean. Without the URL the PostgreSQL cases skip, as in CI until its new postgres job runs (S-06.02.18)
+  live: the real server (run_offsetx_web.py) with the built screens on PostgreSQL 16 in headless Chromium: a campaign, a contact from CSV and an approved draft made through the screens; server stopped, data folder deleted, a new server on an empty folder showed all three, and no CRM file was written (task h, which also found D-226). An engine-written CRM of 9,442 rows copied into PostgreSQL and back, every value equal (task f). The fresh-context review found 11 defects (D-227 to D-237): 10 fixed test-first, 1 filed as S-06.03.07. Its worst one walked with the real commands after the fix: local CRM left behind, hosting switched on, offsetx-email-worker and offsetx-outreach each refused with the import-crm sentence; the worker run with --database at the URL anyway seeded it (8 templates), and import-crm --yes then copied the campaign in, every table reconciled; that walk found D-238, fixed. Not run against Neon or Render: latency there is unmeasured. The fixes were checked by tests and that walk, not by a second review
+  code: offsetx_apollo_builder/outreach/store.py, offsetx_apollo_builder/outreach/schema.py, offsetx_apollo_builder/outreach/store_copy.py, offsetx_apollo_builder/outreach/models.py, offsetx_apollo_builder/outreach/sales.py, offsetx_apollo_builder/outreach/deliverability/store.py, offsetx_apollo_builder/db/connection.py, offsetx_apollo_builder/data_paths.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/api/production_runtime.py, offsetx_apollo_builder/db_cli.py, offsetx_apollo_builder/email_worker_cli.py, offsetx_apollo_builder/outreach_cli.py, offsetx_apollo_builder/notebook_cli.py, frontend/src/components.tsx, frontend/src/pages/Settings.tsx, tests/conftest.py, .github/workflows/ci.yml
+  commit: 2a8ac3f
 
 - S-06.02.30 · A provider connects from the Connectors screen as shown
   tests: tests/test_ai_api.py::test_the_connect_form_s_own_defaults_are_accepted, tests/test_ai_api.py::test_a_refused_value_is_named_in_the_message_the_screen_shows, tests/test_api_boundary_contract.py::test_validation_error_never_echoes_a_secret_request_body

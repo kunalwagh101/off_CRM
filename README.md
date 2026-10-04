@@ -228,7 +228,7 @@ Use `uv run <command> --help` for the complete options.
 ## Tests and quality checks
 
 ```bash
-uv sync --extra dev --extra email --locked
+uv sync --extra dev --extra email --extra postgres --locked
 npm ci --prefix frontend
 
 uv run ruff check --select E9,F63,F7,F82 .

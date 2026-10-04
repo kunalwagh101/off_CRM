@@ -18,20 +18,20 @@ def _workflow() -> str:
 def test_ci_syncs_locked_python_evidence_dependencies_before_the_verifier():
     text = _workflow()
     install = text.index("name: Install Python dependencies")
-    sync = text.index("uv sync --extra dev --extra email --locked", install)
+    sync = text.index("uv sync --extra dev --extra email --extra postgres --locked", install)
     verifier = text.index("name: Verify the board against the repository")
     assert install < sync < verifier
 
 
 def test_clean_checkout_docs_prepare_both_evidence_environments_before_verification():
     readme = Path("README.md").read_text(encoding="utf-8")
-    readme_sync = readme.index("uv sync --extra dev --extra email --locked")
+    readme_sync = readme.index("uv sync --extra dev --extra email --extra postgres --locked")
     readme_npm = readme.index("npm ci --prefix frontend", readme_sync)
     readme_verify = readme.index("uv run python scripts/verify_board.py", readme_npm)
     assert readme_sync < readme_npm < readme_verify
 
     handoff = Path("CONTINUE.md").read_text(encoding="utf-8")
-    handoff_sync = handoff.index("uv sync --extra dev --extra email --locked")
+    handoff_sync = handoff.index("uv sync --extra dev --extra email --extra postgres --locked")
     handoff_npm = handoff.index("npm ci --prefix frontend", handoff_sync)
     handoff_verify = handoff.index("uv run python scripts/verify_board.py", handoff_npm)
     assert handoff_sync < handoff_npm < handoff_verify

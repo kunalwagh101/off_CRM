@@ -25,7 +25,7 @@ one, so nothing has to be rediscovered.
 git checkout develop
 git pull origin develop
 # … change, then the checks every push must pass:
-uv sync --extra dev --extra email --locked
+uv sync --extra dev --extra email --extra postgres --locked
 uv run ruff check --select E9,F63,F7,F82 .
 uv run pytest -q
 (cd frontend && npm ci && npm test && npm run build)

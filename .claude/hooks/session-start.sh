@@ -36,8 +36,8 @@ fi
 # omission is why tests/test_discovery.py has been failing in web sessions.
 # `--extra postgres` too: without the driver every PostgreSQL test skips in
 # silence, and a session that runs them later found it gone (S-06.03.03).
-echo "[setup] python deps via uv sync --extra dev --extra postgres"
-uv sync --extra dev --extra postgres
+echo "[setup] python deps via uv sync --extra dev --extra email --extra postgres"
+uv sync --extra dev --extra email --extra postgres
 
 # `uv run` is how CI invokes pytest; make the same interpreter the default so
 # a plain `python -m pytest` in a session behaves the same way.

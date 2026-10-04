@@ -89,7 +89,7 @@ for X".
 On a clean checkout, or after either lockfile changes, prepare the exact
 environments the evidence commands use:
 
-  uv sync --extra dev --extra email --locked
+  uv sync --extra dev --extra email --extra postgres --locked
   npm ci --prefix frontend
 
 Then run:  uv run python scripts/verify_board.py

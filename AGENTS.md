@@ -132,7 +132,7 @@ Dependencies are installed by the session-start hook in `.claude/hooks/`
 welcome — any tool can read this file).
 
 ```bash
-uv sync --extra dev --extra email --locked # reproducible Python deps, including SES
+uv sync --extra dev --extra email --extra postgres --locked # what the Docker image ships
 uv run ruff check --select E9,F63,F7,F82 .  # broken names and syntax
 uv run pytest -q             # 1,400+ tests
 uv run pytest tests/test_ai_egress_wall.py -v   # the 34 security cases

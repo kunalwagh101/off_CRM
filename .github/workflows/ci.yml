@@ -27,8 +27,10 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # The extras the Docker image ships with (`Dockerfile`): tests of the
+      # PostgreSQL driver's behaviour failed here without it (D-241).
       - name: Install Python dependencies
-        run: uv sync --extra dev --extra email --locked
+        run: uv sync --extra dev --extra email --extra postgres --locked
       # DONE evidence is allowed to name frontend tests. Install those
       # dependencies before the verifier re-runs evidence, not afterwards.
       - name: Install frontend dependencies

@@ -1,5 +1,6 @@
 """CLI for S-07.01.04 report artifacts."""
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 import sys
@@ -47,6 +48,7 @@ def parser() -> argparse.ArgumentParser:
     return result
 
 
+@traced_command("offsetx-artifacts")
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     # The app records agent runs under the data directory, and the reports are
@@ -63,7 +65,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(path)
             return 0
         except (ArtifactError, TraceIntegrityError, OSError, ValueError) as exc:
-            print(f"offsetx-artifacts: {exc}", file=sys.stderr)
+            report_failure(exc, operation="offsetx-artifacts")
+            print(failure_message(exc, operation="offsetx-artifacts"), file=sys.stderr)
             return 2
 
 

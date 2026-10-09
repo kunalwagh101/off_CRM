@@ -23,6 +23,7 @@ Usage::
 Everything after ``--`` is the command the tool runs inside the container.
 """
 from __future__ import annotations
+from ..observability import failure_message, report_failure, traced_command
 
 import argparse
 import json
@@ -188,6 +189,7 @@ def cmd_runs(args: argparse.Namespace) -> int:
     return 0
 
 
+@traced_command("offsetx-tools")
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-tools",
@@ -256,10 +258,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         with cli_workspace_lease(_data_dir(args)):
             return int(args.func(args))
     except AIModuleError as exc:
-        print(str(exc))
+        report_failure(exc, operation="offsetx-tools")
+        print(failure_message(exc, operation="offsetx-tools"))
         return 2
     except ValueError as exc:
-        print(str(exc))
+        report_failure(exc, operation="offsetx-tools")
+        print(failure_message(exc, operation="offsetx-tools"))
         return 2
 
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 from collections import Counter
@@ -81,6 +82,7 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("Use either --enrich-input-file or --reuse-latest-processed, not both.")
 
 
+@traced_command("offsetx-apollo")
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     load_dotenv(args.env_file)
@@ -137,11 +139,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("No Apollo API call was made. No credits were used.")
             return 0
         except RunOutputExistsError as exc:
-            print(f"\nRun stopped safely: {exc}")
+            report_failure(exc, operation="offsetx-apollo")
+            print(failure_message(exc, operation="offsetx-apollo"))
             print("Choose a new --run-id. No queue file was claimed and no Apollo credits were used.")
             return 2
         except ApolloApiError as exc:
-            print(f"\nApollo API error: {exc}")
+            report_failure(exc, operation="offsetx-apollo")
+            print(failure_message(exc, operation="offsetx-apollo"))
             print(f"Claimed inputs were moved to: {args.failed_dir.resolve()}")
             return 2
 

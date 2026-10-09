@@ -16,6 +16,7 @@ Running costs real tokens: every connected model answers every case.  A suite of
 call count without spending anything.
 """
 from __future__ import annotations
+from ..observability import traced_command
 
 import argparse
 import os
@@ -230,6 +231,7 @@ def cmd_champion(args: argparse.Namespace) -> int:
     return 0
 
 
+@traced_command("offsetx-evals")
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-evals",

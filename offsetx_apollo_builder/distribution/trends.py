@@ -40,6 +40,7 @@ that looks like insight and is arithmetic on noise.
 """
 
 from __future__ import annotations
+from ..observability import failure_boundary, failure_message
 
 import statistics
 import uuid
@@ -200,6 +201,7 @@ class TrendWatcher:
 
     # ── the sweep ───────────────────────────────────────────────────────────
 
+    @failure_boundary
     def sweep(self, *, per_channel: int = 10, limit: int = 0) -> SweepResult:
         """Read recent uploads for every watched channel.
 
@@ -231,7 +233,7 @@ class TrendWatcher:
                 videos = client.video_stats(video_ids)
             except YouTubeError as exc:
                 result.skipped.append(
-                    {"channel_id": channel["channel_id"], "reason": str(exc)[:200]}
+                    {"channel_id": channel["channel_id"], "reason": failure_message(exc, operation="content.sweep", workspace=self.workspace_id)}
                 )
                 continue
 

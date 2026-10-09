@@ -251,8 +251,8 @@ export default function Settings() {
   async function runAutomation() {
     setBusy("automation-run");
     try {
-      const result = await api.post<{ total: number }>("/automation/run", {});
-      notify(`Automation checked ${result.total} active campaigns`, "success");
+      const result = await api.post<{ total: number; last_error: string }>("/automation/run", {});
+      notify(result.last_error || `Automation checked ${result.total} active campaigns`, result.last_error ? "error" : "success");
       automation.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Automation run failed", "error");

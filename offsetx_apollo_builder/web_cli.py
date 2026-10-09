@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .observability import traced_command
 
 import argparse
 
@@ -9,6 +10,7 @@ from .api.app import create_app
 from .api.config import AppSettings
 
 
+@traced_command("offsetx-web")
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the off_CRM local web CRM")
     parser.add_argument("--host", default=None)
@@ -34,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         host=settings.host,
         port=settings.port,
         log_level="info",
-        access_log=True,
+        access_log=False,  # the shared reporter logs templates, never query strings
     )
     return 0
 

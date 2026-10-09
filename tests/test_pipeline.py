@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import json
 
 import pytest
 
@@ -356,7 +357,7 @@ def test_a_writer_is_used_when_one_is_supplied(parts):
     assert run.planned[0].brief_text.startswith("A rain-slicked")
 
 
-def test_a_failing_writer_falls_back_instead_of_breaking_the_run(parts):
+def test_a_failing_writer_falls_back_instead_of_breaking_the_run(parts, capsys):
     """A model having a bad day must not cost the sweep."""
     pipeline, images, _, broker = parts
     pipeline.writer = lambda kind, prompt: (_ for _ in ()).throw(RuntimeError("503"))
@@ -365,6 +366,9 @@ def test_a_failing_writer_falls_back_instead_of_breaking_the_run(parts):
     run = pipeline.plan(distribution_campaign_id=DIST, image_campaign_id=IMAGES)
     assert run.topics_planned == 1
     assert "rotterdam" in run.planned[0].brief_text, "the deterministic brief was used"
+    failures = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+    assert len(failures) == 1
+    assert failures[0]["error_id"] in json.dumps(run.to_dict())
 
 
 def test_an_empty_answer_falls_back_too(parts):

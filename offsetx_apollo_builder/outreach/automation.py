@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from .models import to_utc_iso
 from .workspace_lock import WorkspaceLock
+from ..observability import ReportedFailure, failure_boundary, failure_message, failure_summary, report_failure
 
 
 DEFAULT_AUTOMATION = {
@@ -51,8 +52,8 @@ class AutomationService:
                 stored = json.loads(self.path.read_text(encoding="utf-8"))
                 if isinstance(stored, dict):
                     payload.update(stored)
-            except (OSError, json.JSONDecodeError):
-                self.last_error = "Automation settings are invalid; safe defaults are active"
+            except (OSError, json.JSONDecodeError) as exc:
+                self.last_error = "Automation settings are invalid; safe defaults are active. " + failure_message(exc, operation="email.automation.settings", data_dir=self.path.parent)
         payload["enabled"] = bool(payload.get("enabled"))
         payload["mode"] = "gmail" if payload.get("mode") == "gmail" else "local"
         payload["interval_seconds"] = max(60, min(int(payload.get("interval_seconds", 300)), 86400))
@@ -89,6 +90,7 @@ class AutomationService:
     def status(self) -> dict[str, Any]:
         return {**self.config(), "running": bool(self._task and not self._task.done()), "last_run_at": self.last_run_at, "last_error": self.last_error, "last_results": self.last_results}
 
+    @failure_boundary
     def run_once(self) -> list[dict[str, Any]]:
         # A shared lease on the workspace for the whole cycle: a restore takes
         # it exclusively, so it cannot swap the files out from under a run
@@ -122,16 +124,16 @@ class AutomationService:
                         sync_replies_first=bool(config["sync_replies_first"]),
                         max_messages=int(config["max_messages_per_campaign"]),
                     )
-                    results.append({"campaign_id": campaign["id"], "campaign_name": campaign["name"], "sent_count": result["sent_count"], "replies_matched": result["replies"]["matched"], "failed_count": len(result["failed"])})
+                    results.append({"campaign_id": campaign["id"], "campaign_name": campaign["name"], "sent_count": result["sent_count"], "replies_matched": result["replies"]["matched"], "failed_count": len(result["failed"]), "failed": result["failed"], "warnings": result.get("warnings", []) + result["replies"].get("warnings", [])})
                 except Exception as exc:
-                    results.append({"campaign_id": campaign["id"], "campaign_name": campaign["name"], "error": str(exc)[:1000]})
+                    results.append({"campaign_id": campaign["id"], "campaign_name": campaign["name"], "error": failure_message(exc, operation="email.automation.campaign", data_dir=self.path.parent)})
             self.last_run_at = to_utc_iso()
             self.last_results = results
-            self.last_error = ""
+            self.last_error = failure_summary(results)
             return results
         except Exception as exc:
             self.last_run_at = to_utc_iso()
-            self.last_error = str(exc)[:1000]
+            self.last_error = failure_message(exc, operation="email.automation.cycle", data_dir=self.path.parent)
             raise
         finally:
             if engine is not None:
@@ -158,7 +160,12 @@ class AutomationService:
 
     async def _loop(self) -> None:
         while not self._stop.is_set():
-            config = self.config()
+            try:
+                config = self.config()
+            except Exception as exc:
+                reference = report_failure(exc, operation="email.automation.timer", data_dir=self.path.parent)
+                self.last_error = failure_message(ReportedFailure(reference), operation="email.automation.timer")
+                raise ReportedFailure(reference) from None
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=int(config["interval_seconds"]))
                 continue

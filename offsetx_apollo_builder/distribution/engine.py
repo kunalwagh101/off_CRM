@@ -40,6 +40,7 @@ first looks like a plan.
 from __future__ import annotations
 
 import threading
+from ..observability import failure_boundary, failure_message, report_failure
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -109,7 +110,7 @@ class DistributionEngine:
                 except KeyError:
                     seen[campaign_id] = "campaign no longer exists"
                 except Exception as exc:  # noqa: BLE001 - fail closed, and the round goes on
-                    seen[campaign_id] = f"campaign could not be read: {str(exc)[:120]}"
+                    seen[campaign_id] = "The campaign could not be read. " + failure_message(exc, operation="content.publish.campaign", workspace=self.workspace_id)
                 else:
                     seen[campaign_id] = "" if status == "active" else f"campaign {status}"
         return seen[campaign_id]
@@ -232,6 +233,7 @@ class DistributionEngine:
 
     # ── publishing ──────────────────────────────────────────────────────────
 
+    @failure_boundary
     def publish_due(self, *, now: datetime | None = None, limit: int = 50) -> PublishRound:
         """Send everything whose time has come."""
         moment = (now or _now()).isoformat()
@@ -261,7 +263,9 @@ class DistributionEngine:
                 if post["asset_id"] and self.asset_reader is not None:
                     try:
                         asset = self.asset_reader(str(post["asset_id"]))
-                    except Exception:  # noqa: BLE001 - a missing picture is a failure to report
+                    except Exception as exc:  # noqa: BLE001 - retain the existing picture-less path
+                        round_result.details.append({"post_id": post["id"], "status": "warning",
+                                                     "detail": failure_message(exc, operation="content.publish.asset", workspace=self.workspace_id)})
                         asset = None
 
                 try:
@@ -274,11 +278,12 @@ class DistributionEngine:
                     )
                 except Exception as exc:  # noqa: BLE001 - recorded, round continues
                     round_result.failed += 1
+                    message = failure_message(exc, operation="content.publish", workspace=self.workspace_id)
                     self.store.update_post(
-                        post["id"], {"status": "failed", "error": str(exc)[:500]}
+                        post["id"], {"status": "failed", "error": message}
                     )
                     round_result.details.append(
-                        {"post_id": post["id"], "status": "failed", "detail": str(exc)[:200]}
+                        {"post_id": post["id"], "status": "failed", "detail": message}
                     )
                     continue
 
@@ -376,7 +381,8 @@ class DistributionEngine:
                 continue
             try:
                 asset = self.asset_reader(str(post["asset_id"]))
-            except Exception:  # noqa: BLE001 - a deleted asset is not a crash
+            except Exception as exc:  # noqa: BLE001 - a deleted asset is not a crash
+                report_failure(exc, operation="content.metrics.asset", workspace=self.workspace_id)
                 continue
             key = f"{asset.get('provider_id', '')}:{asset.get('model_id', '')}"
             bucket = grouped.setdefault(

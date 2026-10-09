@@ -52,6 +52,11 @@ SETTING = "a deployment setting on a hosted install, set once"
 
 STORES: tuple[StoredThing, ...] = (
     StoredThing(
+        "Operational logs", "failure references and safe frame metadata; bounded access records",
+        ("logs", "logs/"), "size-capped rotating JSON lines",
+        "standard output on Render; retention is the platform's log policy",
+    ),
+    StoredThing(
         "AI settings and trust", "each workspace's providers, limits, trust changes and who made them",
         ("ai_workspaces.json", ".ai_workspace_write_lock.sqlite3"), "JSON file", PHASE_1, "ai_workspaces",
     ),

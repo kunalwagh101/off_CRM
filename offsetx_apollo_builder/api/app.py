@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hmac
-import logging
 import os
 import threading
 import uuid
@@ -21,8 +20,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
+from ..observability import FailureMiddleware, FailureReporter, reported_reference
 from ..agent.companions import CompanionError, CompanionRegistry
 from ..agent.routines import (
     RoutineAgentExecutor,
@@ -315,7 +316,6 @@ class CampaignLocks:
 #: to let go of the workspace before rolling back an interrupted restore.
 RECOVERY_WAIT_SECONDS = 120.0
 
-LOG = logging.getLogger(__name__)
 
 #: The workspace of the request being served: its login's, or `local` for the
 #: install token. "" for a request nobody signed. Unset (None) outside a request,
@@ -848,14 +848,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Offsetx-Token"],
     )
 
-    def _database_unreachable(exc: Exception) -> JSONResponse:
+    def _database_unreachable(exc: Exception, request: Request) -> JSONResponse:
         """The hosted database did not answer (S-06.03.02).
 
         A sentence and 503, not a bare 500. What failed and where goes to the
         server's log only: it names the database host, which is no business of
         every login, and readiness names the store for the owner.
         """
-        LOG.warning("A request could not reach the database: %s", exc)
+        request.state.failure_exception = exc
+        request.state.public_failure_detail = (
+            "off_CRM cannot reach its database right now. Try again in a minute; "
+            "if it keeps failing, tell the install owner."
+        )
         return security_headers(JSONResponse(status_code=503, content={"detail": (
             "off_CRM cannot reach its database right now. Try again in a minute; "
             "if it keeps failing, tell the install owner — the server's log says why."
@@ -886,7 +890,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             try:
                 caller = _request_caller(request)
             except DatabaseError as exc:
-                return _database_unreachable(exc)
+                return _database_unreachable(exc, request)
             return await serve_as(caller, request, call_next)
         sent_host = (request.headers.get("host") or "").strip().lower()
         if sent_host.startswith("["):          # [::1]:8766  ->  ::1
@@ -926,7 +930,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         try:
             caller = _request_caller(request)
         except DatabaseError as exc:
-            return _database_unreachable(exc)
+            return _database_unreachable(exc, request)
         if protected and caller is None:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
@@ -938,6 +942,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # request", which the product reader treats as a timer acting for the
         # install. An anonymous request must never be mistaken for that.
         marker = _CALLER_WORKSPACE.set(caller or "")
+        request.state.caller_workspace = caller or ""
         try:
             return security_headers(await call_next(request))
         finally:
@@ -1015,15 +1020,32 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return JSONResponse(status_code=422, content={"detail": message})
 
     @app.exception_handler(DatabaseError)
-    async def database_unavailable(_: Request, exc: DatabaseError) -> JSONResponse:
-        return _database_unreachable(exc)
+    async def database_unavailable(request: Request, exc: DatabaseError) -> JSONResponse:
+        return _database_unreachable(exc, request)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_failure(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        if exc.status_code >= 500:
+            request.state.failure_exception = exc
+            # Health's component/status shape is an operator contract. Other
+            # HTTPException details may contain arbitrary upstream content.
+            request.state.safe_failure_response = request.url.path == "/health/ready"
+        reference = reported_reference(exc)
+        if reference and exc.status_code < 500:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": f"The operation could not finish. Review the settings and retry; "
+                         f"contact the install owner if it persists. Reference: {reference}", "error_id": reference},
+                headers={**(exc.headers or {}), "X-Error-ID": reference},
+            )
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(ProviderFailure)
-    async def provider_failure_classified(_: Request, exc: ProviderFailure) -> JSONResponse:
+    async def provider_failure_classified(request: Request, exc: ProviderFailure) -> JSONResponse:
         """A failure the broker refused to work around.
 
         502 rather than 503: the upstream gave a definite answer and off_CRM
@@ -1031,10 +1053,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         owner has to do, because "try again later" is the wrong advice for a
         rejected key.
         """
+        request.state.failure_exception = exc
+        request.state.safe_failure_response = True
         return JSONResponse(status_code=502, content=exc.to_dict())
 
     @app.exception_handler(ProviderError)
-    async def provider_failure(_: Request, exc: ProviderError) -> JSONResponse:
+    async def provider_failure(request: Request, exc: ProviderError) -> JSONResponse:
+        request.state.failure_exception = exc
+        reason = str(exc)
+        if reason.startswith("No provider profile is set up for your workspace"):
+            request.state.public_failure_detail = (
+                "No provider profile is set up for your workspace. Generate with local templates instead."
+            )
+        elif 'Provider profiles to confirm' in reason:
+            request.state.public_failure_detail = (
+                'Open Settings, under "Provider profiles to confirm", and confirm your own profiles. '
+                'Until then, generate with local templates.'
+            )
         return JSONResponse(status_code=503, content={"detail": str(exc)})
 
     @app.exception_handler(SalesConflictError)
@@ -1749,7 +1784,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             routine_id=routine_id,
             limit=limit,
         )
-        return {"items": items, "total": len(items)}
+        return {"items": items, "total": len(items), "scheduler_error": (
+            request.app.state.agent_routines.last_error if _workspace_id(request) == "local" else ""
+        )}
+
+    @app.get(f"{API_PREFIX}/agent-routine-status")
+    def agent_routine_status(request: Request) -> dict[str, Any]:
+        # Run history may be the store that failed. Its scheduler's diagnosis
+        # must remain readable without querying that same store again.
+        require_install_owner(request)
+        service = request.app.state.agent_routines
+        return {"running": bool(service._task and not service._task.done()), "last_error": service.last_error}
 
     @app.get(f"{API_PREFIX}/agent-routine-notifications")
     def agent_routine_notifications(
@@ -1778,7 +1823,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/automation/run")
     def run_automation(request: Request) -> dict[str, Any]:
         results = request.app.state.automation.run_once()
-        return {"results": results, "total": len(results)}
+        return {"results": results, "total": len(results), "last_error": request.app.state.automation.last_error}
 
     @app.get(f"{API_PREFIX}/content-automation")
     def content_automation_status(request: Request) -> dict[str, Any]:
@@ -4547,4 +4592,5 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     if resolved.frontend_dist.exists():
         app.mount("/", StaticFiles(directory=resolved.frontend_dist, html=True), name="frontend")
 
+    app.add_middleware(FailureMiddleware, reporter=FailureReporter(resolved.data_dir))
     return app

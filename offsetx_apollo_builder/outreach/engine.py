@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from ..observability import failure_boundary, failure_message
 import hashlib
 import re
 import threading
@@ -228,7 +229,7 @@ class OutreachEngine:
             clean_text(row.get("variant_id")),
         )
 
-    def _count_send(self, draft: dict[str, Any]) -> None:
+    def _count_send(self, draft: dict[str, Any]) -> str | None:
         if self.template_counter is None:
             return
         template_id, variant_id = self._template_key(draft)
@@ -238,12 +239,12 @@ class OutreachEngine:
             self.template_counter.record_send(
                 workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
             )
-        except Exception:  # pragma: no cover - counting must never break sending
-            pass
+        except Exception as exc:  # pragma: no cover - counting must never break sending
+            return failure_message(exc, operation="email.counter.send", workspace=self.workspace_id)
 
     def _archive_send(
         self, campaign_id: str, campaign_contact_id: str, own_email: str, contacts: list[dict[str, Any]]
-    ) -> None:
+    ) -> str | None:
         """Add the message that just went out to the recall index.
 
         Reads the row back rather than reusing the draft, so what is indexed is
@@ -264,10 +265,10 @@ class OutreachEngine:
                 campaign_id=campaign_id,
                 owner_addresses=(own_email,) if own_email else (),
             )
-        except Exception:  # pragma: no cover - archiving must never break sending
-            pass
+        except Exception as exc:  # pragma: no cover - archiving must never break sending
+            return failure_message(exc, operation="email.archive.send", workspace=self.workspace_id)
 
-    def _archive_reply(self, message: dict[str, Any]) -> None:
+    def _archive_reply(self, message: dict[str, Any]) -> str | None:
         """Note that a sent email earned a reply. The reply itself is not stored."""
         if self.mail_archive is None:
             return
@@ -276,10 +277,10 @@ class OutreachEngine:
             return
         try:
             self.mail_archive.mark_replied(message_id)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as exc:  # pragma: no cover
+            return failure_message(exc, operation="email.archive.reply", workspace=self.workspace_id)
 
-    def _count_reply(self, message: dict[str, Any]) -> None:
+    def _count_reply(self, message: dict[str, Any]) -> str | None:
         if self.template_counter is None:
             return
         template_id, variant_id = self._template_key(message)
@@ -289,8 +290,8 @@ class OutreachEngine:
             self.template_counter.record_reply(
                 workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
             )
-        except Exception:  # pragma: no cover - counting must never break a sync
-            pass
+        except Exception as exc:  # pragma: no cover - counting must never break a sync
+            return failure_message(exc, operation="email.counter.reply", workspace=self.workspace_id)
 
     #: The one kind this engine runs. A constant so the check below reads as
     #: "this runner owns email" rather than as a bare string comparison.
@@ -621,6 +622,7 @@ class OutreachEngine:
             self.store.add_event(campaign_id, "drafts_approved", result)
             return result
 
+    @failure_boundary
     def sync_replies(
         self,
         campaign_id: str,
@@ -636,6 +638,7 @@ class OutreachEngine:
             since = (earliest - timedelta(days=1)) if earliest else (now - timedelta(days=30))
             incoming = mail_provider.list_replies(since=since, own_email=own_email)
             matched = 0
+            warnings = []
             for message in incoming:
                 updated = self.store.record_reply(campaign_id, message)
                 matched += len(updated)
@@ -650,14 +653,21 @@ class OutreachEngine:
                     # Credit the template that was actually sent, not the contact's
                     # current stage — by now the contact has usually moved on.
                     outgoing = self.store.last_outgoing(campaign_contact_id) or {}
-                    self._count_reply(outgoing)
+                    warning = self._count_reply(outgoing)
+                    if warning:
+                        warnings.append(warning)
                     # Marks the sent email as one that worked. The reply itself
                     # is mailbox content and is not stored anywhere.
-                    self._archive_reply(outgoing)
+                    warning = self._archive_reply(outgoing)
+                    if warning:
+                        warnings.append(warning)
             result = {"scanned": len(incoming), "matched": matched}
+            if warnings:
+                result["warnings"] = warnings
             self.store.add_event(campaign_id, "replies_synced", result)
             return result
 
+    @failure_boundary
     def run_due(
         self,
         campaign_id: str,
@@ -704,6 +714,7 @@ class OutreachEngine:
             allowance = max(0, int(campaign["daily_send_limit"]) - already_sent)
             if max_messages is not None:
                 allowance = min(allowance, max(0, max_messages))
+            warnings: list[str] = []
             sent: list[dict[str, str]] = []
             skipped: list[dict[str, str]] = []
             failed: list[dict[str, str]] = []
@@ -831,22 +842,27 @@ class OutreachEngine:
                         sent_body=sent_body,
                     )
                     sent.append({"draft_id": draft_id, "to": email, "stage": stage})
-                    self._count_send(draft)
+                    warning = self._count_send(draft)
+                    if warning:
+                        warnings.append(warning)
                     if self.mail_archive is not None:
                         if archive_contacts is None:
                             # Loaded once per run, and only when something will
                             # actually use it. The redaction vocabulary covers
                             # every contact, not just this recipient.
                             archive_contacts = self.store.campaign_contacts(campaign_id)
-                        self._archive_send(
+                        warning = self._archive_send(
                             campaign_id,
                             str(queued["campaign_contact_id"]),
                             own_email,
                             archive_contacts,
                         )
+                        if warning:
+                            warnings.append(warning)
                 except Exception as exc:
-                    self.store.mark_send_failed(draft_id, str(exc))
-                    failed.append({"draft_id": draft_id, "error": str(exc)})
+                    message = failure_message(exc, operation="email.send", workspace=self.workspace_id)
+                    self.store.mark_send_failed(draft_id, message)
+                    failed.append({"draft_id": draft_id, "error": message})
             result = {
                 "sent": sent,
                 "sent_count": len(sent),
@@ -858,6 +874,8 @@ class OutreachEngine:
                 "failed": failed,
                 "send_window": window,
             }
+            if warnings:
+                result["warnings"] = warnings
             self.store.add_event(campaign_id, "send_run_completed", result)
             return result
 

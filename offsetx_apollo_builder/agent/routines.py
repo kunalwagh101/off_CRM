@@ -26,6 +26,7 @@ from typing import Any, Awaitable, Callable, Mapping
 from urllib.parse import urlsplit
 
 from ..ai import DataClass, EgressBroker
+from ..observability import failure_boundary, failure_message, failure_scope
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..browser.box import BrowserBox
 from ..browser.page import Page
@@ -632,9 +633,11 @@ class RoutineService:
         self.runner = runner
         self.notifier = notifier
         self.poll_seconds = max(1.0, float(poll_seconds))
+        self.last_error = ""
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
 
+    @failure_boundary
     async def _fire(
         self,
         routine: Routine,
@@ -708,12 +711,13 @@ class RoutineService:
                 )
             execution = await runner_task
         except Exception as exc:
-            self.store.finish_run(run_id, error=str(exc))
+            message = failure_message(exc, operation="routine.run", workspace=routine.workspace_id)
+            self.store.finish_run(run_id, error=message)
             return {
                 "routine_id": routine.id,
                 "routine_run_id": run_id,
                 "status": "failed",
-                "error": str(exc)[:1000],
+                "error": message,
                 "notified": False,
             }
         finally:
@@ -806,13 +810,15 @@ class RoutineService:
 
     async def _loop(self) -> None:
         while not self._stop.is_set():
-            try:
-                await self.run_due_once()
-            except Exception:
-                # Individual failures are persisted by _fire; a scheduler-level
-                # storage error must not kill the timer forever. The next poll
-                # gets another chance and API run history remains inspectable.
-                pass
+            with failure_scope():
+                try:
+                    await self.run_due_once()
+                    self.last_error = ""
+                except Exception as exc:
+                    # Individual failures are persisted by _fire; a scheduler-level
+                    # storage error must not kill the timer forever. The next poll
+                    # gets another chance and API run history remains inspectable.
+                    self.last_error = failure_message(exc, operation="routine.scheduler")
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.poll_seconds)
             except asyncio.TimeoutError:

@@ -18,6 +18,7 @@ survive a restart, or more than one process writing.
 """
 
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 import os
@@ -65,7 +66,9 @@ def _cmd_check(args: argparse.Namespace) -> int:
     try:
         target = resolve_target(args.target or None, default=args.default or None)
     except DatabaseError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print("Reachable: no", file=sys.stderr)
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
 
     print(f"Target  : {describe_target(target)}")
@@ -77,7 +80,9 @@ def _check(target: str, args: argparse.Namespace) -> int:
     try:
         database = open_database(target)
     except DatabaseError as exc:
-        print(f"Reachable: no — {exc}", file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print("Reachable: no", file=sys.stderr)
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     try:
         database.execute("SELECT 1")
@@ -90,7 +95,7 @@ def _check(target: str, args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001 - the table may simply not exist yet
         print("Egress log: not initialised here yet")
         if args.verbose:
-            print(f"  ({exc})")
+            print("  Create the store before checking its egress log.")
     finally:
         database.close()
     return 0
@@ -101,7 +106,8 @@ def _cmd_copy_log(args: argparse.Namespace) -> int:
         with _lease(args.source, args.destination):
             result = copy_egress_log(args.source, args.destination)
     except DatabaseError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
 
     print(f"From : {result.source}")
@@ -140,7 +146,8 @@ def _cmd_copy_crm(args: argparse.Namespace) -> int:
         with _lease(args.source, args.destination):
             report = copy_crm(args.source, args.destination)
     except (CrmCopyError, DatabaseError) as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     print(report.describe())
     if not report.ok:
@@ -208,7 +215,8 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
     try:
         target = resolve_target(args.target or None, default="")
     except DatabaseError as exc:  # pragma: no cover - a default is always given
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     if not target:
         print(f"Set {DATABASE_URL_ENV}, or pass --target, to name the database.", file=sys.stderr)
@@ -226,7 +234,8 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
         with _lease(target):
             storage.forget_provider_keys()
     except DatabaseError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     finally:
         storage.close()
@@ -257,7 +266,8 @@ def _cmd_import_local(args: argparse.Namespace) -> int:
     try:
         hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
     except HostedStorageError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     if hosted is None:
         print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first: they name the database.", file=sys.stderr)
@@ -267,7 +277,8 @@ def _cmd_import_local(args: argparse.Namespace) -> int:
             hosted.check_secrets_key()
             names = import_local(hosted, root) if args.yes else skip_local(hosted, root)
     except (HostedStorageError, RegistryError, DatabaseError) as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     finally:
         hosted.close()
@@ -299,7 +310,8 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
     try:
         hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
     except HostedStorageError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     if hosted is None:
         print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first: they name the database.", file=sys.stderr)
@@ -312,7 +324,8 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
             else:
                 rows = skip_crm(hosted, crm_file)
     except (HostedStorageError, CrmCopyError, DatabaseError) as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-db")
+        print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
     finally:
         hosted.close()
@@ -324,6 +337,7 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
     return 0
 
 
+@traced_command("offsetx-db")
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-db",

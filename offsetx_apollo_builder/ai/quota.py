@@ -12,7 +12,6 @@ gives the owner a usage display even for providers with no usage endpoint.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import threading
 import time
@@ -22,8 +21,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 
 from ..db.hosted import QUOTA, HostedStorage
-
-LOG = logging.getLogger(__name__)
+from ..observability import report_failure
 
 #: Spend and call ceilings the owner can set per provider, independent of the
 #: provider's own free-tier limits.
@@ -170,7 +168,7 @@ class QuotaTracker:
                 # As with the file: a counter that could not be written must not
                 # fail the call that was already made. This process keeps the
                 # right count and the next save writes it.
-                LOG.warning("Could not save the AI usage counters: %s", type(exc).__name__)
+                report_failure(exc, operation="ai.usage.save", data_dir=self.path.parent)
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -178,8 +176,8 @@ class QuotaTracker:
                 json.dump(payload, handle, ensure_ascii=False, indent=2)
                 temporary = Path(handle.name)
             os.replace(temporary, self.path)
-        except OSError:
-            pass
+        except OSError as exc:
+            report_failure(exc, operation="ai.usage.save", data_dir=self.path.parent)
 
     def _state(self, provider_id: str) -> QuotaState:
         self._load()
@@ -231,7 +229,7 @@ class QuotaTracker:
                 state = self._state(provider_id)
             except Exception as exc:  # noqa: BLE001 - counted at the next good read
                 self._pending.append((provider_id, spend_usd, rate_limited, _today()))
-                LOG.warning("Could not read the AI usage counters: %s", type(exc).__name__)
+                report_failure(exc, operation="ai.usage.read", data_dir=self.path.parent)
                 return
             self._count(state, spend_usd, rate_limited)
             self._save()

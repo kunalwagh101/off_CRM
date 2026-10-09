@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+from ..observability import report_failure
 import os
 import sqlite3
 import tempfile
@@ -416,7 +417,7 @@ async def _restore(app, content, passphrase, *, open_runtime: OpenRuntime, close
             kept = {"restored", "schema_version", "entries", "excluded_rebuildable", "legacy_partial"}
             return {key: value for key, value in result.items() if key in kept} | {"health": "ready"}
         except Exception as exc:
-            LOG.exception("Workspace restore failed; recovering the previous generation")
+            report_failure(exc, operation="workspace.restore", data_dir=settings.data_dir)
             try:
                 close_runtime(app)
                 if result is not None:
@@ -430,9 +431,9 @@ async def _restore(app, content, passphrase, *, open_runtime: OpenRuntime, close
                 failures = runtime_health(state, settings, include_maintenance=False)
                 if failures:
                     raise RuntimeError(", ".join(failures))
-            except Exception:
+            except Exception as rollback_error:
                 state.recovery_gate.failed = True
-                LOG.exception("Workspace rollback failed; maintenance remains active")
+                report_failure(rollback_error, operation="workspace.rollback", data_dir=settings.data_dir)
                 raise HTTPException(
                     503,
                     "Recovery could not restore service health. Keep the recovery files and restart "

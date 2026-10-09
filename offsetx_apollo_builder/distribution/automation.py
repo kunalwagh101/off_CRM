@@ -51,6 +51,7 @@ from typing import Any, Callable
 
 from . import pacing
 from ..outreach.workspace_lock import WorkspaceLock
+from ..observability import ReportedFailure, failure_boundary, failure_message, failure_summary, report_failure
 
 #: An hour. Trends do not move in minutes, and a sweep costs quota — the
 #: default is chosen to be useful on a free YouTube key rather than to feel
@@ -159,12 +160,13 @@ class ContentAutomationService:
                 stored = json.loads(self.path.read_text(encoding="utf-8"))
                 if isinstance(stored, dict):
                     payload.update(stored)
-            except (OSError, json.JSONDecodeError):
+            except (OSError, json.JSONDecodeError) as exc:
                 # A corrupt settings file must not start an unattended poster
                 # with whatever half-parsed values survived.
                 self.last_error = (
                     "Content automation settings are invalid; safe defaults are active "
-                    "and nothing is enabled."
+                    "and nothing is enabled. "
+                    + failure_message(exc, operation="content.automation.settings", data_dir=self.path.parent)
                 )
                 payload = dict(DEFAULT_CONTENT_AUTOMATION)
         return self._normalise(payload)
@@ -283,6 +285,7 @@ class ContentAutomationService:
 
     # ── one cycle ───────────────────────────────────────────────────────────
 
+    @failure_boundary
     def run_once(self) -> list[dict[str, Any]]:
         # A shared lease on the workspace for the whole cycle: a restore takes
         # it exclusively, so it cannot swap the files out from under a run
@@ -301,6 +304,7 @@ class ContentAutomationService:
         if not self._run_lock.acquire(blocking=False):
             raise RuntimeError("A content automation cycle is already running")
         try:
+            self.last_error = ""
             config = self.config()
             results: list[dict[str, Any]] = []
 
@@ -338,11 +342,11 @@ class ContentAutomationService:
 
             self.last_run_at = _now()
             self.last_results = results
-            self.last_error = ""
+            self.last_error = failure_summary(results) or self.last_error
             return results
         except Exception as exc:  # noqa: BLE001 - recorded for the status panel
             self.last_run_at = _now()
-            self.last_error = str(exc)[:1000]
+            self.last_error = failure_message(exc, operation="content.automation.cycle", data_dir=self.path.parent)
             raise
         finally:
             self._run_lock.release()
@@ -383,7 +387,7 @@ class ContentAutomationService:
                 "step": "pace",
                 "distribution_campaign_id": campaign_id,
                 "status": "failed",
-                "error": str(exc)[:500],
+                "error": failure_message(exc, operation="content.automation.pace", data_dir=self.path.parent),
             }
 
         if mode == "suggest":
@@ -406,8 +410,8 @@ class ContentAutomationService:
             if abs(decision.posts_per_day - float(config.get("posts_per_day") or 0.0)) > 1e-9:
                 try:
                     self.update({"posts_per_day": decision.posts_per_day})
-                except Exception:  # noqa: BLE001 - the cycle still runs at the new rate
-                    pass
+                except Exception as exc:  # noqa: BLE001 - the cycle still runs at the new rate
+                    self.last_error = failure_message(exc, operation="content.automation.save_pace", data_dir=self.path.parent)
             used["posts_per_day"] = decision.posts_per_day
 
         return used, {
@@ -477,15 +481,16 @@ class ContentAutomationService:
                 "videos_new": report.get("videos_new"),
                 "units_spent": report.get("units_spent"),
                 "skipped": len(report.get("skipped") or []),
+                "details": report.get("skipped") or [],
             }
         except Exception as exc:  # noqa: BLE001
-            return {"step": "sweep", "status": "failed", "error": str(exc)[:500]}
+            return {"step": "sweep", "status": "failed", "error": failure_message(exc, operation="content.automation.sweep", data_dir=self.path.parent)}
         finally:
             if watcher is not None:
                 try:
                     watcher.close()
-                except Exception:  # noqa: BLE001 - closing is best effort
-                    pass
+                except Exception as exc:  # noqa: BLE001 - closing is best effort
+                    self.last_error = failure_message(exc, operation="content.automation.close", data_dir=self.path.parent)
 
     def _stopped(self, pipeline: dict[str, Any]) -> str:
         """Why this pair must make nothing this cycle, or "" when it may run."""
@@ -497,7 +502,7 @@ class ContentAutomationService:
             except KeyError:
                 return f"the {what} campaign no longer exists"
             except Exception as exc:  # noqa: BLE001 - fail closed; one pair must not cost the cycle
-                return f"the {what} campaign could not be read: {str(exc)[:120]}"
+                return f"the {what} campaign could not be read: " + failure_message(exc, operation="content.automation.campaign", data_dir=self.path.parent)
             if status != "active":
                 return f"the {what} campaign is {status}"
         return ""
@@ -531,9 +536,10 @@ class ContentAutomationService:
                 "topics_planned": planned.get("topics_planned"),
                 "topics_skipped": planned.get("topics_skipped"),
                 "candidates": planned.get("candidates"),
+                "warnings": planned.get("warnings") or [],
             }
         except Exception as exc:  # noqa: BLE001
-            return {**row, "status": "failed", "error": str(exc)[:500]}
+            return {**row, "status": "failed", "error": failure_message(exc, operation="content.automation.plan", data_dir=self.path.parent)}
 
     def _draft(self, config: dict[str, Any], pipeline: dict[str, Any]) -> dict[str, Any]:
         row = {
@@ -556,9 +562,10 @@ class ContentAutomationService:
                 "assets_considered": drafted.get("assets_considered"),
                 "posts_created": drafted.get("posts_created"),
                 "skipped": len(drafted.get("skipped") or []),
+                "warnings": drafted.get("warnings") or [],
             }
         except Exception as exc:  # noqa: BLE001
-            return {**row, "status": "failed", "error": str(exc)[:500]}
+            return {**row, "status": "failed", "error": failure_message(exc, operation="content.automation.draft", data_dir=self.path.parent)}
 
     def _publish_due(self) -> dict[str, Any]:
         """Send what a person already approved and scheduled.
@@ -573,13 +580,14 @@ class ContentAutomationService:
             round_ = engine.publish_due().to_dict()
             return {
                 "step": "publish_due",
-                "status": "ok",
+                "status": "failed" if round_.get("failed") else "ok",
                 "published": round_.get("published"),
                 "failed": round_.get("failed"),
                 "skipped": round_.get("skipped"),
+                "details": round_.get("details") or [],
             }
         except Exception as exc:  # noqa: BLE001
-            return {"step": "publish_due", "status": "failed", "error": str(exc)[:500]}
+            return {"step": "publish_due", "status": "failed", "error": failure_message(exc, operation="content.automation.publish", data_dir=self.path.parent)}
 
     # ── the timer ───────────────────────────────────────────────────────────
 
@@ -609,7 +617,12 @@ class ContentAutomationService:
         immediately from whatever state the app happened to boot in.
         """
         while not self._stop.is_set():
-            config = self.config()
+            try:
+                config = self.config()
+            except Exception as exc:
+                reference = report_failure(exc, operation="content.automation.timer", data_dir=self.path.parent)
+                self.last_error = failure_message(ReportedFailure(reference), operation="content.automation.timer")
+                raise ReportedFailure(reference) from None
             try:
                 await asyncio.wait_for(
                     self._stop.wait(), timeout=int(config["interval_seconds"])

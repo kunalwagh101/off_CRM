@@ -7,7 +7,7 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-10-04
+Last updated: 2026-10-09
 Branch: `develop` — the one working branch. Every line of work was merged or
 ported into it on 2026-09-23; `docs/BRANCHING.md` says what came from where.
 The 45 old branches are still on GitHub until the owner runs
@@ -48,6 +48,43 @@ a code defect: `scrapling` is declared in `pyproject.toml` but omitted from
 session-start hook installs via `uv sync --extra dev` and the test passes.
 
 
+
+## 2026-10-09 — Five-feature programme, develop only
+
+Owner selected F-06.02 reliability, F-06.03 hosted recovery, F-04.01 agent team,
+F-06.01 team operations and F-12.02 GTM strategy. The concrete story queue and
+upstream/owner/access gates are in `docs/DEVELOP_NEXT_WORK.md`. No branches or
+worktrees were created; the old main-based work remains archived/stashed and
+was not applied. Current scan base is develop `4b80d7c`.
+
+S-06.02.38 traceable errors is IN_REVIEW, code review clear. API/CLI/job
+references, safe lifecycle protocol messages, bounded local logs, fresh cycle
+scopes, workspace metadata and visible Settings/Posting status are implemented.
+D-243–D-253 record the review findings and resolutions. The independent reviewer
+ended with no remaining code finding. The exact ledger is
+`docs/evidence/S-06.02.38-validation.md`; this is not DONE or a deployed release.
+
+Locked dev/email/postgres extras installed. Use UV_CACHE_DIR=/tmp/off-crm-uv-cache
+and UV_TOOL_DIR=/tmp/off-crm-uv-tools (home directories read-only); frontend cache
+/tmp/off-crm-npm-cache. Baseline: 2569 passed, 22 failed, 22 skipped (21 Chromium
+sandbox, one uvx cache fixed by override). Broad final regression run: 2612 passed,
+21 Chromium failures, 22 skipped. Subsequent final affected run: 314 passed,
+14 PostgreSQL skips, covering the last routine/safe-summary fixes. Frontend:
+175 passed; production build passed with its existing large-chunk advisory.
+Ruff and structural board checks passed. Whole-board run: 70 commands, 42
+passed; Chromium environment prevents a green full-board gate. No sandbox or
+test was disabled. Raw logs are copied to /workspace/artifacts/S-06.02.38.
+
+Current real HTTP-process injected failure: status 500, one matching safe
+record, local workspace. Earlier installed offsetx-db failure: exit 2, one
+matching reference, password absent. Actual previous-revision process rollback
+had readiness 200 and preserved the disposable CRM row/log bytes. No live
+provider, PostgreSQL database, Render retention, deployment or CI pass claimed.
+
+Owner authorised commit/push only to develop. Preserve the main-based archive
+and stash. Continue the selected programme from the queue and actual board;
+prepare the next independent READY slice and keep upstream/owner/access gates
+open. Ending a task or a usage reset does not automatically resume work.
 
 ## 2026-10-04 — Screen navigation keeps its top in view (`S-06.02.25`)
 

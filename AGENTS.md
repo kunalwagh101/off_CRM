@@ -19,6 +19,13 @@ project. The work is here.
 
 **Two branches: `develop` and `main`.** Commit and push to `develop`; `main` is
 promoted from it after checking. Do not create other branches.
+**Standing owner instruction, reaffirmed 2026-10-09:** all agent work, edits,
+commits and pushes use `develop` only. Do not create feature, task, session or
+work branches, and do not create a Git worktree. If the cloud checkout starts
+on another branch, preserve local changes and switch to the existing `develop`
+before editing. Do not push to or promote `main` unless the owner explicitly
+requests a separate promotion. Verify the current branch before each commit
+and use `git push origin develop` for an authorised push; never force-push.
 `docs/BRANCHING.md` has the workflow, the Render services, and where every older
 branch went (each is kept as a tag `archive/<branch>` once the owner has run
 `scripts/archive_old_branches.sh`, which a cloud session is not allowed to).
@@ -70,6 +77,9 @@ Design documents live in `docs/architecture/`.
 
 **What to work on next: `BOARD.md`.** Pull only a READY item; each carries a
 `work_order:` line naming the plan to follow, in `docs/work-orders/`.
+`docs/DEVELOP_NEXT_WORK.md` records the 2026-10-09 branch scan and proposed next
+capabilities. It is a priority plan, not a replacement for board readiness or
+test evidence. Inspect `develop` before assuming an older chat's feature is new.
 
 **Two logs are kept, and both are enforced by `scripts/verify_board.py`:**
 

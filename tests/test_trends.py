@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import json
 
 import pytest
 
@@ -106,6 +107,19 @@ def watcher(tmp_path: Path, fake):
     made = TrendWatcher(database_path=tmp_path / "trends.db", client=client)
     yield made
     made.close()
+
+
+def test_caught_sweep_error_exposes_one_safe_reference(watcher, fake, monkeypatch, capsys):
+    fake.add_channel("c1", "Depot", "p1")
+    watcher.watch("@Depot")
+    def failed(*_, **__):
+        raise YouTubeError("private-customer-content and secret-api-key")
+    monkeypatch.setattr(watcher.client, "recent_uploads", failed)
+    result = watcher.sweep().to_dict()
+    failures = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+    assert len(failures) == 1 and failures[0]["error_id"] in json.dumps(result)
+    assert "private-customer-content" not in json.dumps(result)
+    assert "secret-api-key" not in json.dumps(result)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

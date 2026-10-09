@@ -176,7 +176,8 @@ def test_a_future_post_is_not_published_yet(engine):
     assert engine.publish_due().published == 0
 
 
-def test_a_publisher_failure_is_recorded_and_does_not_stop_the_round(engine):
+def test_a_publisher_failure_is_recorded_and_does_not_stop_the_round(engine, capsys):
+    engine.workspace_id = "synthetic-workspace"
     class Broken:
         def __init__(self):
             self.calls = 0
@@ -184,7 +185,7 @@ def test_a_publisher_failure_is_recorded_and_does_not_stop_the_round(engine):
         def publish(self, **kwargs):
             self.calls += 1
             if self.calls == 1:
-                raise RuntimeError("platform returned 503")
+                raise RuntimeError("private-customer-content and secret-cookie")
             return {"external_id": "ok"}
 
     engine.publisher = Broken()
@@ -197,7 +198,12 @@ def test_a_publisher_failure_is_recorded_and_does_not_stop_the_round(engine):
     result = engine.publish_due()
     assert result.failed == 1 and result.published == 1
     failed = engine.store.list_posts(CAMPAIGN, status="failed")
-    assert "503" in failed[0]["error"]
+    failures = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+    assert len(failures) == 1
+    assert failures[0]["error_id"] in failed[0]["error"]
+    assert failures[0]["workspace"] == "synthetic-workspace"
+    assert "private-customer-content" not in json.dumps(result.to_dict())
+    assert "secret-cookie" not in failed[0]["error"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

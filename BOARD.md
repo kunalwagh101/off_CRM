@@ -23,6 +23,10 @@ reaches DONE only with the evidence block `DEFINITION_OF_DONE.md` describes.
 **WIP limit: `IN_PROGRESS` ≤ 2.** Nothing is pulled while an item sits in
 `IN_PROGRESS` or `BLOCKED`.
 
+The owner's selected five-feature queue and its prerequisites are recorded in
+`docs/DEVELOP_NEXT_WORK.md`. Its first delivery slice is `S-06.02.38`; selection
+does not waive READY, evidence or existing escalations. Use `develop` only.
+
 ---
 
 ## BACKLOG
@@ -90,7 +94,6 @@ workspace `local` acts as the install owner with nothing asking for that.)*
 *(Filed 2026-10-04 from the owner's instruction: every error traceable the
 next day, `AGENTS.md` "Logging".)*
 
-- S-06.02.38 · Any error can be traced back the next day
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
 - S-06.03.05 · Production refuses a half-hosted install
@@ -141,7 +144,12 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
+
 ## IN_REVIEW
+
+- S-06.02.38 · Any error can be traced back the next day
+  work_order: docs/work-orders/S-06.02.38-traceable-errors.md
+  review: docs/evidence/S-06.02.38-validation.md; independent code review clear; Chromium, full-board and hosted verification gated
 
 *(Code and tests pass; DONE waits for a review in a context that did not
 write the code, then the evidence block.)*

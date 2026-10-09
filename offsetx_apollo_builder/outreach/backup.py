@@ -714,6 +714,6 @@ def discard_restore_safety(result: dict[str, Any]) -> None:
         # restored generation and retries cleanup, never rolls back good data.
         try:
             recover_interrupted_restore(database_path=database, data_dir=data)
-        except OSError:
-            import logging
-            logging.getLogger(__name__).exception("Committed restore cleanup needs retry at startup")
+        except OSError as exc:
+            from ..observability import report_failure
+            report_failure(exc, operation="workspace.restore.cleanup", data_dir=data)

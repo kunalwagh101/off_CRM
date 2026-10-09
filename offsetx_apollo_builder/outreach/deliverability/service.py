@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ...observability import failure_boundary, failure_message
 
 import hashlib
 import re
@@ -305,6 +306,7 @@ class EmailDeliveryService:
         finally:
             self._worker_lock.release()
 
+    @failure_boundary
     def _send_job(self, job: dict[str, Any], *, now: datetime) -> dict[str, Any]:
         contact = self.engine.store.get_campaign_contact(
             str(job["campaign_id"]), str(job["campaign_contact_id"])
@@ -373,33 +375,36 @@ class EmailDeliveryService:
                 idempotency_key=str(job["idempotency_key"]),
             )
         except RetryableDeliveryError as exc:
+            message = failure_message(exc, operation="email.delivery.retry", workspace=self.engine.workspace_id)
             if int(job["attempt_count"]) >= 5:
                 self.store.mark_terminal(
-                    str(job["id"]), status="failed", error=f"Retry limit reached: {exc}"
+                    str(job["id"]), status="failed", error=f"Retry limit reached: {message}"
                 )
-                return {"job_id": job["id"], "status": "failed", "error": str(exc)}
+                return {"job_id": job["id"], "status": "failed", "error": message}
             delay = exc.retry_after_seconds or min(3600, 5 * (2 ** max(0, int(job["attempt_count"]) - 1)))
             self.store.mark_retry(
-                str(job["id"]), error=str(exc), available_at=now + timedelta(seconds=delay)
+                str(job["id"]), error=message, available_at=now + timedelta(seconds=delay)
             )
             return {
                 "job_id": job["id"],
                 "status": "retry_wait",
                 "retry_after_seconds": delay,
-                "error": str(exc),
+                "error": message,
             }
         except PermanentDeliveryError as exc:
-            self.store.mark_terminal(str(job["id"]), status="failed", error=str(exc))
-            return {"job_id": job["id"], "status": "failed", "error": str(exc)}
+            message = failure_message(exc, operation="email.delivery.failed", workspace=self.engine.workspace_id)
+            self.store.mark_terminal(str(job["id"]), status="failed", error=message)
+            return {"job_id": job["id"], "status": "failed", "error": message}
         except AmbiguousDeliveryError as exc:
+            message = "Delivery state is unknown; do not resend without checking. " + failure_message(exc, operation="email.delivery.unknown", workspace=self.engine.workspace_id)
             self.store.mark_terminal(
-                str(job["id"]), status="delivery_unknown", error=str(exc)
+                str(job["id"]), status="delivery_unknown", error=message
             )
-            return {"job_id": job["id"], "status": "delivery_unknown", "error": str(exc)}
+            return {"job_id": job["id"], "status": "delivery_unknown", "error": message}
         except Exception as exc:
             # Unknown provider exceptions are ambiguous. Retrying automatically
             # could contact the same person twice.
-            message = f"Provider state is unknown: {str(exc)[:900]}"
+            message = "Provider state is unknown; do not resend without checking. " + failure_message(exc, operation="email.delivery.unknown", workspace=self.engine.workspace_id)
             self.store.mark_terminal(
                 str(job["id"]), status="delivery_unknown", error=message
             )

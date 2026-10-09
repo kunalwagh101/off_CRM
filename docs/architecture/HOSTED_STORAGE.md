@@ -207,8 +207,10 @@ it is pointed at. No real install was available to measure — the two on Render
 are wiped — so the owner's numbers are still to be taken.
 
 <!-- inventory:start -->
+
 | Store | What is lost if it is wiped | Kept today | On the hosted topology |
 |---|---|---|---|
+| Operational logs | failure references and safe frame metadata; bounded access records | size-capped rotating JSON lines | standard output on Render; retention is the platform's log policy |
 | AI settings and trust | each workspace's providers, limits, trust changes and who made them | JSON file | hosted database — `S-06.03.02` |
 | Provider keys | every key typed in Connectors, encrypted | encrypted file and its key file | hosted database — `S-06.03.02`; the key that opens them is `OFFSETX_SECRETS_KEY` |
 | Spend and call counters | how much of each daily limit is used | JSON file | hosted database — `S-06.03.02` |
@@ -237,6 +239,7 @@ are wiped — so the owner's numbers are still to be taken.
 | Media and outboxes | picture files, rendered video, post and mail outboxes, exports | files | files: lost on a free-plan deploy until object storage is decided |
 | Install secrets | the session-signing secret, the local API token, the unsubscribe-link key | files | a deployment setting on a hosted install, set once: `OFFSETX_SESSION_SECRET`, `OFFSETX_UNSUBSCRIBE_SECRET` |
 | Restore and lease files | an interrupted restore's journal and the workspace lease | files | local only: a hosted install refuses local backup |
+
 <!-- inventory:end -->
 
 ## What does not change

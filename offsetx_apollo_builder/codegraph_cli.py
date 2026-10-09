@@ -14,6 +14,7 @@ have to be taken on trust.
 """
 
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 import sys
@@ -68,10 +69,9 @@ def _cmd_build(args: argparse.Namespace) -> int:
     try:
         result = graph.build(workers=args.workers)
     except GraphRejected as exc:
+        report_failure(exc, operation="offsetx-codegraph")
         print("\nGraph rejected and deleted.\n", file=sys.stderr)
-        print(exc.check.summary(), file=sys.stderr)
-        for path in exc.check.offending[:20]:
-            print(f"  {path}: {exc.check.reasons[path]}", file=sys.stderr)
+        print(failure_message(exc, operation="offsetx-codegraph"), file=sys.stderr)
         print(
             "\nThis means something under a runtime-data path was indexed. Check "
             f"{graph.root / '.graphifyignore'} and .gitignore before rebuilding.",
@@ -115,6 +115,7 @@ def _cmd_ignore(args: argparse.Namespace) -> int:
     return 0
 
 
+@traced_command("offsetx-codegraph")
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="offsetx-codegraph",
@@ -145,7 +146,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return int(args.func(args))
     except CodeGraphError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-codegraph")
+        print(failure_message(exc, operation="offsetx-codegraph"), file=sys.stderr)
         return 2
 
 

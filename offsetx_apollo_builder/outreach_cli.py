@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 import json
@@ -119,9 +120,11 @@ def _refuse_a_hidden_local_crm(crm: str) -> None:
     try:
         refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
     except HostedStorageError as exc:
-        raise SystemExit(str(exc)) from None
+        report_failure(exc, operation="offsetx-outreach")
+        raise SystemExit(failure_message(exc, operation="offsetx-outreach")) from exc
 
 
+@traced_command("offsetx-outreach")
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     args = _parser().parse_args(argv)
@@ -234,7 +237,8 @@ def _run(args: argparse.Namespace) -> int:
     except CampaignKindError as exc:
         # These carry a written explanation — which kind, and what is missing.
         # A traceback would bury it under a stack the reader cannot act on.
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-outreach")
+        print(failure_message(exc, operation="offsetx-outreach"), file=sys.stderr)
         return 2
     finally:
         engine.close()

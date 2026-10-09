@@ -13,6 +13,7 @@ cheaper than after.
 """
 
 from __future__ import annotations
+from .observability import failure_message, report_failure, traced_command
 
 import argparse
 import os
@@ -72,7 +73,8 @@ def _exporter(args: argparse.Namespace) -> tuple[NotebookExport, OutreachStore, 
         try:
             refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
         except HostedStorageError as exc:
-            raise SystemExit(str(exc)) from None
+            report_failure(exc, operation="offsetx-notebook")
+            raise SystemExit(failure_message(exc, operation="offsetx-notebook")) from exc
     store = OutreachStore(crm)
     store.initialize()
     context: ContextLayer | None = None
@@ -154,9 +156,10 @@ def _cmd_export(args: argparse.Namespace) -> int:
         )
         result = exporter.export(args.campaign, target, args.out)
     except NotebookExportBlocked as exc:
+        report_failure(exc, operation="offsetx-notebook")
         print("Export blocked. Nothing was written.\n", file=sys.stderr)
-        for finding in exc.report.findings:
-            print(f"  {finding.kind} at {finding.location}: {finding.detail}", file=sys.stderr)
+        print(failure_message(exc, operation="offsetx-notebook"), file=sys.stderr)
+        print("Review the export policy and permitted fields before retrying.", file=sys.stderr)
         return 2
     finally:
         store.close()
@@ -220,6 +223,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced_command("offsetx-notebook")
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     # `targets` reads nothing from the workspace, so it answers during a restore.
@@ -230,10 +234,12 @@ def main(argv: list[str] | None = None) -> int:
         with lease:
             return int(args.func(args))
     except NotebookExportError as exc:
-        print(str(exc), file=sys.stderr)
+        report_failure(exc, operation="offsetx-notebook")
+        print(failure_message(exc, operation="offsetx-notebook"), file=sys.stderr)
         return 2
     except KeyError as exc:
-        print(f"Not found: {exc}", file=sys.stderr)
+        report_failure(exc, operation="offsetx-notebook")
+        print(failure_message(exc, operation="offsetx-notebook"), file=sys.stderr)
         return 2
 
 

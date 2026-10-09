@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Traceable failures** (`S-06.02.38`, in review): failed API requests expose
+  a reference matched to a secret-safe JSON record. Worker/job status and
+  command failures carry references too. Local logs rotate under the data
+  directory; Render uses stdout. Recovery leases still protect the workspace.
+  Unexpected command errors return nonzero and unexpected request errors
+  return a structured 500 rather than a successful fallback. Independent code review and local checks passed; Chromium, CI and hosted
+  verification remain gated. Timer status is displayed in Settings and Posting;
+  routine scheduler status remains readable independently of run history.
+
 - **Screens open at their top** (2026-10-04, `S-06.02.25`). Navigation keeps
   keyboard focus on the main content without scrolling it beneath the sticky
   bar, then resets the page to its top. Campaign warnings stay visible at

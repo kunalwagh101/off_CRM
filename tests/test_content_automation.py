@@ -407,6 +407,17 @@ def test_the_steps_are_the_four_the_pipeline_actually_has():
         assert DEFAULT_CONTENT_AUTOMATION[step] is True
 
 
+def test_a_swallowed_step_failure_is_visible_in_the_status(service, parts, capsys):
+    parts["watcher"].fail = True
+    service.run_once()
+    failures = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+    assert len(failures) == 1
+    assert failures[0]["error_id"] in service.status()["last_error"]
+    parts["watcher"].fail = False
+    service.run_once()
+    assert service.status()["last_error"] == ""
+
+
 def test_this_service_owns_no_transport():
     """Structural: it knows the order of the work and nothing about trends,
     posting, or providers. A module that could reach a provider directly would

@@ -641,9 +641,13 @@ def test_a_bug_in_the_model_call_is_not_disguised_as_no_model(client, monkeypatc
         raise ZeroDivisionError("a real bug")
 
     fake_model_calls(monkeypatch, client.app.state.ai_broker, broken)
-    with pytest.raises(ZeroDivisionError):
-        client.post("/api/v1/gtm/plans", json={"product_id": product_id, "goal_kind": "replies",
+    answer = client.post("/api/v1/gtm/plans", json={"product_id": product_id, "goal_kind": "replies",
                                                "goal_target": 20})
+    # S-06.02.38 makes unexpected bugs a safe 500 with a log reference. They
+    # still must never be converted into a successful rules-based fallback.
+    assert answer.status_code == 500
+    assert answer.json()["error_id"] in answer.json()["detail"]
+    assert "channels" not in answer.json()
 
 
 def test_an_infinite_volume_is_treated_as_no_number():

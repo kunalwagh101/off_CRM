@@ -55,6 +55,7 @@ key: a pipeline that cannot run offline is one that stops when a key expires.
 """
 
 from __future__ import annotations
+from ..observability import failure_message
 
 import hashlib
 from dataclasses import dataclass, field
@@ -119,6 +120,7 @@ class PipelineRun:
     topics_skipped: int = 0
     candidates: int = 0
     planned: list[PlannedTopic] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -127,6 +129,7 @@ class PipelineRun:
             "topics_skipped": self.topics_skipped,
             "candidates": self.candidates,
             "planned": [item.to_dict() for item in self.planned],
+            "warnings": list(self.warnings),
         }
 
 
@@ -138,6 +141,7 @@ class DraftRun:
     posts_created: int = 0
     posts: list[dict[str, Any]] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -145,6 +149,7 @@ class DraftRun:
             "posts_created": self.posts_created,
             "posts": list(self.posts),
             "skipped": list(self.skipped),
+            "warnings": list(self.warnings),
         }
 
 
@@ -241,7 +246,7 @@ class TrendPipeline:
                 )
                 continue
 
-            brief_text = self._write_brief(topic, angle=angle)
+            brief_text = self._write_brief(topic, angle=angle, warnings=run.warnings)
             brief_id = self.images.add_brief(
                 image_campaign_id,
                 brief=brief_text,
@@ -315,7 +320,7 @@ class TrendPipeline:
                 run.skipped.append({"asset_id": asset_id, "reason": "already posted"})
                 continue
             topic = self._topic_for_brief(str(asset.get("brief_id", "")))
-            caption = self._write_caption(topic, angle=angle)
+            caption = self._write_caption(topic, angle=angle, warnings=run.warnings)
             for account_id in account_ids:
                 post = self.distribution.plan_post(
                     distribution_campaign_id,
@@ -329,7 +334,7 @@ class TrendPipeline:
 
     # ── composition ─────────────────────────────────────────────────────────
 
-    def _write_brief(self, topic: dict[str, Any], *, angle: str) -> str:
+    def _write_brief(self, topic: dict[str, Any], *, angle: str, warnings: list[str] | None = None) -> str:
         fallback = compose_brief(topic, angle=angle)
         if self.writer is None:
             return fallback
@@ -345,11 +350,14 @@ class TrendPipeline:
             prompt += f"\nOur angle: {angle}"
         try:
             written = str(self.writer("brief", prompt) or "").strip()
-        except Exception:  # noqa: BLE001 - a writer failure falls back, never breaks the run
+        except Exception as exc:  # noqa: BLE001 - a writer failure falls back, never breaks the run
+            message = failure_message(exc, operation="content.writer.brief")
+            if warnings is not None:
+                warnings.append(message)
             return fallback
         return written or fallback
 
-    def _write_caption(self, topic: dict[str, Any], *, angle: str) -> str:
+    def _write_caption(self, topic: dict[str, Any], *, angle: str, warnings: list[str] | None = None) -> str:
         fallback = compose_caption(topic, angle=angle)
         if self.writer is None or not topic:
             return fallback
@@ -363,7 +371,10 @@ class TrendPipeline:
             prompt += f"\nOur angle: {angle}"
         try:
             written = str(self.writer("caption", prompt) or "").strip()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            message = failure_message(exc, operation="content.writer.caption")
+            if warnings is not None:
+                warnings.append(message)
             return fallback
         return written[:400] or fallback
 

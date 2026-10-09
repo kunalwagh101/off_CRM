@@ -1,5 +1,10 @@
 # Branches: two, and where everything went
 
+**Agent working scope, reaffirmed by the owner 2026-10-09:** work and push only
+to `develop`. No additional branches or worktrees. The `main` promotion steps
+below are a separate operator workflow and require an explicit owner request;
+they are not permission for an agent to promote routine feature work.
+
 **The rule.** This repository has two branches.
 
 | Branch | What it is | Render service |

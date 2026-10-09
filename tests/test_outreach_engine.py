@@ -17,6 +17,34 @@ def _write_contacts(path, rows: str) -> None:
     path.write_text(HEADERS + rows, encoding="utf-8")
 
 
+def test_failed_send_counter_is_visible_without_repeating_a_sent_message(tmp_path, capsys):
+    contacts = tmp_path / "contacts.csv"
+    _write_contacts(contacts, "Anita Rao,anita@example.com,Example,Lead,CBAM,Published brief,https://example.com,Supplier handoff\n")
+    engine = OutreachEngine(tmp_path / "crm.db")
+    try:
+        campaign = engine.create_campaign(name="Counter failure")
+        engine.import_contacts(campaign, contacts)
+        engine.generate_drafts(campaign, stages=["initial"])
+        engine.approve_drafts(campaign, stages=["initial"])
+        class BrokenCounter:
+            def record_send(self, **kwargs):
+                raise RuntimeError("private-customer-secret")
+        engine.template_counter = BrokenCounter()
+        result = engine.run_due(campaign, mail_provider=LocalOutboxProvider(tmp_path / "mail"),
+                                own_email="owner@example.com", sync_replies_first=False,
+                                now=datetime.now(timezone.utc) + timedelta(minutes=1))
+        assert result["sent_count"] == 1 and result["failed"] == []
+        failures = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith('{')]
+        assert len(failures) == 1
+        assert failures[0]["error_id"] in json.dumps(result)
+        assert "private-customer-secret" not in json.dumps(result)
+        again = engine.run_due(campaign, mail_provider=LocalOutboxProvider(tmp_path / "mail"),
+                               own_email="owner@example.com", sync_replies_first=False)
+        assert again["sent_count"] == 0
+    finally:
+        engine.close()
+
+
 def test_sequence_send_daily_cap_and_reply_stop(tmp_path):
     contacts = tmp_path / "contacts.csv"
     _write_contacts(

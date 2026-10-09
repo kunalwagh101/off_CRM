@@ -98,8 +98,9 @@ def test_a_gmail_send_reads_the_token_where_the_web_app_reads_it(tmp_path, monke
         raise Stop
 
     monkeypatch.setattr(outreach_cli, "GmailMailProvider", provider)
-    with pytest.raises(Stop):
-        outreach_cli.main(["send", "c1", "--mode", "gmail", "--confirm", "SEND LIVE EMAILS"])
+    # S-06.02.38 reports unexpected command failures and returns nonzero;
+    # the injected stop still proves which token was opened before any send.
+    assert outreach_cli.main(["send", "c1", "--mode", "gmail", "--confirm", "SEND LIVE EMAILS"]) == 1
     assert opened == [durable / "gmail_token.json"]
 
 

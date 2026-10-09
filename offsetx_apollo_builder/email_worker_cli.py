@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .observability import failure_message, failure_scope, traced_command
 
 import argparse
 import json
@@ -75,6 +76,7 @@ def _service(settings: AppSettings, engine: OutreachEngine) -> EmailDeliveryServ
     )
 
 
+@traced_command("offsetx-email-worker")
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if not 1 <= args.max_jobs <= 500:
@@ -90,60 +92,61 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
     try:
         while True:
-            try:
-                # Reopen each cycle after taking the shared lease, so a worker
-                # never keeps a connection to the old generation after a
-                # restore swaps the workspace (S-06.02.21).
-                with WorkspaceLock(settings.data_dir):
-                    # Checked under the lease: a restore writes its journal while
-                    # holding the exclusive one, so this cannot race it. A journal
-                    # seen here is a half-restored workspace nobody has rolled
-                    # back yet — the web app's start-up does that (D-129).
-                    if restore_pending(settings.data_dir):
-                        raise WorkspaceBusy("restore pending")
-                    settings.prepare()
-                    # The CRM the web app opens: `--database`, then
-                    # OFFSETX_DATABASE_URL, then the file. Reopening only the
-                    # file sent nothing once the CRM was in the database.
-                    crm = resolve_target(args.database, default=settings.database_path)
-                    if not args.database:
-                        # Not while a local CRM file holds the owner's rows: it
-                        # would work the database's CRM and leave theirs unsent.
+            with failure_scope():
+                try:
+                    # Reopen each cycle after taking the shared lease, so a worker
+                    # never keeps a connection to the old generation after a
+                    # restore swaps the workspace (S-06.02.21).
+                    with WorkspaceLock(settings.data_dir):
+                        # Checked under the lease: a restore writes its journal while
+                        # holding the exclusive one, so this cannot race it. A journal
+                        # seen here is a half-restored workspace nobody has rolled
+                        # back yet — the web app's start-up does that (D-129).
+                        if restore_pending(settings.data_dir):
+                            raise WorkspaceBusy("restore pending")
+                        settings.prepare()
+                        # The CRM the web app opens: `--database`, then
+                        # OFFSETX_DATABASE_URL, then the file. Reopening only the
+                        # file sent nothing once the CRM was in the database.
+                        crm = resolve_target(args.database, default=settings.database_path)
+                        if not args.database:
+                            # Not while a local CRM file holds the owner's rows: it
+                            # would work the database's CRM and leave theirs unsent.
+                            try:
+                                refuse_a_hidden_local_crm(crm, settings.database_path, settings.secrets_key)
+                            except HostedStorageError as exc:
+                                raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
+                        engine = OutreachEngine(crm)
                         try:
-                            refuse_a_hidden_local_crm(crm, settings.database_path, settings.secrets_key)
-                        except HostedStorageError as exc:
-                            raise SystemExit(str(exc)) from None
-                    engine = OutreachEngine(crm)
-                    try:
-                        result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
-                    finally:
-                        engine.close()
-                    print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
-                    failures = 0
-            except (DatabaseUnavailable, DatabaseBusy) as exc:
-                # Away for a moment — a sleeping Neon compute, a dropped
-                # connection, a busy writer — ended a watching worker and mail
-                # stopped until someone restarted it (review finding 4). A
-                # setting that is wrong is a DatabaseError of another kind, and
-                # still stops it: retrying would only hide it.
-                if not args.watch:
-                    raise SystemExit(str(exc)) from None
-                failures += 1
-                wait = min(args.poll_seconds * 2 ** failures, 60.0)
-                print(f"{exc} Trying again in {wait:g} s.", file=sys.stderr, flush=True)
-                time.sleep(wait)
-                continue
-            except DatabaseError as exc:
-                # A target that is wrong, not away: say so and stop, rather than
-                # a traceback, or a retry that would only hide it.
-                raise SystemExit(str(exc)) from None
-            except WorkspaceBusy:
-                if not args.watch:
-                    raise SystemExit(
-                        "A backup restore is in progress or waiting to be rolled back. Start "
-                        "the web app if it is stopped, and retry the worker once its "
-                        "readiness check passes."
-                    )
+                            result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
+                        finally:
+                            engine.close()
+                        print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
+                        failures = 0
+                except (DatabaseUnavailable, DatabaseBusy) as exc:
+                    # Away for a moment — a sleeping Neon compute, a dropped
+                    # connection, a busy writer — ended a watching worker and mail
+                    # stopped until someone restarted it (review finding 4). A
+                    # setting that is wrong is a DatabaseError of another kind, and
+                    # still stops it: retrying would only hide it.
+                    if not args.watch:
+                        raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
+                    failures += 1
+                    wait = min(args.poll_seconds * 2 ** failures, 60.0)
+                    print(f"{failure_message(exc, operation='email.worker.cycle', data_dir=settings.data_dir)} Trying again in {wait:g} s.", file=sys.stderr, flush=True)
+                    time.sleep(wait)
+                    continue
+                except DatabaseError as exc:
+                    # A target that is wrong, not away: say so and stop, rather than
+                    # a traceback, or a retry that would only hide it.
+                    raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
+                except WorkspaceBusy:
+                    if not args.watch:
+                        raise SystemExit(
+                            "A backup restore is in progress or waiting to be rolled back. Start "
+                            "the web app if it is stopped, and retry the worker once its "
+                            "readiness check passes."
+                        )
             if not args.watch:
                 return 0
             time.sleep(args.poll_seconds)

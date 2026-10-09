@@ -34,6 +34,7 @@ type Account = {
 };
 
 type Automation = {
+  last_error: string;
   posts_per_day: number;
   pace_mode: "off" | "suggest" | "auto";
   pending_pace: {
@@ -186,6 +187,8 @@ export default function Posting() {
         title="How much goes out"
         description="You set the ceiling. The engine works out the ideal rate and asks."
       />
+
+      {automation?.last_error ? <StatePanel tone="error" title="Some posting work could not finish" description={automation.last_error} /> : null}
 
       {waiting ? (
         <Panel title="A suggestion is waiting" subtitle="Nothing has changed yet.">

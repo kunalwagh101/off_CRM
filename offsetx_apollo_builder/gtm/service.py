@@ -106,6 +106,7 @@ class GtmService:
         goals_of: Callable[[str], Sequence[Mapping[str, Any]]] | None = None,
         lock: Callable[[str], AbstractContextManager[Any]] | None = None,
         readers: Readers | None = None,
+        register_posting: Callable[[dict[str, Any]], Any] | None = None,
     ) -> None:
         self.store = store
         self.workspace_id = workspace_id
@@ -128,6 +129,7 @@ class GtmService:
         self.lock = lock
         #: What a review measures with. ``None`` means reviews are not wired.
         self.readers = readers
+        self.register_posting = register_posting
 
     # ── capacity and vocabulary ─────────────────────────────────────────────
 
@@ -358,7 +360,8 @@ class GtmService:
         The lock refuses a second apply of the same plan while one runs.
         """
         self._apply_ready()
-        with self.lock(f"gtm-plan:{plan_id}"):
+        root_id = self.store.get_plan(plan_id, self.workspace_id)["root_id"]
+        with self.lock(f"gtm-plan:{root_id}"):
             plan = self.store.get_plan(plan_id, self.workspace_id)
             if plan["status"] != "draft":
                 raise PlanStateError(
@@ -391,6 +394,17 @@ class GtmService:
                 created.append(
                     self._apply_channel(plan, product, request, channel, existing, statuses, notes)
                 )
+            paired = {row["kind"]: row["campaign_id"] for row in created}
+            if "distribution" in paired and "image" in paired:
+                if self.workspace_id == "local" and self.register_posting is not None:
+                    channel = next(row for row in plan["plan"]["channels"] if row["kind"] == "distribution")
+                    self.register_posting({
+                        "distribution_campaign_id": paired["distribution"],
+                        "image_campaign_id": paired["image"], "plan_id": plan_id,
+                        "posts_per_day": float(channel.get("daily_volume") or 0), "angle": "", "account_ids": [],
+                    })
+                else:
+                    notes.append("Pairing this plan into posting needs the install owner; its campaigns remain available for review.")
             # A revision that dropped a channel pauses its campaign, never deletes
             # it — and leaves one the owner archived exactly as it is.
             kept = {item["kind"] for item in plan["plan"]["channels"]}
@@ -404,7 +418,7 @@ class GtmService:
         return {
             "plan": self.get_plan(plan_id),
             "campaigns": created,
-            "next_steps": _next_steps(plan),
+            "next_steps": _next_steps(plan, posting_ready=self.workspace_id == "local" and self.register_posting is not None),
             "notes": notes,
         }
 
@@ -694,7 +708,7 @@ def _count(summary: Mapping[str, Any], group: str, key: str) -> int:
     return int((summary.get(group) or {}).get(key) or 0)
 
 
-def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:
+def _next_steps(plan: Mapping[str, Any], *, posting_ready: bool = False) -> list[dict[str, str]]:
     """What the owner does next, each on a screen that already does it."""
     kinds = {item["kind"] for item in plan["plan"]["channels"]}
     audience = plan["plan"]["audience"]
@@ -737,13 +751,14 @@ def _next_steps(plan: Mapping[str, Any]) -> list[dict[str, str]]:
         # Said plainly rather than implied away (D-82): without this step the
         # posting campaign is resumed and nothing ever appears.
         steps.append({
-            "page": "",
+            "page": "posting" if posting_ready else "",
             "label": "Set up posting for this plan",
             "why": (
-                "Posts are made by content automation once it pairs the posting campaign "
-                "with its picture campaign and is switched on, and each post then waits for "
-                "your approval. No screen does those yet: they are PATCH "
-                "/api/v1/content-automation and POST /api/v1/posts/{id}/approve."
+                "On Posting, start this plan's pair, keep pictures on Image review, then approve and schedule its drafted posts."
+                if posting_ready else
+                "Ask the install owner to arrange this workspace's posting and picture pair. "
+                "The install's timer runs only the owner's plans; this workspace's plan cannot start it. "
+                "Each post still requires your approval before it can be scheduled."
             ),
         })
     if "image" in kinds:

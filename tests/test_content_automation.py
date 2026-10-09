@@ -418,6 +418,20 @@ def test_a_swallowed_step_failure_is_visible_in_the_status(service, parts, capsy
     assert service.status()["last_error"] == ""
 
 
+def test_a_pair_rate_starts_its_own_pacer_and_a_legacy_pair_uses_the_global_rate(service, monkeypatch):
+    seen = []
+    real = __import__("offsetx_apollo_builder.distribution.pacing", fromlist=["decide"]).decide
+    def decide(**kwargs):
+        seen.append(kwargs["current_per_day"])
+        return real(**kwargs)
+    monkeypatch.setattr("offsetx_apollo_builder.distribution.pacing.decide", decide)
+    service.pacing_reader = lambda _: {}
+    service.update({"posts_per_day": 2, "pipelines": [{**PAIR, "posts_per_day": 3},
+                    {**PAIR, "distribution_campaign_id": "dist-2"}]})
+    service.run_once()
+    assert seen == [3, 2]
+
+
 def test_this_service_owns_no_transport():
     """Structural: it knows the order of the work and nothing about trends,
     posting, or providers. A module that could reach a provider directly would
@@ -764,3 +778,73 @@ def test_an_unreadable_campaign_makes_nothing_and_the_cycle_goes_on(tmp_path: Pa
     assert held and all("could not be read" in row["reason"] for row in held)
     assert parts["pipeline"].planned == []
     assert parts["distribution"].calls == 1  # publish_due still ran
+
+
+def test_two_service_instances_keep_independent_pair_registrations(service):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    other = ContentAutomationService(service.path, trends_factory=lambda: None, pipeline_factory=lambda *a, **k: None, distribution_factory=lambda: None)
+    ready = Barrier(2)
+    def register(item):
+        instance, pair = item
+        ready.wait(timeout=5)
+        return instance.register_pipeline(pair)
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        list(workers.map(register, ((service, {**PAIR, 'plan_id': 'a', 'posts_per_day': 3}), (other, {'distribution_campaign_id': 'other-d', 'image_campaign_id': 'other-i', 'plan_id': 'b', 'posts_per_day': 2}))))
+    assert {pair['plan_id'] for pair in service.config()['pipelines']} == {'a', 'b'}
+    assert not service.config()['enabled']
+
+
+def test_a_holding_pair_does_not_erase_another_pairs_waiting_suggestion(service):
+    from offsetx_apollo_builder.distribution import pacing
+    service.register_pipeline({**PAIR, 'plan_id': 'a', 'posts_per_day': 1})
+    raised = pacing.decide(**BEHIND, current_per_day=1)
+    service._remember_suggestion(PAIR['distribution_campaign_id'], raised, current=1)
+    waiting = service.config()['pending_pace']
+    assert waiting
+    holding = pacing.decide(goal_target=0, goal_deadline="", metrics=[], current_per_day=2)
+    service._remember_suggestion('other-d', holding, current=2)
+    assert service.config()['pending_pace'] == waiting
+
+
+def test_pair_suggestions_cannot_be_accepted_without_the_identity_seen_on_screen(service):
+    from offsetx_apollo_builder.distribution import pacing
+    service.register_pipeline({**PAIR, 'plan_id': 'a', 'posts_per_day': 2})
+    service._remember_suggestion(PAIR['distribution_campaign_id'], pacing.decide(**BEHIND, current_per_day=2), current=2)
+    with pytest.raises(ValueError, match='changed|Refresh'):
+        service.accept_pace()
+    assert service.config()['pipelines'][0]['posts_per_day'] == 2
+
+
+def test_accepting_a_bound_pair_suggestion_leaves_other_waiting_plans_untouched(service):
+    from offsetx_apollo_builder.distribution import pacing
+    service.register_pipeline({**PAIR, 'plan_id': 'a', 'posts_per_day': 1})
+    service.register_pipeline({'distribution_campaign_id': 'other-d', 'image_campaign_id': 'other-i', 'plan_id': 'b', 'posts_per_day': 2})
+    service._remember_suggestion(PAIR['distribution_campaign_id'], pacing.decide(**BEHIND, current_per_day=1), current=1)
+    shown = service.config()['pending_paces'][PAIR['distribution_campaign_id']]
+    service._remember_suggestion('other-d', pacing.decide(**BEHIND, current_per_day=2), current=2)
+    service.accept_pace(campaign_id=PAIR['distribution_campaign_id'], suggestion_id=shown['suggestion_id'])
+    config = service.config()
+    assert config['pipelines'][0]['posts_per_day'] == shown['suggested_per_day']
+    assert config['pipelines'][1]['posts_per_day'] == 2
+    assert 'other-d' in config['pending_paces']
+    with pytest.raises(ValueError):
+        service.accept_pace(campaign_id=PAIR['distribution_campaign_id'], suggestion_id=shown['suggestion_id'])
+
+
+def test_a_replaced_suggestion_id_is_refused_without_changing_the_rate(service):
+    from offsetx_apollo_builder.distribution import pacing
+    service.register_pipeline({**PAIR, 'plan_id': 'a', 'posts_per_day': 1})
+    service._remember_suggestion(PAIR['distribution_campaign_id'], pacing.decide(**BEHIND, current_per_day=1), current=1)
+    shown = service.config()['pending_paces'][PAIR['distribution_campaign_id']]
+    service._remember_suggestion(PAIR['distribution_campaign_id'], pacing.decide(**BEHIND, current_per_day=1), current=1)
+    with pytest.raises(ValueError, match='changed'):
+        service.accept_pace(campaign_id=PAIR['distribution_campaign_id'], suggestion_id=shown['suggestion_id'])
+    assert service.config()['pipelines'][0]['posts_per_day'] == 1
+
+
+def test_starting_one_plan_does_not_restart_other_pairs_after_the_owner_stopped_all(service):
+    service.update({'pipelines': [PAIR, {'distribution_campaign_id': 'other-d', 'image_campaign_id': 'other-i', 'account_ids': []}], 'enabled': False})
+    started = service.activate_pipeline(PAIR['distribution_campaign_id'], ['owner-account'])
+    other = next(row for row in started['pipelines'] if row['distribution_campaign_id'] == 'other-d')
+    assert other.get('enabled') is False

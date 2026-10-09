@@ -554,8 +554,7 @@ starts from the last version — not from a fresh rules plan — and changes wha
 rules can: delivery unhealthy halves the email volume (`D-85`), ahead raises it
 a quarter, and a review's proposal for a new angle or a narrower audience is
 adopted (it was already checked for forbidden claims). Posting behind is named
-as a Posting-screen action, because the plan's posts a day is read by nothing
-that posts (`D-97`). A remedy that needs words the review did not supply is left to the
+as a Posting-screen action, because it is an owner action. With S-12.02.06, Apply stores that version's daily volume on its declared pair; the timer pacer and scheduling read it. A remedy that needs words the review did not supply is left to the
 owner, with a note. Everything then goes through `normalise_plan` again, so a
 revision is clamped to what is connected *today*.
 
@@ -722,3 +721,37 @@ scope, never edit a DO NOT TOUCH file.
 | Meetings and sign-ups as goals | nothing links them to the campaign that earned them | `DD-43` |
 | Permission-marketing plans | a GTM plan is outbound; a newsletter is a different product | `DD-44` |
 | A scheduler that reviews on its own | `S-06.01.04` routines, in flight on another branch | — |
+
+
+## 12. Posting from the screens — S-12.02.06, IN_REVIEW
+
+Apply upserts a disabled local plan pair in content_automation.json, preserving
+other declarations. It records the plan, both campaign IDs and daily volume;
+no extra table or migration is needed. Nonlocal plans do not join the owner's
+timer. Owner Start selects enabled local accounts, validates the applied plan's
+current line links, activates both campaigns and enables its pair last. Apply
+and Start serialize on root_id. Failed Start restores campaign states; the
+config response uses its committed document, avoiding a post-commit reread.
+
+Approve and Skip are separate human choices; approval precedes next-slot
+scheduling. Pair rates are the pacer's starting point and slot interval. Config
+mutations hold the root restore lease and bounded exclusive sidecar lease;
+approval/skip/slot allocation use distribution database transactions. Per-pair
+proposals have identities; stale acceptance cannot alter a different plan.
+Workspace ownership, enabled account selection and caps bind. Legacy offset
+slots and due checks compare instants; new times are stored as UTC.
+
+Posting reviews captions and owned image/video attachments through an
+owned-post file endpoint. Its one-at-a-time authenticated preview is capped at
+32 MiB; valid media can instead be reviewed on its existing screen and explicitly
+acknowledged. Missing/foreign media has no override and is rechecked before
+approval, scheduling and publishing. The local outbox refuses a vanished file;
+text-only posts explicitly carry no asset. Disabled/zero-rate pairs stop both
+new drafting and publishing while keeping previously scheduled rows.
+
+The supported publisher remains local_outbox; this is disk output, not a social
+network integration. Browser/media-decoding and model-drafted pipeline gates
+remain open. See docs/evidence/S-12.02.06-validation.md for actual HTTP, restart,
+previous-revision and regression evidence. Skipped is a text status: the previous
+revision reads it and does not publish it. Media/outbox persistence on hosted
+free disk remains the separate F-06.03 release blocker.

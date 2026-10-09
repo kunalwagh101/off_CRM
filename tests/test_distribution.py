@@ -206,6 +206,34 @@ def test_a_publisher_failure_is_recorded_and_does_not_stop_the_round(engine, cap
     assert "secret-cookie" not in failed[0]["error"]
 
 
+def test_skip_is_final_and_cannot_be_published_or_changed_by_another_workspace(engine):
+    account = engine.connect_account(platform="local_outbox", handle="@depot")
+    post = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="review")
+    engine.workspace_id = "other"
+    with pytest.raises(KeyError):
+        engine.skip(post["id"])
+    engine.workspace_id = "local"
+    assert engine.skip(post["id"])["status"] == "skipped"
+    with pytest.raises(ValueError):
+        engine.approve(post["id"])
+    assert engine.publish_due().published == 0
+
+
+def test_next_slot_keeps_approvals_and_spaces_posts_at_the_pair_rate(engine):
+    account = engine.connect_account(platform="local_outbox", handle="@depot")
+    now = datetime.now(timezone.utc)
+    first = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="one")
+    second = engine.plan_post(CAMPAIGN, account_id=account["id"], caption="two")
+    with pytest.raises(ValueError):
+        engine.schedule_next(first["id"], posts_per_day=3, now=now)
+    engine.approve(first["id"])
+    engine.approve(second["id"])
+    a = engine.schedule_next(first["id"], posts_per_day=3, now=now)
+    b = engine.schedule_next(second["id"], posts_per_day=3, now=now)
+    assert datetime.fromisoformat(b["scheduled_at"]) - datetime.fromisoformat(a["scheduled_at"]) == timedelta(hours=8)
+    assert engine.publish_due(now=now + timedelta(minutes=1)).published == 1
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Goals and measurement
 # ─────────────────────────────────────────────────────────────────────────────
@@ -419,3 +447,107 @@ def test_a_campaign_that_cannot_be_read_holds_its_posts_and_the_round_goes_on(en
     result = engine.publish_due()
     assert (result.published, result.skipped) == (0, 1)
     assert "could not be read" in result.details[0]["detail"]
+
+
+def test_concurrent_reviews_cannot_resurrect_a_skipped_post(engine):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    account = engine.connect_account(platform='local_outbox', handle='@review')
+    for index in range(8):
+        post = engine.plan_post(CAMPAIGN, account_id=account['id'], caption=str(index))
+        ready = Barrier(2)
+        def review(action):
+            ready.wait(timeout=5)
+            try:
+                return action(post['id'])['status']
+            except ValueError:
+                return 'refused'
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            results = list(workers.map(review, (engine.approve, engine.skip)))
+        assert results.count('refused') == 1
+        assert engine.store.get_post(post['id'])['status'] in ('approved', 'skipped')
+
+
+def test_concurrent_scheduling_from_two_connections_allocates_distinct_slots(engine):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    account = engine.connect_account(platform='local_outbox', handle='@parallel')
+    posts = [engine.plan_post(CAMPAIGN, account_id=account['id'], caption=str(i)) for i in range(2)]
+    for post in posts:
+        engine.approve(post['id'])
+    other_store = DistributionStore(engine.store.target, outbox_dir=engine.store.outbox_dir)
+    other = DistributionEngine(store=other_store, publisher=LocalOutboxPublisher(other_store.outbox_dir), campaign_reader=engine.campaign_reader)
+    ready = Barrier(2)
+    moment = datetime.now(timezone.utc)
+    def schedule(pair):
+        runner, post = pair
+        ready.wait(timeout=5)
+        return runner.schedule_next(post['id'], posts_per_day=3, now=moment)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            results = list(workers.map(schedule, ((engine, posts[0]), (other, posts[1]))))
+        dates = sorted(datetime.fromisoformat(row['scheduled_at']) for row in results)
+        assert dates[1] - dates[0] == timedelta(hours=8)
+    finally:
+        other_store.close()
+
+
+def test_next_slot_orders_legacy_offset_timestamps_by_actual_time(engine):
+    account = engine.connect_account(platform='local_outbox', handle='@offsets')
+    for at in ('2026-10-10T20:00:00+14:00', '2026-10-10T15:00:00+00:00'):
+        post = engine.plan_post(CAMPAIGN, account_id=account['id'], caption=at)
+        # Preserve actual pre-upgrade rows, including their original offsets.
+        engine.store.update_post(post['id'], {'status': 'scheduled', 'scheduled_at': at})
+    pending = engine.plan_post(CAMPAIGN, account_id=account['id'], caption='next')
+    engine.approve(pending['id'])
+    next_post = engine.schedule_next(pending['id'], posts_per_day=3, now=datetime(2026, 10, 9, tzinfo=timezone.utc))
+    assert datetime.fromisoformat(next_post['scheduled_at']) == datetime(2026, 10, 10, 23, tzinfo=timezone.utc)
+
+
+def test_legacy_offset_posts_publish_at_their_actual_due_time(engine):
+    account = engine.connect_account(platform='local_outbox', handle='@due-offset')
+    ids = []
+    for at in ('2026-10-10T20:00:00+14:00', '2026-10-10T15:00:00+00:00'):
+        post = engine.plan_post(CAMPAIGN, account_id=account['id'], caption=at)
+        engine.store.update_post(post['id'], {'status': 'scheduled', 'scheduled_at': at})
+        ids.append(post['id'])
+    result = engine.publish_due(now=datetime(2026, 10, 10, 14, tzinfo=timezone.utc))
+    assert result.published == 1
+    assert engine.store.get_post(ids[0])['status'] == 'published'
+    assert engine.store.get_post(ids[1])['status'] == 'scheduled'
+
+
+def test_outbox_refuses_an_attachment_that_vanished_before_copying(tmp_path):
+    publisher = LocalOutboxPublisher(tmp_path / 'outbox')
+    with pytest.raises(FileNotFoundError):
+        publisher.publish(platform='local_outbox', handle='@safe', caption='Requires its attachment', asset={'path': str(tmp_path / 'gone.png')}, post_id='missing-file')
+    assert not list((tmp_path / 'outbox').rglob('*.json'))
+
+
+def test_malformed_legacy_schedule_does_not_block_valid_publication(engine):
+    account = engine.connect_account(platform='local_outbox', handle='@legacy-invalid')
+    bad = engine.plan_post(CAMPAIGN, account_id=account['id'], caption='invalid')
+    valid = engine.plan_post(CAMPAIGN, account_id=account['id'], caption='valid')
+    engine.store.update_post(bad['id'], {'status': 'scheduled', 'scheduled_at': 'not-a-date'})
+    engine.store.update_post(valid['id'], {'status': 'scheduled', 'scheduled_at': '2020-01-01T00:00:00Z'})
+    result = engine.publish_due(now=datetime(2026, 10, 9, tzinfo=timezone.utc))
+    assert result.published == 1
+    assert engine.store.get_post(valid['id'])['status'] == 'published'
+    quarantined = engine.store.get_post(bad['id'])
+    assert quarantined['status'] == 'failed'
+    assert 'E-' in quarantined['error']
+    assert 'not-a-date' not in quarantined['error']
+    assert result.failed == 1
+    assert any(item['post_id'] == bad['id'] and item['detail'] == quarantined['error'] for item in result.details)
+
+
+def test_malformed_legacy_schedule_does_not_block_next_slot(engine):
+    account = engine.connect_account(platform='local_outbox', handle='@legacy-slot')
+    bad = engine.plan_post(CAMPAIGN, account_id=account['id'], caption='invalid')
+    pending = engine.plan_post(CAMPAIGN, account_id=account['id'], caption='next')
+    engine.store.update_post(bad['id'], {'status': 'scheduled', 'scheduled_at': 'not-a-date'})
+    engine.approve(pending['id'])
+    moment = datetime(2026, 10, 9, tzinfo=timezone.utc)
+    scheduled = engine.schedule_next(pending['id'], posts_per_day=3, now=moment)
+    assert datetime.fromisoformat(scheduled['scheduled_at']) == moment
+    assert engine.store.get_post(bad['id'])['status'] == 'failed'

@@ -57,7 +57,8 @@ upstream/owner/access gates are in `docs/DEVELOP_NEXT_WORK.md`. No branches or
 worktrees were created; the old main-based work remains archived/stashed and
 was not applied. Current scan base is develop `4b80d7c`.
 
-S-06.02.38 traceable errors is IN_REVIEW, code review clear. API/CLI/job
+S-06.02.38 traceable errors was committed and pushed to develop as `d3099f1`.
+It is IN_REVIEW, code review clear. API/CLI/job
 references, safe lifecycle protocol messages, bounded local logs, fresh cycle
 scopes, workspace metadata and visible Settings/Posting status are implemented.
 D-243–D-253 record the review findings and resolutions. The independent reviewer
@@ -85,6 +86,38 @@ Owner authorised commit/push only to develop. Preserve the main-based archive
 and stash. Continue the selected programme from the queue and actual board;
 prepare the next independent READY slice and keep upstream/owner/access gates
 open. Ending a task or a usage reset does not automatically resume work.
+
+### Current slice — S-12.02.06 posting, IN_REVIEW
+
+Apply declares a disabled posting/image pair with the plan's own rate. Owner
+Start, workspace-scoped review/skip, transactional next-slot scheduling,
+authenticated image/video previews and safe per-pair pace decisions are built.
+D-254–D-265 record independent review fixes; final review has no remaining
+concrete finding. Baseline affected tests 79 passed; final affected tests
+145 passed. Frontend 181 passed and build passed (existing chunk advisory).
+Broad pre-legacy-fix run: 2641 passed, 21 baseline Chromium failures, 22 skips;
+latest broad result: 2643 passed, 21 Chromium failures, 22 skips. See
+docs/evidence/S-12.02.06-validation.md.
+The final affected run covers quarantine-result visibility after broad started.
+Ruff and structural board checks passed. Browser/generated-media/live-social
+and green full-board gates remain open; this is not DONE or a deployed release.
+
+The owner requested a local run. App runs in the **cloud workspace** using
+/tmp/off-crm-progress-server.py on loopback port 8766, serving frontend/dist.
+Isolated data: /workspace/runtime/off-crm-progress; auth-token is private and
+must never be printed, copied into artifacts, or committed. Real HTTP readiness
+and frontend returned 200; rules plan applied disabled, Start enabled its pair,
+manual caption approved/scheduled/published to the real local outbox, skipped
+row never published. No model/social service used. Current-process restart
+preserved the plan and published/skipped statuses. Plain archived d3099f1 source
+also read a stopped-data copy and served its rebuilt frontend. Its process is
+stopped; current app stays running. Automation is disabled after verification.
+Raw safe results/logs: /workspace/artifacts/S-12.02.06. No laptop installation,
+public preview, real browser walk, hosted restore or deployment is claimed.
+
+Continue the five-feature programme from docs/DEVELOP_NEXT_WORK.md. Only
+reliability logging and this posting slice have implementation/review evidence
+from this session; do not claim the remaining large features are completed.
 
 ## 2026-10-04 — Screen navigation keeps its top in view (`S-06.02.25`)
 

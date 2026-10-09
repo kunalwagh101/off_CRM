@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Posting from an applied plan** (`S-12.02.06`, in review): Apply declares a
+  paused posting/image pair and its daily rate; Posting connects local-outbox
+  accounts, starts a plan, previews drafts, and offers approval/scheduling or
+  Skip. Proposals are bound to their plan, account caps still bind, and paused
+  pairs retain queued posts. Missing or foreign media cannot publish. Restart
+  and previous-revision data-read checks passed; browser and live drafting
+  verification remain open. Social adapters are still unavailable.
+
 - **Traceable failures** (`S-06.02.38`, in review): failed API requests expose
   a reference matched to a secret-safe JSON record. Worker/job status and
   command failures carry references too. Local logs rotate under the data

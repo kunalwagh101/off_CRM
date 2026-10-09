@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Badge, Button, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
+import DraftedPosts, { type DraftedPost } from "./DraftedPosts";
 
 /**
  * How much gets posted, and who decides.
@@ -33,11 +34,21 @@ type Account = {
   daily_cap: number;
 };
 
+type Pair = { distribution_campaign_id: string; image_campaign_id: string; plan_id?: string; posts_per_day?: number; enabled?: boolean; account_ids: string[] };
+
 type Automation = {
+  enabled: boolean;
+  plan: boolean;
+  draft: boolean;
+  publish_due: boolean;
+  pipelines: Pair[];
   last_error: string;
   posts_per_day: number;
   pace_mode: "off" | "suggest" | "auto";
+  pending_paces: Record<string, Automation["pending_pace"]>;
   pending_pace: {
+    suggestion_id?: string;
+    distribution_campaign_id?: string;
     suggested_per_day?: number;
     current_per_day?: number;
     reason?: string;
@@ -73,7 +84,13 @@ const MODES: Array<{ id: Automation["pace_mode"]; label: string; note: string }>
 ];
 
 export default function Posting() {
-  const { campaignId, notify } = useApp();
+  const { campaignId, campaigns, activeCampaign, selectCampaign, refreshCampaigns, notify } = useApp();
+  const postingId = activeCampaign?.kind === "distribution" ? campaignId : "";
+  const [posts, setPosts] = useState<DraftedPost[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [handle, setHandle] = useState("");
+  const [actionError, setActionError] = useState("");
+  const generation = useRef(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [automation, setAutomation] = useState<Automation | null>(null);
   const [pacing, setPacing] = useState<Pacing | null>(null);
@@ -82,34 +99,47 @@ export default function Posting() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
+    const request = ++generation.current;
     setLoading(true);
     setError("");
     try {
-      const [connected, config] = await Promise.all([
+      const [connected, config, drafts, approved, suggestion] = await Promise.all([
         api.get<{ items: Account[] }>("/distribution/accounts"),
-        api.get<Automation>("/content-automation")
+        api.get<Automation>("/content-automation"),
+        postingId ? api.get<{ items: DraftedPost[] }>(`/campaigns/${postingId}/posts?status=draft`) : Promise.resolve({ items: [] }),
+        postingId ? api.get<{ items: DraftedPost[] }>(`/campaigns/${postingId}/posts?status=approved`) : Promise.resolve({ items: [] }),
+        postingId ? api.get<Pacing>(`/campaigns/${postingId}/pacing`) : Promise.resolve(null)
       ]);
+      if (request !== generation.current) return;
       setAccounts(connected.items);
       setAutomation(config);
-      // The live suggestion needs a distribution campaign to pace against, and
-      // there may not be one selected. Its absence is not an error.
-      if (campaignId) {
-        try {
-          setPacing(await api.get<Pacing>(`/campaigns/${campaignId}/pacing`));
-        } catch {
-          setPacing(null);
-        }
-      }
+      setPosts([...drafts.items, ...approved.items]);
+      setPacing(suggestion);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not load the posting settings");
+      if (request === generation.current) setError(reason instanceof Error ? reason.message : "Could not load posting. Try again.");
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
-  }, [campaignId]);
+  }, [postingId]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { generation.current += 1; };
   }, [load]);
+
+  const act = async (operation: () => Promise<unknown>, message: string) => {
+    setBusy(true);
+    setActionError("");
+    try {
+      await operation();
+      notify(message, "success");
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not finish this action. Check its status and try again.");
+    } finally {
+      await load();
+      setBusy(false);
+    }
+  };
 
   const setCap = useCallback(
     async (accountId: string, value: string) => {
@@ -133,7 +163,8 @@ export default function Posting() {
     async (decision: "accept" | "dismiss") => {
       setBusy(true);
       try {
-        await api.post("/content-automation/pace", { decision });
+        const pending = automation?.pending_paces[postingId] ?? automation?.pending_pace;
+        await api.post("/content-automation/pace", { decision, campaign_id: postingId, suggestion_id: pending?.suggestion_id });
         await load();
         notify(
           decision === "accept" ? "Rate changed." : "Left as it was.",
@@ -145,7 +176,7 @@ export default function Posting() {
         setBusy(false);
       }
     },
-    [load, notify]
+    [load, notify, automation, postingId]
   );
 
   const setMode = useCallback(
@@ -177,8 +208,9 @@ export default function Posting() {
     );
   }
 
-  const pending = automation?.pending_pace ?? {};
-  const waiting = typeof pending.suggested_per_day === "number";
+  const pending = automation?.pending_paces[postingId] ?? automation?.pending_pace ?? {};
+  const pair = automation?.pipelines.find(row => row.distribution_campaign_id === postingId);
+  const waiting = typeof pending.suggested_per_day === "number" && pending.distribution_campaign_id === postingId;
 
   return (
     <>
@@ -187,6 +219,49 @@ export default function Posting() {
         title="How much goes out"
         description="You set the ceiling. The engine works out the ideal rate and asks."
       />
+
+      {actionError ? <StatePanel tone="error" title="Action needs attention" description={actionError} /> : null}
+      <Panel title="Start a plan" subtitle="Apply your plan on Strategy first. Starting enables this plan's timer. Choose its work below; only approved, scheduled posts can go out.">
+        <label>Posting campaign <select value={postingId} disabled={busy} onChange={event => selectCampaign(event.target.value)}>
+          <option value="">Choose a posting campaign</option>
+          {campaigns.filter(campaign => campaign.kind === "distribution").map(campaign => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+        </select></label>
+        {pair?.plan_id ? <>
+          <p>{automation?.enabled && pair.enabled !== false ? "Posting work is enabled. Both campaigns must stay active." : "This plan is waiting to start."} Keep its pictures on Image review before approving posts here.</p>
+          <fieldset disabled={busy}><legend>Accounts for this plan</legend>
+            {accounts.filter(account => account.enabled).map(account => <label key={account.id} style={{ display: "block" }}>
+              <input type="checkbox" checked={selectedAccounts.includes(account.id)} onChange={event => setSelectedAccounts(previous => event.target.checked ? [...previous, account.id] : previous.filter(id => id !== account.id))} />
+              {account.label || account.handle}
+            </label>)}
+          </fieldset>
+          <Button disabled={busy || !selectedAccounts.length || !pair.posts_per_day} onClick={() => void act(async () => {
+            await api.post(`/gtm/plans/${pair.plan_id}/start-posting`, { account_ids: selectedAccounts });
+            refreshCampaigns();
+          }, "Posting started. Review pictures and then drafted posts.")}>Start posting for this plan</Button>
+          {!pair.posts_per_day ? <p>This plan has a zero posting rate. Revise and apply a plan with a positive daily rate.</p> : null}
+          <p>Planning, drafting and publishing switches apply to every enabled plan.</p>
+          {(["plan", "draft", "publish_due"] as const).map(step => <label key={step} style={{ display: "block" }}>
+            <input type="checkbox" checked={automation?.[step] ?? false} disabled={busy} onChange={event => void act(() => api.patch("/content-automation", { [step]: event.target.checked }), "Posting step updated.")} />
+            {step === "plan" ? "Plan pictures" : step === "draft" ? "Draft posts from kept pictures" : "Publish approved scheduled posts"}
+          </label>)}
+          <Button tone="ghost" disabled={busy} onClick={() => void act(() => api.post("/content-automation/run", {}), "Posting cycle finished. Check its status below.")}>Run posting cycle now</Button>
+        </> : <p>Choose a campaign from an applied plan with both posting and picture channels. Apply a plan on Strategy to create the pair.</p>}
+      </Panel>
+      <Panel title="Connect a posting account" subtitle="Local outbox is the supported destination today. It saves posts on this install; it does not send to a social network.">
+        <form onSubmit={event => { event.preventDefault(); void act(async () => {
+          const account = await api.post<Account>("/distribution/accounts", { platform: "local_outbox", handle: handle.trim() });
+          setSelectedAccounts(previous => [...new Set([...previous, account.id])]);
+          setHandle("");
+        }, "Local outbox account connected."); }}>
+          <label>Account name <input required maxLength={200} value={handle} disabled={busy} onChange={event => setHandle(event.target.value)} /></label>
+          <Button type="submit" disabled={busy || !handle.trim()}>Connect local outbox</Button>
+        </form>
+      </Panel>
+      <DraftedPosts posts={posts} busy={busy} emptyAction={<Button disabled={busy} onClick={() => void load()}>Refresh drafted posts</Button>}
+        onApprove={id => void act(async () => { await api.post(`/posts/${id}/approve`, {}); await api.post(`/posts/${id}/schedule-next`, {}); }, "Post approved and scheduled.")}
+        onSkip={id => void act(() => api.post(`/posts/${id}/skip`, {}), "Post skipped. It will not be published.")}
+        onSchedule={id => void act(() => api.post(`/posts/${id}/schedule-next`, {}), "Approved post scheduled.")} />
+      {posts.length >= 200 ? <p>The queue shows up to 200 drafts and 200 approved posts. Refresh after reviewing to see the next posts.</p> : null}
 
       {automation?.last_error ? <StatePanel tone="error" title="Some posting work could not finish" description={automation.last_error} /> : null}
 
@@ -209,8 +284,9 @@ export default function Posting() {
 
       <Panel
         title="The rate"
-        subtitle={`Running at ${(automation?.posts_per_day ?? 0).toFixed(2)} posts a day`}
+        subtitle={`Running at ${(pair?.posts_per_day ?? automation?.posts_per_day ?? 0).toFixed(2)} posts a day`}
       >
+        <p>These pacing permissions apply to every posting plan.</p>
         <ul className="posting-modes">
           {MODES.map((mode) => (
             <li key={mode.id}>

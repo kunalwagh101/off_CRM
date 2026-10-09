@@ -42,11 +42,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from contextlib import contextmanager
 from typing import Any, Callable
 
 from . import pacing
@@ -89,6 +92,7 @@ DEFAULT_CONTENT_AUTOMATION: dict[str, Any] = {
     #: The last thing the pacer worked out and is waiting on, or {}. Written by
     #: `suggest` mode, cleared when it is accepted or dismissed.
     "pending_pace": {},
+    "pending_paces": {},
     #: [{distribution_campaign_id, image_campaign_id, angle, account_ids}]
     "pipelines": [],
 }
@@ -147,6 +151,7 @@ class ContentAutomationService:
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
         self._run_lock = threading.Lock()
+        self._settings_lock = threading.RLock()
         self.last_run_at = ""
         self.last_error = ""
         self.last_results: list[dict[str, Any]] = []
@@ -197,6 +202,8 @@ class ContentAutomationService:
         payload["auto_pace"] = mode == "auto"
         pending = payload.get("pending_pace")
         payload["pending_pace"] = dict(pending) if isinstance(pending, dict) else {}
+        per_pair = payload.get("pending_paces")
+        payload["pending_paces"] = dict(per_pair) if isinstance(per_pair, dict) else {}
         payload["per_channel"] = max(1, min(int(payload.get("per_channel") or 10), 50))
         # Not `or 1.0`: a rate deliberately set to zero is a paused campaign,
         # and `0.0 or 1.0` is 1.0 — which would quietly start posting again.
@@ -216,6 +223,8 @@ class ContentAutomationService:
             )
             if item is not None
         ]
+        declared = {row["distribution_campaign_id"] for row in payload["pipelines"]}
+        payload["pending_paces"] = {key: value for key, value in payload["pending_paces"].items() if key in declared and isinstance(value, dict)}
         return payload
 
     @staticmethod
@@ -229,14 +238,80 @@ class ContentAutomationService:
         if not distribution_id or not image_id:
             return None
         accounts = [str(item).strip() for item in entry.get("account_ids") or [] if str(item).strip()]
-        return {
+        normalized = {
             "distribution_campaign_id": distribution_id,
             "image_campaign_id": image_id,
             "angle": str(entry.get("angle") or "")[:500],
             "account_ids": accounts,
         }
+        if entry.get("posts_per_day") is not None:
+            rate = float(entry["posts_per_day"])
+            if not math.isfinite(rate) or not 0 <= rate <= pacing.MAX_PER_DAY:
+                raise ValueError("A pair's posts per day must be between 0 and 20.")
+            normalized["posts_per_day"] = rate
+        if entry.get("plan_id"):
+            normalized["plan_id"] = str(entry["plan_id"])
+        if "enabled" in entry:
+            normalized["enabled"] = bool(entry["enabled"])
+        return normalized
+
+    @contextmanager
+    def _settings_mutation(self):
+        with self._settings_lock, WorkspaceLock(self.path.parent), WorkspaceLock(self.path, exclusive=True, wait_seconds=2):
+            yield
+
+    def register_pipeline(self, pair: dict[str, Any]) -> dict[str, Any]:
+        """Upsert one plan pair; never replace another plan's declaration."""
+        with self._settings_mutation():
+            config = self.config()
+            pipelines = list(config["pipelines"])
+            prior = next((row for row in pipelines if row["distribution_campaign_id"] == pair["distribution_campaign_id"]), None)
+            merged = {**(prior or {}), **pair}
+            if prior is None:
+                merged["enabled"] = False
+            else:
+                merged["enabled"] = prior.get("enabled", True)
+                merged["account_ids"] = prior["account_ids"]
+            pipelines = [row for row in pipelines if row["distribution_campaign_id"] != pair["distribution_campaign_id"]]
+            waiting = dict(config["pending_paces"])
+            waiting.pop(pair["distribution_campaign_id"], None)
+            changes = {"pipelines": [*pipelines, merged], "pending_paces": waiting}
+            if config["pending_pace"].get("distribution_campaign_id") == pair["distribution_campaign_id"]:
+                changes["pending_pace"] = {}
+            return self._update(changes)
+
+    def activate_pipeline(self, distribution_id: str, account_ids: list[str]) -> dict[str, Any]:
+        with self._settings_mutation():
+            config = self.config()
+            pipelines = [dict(row) for row in config["pipelines"]]
+            pair = next((row for row in pipelines if row["distribution_campaign_id"] == distribution_id), None)
+            if pair is None:
+                raise ValueError("Apply this plan before starting its posting pair.")
+            if not config["enabled"]:
+                # Starting this plan must not resume every legacy pair that
+                # was stopped by the install-wide switch.
+                for other in pipelines:
+                    other["enabled"] = False
+            pair.update(enabled=True, account_ids=list(dict.fromkeys(account_ids)))
+            return self._update({"enabled": True, "pipelines": pipelines})
+
+    def set_pipeline_rate(self, distribution_id: str, rate: float, *, clear_pending: bool = False) -> dict[str, Any]:
+        with self._settings_mutation():
+            config = self.config()
+            pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == distribution_id), None)
+            changes = {"pending_pace": {}} if clear_pending else {}
+            if pair is not None and "posts_per_day" in pair:
+                pair["posts_per_day"] = rate
+                changes["pipelines"] = config["pipelines"]
+            else:
+                changes["posts_per_day"] = rate
+            return self._update(changes)
 
     def update(self, values: dict[str, Any]) -> dict[str, Any]:
+        with self._settings_mutation():
+            return self._update(values)
+
+    def _update(self, values: dict[str, Any]) -> dict[str, Any]:
         # A caller still speaking the old boolean means it, and the stored
         # `pace_mode` would otherwise win the merge and ignore them.
         if "auto_pace" in values and "pace_mode" not in values:
@@ -252,6 +327,7 @@ class ContentAutomationService:
             "auto_pace",
             "pace_mode",
             "pending_pace",
+            "pending_paces",
             "pipelines",
         ):
             if key in values:
@@ -272,11 +348,16 @@ class ContentAutomationService:
             temporary = Path(handle.name)
         os.replace(temporary, self.path)
         self.last_error = ""
-        return self.status()
+        # The committed normalized document is the response. Reading it again
+        # could fail after activation succeeded and trigger a false rollback.
+        return self._status(normalised)
 
     def status(self) -> dict[str, Any]:
+        return self._status(self.config())
+
+    def _status(self, config: dict[str, Any]) -> dict[str, Any]:
         return {
-            **self.config(),
+            **config,
             "running": bool(self._task and not self._task.done()),
             "last_run_at": self.last_run_at,
             "last_error": self.last_error,
@@ -365,6 +446,7 @@ class ContentAutomationService:
         instead of starting from the declared number every hour and never
         arriving.
         """
+        config = {**config, "posts_per_day": pipeline.get("posts_per_day", config["posts_per_day"])}
         mode = str(config.get("pace_mode") or "off")
         if mode == "off" or self.pacing_reader is None:
             return config, None
@@ -394,7 +476,7 @@ class ContentAutomationService:
             # Worked out and left alone. The whole point of this mode is that
             # the rate on the next cycle is still the one the owner set, so the
             # returned config is untouched and only the suggestion is stored.
-            self._remember_suggestion(campaign_id, decision)
+            self._remember_suggestion(campaign_id, decision, current=float(config["posts_per_day"]))
             return config, {
                 "step": "pace",
                 "distribution_campaign_id": campaign_id,
@@ -409,7 +491,7 @@ class ContentAutomationService:
             used["candidates"] = decision.candidates
             if abs(decision.posts_per_day - float(config.get("posts_per_day") or 0.0)) > 1e-9:
                 try:
-                    self.update({"posts_per_day": decision.posts_per_day})
+                    self.set_pipeline_rate(campaign_id, decision.posts_per_day)
                 except Exception as exc:  # noqa: BLE001 - the cycle still runs at the new rate
                     self.last_error = failure_message(exc, operation="content.automation.save_pace", data_dir=self.path.parent)
             used["posts_per_day"] = decision.posts_per_day
@@ -422,48 +504,71 @@ class ContentAutomationService:
             **decision.to_dict(),
         }
 
-    def _remember_suggestion(self, campaign_id: str, decision: pacing.PacingDecision) -> None:
+    def _remember_suggestion(self, campaign_id: str, decision: pacing.PacingDecision, *, current: float | None = None) -> None:
         """Store what the pacer would have done, for the owner to look at.
 
         Only when it is actually different. A suggestion that repeats the rate
         already running is not a suggestion, and a screen that shows one every
         hour is a screen people stop reading.
         """
-        current = float(self.config().get("posts_per_day") or 0.0)
-        if not decision.steering or abs(decision.posts_per_day - current) < 0.05:
-            self.update({"pending_pace": {}})
-            return
-        self.update({
-            "pending_pace": {
+        with self._settings_mutation():
+            config = self.config()
+            current = float(config.get("posts_per_day") or 0.0) if current is None else current
+            waiting = dict(config["pending_paces"])
+            if not decision.steering or abs(decision.posts_per_day - current) < 0.05:
+                waiting.pop(campaign_id, None)
+                changes = {"pending_paces": waiting}
+                if config["pending_pace"].get("distribution_campaign_id") == campaign_id:
+                    changes["pending_pace"] = {}
+                self._update(changes)
+                return
+            suggestion = {
                 "distribution_campaign_id": campaign_id,
+                "suggestion_id": uuid.uuid4().hex,
                 "suggested_per_day": round(decision.posts_per_day, 3),
                 "current_per_day": round(current, 3),
-                "reason": decision.reason,
-                "action": decision.action,
-                "capped_by": decision.capped_by,
-                "at": _now(),
+                "reason": decision.reason, "action": decision.action,
+                "capped_by": decision.capped_by, "at": _now(),
             }
-        })
+            waiting[campaign_id] = suggestion
+            self._update({"pending_paces": waiting, "pending_pace": suggestion})
 
-    def accept_pace(self) -> dict[str, Any]:
-        """Take the suggestion. The owner pressing the button, and nothing else.
+    def _decide_pace(self, *, accept: bool, campaign_id: str = "", suggestion_id: str = "") -> dict[str, Any]:
+        # Read, validate the displayed proposal, and save under one lease. A
+        # timer cannot replace the proposal between validation and acceptance.
+        with self._settings_mutation():
+            config = self.config()
+            pending = dict(config["pending_paces"].get(campaign_id) or {}) if campaign_id else dict(config["pending_pace"])
+            if not pending:
+                raise ValueError("There is no rate suggestion waiting. Refresh Posting.")
+            target = str(pending.get("distribution_campaign_id") or "")
+            pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == target), None)
+            bound = bool(campaign_id or suggestion_id or (pair and pair.get("plan_id")))
+            if bound and (not campaign_id or not suggestion_id or pending.get("suggestion_id") != suggestion_id):
+                raise ValueError("The rate suggestion changed. Refresh Posting and review it again.")
+            if bound and pair is None:
+                raise ValueError("This posting pair changed. Refresh Posting and review it again.")
+            current = pair.get("posts_per_day", config["posts_per_day"]) if pair else config["posts_per_day"]
+            if accept and abs(float(current) - float(pending.get("current_per_day", current))) > 0.001:
+                raise ValueError("The posting rate changed. Refresh Posting and review the suggestion again.")
+            changes = {"pending_paces": dict(config["pending_paces"])}
+            changes["pending_paces"].pop(target, None)
+            if config["pending_pace"].get("distribution_campaign_id") == target:
+                changes["pending_pace"] = {}
+            if accept:
+                rate = float(pending["suggested_per_day"])
+                if pair is not None and "posts_per_day" in pair:
+                    pair["posts_per_day"] = rate
+                    changes["pipelines"] = config["pipelines"]
+                else:
+                    changes["posts_per_day"] = rate
+            return self._update(changes)
 
-        Separate from `update` on purpose: this is the one place a rate changes
-        because the machine asked for it, and it should be visible as that in
-        the code as well as on the screen.
-        """
-        config = self.config()
-        pending = dict(config.get("pending_pace") or {})
-        if not pending:
-            raise ValueError("There is no rate suggestion waiting.")
-        return self.update({
-            "posts_per_day": float(pending["suggested_per_day"]),
-            "pending_pace": {},
-        })
+    def accept_pace(self, *, campaign_id: str = "", suggestion_id: str = "") -> dict[str, Any]:
+        return self._decide_pace(accept=True, campaign_id=campaign_id, suggestion_id=suggestion_id)
 
-    def dismiss_pace(self) -> dict[str, Any]:
-        """Leave the rate alone. Recorded as a decision, not as an absence."""
-        return self.update({"pending_pace": {}})
+    def dismiss_pace(self, *, campaign_id: str = "", suggestion_id: str = "") -> dict[str, Any]:
+        return self._decide_pace(accept=False, campaign_id=campaign_id, suggestion_id=suggestion_id)
 
     # Each step returns a row rather than raising, so one bad provider does not
     # cost the whole cycle. The row carries the error where there was one.
@@ -493,6 +598,8 @@ class ContentAutomationService:
                     self.last_error = failure_message(exc, operation="content.automation.close", data_dir=self.path.parent)
 
     def _stopped(self, pipeline: dict[str, Any]) -> str:
+        if not pipeline.get("enabled", True) or pipeline.get("posts_per_day") == 0:
+            return "This plan's posting pair is paused."
         """Why this pair must make nothing this cycle, or "" when it may run."""
         if self.campaign_status is None:
             return ""

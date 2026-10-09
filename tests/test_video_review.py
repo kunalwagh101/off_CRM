@@ -659,8 +659,8 @@ def test_a_pushed_video_is_something_a_post_can_point_at(client):
     assert post.status_code in (200, 201), post.text
     post_id = post.json()["id"]
 
-    client.post(f"/api/v1/posts/{post_id}/approve")
-    client.post(f"/api/v1/posts/{post_id}/schedule", json={"at": "2020-01-01T00:00:00+00:00"})
+    assert client.post(f"/api/v1/posts/{post_id}/approve").status_code == 200
+    assert client.post(f"/api/v1/posts/{post_id}/schedule", json={"at": "2020-01-01T00:00:00+00:00"}).status_code == 200
     published = client.post("/api/v1/distribution/publish-due", json={})
     assert published.status_code == 200, published.text
     assert published.json()["published"] == 1
@@ -707,10 +707,13 @@ def test_an_export_that_failed_its_checks_cannot_be_posted(client):
         f"/api/v1/campaigns/{dist}/posts",
         json={"account_id": account["id"], "caption": "oops", "asset_id": render_id},
     ).json()["id"]
-    client.post(f"/api/v1/posts/{post_id}/approve")
-    client.post(f"/api/v1/posts/{post_id}/schedule", json={"at": "2020-01-01T00:00:00+00:00"})
+    assert client.post(f"/api/v1/posts/{post_id}/approve").status_code == 404
+    assert client.post(f"/api/v1/posts/{post_id}/schedule", json={"at": "2020-01-01T00:00:00+00:00"}).status_code == 422
 
     published = client.post("/api/v1/distribution/publish-due", json={}).json()
-    # The publisher was handed nothing, so it recorded a caption with no file
-    # rather than delivering an export the checks rejected.
-    assert "asset" not in published["details"][0]["detail"]
+    # S-12.02.06 also refuses a caption-only substitute for a failed export.
+    # No human approval or schedule exists, so nothing reaches the publisher.
+    assert published["published"] == 0
+    assert published["details"] == []
+    posts = client.get(f"/api/v1/campaigns/{dist}/posts").json()["items"]
+    assert next(post for post in posts if post["id"] == post_id)["status"] == "draft"

@@ -74,10 +74,9 @@ class LocalOutboxPublisher:
                 shutil.copy2(source, target)
                 record["asset"] = str(target)
             else:
-                # Reported rather than silently dropped: a post that was meant to
-                # carry a picture and did not is a different thing from a text
-                # post, and the receipt should say which one went out.
-                record["asset_missing"] = str(source)
+                # The file can disappear after the engine validated it. Do not
+                # turn an approved media post into a caption-only publication.
+                raise FileNotFoundError("The post attachment disappeared. Review it before retrying.")
 
         (folder / f"{post_id}.json").write_text(
             json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8"

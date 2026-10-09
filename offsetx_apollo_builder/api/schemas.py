@@ -571,6 +571,12 @@ class ContentAutomationPipelineBody(StrictModel):
     image_campaign_id: str = Field(min_length=1, max_length=80)
     angle: str = Field(default="", max_length=500)
     account_ids: list[str] = Field(default_factory=list, max_length=100)
+    posts_per_day: float | None = Field(default=None, ge=0, le=20, allow_inf_nan=False)
+    plan_id: str | None = Field(default=None, max_length=80)
+    enabled: bool | None = Field(default=None, strict=True)
+
+class StartPostingBody(StrictModel):
+    account_ids: list[str] = Field(min_length=1, max_length=100)
 
 class ContentAutomationBody(StrictModel):
     enabled: bool | None = Field(default=None, strict=True)
@@ -704,6 +710,8 @@ class DistributionAccountUpdateBody(StrictModel):
     enabled: bool | None = Field(default=None, strict=True)
 
 class PacingDecisionBody(StrictModel):
+    campaign_id: str = Field(default="", max_length=80)
+    suggestion_id: str = Field(default="", max_length=80)
     decision: str = Field(default="", max_length=40)
 
 class DistributionGoalBody(StrictModel):

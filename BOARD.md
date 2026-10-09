@@ -61,8 +61,6 @@ the owner said they will source. `S-06.02.20` is the fix for `D-80`.)*
 channel cannot reach a published post from the screens. Not pulled — it is the
 posting screens' work, and the owner asked for Phase 1 and 2.)*
 
-- S-12.02.06 · A plan's posting channel runs from the screens
-  work_order: docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md
 
 *(Split 2026-09-23 from `S-06.02.23`: the audit's live harness waits for CI
 runners. The per-finding re-check itself is READY.)*
@@ -117,6 +115,7 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
 ## READY
 
+
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the
 remaining work to be written down, not built: each item below has a work order
 an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
@@ -145,7 +144,12 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 ## IN_PROGRESS
 
 
+
 ## IN_REVIEW
+
+- S-12.02.06 · A plan's posting channel runs from the screens
+  work_order: docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md
+  review: docs/evidence/S-12.02.06-validation.md; browser, full-board and live drafting gates remain open
 
 - S-06.02.38 · Any error can be traced back the next day
   work_order: docs/work-orders/S-06.02.38-traceable-errors.md

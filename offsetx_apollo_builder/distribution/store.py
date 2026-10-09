@@ -12,12 +12,14 @@ the audience did, and they are not always the same answer.
 from __future__ import annotations
 
 import json
+import heapq
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from ..db import Database, open_database
+from ..observability import failure_message
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS dist_accounts (
@@ -97,7 +99,7 @@ CREATE INDEX IF NOT EXISTS ix_dist_topic_brief
     ON dist_topic_actions(brief_id);
 """
 
-POST_STATUSES = ("draft", "approved", "scheduled", "published", "failed")
+POST_STATUSES = ("draft", "approved", "scheduled", "published", "failed", "skipped")
 
 
 def _now() -> str:
@@ -252,10 +254,13 @@ class DistributionStore:
         return dict(row)
 
     def list_posts(
-        self, campaign_id: str, *, status: str = "", limit: int = 200
+        self, campaign_id: str, *, status: str = "", limit: int = 200, workspace_id: str | None = None
     ) -> list[dict[str, Any]]:
         sql = "SELECT * FROM dist_posts WHERE campaign_id = ?"
         params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
         if status:
             sql += " AND status = ?"
             params.append(status)
@@ -284,13 +289,41 @@ class DistributionStore:
         )
         return self.get_post(post_id)
 
-    def due_posts(self, *, now: str, limit: int = 50) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
-            "SELECT * FROM dist_posts WHERE status = 'scheduled' AND scheduled_at <= ?"
-            " ORDER BY scheduled_at LIMIT ?",
-            (now, max(1, int(limit))),
-        ).fetchall()
-        return [dict(row) for row in rows]
+    def legacy_post_instant(self, post_id: str, value: str, *, status: str) -> datetime | None:
+        """Isolate invalid pre-validation rows without blocking healthy work."""
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            message = failure_message(exc, operation="content.schedule.legacy")
+            # Never rewrite a receipt for an already published post.
+            if status == "scheduled":
+                self.update_post(post_id, {"status": "failed", "error": message})
+            return None
+
+    def due_posts(self, *, now: str, limit: int = 50, workspace_id: str | None = None, invalid_posts: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        def instant(value: str) -> datetime:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+        deadline = instant(now)
+        cursor = self.connection.execute(
+            "SELECT * FROM dist_posts WHERE status = 'scheduled'"
+            + (" AND workspace_id = ?" if workspace_id is not None else ""),
+            (workspace_id,) if workspace_id is not None else (),
+        )
+        def eligible():
+            while (row := cursor.fetchone()) is not None:
+                when = self.legacy_post_instant(str(row["id"]), str(row["scheduled_at"]), status="scheduled")
+                if when is None and invalid_posts is not None:
+                    invalid_posts.append(self.get_post(str(row["id"])))
+                if when is not None and when <= deadline:
+                    yield when, str(row["id"]), dict(row)
+
+        # Legacy ISO strings can carry different offsets. Lexical SQL order
+        # does not represent their chronology. Keep only the requested batch
+        # in memory while comparing actual instants on either backend.
+        return [item[2] for item in heapq.nsmallest(max(1, int(limit)), eligible(), key=lambda item: (item[0], item[1]))]
 
     def published_today(self, account_id: str, *, day: str) -> int:
         row = self.connection.execute(

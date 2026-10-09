@@ -208,6 +208,7 @@ from .schemas import (
     CompanionUpdateBody,
     CompetitorTeardownBody,
     ContentAutomationBody,
+    StartPostingBody,
     DistributionAccountCreateBody,
     DistributionAccountUpdateBody,
     DistributionGoalBody,
@@ -541,7 +542,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "connect-src 'self' http://127.0.0.1:8766 http://localhost:8766; "
-            "img-src 'self' data:; font-src 'self'"
+            "img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'"
         )
         return response
 
@@ -2518,12 +2519,28 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return DistributionEngine(
             store=state.distribution_store,
             publisher=LocalOutboxPublisher(state.distribution_store.outbox_dir),
-            campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
-            asset_reader=lambda asset_id: _publishable_asset(request, asset_id),
+            campaign_reader=lambda cid: _posting_campaign(request, cid),
+            asset_reader=lambda asset_id: _owned_post_asset(request, asset_id),
             workspace_id=_workspace_id(request),
         )
 
-    def _pacing_inputs(app_ref: Any, campaign_id: str) -> dict[str, Any]:
+    def _owned_post_asset(request: Request, asset_id: str) -> dict[str, Any]:
+        asset = _publishable_asset(request, asset_id)
+        if asset.get("workspace_id") != _workspace_id(request) or not Path(str(asset.get("path") or "")).is_file():
+            raise KeyError("Post attachment not found. Review it on Image review or Video editor.")
+        return asset
+
+    def _posting_campaign(request: Request, campaign_id: str) -> dict[str, Any]:
+        campaign = _engine(request).store.get_campaign(campaign_id)
+        if _workspace_id(request) == "local":
+            config = request.app.state.content_automation.config()
+            pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == campaign_id), None)
+            if pair is not None and (not config["enabled"] or pair.get("enabled") is False or pair.get("posts_per_day") == 0):
+                if campaign["status"] == "active":
+                    return {**campaign, "status": "paused"}
+        return campaign
+
+    def _pacing_inputs(app_ref: Any, campaign_id: str, *, workspace_id: str = "local") -> dict[str, Any]:
         """What the pacing controller needs, read from the stores it must not know about.
 
         The controller is arithmetic over four numbers — target, deadline,
@@ -2539,7 +2556,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             (goal for goal in reversed(goals) if str(goal.get("metric") or "views") == "views"),
             None,
         )
-        accounts = store.list_accounts()
+        accounts = [row for row in store.list_accounts(workspace_id=workspace_id) if row["enabled"]]
+        config = app_ref.state.content_automation.config()
+        pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == campaign_id), None) if workspace_id == "local" else None
+        if pair is not None:
+            selected = set(pair["account_ids"])
+            accounts = [row for row in accounts if row["id"] in selected]
         platform_ids = {str(account.get("platform") or "") for account in accounts}
         platforms = [
             platform
@@ -2564,19 +2586,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "owner_cap": owner_cap,
         }
 
-    def _pacing_decision(app_ref: Any, campaign_id: str) -> Any:
+    def _pacing_decision(app_ref: Any, campaign_id: str, *, workspace_id: str = "local") -> Any:
         """What the pacer says for one campaign now — the Posting screen's number.
 
         One function for the pacing endpoint and the GTM review, so the review
         can never quote a different decision than the screen shows.
         """
-        inputs = _pacing_inputs(app_ref, campaign_id)
+        inputs = _pacing_inputs(app_ref, campaign_id, workspace_id=workspace_id)
         config = app_ref.state.content_automation.config()
+        pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == campaign_id), {}) if workspace_id == "local" else {}
         return pacing_decide(
             goal_target=int(inputs["goal_target"]),
             goal_deadline=str(inputs["goal_deadline"]),
             metrics=inputs["metrics"],
-            current_per_day=float(config.get("posts_per_day") or 0.0),
+            current_per_day=float(pair.get("posts_per_day", config.get("posts_per_day") or 0.0)),
             ceiling=float(inputs["ceiling"]),
             ceiling_source=str(inputs["ceiling_source"]),
             owner_cap=float(inputs["owner_cap"]),
@@ -2812,11 +2835,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         _distribution(request)._require_own_kind(campaign_id, "reading the pacing")
         config = request.app.state.content_automation.config()
+        pending = {}
+        if _workspace_id(request) == "local":
+            pending = config["pending_paces"].get(campaign_id) or {}
+            if not pending and config["pending_pace"].get("distribution_campaign_id") == campaign_id:
+                pending = config["pending_pace"]
         return {
             "campaign_id": campaign_id,
             "mode": config.get("pace_mode"),
-            "pending": config.get("pending_pace") or {},
-            **_pacing_decision(request.app, campaign_id).to_dict(),
+            "pending": pending,
+            **_pacing_decision(request.app, campaign_id, workspace_id=_workspace_id(request)).to_dict(),
         }
 
     @app.post(f"{API_PREFIX}/content-automation/pace")
@@ -2828,11 +2856,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         answering something the machine asked, and it should read that way.
         """
         service = request.app.state.content_automation
+        require_install_owner(request)
         decision = str(body.get("decision", "")).strip().lower()
         if decision == "accept":
-            return service.accept_pace()
+            return service.accept_pace(campaign_id=body.campaign_id, suggestion_id=body.suggestion_id)
         if decision == "dismiss":
-            return service.dismiss_pace()
+            return service.dismiss_pace(campaign_id=body.campaign_id, suggestion_id=body.suggestion_id)
         raise HTTPException(
             400,
             detail={"error": "unknown_decision", "message": "decision must be accept or dismiss."},
@@ -2860,7 +2889,81 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def list_distribution_posts(campaign_id: str, request: Request, status: str = Query("", max_length=20)) -> dict[str, Any]:
         engine = _distribution(request)
         engine._require_own_kind(campaign_id, "listing posts")
-        return {"items": engine.store.list_posts(campaign_id, status=status)}
+        posts = engine.store.list_posts(campaign_id, status=status, workspace_id=_workspace_id(request))
+        for post in posts:
+            if post["asset_id"]:
+                try:
+                    _, media_type = _post_media(request, post)
+                except KeyError:
+                    post["media_error"] = "This attachment is unavailable. Review it on Image review or Video editor before approving."
+                else:
+                    post["media_kind"] = "video" if media_type.startswith("video/") else "image"
+                    post["media_url"] = f"/posts/{post['id']}/media"
+        return {"items": posts}
+
+    def _post_media(request: Request, post: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        asset = _owned_post_asset(request, str(post["asset_id"]))
+        media_type = str(asset.get("media_type") or ("video/webm" if asset.get("provider_id") == "video" else "image/png"))
+        if not media_type.startswith(("image/", "video/")):
+            raise KeyError("Post attachment cannot be previewed")
+        return asset, media_type
+
+    @app.get(f"{API_PREFIX}/posts/{{post_id}}/media")
+    def distribution_post_media(post_id: str, request: Request):
+        post = _distribution(request)._own_post(post_id)
+        asset, media_type = _post_media(request, post)
+        return FileResponse(Path(asset["path"]), media_type=media_type)
+
+    @app.post(f"{API_PREFIX}/gtm/plans/{{plan_id}}/start-posting")
+    def start_plan_posting(plan_id: str, body: StartPostingBody, request: Request) -> dict[str, Any]:
+        require_install_owner(request)
+        state = request.app.state
+        root_id = state.gtm_store.get_plan(plan_id, "local")["root_id"]
+        with state.campaign_locks.hold(f"gtm-plan:{root_id}"):
+            plan = state.gtm_store.get_plan(plan_id, "local")
+            if plan["status"] != "applied":
+                raise HTTPException(409, "Apply the current plan before starting its posting pair.")
+            pair = next((row for row in state.content_automation.config()["pipelines"] if row.get("plan_id") == plan_id), None)
+            if pair is None:
+                raise HTTPException(409, "This plan has no declared posting and image pair. Apply a plan with both channels.")
+            links = state.gtm_store.line_links(plan["root_id"], "local")
+            if any(links.get(kind) != pair[key] for kind, key in (("distribution", "distribution_campaign_id"), ("image", "image_campaign_id"))):
+                raise HTTPException(409, "The posting pair no longer matches this plan. Review and apply its current version.")
+            if pair.get("posts_per_day", 0) <= 0:
+                raise HTTPException(409, "Set a posting rate greater than zero before starting.")
+            accounts = {row["id"]: row for row in state.distribution_store.list_accounts(workspace_id="local")}
+            for account_id in body.account_ids:
+                if account_id not in accounts or not accounts[account_id]["enabled"]:
+                    raise HTTPException(404, "Connected posting account not found.")
+            original = {}
+            for kind, key in (("distribution", "distribution_campaign_id"), ("image", "image_campaign_id")):
+                campaign = state.engine.store.get_campaign(pair[key])
+                if campaign["kind"] != kind or campaign["status"] == "archived":
+                    raise HTTPException(409, "Review or unarchive the plan's campaigns before starting.")
+                original[pair[key]] = campaign["status"]
+            try:
+                for campaign_id in original:
+                    state.engine.store.update_campaign(campaign_id, {"status": "active"})
+                return state.content_automation.activate_pipeline(pair["distribution_campaign_id"], body.account_ids)
+            except Exception:
+                for campaign_id, status in original.items():
+                    state.engine.store.update_campaign(campaign_id, {"status": status})
+                raise
+
+    @app.post(f"{API_PREFIX}/posts/{{post_id}}/skip")
+    def skip_distribution_post(post_id: str, request: Request) -> dict[str, Any]:
+        return _distribution(request).skip(post_id)
+
+    @app.post(f"{API_PREFIX}/posts/{{post_id}}/schedule-next")
+    def schedule_next_plan_post(post_id: str, request: Request) -> dict[str, Any]:
+        require_install_owner(request)
+        engine = _distribution(request)
+        post = engine._own_post(post_id)
+        config = request.app.state.content_automation.config()
+        pair = next((row for row in config["pipelines"] if row["distribution_campaign_id"] == post["campaign_id"]), None)
+        if pair is None:
+            raise HTTPException(409, "Apply and start this plan's posting pair before scheduling its posts.")
+        return engine.schedule_next(post_id, posts_per_day=float(pair.get("posts_per_day", config["posts_per_day"])))
 
     @app.post(f"{API_PREFIX}/posts/{{post_id}}/approve")
     def approve_distribution_post(post_id: str, request: Request) -> dict[str, Any]:
@@ -3457,6 +3560,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             lock=lambda key: state.campaign_locks.hold(key),
             # What a review measures — each the same reader the screen for
             # that fact uses, so the review and the screen cannot disagree.
+            register_posting=state.content_automation.register_pipeline if workspace_id == "local" else None,
             readers=GtmReaders(
                 campaign=lambda campaign_id: _engine(request).store.get_campaign(campaign_id),
                 email_summary=lambda campaign_id: _engine(request).store.campaign_summary(
@@ -3469,7 +3573,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                         campaign_id, status="published", limit=PUBLISHED_COUNT_LIMIT
                     )
                 ),
-                pacing=lambda campaign_id: _pacing_decision(request.app, campaign_id).to_dict(),
+                pacing=lambda campaign_id: _pacing_decision(request.app, campaign_id, workspace_id=_workspace_id(request)).to_dict(),
             ),
         )
 

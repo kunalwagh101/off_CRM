@@ -40,9 +40,10 @@ first looks like a plan.
 from __future__ import annotations
 
 import threading
+import math
 from ..observability import failure_boundary, failure_message, report_failure
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Callable
 
 from ..campaigns import assert_kind
@@ -125,6 +126,8 @@ class DistributionEngine:
 
     def set_account(self, account_id: str, **changes: Any) -> dict[str, Any]:
         """Change a connected handle: its label, whether it is on, and its cap."""
+        if self.store.get_account(account_id)["workspace_id"] != self.workspace_id:
+            raise KeyError("Posting account not found")
         return self.store.set_account(account_id, changes)
 
     def connect_account(
@@ -174,6 +177,8 @@ class DistributionEngine:
     ) -> dict[str, Any]:
         self._require_own_kind(campaign_id, "planning a post")
         account = self.store.get_account(account_id)
+        if account["workspace_id"] != self.workspace_id:
+            raise KeyError("Posting account not found")
         assert_publishable(str(account["platform"]))
         post_id = self.store.create_post(
             campaign_id=campaign_id,
@@ -186,10 +191,61 @@ class DistributionEngine:
         return self.store.get_post(post_id)
 
     def approve(self, post_id: str) -> dict[str, Any]:
+        with self.store.connection.transaction():
+            post = self._own_post(post_id)
+            if post["status"] != "draft":
+                raise ValueError(f"This post is already {post['status']}.")
+            self._asset_for(post)
+            return self.store.update_post(post_id, {"status": "approved"})
+
+    def _asset_for(self, post: dict[str, Any]) -> dict[str, Any] | None:
+        if not post["asset_id"]:
+            return None
+        if self.asset_reader is None:
+            raise ValueError("This attachment cannot be read. Review it before approving or publishing.")
+        asset = self.asset_reader(str(post["asset_id"]))
+        if asset.get("workspace_id", self.workspace_id) != self.workspace_id:
+            raise KeyError("Post attachment not found. Review the attachment before continuing.")
+        if asset.get("status") and asset["status"] not in ("approved", "ready"):
+            raise ValueError("Keep this picture on Image review or finish the video checks before approving the post.")
+        return asset
+
+    def _own_post(self, post_id: str) -> dict[str, Any]:
         post = self.store.get_post(post_id)
-        if post["status"] != "draft":
-            raise ValueError(f"This post is already {post['status']}.")
-        return self.store.update_post(post_id, {"status": "approved"})
+        if post["workspace_id"] != self.workspace_id:
+            raise KeyError("Post not found")
+        self._require_own_kind(str(post["campaign_id"]), "reviewing posts")
+        return post
+
+    def skip(self, post_id: str) -> dict[str, Any]:
+        with self.store.connection.transaction():
+            post = self._own_post(post_id)
+            if post["status"] == "skipped":
+                return post
+            if post["status"] != "draft":
+                raise ValueError("Only a draft post can be skipped. Review its current status.")
+            return self.store.update_post(post_id, {"status": "skipped"})
+
+    def schedule_next(self, post_id: str, *, posts_per_day: float, now: datetime | None = None) -> dict[str, Any]:
+        if not math.isfinite(posts_per_day) or not 0 < posts_per_day <= 20:
+            raise ValueError("Set a posting rate greater than zero and at most 20 before scheduling.")
+        moment = now or _now()
+        with self.store.connection.transaction():
+            post = self._own_post(post_id)
+            if post["status"] == "scheduled":
+                return post
+            cursor = self.store.connection.execute(
+                "SELECT id, status, COALESCE(NULLIF(published_at, ''), scheduled_at) AS latest FROM dist_posts "
+                "WHERE campaign_id = ? AND workspace_id = ? AND status IN ('scheduled', 'published')",
+                (post["campaign_id"], self.workspace_id),
+            )
+            moment = moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+            while (row := cursor.fetchone()) is not None:
+                if row["latest"]:
+                    previous = self.store.legacy_post_instant(str(row["id"]), str(row["latest"]), status=str(row["status"]))
+                    if previous is not None:
+                        moment = max(moment, previous + timedelta(days=1 / posts_per_day))
+            return self.schedule(post_id, at=moment)
 
     def schedule(self, post_id: str, *, at: datetime | str) -> dict[str, Any]:
         """Queue an approved post, checking the platform's ceiling first.
@@ -198,14 +254,20 @@ class DistributionEngine:
         cannot be delivered looks like a plan, and the owner will act as though
         it is one.
         """
-        post = self.store.get_post(post_id)
+        post = self._own_post(post_id)
         if post["status"] != "approved":
             raise ValueError(
                 "Only an approved post can be scheduled. Approval is the point "
                 "at which a person agreed to it going out."
             )
+        self._asset_for(post)
         spec = assert_publishable(str(post["platform"]))
-        when = at if isinstance(at, str) else at.isoformat()
+        try:
+            instant = datetime.fromisoformat(at.replace("Z", "+00:00")) if isinstance(at, str) else at
+            instant = instant if instant.tzinfo else instant.replace(tzinfo=timezone.utc)
+            when = instant.astimezone(timezone.utc).isoformat()
+        except (ValueError, AttributeError):
+            raise ValueError("Choose a valid date and time before scheduling this post.") from None
         day = str(when)[:10]
         account = self.store.get_account(str(post["account_id"]))
 
@@ -241,7 +303,12 @@ class DistributionEngine:
 
         with self._lock:
             stopped: dict[str, str] = {}
-            for post in self.store.due_posts(now=moment, limit=limit):
+            invalid_posts: list[dict[str, Any]] = []
+            due_posts = self.store.due_posts(now=moment, limit=limit, workspace_id=self.workspace_id, invalid_posts=invalid_posts)
+            for invalid in invalid_posts:
+                round_result.failed += 1
+                round_result.details.append({"post_id": invalid["id"], "status": "failed", "detail": invalid["error"]})
+            for post in due_posts:
                 # A paused campaign is the owner saying stop, so its posts wait
                 # — still scheduled, and sent once it is resumed (D-87).
                 reason = self._stopped(str(post["campaign_id"]), stopped)
@@ -259,14 +326,16 @@ class DistributionEngine:
                     )
                     continue
 
-                asset = None
-                if post["asset_id"] and self.asset_reader is not None:
-                    try:
-                        asset = self.asset_reader(str(post["asset_id"]))
-                    except Exception as exc:  # noqa: BLE001 - retain the existing picture-less path
-                        round_result.details.append({"post_id": post["id"], "status": "warning",
-                                                     "detail": failure_message(exc, operation="content.publish.asset", workspace=self.workspace_id)})
-                        asset = None
+                try:
+                    if account["workspace_id"] != self.workspace_id:
+                        raise KeyError("Posting account not found")
+                    asset = self._asset_for(post)
+                except Exception as exc:  # noqa: BLE001 - fail closed and finish other posts
+                    message = failure_message(exc, operation="content.publish.asset", workspace=self.workspace_id)
+                    self.store.update_post(post["id"], {"status": "failed", "error": message})
+                    round_result.failed += 1
+                    round_result.details.append({"post_id": post["id"], "status": "failed", "detail": message})
+                    continue
 
                 try:
                     receipt = self.publisher.publish(
@@ -355,7 +424,7 @@ class DistributionEngine:
             "goals": goals,
             "posts": {
                 status: len([item for item in posts if item["status"] == status])
-                for status in ("draft", "approved", "scheduled", "published", "failed")
+                for status in ("draft", "approved", "scheduled", "published", "failed", "skipped")
             },
             "measured_posts": len(latest),
         }

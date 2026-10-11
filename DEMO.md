@@ -823,3 +823,23 @@ The files appear beside that run's `trace.jsonl`. XLSX contains a Trace sheet
 and every finding links to its exact step row. PPTX writes the step id on every
 claim slide. PDF is the existing escaped offline provenance report printed by a
 local Chromium-family browser.
+
+
+## S-06.02.39 — Low-bitrate WebM validation (IN_REVIEW)
+
+```bash
+uv run pytest tests/test_video_gates.py tests/test_video_engine.py -q
+uv run pytest -q
+uv run python scripts/verify_board.py
+```
+
+`tests/fixtures/low_bitrate_valid.webm` is a real two-second, 60-frame VP9 file
+(360x640, 2150 bytes) produced using ffmpeg. Before the change the 4096-byte
+size floor rejected it. Check that the genuine video passes all gates, while the
+existing fake/empty WebM and deliberately mismatched requirements fail.
+
+A standalone EBML sample-scan reproduction passed 10 local test cases; these
+were **not** the repository test suite. Manual acceptance still needs a real
+browser export of a short Colour scene and playback verification. The GitHub
+runner and full board tests remain unverified. See
+`docs/evidence/S-06.02.39-validation.md`.

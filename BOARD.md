@@ -37,6 +37,14 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.37 · Skip navigation keeps the current screen
 
+*(Production-audit security findings, not yet READY; the required live integration checks have not run.)*
+
+- S-03.01.03 · Browser blocks internal network access
+  work_order: docs/work-orders/S-03.01.03-network-isolation.md
+
+- S-05.01.04 · Public-page fetches connect only to checked destinations
+  work_order: docs/work-orders/S-05.01.04-verified-destinations.md
+
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
 - S-04.01.03 · Sub-agents for context isolation

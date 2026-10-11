@@ -119,8 +119,8 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A04 | P1 | The backup cannot recover the full workspace and can exceed its own restore limit | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A05 | P1 | Company users have no individual identity or enforced permissions | Source confirmed | Not rechecked on develop; S-06.02.23 |
 | A06 | P1 | Logging out does not revoke the session | Reproduced | Not rechecked on develop; S-06.02.23 |
-| A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary | Not rechecked on develop; S-06.02.23 |
-| A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture | Not rechecked on develop; S-06.02.23 |
+| A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary | Open by current-source inspection: D-266 / S-03.01.03; full execution pending |
+| A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture | Open by current-source inspection: D-267 / S-05.01.04; full execution pending |
 | A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome | Not rechecked on develop; S-06.02.23 |
 | A10 | P1 | The AI dollar-spend cap is not accounted for | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A11 | P1 | Quota checks race and separate processes overwrite usage | Reproduced at the accounting boundary | Not rechecked on develop; S-06.02.23 |

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **A07/A08 source recheck** (2026-10-11, `S-06.02.23`): browser private-network exclusion and public-fetch DNS validation remain incomplete on `develop`. Logged `D-266` and `D-267`, added `S-03.01.03` and `S-05.01.04` with security acceptance work orders and traceability. No production code was changed, and full network or test-suite execution remains unverified.
+
 - **Production audit recheck started** (`S-06.02.23`, 2026-10-11): the
   September audit now tracks the status of all 35 findings against `develop`.
   Earlier remediations are deliberately not marked reverified; six known gaps

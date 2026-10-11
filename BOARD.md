@@ -149,13 +149,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.39 · Valid low-bitrate WebM exports pass verification
-  work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.39 · Valid low-bitrate WebM exports pass verification
+  work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
+  review: docs/evidence/S-06.02.39-validation.md; isolated encode/sample scan verified, full regression and browser pending
 
 - S-12.02.06 · A plan's posting channel runs from the screens
   work_order: docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md

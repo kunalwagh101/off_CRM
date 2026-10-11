@@ -881,6 +881,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
 | R-167 | Browser network isolation denies non-public destinations before connection | S-03.01.03 |
 | R-168 | Public fetcher connections use verified public destination addresses | S-05.01.04 |
+| R-169 | A real low-bitrate WebM with encoded frames must not fail a byte-length-only export gate | S-06.02.39 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -1729,6 +1730,14 @@ trusted, **so that** the defaults are a starting point and not a verdict.
 - **Dependencies:** none. **Size:** M. **Indicator:** trust changes made without
   a recorded reason for a raise — target zero.
 - **Why:** owner request, 2026-09-25; decisions `DD-64`, `DD-65`.
+
+#### S-06.02.39 — Valid low-bitrate WebM exports pass verification
+**As a** video editor user, **I want** a completed low-bitrate Colour export to pass the file checks, **so that** the default short video is not refused merely because it compresses unusually well.
+- **Given** a genuine encoded WebM with a video track, encoded video samples, correct dimensions and duration, **when** its byte length is under 4096, **then** the export passes the non-empty gate and all the other applicable existing gates.
+- **Given** a short metadata-only, zero-sample or malformed WebM, **when** it is checked, **then** it remains rejected as incomplete; a larger valid export retains its old behaviour.
+- **Given** a declared duration, dimensions or audio requirement, **when** the media disagrees, **then** those gates still refuse the export regardless of file size.
+- **Dependencies:** S-01.02.01 (DONE). **Size:** S. **Audit:** A34, D-122. **Scope:** small WebM only; do not weaken other codecs or remove the existing threshold for unproved data.
+- **Why:** owner-selected narrow fix after the production audit identified an actual 60-frame video refused under the size-only check.
 
 #### S-06.02.38 — Any error can be traced back the next day
 **As an** install owner, **I want** every failure to leave one log line with

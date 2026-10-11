@@ -149,6 +149,9 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
+- S-06.02.39 · Valid low-bitrate WebM exports pass verification
+  work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
+
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 

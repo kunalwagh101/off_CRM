@@ -93,6 +93,7 @@ the code exists and holds no stub).
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
+| R-169 | S-06.02.39 | 3 | `tests/test_video_gates.py` (pending full run) | `video/gates.py` |
 | R-167 | S-03.01.03 | 3 | Pending real-browser/container acceptance | `browser/policy.py`, `browser/guard.py`, `browser/box.py` |
 | R-168 | S-05.01.04 | 3 | Pending controlled HTTP/DNS acceptance | `discovery.py` |
 

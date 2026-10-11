@@ -308,7 +308,7 @@ def test_A34_small_media_without_verified_video_blocks_stays_rejected(broken):
     """The byte-floor exception is not a bypass for empty or broken exports."""
     report = run_gates(broken, want_width=360, want_height=640)
     assert not report.passed
-    assert any(not gate.passed for gate in report.results)
+    assert any(gate.name == "not_empty" and not gate.passed for gate in report.results)
 
 
 def test_A34_small_valid_video_does_not_bypass_other_project_requirements():
@@ -320,6 +320,7 @@ def test_A34_small_valid_video_does_not_bypass_other_project_requirements():
     ]:
         report = run_gates(data, **options)
         assert not report.passed
+        assert any(item.name == "not_empty" and item.passed for item in report.results)
         assert any(item.name == gate and not item.passed for item in report.results)
 
 

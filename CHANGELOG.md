@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Production audit recheck started** (`S-06.02.23`, 2026-10-11): the
+  September audit now tracks the status of all 35 findings against `develop`.
+  Earlier remediations are deliberately not marked reverified; six known gaps
+  remain explicitly open, and 21 findings await direct reproduction. Current
+  CI jobs fail before running steps, so there is no new application-test or
+  release claim. The linked work order records what is needed to close them.
+
 - **Posting from an applied plan** (`S-12.02.06`, in review): Apply declares a
   paused posting/image pair and its daily rate; Posting connects local-outbox
   accounts, starts a plan, previews drafts, and offers approval/scheduling or

@@ -111,43 +111,43 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 
 ## Findings at a glance
 
-| ID | Priority | Finding | Evidence |
-|---|---|---|---|
-| A01 | P0 | The supplied hosted deployment discards customer state | Source/configuration confirmed |
-| A02 | P0 | Concurrent CRM transactions can roll back each other's work | Reproduced |
-| A03 | P1 | Backup restore breaks sales, delivery and AI chats—even when the archive is rejected | Reproduced |
-| A04 | P1 | The backup cannot recover the full workspace and can exceed its own restore limit | Reproduced |
-| A05 | P1 | Company users have no individual identity or enforced permissions | Source confirmed |
-| A06 | P1 | Logging out does not revoke the session | Reproduced |
-| A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary |
-| A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture |
-| A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome |
-| A10 | P1 | The AI dollar-spend cap is not accounted for | Reproduced |
-| A11 | P1 | Quota checks race and separate processes overwrite usage | Reproduced at the accounting boundary |
-| A12 | P1 | The AI cache can return an old answer after the facts change | Reproduced |
-| A13 | P1 | A cached answer can be falsely attributed to the newly selected model | Reproduced |
-| A14 | P1 | HTTP idempotency permits duplicate operations under a race | Reproduced |
-| A15 | P1 | Media uploads bypass the configured size limit and read the whole file into memory | Reproduced |
-| A16 | P1 | Provider construction failure strands a durable email job | Reproduced |
-| A17 | P1 | Readiness stays green when required product components are unavailable | Reproduced |
-| A18 | P1 | Claim verification accepts the wrong numeric value | Reproduced |
-| A19 | P1 | Enrichment exports turn untrusted text into spreadsheet formulas | Reproduced |
-| A20 | P2 | API-token authentication breaks media loading and misreports login status | Reproduced with frontend and API tests |
-| A21 | P2 | Image quality gates accept corrupt data and can raise on malformed headers | Reproduced |
-| A22 | P2 | Several write APIs lack typed validation and malformed input produces 500 | Reproduced; wider surface inventoried |
-| A23 | P2 | The contact screen stops at 500 rows without pagination | Source confirmed |
-| A24 | P1 | There is no complete customer-data deletion and retention workflow | Source/API inventory confirmed |
-| A25 | P1 | The deployment does not run the durable email worker; other automation is process-local | Source/configuration confirmed |
-| A26 | P1 | The Docker build omits feature dependencies and does not reproduce the Python lock | Source/configuration confirmed |
-| A27 | P1 | Real social publishing and engagement feedback are not implemented | Source and board confirmed |
-| A28 | P1 | The autonomous browser work is not yet a complete customer workflow | Source/API inventory and branch tests confirmed |
-| A29 | P1 | Release evidence omits important live integrations and operational failure checks | Test execution and configuration confirmed |
-| A30 | P2 | The source-of-truth documents and login copy still contradict the production direction | Source and board comparison confirmed |
-| A31 | P2 | Two frontend build dependencies have published advisories | npm audit and installed dependency tree confirmed |
-| A32 | P1 | The sandbox's advertised writable output directory rejects writes | Reproduced in real Docker |
-| A33 | P1 | Creating a campaign can silently select an older campaign | Reproduced in real Chrome |
-| A34 | P2 | The editor's default Colour clip fails its own export acceptance gate | Reproduced through real browser export |
-| A35 | P2 | Connectors loads Gmail status from a nonexistent API route | Reproduced in live HTTP and Chrome |
+| ID | Priority | Finding | Evidence | Status on develop (2026-10-11) |
+|---|---|---|---|---|
+| A01 | P0 | The supplied hosted deployment discards customer state | Source/configuration confirmed | Pending regression re-run; earlier remediation: S-06.02.21 |
+| A02 | P0 | Concurrent CRM transactions can roll back each other's work | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
+| A03 | P1 | Backup restore breaks sales, delivery and AI chats—even when the archive is rejected | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
+| A04 | P1 | The backup cannot recover the full workspace and can exceed its own restore limit | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
+| A05 | P1 | Company users have no individual identity or enforced permissions | Source confirmed | Not rechecked on develop; S-06.02.23 |
+| A06 | P1 | Logging out does not revoke the session | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary | Not rechecked on develop; S-06.02.23 |
+| A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture | Not rechecked on develop; S-06.02.23 |
+| A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome | Not rechecked on develop; S-06.02.23 |
+| A10 | P1 | The AI dollar-spend cap is not accounted for | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A11 | P1 | Quota checks race and separate processes overwrite usage | Reproduced at the accounting boundary | Not rechecked on develop; S-06.02.23 |
+| A12 | P1 | The AI cache can return an old answer after the facts change | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A13 | P1 | A cached answer can be falsely attributed to the newly selected model | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A14 | P1 | HTTP idempotency permits duplicate operations under a race | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A15 | P1 | Media uploads bypass the configured size limit and read the whole file into memory | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A16 | P1 | Provider construction failure strands a durable email job | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A17 | P1 | Readiness stays green when required product components are unavailable | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
+| A18 | P1 | Claim verification accepts the wrong numeric value | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A19 | P1 | Enrichment exports turn untrusted text into spreadsheet formulas | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A20 | P2 | API-token authentication breaks media loading and misreports login status | Reproduced with frontend and API tests | Not rechecked on develop; S-06.02.23 |
+| A21 | P2 | Image quality gates accept corrupt data and can raise on malformed headers | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A22 | P2 | Several write APIs lack typed validation and malformed input produces 500 | Reproduced; wider surface inventoried | Not rechecked on develop; S-06.02.23 |
+| A23 | P2 | The contact screen stops at 500 rows without pagination | Source confirmed | Not rechecked on develop; S-06.02.23 |
+| A24 | P1 | There is no complete customer-data deletion and retention workflow | Source/API inventory confirmed | Not rechecked on develop; S-06.02.23 |
+| A25 | P1 | The deployment does not run the durable email worker; other automation is process-local | Source/configuration confirmed | Not rechecked on develop; S-06.02.23 |
+| A26 | P1 | The Docker build omits feature dependencies and does not reproduce the Python lock | Source/configuration confirmed | Pending regression re-run; earlier remediation: Dockerfile locked dependencies |
+| A27 | P1 | Real social publishing and engagement feedback are not implemented | Source and board confirmed | Open; S-01.05.01 / S-01.05.02 / S-01.05.03 (external access) |
+| A28 | P1 | The autonomous browser work is not yet a complete customer workflow | Source/API inventory and branch tests confirmed | Open; S-02.02.03 (unfinished steering/resume; full UI path still to re-check) |
+| A29 | P1 | Release evidence omits important live integrations and operational failure checks | Test execution and configuration confirmed | Open; S-06.02.27 / S-06.02.18 (live CI and release evidence) |
+| A30 | P2 | The source-of-truth documents and login copy still contradict the production direction | Source and board comparison confirmed | Not rechecked on develop; S-06.02.23 |
+| A31 | P2 | Two frontend build dependencies have published advisories | npm audit and installed dependency tree confirmed | Open; D-47 / S-06.02.16 |
+| A32 | P1 | The sandbox's advertised writable output directory rejects writes | Reproduced in real Docker | Open; D-121 (sandbox output) |
+| A33 | P1 | Creating a campaign can silently select an older campaign | Reproduced in real Chrome | Pending regression re-run; earlier remediation: S-06.02.22 |
+| A34 | P2 | The editor's default Colour clip fails its own export acceptance gate | Reproduced through real browser export | Open; D-122 (media-size gate) |
+| A35 | P2 | Connectors loads Gmail status from a nonexistent API route | Reproduced in live HTTP and Chrome | Pending regression re-run; earlier remediation: D-120 / tests/test_frontend_routes_exist.py |
 
 ## Feature-by-feature production readiness
 

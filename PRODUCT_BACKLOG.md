@@ -355,6 +355,13 @@ files, **so that** an agent holding real logins cannot reach anything else.
   `--network=none` is still present.
 - **Dependencies:** S-03.01.01. **Size:** S. **Indicator:** sandbox escape findings.
 
+#### S-03.01.03 — Browser blocks internal network access
+**As a** security owner, **I want** the browser container prevented from reaching internal network services, **so that** a web page cannot use it to access infrastructure outside the public internet.
+- **Given** any browser request, **when** it targets a non-public destination, **then** the browser and container refuse the connection in both attended and unattended modes.
+- **Given** navigation, redirects, subresources and new tabs, **when** destination addresses change, **then** the same network restriction continues to apply.
+- **Given** a public test website, **when** the browser accesses it, **then** normal browsing still works. Test with a real browser and container.
+- **Dependencies:** S-03.01.01 (DONE). **Size:** L. **Audit:** A07, D-266.
+
 ### F-03.02 — Identity and secrets  *(E-03)*
 
 #### S-03.02.01 — Sign in to a platform once, inside the box
@@ -540,6 +547,13 @@ what works without copying the competitor's content.
 - **Out of scope:** downloading/storing competitor media; cloning captions,
   transcripts, music, voices or frames; bypassing human review; automated
   publishing; authenticated/session-gated competitor collection.
+
+#### S-05.01.04 — Public-page fetches connect only to checked destinations
+**As a** security owner, **I want** crawler connections to use verified public destinations, **so that** a hostname change does not redirect the connection to an internal network.
+- **Given** a DNS change between validation and connection, **when** a page is fetched, **then** the connection must not reach an unverified destination.
+- **Given** redirects, address changes and reused connections, **when** fetching content, **then** every destination passes the public-network restriction.
+- **Given** a permitted public website, **when** it is fetched, **then** TLS checks, redirects, size limits and crawl pacing still work.
+- **Dependencies:** S-05.01.01 (IN_REVIEW). **Size:** L. **Audit:** A08, D-267.
 
 ### F-06.01 — Team and production  *(E-06)*
 
@@ -865,6 +879,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-165 | Skip navigation focuses the current screen without changing its route | S-06.02.37 |
 | R-166 | Any failure leaves one secret-free log line with an error id the user is also shown | S-06.02.38 |
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
+| R-167 | Browser network isolation denies non-public destinations before connection | S-03.01.03 |
+| R-168 | Public fetcher connections use verified public destination addresses | S-05.01.04 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

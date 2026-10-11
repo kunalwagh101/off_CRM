@@ -122,8 +122,6 @@ an implementer can follow without asking. `S-06.02.24` is `D-134` and `D-138`;
 `S-06.02.25` is `D-137`.)*
 
 
-- S-06.02.23 · Re-check the 7 September production audit on `develop`
-  work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 *(Q-01, Q-02, Q-03 and Q-06 were answered by the owner. The decisions are
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
@@ -143,7 +141,8 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-
+- S-06.02.23 · Re-check the 7 September production audit on `develop`
+  work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
 

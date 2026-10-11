@@ -37,6 +37,8 @@ from offsetx_apollo_builder.video.timeline import TICKS_PER_SECOND
 MUXED = Path(__file__).parent / "fixtures" / "muxed_sample.webm"
 #: The same muxer's output with an Opus track in it, for the audio gate.
 MUXED_AUDIO = Path(__file__).parent / "fixtures" / "muxed_sample_audio.webm"
+#: Independent ffmpeg VP9 encode: two seconds, 60 frames, 360x640, 2150 bytes.
+SMALL_REAL_WEBM = Path(__file__).parent / "fixtures" / "low_bitrate_valid.webm"
 SECOND = TICKS_PER_SECOND
 
 #: The identity display matrix, in the 16.16 / 2.30 fixed point MP4 uses.
@@ -275,6 +277,50 @@ def test_an_empty_container_is_caught_before_anything_else_looks_at_it():
     assert not report.passed
     failure = next(item for item in report.failures if item.name == "not_empty")
     assert str(MIN_BYTES) in failure.detail
+
+
+def test_A34_a_real_sixty_frame_vp9_export_is_not_rejected_for_compressing_well():
+    """A34: independent ffmpeg 30fps/2s VP9 fixture, not a synthetic header."""
+    data = SMALL_REAL_WEBM.read_bytes()
+    assert len(data) < MIN_BYTES
+    found = probe(data)
+    assert (found.width, found.height, found.duration_ticks) == (360, 640, 2 * SECOND)
+    assert found.has_video and not found.has_audio
+
+    report = run_gates(
+        data, want_width=360, want_height=640, want_duration_ticks=2 * SECOND
+    )
+    assert report.passed, report.summary()
+    not_empty = next(item for item in report.results if item.name == "not_empty")
+    assert not_empty.passed and "video blocks" in not_empty.detail
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        webm(padding=16),  # metadata, with a zero-filled pretend block
+        webm(audio_only=True, padding=16),
+        SMALL_REAL_WEBM.read_bytes()[:128],  # incomplete header, no frame
+        b"not a WebM",
+    ],
+)
+def test_A34_small_media_without_verified_video_blocks_stays_rejected(broken):
+    """The byte-floor exception is not a bypass for empty or broken exports."""
+    report = run_gates(broken, want_width=360, want_height=640)
+    assert not report.passed
+    assert any(not gate.passed for gate in report.results)
+
+
+def test_A34_small_valid_video_does_not_bypass_other_project_requirements():
+    data = SMALL_REAL_WEBM.read_bytes()
+    for options, gate in [
+        ({"want_width": 640, "want_height": 360}, "aspect_ratio"),
+        ({"want_duration_ticks": 4 * SECOND}, "duration_matches"),
+        ({"require_audio": True}, "has_audio_track"),
+    ]:
+        report = run_gates(data, **options)
+        assert not report.passed
+        assert any(item.name == gate and not item.passed for item in report.results)
 
 
 def test_an_export_of_the_wrong_shape_fails_and_says_both_shapes():

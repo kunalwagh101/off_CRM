@@ -475,6 +475,85 @@ def _probe_webm(data: bytes) -> MediaProbe:
     return result
 
 
+# Small WebM files can carry real encoded video. A fixed byte floor rejects
+# static Colour clips that VP9 compresses especially well (audit A34/D-122).
+# Parse sample block headers here, without a codec or a second media parser.
+_TRACK_NUMBER = 0xD7
+_CLUSTER = 0x1F43B675
+_SIMPLE_BLOCK = 0xA3
+_BLOCK_GROUP = 0xA0
+_BLOCK = 0xA1
+
+
+def _webm_has_video_samples(data: bytes) -> bool:
+    """Whether a small WebM contains multiple nonempty encoded video blocks.
+
+    This does not decode VP9. It replaces only the size-based guess for an
+    empty export; the normal track, duration and aspect gates still run.
+    """
+    if data[:4] != struct.pack(">I", _EBML_HEADER):
+        return False
+
+    def elements(start: int, end: int):
+        cursor = start
+        while cursor < end:
+            try:
+                tag, body = _vint(data, cursor, keep_marker=True)
+                size, body = _vint(data, body, keep_marker=False)
+            except VideoDecodeError:
+                return
+            stop = end if size == -1 else body + size
+            if stop > end or stop <= cursor:
+                return
+            yield tag, body, stop
+            cursor = stop
+
+    video_tracks: set[int] = set()
+    sample_counts: dict[int, int] = {}
+    for tag, body, stop in elements(0, len(data)):
+        if tag != _SEGMENT:
+            continue
+        for child, inside, last in elements(body, stop):
+            if child == _TRACKS:
+                for entry, at, until in elements(inside, last):
+                    if entry != _TRACK_ENTRY:
+                        continue
+                    track_number, track_type = 0, 0
+                    for attr, start, end in elements(at, until):
+                        if attr == _TRACK_NUMBER:
+                            track_number = int.from_bytes(data[start:end], "big")
+                        elif attr == _TRACK_TYPE:
+                            track_type = int.from_bytes(data[start:end], "big")
+                    if track_type == 1 and track_number > 0:
+                        video_tracks.add(track_number)
+            elif child == _CLUSTER:
+                for block_tag, block_body, block_stop in elements(inside, last):
+                    if block_tag == _SIMPLE_BLOCK:
+                        blocks = [(block_body, block_stop)]
+                    elif block_tag == _BLOCK_GROUP:
+                        blocks = [
+                            (start, end)
+                            for kind, start, end in elements(block_body, block_stop)
+                            if kind == _BLOCK
+                        ]
+                    else:
+                        continue
+                    for start, end in blocks:
+                        try:
+                            track, sample_start = _vint(data, start, keep_marker=False)
+                        except VideoDecodeError:
+                            continue
+                        # Track number, two-byte timestamp and one flag byte
+                        # precede the encoded frame; a bare block is not a frame.
+                        if sample_start + 3 >= end:
+                            continue
+                        frame = data[sample_start + 3:end]
+                        if len(frame) >= 8 and any(frame):
+                            sample_counts[track] = min(2, sample_counts.get(track, 0) + 1)
+        break
+    return any(sample_counts.get(track, 0) >= 2 for track in video_tracks)
+
+
 # ── the gates ───────────────────────────────────────────────────────────────
 
 
@@ -511,15 +590,21 @@ def run_gates(
     report.results.append(GateResult("decodes", True, f"{len(payload)} bytes"))
 
     if len(payload) < min_bytes:
-        report.results.append(
-            GateResult(
-                "not_empty",
-                False,
-                f"{len(payload)} bytes is below {min_bytes}. A container this "
-                "small holds a header and no frames — the encoder ran and "
-                "nothing was ever painted.",
+        # Byte count is a useful default, not proof: VP9 may encode a complete
+        # short static scene in fewer bytes. Only WebM with actual video block
+        # evidence gets the exception; other formats retain the original gate.
+        if _webm_has_video_samples(payload):
+            report.results.append(GateResult("not_empty", True, "encoded video blocks found"))
+        else:
+            report.results.append(
+                GateResult(
+                    "not_empty",
+                    False,
+                    f"{len(payload)} bytes is below {min_bytes} and there is no "
+                    "evidence of encoded video frames. This may be an empty or "
+                    "incomplete export.",
+                )
             )
-        )
     else:
         report.results.append(GateResult("not_empty", True))
 

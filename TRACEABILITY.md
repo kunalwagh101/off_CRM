@@ -51,6 +51,7 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-169 | S-06.02.39 | 3 | sample-aware small WebM check plus real encoded 60-frame VP9 test fixture and three named regression tests | full Python/frontend regression, real video-editor browser export, rollback and board verifier are unrun; CI runners unavailable |
 | R-48 | S-06.02.02 | 2 | closed public-route allowlist + global auth middleware + secret-safe validation handler + exhaustive registered-route/body contract in `tests/test_api_boundary_contract.py` | `uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q`, full regression, owner API review and verifier |
 | R-51 | S-06.02.05 | 1 | skip navigation/current-page/live regions + focus-trapped/restoring modal + global focus-visible/reduced-motion + keyboard alternatives across AI/Sales/Video + recursive repo-wide `tests/test_frontend_accessibility_contract.py` | `uv run pytest tests/test_frontend_accessibility_contract.py -q && npm test --prefix frontend && npm run build --prefix frontend`, owner keyboard/screen-reader pass and verifier |
 | R-55 | S-07.01.03 | 1 | localhost-only mic+system-audio MediaRecorder capture, transient raw chunks, immutable declared transcription provider/model, governed broker egress, transcript privacy/backup; `tests/test_meeting_transcription.py` committed | `uv run pytest tests/test_meeting_transcription.py tests/test_privacy.py -q && npm test --prefix frontend && npm run build --prefix frontend`, real localhost browser capture/manual audio check, full regression and verifier |
@@ -93,7 +94,6 @@ the code exists and holds no stub).
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
-| R-169 | S-06.02.39 | 3 | `tests/test_video_gates.py` (pending full run) | `video/gates.py` |
 | R-167 | S-03.01.03 | 3 | Pending real-browser/container acceptance | `browser/policy.py`, `browser/guard.py`, `browser/box.py` |
 | R-168 | S-05.01.04 | 3 | Pending controlled HTTP/DNS acceptance | `discovery.py` |
 

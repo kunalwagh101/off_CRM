@@ -424,3 +424,27 @@ changed until you choose; `S-06.02.35` is filed for either answer.
 **Blast radius if wrong.** Choosing 1 means profile-only settings — round-robin
 and parallel strategies — need a Connectors equivalent or are dropped. Choosing
 2 keeps a second egress path that the tiers do not govern.
+
+### Q-29 — Which owner-controlled destination and key policy protect hosted CRM backups? *(blocks S-06.03.04)*
+
+**Status:** open. Raised 2026-10-13 for the selected hosted recovery feature. The choice in Q-20 to use encrypted Google Drive for demo *video* does not grant access or storage permission for CRM/customer database exports.
+
+**Ambiguity.** A real nightly backup must survive deletion of the hosted database and Render's ephemeral filesystem. Neither the location, its credentials nor custody of the separate decryption key is authorised yet.
+
+**Options.** 1. Owner-supplied private S3-compatible object bucket with a restricted write/read identity and explicit retention policy. 2. Owner-supplied private Google Drive folder through an approved OAuth integration, retaining separately managed encryption keys. 3. Another durable independent store with a tested uploader and restore. No destination means no claim of scheduled backups.
+
+**Recommended default: 1**, once an appropriately secured bucket is available, because it supports atomic object upload, independent recovery, access controls and lifecycle rules without sending a live database into the app's temporary disk. The provider/cost is still an owner choice.
+
+**Blast radius if wrong.** Choosing a source-adjacent or temporary destination creates a backup that disappears with the primary data. Choosing the wrong retention period can permanently lose restore points or retain sensitive customer data beyond agreement.
+
+### Q-30 — Who chooses which companion procedure enters a run? *(blocks S-04.01.02)*
+
+**Status:** open. Raised 2026-10-13 for the selected on-demand skills feature.
+
+**Ambiguity.** A procedure can be selected explicitly by an owner/workflow or inferred by a model from the goal/page. The distinction changes prompt content, permissions and prompt-injection exposure.
+
+**Options.** 1. Only an explicit workspace-authorised selection on the companion's run request chooses bounded skills; no ambient page or model may activate more. 2. Auto-suggest by deterministic tags, but the owner must approve the actual set before the run. 3. Model-selected relevance, with a separate trusted authorisation step before any playbook text is added.
+
+**Recommended default: 1.** It is deterministic, cheap in tokens, and cannot be tricked into loading extra instructions by untrusted page content.
+
+**Blast radius if wrong.** Implicit selection can leak another workspace's procedures or raise prompt/token costs unexpectedly. Explicit selection requires more UI/workflow setup but has a testable security boundary.

@@ -107,3 +107,14 @@ claimed. Before implementing a selected feature, prepare the locked environment
 including the PostgreSQL extra from AGENTS.md and run the applicable baseline
 and release gates. Earlier test counts from the main-based checkout must not be
 reused as develop's results.
+
+
+## 2026-10-13 owner-selected next three priorities — develop
+
+The user requested three feature areas. Keep them ordered and do not exceed two simultaneous IN_PROGRESS stories (S-06.02.23 audit remains active):
+
+1. **F-06.02 production reliability — S-06.02.20**: real Git history check and CI full-depth checkout implemented, evidence tracked; now IN_REVIEW pending full suite and a functioning Actions runner.
+2. **F-06.03 hosted backup/recovery — S-06.03.04**: acceptance work order `docs/work-orders/S-06.03.04-hosted-backup-and-restore.md` prepared. BACKLOG, not READY: Q-29 requires an authorised off-database durable destination and backup-key custody. Existing local backup is not a hosted backup.
+3. **F-04.01 on-demand agent skills — S-04.01.02**: acceptance work order `docs/work-orders/S-04.01.02-on-demand-agent-skills.md` prepared. BACKLOG, not READY: S-04.01.01 is IN_REVIEW and Q-30 must settle the exact trusted skill-selection contract.
+
+No code for items 2–3 has been implemented yet and no release or hosted integration has been certified. Do not interpret this selected order as permission to bypass dependencies or invent new storage/agent policy.

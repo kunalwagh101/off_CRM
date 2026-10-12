@@ -47,6 +47,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
+  work_order: docs/work-orders/S-04.01.02-on-demand-agent-skills.md
 - S-04.01.03 · Sub-agents for context isolation
 - S-04.01.04 · The five roles, wired to what already exists
 - S-06.01.02 · Three-level permissions
@@ -102,6 +103,7 @@ next day, `AGENTS.md` "Logging".)*
 
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
+  work_order: docs/work-orders/S-06.03.04-hosted-backup-and-restore.md
 - S-06.03.05 · Production refuses a half-hosted install
   design: docs/architecture/HOSTED_STORAGE.md
 
@@ -149,13 +151,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
-  work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
+  work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
+  review: docs/evidence/S-06.02.20-validation.md; isolated real Git reproduction passed, full repository and CI unrun
 
 - S-06.02.39 · Valid low-bitrate WebM exports pass verification
   work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md

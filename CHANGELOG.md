@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Shallow Git ancestry verification** (`S-06.02.20`, 2026-10-13, IN_REVIEW): board verification now identifies insufficient history and says `git fetch --unshallow`, instead of falsely accusing historical evidence. Adds real depth-one clone regression and requires full-history checkout for both GitHub Actions jobs. Three isolated Git tests passed; the repository suite and CI remain unrun.
+
 - **Accept short low-bitrate WebM exports** (`S-06.02.39`, in review, 2026-10-12): valid 2-second VP9 videos no longer fail only because they compress to fewer than 4096 bytes. Small WebM files now need evidence of real video blocks; metadata-only and malformed exports remain refused. Added a real independent 60-frame VP9 fixture and targeted tests. Isolated sample/ffprobe checks passed; full Python, frontend and browser validation remains open.
 
 - **A07/A08 source recheck** (2026-10-11, `S-06.02.23`): browser private-network exclusion and public-fetch DNS validation remain incomplete on `develop`. Logged `D-266` and `D-267`, added `S-03.01.03` and `S-05.01.04` with security acceptance work orders and traceability. No production code was changed, and full network or test-suite execution remains unverified.

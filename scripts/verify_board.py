@@ -621,16 +621,32 @@ def check_commits(items: list[Item], report: Report) -> int:
         )
         return 0
 
+    # A depth-limited clone may omit every historical evidence commit. That
+    # tells us nothing about whether the board's SHA exists upstream.
+    depth = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    shallow = depth.returncode == 0 and depth.stdout.strip() == "true"
+
     for item, sha in named:
         exists = subprocess.run(
             ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
             cwd=ROOT, capture_output=True, text=True,
         )
         if exists.returncode != 0:
-            report.fail(
-                f"{item.identifier} records commit {sha}, which is not a commit "
-                "in this repository at all."
-            )
+            if shallow:
+                report.fail(
+                    f"{item.identifier} records commit {sha}, but this Git clone "
+                    "is shallow and does not contain the complete evidence "
+                    "history. Run git fetch --unshallow, then verify the board "
+                    "again. The commit cannot be judged from this checkout."
+                )
+            else:
+                report.fail(
+                    f"{item.identifier} records commit {sha}, which is not a commit "
+                    "in this repository at all."
+                )
             continue
         # The real check. An object can exist and be unreachable.
         ancestor = subprocess.run(
@@ -638,11 +654,18 @@ def check_commits(items: list[Item], report: Report) -> int:
             cwd=ROOT, capture_output=True, text=True,
         )
         if ancestor.returncode != 0:
-            report.fail(
-                f"{item.identifier} records commit {sha}, which exists but is not "
-                "an ancestor of HEAD. The usual cause is amending after the sha "
-                "was written down; record it in a follow-up commit instead."
-            )
+            if shallow:
+                report.fail(
+                    f"{item.identifier} records commit {sha}, but this shallow "
+                    "Git clone cannot establish its ancestry. Run "
+                    "git fetch --unshallow, then verify the board again."
+                )
+            else:
+                report.fail(
+                    f"{item.identifier} records commit {sha}, which exists but is not "
+                    "an ancestor of HEAD. The usual cause is amending after the sha "
+                    "was written down; record it in a follow-up commit instead."
+                )
     return len(named)
 
 

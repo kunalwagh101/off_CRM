@@ -763,6 +763,56 @@ def test_a_commit_that_exists_but_was_orphaned_fails(tmp_path):
     assert orphan in result.stdout
 
 
+def test_a_shallow_checkout_names_the_missing_history_and_recovers(tmp_path):
+    """S-06.02.20 / D-80: a truthful ancestor omitted by depth-1 is not a lie.
+
+    A real file:// clone is essential: a mocked git response would not establish
+    the difference between absent history and a nonexistent commit.
+    """
+    source = build(tmp_path / "source")
+
+    def git(repo, *args):
+        result = subprocess.run(
+            ["git", *args], cwd=repo, capture_output=True, text=True, check=True
+        )
+        return result.stdout.strip()
+
+    git(source, "init", "-q")
+    git(source, "config", "user.email", "fixture@example.test")
+    git(source, "config", "user.name", "Fixture")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "old evidence")
+    old = git(source, "rev-parse", "HEAD")
+
+    (source / "BOARD.md").write_text(_with_commit(GOOD_BOARD, old), encoding="utf-8")
+    git(source, "add", "BOARD.md")
+    git(source, "commit", "-q", "-m", "current board")
+
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--depth", "1", source.resolve().as_uri(),
+         str(shallow)],
+        capture_output=True, text=True, check=True,
+    )
+    assert git(shallow, "rev-parse", "--is-shallow-repository") == "true"
+    assert subprocess.run(
+        ["git", "cat-file", "-e", f"{old}^{{commit}}"],
+        cwd=shallow, capture_output=True,
+    ).returncode != 0
+
+    missing_history = run(shallow, "--skip-tests")
+    assert missing_history.returncode == 1
+    assert "shallow" in missing_history.stdout.lower()
+    assert "git fetch --unshallow" in missing_history.stdout
+    assert "not a commit in this repository at all" not in missing_history.stdout
+
+    git(shallow, "fetch", "--unshallow")
+    assert git(shallow, "rev-parse", "--is-shallow-repository") == "false"
+    complete_history = run(shallow, "--skip-tests")
+    assert complete_history.returncode == 0, complete_history.stdout
+    assert "recorded commit(s), all on this branch" in complete_history.stdout
+
+
 def test_a_repository_with_no_git_is_noted_rather_than_failed(tmp_path):
     """The board is still readable in a tarball or a vendored copy. Failing
     where the verifier cannot know the answer is how it stops being trusted."""

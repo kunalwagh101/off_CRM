@@ -101,6 +101,10 @@ jobs:
       OFF_CRM_TEST_POSTGRES_URL: postgresql://postgres:ci-only-password@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The board's recorded commits require complete ancestry in every
+          # job that can execute repository verification.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
       - uses: actions/setup-python@v5
         with:

@@ -51,6 +51,7 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-140 | S-06.02.20 | 2 | real shallow-clone regression test and full-depth CI checkout guard committed; isolated three-case Git reproduction passed | `uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q`, full regression, board verifier and hosted CI remain unrun |
 | R-169 | S-06.02.39 | 3 | sample-aware small WebM check plus real encoded 60-frame VP9 test fixture and three named regression tests | full Python/frontend regression, real video-editor browser export, rollback and board verifier are unrun; CI runners unavailable |
 | R-48 | S-06.02.02 | 2 | closed public-route allowlist + global auth middleware + secret-safe validation handler + exhaustive registered-route/body contract in `tests/test_api_boundary_contract.py` | `uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q`, full regression, owner API review and verifier |
 | R-51 | S-06.02.05 | 1 | skip navigation/current-page/live regions + focus-trapped/restoring modal + global focus-visible/reduced-motion + keyboard alternatives across AI/Sales/Video + recursive repo-wide `tests/test_frontend_accessibility_contract.py` | `uv run pytest tests/test_frontend_accessibility_contract.py -q && npm test --prefix frontend && npm run build --prefix frontend`, owner keyboard/screen-reader pass and verifier |

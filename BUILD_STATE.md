@@ -2914,3 +2914,8 @@ Inspect any row. The payload shown is byte-for-byte what left the machine.
       instantiated.
 - [ ] Executable locked test/full-regression/verifier evidence is still missing;
       story stays IN_REVIEW.
+
+
+## 2026-10-13 continuation on develop
+
+Next three areas requested by owner: reliable Git board verification (S-06.02.20), hosted PostgreSQL backups (S-06.03.04), and companion playbooks loaded on demand (S-04.01.02). S-06.02.20 implementation and Git-based tests are in IN_REVIEW after an isolated 3-case test pass; complete repository suite and CI jobs have not executed. S-06.03.04 and S-04.01.02 have scoped work orders and remain BACKLOG, blocked from READY by Q-29/Q-30 and upstream companion review respectively. S-06.02.23 audit stays the only IN_PROGRESS item. All pushes to develop only. See `docs/DEVELOP_NEXT_WORK.md` and `docs/evidence/S-06.02.20-validation.md`.

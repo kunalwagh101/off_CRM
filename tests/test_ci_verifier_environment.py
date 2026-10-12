@@ -7,6 +7,8 @@ return.
 """
 from pathlib import Path
 
+import yaml
+
 
 CI = Path(".github/workflows/ci.yml")
 
@@ -38,11 +40,18 @@ def test_clean_checkout_docs_prepare_both_evidence_environments_before_verificat
 
 
 def test_ci_fetches_history_needed_for_evidence_commit_ancestry():
-    text = _workflow()
-    checkout = text.index("uses: actions/checkout@v4")
-    fetch_all = text.index("fetch-depth: 0", checkout)
-    verifier = text.index("Verify the board against the repository")
-    assert checkout < fetch_all < verifier
+    """S-06.02.20: no job may silently default to depth-1 checkout."""
+    workflow = yaml.safe_load(_workflow())
+    for name, job in workflow["jobs"].items():
+        checkouts = [
+            step for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        assert checkouts, f"{name} has no checkout"
+        for step in checkouts:
+            assert step.get("with", {}).get("fetch-depth") == 0, (
+                f"{name}: commit-ancestry verification needs full history"
+            )
 
 
 def test_ci_installs_frontend_evidence_dependencies_before_the_verifier():

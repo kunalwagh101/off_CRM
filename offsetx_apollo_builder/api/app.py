@@ -1175,6 +1175,22 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/workspaces", status_code=201)
     def create_workspace(body: WorkspaceCreate, request: Request) -> dict[str, Any]:
         require_workspace_admin(request)
+        # Workspace 'local' has install-owner privileges, beyond a normal
+        # workspace login. It must never be granted by a mistaken name alone.
+        if body.workspace_id == "local" and not body.confirm_install_owner:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "A login in workspace 'local' acts as the install owner and "
+                    "can administer all workspaces. Set confirm_install_owner=true "
+                    "only when deliberately creating another install owner."
+                ),
+            )
+        if body.workspace_id != "local" and body.confirm_install_owner:
+            raise HTTPException(
+                status_code=400,
+                detail="Install owner confirmation is only valid for workspace 'local'",
+            )
         try:
             identity = workspace_auth.create(
                 username=body.username,
@@ -1187,6 +1203,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "username": identity.username,
             "workspace_id": identity.workspace_id,
             "enabled": True,
+            "install_owner": identity.workspace_id == "local",
         }
 
     @app.patch(f"{API_PREFIX}/workspaces/{{username}}")

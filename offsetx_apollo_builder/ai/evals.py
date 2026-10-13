@@ -416,14 +416,17 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
             )
         if not cases:
             raise RegistryError(f"Eval suite {suite_id!r} has no cases.")
+        if suite_id == "gtm_plan":
+            # The suite tests the production brain's exact instructions,
+            # not a copied prompt that silently drifts between releases.
+            from ..gtm.strategy import build_prompt as gtm_system_prompt
+            system_prompt = gtm_system_prompt()
+        else:
+            system_prompt = str(entry.get("system_prompt", ""))
         suites[suite_id] = EvalSuite(
             id=suite_id,
             title=str(entry.get("title", suite_id)),
-            system_prompt=(
-                __import__("offsetx_apollo_builder.gtm.strategy", fromlist=["build_prompt"]).build_prompt()
-                if suite_id == "gtm_plan"
-                else str(entry.get("system_prompt", ""))
-            ),
+            system_prompt=system_prompt,
             cases=tuple(cases),
             default_checks=tuple(defaults),
         )

@@ -682,6 +682,7 @@ class EgressBroker:
                     # Logged as its own status. Nothing left the machine, and an
                     # audit trail that showed this as a send would be a lie.
                     log_id = self._log(
+                        system_prompt=system_prompt,
                         settings=settings,
                         candidate=candidate,
                         request=request,
@@ -776,6 +777,7 @@ class EgressBroker:
                 )
 
             log_id = self._log(
+                system_prompt=system_prompt,
                 settings=settings,
                 candidate=candidate,
                 request=request,

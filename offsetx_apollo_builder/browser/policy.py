@@ -41,6 +41,8 @@ delay with a cancel button does not, because there is nothing to click.
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -138,6 +140,30 @@ NEVER = (
 )
 
 
+# Legacy browsers accept alternate numerical spellings (127.1, 2130706433,
+# 0x7f000001) that ipaddress intentionally rejects. They must never fall through
+# into the public-hostname path.
+_NUMERIC_HOST = re.compile(
+    r"(?i)(?:0x[0-9a-f]+|[0-9]+)(?:\\.(?:0x[0-9a-f]+|[0-9]+))*"
+)
+_LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".home.arpa")
+
+
+def _is_nonpublic_host(host: str) -> bool:
+    value = host.rstrip(".")
+    if not value:
+        return True
+    if value in NEVER or any(value.endswith(suffix) for suffix in _LOCAL_SUFFIXES):
+        return True
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        # Treat non-canonical numeric host spellings as unsafe even when DNS or
+        # Chromium knows how to interpret them. Do not guess their meaning.
+        return _NUMERIC_HOST.fullmatch(value) is not None
+    return not address.is_global
+
+
 class Refused(ValueError):
     """The policy said no. The message says why and what to do instead."""
 
@@ -173,10 +199,12 @@ def check_navigation(url: str, *, unattended: bool = False) -> DomainRule:
         raise Refused(f"Refusing an unrecognised scheme: {scheme}:")
 
     host = host_of(text)
-    if host in NEVER or host.endswith(".internal"):
+    if scheme in ("http", "https") and not host:
+        raise Refused("A web request with no valid hostname is refused.")
+    if host and _is_nonpublic_host(host):
         raise Refused(
-            f"{host} is on the machine itself or inside its network. An agent "
-            "that can be pointed there is a way into your network, so it cannot be."
+            f"{host} is local, private or reserved rather than a public "
+            "destination. Browser requests cannot reach internal networks."
         )
 
     rule = rule_for(text)

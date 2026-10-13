@@ -348,12 +348,12 @@ class EvalCase:
     public_text: str = ""
     template_text: str = ""
     campaign_notes: str = ""
-    # Expert citations are a controlled treatment, not baseline product context.
-    expert_reference_notes: str = ""
     positioning_line: str = ""
     checks: tuple[dict[str, Any], ...] = ()
     weight: float = 1.0
     evidence_origin: str = "unverified"
+    # Append-only: preserve existing positional EvalCase constructor arguments.
+    expert_reference_notes: str = ""
 
     def to_request(self) -> EgressRequest:
         """Build the egress request.  The broker applies policy to it as usual —

@@ -24,6 +24,7 @@ from typing import Sequence
 
 from .ai.context import ContextLayer
 from .data_paths import crm_target, data_dir, database_path, load_project_env
+from .db import is_postgres_url
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -230,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     # `targets` reads nothing from the workspace, so it answers during a restore.
     crm = crm_target(args.db)
     targets = [Path(args.context)]
-    if not crm.startswith(("postgresql://", "postgres://")):
+    if not is_postgres_url(crm):
         targets.append(Path(crm))
     if getattr(args, "out", None):
         targets.append(Path(args.out))

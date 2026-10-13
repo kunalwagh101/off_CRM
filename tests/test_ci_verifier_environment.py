@@ -60,3 +60,21 @@ def test_ci_installs_frontend_evidence_dependencies_before_the_verifier():
     npm_ci = text.index("run: npm ci", install)
     verifier = text.index("name: Verify the board against the repository")
     assert install < npm_ci < verifier
+
+
+def test_frontend_production_and_dev_vulnerabilities_are_hard_ci_gates():
+    workflow = yaml.safe_load(_workflow())
+    steps = workflow["jobs"]["quality"]["steps"]
+    names = [str(step.get("name", "")) for step in steps]
+    install = names.index("Install frontend dependencies")
+    production = names.index("Audit frontend production dependencies")
+    development = names.index("Audit frontend development dependencies")
+    build = names.index("Build frontend")
+    assert install < production < development < build
+    assert steps[production]["working-directory"] == "frontend"
+    assert steps[production]["run"] == "npm audit --omit=dev --audit-level=low"
+    assert steps[development]["working-directory"] == "frontend"
+    assert steps[development]["run"] == "npm audit --audit-level=high"
+    for step in (steps[production], steps[development]):
+        assert not step.get("continue-on-error", False)
+        assert "|| true" not in step["run"]

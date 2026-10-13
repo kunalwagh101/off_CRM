@@ -29,6 +29,7 @@ suites:
         keys: [summary, audience, channels]
     cases:
       - id: logistics_exporter_replies
+        evidence_origin: synthetic
         instructions: >-
           Goal: 20 replies within 30 days. Available email capacity: 30 per day.
           Use the declared audience and email channel; return a bounded JSON plan.
@@ -47,6 +48,7 @@ suites:
             max_email_daily_volume: 30
             max_distribution_daily_volume: 1
       - id: solar_component_views
+        evidence_origin: synthetic
         instructions: >-
           Goal: 1000 views over 30 days. Posting capacity: 1 video per day.
           Use a declared distribution channel, no invented platform access.
@@ -63,6 +65,7 @@ suites:
             max_email_daily_volume: 0
             max_distribution_daily_volume: 1
       - id: local_finance_replies
+        evidence_origin: synthetic
         instructions: >-
           Goal: 10 replies within 14 days. Email capacity: 20 per day.
           Use a declared source and do not exceed capacity.

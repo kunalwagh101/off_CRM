@@ -307,6 +307,50 @@ def test_product_angle_is_resolved_before_the_data_class_is_chosen(app_client, s
     assert recorded["requests"][-1].data_class is DataClass.CAMPAIGN
 
 
+def test_video_direction_classifies_product_and_style_not_in_system_text(app_client):
+    from offsetx_apollo_builder.ai.tiers import DataClass
+
+    client, recorded = app_client
+    campaign = _campaign(client, "video")
+    product = client.post("/api/v1/gtm/products", json=product_values()).json()
+    assert client.put(
+        f"/api/v1/gtm/products/{product['id']}/campaigns",
+        json={"campaign_ids": [campaign]},
+    ).status_code == 200
+
+    # The fixture's model returns plain text, not a direction. Rejection after
+    # the broker call is expected; it is the classified outbound request we
+    # are testing, not video assembly with approved image assets.
+    result = client.post(
+        f"/api/v1/campaigns/{campaign}/video-projects/direct",
+        json={"topic": "Freight invoices in 2026", "style": "Quiet, spare words"},
+    )
+    assert result.status_code in {201, 422}, result.text
+    request = recorded["requests"][-1]
+    assert request.data_class is DataClass.CAMPAIGN
+    assert request.positioning_line == product["one_liner"]
+    assert "Quiet, spare words" in request.campaign_notes
+    assert "guaranteed" in request.campaign_notes
+    assert "Freight invoices in 2026" == request.public_text
+    assert "Quiet, spare words" not in request.instructions
+
+
+def test_video_direction_without_product_or_style_remains_public(app_client):
+    from offsetx_apollo_builder.ai.tiers import DataClass
+
+    client, recorded = app_client
+    campaign = _campaign(client, "video")
+    result = client.post(
+        f"/api/v1/campaigns/{campaign}/video-projects/direct",
+        json={"topic": "A public launch"},
+    )
+    assert result.status_code in {201, 422}, result.text
+    request = recorded["requests"][-1]
+    assert request.data_class is DataClass.PUBLIC
+    assert not request.campaign_notes
+    assert not request.positioning_line
+
+
 def test_an_unlinked_campaign_keeps_the_public_path(app_client):
     from offsetx_apollo_builder.ai.tiers import DataClass
 

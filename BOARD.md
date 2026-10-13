@@ -134,13 +134,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
-  work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
+  work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
+  review: docs/evidence/S-12.02.05-validation.md; code and synthetic eval starters committed, owner corpus/30 real cases and full verification pending
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
   work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md

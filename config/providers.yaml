@@ -124,6 +124,7 @@ providers:
   # ── Europe — highest trust (tier A) ──────────────────────────────────────
   - id: mistral
     usage_report: none
+    usage_report: none
     name: Mistral AI
     jurisdiction: FR
     flag: "🇫🇷"
@@ -157,6 +158,7 @@ providers:
 
   # ── United States — default trust (tier B) ───────────────────────────────
   - id: openai
+    usage_report: rate_limit_headers
     usage_report: rate_limit_headers
     name: OpenAI
     jurisdiction: US
@@ -195,6 +197,7 @@ providers:
 
   - id: anthropic
     usage_report: rate_limit_headers
+    usage_report: rate_limit_headers
     name: Anthropic
     jurisdiction: US
     flag: "🇺🇸"
@@ -222,6 +225,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: groq
+    usage_report: rate_limit_headers
     usage_report: rate_limit_headers
     name: Groq
     jurisdiction: US
@@ -283,6 +287,7 @@ providers:
 
   - id: cerebras
     usage_report: none
+    usage_report: none
     name: Cerebras
     jurisdiction: US
     flag: "🇺🇸"
@@ -309,6 +314,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: nvidia
+    usage_report: none
     usage_report: none
     name: NVIDIA NIM
     jurisdiction: US
@@ -455,6 +461,7 @@ providers:
 
   - id: xai
     usage_report: none
+    usage_report: none
     name: xAI (Grok)
     jurisdiction: US
     flag: "🇺🇸"
@@ -475,6 +482,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: google
+    usage_report: none
     usage_report: none
     name: Google Gemini
     jurisdiction: US
@@ -511,6 +519,7 @@ providers:
 
   - id: cohere
     usage_report: none
+    usage_report: none
     name: Cohere
     jurisdiction: CA
     flag: "🇨🇦"
@@ -536,6 +545,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: github_models
+    usage_report: none
     usage_report: none
     name: GitHub Models
     jurisdiction: US
@@ -569,6 +579,7 @@ providers:
   # beyond the positioning line, campaign internals or mailbox content unless
   # you explicitly raise the provider with a recorded override.
   - id: deepseek
+    usage_report: balance_endpoint
     usage_report: balance_endpoint
     name: DeepSeek
     jurisdiction: CN
@@ -614,6 +625,7 @@ providers:
 
   - id: moonshot
     usage_report: none
+    usage_report: none
     name: Moonshot AI (Kimi)
     jurisdiction: CN
     flag: "🇨🇳"
@@ -641,6 +653,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: zhipu
+    usage_report: none
     usage_report: none
     name: Zhipu AI (GLM)
     jurisdiction: CN
@@ -676,6 +689,7 @@ providers:
 
   - id: qwen
     usage_report: none
+    usage_report: none
     name: Qwen (Alibaba Model Studio)
     jurisdiction: CN
     flag: "🇨🇳"
@@ -707,6 +721,7 @@ providers:
   # processor for any given call is unknown.
   - id: openrouter
     usage_report: balance_endpoint
+    usage_report: balance_endpoint
     name: OpenRouter
     jurisdiction: XX
     flag: "🌐"
@@ -730,6 +745,7 @@ providers:
     verified_on: 2026-07-25
 
   - id: together
+    usage_report: none
     usage_report: none
     name: Together AI
     jurisdiction: XX
@@ -756,6 +772,7 @@ providers:
 
   # ── Self-hosted — highest trust, nothing leaves the machine ──────────────
   - id: local
+    usage_report: none
     usage_report: none
     name: Self-hosted (Ollama / vLLM / LM Studio)
     jurisdiction: EU

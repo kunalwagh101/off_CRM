@@ -55,6 +55,38 @@ def test_provider_list_exposes_jurisdiction_tier_and_retention(client):
     assert all(item["connected"] is False for item in payload["providers"])
 
 
+def test_S060234_balance_endpoint_is_connected_workspace_only(client, monkeypatch):
+    from offsetx_apollo_builder.ai import provider_usage
+
+    calls = []
+    def pretend(provider_id, key):
+        calls.append((provider_id, key))
+        return {"provider_id": provider_id, "source": "provider_reported",
+                "kind": "account_balance", "available": True,
+                "remaining": "42.00", "unit": "USD",
+                "checked_at": "2026-10-13T00:00:00+00:00"}
+
+    monkeypatch.setattr(provider_usage, "fetch_provider_balance", pretend)
+    refused = client.post(f"{API}/ai/providers/deepseek/balance")
+    assert refused.status_code == 409
+    assert calls == []
+
+    connected = client.post(f"{API}/ai/providers/deepseek/connect",
+                            json={"api_key": "scoped-key-123", "data_policy": "minimal"})
+    assert connected.status_code == 200
+    result = client.post(f"{API}/ai/providers/deepseek/balance")
+    assert result.status_code == 200, result.text
+    assert result.json()["remaining"] == "42.00"
+    assert calls == [("deepseek", "scoped-key-123")]
+
+
+def test_S060234_unsupported_balance_is_explicit_and_never_contacts_vendor(client):
+    response = client.post(f"{API}/ai/providers/nvidia/balance")
+    assert response.status_code == 200
+    assert response.json()["supported"] is False
+    assert "does not report" in response.json()["reason"].lower()
+
+
 def test_policy_levels_and_tiers_are_described_for_the_ui(client):
     payload = client.get(f"{API}/ai/providers").json()
     assert [item["value"] for item in payload["policy_levels"]] == [

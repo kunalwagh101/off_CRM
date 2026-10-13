@@ -4686,9 +4686,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/queue")
-    def queue(campaign_id: str, request: Request) -> dict[str, Any]:
-        items = _engine(request).store.send_queue(campaign_id, now=utc_now())
-        return {"items": items, "total": len(items)}
+    def queue(
+        campaign_id: str,
+        request: Request,
+        limit: int = Query(100, ge=1, le=200),
+        offset: int = Query(0, ge=0),
+        view: str = Query("all", pattern="^(all|ready|approval|replied)$"),
+    ) -> dict[str, Any]:
+        return _engine(request).store.send_queue_view(
+            campaign_id, now=utc_now(), limit=limit, offset=offset, view=view
+        )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/send")
     def send(

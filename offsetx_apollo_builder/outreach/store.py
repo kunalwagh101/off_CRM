@@ -1463,10 +1463,23 @@ class OutreachStore:
         ).fetchone()
         return parse_datetime(row["earliest"]) if row and row["earliest"] else None
 
-    def send_queue(self, campaign_id: str, *, now: datetime) -> list[dict[str, Any]]:
+    def send_queue(
+        self, campaign_id: str, *, now: datetime,
+        only_ids: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
         self.get_campaign(campaign_id)
+        # The sender retains its whole-campaign behaviour. The UI reads only
+        # the explicitly selected IDs so a 10k-contact campaign does not send
+        # 10k names and message metadata over the wire to draw one page.
+        if only_ids is not None and not only_ids:
+            return []
+        where = "cc.campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if only_ids is not None:
+            where += " AND cc.id IN (" + ",".join("?" for _ in only_ids) + ")"
+            params.extend(only_ids)
         rows = self._rows(
-            """
+            f"""
             SELECT cc.id AS campaign_contact_id, cc.status, cc.current_stage,
                    cc.next_action_at, cc.variant_id, c.full_name, c.email, c.company,
                    d.id AS draft_id, d.stage AS draft_stage, d.approval_status,
@@ -1480,10 +1493,10 @@ class OutreachStore:
                     WHEN 'followup1' THEN 'followup2'
                     ELSE 'none'
                 END
-            WHERE cc.campaign_id = ?
-            ORDER BY COALESCE(cc.next_action_at, cc.created_at), c.full_name
+            WHERE {where}
+            ORDER BY COALESCE(cc.next_action_at, cc.created_at), c.full_name, cc.id
             """,
-            (campaign_id,),
+            params,
         )
         for row in rows:
             due_at = parse_datetime(row.get("next_action_at"))
@@ -1500,6 +1513,80 @@ class OutreachStore:
             except json.JSONDecodeError:
                 row["generation_meta"] = {}
         return rows
+
+    def send_queue_view(
+        self,
+        campaign_id: str,
+        *,
+        now: datetime,
+        limit: int = 100,
+        offset: int = 0,
+        view: str = "all",
+    ) -> dict[str, Any]:
+        """Bound the UI payload, but compute truthful counts over every contact.
+
+        Only queue-control metadata is scanned across the campaign. The names,
+        email addresses and provider generation metadata are loaded for the
+        requested page alone. Timestamp evaluation deliberately uses the same
+        Python rule as the existing sender; string SQL comparisons across
+        timezone offsets could mark a message due before it really is.
+        """
+        if view not in {"all", "ready", "approval", "replied"}:
+            raise ValueError("Unknown queue view")
+        if not 1 <= limit <= 200 or offset < 0:
+            raise ValueError("Invalid queue page")
+        self.get_campaign(campaign_id)
+        summary = self._rows(
+            """
+            SELECT cc.id, cc.status, cc.next_action_at,
+                   d.approval_status, d.sendable, d.scheduled_at
+            FROM campaign_contacts cc
+            JOIN contacts c ON c.id = cc.contact_id
+            LEFT JOIN drafts d ON d.campaign_contact_id = cc.id AND d.stage =
+                CASE cc.current_stage
+                    WHEN '' THEN 'initial'
+                    WHEN 'initial' THEN 'followup1'
+                    WHEN 'followup1' THEN 'followup2'
+                    ELSE 'none'
+                END
+            WHERE cc.campaign_id = ?
+            ORDER BY COALESCE(cc.next_action_at, cc.created_at), c.full_name, cc.id
+            """,
+            (campaign_id,),
+        )
+        counts = {"all": len(summary), "ready": 0, "approval": 0, "replied": 0}
+        filtered_ids: list[str] = []
+        for row in summary:
+            status = str(row.get("status") or "")
+            due_at = parse_datetime(row.get("next_action_at"))
+            scheduled_at = parse_datetime(row.get("scheduled_at"))
+            effective = max(
+                (date for date in (due_at, scheduled_at) if date is not None),
+                default=None,
+            )
+            due = effective is None or effective <= now
+            active = status not in {"replied", "completed", "stopped"}
+            ready = active and due and row.get("approval_status") == "approved" and bool(row.get("sendable"))
+            approval = active and due and row.get("approval_status") != "approved"
+            replied = status == "replied"
+            if ready:
+                counts["ready"] += 1
+            if approval:
+                counts["approval"] += 1
+            if replied:
+                counts["replied"] += 1
+            if view == "all" or (view == "ready" and ready) or (view == "approval" and approval) or (view == "replied" and replied):
+                filtered_ids.append(str(row["id"]))
+        page_ids = filtered_ids[offset:offset + limit]
+        records = self.send_queue(campaign_id, now=now, only_ids=page_ids)
+        by_id = {str(row["campaign_contact_id"]): row for row in records}
+        return {
+            "items": [by_id[key] for key in page_ids if key in by_id],
+            "total": len(filtered_ids),
+            "limit": limit,
+            "offset": offset,
+            "counts": counts,
+        }
 
     # Events, reporting, and idempotency
 

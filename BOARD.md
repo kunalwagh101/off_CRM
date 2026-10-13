@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.47 · Large send queues are paginated
+  work_order: docs/work-orders/S-06.02.47-queue-pagination.md
+  review: bounded queue details, API page controls, Python/Vitest regressions committed; execution and release gates pending
+
+- S-06.02.48 · Campaign-wide queue counters do not mislead
+  work_order: docs/work-orders/S-06.02.48-global-queue-totals.md
+  review: full-campaign due/approval/replied counts, sender-aligned timestamp logic and regressions prepared; runtime validation pending
+
+- S-06.02.49 · Queue views focus on actionable cohorts
+  work_order: docs/work-orders/S-06.02.49-actionable-queue-views.md
+  review: validated server view filters, accessible UI and regressions prepared; frontend/browser/CI gates pending
+
+
 - S-06.02.44 · Download all filtered Contacts rows
   work_order: docs/work-orders/S-06.02.44-filtered-contact-download.md
   review: in-memory authenticated all-pages CSV export and Python/frontend tests prepared; live and complete tests pending

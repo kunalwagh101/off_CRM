@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Bounded Send Queue screen** (`S-06.02.47`, IN_REVIEW, 2026-10-13): authenticated queue API now accepts a bounded page and returns only that page's contact details; the backend sender retains its separate full-campaign queue. New accessible Previous/Next controls; Python/TypeScript tests authored, not run.
+- **Honest campaign-wide Send Queue totals** (`S-06.02.48`, IN_REVIEW): Ready, Needs approval and Replied cards use whole-campaign classification, including future-scheduled drafts and terminal statuses, independent of page/view. Ready means review candidate only; live send preflight still applies. No real provider/postgres/runner proof yet.
+- **Action-focused queue views** (`S-06.02.49`, IN_REVIEW): All, Approved and due, Needs approval and Replied cohorts have validated query values, correct paging and contextual empty states. This is read-only and does not bypass live-send approval.
+
+
 - **Security containment for A07/A08** (`S-03.01.03`, `S-05.01.04`, 2026-10-13, IN_REVIEW): production BrowserBox refuses Docker bridge before launch because it cannot prove private-IP egress isolation; JS-based Crawl4AI public fetching refuses browser startup until a verified gateway/firewall exists. Nonproduction bridge remains insecure; safe_http stays available. Added regression tests; no full suite or live Docker/Chrome test run.
 - **Production audit follow-up** (`S-06.02.23`, 2026-10-13, IN_PROGRESS): A07/A08 containment status updated; A25 source-checked as still open because render.yaml contains web services only and no durable email worker. No full audit verification or worker rollout.
 

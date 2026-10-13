@@ -151,3 +151,13 @@ GitHub-only modifications and regression test source were committed without disa
 Following the earlier A07/A08 containment, selected three gaps observed directly on develop with no external owner decision required: **S-06.02.41 contact pagination (A23), S-06.02.42 spreadsheet-safe human exports (A19), and S-06.02.43 durable per-cookie logout revocation (A06)**. Code and targeted test source were prepared and three dedicated work orders created; each is IN_REVIEW pending real execution, review and board gates. Their evidence ledger is `docs/evidence/2026-10-13-next-three-a06-a19-a23.md`.
 
 The existing production audit `S-06.02.23` remains sole IN_PROGRESS item; WIP limit unchanged. No changes to main. Do not mark these stories DONE until frontend, Python, PostgreSQL, restart/Chrome and CI proof is recorded. The central large `DEFECT_LOG.md` could not be updated through the connector in this context; D-271 to D-273 are recorded in the evidence ledger and must be synchronised before DONE.
+
+## 2026-10-13 — New Send Queue implementation batch
+
+The owner authorised three more user-visible features without increasing the board's IN_PROGRESS WIP:
+
+1. **S-06.02.47**: Bound the browser/API Send Queue to pages of 100 contacts (server max 200) with accessible pagination. The sender's original `send_queue` contract remains whole-campaign and unchanged.
+2. **S-06.02.48**: Campaign-wide Ready/Needs approval/Replied counters use lightweight queue-control metadata, timezone-aware due-time logic and terminal-status exclusion, independent of page. Ready counts are candidates only, not delivery promises.
+3. **S-06.02.49**: Read-only views All/Approved and due/Needs approval/Replied filter before pagination and keep truthful totals with labelled controls and scoped empty state.
+
+All code, regression-test source and work orders are tracked on `develop` as IN_REVIEW. Detailed scope and release gates: `docs/evidence/2026-10-13-queue-next-three.md`. `S-06.02.23` remains the sole IN_PROGRESS audit. The installed GitHub Actions runner is unavailable (zero steps); no Python/JS/Chrome/PostgreSQL run or DONE declaration is justified. Track D-277–D-279 in the central defect log before closure.

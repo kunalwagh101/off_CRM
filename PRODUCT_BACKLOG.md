@@ -2123,6 +2123,24 @@ stories until opened.
 - **Given** an uncheck or campaign switch, **when** records reload, **then** persistent selection remains associated with the correct campaign and empty/stale pages recover.
 - **Dependencies:** S-06.02.41 (IN_REVIEW). **Size:** S. **Work order:** `docs/work-orders/S-06.02.46-marked-only-contacts.md`.
 
+#### S-06.02.47 — Large send queues are paginated
+**As a** campaign owner, **I want** to navigate 100-row pages, **so that** I can inspect every queued contact without transferring every recipient's details at once.
+- **Given** 211 contacts, **when** the Queue opens, **then** its default result has at most 100 items and the total and next-page controls make every contact reachable.
+- **Given** an invalid page limit or offset, **when** queried, **then** the API rejects it; the actual sender is unchanged.
+- **Dependencies:** none. **Size:** S. **Work order:** `docs/work-orders/S-06.02.47-queue-pagination.md`.
+
+#### S-06.02.48 — Campaign-wide queue counters do not mislead
+**As a** campaign owner, **I want** accurate ready/approval/replied totals across the campaign, **so that** I know what genuinely needs review independent of the page I opened.
+- **Given** a filtered or later page, **when** loaded, **then** counts cover every campaign membership using the sender's due-time logic.
+- **Given** a future-scheduled approved draft or terminal contact, **when** counting, **then** it does not appear as ready; totals do not override final live-send preflight.
+- **Dependencies:** none. **Size:** S. **Work order:** `docs/work-orders/S-06.02.48-global-queue-totals.md`.
+
+#### S-06.02.49 — Queue views focus on an actionable cohort
+**As a** campaign owner, **I want** All, Approved and due, Needs approval and Replied views, **so that** I can review the right queue rows without scrolling past unrelated contacts.
+- **Given** a view change, **when** applied, **then** filtering happens before paging and starts at page one with a view-specific total.
+- **Given** an empty view, **when** opened, **then** the screen explains that this view has no members; switching views never approves or sends mail.
+- **Dependencies:** none. **Size:** S. **Work order:** `docs/work-orders/S-06.02.49-actionable-queue-views.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep

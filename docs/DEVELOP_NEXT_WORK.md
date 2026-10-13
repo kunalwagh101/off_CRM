@@ -130,3 +130,8 @@ The owner authorised selecting three additional stories from `develop`: `S-06.02
 3. **S-06.02.34 — provider usage and what is left**: Connectors always shows locally counted usage; reporting capabilities classified for all providers in both registries; OpenRouter per-key remaining limit and DeepSeek account balance checked on explicit click with current workspace credentials, no model call. Rate-limit response-header capture is not built, and no real provider/account was queried. Status IN_REVIEW; full suites and live checks unrun.
 
 All changes and evidence were committed to `develop` only. Audit S-06.02.23 is still IN_PROGRESS. GitHub Actions runner has historically failed to allocate (zero steps); do not call these feature areas DONE or deployed.
+
+
+## 2026-10-13 — Latest next-three selection and implementation
+
+The requested three were chosen from `develop` and tracked under WIP ≤2. Selected S-12.01.03 (video director product confidentiality), S-06.02.16 (frontend npm audit CI enforcement), and S-12.02.05 (expert/winner-informed GTM plans and evals). S-02.02.03 was initially considered but rejected under DoR because S-02.02.02 remains IN_REVIEW. Each of the final three has code changes, named regression tests, a linked work order and an evidence file; each remains IN_REVIEW, not DONE. Key limitations: no live video/egress/provider check; no npm registry audit or dependency upgrades; no 30 judged real GTM cases or owner corpus; no runnable full repository checkout or GitHub runner capacity. See evidence files and Build State. Only develop was pushed. The production audit S-06.02.23 remains sole IN_PROGRESS item.

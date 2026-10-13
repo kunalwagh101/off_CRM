@@ -154,7 +154,7 @@ def test_A08_rejects_private_dns_before_any_http_socket(monkeypatch):
         ],
     )
     monkeypatch.setattr(transport, "create_connection", socket_attempt)
-    with pytest.raises(ValueError, match="Private, local and reserved"):
+    with pytest.raises(DiscoveryFetchError, match="Private, local and reserved"):
         guard._request_bytes("http://outside.example/", max_bytes=300,
                              accepted_types=("text/html",))
     assert not attempts

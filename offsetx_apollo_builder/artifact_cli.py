@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .agent.artifacts import SUPPORTED_FORMATS, ArtifactError, write_artifact
 from .browser.trace import Trace, TraceIntegrityError
-from .data_paths import data_dir
+from .data_paths import data_dir, load_project_env
 from .outreach.workspace_lock import cli_workspace_leases
 
 
@@ -50,6 +50,7 @@ def parser() -> argparse.ArgumentParser:
 
 @traced_command("offsetx-artifacts")
 def main(argv: list[str] | None = None) -> int:
+    load_project_env()
     args = parser().parse_args(argv)
     # The app records agent runs under the data directory, and the reports are
     # written beside the trace, so rendering one writes into the workspace

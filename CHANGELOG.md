@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Network audit A07** (`S-03.01.03`, 2026-10-13, IN_REVIEW): browser policy now rejects private/non-global IPs, alternate numeric IP spellings and local DNS suffixes in either mode; added guard regression cases. Docker bridge egress remains unrestricted and must be isolated before security can be certified.
+- **Crawler DNS-rebinding audit A08** (`S-05.01.04`, 2026-10-13, IN_REVIEW): Requests now connects to its checked public DNS IP with Host/SNI/TLS hostname retained; tests cover DNS mutation, refusal and proxy bypass. Crawl4AI/browser-rendered fetching still needs a network-level boundary and end-to-end validation; no release claim.
+
 - **Skip link keeps current CRM screen** (`S-06.02.37`, 2026-10-13, IN_REVIEW): prevent the skip-link's `#main-content` anchor from rewriting the hash router to Dashboard; focus and scroll main without navigation, with Settings and Contacts regression cases. Full frontend/browser suite remains unrun.
 
 - **Shallow Git ancestry verification** (`S-06.02.20`, 2026-10-13, IN_REVIEW): board verification now identifies insufficient history and says `git fetch --unshallow`, instead of falsely accusing historical evidence. Adds real depth-one clone regression and requires full-history checkout for both GitHub Actions jobs. Three isolated Git tests passed; the repository suite and CI remain unrun.

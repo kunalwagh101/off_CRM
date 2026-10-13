@@ -3544,6 +3544,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             positioning_line: str,
             campaign_notes: str,
             instructions: str,
+            template_text: str = "",
         ) -> Any:
             # A copy bound to this workspace's keys. Setting the resolver on the
             # shared broker let two workspaces' requests race for one key (D-106).
@@ -3558,6 +3559,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                         instructions=instructions,
                         positioning_line=positioning_line,
                         campaign_notes=campaign_notes,
+                        template_text=template_text,
                     ),
                     settings,
                     system_prompt=system_prompt,
@@ -3573,6 +3575,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             accounts=lambda: state.distribution_store.list_accounts(workspace_id=workspace_id),
             apollo_ready=lambda: bool(os.getenv("APOLLO_API_KEY", "").strip()),
             ask=ask,
+            expert_search=lambda query: state.engine.store.search_expert_chunks(query, limit=4),
+            winning_reference=lambda: state.ai_context.reference_for_models(workspace_id),
             # Apply goes through the engine's own campaign creation, the same
             # call `POST /campaigns` makes, so a plan's campaign is exactly the
             # campaign a person could have made by hand.

@@ -66,8 +66,15 @@ def _create_users(database: Database) -> None:
     )
 
 
+def _create_revoked_sessions(database: Database) -> None:
+    database.execute(
+        "CREATE TABLE IF NOT EXISTS workspace_revoked_sessions ("
+        " token_digest TEXT PRIMARY KEY, expires_at BIGINT NOT NULL)"
+    )
+
+
 #: Oldest first; a step's position is its version (`db/schema.py`).
-USER_STEPS = (_create_users,)
+USER_STEPS = (_create_users, _create_revoked_sessions)
 
 
 class WorkspaceAuthStore:
@@ -93,6 +100,10 @@ class WorkspaceAuthStore:
         enabled INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS workspace_revoked_sessions (
+        token_digest TEXT PRIMARY KEY,
+        expires_at INTEGER NOT NULL
     );
     """
 
@@ -324,7 +335,7 @@ class WorkspaceAuthStore:
         return f"{encoded}.{signature}"
 
     def verify(self, token: str, *, now: int | None = None) -> SessionIdentity | None:
-        if not token:
+        if not token or len(token) > 4096:
             return None
         try:
             encoded, supplied_signature = token.split(".", 1)
@@ -351,13 +362,39 @@ class WorkspaceAuthStore:
                 """,
                 (username,),
             ).fetchone()
-        if row is None or not bool(row["enabled"]):
+            revoked = conn.execute(
+                "SELECT 1 FROM workspace_revoked_sessions WHERE token_digest = ?",
+                (hashlib.sha256(token.encode("utf-8")).hexdigest(),),
+            ).fetchone()
+        if revoked is not None or row is None or not bool(row["enabled"]):
             return None
         if not hmac.compare_digest(str(row["workspace_id"]), workspace):
             return None
         if int(row["session_version"]) != version:
             return None
         return SessionIdentity(username, workspace, expires_at, version)
+
+    def revoke(self, token: str) -> bool:
+        """Durably revoke one signed browser session, without invalidating others.
+
+        Persist only its digest, never the bearer token. Expired records are
+        purged during logout; verification itself is strictly read-only.
+        """
+        identity = self.verify(token)
+        if identity is None:
+            return False
+        digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        with self._connection() as conn:
+            conn.execute(
+                "INSERT INTO workspace_revoked_sessions(token_digest, expires_at) "
+                "VALUES(?, ?) ON CONFLICT(token_digest) DO NOTHING",
+                (digest, identity.expires_at),
+            )
+            conn.execute(
+                "DELETE FROM workspace_revoked_sessions WHERE expires_at <= ?",
+                (int(time.time()),),
+            )
+        return True
 
     def set_password(self, username: str, password: str) -> None:
         secret = self._password(password)

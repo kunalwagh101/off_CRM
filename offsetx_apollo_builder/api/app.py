@@ -1149,7 +1149,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return response
 
     @app.post(f"{API_PREFIX}/auth/logout")
-    def auth_logout() -> Response:
+    def auth_logout(request: Request) -> Response:
+        # Deleting a cookie alone cannot revoke a stolen copy (audit A06).
+        # Persist its digest before returning success; a storage outage must not
+        # claim logout succeeded while a bearer token remains valid.
+        workspace_auth.revoke(request.cookies.get(SESSION_COOKIE, ""))
         response = JSONResponse(content={"authenticated": False})
         response.delete_cookie(
             SESSION_COOKIE,

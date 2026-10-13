@@ -2087,6 +2087,24 @@ stories until opened.
 - **Dependencies:** S-06.03.06 (durable homes for remaining state), S-06.02.38 (traceable worker failures). **Size:** M. **Audit:** A25 / D-270. **Indicator:** due jobs processed without a manual web session.
 - **Constraint:** deployment runtime and any paid background-worker cost require operator approval; do not invent free worker capacity or claim a worker running from a CLI binary alone. Work order: `docs/work-orders/S-06.02.40-durable-deployment-worker.md`.
 
+#### S-06.02.41 — Contacts beyond row 500 are reachable
+**As a** campaign owner, **I want** accessible server-backed contact pages, **so that** no contact becomes invisible in larger campaigns.
+- **Given** more than 500 contacts, **when** the owner moves between pages, **then** each row is reachable through the existing authenticated offset API and the total/range remain correct.
+- **Given** search/status change, campaign change or records removed, **when** the list reloads, **then** the page index returns to a valid slice without mixing another campaign's data.
+- **Dependencies:** none. **Size:** S. **Audit:** A23 / D-271. **Work order:** `docs/work-orders/S-06.02.41-contacts-pagination.md`.
+
+#### S-06.02.42 — Enrichment exports cannot run spreadsheet formulas
+**As a** CRM operator, **I want** CSV/XLSX reports to be safe when opened in a spreadsheet, **so that** untrusted Apollo/input text cannot execute formulas.
+- **Given** a leading formula/control sequence in a report cell, **when** CSV/XLSX is generated, **then** it is literal text in the actual saved document; numeric cells retain their numeric type.
+- **Given** the same text in persisted CRM or credit/exclusion/rejection ledger rows, **when** reports are generated, **then** original state and dedupe keys remain unchanged; readable snapshots are safely escaped.
+- **Dependencies:** none. **Size:** S. **Audit:** A19 / D-272. **Work order:** `docs/work-orders/S-06.02.42-spreadsheet-formulas.md`.
+
+#### S-06.02.43 — Logout revokes the copied browser session
+**As a** workspace user, **I want** logout to invalidate my current cookie at the server, **so that** a copied cookie cannot still open private CRM data after logout.
+- **Given** a signed session, **when** logout succeeds, **then** replay of that exact token is denied across process restarts and PostgreSQL/SQLite backends; other valid devices remain signed in.
+- **Given** a storage outage during revocation, **when** logout is attempted, **then** the app does not claim the token was revoked.
+- **Dependencies:** none. **Size:** M. **Audit:** A06 / D-273. **Work order:** `docs/work-orders/S-06.02.43-logout-revocation.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep

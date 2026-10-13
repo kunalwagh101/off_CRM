@@ -33,6 +33,7 @@ from .io_utils import (
     append_exclusion_ledger,
     safe_get,
     write_outputs,
+    spreadsheet_safe_frame,
 )
 from .locked_categories import DEFAULT_CATEGORY, normalize_category
 from .runner import copy_latest_snapshot, decision_audit_row, why_reply, why_useful, outreach_angle, first_question
@@ -636,8 +637,8 @@ def _enrich_candidates(candidates: list[dict[str, Any]], config: ExistingPoiEnri
 def write_existing_poi_extra_outputs(state: ExistingPoiEnrichmentState) -> None:
     assert state.output_dir is not None
     outdir = state.output_dir
-    pd.DataFrame(state.raw_input_rows).to_csv(outdir / "offsetx_input_pois_normalized.csv", index=False)
-    pd.DataFrame(state.file_manifest).to_csv(outdir / "offsetx_input_file_manifest.csv", index=False)
+    spreadsheet_safe_frame(pd.DataFrame(state.raw_input_rows)).to_csv(outdir / "offsetx_input_pois_normalized.csv", index=False)
+    spreadsheet_safe_frame(pd.DataFrame(state.file_manifest)).to_csv(outdir / "offsetx_input_file_manifest.csv", index=False)
     with (outdir / "offsetx_apollo_bulk_match_raw_responses.jsonl").open("w", encoding="utf-8") as f:
         for row in state.raw_apollo_responses:
             f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
@@ -816,7 +817,7 @@ def run_existing_poi_enrichment(config: ExistingPoiEnrichmentConfig, client: Apo
             })
 
         # Rewrite the final manifest after archival paths are known.
-        pd.DataFrame(state.file_manifest).to_csv(final_output_dir / "offsetx_input_file_manifest.csv", index=False)
+        spreadsheet_safe_frame(pd.DataFrame(state.file_manifest)).to_csv(final_output_dir / "offsetx_input_file_manifest.csv", index=False)
 
         if config.write_latest_copy:
             copy_latest_snapshot(final_output_dir, config.outdir)
@@ -838,7 +839,7 @@ def run_existing_poi_enrichment(config: ExistingPoiEnrichmentConfig, client: Apo
 
         # Preserve a compact failure artifact without pretending the run completed.
         if final_output_dir.exists():
-            pd.DataFrame(state.file_manifest).to_csv(final_output_dir / "offsetx_input_file_manifest.csv", index=False)
+            spreadsheet_safe_frame(pd.DataFrame(state.file_manifest)).to_csv(final_output_dir / "offsetx_input_file_manifest.csv", index=False)
             (final_output_dir / "run_failed.json").write_text(
                 json.dumps(
                     {

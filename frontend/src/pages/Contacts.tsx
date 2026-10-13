@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
@@ -7,12 +7,28 @@ import type { Contact, Paginated } from "../types";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 const DEFAULT_CATEGORY = "Sustainability / ESG / Climate";
+export const CONTACTS_PAGE_SIZE = 100;
+
+export function contactPageBounds(page: number, total: number) {
+  const pages = Math.max(1, Math.ceil(total / CONTACTS_PAGE_SIZE));
+  const safePage = Math.max(0, Math.min(page, pages - 1));
+  return {
+    pages,
+    first: total === 0 ? 0 : safePage * CONTACTS_PAGE_SIZE + 1,
+    last: Math.min(total, (safePage + 1) * CONTACTS_PAGE_SIZE),
+  };
+}
+
+export function contactsPagePath(campaignId: string, page: number, search: string, status: string): string {
+  return `/campaigns/${encodeURIComponent(campaignId)}/contacts?limit=${CONTACTS_PAGE_SIZE}&offset=${Math.max(0, page) * CONTACTS_PAGE_SIZE}&search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`;
+}
 
 export default function Contacts() {
   const { campaignId, activeCampaign, notify, refreshCampaigns } = useApp();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,11 +36,19 @@ export default function Contacts() {
     () =>
       campaignId
         ? api.get<Paginated<Contact>>(
-            `/campaigns/${campaignId}/contacts?limit=500&search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`
+            contactsPagePath(campaignId, page, search, status)
           )
         : Promise.resolve({ items: [], total: 0 }),
-    [campaignId, search, status]
+    [campaignId, search, status, page]
   );
+
+  const total = contacts.data?.total ?? 0;
+  const range = contactPageBounds(page, total);
+  useEffect(() => {
+    if (!contacts.loading && !contacts.error && contacts.data && page >= range.pages) {
+      setPage(range.pages - 1);
+    }
+  }, [contacts.loading, contacts.error, contacts.data, page, range.pages]);
 
   if (!campaignId) return <><PageHeader title="Contacts" /><NoCampaign /></>;
 
@@ -106,6 +130,7 @@ export default function Contacts() {
             className="search-box"
             onSubmit={(event) => {
               event.preventDefault();
+              setPage(0);
               setSearch(searchInput);
             }}
           >
@@ -113,7 +138,7 @@ export default function Contacts() {
             <input aria-label="Search contacts" placeholder="Search name, email or company" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} />
             <Button type="submit" tone="ghost">Search</Button>
           </form>
-          <select aria-label="Filter by status" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select aria-label="Filter by status" value={status} onChange={(event) => { setPage(0); setStatus(event.target.value); }}>
             <option value="">All statuses</option>
             <option value="new">New</option>
             <option value="drafted">Drafted</option>
@@ -121,7 +146,7 @@ export default function Contacts() {
             <option value="replied">Replied</option>
             <option value="completed">Completed</option>
           </select>
-          <span className="toolbar-count">{contacts.data?.total ?? 0} contacts</span>
+          <span className="toolbar-count">{total} contacts</span>
         </div>
         {contacts.loading || contacts.error ? state : contacts.data?.items.length ? (
           <div className="table-wrap">
@@ -145,6 +170,13 @@ export default function Contacts() {
           </div>
         ) : (
           <StatePanel title="No contacts found" description={search || status ? "Clear the filters or import more contacts." : "Import a CSV or Excel file to create the first outreach records."} action={!search && !status ? <Button onClick={() => setImportOpen(true)}>Import contacts</Button> : undefined} />
+        )}
+        {!contacts.loading && !contacts.error && total > CONTACTS_PAGE_SIZE && (
+          <nav className="toolbar" aria-label="Contacts pages">
+            <span role="status" aria-live="polite">Showing {range.first}–{range.last} of {total} · Page {page + 1} of {range.pages}</span>
+            <Button tone="ghost" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Previous page</Button>
+            <Button tone="ghost" disabled={page + 1 >= range.pages} onClick={() => setPage((value) => Math.min(range.pages - 1, value + 1))}>Next page</Button>
+          </nav>
         )}
       </Panel>
 

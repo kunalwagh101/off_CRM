@@ -46,6 +46,27 @@ APOLLO_REJECTION_LEDGER_COLUMNS = [
 ]
 
 
+# Spreadsheet apps treat a quoted CSV cell beginning with these characters
+# as a formula. Quoting in CSV syntax alone does not stop evaluation.
+_SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@")
+_SPREADSHEET_IGNORED_PREFIX = " \t\r\n\ufeff"
+
+
+def spreadsheet_safe_cell(value: Any) -> Any:
+    """Escape external text at spreadsheet output, not inside the CRM/source rows."""
+    if not isinstance(value, str) or not value:
+        return value
+    visible = value.lstrip(_SPREADSHEET_IGNORED_PREFIX)
+    if visible.startswith(_SPREADSHEET_FORMULA_PREFIXES) or value[0] in "\t\r\n":
+        return "'" + value
+    return value
+
+
+def spreadsheet_safe_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Create an export-only copy, preserving real number/boolean cell types."""
+    return frame.map(spreadsheet_safe_cell)
+
+
 def safe_get(obj: dict, *keys: str) -> str:
     for key in keys:
         val = obj.get(key)
@@ -133,7 +154,7 @@ def _append_dedup_csv(path: Path, new_df: pd.DataFrame, dedupe_subset: list[str]
     subset = [c for c in dedupe_subset if c in combined.columns]
     if subset:
         combined = combined.drop_duplicates(subset=subset, keep="last")
-    combined.to_csv(path, index=False)
+    spreadsheet_safe_frame(combined).to_csv(path, index=False)
 
 
 def update_master_run_analytics(root_outdir: Path, run_meta: dict, reason_counts_df: pd.DataFrame, category_counts_df: pd.DataFrame, funnel_df: pd.DataFrame) -> None:
@@ -185,26 +206,26 @@ def write_outputs(outdir: Path, accepted: list[dict], rejected: list[dict], run_
     category_counts_df = _add_run_columns(category_counts_df, run_meta)
     funnel_df = _add_run_columns(funnel_df, run_meta)
 
-    df.to_csv(outdir / "offsetx_final_pois_with_emails.csv", index=False)
-    rejected_df.to_csv(outdir / "offsetx_rejected_duplicate_conflict_log.csv", index=False)
-    raw_df.to_csv(outdir / "offsetx_apollo_raw_search_candidates.csv", index=False)
-    decision_df.to_csv(outdir / "offsetx_candidate_decision_audit.csv", index=False)
-    meta_df.to_csv(outdir / "offsetx_run_summary.csv", index=False)
-    summary_df.to_csv(outdir / "offsetx_summary_tables.csv", index=False)
-    reason_counts_df.to_csv(outdir / "offsetx_analytics_reason_counts.csv", index=False)
-    category_counts_df.to_csv(outdir / "offsetx_analytics_category_counts.csv", index=False)
-    funnel_df.to_csv(outdir / "offsetx_analytics_funnel.csv", index=False)
+    spreadsheet_safe_frame(df).to_csv(outdir / "offsetx_final_pois_with_emails.csv", index=False)
+    spreadsheet_safe_frame(rejected_df).to_csv(outdir / "offsetx_rejected_duplicate_conflict_log.csv", index=False)
+    spreadsheet_safe_frame(raw_df).to_csv(outdir / "offsetx_apollo_raw_search_candidates.csv", index=False)
+    spreadsheet_safe_frame(decision_df).to_csv(outdir / "offsetx_candidate_decision_audit.csv", index=False)
+    spreadsheet_safe_frame(meta_df).to_csv(outdir / "offsetx_run_summary.csv", index=False)
+    spreadsheet_safe_frame(summary_df).to_csv(outdir / "offsetx_summary_tables.csv", index=False)
+    spreadsheet_safe_frame(reason_counts_df).to_csv(outdir / "offsetx_analytics_reason_counts.csv", index=False)
+    spreadsheet_safe_frame(category_counts_df).to_csv(outdir / "offsetx_analytics_category_counts.csv", index=False)
+    spreadsheet_safe_frame(funnel_df).to_csv(outdir / "offsetx_analytics_funnel.csv", index=False)
 
     with pd.ExcelWriter(outdir / "offsetx_final_pois_with_emails.xlsx", engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="Final_POIs", index=False)
-        summary_df.to_excel(writer, sheet_name="Summaries", index=False)
-        rejected_df.to_excel(writer, sheet_name="Rejected_Log", index=False)
-        decision_df.to_excel(writer, sheet_name="Decision_Audit", index=False)
-        raw_df.to_excel(writer, sheet_name="Raw_Apollo_Search", index=False)
-        reason_counts_df.to_excel(writer, sheet_name="Reason_Counts", index=False)
-        category_counts_df.to_excel(writer, sheet_name="Category_Counts", index=False)
-        funnel_df.to_excel(writer, sheet_name="Funnel", index=False)
-        meta_df.to_excel(writer, sheet_name="Run_Metadata", index=False)
+        spreadsheet_safe_frame(df).to_excel(writer, sheet_name="Final_POIs", index=False)
+        spreadsheet_safe_frame(summary_df).to_excel(writer, sheet_name="Summaries", index=False)
+        spreadsheet_safe_frame(rejected_df).to_excel(writer, sheet_name="Rejected_Log", index=False)
+        spreadsheet_safe_frame(decision_df).to_excel(writer, sheet_name="Decision_Audit", index=False)
+        spreadsheet_safe_frame(raw_df).to_excel(writer, sheet_name="Raw_Apollo_Search", index=False)
+        spreadsheet_safe_frame(reason_counts_df).to_excel(writer, sheet_name="Reason_Counts", index=False)
+        spreadsheet_safe_frame(category_counts_df).to_excel(writer, sheet_name="Category_Counts", index=False)
+        spreadsheet_safe_frame(funnel_df).to_excel(writer, sheet_name="Funnel", index=False)
+        spreadsheet_safe_frame(meta_df).to_excel(writer, sheet_name="Run_Metadata", index=False)
 
     (outdir / "run_meta.json").write_text(json.dumps(run_meta, indent=2), encoding="utf-8")
 
@@ -260,7 +281,7 @@ def append_exclusion_ledger(exclusion_dir: Path, accepted: list[dict], outdir: P
     # Also write a per-run exclusion artifact next to the final output.
     outdir.mkdir(parents=True, exist_ok=True)
     new_run_path = outdir / "offsetx_new_accepts_for_exclusion.csv"
-    new_df.to_csv(new_run_path, index=False)
+    spreadsheet_safe_frame(new_df).to_csv(new_run_path, index=False)
     return ledger_path
 
 
@@ -376,7 +397,7 @@ def append_apollo_rejection_ledger(
     temporary = ledger_path.with_suffix(".csv.tmp")
     frame.to_csv(temporary, index=False)
     temporary.replace(ledger_path)
-    frame.to_csv(run_output_dir / "offsetx_apollo_rejection_ledger_snapshot.csv", index=False)
+    spreadsheet_safe_frame(frame).to_csv(run_output_dir / "offsetx_apollo_rejection_ledger_snapshot.csv", index=False)
     return ledger_path
 
 

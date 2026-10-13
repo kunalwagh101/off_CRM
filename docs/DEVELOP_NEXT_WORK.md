@@ -145,3 +145,9 @@ The owner selected three more areas, and the current develop branch and WIP gate
 3. `S-06.02.23` — Audited A07/A08 containment status and A25, which is still open because `render.yaml` declares no independent durable email worker. Track deployment remediation as new BACKLOG `S-06.02.40` / D-270 with a worker launch/restart/recovery work order; host authorisation and durable outboxes remain open.
 
 GitHub-only modifications and regression test source were committed without disabling valid tests. CI runners were previously failing with zero executed steps. Python, JS, Docker, Chrome, the board verifier, real egress controls and real deployment were not run in this environment. Stories do not move to DONE; next action is executing gates on a trusted checkout and implementing the network-level policy and deployment worker. New JavaScript crawling must not be enabled by simply removing the fail-closed guard.
+
+## 2026-10-13 — next three independent customer-impacting slices
+
+Following the earlier A07/A08 containment, selected three gaps observed directly on develop with no external owner decision required: **S-06.02.41 contact pagination (A23), S-06.02.42 spreadsheet-safe human exports (A19), and S-06.02.43 durable per-cookie logout revocation (A06)**. Code and targeted test source were prepared and three dedicated work orders created; each is IN_REVIEW pending real execution, review and board gates. Their evidence ledger is `docs/evidence/2026-10-13-next-three-a06-a19-a23.md`.
+
+The existing production audit `S-06.02.23` remains sole IN_PROGRESS item; WIP limit unchanged. No changes to main. Do not mark these stories DONE until frontend, Python, PostgreSQL, restart/Chrome and CI proof is recorded. The central large `DEFECT_LOG.md` could not be updated through the connector in this context; D-271 to D-273 are recorded in the evidence ledger and must be synchronised before DONE.

@@ -19,6 +19,7 @@ from typing import Any
 import pandas as pd
 
 from .dedupe import norm_email, norm_linkedin, norm_text
+from .io_utils import spreadsheet_safe_frame
 
 LEDGER_COLUMNS = [
     "Primary Identity Key",
@@ -313,7 +314,7 @@ class AttemptLedger:
 
     def write_snapshot(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame(self.rows, columns=LEDGER_COLUMNS).to_csv(path, index=False)
+        spreadsheet_safe_frame(pd.DataFrame(self.rows, columns=LEDGER_COLUMNS)).to_csv(path, index=False)
 
     def backfill_from_output_root(self, output_root: Path) -> int:
         """Import historical bulk_match calls saved by earlier app versions.

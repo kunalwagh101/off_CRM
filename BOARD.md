@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.41 · Contacts beyond row 500 are reachable
+  work_order: docs/work-orders/S-06.02.41-contacts-pagination.md
+  review: paged contacts and tests prepared; frontend and browser checks pending
+
+- S-06.02.42 · Enrichment exports cannot run spreadsheet formulas
+  work_order: docs/work-orders/S-06.02.42-spreadsheet-formulas.md
+  review: export guards and tests prepared; full pipeline validation pending
+
+- S-06.02.43 · Logout revokes the copied browser session
+  work_order: docs/work-orders/S-06.02.43-logout-revocation.md
+  review: persisted revocations and tests prepared; live database verification pending
+
+
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
   work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
   review: docs/evidence/S-12.02.05-validation.md; D-268 reference A/B context-isolation regression committed, owner corpus/30 real cases and full verification pending

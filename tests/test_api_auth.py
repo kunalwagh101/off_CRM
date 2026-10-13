@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.api.app import create_app
-from offsetx_apollo_builder.api.auth import DemoSessionAuth, LoginAttemptLimiter
+from offsetx_apollo_builder.api.auth import DemoSessionAuth, LoginAttemptLimiter, WorkspaceAuthStore, SESSION_COOKIE
 from offsetx_apollo_builder.api.config import AppSettings
 
 
@@ -58,6 +58,57 @@ def test_demo_login_uses_secure_session_cookie_and_logout(tmp_path):
         logout = client.post("/api/v1/auth/logout", json={})
         assert logout.status_code == 200
         assert client.get("/api/v1/dashboard").status_code == 401
+
+
+
+def test_logout_revokes_copied_cookie_even_after_application_restart(tmp_path):
+    """A06: clearing the browser cookie cannot leave a stolen replay valid."""
+    settings = _demo_settings(tmp_path)
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        )
+        assert login.status_code == 200
+        copied = login.cookies.get(SESSION_COOKIE)
+        assert copied
+        assert client.get("/api/v1/dashboard").status_code == 200
+        assert client.post("/api/v1/auth/logout", json={}).status_code == 200
+        client.cookies.set(SESSION_COOKIE, copied, domain="crm.test", path="/")
+        assert client.get("/api/v1/dashboard").status_code == 401
+
+    with TestClient(create_app(settings), base_url="https://crm.test") as restarted:
+        restarted.cookies.set(SESSION_COOKIE, copied, domain="crm.test", path="/")
+        assert restarted.get("/api/v1/dashboard").status_code == 401
+
+
+def test_revoking_one_workspace_session_does_not_revoke_a_second(tmp_path):
+    """One browser logging out must not log out every other owner session."""
+    path = tmp_path / "sessions.db"
+    auth = WorkspaceAuthStore(path, session_secret="s" * 48, session_hours=2)
+    identity = auth.create(
+        username="owner", workspace_id="local", password="long-safe-password",
+    )
+    first = auth.issue(identity)
+    second = auth.issue(identity)
+    assert first != second
+    assert auth.verify(first) is not None
+    assert auth.verify(second) is not None
+    assert auth.revoke(first) is True
+    assert auth.revoke(first) is False
+    assert auth.verify(first) is None
+    assert auth.verify(second) is not None
+
+    reopened = WorkspaceAuthStore(path, session_secret="s" * 48, session_hours=2)
+    assert reopened.verify(first) is None
+    assert reopened.verify(second) is not None
+    import hashlib
+    import sqlite3
+    with sqlite3.connect(path) as conn:
+        rows = conn.execute("SELECT token_digest FROM workspace_revoked_sessions").fetchall()
+    assert rows == [(hashlib.sha256(first.encode("utf-8")).hexdigest(),)]
+    assert first not in str(rows)
+
 
 
 def test_session_signature_and_expiry_are_enforced():

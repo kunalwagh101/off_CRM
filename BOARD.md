@@ -72,7 +72,6 @@ runners. The per-finding re-check itself is READY.)*
 *(Filed 2026-09-24 from the review of `S-06.02.24` for `D-146`. Needs its
 work order before it is pulled.)*
 
-- S-06.02.28 · A command-line tool locks the workspace it actually opens
 
 *(Filed 2026-09-25 from the owner's requests. `S-06.02.34` starts by finding
 out what each provider reports. `F-06.03` is the owner's answer to `Q-26`.)*
@@ -143,13 +142,17 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.36 · A second owner login is made on purpose
-  work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md
+- S-06.02.28 · A command-line tool locks the workspace it actually opens
+  work_order: docs/work-orders/S-06.02.28-path-aware-workspace-lock.md
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.36 · A second owner login is made on purpose
+  work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md
+  review: docs/evidence/S-06.02.36-validation.md; code and API regression tests committed, full tests unrun
 
 - S-05.01.04 · Public-page fetches connect only to checked destinations
   work_order: docs/work-orders/S-05.01.04-verified-destinations.md

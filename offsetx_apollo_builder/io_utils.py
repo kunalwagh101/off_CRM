@@ -154,7 +154,8 @@ def _append_dedup_csv(path: Path, new_df: pd.DataFrame, dedupe_subset: list[str]
     subset = [c for c in dedupe_subset if c in combined.columns]
     if subset:
         combined = combined.drop_duplicates(subset=subset, keep="last")
-    spreadsheet_safe_frame(combined).to_csv(path, index=False)
+    # Cross-run index is read again for deduplication: keep exact keys at rest.
+    combined.to_csv(path, index=False)
 
 
 def update_master_run_analytics(root_outdir: Path, run_meta: dict, reason_counts_df: pd.DataFrame, category_counts_df: pd.DataFrame, funnel_df: pd.DataFrame) -> None:

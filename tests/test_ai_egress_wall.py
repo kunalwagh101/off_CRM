@@ -582,6 +582,41 @@ def test_every_call_is_logged_with_the_exact_payload(tmp_path, registry):
     assert record["system_prompt"] == sent["system_prompt"]
 
 
+def test_legacy_egress_table_gains_system_prompt_without_losing_old_rows(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "legacy-egress.sqlite3"
+    with sqlite3.connect(path) as conn:
+        conn.execute("""
+            CREATE TABLE ai_egress_log (
+                id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL DEFAULT 'local',
+                created_at TEXT NOT NULL, provider_id TEXT NOT NULL,
+                provider_name TEXT NOT NULL DEFAULT '', model_id TEXT NOT NULL DEFAULT '',
+                jurisdiction TEXT NOT NULL DEFAULT '', tier TEXT NOT NULL DEFAULT '',
+                policy TEXT NOT NULL DEFAULT '', data_class TEXT NOT NULL DEFAULT '',
+                task_type TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT '',
+                error TEXT NOT NULL DEFAULT '', findings TEXT NOT NULL DEFAULT '[]',
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                payload TEXT NOT NULL DEFAULT '{}',
+                payload_summary TEXT NOT NULL DEFAULT '{}',
+                response_text TEXT NOT NULL DEFAULT '',
+                failure_kind TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        conn.execute("""INSERT INTO ai_egress_log
+            (id, created_at, provider_id, task_type, status)
+            VALUES ('old-call', '2026-09-01T00:00:00+00:00',
+                    'mistral', 'legacy', 'succeeded')""")
+    log = EgressLog(path)
+    old = log.get("old-call")
+    assert old is not None
+    assert old["system_prompt"] == ""
+    new_id = log.record(provider_id="mistral", system_prompt="fixed instructions",
+                        status="succeeded")
+    assert log.get(new_id)["system_prompt"] == "fixed instructions"
+    log.close()
+
+
 def test_blocked_calls_are_logged_too(tmp_path, registry):
     log = EgressLog(tmp_path / "egress.sqlite3")
     broker = EgressBroker(

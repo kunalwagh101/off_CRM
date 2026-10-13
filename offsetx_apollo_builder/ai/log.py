@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS ai_egress_log (
     findings TEXT NOT NULL DEFAULT '[]',
     duration_ms INTEGER NOT NULL DEFAULT 0,
     payload TEXT NOT NULL DEFAULT '{}',
+    system_prompt TEXT NOT NULL DEFAULT '',
     payload_summary TEXT NOT NULL DEFAULT '{}',
     response_text TEXT NOT NULL DEFAULT '',
     failure_kind TEXT NOT NULL DEFAULT ''
@@ -98,6 +99,9 @@ class EgressLog:
                 database.add_column_if_missing(
                     "ai_egress_log", "failure_kind", "TEXT NOT NULL DEFAULT ''"
                 )
+                database.add_column_if_missing(
+                    "ai_egress_log", "system_prompt", "TEXT NOT NULL DEFAULT ''"
+                )
                 self._connection = database
             return self._connection
 
@@ -127,6 +131,7 @@ class EgressLog:
         payload_summary: dict[str, Any] | None = None,
         response_text: str = "",
         failure_kind: str = "",
+        system_prompt: str = "",
     ) -> str:
         row_id = str(uuid.uuid4())
         payload_json = json.dumps(payload or {}, ensure_ascii=False, default=str)
@@ -137,8 +142,9 @@ class EgressLog:
                 "INSERT INTO ai_egress_log("
                 " id, workspace_id, created_at, provider_id, provider_name, model_id,"
                 " jurisdiction, tier, policy, data_class, task_type, status, error,"
-                " findings, duration_ms, payload, payload_summary, response_text, failure_kind"
-                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " findings, duration_ms, payload, payload_summary, response_text, failure_kind,"
+                " system_prompt"
+                ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     row_id,
                     workspace_id,
@@ -159,6 +165,7 @@ class EgressLog:
                     json.dumps(payload_summary or {}, ensure_ascii=False, default=str),
                     str(response_text)[:MAX_RESPONSE_CHARS],
                     str(failure_kind or "")[:40],
+                    str(system_prompt or "")[:MAX_PAYLOAD_CHARS],
                 ),
             )
             self._trim()
@@ -315,6 +322,7 @@ EGRESS_COLUMNS = (
     "payload_summary",
     "response_text",
     "failure_kind",
+    "system_prompt",
 )
 
 

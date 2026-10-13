@@ -87,6 +87,15 @@ def test_S060234_unsupported_balance_is_explicit_and_never_contacts_vendor(clien
     assert "does not report" in response.json()["reason"].lower()
 
 
+def test_provider_usage_report_classification_is_visible_to_connected_owner(client):
+    response = client.get(f"{API}/ai/providers")
+    assert response.status_code == 200
+    by_id = {row["id"]: row for row in response.json()["providers"]}
+    assert by_id["deepseek"]["usage_report"] == "balance_endpoint"
+    assert by_id["openrouter"]["usage_report"] == "balance_endpoint"
+    assert by_id["nvidia"]["usage_report"] == "none"
+
+
 def test_policy_levels_and_tiers_are_described_for_the_ui(client):
     payload = client.get(f"{API}/ai/providers").json()
     assert [item["value"] for item in payload["policy_levels"]] == [

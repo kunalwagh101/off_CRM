@@ -51,6 +51,9 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-165 | S-06.02.37 | 2 | skip event handler and Settings/Contacts route preservation regression committed | frontend Vitest/build, full regression and real Chromium keyboard/pointer flows unrun |
+| R-167 | S-03.01.03 | 3 | IP-literal/noncanonical/local-name denial plus guard tests committed, isolated 16-case classification smoke passed | DNS-rebind/Chrome Docker network gateway and zero-private-connection tests absent; full suite unrun |
+| R-168 | S-05.01.04 | 3 | Requests source uses DNS-approved IP for TCP while retaining HTTP Host/TLS identity; local HTTP/HTTPS socket and cert checks passed | Crawl4AI render transport still unpinned; live rebinding, full suite and S-05.01.01 upstream DONE gate outstanding |
 | R-140 | S-06.02.20 | 2 | real shallow-clone regression test and full-depth CI checkout guard committed; isolated three-case Git reproduction passed | `uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q`, full regression, board verifier and hosted CI remain unrun |
 | R-169 | S-06.02.39 | 3 | sample-aware small WebM check plus real encoded 60-frame VP9 test fixture and three named regression tests | full Python/frontend regression, real video-editor browser export, rollback and board verifier are unrun; CI runners unavailable |
 | R-48 | S-06.02.02 | 2 | closed public-route allowlist + global auth middleware + secret-safe validation handler + exhaustive registered-route/body contract in `tests/test_api_boundary_contract.py` | `uv run pytest tests/test_api_boundary_contract.py tests/test_api_auth.py -q`, full regression, owner API review and verifier |
@@ -95,8 +98,6 @@ the code exists and holds no stub).
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
 | R-101 | S-06.02.16 | 3 | — | — |
-| R-167 | S-03.01.03 | 3 | Pending real-browser/container acceptance | `browser/policy.py`, `browser/guard.py`, `browser/box.py` |
-| R-168 | S-05.01.04 | 3 | Pending controlled HTTP/DNS acceptance | `discovery.py` |
 
 ## Deferred — cut, with the trigger to bring it back
 

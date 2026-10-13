@@ -32,7 +32,7 @@ from .notebook import (
     resolve_target,
 )
 from .outreach.store import OutreachStore
-from .outreach.workspace_lock import cli_workspace_lease
+from .outreach.workspace_lock import cli_workspace_leases
 
 
 def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
@@ -227,8 +227,15 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     # `targets` reads nothing from the workspace, so it answers during a restore.
+    crm = crm_target(args.db)
+    targets = [Path(args.context)]
+    if not crm.startswith(("postgresql://", "postgres://")):
+        targets.append(Path(crm))
+    if getattr(args, "out", None):
+        targets.append(Path(args.out))
     lease = (
-        nullcontext() if args.command == "targets" else cli_workspace_lease(data_dir(Path.cwd()))
+        nullcontext() if args.command == "targets"
+        else cli_workspace_leases(*targets, workspace=data_dir(Path.cwd()))
     )
     try:
         with lease:

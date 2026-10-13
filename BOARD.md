@@ -33,7 +33,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
-- S-06.02.16 · Resolve frontend development dependency audit findings
 
 
 *(Production-audit security findings, not yet READY; the required live integration checks have not run.)*
@@ -110,6 +109,9 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
   work_order: docs/work-orders/S-06.02.26-python-matrix.md
 
 ## READY
+
+- S-06.02.16 · Resolve frontend development dependency audit findings
+  work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md
 
 
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the

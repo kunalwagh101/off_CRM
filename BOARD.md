@@ -137,13 +137,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-12.01.03 · The video director uses the product
-  work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-12.01.03 · The video director uses the product
+  work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md
+  review: docs/evidence/S-12.01.03-validation.md; application and logging patches committed, full repo/live provider checks unrun
 
 - S-06.02.34 · Connectors show how much is left
   work_order: docs/work-orders/S-06.02.34-usage-remaining.md

@@ -36,6 +36,14 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+      # Package metadata comes from the live registry. A passing npm install
+      # does not establish that the dependency graph is safe.
+      - name: Audit frontend production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=low
+      - name: Audit frontend development dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
       - name: Catch broken Python names and syntax
         run: uv run ruff check --select E9,F63,F7,F82 .
       - name: Smoke-test installed command-line entry points

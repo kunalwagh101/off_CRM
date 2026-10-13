@@ -51,6 +51,9 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-135 | S-12.01.03 | 2 | product and style classified in video direction, system prompt persisted in egress log; API and migration tests committed | full suites, live video refusal and real hosted-log verification unrun |
+| R-101 | S-06.02.16 | 3 | mandatory production all-severity and dev high-severity npm audit steps in CI; ordering tests committed | real npm registry audit, dependency remediation, frontend tests/build and runner execution unavailable |
+| R-136 | S-12.02.05 | 2 | expert and judged winner references injected into classified GTM fields; GTM reference ablation and 3 synthetic starter cases committed | owner corpus, 30 judged real cases, live A/B run and full tests missing |
 | R-164 | S-06.02.36 | 2 | owner confirmation required for local login at authenticated API boundary; regression cases committed | full API/auth suites, real login, independent review and board verification unrun |
 | R-155 | S-06.02.28 | 3 | path-aware lease resolver, CLI wiring and shared dotenv loader; cross-cwd and config regression cases committed | all real CLIs against concurrent restore, symlink/filesystem checks, full suite and verifier unrun |
 | R-161 | S-06.02.34 | 3 | per-provider local usage visible without cap; documented OpenRouter/DeepSeek balance endpoints, workspace-key endpoint, safe parser and UI tests committed | headers capture for OpenAI/Anthropic/Groq, real provider check, frontend/API/full suites and verifier unrun |
@@ -101,7 +104,6 @@ the code exists and holds no stub).
 | R-47 | S-06.01.05 | 2 | — | — |
 | R-53 | S-07.01.01 | 2 | — | — |
 | R-54 | S-07.01.02 | 1 | — | — |
-| R-101 | S-06.02.16 | 3 | — | — |
 
 ## Deferred — cut, with the trigger to bring it back
 

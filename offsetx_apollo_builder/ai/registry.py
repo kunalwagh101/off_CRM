@@ -202,6 +202,7 @@ class ProviderEntry:
     key_placeholder: str = ""
     how_to_get: str = ""
     verified_on: str = ""
+    usage_report: str = "none"
     free_tier: FreeTier | None = None
     configured_tier: TrustTier | None = None
 
@@ -254,6 +255,7 @@ class ProviderEntry:
             "key_placeholder": self.key_placeholder,
             "how_to_get": self.how_to_get,
             "verified_on": self.verified_on,
+            "usage_report": self.usage_report,
             "free_tier": self.free_tier.to_dict() if self.free_tier else None,
             "trust_tier": tier.value,
             "trust_tier_source": "config" if self.configured_tier else "derived",
@@ -362,6 +364,12 @@ def _parse_entry(raw: dict[str, Any]) -> ProviderEntry:
             notes=str(free_raw.get("notes", "")).strip(),
         )
 
+    usage_report = str(raw.get("usage_report", "none")).strip().lower()
+    if usage_report not in {"none", "balance_endpoint", "rate_limit_headers"}:
+        raise RegistryError(f"Provider {provider_id!r} has an invalid usage_report")
+    if usage_report == "balance_endpoint" and provider_id not in {"deepseek", "openrouter"}:
+        raise RegistryError(f"Provider {provider_id!r} has no supported balance endpoint")
+
     configured_tier = None
     if raw.get("trust_tier"):
         configured_tier = coerce_tier(raw.get("trust_tier"), default=TrustTier.D)
@@ -386,6 +394,7 @@ def _parse_entry(raw: dict[str, Any]) -> ProviderEntry:
         key_placeholder=str(raw.get("key_placeholder", "")).strip(),
         how_to_get=str(raw.get("how_to_get", "")).strip(),
         verified_on=str(raw.get("verified_on", "")).strip(),
+        usage_report=usage_report,
         free_tier=free_tier,
         configured_tier=configured_tier,
     )

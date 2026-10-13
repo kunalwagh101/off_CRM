@@ -147,13 +147,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-03.01.03 · Browser blocks internal network access
-  work_order: docs/work-orders/S-03.01.03-network-isolation.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-03.01.03 · Browser blocks internal network access
+  work_order: docs/work-orders/S-03.01.03-network-isolation.md
+  review: docs/evidence/S-03.01.03-validation.md; IP-literal policy fix committed, container network/DNS-rebind isolation unverified
 
 - S-06.02.37 · Skip navigation keeps the current screen
   work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md

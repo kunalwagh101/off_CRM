@@ -335,6 +335,15 @@ def copy_egress_log(source: Path | str, destination: str, *, batch_size: int = 5
     """
     from ..db.copy import copy_table
 
+    # Old SQLite logs and older Postgres targets predate system_prompt.
+    # The generic copier does not run store-specific additive migrations.
+    for target in (source, destination):
+        migrated = EgressLog(target)
+        try:
+            migrated.connection
+        finally:
+            migrated.close()
+
     return copy_table(
         source,
         destination,

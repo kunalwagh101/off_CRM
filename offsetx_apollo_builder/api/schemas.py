@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from pydantic_core import PydanticCustomError
 
 from ..outreach.models import MESSAGE_STAGES
@@ -34,7 +34,7 @@ class WorkspaceCreate(StrictModel):
     username: str = Field(min_length=1, max_length=100)
     workspace_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     password: str = Field(min_length=12, max_length=500)
-    confirm_install_owner: bool = False
+    confirm_install_owner: StrictBool = False
 
 
 class WorkspaceUpdate(StrictModel):

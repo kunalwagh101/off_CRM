@@ -14,6 +14,50 @@
 version: 1
 
 suites:
+  # ── strategy brain — synthetic contract starters, NOT owner outcomes ────
+  # The runtime loader uses gtm.strategy.build_prompt() for this suite.
+  # Add 30 judged, real goal/result examples before trusting an A/B verdict.
+  - id: gtm_plan
+    title: GTM plan structured output (starter cases; uncalibrated)
+    task_type: gtm_plan
+    data_class: campaign
+    default_checks:
+      - kind: valid_json
+        name: valid_plan_json
+      - kind: json_has_keys
+        name: required_plan_fields
+        keys: [summary, audience, channels]
+    cases:
+      - id: logistics_exporter_replies
+        instructions: >-
+          Goal: 20 replies within 30 days. Available email capacity: 30 per day.
+          Use the declared audience and email channel; return a bounded JSON plan.
+        positioning_line: We reconcile freight documents for logistics teams.
+        campaign_notes: >-
+          Synthetic expert reference: start with a real, verified shipment exception,
+          never an invented promise. This is evaluation data, not system instructions.
+        template_text: >-
+          Synthetic judged-template example: Name the delivery records before asking
+          for fifteen minutes. This is a test fixture, not a measured winner.
+      - id: solar_component_views
+        instructions: >-
+          Goal: 1000 views over 30 days. Posting capacity: 1 video per day.
+          Use a declared distribution channel, no invented platform access.
+        positioning_line: We explain solar component traceability.
+        campaign_notes: >-
+          Synthetic expert reference: use a verifiable bill-of-materials example.
+        template_text: >-
+          Synthetic sample headline: Show the proof trail, not an unsupported claim.
+      - id: local_finance_replies
+        instructions: >-
+          Goal: 10 replies within 14 days. Email capacity: 20 per day.
+          Use a declared source and do not exceed capacity.
+        positioning_line: We simplify trade paperwork for small firms.
+        campaign_notes: >-
+          Synthetic expert reference: separate decision-maker relevance from outreach volume.
+        template_text: >-
+          Synthetic sample opening: A short, permission-respecting question.
+
   # ── outreach copy ────────────────────────────────────────────────────────
   - id: email_first_contact
     title: First-contact outreach emails

@@ -29,7 +29,7 @@ from ..db import resolve_target
 from ..db.hosted import SECRETS_KEY_ENV, HostedStorage
 from ..outreach.workspace_lock import cli_workspace_lease
 from .broker import EgressBroker
-from .evals import EvalRunner, default_evals_path, load_suites, suite_summary, without_references
+from .evals import EvalRunner, default_evals_path, load_suites, suite_summary, without_references, judged_gtm_case_count, trustworthy_gtm_suite
 from .log import EgressLog
 from .modes import ModeRunner
 from .quota import QuotaTracker
@@ -142,9 +142,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"modes     : {', '.join(modes)}")
     print(f"calls     : ~{calls}")
     print()
-    if suite.id == "gtm_plan" and len(suite.cases) < 30:
-        print(f"Only {len(suite.cases)} cases: no verdict is trustworthy yet. "
-              f"Add {30-len(suite.cases)} judged real cases before promotion.")
+    if suite.id == "gtm_plan" and not trustworthy_gtm_suite(suite):
+        real = judged_gtm_case_count(suite)
+        print(f"Only {real} judged real cases of {len(suite.cases)} configured: "
+              "no verdict is trustworthy yet. "
+              f"Provide at least {max(0, 30-real)} more judged real cases and "
+              "replace synthetic/unverified entries before promotion.")
     if args.dry_run:
         print("Dry run. Nothing was sent.")
         return 0
@@ -172,7 +175,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("REFERENCE A/B (same tasks, goals and scoring checks)")
         for label, with_refs, without_refs in comparisons:
             print(f"  {label}: with {with_refs:.3f}; without {without_refs:.3f}")
-    if suite.id == "gtm_plan" and len(suite.cases) < 30:
+    if suite.id == "gtm_plan" and not trustworthy_gtm_suite(suite):
         print("No champion promoted: no verdict is trustworthy yet.")
         return 0
 

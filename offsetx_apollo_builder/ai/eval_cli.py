@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from ..data_paths import data_dir, resolved
+from ..data_paths import data_dir, resolved, load_project_env
 from ..db import resolve_target
 from ..db.hosted import SECRETS_KEY_ENV, HostedStorage
 from ..outreach.workspace_lock import cli_workspace_lease
@@ -233,6 +233,7 @@ def cmd_champion(args: argparse.Namespace) -> int:
 
 @traced_command("offsetx-evals")
 def main(argv: Sequence[str] | None = None) -> int:
+    load_project_env()
     parser = argparse.ArgumentParser(
         prog="offsetx-evals",
         description="Measure whether orchestration beats one good model.",

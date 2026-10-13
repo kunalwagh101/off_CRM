@@ -118,3 +118,6 @@ The user requested three feature areas. Keep them ordered and do not exceed two 
 3. **F-04.01 on-demand agent skills — S-04.01.02**: acceptance work order `docs/work-orders/S-04.01.02-on-demand-agent-skills.md` prepared. BACKLOG, not READY: S-04.01.01 is IN_REVIEW and Q-30 must settle the exact trusted skill-selection contract.
 
 No code for items 2–3 has been implemented yet and no release or hosted integration has been certified. Do not interpret this selected order as permission to bypass dependencies or invent new storage/agent policy.
+
+## 2026-10-13 subsequent batch — skip navigation and network audit security
+The owner authorised selecting three additional stories from `develop`: `S-06.02.37` (skip link preserves screen), `S-03.01.03` (browser private-network isolation), and `S-05.01.04` (public fetch DNS rebinding). All three received source changes, red-first regression tests and review evidence files. All three are IN_REVIEW, **not DONE**. Browser isolation remains incomplete because bridge egress is not filtered. The Requests crawler path is pinned; Crawl4AI remains exposed to a second DNS resolution. CI jobs currently fail before allocation. S-05.01.04 also cannot be DONE before its upstream S-05.01.01 is DONE. Audit S-06.02.23 stays the only IN_PROGRESS item. `main` unchanged.

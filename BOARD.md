@@ -76,9 +76,6 @@ work order before it is pulled.)*
 *(Filed 2026-09-25 from the owner's requests. `S-06.02.34` starts by finding
 out what each provider reports. `F-06.03` is the owner's answer to `Q-26`.)*
 
-- S-06.02.34 · Connectors show how much is left
-  work_order: docs/work-orders/S-06.02.34-usage-remaining.md
-
 *(Filed 2026-09-25 for `D-173`: the Drafts screen's model option points at a
 profile form that no screen has had since the providers moved to Connectors.
 Waits on the owner's answer to `Q-28`.)*
@@ -142,13 +139,17 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.28 · A command-line tool locks the workspace it actually opens
-  work_order: docs/work-orders/S-06.02.28-path-aware-workspace-lock.md
+- S-06.02.34 · Connectors show how much is left
+  work_order: docs/work-orders/S-06.02.34-usage-remaining.md
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.28 · A command-line tool locks the workspace it actually opens
+  work_order: docs/work-orders/S-06.02.28-path-aware-workspace-lock.md
+  review: docs/evidence/S-06.02.28-validation.md; lock and CLI changes committed, real concurrent restore still unverified
 
 - S-06.02.36 · A second owner login is made on purpose
   work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md

@@ -3676,6 +3676,35 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             row["usage"] = usage.get(row["id"])
         return payload
 
+    @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/balance")
+    def ai_provider_balance(provider_id: str, request: Request) -> dict[str, Any]:
+        """Explicit, key-scoped vendor usage check; no model call or payload."""
+        from ..ai import provider_usage
+
+        broker, workspaces, _ = _ai(request)
+        entry = broker.registry.get(provider_id)
+        if entry is None:
+            raise HTTPException(status_code=404, detail="Unknown AI provider")
+        if entry.usage_report != "balance_endpoint":
+            reason = (
+                "Provider reports limits in response headers; balance is not "
+                "available through this screen yet"
+                if entry.usage_report == "rate_limit_headers"
+                else "Provider does not report a supported remaining balance"
+            )
+            return {"provider_id": provider_id, "supported": False,
+                    "usage_report": entry.usage_report, "reason": reason}
+        key = workspaces.key_for(_workspace_id(request), provider_id)
+        if not key:
+            raise HTTPException(
+                status_code=409,
+                detail="Connect this provider in your workspace before checking its balance",
+            )
+        try:
+            return {"supported": True, **provider_usage.fetch_provider_balance(provider_id, key)}
+        except provider_usage.UsageReportError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     @app.post(f"{API_PREFIX}/ai/providers/{{provider_id}}/connect")
     def ai_connect_provider(
         provider_id: str, body: AIProviderConnectBody, request: Request

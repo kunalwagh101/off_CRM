@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 
 from offsetx_apollo_builder.api.app import create_app
@@ -20,6 +21,8 @@ from offsetx_apollo_builder.discovery import (
     ParsedPage,
     ScraplingPageParser,
     SafePublicFetcher,
+    DiscoveryFetchError,
+    _PinnedPublicAdapter,
     validate_public_url,
 )
 from offsetx_apollo_builder.outreach.store import OutreachStore
@@ -155,6 +158,33 @@ def test_A08_rejects_private_dns_before_any_http_socket(monkeypatch):
         guard._request_bytes("http://outside.example/", max_bytes=300,
                              accepted_types=("text/html",))
     assert not attempts
+
+
+def test_A08_tls_hostname_is_preserved_when_connecting_to_pinned_ip():
+    adapter = _PinnedPublicAdapter("93.184.216.34")
+    try:
+        pool = adapter.poolmanager.connection_from_url("https://outside.example/team")
+        conn = pool.ConnectionCls(host=pool.host, port=pool.port)
+        assert conn.host == "outside.example"  # SNI/certificate hostname
+        assert conn._dns_host == "93.184.216.34"  # TCP address
+    finally:
+        adapter.close()
+
+
+def test_A08_custom_proxy_is_refused_even_if_dns_target_is_public():
+    session = requests.Session()
+    session.proxies["http"] = "http://127.0.0.1:8080"
+    fetcher = SafePublicFetcher(
+        CrawlPolicy(allowed_domains=("outside.example",), request_delay_seconds=0),
+        session=session,
+        resolver=lambda host, port, **kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))
+        ],
+    )
+    with pytest.raises(DiscoveryFetchError, match="proxies or custom transports"):
+        fetcher._request_bytes(
+            "http://outside.example/", max_bytes=400, accepted_types=("text/html",)
+        )
 
 
 def test_scrapling_parser_extracts_structured_people_without_fetcher_stealth():

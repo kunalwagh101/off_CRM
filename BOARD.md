@@ -52,8 +52,6 @@ so every story below could be pulled; none is, because the owner asked for Phase
 1 and 2. `S-12.01.03` also waits on `D-81`. `S-12.02.05` needs the expert library
 the owner said they will source. `S-06.02.20` is the fix for `D-80`.)*
 
-- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
-  work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
 
 
 *(Filed 2026-09-22 for `D-82`, found while building the review: a plan's posting
@@ -109,6 +107,9 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
   work_order: docs/work-orders/S-06.02.26-python-matrix.md
 
 ## READY
+
+- S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
+  work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
 
 
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .data_paths import load_project_env
 from .api.config import AppSettings
 from .db import DatabaseBusy, DatabaseError, DatabaseUnavailable, resolve_target
 from .db.hosted import HostedStorageError
@@ -78,6 +79,7 @@ def _service(settings: AppSettings, engine: OutreachEngine) -> EmailDeliveryServ
 
 @traced_command("offsetx-email-worker")
 def main(argv: list[str] | None = None) -> int:
+    load_project_env()
     args = _parser().parse_args(argv)
     if not 1 <= args.max_jobs <= 500:
         raise SystemExit("--max-jobs must be between 1 and 500")

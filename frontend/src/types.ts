@@ -699,6 +699,19 @@ export type AIModel = {
   is_image: boolean;
 };
 
+export type ProviderBalance = {
+  provider_id: string;
+  supported: boolean;
+  source?: "provider_reported";
+  kind?: "account_balance" | "key_spend_limit";
+  available?: boolean;
+  remaining?: string | null;
+  unit?: string;
+  checked_at?: string;
+  description?: string;
+  reason?: string;
+};
+
 export type AIUsage = {
   provider_id: string;
   minute_used: number;
@@ -765,6 +778,7 @@ export type AIProviderRow = {
   requests_per_day: number;
   max_spend_usd_per_day: number;
   usage?: AIUsage | null;
+  usage_report: "none" | "balance_endpoint" | "rate_limit_headers";
   /** One key reaches many models. These are the ones turned on. */
   model_ids: string[];
   supports_model_discovery: boolean;

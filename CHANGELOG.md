@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Campaign Management** (F-06.04, IN_REVIEW, 2026-10-13): editable campaign settings, IANA timezone validation, explicit typed archive, safe paused restore, status controls and frontend/API regressions. Email-specific settings stay within email campaigns.
+- **Campaign Blueprint Reuse** (F-06.05, IN_REVIEW): create an idempotent paused configuration-only clone from an existing campaign; no copied recipients, drafts, messages, history or credentials; regression and restart checks authored.
+- **Campaign Performance Intelligence** (F-06.06, IN_REVIEW): on-demand CRM-based campaign metrics, unique-contacted denominator, replies from contacted recipients, unsent/pending and stopped state plus draft counts. No model generated statistics.
+- **Release gate**: tests are authored but not run by this connector-only session; GitHub Actions still fails before any job steps. These features are committed for review, not DONE/deployed.
+
+
 - **Bounded Send Queue screen** (`S-06.02.47`, IN_REVIEW, 2026-10-13): authenticated queue API now accepts a bounded page and returns only that page's contact details; the backend sender retains its separate full-campaign queue. New accessible Previous/Next controls; Python/TypeScript tests authored, not run.
 - **Honest campaign-wide Send Queue totals** (`S-06.02.48`, IN_REVIEW): Ready, Needs approval and Replied cards use whole-campaign classification, including future-scheduled drafts and terminal statuses, independent of page/view. Ready means review candidate only; live send preflight still applies. No real provider/postgres/runner proof yet.
 - **Action-focused queue views** (`S-06.02.49`, IN_REVIEW): All, Approved and due, Needs approval and Replied cohorts have validated query values, correct paging and contextual empty states. This is read-only and does not bypass live-send approval.

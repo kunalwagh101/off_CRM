@@ -2241,3 +2241,34 @@ Silence must never be mistakable for scope.
 One increment = one vertical slice a person can use end to end. Not "the backend
 for X". The next increment is chosen by the owner from `READY`, and only when
 `IN_PROGRESS` is empty.
+
+
+### F-06.04 — Campaign Management  *(E-06, product feature)*
+
+Manage a campaign's configuration and lifecycle from the Campaigns screen. This is a complete product feature, not a single field-level story.
+
+- **Given** an existing email campaign, **when** the owner opens Edit settings, **then** they can update name, daily cap, IANA timezone, send window/weekdays, working-day follow-ups, approval mode and experiment settings; the values survive restart.
+- **Given** an invalid timezone, control variant or cap, **when** saved, **then** the backend refuses without altering prior settings.
+- **Given** an active or paused campaign, **when** the owner types ARCHIVE and confirms, **then** it becomes archived without deleting evidence; restoring it resumes in a *paused* state, requiring a later explicit Resume.
+
+**Dependencies:** existing campaign create/PATCH backend (DONE). **Size:** L. **Feature specification:** `docs/features/campaign-management.md`.
+
+### F-06.05 — Campaign Blueprint Reuse  *(E-06, product feature)*
+
+Safely replicate configuration without replicating people, credentials or outbound effects.
+
+- **Given** a configured campaign with real members, drafts and sends, **when** the owner duplicates its settings, **then** the new independent campaign inherits only validated campaign configuration and is inserted paused, with zero recipients, drafts or messages.
+- **Given** a repeated duplicate request with the same idempotency key, **when** retried, **then** it returns the same campaign instead of creating an extra one.
+- **Given** a missing source, invalid clone name, or forbidden copy-of-contacts fields, **when** sent, **then** the protected API refuses without side effects.
+
+**Dependencies:** campaign create/PATCH backend (DONE). **Size:** L. **Feature specification:** `docs/features/campaign-blueprints.md`.
+
+### F-06.06 — Campaign Performance Intelligence  *(E-06, product feature)*
+
+An actual CRM-data performance panel, independent from the experimental A/B statistical report.
+
+- **Given** a campaign, **when** the owner opens Performance, **then** the server reports unique contacted recipients, outbound messages, replies, uncontacted members, completed/stopped counts and draft state, with a refresh button and no model inference.
+- **Given** a contact manually marked replied without being sent email, **when** the reply rate is shown, **then** the unsent record is excluded from its numerator and denominator; the denominator is unique contacts with outbound messages.
+- **Given** a non-email campaign, **when** metrics are opened, **then** the email-specific reply rate is shown as N/A, rather than mislabelling the campaign.
+
+**Dependencies:** existing campaign/CRM send/draft storage (DONE). **Size:** L. **Feature specification:** `docs/features/campaign-performance.md`.

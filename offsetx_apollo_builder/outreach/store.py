@@ -11,6 +11,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Any, Iterable, Iterator, Sequence
 
 from ..campaigns import DEFAULT_KIND, assert_runnable, coerce_kind, kind_spec
@@ -514,6 +515,14 @@ class OutreachStore:
     def get_contact(self, contact_id: str) -> dict[str, Any] | None:
         return self._row("SELECT * FROM contacts WHERE id = ?", (contact_id,))
 
+    @staticmethod
+    def _check_timezone(value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError, TypeError) as exc:
+            raise ValueError("Enter a valid IANA timezone such as Asia/Kolkata") from exc
+        return value
+
     def create_campaign(
         self,
         *,
@@ -532,11 +541,15 @@ class OutreachStore:
         experiment_metric: str = "reply_rate",
         experiment_min_sample: int = 40,
         control_variant: str = "A",
+        initial_status: str = "active",
     ) -> str:
         # Before anything else: a kind nothing can run must not reach the table.
         # A row that looks alive in a list, has contacts attached and never
         # sends is a worse outcome than a refusal at creation.
         spec = assert_runnable(kind)
+        timezone_name = self._check_timezone(timezone_name)
+        if initial_status not in {"active", "paused"}:
+            raise ValueError("New campaigns must begin active or paused")
         if daily_send_limit <= 0:
             raise ValueError("daily_send_limit must be positive")
         if approval_mode not in {"each_message", "whole_sequence"}:
@@ -565,7 +578,7 @@ class OutreachStore:
                     status, send_window_start, send_window_end, send_weekdays_json,
                     experiment_hypothesis, experiment_metric, experiment_min_sample,
                     control_variant, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     campaign_id,
@@ -577,6 +590,7 @@ class OutreachStore:
                     followup2_working_days,
                     approval_mode,
                     json.dumps(normalized_variants),
+                    initial_status,
                     send_window_start,
                     send_window_end,
                     json.dumps(weekdays),
@@ -588,8 +602,40 @@ class OutreachStore:
                     now,
                 ),
             )
-        self.add_event(campaign_id, "campaign_created", {"name": name, "kind": spec.id})
+        self.add_event(campaign_id, "campaign_created", {"name": name, "kind": spec.id, "status": initial_status})
         return campaign_id
+
+    def clone_campaign_settings(self, source_id: str, *, name: str) -> dict[str, Any]:
+        """Reuse campaign configuration, never its contacts, drafts or messages.
+
+        A clone must begin paused within the creation transaction: creating an
+        active clone then immediately pausing it would leave an auto-send race.
+        """
+        source = self.get_campaign(source_id)
+        clean_name = clean_text(name)
+        if not clean_name or len(clean_name) > 120:
+            raise ValueError("Campaign name must be 1–120 characters")
+        with self.transaction():
+            new_id = self.create_campaign(
+                name=clean_name,
+                kind=str(source["kind"]),
+                daily_send_limit=int(source["daily_send_limit"]),
+                timezone_name=str(source["timezone"]),
+                followup1_working_days=int(source["followup1_working_days"]),
+                followup2_working_days=int(source["followup2_working_days"]),
+                approval_mode=str(source["approval_mode"]),
+                variants=list(source["variants"]),
+                send_window_start=str(source["send_window_start"]),
+                send_window_end=str(source["send_window_end"]),
+                send_weekdays=list(source["send_weekdays"]),
+                experiment_hypothesis=str(source["experiment_hypothesis"]),
+                experiment_metric=str(source["experiment_metric"]),
+                experiment_min_sample=int(source["experiment_min_sample"]),
+                control_variant=str(source["control_variant"]),
+                initial_status="paused",
+            )
+            self.add_event(new_id, "campaign_cloned_settings", {"source_campaign_id": source_id})
+        return self.get_campaign(new_id)
 
     def get_campaign(self, campaign_id: str) -> dict[str, Any]:
         row = self._row("SELECT * FROM campaigns WHERE id = ?", (campaign_id,))
@@ -670,6 +716,8 @@ class OutreachStore:
                 "A campaign's kind cannot be changed after it is created. "
                 "Create a new campaign of the kind you want."
             )
+        if "timezone" in changes and changes["timezone"] is not None:
+            self._check_timezone(str(changes["timezone"]))
         if "send_weekdays" in changes:
             weekdays = sorted({int(day) for day in changes.pop("send_weekdays")})
             if not weekdays or any(day < 0 or day > 6 for day in weekdays):
@@ -1639,6 +1687,60 @@ class OutreachStore:
     def export_event_log(self, campaign_id: str) -> list[dict[str, Any]]:
         rows, _ = self.list_events(campaign_id, limit=100000)
         return list(reversed(rows))
+
+    def campaign_performance(self, campaign_id: str) -> dict[str, Any]:
+        """Counts from source-of-truth memberships, drafts and outbound messages.
+
+        Reply rate is replies divided by unique contacts who received at least
+        one outbound email, not replies divided by every imported contact.
+        """
+        campaign = self.get_campaign(campaign_id)
+        base = self.connection.execute(
+            """SELECT
+                COUNT(*) AS contacts,
+                SUM(CASE WHEN cc.status = 'replied' THEN 1 ELSE 0 END) AS replied,
+                SUM(CASE WHEN cc.status = 'replied' AND EXISTS (
+                    SELECT 1 FROM messages m WHERE m.campaign_contact_id = cc.id
+                    AND m.direction = 'outbound'
+                ) THEN 1 ELSE 0 END) AS replied_contacted,
+                SUM(CASE WHEN cc.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                SUM(CASE WHEN cc.status = 'stopped' THEN 1 ELSE 0 END) AS stopped
+               FROM campaign_contacts cc WHERE cc.campaign_id = ?""",
+            (campaign_id,),
+        ).fetchone()
+        sent = self.connection.execute(
+            """SELECT COUNT(*) AS messages_sent, COUNT(DISTINCT m.campaign_contact_id) AS contacted
+               FROM messages m
+               JOIN campaign_contacts cc ON cc.id = m.campaign_contact_id
+               WHERE cc.campaign_id = ? AND m.direction = 'outbound'""",
+            (campaign_id,),
+        ).fetchone()
+        drafts = self._rows(
+            """SELECT d.approval_status, COUNT(*) AS total FROM drafts d
+               JOIN campaign_contacts cc ON cc.id = d.campaign_contact_id
+               WHERE cc.campaign_id = ?
+               GROUP BY d.approval_status""",
+            (campaign_id,),
+        )
+        contacts = int(base["contacts"] or 0)
+        contacted = int(sent["contacted"] or 0)
+        replied = int(base["replied"] or 0)
+        replied_contacted = int(base["replied_contacted"] or 0)
+        return {
+            "campaign_id": campaign_id,
+            "kind": campaign["kind"],
+            "contacts": contacts,
+            "contacted": contacted,
+            "messages_sent": int(sent["messages_sent"] or 0),
+            "replied": replied,
+            "replied_contacted": replied_contacted,
+            "completed": int(base["completed"] or 0),
+            "stopped": int(base["stopped"] or 0),
+            "awaiting_first_contact": max(0, contacts - contacted),
+            "reply_rate": round(replied_contacted / contacted * 100, 1) if contacted else 0.0,
+            "reply_rate_denominator": "unique_contacts_sent",
+            "draft_status": {str(row["approval_status"]): int(row["total"]) for row in drafts},
+        }
 
     def campaign_summary(self, campaign_id: str) -> dict[str, Any]:
         campaign = self.get_campaign(campaign_id)

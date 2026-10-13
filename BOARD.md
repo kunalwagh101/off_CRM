@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.04 · Campaign Management
+  work_order: docs/features/campaign-management.md
+  review: real UI editor, safe archive/restore, IANA backend validation, and integration tests authored; execution/live browser/hosted checks pending
+
+- F-06.05 · Campaign Blueprint Reuse
+  work_order: docs/features/campaign-blueprints.md
+  review: configuration-only paused clone endpoint, idempotency and UI, persistence tests authored; execution/worker-race tests pending
+
+- F-06.06 · Campaign Performance Intelligence
+  work_order: docs/features/campaign-performance.md
+  review: CRM-based unique-contacted reply-rate, draft-state metrics and UI, local-outbox regression authored; execution/live verification pending
+
+
 - S-06.02.47 · Large send queues are paginated
   work_order: docs/work-orders/S-06.02.47-queue-pagination.md
   review: bounded queue details, API page controls, Python/Vitest regressions committed; execution and release gates pending

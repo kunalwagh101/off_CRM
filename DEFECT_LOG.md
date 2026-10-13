@@ -310,6 +310,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-277 | 2026-10-13 | reliability | medium | Send Queue API returned the entire campaign's full recipient rows with no pagination. Bounded UI endpoint and tests prepared | in review · `S-06.02.47` |
 | D-278 | 2026-10-13 | reporting | medium | Queue dashboard counts were computed from the list on screen instead of separately from full campaign state. Server-wide counters and tests prepared | in review · `S-06.02.48` |
 | D-279 | 2026-10-13 | usability | medium | Queue offered no view isolating ready, needs approval or replied contacts. View filter and tests prepared | in review · `S-06.02.49` |
+| D-280 | 2026-10-13 | gap | medium | Campaigns screen lacked editable campaign settings despite backend PATCH; invalid timezone could persist until send scheduling. Product editor and boundary validation prepared, tests not yet executed | in review · `F-06.04` |
+| D-281 | 2026-10-13 | usability | medium | A configured campaign could not be reused without manually rebuilding; naive reuse risks copying recipients or briefly activating a sender. Paused configuration-only clone prepared, integration test unrun | in review · `F-06.05` |
+| D-282 | 2026-10-13 | reporting | medium | Campaign cards lacked accountable per-campaign contacted and reply-rate measurements; manually replied unsent prospects could distort results. CRM-based measures and tests authored, not run | in review · `F-06.06` |
 
 
 

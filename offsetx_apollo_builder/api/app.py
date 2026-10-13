@@ -151,6 +151,7 @@ from .schemas import (
     AgentRoutineUpdate,
     AgentRoutineEvent,
     CampaignCreate,
+    CampaignClone,
     CampaignUpdate,
     ContactUpdate,
     DraftApprove,
@@ -3080,6 +3081,25 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _engine(request).store.update_campaign(
             campaign_id, body.model_dump(exclude_none=True)
         )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/clone", status_code=201)
+    def clone_campaign_endpoint(
+        campaign_id: str,
+        body: CampaignClone,
+        request: Request,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict[str, Any]:
+        engine = _engine(request)
+
+        def operation() -> dict[str, Any]:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                return engine.store.clone_campaign_settings(campaign_id, name=body.name)
+
+        return _idempotent(engine, f"clone_campaign:{campaign_id}", idempotency_key, operation)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/performance")
+    def campaign_performance_endpoint(campaign_id: str, request: Request) -> dict[str, Any]:
+        return _engine(request).store.campaign_performance(campaign_id)
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:

@@ -51,6 +51,8 @@ export type Campaign = {
   daily_send_limit: number;
   timezone: string;
   approval_mode: string;
+  followup1_working_days: number;
+  followup2_working_days: number;
   variants: string[];
   contact_count?: number;
   replied_count?: number;

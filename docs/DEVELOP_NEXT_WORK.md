@@ -161,3 +161,9 @@ The owner authorised three more user-visible features without increasing the boa
 3. **S-06.02.49**: Read-only views All/Approved and due/Needs approval/Replied filter before pagination and keep truthful totals with labelled controls and scoped empty state.
 
 All code, regression-test source and work orders are tracked on `develop` as IN_REVIEW. Detailed scope and release gates: `docs/evidence/2026-10-13-queue-next-three.md`. `S-06.02.23` remains the sole IN_PROGRESS audit. The installed GitHub Actions runner is unavailable (zero steps); no Python/JS/Chrome/PostgreSQL run or DONE declaration is justified. D-271–D-279 have now been added to the central defect log (develop commit d6dd98d); tests and rollout gates remain open.
+
+## 2026-10-13 — Three *product features*, not small issue stories
+
+The owner explicitly requested feature-level selection, so the new work is tracked as **F-06.04 Campaign Management, F-06.05 Campaign Blueprint Reuse and F-06.06 Campaign Performance Intelligence**. Source implementation, authenticated endpoints, real UI forms/cards, regression-test source, product specs, decisions and defects are prepared on `develop`; each is IN_REVIEW pending actual test execution and deployment acceptance. The existing send path, contacts and providers were not changed. See `docs/evidence/2026-10-13-campaign-three-features.md` and three `docs/features/campaign-*.md` specifications.
+
+The working session has no network path for cloning the private repository into the executable container; GitHub-hosted `quality` and `postgres` jobs have also been failing with zero steps. Therefore no full pytest/Vitest/build, live Chrome, PostgreSQL or worker-race acceptance can be claimed. `S-06.02.23` remains sole IN_PROGRESS audit; feature-level slices are IN_REVIEW, not DONE. No promotions to main or other branch changes.

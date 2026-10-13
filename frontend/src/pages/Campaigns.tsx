@@ -1,15 +1,21 @@
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
 import type { Campaign, CampaignKind } from "../types";
 import { statusTone } from "./shared";
+import { CampaignPerformancePanel, CampaignSettingsModal, CloneCampaignModal } from "./CampaignOperations";
 
 export default function Campaigns() {
   const { campaigns, campaignId, selectCampaign, createCampaign, refreshCampaigns, notify } = useApp();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<Campaign | null>(null);
+  const [cloning, setCloning] = useState<Campaign | null>(null);
+  const [archiving, setArchiving] = useState<Campaign | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [performanceId, setPerformanceId] = useState("");
   const [name, setName] = useState("");
   const [kind, setKind] = useState("email");
   const [limit, setLimit] = useState(25);
@@ -64,14 +70,37 @@ export default function Campaigns() {
   }
 
   async function toggle(campaign: Campaign) {
+    const next = campaign.status === "active" ? "paused" : campaign.status === "archived" ? "paused" : "active";
+    setLifecycleBusy(true);
     try {
-      await api.patch(`/campaigns/${campaign.id}`, {
-        status: campaign.status === "active" ? "paused" : "active"
-      });
+      await api.patch(`/campaigns/${encodeURIComponent(campaign.id)}`, { status: next });
       refreshCampaigns();
-      notify(campaign.status === "active" ? "Campaign paused" : "Campaign resumed", "success");
+      notify(next === "active" ? "Campaign resumed" : next === "paused" && campaign.status === "archived" ? "Campaign restored as paused" : "Campaign paused", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Update failed", "error");
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  async function archiveCampaign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!archiving) return;
+    const value = new FormData(event.currentTarget).get("confirmation");
+    if (value !== "ARCHIVE") {
+      notify("Type ARCHIVE to confirm.", "error");
+      return;
+    }
+    setLifecycleBusy(true);
+    try {
+      await api.patch(`/campaigns/${encodeURIComponent(archiving.id)}`, { status: "archived" });
+      notify("Campaign archived. No messages were deleted.", "success");
+      setArchiving(null);
+      refreshCampaigns();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Archive failed", "error");
+    } finally {
+      setLifecycleBusy(false);
     }
   }
 
@@ -86,7 +115,8 @@ export default function Campaigns() {
       {campaigns.length ? (
         <div className="card-grid">
           {campaigns.map((campaign) => (
-            <Panel key={campaign.id} className={campaign.id === campaignId ? "selected-card" : ""}>
+            <Fragment key={campaign.id}>
+            <Panel className={campaign.id === campaignId ? "selected-card" : ""}>
               <div className="campaign-card-top">
                 <span className="campaign-mark large">{campaign.name.slice(0, 2).toUpperCase()}</span>
                 <span className="campaign-card-tags">
@@ -114,11 +144,19 @@ export default function Campaigns() {
                     window.location.hash = "contacts";
                   }}
                 >Open workspace</Button>
-                <Button tone="ghost" onClick={() => toggle(campaign)}>
-                  {campaign.status === "active" ? "Pause" : "Resume"}
+                <Button tone="ghost" disabled={lifecycleBusy} onClick={() => toggle(campaign)}>
+                  {campaign.status === "active" ? "Pause" : campaign.status === "archived" ? "Restore paused" : "Resume"}
                 </Button>
+                <Button tone="ghost" onClick={() => setEditing(campaign)}>Edit settings</Button>
+                <Button tone="ghost" onClick={() => setCloning(campaign)}>Duplicate settings</Button>
+                <Button tone="ghost" onClick={() => setPerformanceId(performanceId === campaign.id ? "" : campaign.id)}>
+                  {performanceId === campaign.id ? "Hide performance" : "Performance"}
+                </Button>
+                {campaign.status !== "archived" && <Button tone="ghost" onClick={() => setArchiving(campaign)}>Archive</Button>}
               </div>
             </Panel>
+            {performanceId === campaign.id && <CampaignPerformancePanel campaign={campaign} />}
+            </Fragment>
           ))}
         </div>
       ) : (
@@ -128,6 +166,20 @@ export default function Campaigns() {
           action={<Button onClick={() => setOpen(true)}>Create campaign</Button>}
         />
       )}
+      <CampaignSettingsModal campaign={editing} close={() => setEditing(null)} changed={refreshCampaigns} notify={notify} />
+      <CloneCampaignModal campaign={cloning} close={() => setCloning(null)}
+        notify={notify} created={(id) => { refreshCampaigns(); selectCampaign(id); }} />
+      <Modal open={Boolean(archiving)} onClose={() => setArchiving(null)} title="Archive campaign"
+        description="Archiving stops this campaign from running. Existing contacts, drafts and reports are retained.">
+        <form className="form-stack" onSubmit={archiveCampaign}>
+          <p>Archive <strong>{archiving?.name}</strong>? You can restore it later as paused.</p>
+          <Field label="Type ARCHIVE to confirm"><input name="confirmation" pattern="ARCHIVE" autoComplete="off" required /></Field>
+          <div className="modal-actions">
+            <Button type="button" tone="ghost" onClick={() => setArchiving(null)}>Cancel</Button>
+            <Button type="submit" tone="danger" busy={lifecycleBusy}>Archive campaign</Button>
+          </div>
+        </form>
+      </Modal>
       <Modal open={open} onClose={() => setOpen(false)} title="Create campaign" description="Start small. The daily cap can be changed later.">
         <form onSubmit={create} className="form-stack">
           <Field label="Campaign name"><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} autoFocus /></Field>

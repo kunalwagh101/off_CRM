@@ -94,6 +94,12 @@ class CampaignCreate(StrictModel):
     control_variant: str = Field(default="A", min_length=1, max_length=40)
 
 
+class CampaignClone(StrictModel):
+    """Clone settings only. No recipient, draft, send or external credentials."""
+    name: str = Field(min_length=1, max_length=120)
+
+
+
 class CampaignUpdate(StrictModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     daily_send_limit: int | None = Field(default=None, ge=1, le=500)

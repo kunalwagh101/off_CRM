@@ -109,6 +109,13 @@ export function focusMainContent() {
   });
 }
 
+export function skipToMainContent(event: { preventDefault(): void }) {
+  // Our route is stored in the hash. Following "#main-content" as a native
+  // anchor would change the route to Dashboard before focus could complete.
+  event.preventDefault();
+  focusMainContent();
+}
+
 export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -224,7 +231,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
 
   return (
     <AppContext.Provider value={context}>
-      <a className="skip-link" href="#main-content" onClick={focusMainContent}>Skip to main content</a>
+      <a className="skip-link" href="#main-content" onClick={skipToMainContent}>Skip to main content</a>
       <div className="app-shell">
         <aside className="sidebar">
           <a href="#dashboard" className="brand" aria-label="off_CRM home">

@@ -645,6 +645,7 @@ class EgressBroker:
             )
             if not report.clean:
                 self._log(
+                    system_prompt=system_prompt,
                     settings=settings,
                     candidate=candidate,
                     request=request,
@@ -1208,6 +1209,7 @@ class EgressBroker:
         duration_ms: int,
         response_text: str,
         failure_kind: str = "",
+        system_prompt: str = "",
     ) -> str:
         if self.logger is None:
             return ""
@@ -1230,6 +1232,7 @@ class EgressBroker:
                 payload_summary=payload_summary(payload),
                 response_text=response_text,
                 failure_kind=failure_kind,
+                system_prompt=system_prompt,
             )
         except Exception:  # noqa: BLE001 - logging must never break a call
             return ""

@@ -296,8 +296,8 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-263 | 2026-10-09 | security | medium | A pacing request returned another campaign/workspace's pending owner proposal. Real API regression failed before correction; pending proposals and plan-pair lookup now follow the selected campaign/workspace | fixed · S-12.02.06 |
 | D-264 | 2026-10-09 | bug | medium | The local outbox could accept a caption-only publication when an attachment disappeared after engine validation. Direct adapter regression failed before correction; the adapter raises before writing a successful receipt | fixed · S-12.02.06 |
 | D-265 | 2026-10-09 | bug | medium | Invalid pre-upgrade scheduling dates blocked every valid publication and next-slot allocation. Two reproduced RED tests; quarantine invalid scheduled rows with a safe reference, include failures in publish results, preserve published receipts and continue valid work | fixed · S-12.02.06 |
-| D-266 | 2026-10-11 | security | high | The browser navigation guard does not reject all private and local IP destinations; current source still uses a limited hostname list. Confirmed by an isolated policy-condition check, not a full browser test | open · `S-03.01.03` |
-| D-267 | 2026-10-11 | security | high | The public-page fetcher checks DNS then makes a separate request without binding the connection to the validated destination; current source confirms the gap, live retest pending | open · `S-05.01.04` |
+| D-266 | 2026-10-11 | security | high | The browser navigation guard does not reject all private and local IP destinations; current source still uses a limited hostname list. Confirmed by an isolated policy-condition check, not a full browser test | in review · `S-03.01.03` |
+| D-267 | 2026-10-11 | security | high | The public-page fetcher checks DNS then makes a separate request without binding the connection to the validated destination; current source confirms the gap, live retest pending | in review · `S-05.01.04` |
 
 
 

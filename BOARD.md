@@ -38,9 +38,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 *(Production-audit security findings, not yet READY; the required live integration checks have not run.)*
 
-- S-05.01.04 · Public-page fetches connect only to checked destinations
-  work_order: docs/work-orders/S-05.01.04-verified-destinations.md
-
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
   work_order: docs/work-orders/S-04.01.02-on-demand-agent-skills.md
@@ -146,6 +143,9 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
 ## IN_PROGRESS
+
+- S-05.01.04 · Public-page fetches connect only to checked destinations
+  work_order: docs/work-orders/S-05.01.04-verified-destinations.md
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md

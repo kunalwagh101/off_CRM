@@ -16,7 +16,7 @@ from dotenv import dotenv_values
 
 from offsetx_apollo_builder import db_cli, notebook_cli, outreach_cli
 from offsetx_apollo_builder.api.config import AppSettings
-from offsetx_apollo_builder.data_paths import crm_target
+from offsetx_apollo_builder.data_paths import load_project_env, crm_target
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,6 +30,19 @@ def _every_default(tmp_path: Path) -> set[Path]:
         Path(crm_target(outreach_cli._parser().parse_args(["list-campaigns"]).db)).resolve(),
         Path(crm_target(notebook_cli._parser().parse_args(["targets"]).db)).resolve(),
     }
+
+
+def test_S060228_local_env_file_applies_to_CLI_data_root(tmp_path, monkeypatch):
+    local = tmp_path / "durable"
+    (tmp_path / ".env").write_text(f"OFFSETX_DATA_DIR={local}\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OFFSETX_DATA_DIR", raising=False)
+    load_project_env()
+    assert AppSettings.from_env(tmp_path).data_dir == local
+    assert db_cli.data_dir(tmp_path) == local
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "explicit"))
+    load_project_env()
+    assert db_cli.data_dir(tmp_path) == tmp_path / "explicit"
 
 
 def test_the_clis_open_the_web_apps_database_when_the_data_dir_moves(tmp_path, monkeypatch):

@@ -146,7 +146,7 @@ NEVER = (
 _NUMERIC_HOST = re.compile(
     r"(?i)(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*"
 )
-_LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".home.arpa")
+_LOCAL_SUFFIXES = (".localhost", ".local", ".localdomain", ".internal", ".home.arpa")
 
 
 def _is_nonpublic_host(host: str) -> bool:

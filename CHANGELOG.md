@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Security containment for A07/A08** (`S-03.01.03`, `S-05.01.04`, 2026-10-13, IN_REVIEW): production BrowserBox refuses Docker bridge before launch because it cannot prove private-IP egress isolation; JS-based Crawl4AI public fetching refuses browser startup until a verified gateway/firewall exists. Nonproduction bridge remains insecure; safe_http stays available. Added regression tests; no full suite or live Docker/Chrome test run.
+- **Production audit follow-up** (`S-06.02.23`, 2026-10-13, IN_PROGRESS): A07/A08 containment status updated; A25 source-checked as still open because render.yaml contains web services only and no durable email worker. No full audit verification or worker rollout.
+
 - **GTM real-case uniqueness guard** (`S-12.02.05`, D-269, 2026-10-13, IN_REVIEW): a minimum 30-case suite now requires distinct case IDs as well as the explicitly judged-real label. Add a repeated-case regression; no real corpus or executable full-suite results yet.
 
 - **GTM controlled A/B correction** (`S-12.02.05`, D-268, 2026-10-13, IN_REVIEW): separate expert references from baseline product/campaign notes. Ablation now removes expert notes and the winning template without discarding product facts. The three synthetic GTM examples and packaged suite use the new key; new regression check is committed, unrun. The full suite and live A/B remain unverified.

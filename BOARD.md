@@ -31,6 +31,9 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
+- S-06.02.40 · A durable email worker runs beside the deployed web app
+  work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md
+
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
 
@@ -165,11 +168,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-05.01.04 · Public-page fetches connect only to checked destinations
   work_order: docs/work-orders/S-05.01.04-verified-destinations.md
-  review: docs/evidence/S-05.01.04-validation.md; pinned HTTP/TLS source patch, browser egress and full suite pending; upstream S-05.01.01 IN_REVIEW
+  review: docs/evidence/S-05.01.04-validation.md; verified-IP HTTP plus JS-rendered fail-closed guard (DD-92), full egress proof/tests pending; upstream S-05.01.01 IN_REVIEW
 
 - S-03.01.03 · Browser blocks internal network access
   work_order: docs/work-orders/S-03.01.03-network-isolation.md
-  review: docs/evidence/S-03.01.03-validation.md; IP-literal policy fix committed, container network/DNS-rebind isolation unverified
+  review: docs/evidence/S-03.01.03-validation.md; production Docker-bridge start refused (DD-91), local bridge remains unsafe; full Docker/network proof pending
 
 - S-06.02.37 · Skip navigation keeps the current screen
   work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md

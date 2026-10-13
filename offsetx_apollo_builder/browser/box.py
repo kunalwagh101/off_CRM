@@ -39,10 +39,14 @@ make ordinary TCP connections without special Linux capabilities. The guard
 denies known non-public IP literals, but a public hostname rebinding to a
 private IP is still a release blocker (S-03.01.03/A07). A network egress policy
 is required before claiming that the browser cannot reach infrastructure.
+Until that policy has live zero-private-connection evidence, the browser box
+refuses to launch on unrestricted bridge when OFFSETX_PRODUCTION is enabled.
+Development bridge mode is still unsafe and must not be treated as protected.
 """
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -68,6 +72,21 @@ BROWSER_PIDS = 512
 #: Chromium's shared-memory needs. The classic symptom of leaving this at the
 #: default is tabs crashing with no message on any page with images on it.
 BROWSER_SHM = "512m"
+
+# Docker bridge reaches private addresses even if CDP denies private URLs:
+# a public name may rebind between the CDP verdict and Chrome TCP connect.
+PRODUCTION_BRIDGE_BLOCK = (
+    "BrowserBox cannot start: private-network isolation is not configured. "
+    "Docker bridge permits DNS-rebound connections to internal services. "
+    "Disable production browsing until the container has a verified egress firewall "
+    "(S-03.01.03); the browser hostname allow-list alone is insufficient."
+)
+
+
+def _production_requires_isolation() -> bool:
+    return os.environ.get("OFFSETX_PRODUCTION", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 #: Where the profile lives inside the container.
 PROFILE_PATH = "/profile"
@@ -161,6 +180,8 @@ class BrowserBox:
 
     def policy(self) -> SandboxPolicy:
         """The container rules, composed from the hardened sandbox policy."""
+        if _production_requires_isolation():
+            raise PolicyViolation(PRODUCTION_BRIDGE_BLOCK)
         return SandboxPolicy(
             allowed_hosts=self.allowed_hosts,
             network="bridge",
@@ -177,6 +198,9 @@ class BrowserBox:
         control of a logged-in browser *for the whole network*, and Docker's
         default publish behaviour is exactly that.
         """
+        if _production_requires_isolation():
+            # No flag on Docker bridge makes its public-hostname policy an IP firewall.
+            raise PolicyViolation(PRODUCTION_BRIDGE_BLOCK)
         parts = self.policy().docker_command(
             image=validate_image(self.image),
             command=self._chrome(chrome_args),
@@ -219,9 +243,10 @@ class BrowserBox:
         box, they are absent from its filesystem entirely.
         """
         available, reason = sandbox_available()
+        bridge_blocked = _production_requires_isolation()
         return {
-            "available": available,
-            "blocked_reason": reason,
+            "available": available and not bridge_blocked,
+            "blocked_reason": PRODUCTION_BRIDGE_BLOCK if bridge_blocked else reason,
             "image": self.image,
             "network": "bridge",
             "unattended": self.unattended,

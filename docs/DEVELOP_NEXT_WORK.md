@@ -135,3 +135,13 @@ All changes and evidence were committed to `develop` only. Audit S-06.02.23 is s
 ## 2026-10-13 — Latest next-three selection and implementation
 
 The requested three were chosen from `develop` and tracked under WIP ≤2. Selected S-12.01.03 (video director product confidentiality), S-06.02.16 (frontend npm audit CI enforcement), and S-12.02.05 (expert/winner-informed GTM plans and evals). S-02.02.03 was initially considered but rejected under DoR because S-02.02.02 remains IN_REVIEW. Each of the final three has code changes, named regression tests, a linked work order and an evidence file; each remains IN_REVIEW, not DONE. Key limitations: no live video/egress/provider check; no npm registry audit or dependency upgrades; no 30 judged real GTM cases or owner corpus; no runnable full repository checkout or GitHub runner capacity. See evidence files and Build State. Only develop was pushed. The production audit S-06.02.23 remains sole IN_PROGRESS item.
+
+## 2026-10-13 — Current three security/reliability slices
+
+The owner selected three more areas, and the current develop branch and WIP gate were checked. No new WIP items were pulled; `S-06.02.23` is the one `IN_PROGRESS` audit and two existing `IN_REVIEW` security stories were amended in place:
+
+1. `S-03.01.03` — BrowserBox now refuses unsafe unrestricted Docker bridge under declared production mode (DD-91). It still requires a verified, usable IP-level egress firewall for public browsing; nonproduction bridge remains unsafe.
+2. `S-05.01.04` — SafePublicFetcher retains its pinned HTTP/HTTPS path; the JavaScript Crawl4AI path now refuses to start without proven destination-level isolation (DD-92). Safe HTTP remains available; JS feature requires reactivation behind controlled egress and real integration tests.
+3. `S-06.02.23` — Audited A07/A08 containment status and A25, which is still open because `render.yaml` declares no independent durable email worker. Track deployment remediation as new BACKLOG `S-06.02.40` / D-270 with a worker launch/restart/recovery work order; host authorisation and durable outboxes remain open.
+
+GitHub-only modifications and regression test source were committed without disabling valid tests. CI runners were previously failing with zero executed steps. Python, JS, Docker, Chrome, the board verifier, real egress controls and real deployment were not run in this environment. Stories do not move to DONE; next action is executing gates on a trusted checkout and implementing the network-level policy and deployment worker. New JavaScript crawling must not be enabled by simply removing the fail-closed guard.

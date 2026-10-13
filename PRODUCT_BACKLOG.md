@@ -2079,6 +2079,14 @@ stories until opened.
 
 ---
 
+#### S-06.02.40 — A durable email worker runs beside the deployed web app
+**As an** operator, **I want** queued approved email to be processed by one supervised, restartable worker, **so that** an unattended send does not depend on a free web request or a user keeping a tab open.
+- **Given** a deployed workspace with durable CRM and queue state, **when** an approved due email is queued, **then** the independently deployed worker opens the same hosted database and processes it within an operating bound; no duplicate send after restart or lease contention.
+- **Given** the worker crashes or loses the database/provider, **when** it restarts, **then** uncertain sends remain quarantined for reconciliation, a safe error reference is logged, and no operation is silently retried.
+- **Given** the production service configuration, **when** it is reviewed or deployed, **then** a supervised worker process, health/restart policy, ownership, secrets delivery and rollback steps are present and proven on the actual hosting tier; two web services alone do not meet this acceptance.
+- **Dependencies:** S-06.03.06 (durable homes for remaining state), S-06.02.38 (traceable worker failures). **Size:** M. **Audit:** A25 / D-270. **Indicator:** due jobs processed without a manual web session.
+- **Constraint:** deployment runtime and any paid background-worker cost require operator approval; do not invent free worker capacity or claim a worker running from a CLI binary alone. Work order: `docs/work-orders/S-06.02.40-durable-deployment-worker.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep

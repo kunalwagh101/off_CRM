@@ -108,6 +108,25 @@ def test_every_hardening_flag_from_the_code_box_is_inherited():
         assert flag in command, f"{flag} is missing from the browser box"
 
 
+@pytest.mark.parametrize("value", ["1", "true", "YES", "on"])
+def test_production_browser_refuses_unrestricted_docker_bridge(monkeypatch, value):
+    """A07: a hostname allow-list cannot stop a DNS rebind after validation."""
+    monkeypatch.setenv("OFFSETX_PRODUCTION", value)
+    box = BrowserBox(workspace_id="local")
+    with pytest.raises(PolicyViolation, match="private-network isolation"):
+        box.policy()
+    with pytest.raises(PolicyViolation, match="private-network isolation"):
+        box.command()
+    status = box.describe()
+    assert status["available"] is False
+    assert "private-network isolation" in status["blocked_reason"]
+
+
+def test_local_browser_still_builds_its_existing_command(monkeypatch):
+    monkeypatch.delenv("OFFSETX_PRODUCTION", raising=False)
+    assert "--network=bridge" in command_for(workspace_id="local")
+
+
 def test_the_box_asks_for_the_network_and_the_code_box_still_cannot_have_it():
     """The default is `none`, so a box that needs the network says so out loud
     and a box that does not cannot acquire it by anyone forgetting."""

@@ -300,6 +300,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-267 | 2026-10-11 | security | high | The public-page fetcher checks DNS then makes a separate request without binding the connection to the validated destination; current source confirms the gap, live retest pending | in review · `S-05.01.04` |
 | D-268 | 2026-10-13 | bug | medium | GTM reference A/B discarded non-reference campaign/product notes with expert references, making the two arms measure different product contexts. Confirmed by code inspection; regression committed but pending execution | in review · `S-12.02.05` |
 | D-269 | 2026-10-13 | bug | medium | Thirty identically identified GTM eval cases labelled as real were accepted as enough evidence for model promotion. Source review and duplicate-case regression committed; live run pending | in review · `S-12.02.05` |
+| D-270 | 2026-10-13 | gap | high | The deployed Render configuration starts only web services; no independently supervised durable email worker runs queued approved sends. Found by read-only comparison of render.yaml and the existing worker CLI against audit A25; hosting/worker choice remains open | open · `S-06.02.40` |
 
 
 

@@ -710,7 +710,10 @@ class Crawl4AIPageFetcher:
     This adapter intentionally fixes every evasive option to ``False`` and does
     not accept user-provided browser settings. Browser routes are checked for
     public DNS targets, while document navigations must remain inside the run's
-    explicit domain allow-list.
+    explicit domain allow-list. Because DNS preflight is not socket pinning,
+    JavaScript fetches fail closed until a destination-level egress firewall or
+    safe proxy has passed real rebinding tests. Construction is still possible
+    for capability inspection, but a browser cannot be started here.
     """
 
     def __init__(
@@ -798,7 +801,18 @@ class Crawl4AIPageFetcher:
         )
         await asyncio.to_thread(self.guard._assert_public_dns, request_url)
 
+    @staticmethod
+    def _require_isolated_browser_network() -> None:
+        # A DNS check is not the socket Chrome opens. Until an actual egress
+        # firewall/pinned proxy is installed, JS discovery must not launch.
+        raise DiscoveryFetchError(
+            "JavaScript-rendered public discovery needs verified network isolation "
+            "and is currently disabled. Use the safe_http engine for public pages; "
+            "do not bypass this check or expose internal network services (S-05.01.04)."
+        )
+
     async def _ensure_started(self) -> None:
+        self._require_isolated_browser_network()
         if self._started:
             return
 
@@ -829,6 +843,8 @@ class Crawl4AIPageFetcher:
         return await self._crawler.arun(url=url, config=self._run_config)
 
     def fetch(self, url: str) -> ParsedPage:
+        # Refuse before DNS/robots/browser I/O while JS socket policy is unverified.
+        self._require_isolated_browser_network()
         validated = validate_public_url(
             url,
             allowed_domains=self.policy.allowed_domains,

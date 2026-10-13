@@ -216,6 +216,50 @@ def test_prompt_compiler_creates_bounded_inspectable_plan():
     assert len(plan.blocked_requirements) == 2
 
 
+def test_crawl4ai_does_not_launch_without_destination_level_network_isolation(monkeypatch):
+    """A08: preflight DNS is not the address Chrome ultimately connects to."""
+    attempts = []
+
+    class FakeCrawler:
+        crawler_strategy = None
+
+        def __init__(self, **kwargs):
+            pass
+
+        async def start(self):
+            attempts.append("started")
+
+        async def arun(self, **kwargs):
+            attempts.append("connected")
+
+    class FakeConfig:
+        def __init__(self, **kwargs):
+            pass
+
+    monkeypatch.setitem(sys.modules, "crawl4ai", SimpleNamespace(
+        AsyncWebCrawler=FakeCrawler,
+        BrowserConfig=FakeConfig,
+        CrawlerRunConfig=FakeConfig,
+        CacheMode=SimpleNamespace(BYPASS="bypass"),
+    ))
+    fetcher = Crawl4AIPageFetcher(
+        CrawlPolicy(allowed_domains=("example.com",)),
+        parser=SimpleNamespace(parse=lambda *_: None),
+        resolver=lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("must stop before DNS or browser startup")
+        ),
+    )
+    try:
+        with pytest.raises(DiscoveryFetchError, match="network isolation"):
+            fetcher.fetch("https://example.com/")
+        assert attempts == []
+        with pytest.raises(DiscoveryFetchError, match="network isolation"):
+            fetcher._loop.run_until_complete(fetcher._ensure_started())
+        assert attempts == []
+    finally:
+        fetcher.close()
+
+
 def test_crawl4ai_adapter_hard_disables_evasive_browser_features(monkeypatch):
     captured: dict[str, dict] = {}
 

@@ -552,6 +552,7 @@ def test_every_call_is_logged_with_the_exact_payload(tmp_path, registry):
     class _Stub:
         def generate(self, *, system_prompt: str, user_prompt: str) -> str:
             sent["user_prompt"] = user_prompt
+            sent["system_prompt"] = system_prompt
             return "ok"
 
     log = EgressLog(tmp_path / "egress.sqlite3")
@@ -578,6 +579,7 @@ def test_every_call_is_logged_with_the_exact_payload(tmp_path, registry):
     assert record["jurisdiction"] == "FR"
     # The stored payload is what actually went over the wire.
     assert record["payload"] == json.loads(str(sent["user_prompt"]))
+    assert record["system_prompt"] == sent["system_prompt"]
 
 
 def test_blocked_calls_are_logged_too(tmp_path, registry):

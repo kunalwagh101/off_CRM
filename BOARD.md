@@ -150,13 +150,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.37 · Skip navigation keeps the current screen
-  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.37 · Skip navigation keeps the current screen
+  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
+  review: docs/evidence/S-06.02.37-validation.md; code/tests committed, frontend and Chromium acceptance unrun
 
 - S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
   work_order: docs/work-orders/S-06.02.20-shallow-git-history.md

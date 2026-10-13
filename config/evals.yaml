@@ -39,6 +39,13 @@ suites:
         template_text: >-
           Synthetic judged-template example: Name the delivery records before asking
           for fifteen minutes. This is a test fixture, not a measured winner.
+        checks:
+          - kind: gtm_plan_shape
+            name: declared_email_scope
+            allowed_kinds: [email, distribution, image]
+            require_kind: email
+            max_email_daily_volume: 30
+            max_distribution_daily_volume: 1
       - id: solar_component_views
         instructions: >-
           Goal: 1000 views over 30 days. Posting capacity: 1 video per day.
@@ -48,6 +55,13 @@ suites:
           Synthetic expert reference: use a verifiable bill-of-materials example.
         template_text: >-
           Synthetic sample headline: Show the proof trail, not an unsupported claim.
+        checks:
+          - kind: gtm_plan_shape
+            name: declared_distribution_scope
+            allowed_kinds: [email, distribution, image]
+            require_kind: distribution
+            max_email_daily_volume: 0
+            max_distribution_daily_volume: 1
       - id: local_finance_replies
         instructions: >-
           Goal: 10 replies within 14 days. Email capacity: 20 per day.
@@ -57,6 +71,13 @@ suites:
           Synthetic expert reference: separate decision-maker relevance from outreach volume.
         template_text: >-
           Synthetic sample opening: A short, permission-respecting question.
+        checks:
+          - kind: gtm_plan_shape
+            name: declared_email_scope
+            allowed_kinds: [email, distribution, image]
+            require_kind: email
+            max_email_daily_volume: 20
+            max_distribution_daily_volume: 0
 
   # ── outreach copy ────────────────────────────────────────────────────────
   - id: email_first_contact

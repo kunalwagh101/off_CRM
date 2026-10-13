@@ -239,6 +239,20 @@ def test_an_attended_run_reaches_the_open_web_but_not_this_machine():
         assert guard.verdict(blocked).allowed is False, blocked
 
 
+@pytest.mark.parametrize("unattended", [False, True])
+def test_A07_subresources_and_redirect_targets_to_private_ips_fail_in_both_modes(unattended):
+    guard = RequestGuard(
+        allowed_hosts=frozenset({"example.com", "10.0.0.1"}),
+        unattended=unattended,
+    )
+    for target in (
+        "http://10.0.0.1/collect", "http://192.168.0.3/font.woff",
+        "http://[fd00::1]/redirect", "http://localhost./favicon.ico",
+    ):
+        assert not guard.verdict(target).allowed, target
+    assert guard.verdict("https://example.com/page").allowed
+
+
 def test_inline_content_is_not_treated_as_network_traffic():
     """`data:` and `blob:` never leave the browser. Refusing them would break
     every inline image on the web for no security gain at all."""

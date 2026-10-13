@@ -199,6 +199,11 @@ class GtmService:
         else:
             try:
                 fields = request_fields(product, request, envelope)
+                if revision is not None:
+                    extra = revision_fields(revision[0], revision[1])
+                    fields["instructions"] = extra["instructions"] + "\n" + fields["instructions"]
+                    if extra["campaign_notes"]:
+                        fields["campaign_notes"] += "\n" + extra["campaign_notes"]
                 reference_count = 0
                 winning = ""
                 if self.expert_search is not None:
@@ -224,11 +229,6 @@ class GtmService:
                     winning = str(self.winning_reference() or "").strip()[:12000]
                     if winning:
                         fields["template_text"] = winning
-                if revision is not None:
-                    extra = revision_fields(revision[0], revision[1])
-                    fields["instructions"] = extra["instructions"] + "\n" + fields["instructions"]
-                    if extra["campaign_notes"]:
-                        fields["campaign_notes"] += "\n" + extra["campaign_notes"]
                 result = self.ask(
                     system_prompt=build_prompt(),
                     task_type="gtm_plan",

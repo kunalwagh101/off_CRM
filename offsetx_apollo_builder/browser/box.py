@@ -33,10 +33,12 @@ linkedin.com". `browser/guard.py` enforces it inside the browser, per request,
 before Chrome dispatches it.
 
 That is worth being precise about rather than implying a kernel-level wall: the
-container is what stops the browser reaching **your machine**, and the guard is
-what stops it reaching **the wrong site**. The box runs one process, that process
-is Chrome, and `--cap-drop=ALL` means nothing in it can open a raw socket to go
-around Chrome's own network stack.
+container keeps the host filesystem unmounted, but a Docker bridge
+**does not block IP access to the host or private networks**. Chrome can still
+make ordinary TCP connections without special Linux capabilities. The guard
+denies known non-public IP literals, but a public hostname rebinding to a
+private IP is still a release blocker (S-03.01.03/A07). A network egress policy
+is required before claiming that the browser cannot reach infrastructure.
 """
 
 from __future__ import annotations

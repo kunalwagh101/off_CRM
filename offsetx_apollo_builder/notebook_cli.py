@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Sequence
 
 from .ai.context import ContextLayer
-from .data_paths import crm_target, data_dir, database_path
+from .data_paths import crm_target, data_dir, database_path, load_project_env
 from .notebook import (
     NotebookExport,
     NotebookExportBlocked,
@@ -225,6 +225,7 @@ def _parser() -> argparse.ArgumentParser:
 
 @traced_command("offsetx-notebook")
 def main(argv: list[str] | None = None) -> int:
+    load_project_env()
     args = _parser().parse_args(argv)
     # `targets` reads nothing from the workspace, so it answers during a restore.
     crm = crm_target(args.db)

@@ -595,6 +595,28 @@ def test_gtm_plan_eval_rejects_unregistered_channel_and_excess_volume():
         )
 
 
+def test_unjudged_gtm_cases_cannot_fake_a_30_case_verdict():
+    from dataclasses import replace
+    from offsetx_apollo_builder.ai.evals import (
+        judged_gtm_case_count, trustworthy_gtm_suite
+    )
+
+    original = load_suites(SUITE_PATH)["gtm_plan"]
+    assert judged_gtm_case_count(original) == 0
+    thirty_synthetic = replace(original, cases=original.cases * 10)
+    assert len(thirty_synthetic.cases) == 30
+    assert not trustworthy_gtm_suite(thirty_synthetic)
+    thirty_real = replace(
+        original,
+        cases=tuple(
+            replace(case, id=f"real-{index}", evidence_origin="judged_real")
+            for index, case in enumerate(original.cases * 10)
+        ),
+    )
+    assert judged_gtm_case_count(thirty_real) == 30
+    assert trustworthy_gtm_suite(thirty_real)
+
+
 def test_gtm_plan_ablation_preserves_goals_and_removes_only_reference_fields():
     from offsetx_apollo_builder.ai.evals import without_references
 

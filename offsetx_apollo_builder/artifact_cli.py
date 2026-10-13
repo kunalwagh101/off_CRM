@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent.artifacts import SUPPORTED_FORMATS, ArtifactError, write_artifact
 from .browser.trace import Trace, TraceIntegrityError
 from .data_paths import data_dir
-from .outreach.workspace_lock import cli_workspace_lease
+from .outreach.workspace_lock import cli_workspace_leases
 
 
 def _trace(run_dir: str) -> Trace:
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     # (D-139). A run copied elsewhere is nothing a restore swaps.
     workspace = data_dir(Path.cwd())
     inside = Path(args.run_dir).expanduser().resolve().is_relative_to(workspace)
-    with cli_workspace_lease(workspace) if inside else nullcontext():
+    with cli_workspace_leases(Path(args.run_dir), workspace=workspace if inside else None):
         try:
             trace = _trace(args.run_dir)
             formats = SUPPORTED_FORMATS if args.format_name == "all" else (args.format_name,)

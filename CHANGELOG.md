@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Explicit installation-owner login** (`S-06.02.36`, 2026-10-13, IN_REVIEW): creating a `local` workspace login over the authenticated API now requires a strict explicit owner-confirmation boolean. Existing accounts and bootstrap unchanged; endpoint regression tests committed, not executed.
+- **Correct workspace lock for CLI targets** (`S-06.02.28`, 2026-10-13, IN_REVIEW): cli_workspace_leases discovers existing restore lock sidecars along resolved target-file ancestors; DB, Outreach, Notebook and Artifacts callers now consult real paths. Common .env defaults used across CLIs. Cross-process restore/CLI proof and full suites pending.
+- **Provider usage on Connectors** (`S-06.02.34`, 2026-10-13, IN_REVIEW): local counted calls shown with or without a cap; on-demand key-scoped OpenRouter per-key limit and DeepSeek account balance checks with timestamps; provider reporting support declared in registry. Other providers are not guessed; rate-limit header capture and live vendor validation remain open.
+
 - **Network audit A07** (`S-03.01.03`, 2026-10-13, IN_REVIEW): browser policy now rejects private/non-global IPs, alternate numeric IP spellings and local DNS suffixes in either mode; added guard regression cases. Docker bridge egress remains unrestricted and must be isolated before security can be certified.
 - **Crawler DNS-rebinding audit A08** (`S-05.01.04`, 2026-10-13, IN_REVIEW): Requests now connects to its checked public DNS IP with Host/SNI/TLS hostname retained; tests cover DNS mutation, refusal and proxy bypass. Crawl4AI/browser-rendered fetching still needs a network-level boundary and end-to-end validation; no release claim.
 

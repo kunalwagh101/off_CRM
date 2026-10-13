@@ -34,7 +34,7 @@ import json
 import os
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Iterable, Sequence
 
@@ -308,6 +308,7 @@ class EvalCase:
     person: PersonPublic | None = None
     public_text: str = ""
     template_text: str = ""
+    campaign_notes: str = ""
     positioning_line: str = ""
     checks: tuple[dict[str, Any], ...] = ()
     weight: float = 1.0
@@ -322,6 +323,7 @@ class EvalCase:
             person=self.person,
             public_text=self.public_text,
             template_text=self.template_text,
+            campaign_notes=self.campaign_notes,
             positioning_line=self.positioning_line,
         )
 
@@ -339,6 +341,17 @@ class EvalSuite:
 
     def __len__(self) -> int:
         return len(self.cases)
+
+
+def without_references(suite: EvalSuite) -> EvalSuite:
+    """A controlled A/B: remove references, keep goal/capacity/plan checks."""
+    return replace(
+        suite,
+        cases=tuple(
+            replace(case, campaign_notes="", template_text="")
+            for case in suite.cases
+        ),
+    )
 
 
 def _person_from(raw: dict[str, Any] | None) -> PersonPublic | None:
@@ -395,6 +408,7 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
                     person=_person_from(case_raw.get("person")),
                     public_text=str(case_raw.get("public_text", "")),
                     template_text=str(case_raw.get("template_text", "")),
+                    campaign_notes=str(case_raw.get("campaign_notes", "")),
                     positioning_line=str(case_raw.get("positioning_line", "")),
                     checks=tuple(defaults + list(case_raw.get("checks", ()))),
                     weight=float(case_raw.get("weight", 1.0)),
@@ -405,7 +419,11 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
         suites[suite_id] = EvalSuite(
             id=suite_id,
             title=str(entry.get("title", suite_id)),
-            system_prompt=str(entry.get("system_prompt", "")),
+            system_prompt=(
+                __import__("offsetx_apollo_builder.gtm.strategy", fromlist=["build_prompt"]).build_prompt()
+                if suite_id == "gtm_plan"
+                else str(entry.get("system_prompt", ""))
+            ),
             cases=tuple(cases),
             default_checks=tuple(defaults),
         )

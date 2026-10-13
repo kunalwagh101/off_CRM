@@ -121,3 +121,12 @@ No code for items 2–3 has been implemented yet and no release or hosted integr
 
 ## 2026-10-13 subsequent batch — skip navigation and network audit security
 The owner authorised selecting three additional stories from `develop`: `S-06.02.37` (skip link preserves screen), `S-03.01.03` (browser private-network isolation), and `S-05.01.04` (public fetch DNS rebinding). All three received source changes, red-first regression tests and review evidence files. All three are IN_REVIEW, **not DONE**. Browser isolation remains incomplete because bridge egress is not filtered. The Requests crawler path is pinned; Crawl4AI remains exposed to a second DNS resolution. CI jobs currently fail before allocation. S-05.01.04 also cannot be DONE before its upstream S-05.01.01 is DONE. Audit S-06.02.23 stays the only IN_PROGRESS item. `main` unchanged.
+
+
+## 2026-10-13 owner-authorised newest three features
+
+1. **S-06.02.36 — second owner login on purpose**: authenticated workspace-creation API requires a strict explicit owner-confirmation Boolean only for the reserved `local` workspace. Existing accounts and bootstrap unaffected. Test cases committed; status IN_REVIEW, live API and full suites unrun.
+2. **S-06.02.28 — path-aware CLI workspace leases**: canonical target paths and existing restore lock/journal sidecars decide what workspace is locked. Shared project .env loader covers CLI entry points; target/cross-folder tests committed. Status IN_REVIEW; real multi-process restore proof and full suites unrun.
+3. **S-06.02.34 — provider usage and what is left**: Connectors always shows locally counted usage; reporting capabilities classified for all providers in both registries; OpenRouter per-key remaining limit and DeepSeek account balance checked on explicit click with current workspace credentials, no model call. Rate-limit response-header capture is not built, and no real provider/account was queried. Status IN_REVIEW; full suites and live checks unrun.
+
+All changes and evidence were committed to `develop` only. Audit S-06.02.23 is still IN_PROGRESS. GitHub Actions runner has historically failed to allocate (zero steps); do not call these feature areas DONE or deployed.

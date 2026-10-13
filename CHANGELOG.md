@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Video product-aware direction and prompt audit** (`S-12.01.03`, 2026-10-13, IN_REVIEW): video director sends linked product facts and owner style through classified broker fields; constant system instructions; bounded `system_prompt` field in all text-call egress logs with additive SQLite/Postgres migration and tests. Full regression, provider and deployment verification still required.
+- **Frontend dependency audit enforcement** (`S-06.02.16`, 2026-10-13, IN_REVIEW): npm audit production and development gates added to CI with regression coverage. The npm registry-backed audit could not run and specific dependency findings are unresolved/unknown; not a clean bill of health.
+- **Reference-informed GTM strategy** (`S-12.02.05`, 2026-10-13, IN_REVIEW): optional expert retrieval and workspace winning templates go through classified fields, A/B removes reference fields only, and GTM eval cases check plan structures. Three synthetic starter cases explicitly cannot qualify for a trusted model-promotion verdict; owner corpus and 30 judged real cases remain absent.
+
 - **Explicit installation-owner login** (`S-06.02.36`, 2026-10-13, IN_REVIEW): creating a `local` workspace login over the authenticated API now requires a strict explicit owner-confirmation boolean. Existing accounts and bootstrap unchanged; endpoint regression tests committed, not executed.
 - **Correct workspace lock for CLI targets** (`S-06.02.28`, 2026-10-13, IN_REVIEW): cli_workspace_leases discovers existing restore lock sidecars along resolved target-file ancestors; DB, Outreach, Notebook and Artifacts callers now consult real paths. Common .env defaults used across CLIs. Cross-process restore/CLI proof and full suites pending.
 - **Provider usage on Connectors** (`S-06.02.34`, 2026-10-13, IN_REVIEW): local counted calls shown with or without a cap; on-demand key-scoped OpenRouter per-key limit and DeepSeek account balance checks with timestamps; provider reporting support declared in registry. Other providers are not guessed; rate-limit header capture and live vendor validation remain open.

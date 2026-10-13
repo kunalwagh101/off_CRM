@@ -117,9 +117,6 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
 ## READY
 
-- S-06.02.36 · A second owner login is made on purpose
-  work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md
-
 
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the
 remaining work to be written down, not built: each item below has a work order
@@ -145,6 +142,9 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
 ## IN_PROGRESS
+
+- S-06.02.36 · A second owner login is made on purpose
+  work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md

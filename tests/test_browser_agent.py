@@ -98,6 +98,32 @@ def test_the_machine_itself_is_never_reachable():
             policy.check_navigation(url)
 
 
+@pytest.mark.parametrize("unattended", [False, True])
+@pytest.mark.parametrize("url", [
+    "http://10.1.2.3/admin",
+    "http://172.17.0.1/",
+    "http://192.168.1.1/",
+    "http://100.64.0.1/",
+    "http://[fd00::1]/",
+    "http://[fe80::1]/",
+    "http://127.1/",
+    "http://2130706433/",
+    "http://0x7f000001/",
+    "http://localhost./",
+    "http://printer.local/",
+    "http://router.home.arpa/",
+])
+def test_A07_nonpublic_literals_and_local_names_are_refused_in_both_modes(url, unattended):
+    with pytest.raises(policy.Refused):
+        policy.check_navigation(url, unattended=unattended)
+
+
+@pytest.mark.parametrize("unattended", [False, True])
+def test_A07_public_ip_literals_and_normal_public_domains_remain_accessible(unattended):
+    for url in ("https://8.8.8.8/", "https://1.1.1.1/", "https://example.com/"):
+        assert policy.check_navigation(url, unattended=unattended)
+
+
 def test_local_files_and_browser_internals_are_refused():
     """A page that can talk the agent into opening a file: URL can read the
     machine, and chrome:// can change the browser's own settings."""

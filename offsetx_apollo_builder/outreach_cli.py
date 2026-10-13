@@ -23,7 +23,7 @@ from .outreach.gmail import (
 from .outreach.models import MESSAGE_STAGES
 from .outreach.provider_profiles import create_guarded_provider
 from .outreach.providers import load_provider_config
-from .outreach.workspace_lock import cli_workspace_lease
+from .outreach.workspace_lock import cli_workspace_leases
 
 
 def _json(value: Any) -> None:
@@ -132,7 +132,18 @@ def main(argv: list[str] | None = None) -> int:
         # Opens nothing, so it needs no lease and answers even during a restore.
         _json({"items": list_campaign_kinds()})
         return 0
-    with cli_workspace_lease(data_dir(Path.cwd())):
+    # A named CRM/token can live under another installation's data root. Its
+    # restore lock, not merely cwd's, must be acquired before opening it.
+    targets = []
+    if args.command == "gmail-authorize":
+        token = args.token or _gmail_token()
+        if token:
+            targets.append(Path(token))
+    else:
+        crm = crm_target(args.db)
+        if not is_postgres_url(crm):
+            targets.append(Path(crm))
+    with cli_workspace_leases(*targets, workspace=data_dir(Path.cwd())):
         return _run(args)
 
 

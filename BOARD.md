@@ -89,7 +89,6 @@ Waits on the owner's answer to `Q-28`.)*
 *(Filed 2026-09-28 for `D-196`, from the sixth check: a login made in
 workspace `local` acts as the install owner with nothing asking for that.)*
 
-- S-06.02.36 · A second owner login is made on purpose
 
 *(Filed 2026-10-04 from the owner's instruction: every error traceable the
 next day, `AGENTS.md` "Logging".)*
@@ -117,6 +116,9 @@ Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
   work_order: docs/work-orders/S-06.02.26-python-matrix.md
 
 ## READY
+
+- S-06.02.36 · A second owner login is made on purpose
+  work_order: docs/work-orders/S-06.02.36-explicit-owner-login.md
 
 
 *(2026-09-23 — the handoff after the consolidation. The owner asked for the

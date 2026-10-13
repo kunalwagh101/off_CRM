@@ -271,6 +271,47 @@ def test_authenticated_workspace_selects_only_its_provider_keys(tmp_path):
         assert local.json()["workspace_id"] == "local"
 
 
+def test_S060236_local_login_requires_explicit_install_owner_confirmation(tmp_path):
+    settings = _settings(tmp_path)
+    owner = {"X-Offsetx-Token": ADMIN_TOKEN}
+    payload = {"username": "second-owner", "workspace_id": "local",
+               "password": "a-long-owner-password-123"}
+    with TestClient(create_app(settings)) as client:
+        denied = client.post("/api/v1/workspaces", headers=owner, json=payload)
+        assert denied.status_code == 400
+        assert "install owner" in denied.json()["detail"].lower()
+        assert all(row["username"] != "second-owner"
+                   for row in client.get("/api/v1/workspaces", headers=owner).json()["items"])
+
+        no_access = client.post("/api/v1/workspaces",
+                                json={**payload, "confirm_install_owner": True})
+        assert no_access.status_code == 403
+
+        created = client.post("/api/v1/workspaces", headers=owner,
+                              json={**payload, "confirm_install_owner": True})
+        assert created.status_code == 201, created.text
+        assert created.json()["install_owner"] is True
+        logged_in = client.post("/api/v1/auth/login",
+                                json={"username": payload["username"],
+                                      "password": payload["password"]})
+        assert logged_in.status_code == 200
+        assert logged_in.json()["workspace_id"] == "local"
+
+
+def test_S060236_other_workspaces_do_not_silently_accept_owner_confirmation(tmp_path):
+    settings = _settings(tmp_path)
+    owner = {"X-Offsetx-Token": ADMIN_TOKEN}
+    payload = {"username": "ordinary", "workspace_id": "alpha",
+               "password": "ordinary-password-123"}
+    with TestClient(create_app(settings)) as client:
+        denied = client.post("/api/v1/workspaces", headers=owner,
+                             json={**payload, "confirm_install_owner": True})
+        assert denied.status_code == 400
+        created = client.post("/api/v1/workspaces", headers=owner, json=payload)
+        assert created.status_code == 201
+        assert created.json()["install_owner"] is False
+
+
 def test_workspace_admin_routes_are_not_available_to_a_workspace_session(tmp_path):
     settings = _settings(tmp_path)
     with TestClient(create_app(settings)) as client:

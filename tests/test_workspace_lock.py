@@ -90,6 +90,35 @@ def test_start_up_gives_up_with_a_reason_when_the_workspace_stays_busy(tmp_path,
                 pytest.fail("started over a half-restored workspace")
 
 
+def test_explicit_file_lease_finds_the_workspace_even_from_another_folder(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.outreach.workspace_lock import cli_workspace_leases
+
+    home = tmp_path / "web-data"
+    home.mkdir()
+    external = tmp_path / "elsewhere"
+    external.mkdir()
+    monkeypatch.chdir(external)
+    with WorkspaceLock(home, exclusive=True):
+        with pytest.raises(SystemExit, match="backing up or restoring"):
+            with cli_workspace_leases(home / "offsetx_outreach.db"):
+                pytest.fail("worked in the file of an exclusively locked workspace")
+        with pytest.raises(SystemExit, match="backing up or restoring"):
+            with cli_workspace_leases(home / "runs" / "one" / "trace.json"):
+                pytest.fail("worked in a nested run directory under restore")
+
+
+def test_independent_file_does_not_take_an_unrelated_workspace_lease(tmp_path):
+    from offsetx_apollo_builder.outreach.workspace_lock import cli_workspace_leases
+
+    web = tmp_path / "web"
+    web.mkdir()
+    independent = tmp_path / "independent"
+    independent.mkdir()
+    with WorkspaceLock(web, exclusive=True):
+        with cli_workspace_leases(independent / "notes.db"):
+            pass
+
+
 def test_the_worker_does_not_run_over_a_half_restored_workspace(tmp_path, monkeypatch):
     """A restore whose rollback failed leaves its journal; the worker took its
     lease anyway and worked over the half-restored workspace (D-129)."""

@@ -29,6 +29,9 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.connection import HTTPConnection, HTTPSConnection
+from urllib3.connectionpool import HTTPConnectionPool, HTTPSConnectionPool
 
 from .crawler_frontier import CrawlFrontier
 from .extraction_packs import ExtractionPackRegistry, ExtractionRule
@@ -462,6 +465,53 @@ class ScraplingPageParser:
         )
 
 
+class _PinnedPublicAdapter(HTTPAdapter):
+    """Use an approved IP for TCP without changing HTTP Host or HTTPS SNI.
+
+    A distinct adapter is created for each request, so a DNS record changed
+    between the policy lookup and TCP connect cannot redirect the socket.
+    The TLS library still validates the certificate for the original hostname.
+    """
+
+    def __init__(self, address: str) -> None:
+        self._address = address
+        super().__init__(max_retries=0)
+
+    def init_poolmanager(self, connections, maxsize, block=False, **kwargs):
+        super().init_poolmanager(connections, maxsize, block=block, **kwargs)
+        approved = self._address
+
+        class PinnedName:
+            @property
+            def host(self):
+                return self._original_host.rstrip(".")
+
+            @host.setter
+            def host(self, original):
+                self._original_host = original
+                # urllib3 connects to _dns_host, but uses host for HTTP and
+                # TLS certificate checks. Do not rewrite the URL to a raw IP.
+                self._dns_host = approved
+
+        class PinnedHTTP(PinnedName, HTTPConnection):
+            pass
+
+        class PinnedHTTPS(PinnedName, HTTPSConnection):
+            pass
+
+        class PinnedHTTPPool(HTTPConnectionPool):
+            ConnectionCls = PinnedHTTP
+
+        class PinnedHTTPSPool(HTTPSConnectionPool):
+            ConnectionCls = PinnedHTTPS
+
+        # Never change urllib3's shared pool-class dictionary.
+        self.poolmanager.pool_classes_by_scheme = {
+            "http": PinnedHTTPPool,
+            "https": PinnedHTTPSPool,
+        }
+
+
 class SafePublicFetcher:
     """Fetch public HTML with SSRF, robots, size, redirect and rate-limit guards."""
 
@@ -482,11 +532,12 @@ class SafePublicFetcher:
         self.host_pacer = host_pacer
         self.robots: dict[str, tuple[RobotFileParser, float]] = {}
         self.last_request_at: dict[str, float] = {}
+        self._transport_lock = threading.RLock()
 
     def set_host_pacer(self, pacer: Callable[[str, float], None]) -> None:
         self.host_pacer = pacer
 
-    def _assert_public_dns(self, url: str) -> None:
+    def _assert_public_dns(self, url: str) -> str:
         parsed = urlsplit(url)
         host = parsed.hostname or ""
         try:
@@ -506,6 +557,36 @@ class SafePublicFetcher:
                     continue
         if not addresses or any(not address.is_global for address in addresses):
             raise DiscoveryFetchError("Private, local and reserved network targets are blocked")
+        # Every answer must be global; pin the chosen numeric IP to the socket.
+        # This deliberately does not grant the resolver a second choice later.
+        return str(addresses[0])
+
+    def _verified_get(self, url: str, address: str, **kwargs):
+        """Connect only to the verified address, closing the DNS-rebind gap.
+
+        Preserve injected Requests sessions for existing consumers, but refuse
+        proxy/custom adapter configurations that could bypass address pinning.
+        A lock protects the short window in which the per-request adapter is
+        mounted on this session; the response owns its socket after get().
+        """
+        adapter = _PinnedPublicAdapter(address)
+        with self._transport_lock:
+            if self.session.proxies or set(self.session.adapters) != {"http://", "https://"}:
+                adapter.close()
+                raise DiscoveryFetchError("Public fetches cannot use proxies or custom transports")
+            old_http = self.session.get_adapter("http://")
+            old_https = self.session.get_adapter("https://")
+            self.session.mount("http://", adapter)
+            self.session.mount("https://", adapter)
+            try:
+                response = self.session.get(url, proxies={}, **kwargs)
+            except Exception:
+                adapter.close()
+                raise
+            finally:
+                self.session.mount("http://", old_http)
+                self.session.mount("https://", old_https)
+        return response, adapter
 
     def _delay(self, host: str, extra_delay: float = 0) -> None:
         delay = max(self.policy.request_delay_seconds, extra_delay)
@@ -527,12 +608,13 @@ class SafePublicFetcher:
                 allowed_domains=self.policy.allowed_domains,
                 blocked_domains=self.policy.blocked_domains,
             )
-            self._assert_public_dns(current)
+            verified_address = self._assert_public_dns(current)
             host = normalize_domain(urlsplit(current).hostname or "")
             self._delay(host)
             self.session.cookies.clear()
-            response = self.session.get(
+            response, adapter = self._verified_get(
                 current,
+                verified_address,
                 headers={
                     "User-Agent": self.policy.user_agent,
                     "Accept": "text/html,application/xhtml+xml,text/plain;q=0.8",
@@ -570,6 +652,7 @@ class SafePublicFetcher:
                 return b"".join(chunks), current, 200
             finally:
                 response.close()
+                adapter.close()
                 self.session.cookies.clear()
         raise DiscoveryFetchError("Too many redirects")
 

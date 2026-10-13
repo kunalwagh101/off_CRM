@@ -144,7 +144,7 @@ NEVER = (
 # 0x7f000001) that ipaddress intentionally rejects. They must never fall through
 # into the public-hostname path.
 _NUMERIC_HOST = re.compile(
-    r"(?i)(?:0x[0-9a-f]+|[0-9]+)(?:\\.(?:0x[0-9a-f]+|[0-9]+))*"
+    r"(?i)(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+))*"
 )
 _LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".home.arpa")
 

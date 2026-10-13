@@ -82,6 +82,27 @@ def test_logout_revokes_copied_cookie_even_after_application_restart(tmp_path):
         assert restarted.get("/api/v1/dashboard").status_code == 401
 
 
+def test_failed_revocation_cannot_report_successful_logout(tmp_path, monkeypatch):
+    """An unavailable revocation store must not pretend a copied cookie died."""
+    settings = _demo_settings(tmp_path)
+    with TestClient(
+        create_app(settings), base_url="https://crm.test", raise_server_exceptions=False,
+    ) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        )
+        assert login.status_code == 200
+
+        def database_unavailable(_store, _token):
+            raise RuntimeError("revocation storage unavailable")
+
+        monkeypatch.setattr(WorkspaceAuthStore, "revoke", database_unavailable)
+        logout = client.post("/api/v1/auth/logout", json={})
+        assert logout.status_code >= 500
+        assert client.get("/api/v1/dashboard").status_code == 200
+
+
 def test_revoking_one_workspace_session_does_not_revoke_a_second(tmp_path):
     """One browser logging out must not log out every other owner session."""
     path = tmp_path / "sessions.db"

@@ -19,8 +19,24 @@ export function contactPageBounds(page: number, total: number) {
   };
 }
 
-export function contactsPagePath(campaignId: string, page: number, search: string, status: string): string {
-  return `/campaigns/${encodeURIComponent(campaignId)}/contacts?limit=${CONTACTS_PAGE_SIZE}&offset=${Math.max(0, page) * CONTACTS_PAGE_SIZE}&search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`;
+export type ContactFilters = { category?: string; variant_id?: string; selected_only?: boolean };
+
+function filterQuery(search: string, status: string, filters: ContactFilters = {}): string {
+  const query = `search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`;
+  const extras = [
+    filters.category ? `category=${encodeURIComponent(filters.category)}` : "",
+    filters.variant_id ? `variant_id=${encodeURIComponent(filters.variant_id)}` : "",
+    filters.selected_only ? "selected_only=true" : ""
+  ].filter(Boolean);
+  return extras.length ? `${query}&${extras.join("&")}` : query;
+}
+
+export function contactsPagePath(campaignId: string, page: number, search: string, status: string, filters: ContactFilters = {}): string {
+  return `/campaigns/${encodeURIComponent(campaignId)}/contacts?limit=${CONTACTS_PAGE_SIZE}&offset=${Math.max(0, page) * CONTACTS_PAGE_SIZE}&${filterQuery(search, status, filters)}`;
+}
+
+export function contactsDownloadPath(campaignId: string, search: string, status: string, filters: ContactFilters = {}): string {
+  return `/campaigns/${encodeURIComponent(campaignId)}/contacts/download?${filterQuery(search, status, filters)}`;
 }
 
 export default function Contacts() {
@@ -28,18 +44,29 @@ export default function Contacts() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [category, setCategory] = useState("");
+  const [variant, setVariant] = useState("");
+  const [selectedOnly, setSelectedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const facets = useResource(
+    () => campaignId
+      ? api.get<{ categories: string[]; variants: string[] }>(`/campaigns/${encodeURIComponent(campaignId)}/contacts/facets`)
+      : Promise.resolve({ categories: [], variants: [] }),
+    [campaignId]
+  );
+  const filters = { category, variant_id: variant, selected_only: selectedOnly };
   const contacts = useResource(
     () =>
       campaignId
         ? api.get<Paginated<Contact>>(
-            contactsPagePath(campaignId, page, search, status)
+            contactsPagePath(campaignId, page, search, status, filters)
           )
         : Promise.resolve({ items: [], total: 0 }),
-    [campaignId, search, status, page]
+    [campaignId, search, status, page, category, variant, selectedOnly]
   );
 
   const total = contacts.data?.total ?? 0;
@@ -115,6 +142,21 @@ export default function Contacts() {
     }
   }
 
+  async function downloadFilteredContacts() {
+    setExporting(true);
+    try {
+      await api.download(
+        contactsDownloadPath(campaignId, search, status, filters),
+        "offcrm-filtered-contacts.csv"
+      );
+      notify("Contact CSV downloaded with the current filters.", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Contact export failed", "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const state = <Loadable loading={contacts.loading} error={contacts.error} />;
   return (
     <>
@@ -122,7 +164,7 @@ export default function Contacts() {
         eyebrow={activeCampaign?.name}
         title="Contacts"
         description="One clean CRM table. No assignment engine, no owner field and no hidden server."
-        actions={<Button onClick={() => setImportOpen(true)}>Import CSV / Excel</Button>}
+        actions={<><Button tone="secondary" busy={exporting} onClick={downloadFilteredContacts}>Export filtered CSV</Button> <Button onClick={() => setImportOpen(true)}>Import CSV / Excel</Button></>}
       />
       <Panel>
         <div className="toolbar">
@@ -146,6 +188,18 @@ export default function Contacts() {
             <option value="replied">Replied</option>
             <option value="completed">Completed</option>
           </select>
+          <select aria-label="Filter by category" value={category} onChange={(event) => { setPage(0); setCategory(event.target.value); }}>
+            <option value="">All categories</option>
+            {(facets.data?.categories ?? []).map((name) => <option key={name} value={name}>{name}</option>)}
+          </select>
+          <select aria-label="Filter by variant" value={variant} onChange={(event) => { setPage(0); setVariant(event.target.value); }}>
+            <option value="">All variants</option>
+            {(facets.data?.variants ?? activeCampaign?.variants ?? []).map((name) => <option key={name} value={name}>Variant {name}</option>)}
+          </select>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={selectedOnly} onChange={(event) => { setPage(0); setSelectedOnly(event.target.checked); }} />
+            Marked only
+          </label>
           <span className="toolbar-count">{total} contacts</span>
         </div>
         {contacts.loading || contacts.error ? state : contacts.data?.items.length ? (
@@ -169,7 +223,7 @@ export default function Contacts() {
             </table>
           </div>
         ) : (
-          <StatePanel title="No contacts found" description={search || status ? "Clear the filters or import more contacts." : "Import a CSV or Excel file to create the first outreach records."} action={!search && !status ? <Button onClick={() => setImportOpen(true)}>Import contacts</Button> : undefined} />
+          <StatePanel title="No contacts found" description={search || status || category || variant || selectedOnly ? "Clear the filters or import more contacts." : "Import a CSV or Excel file to create the first outreach records."} action={!search && !status && !category && !variant && !selectedOnly ? <Button onClick={() => setImportOpen(true)}>Import contacts</Button> : undefined} />
         )}
         {!contacts.loading && !contacts.error && total > CONTACTS_PAGE_SIZE && (
           <nav className="toolbar" aria-label="Contacts pages">

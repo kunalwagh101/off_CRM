@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.44 · Download all filtered Contacts rows
+  work_order: docs/work-orders/S-06.02.44-filtered-contact-download.md
+  review: in-memory authenticated all-pages CSV export and Python/frontend tests prepared; live and complete tests pending
+
+- S-06.02.45 · Category and variant filters for contacts
+  work_order: docs/work-orders/S-06.02.45-contact-facet-filters.md
+  review: campaign facets API and UI filters prepared; browser/PostgreSQL suite pending
+
+- S-06.02.46 · Marked-only contacts remain reachable
+  work_order: docs/work-orders/S-06.02.46-marked-only-contacts.md
+  review: persisted checkbox predicate across API, filters and export prepared; full tests and end-to-end proof pending
+
+
 - S-06.02.41 · Contacts beyond row 500 are reachable
   work_order: docs/work-orders/S-06.02.41-contacts-pagination.md
   review: paged contacts and tests prepared; frontend and browser checks pending

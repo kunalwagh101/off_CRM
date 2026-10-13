@@ -15,7 +15,7 @@ vi.mock("../hooks", async (importOriginal) => ({
   }),
 }));
 
-import Contacts, { CONTACTS_PAGE_SIZE, contactPageBounds, contactsPagePath } from "./Contacts";
+import Contacts, { CONTACTS_PAGE_SIZE, contactPageBounds, contactsPagePath, contactsDownloadPath } from "./Contacts";
 
 describe("A23: contacts pagination", () => {
   it("computes the correct range and never advertises a non-existent page", () => {
@@ -49,5 +49,22 @@ describe("A23: contacts pagination", () => {
     expect(html).toContain("Previous page");
     expect(html).toContain("Next page");
     expect(html).toContain("127 contacts");
+    expect(html).toContain('aria-label="Filter by category"');
+    expect(html).toContain('aria-label="Filter by variant"');
+    expect(html).toContain("Marked only");
+    expect(html).toContain("Export filtered CSV");
   });
+  it("retains independent, URL-encoded category, variant and marked-only filters on every page", () => {
+    const filters = { category: "Sustainability / ESG", variant_id: "B", selected_only: true };
+    const page = contactsPagePath("c/1", 2, "A & B", "replied", filters);
+    expect(page).toBe("/campaigns/c%2F1/contacts?limit=100&offset=200&search=A%20%26%20B&status=replied&category=Sustainability%20%2F%20ESG&variant_id=B&selected_only=true");
+    const download = contactsDownloadPath("c/1", "A & B", "replied", filters);
+    expect(download).toContain("selected_only=true");
+    expect(download).not.toContain("offset=");
+    expect(download).not.toContain("limit=");
+    expect(contactsDownloadPath("campaign", "", "")).toBe(
+      "/campaigns/campaign/contacts/download?search=&status="
+    );
+  });
+
 });

@@ -69,6 +69,7 @@ from ..db import resolve_target as resolve_database_target
 from ..db import DatabaseError
 from ..db.hosted import HostedStorage
 from ..outreach.store_copy import check_local_crm
+from ..outreach.contact_export import contact_list_csv, ContactExportError
 from ..discovery import DiscoveryService
 from ..locked_categories import LOCKED_CATEGORIES
 from ..meetings import MeetingError, MeetingStore, MeetingTranscriber, MeetingTranscriptionError
@@ -3113,6 +3114,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         status: str = Query("", max_length=40),
         category: str = Query("", max_length=120),
         variant_id: str = Query("", max_length=20),
+        selected_only: bool = Query(False),
     ) -> dict[str, Any]:
         items, total = _engine(request).store.list_campaign_contacts(
             campaign_id,
@@ -3122,8 +3124,54 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             status=status,
             category=category,
             variant_id=variant_id,
+            selected_only=selected_only,
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/facets")
+    def contact_facets(campaign_id: str, request: Request) -> dict[str, list[str]]:
+        return _engine(request).store.campaign_contact_facets(campaign_id)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/download")
+    def download_contacts(
+        campaign_id: str,
+        request: Request,
+        search: str = Query("", max_length=120),
+        status: str = Query("", max_length=40),
+        category: str = Query("", max_length=120),
+        variant_id: str = Query("", max_length=20),
+        selected_only: bool = Query(False),
+    ) -> Response:
+        try:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                store = _engine(request).store
+                # Export every page from one database snapshot, including when
+                # a different process edits this campaign at the same time.
+                with store.transaction():
+                    if store.backend == "postgres":
+                        store.connection.execute(
+                            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+                        )
+                    content = contact_list_csv(
+                        store,
+                        campaign_id,
+                        search=search,
+                        status=status,
+                        category=category,
+                        variant_id=variant_id,
+                        selected_only=selected_only,
+                    )
+        except ContactExportError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return Response(
+            content=content,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="offcrm-filtered-contacts.csv"',
+                "Cache-Control": "no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @app.patch(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/{{campaign_contact_id}}")
     def update_contact_endpoint(

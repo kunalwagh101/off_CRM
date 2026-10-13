@@ -2105,6 +2105,24 @@ stories until opened.
 - **Given** a storage outage during revocation, **when** logout is attempted, **then** the app does not claim the token was revoked.
 - **Dependencies:** none. **Size:** M. **Audit:** A06 / D-273. **Work order:** `docs/work-orders/S-06.02.43-logout-revocation.md`.
 
+#### S-06.02.44 — Download the entire filtered Contacts result
+**As a** campaign owner, **I want** a CSV of all contacts matching the filters on screen, **so that** I can share a specific review list without losing rows beyond the current page.
+- **Given** filters and 500+ contacts, **when** I download, **then** the attachment contains every matching contact, with stable named columns and spreadsheet-safe text; no private mail bodies or internal notes.
+- **Given** an oversized or changing result, **when** I export, **then** no believable incomplete file is returned. The prior full-campaign report remains unchanged.
+- **Dependencies:** S-06.02.41 (IN_REVIEW). **Size:** M. **Work order:** `docs/work-orders/S-06.02.44-filtered-contact-download.md`.
+
+#### S-06.02.45 — Category and variant filters for contacts
+**As a** campaign owner, **I want** to filter by values present in my current campaign, **so that** I can review a particular audience or A/B cohort.
+- **Given** the active campaign, **when** its filters load, **then** only campaign categories and variants appear; combining them with text/status searches uses the existing server query.
+- **Given** a filter change, **when** the list refreshes, **then** it restarts at page one with the right count.
+- **Dependencies:** S-06.02.41 (IN_REVIEW). **Size:** S. **Work order:** `docs/work-orders/S-06.02.45-contact-facet-filters.md`.
+
+#### S-06.02.46 — Marked-only contacts remain reachable
+**As a** campaign owner, **I want** to see only the contacts I marked with the existing checkbox, **so that** I can review the selected pool across all pages.
+- **Given** marked contacts, **when** I filter and export, **then** the SQL query counts/returns only them; no client-side 100-row approximation or implicit send occurs.
+- **Given** an uncheck or campaign switch, **when** records reload, **then** persistent selection remains associated with the correct campaign and empty/stale pages recover.
+- **Dependencies:** S-06.02.41 (IN_REVIEW). **Size:** S. **Work order:** `docs/work-orders/S-06.02.46-marked-only-contacts.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep

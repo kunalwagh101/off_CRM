@@ -779,6 +779,7 @@ class OutreachStore:
         status: str = "",
         category: str = "",
         variant_id: str = "",
+        selected_only: bool = False,
     ) -> tuple[list[dict[str, Any]], int]:
         self.get_campaign(campaign_id)
         where = ["cc.campaign_id = ?"]
@@ -799,6 +800,8 @@ class OutreachStore:
         if variant_id:
             where.append("cc.variant_id = ?")
             params.append(variant_id)
+        if selected_only:
+            where.append("cc.checkbox = 1")
         clause = " AND ".join(where)
         count_row = self.connection.execute(
             f"""
@@ -818,7 +821,7 @@ class OutreachStore:
             FROM campaign_contacts cc
             JOIN contacts c ON c.id = cc.contact_id
             WHERE {clause}
-            ORDER BY c.full_name, c.email
+            ORDER BY c.full_name, c.email, cc.id
             LIMIT ? OFFSET ?
             """,
             (*params, limit, offset),
@@ -828,6 +831,20 @@ class OutreachStore:
             row["checkbox"] = bool(row.get("checkbox"))
             row["sent_count"] = int(row.get("sent_count") or 0)
         return rows, int(count_row["count"] if count_row else 0)
+
+    def campaign_contact_facets(self, campaign_id: str) -> dict[str, list[str]]:
+        """Only offer category and variant values present in this campaign."""
+        self.get_campaign(campaign_id)
+        rows = self._rows(
+            """SELECT DISTINCT c.category, cc.variant_id FROM campaign_contacts cc
+               JOIN contacts c ON c.id = cc.contact_id
+               WHERE cc.campaign_id = ?""",
+            (campaign_id,),
+        )
+        return {
+            "categories": sorted({str(row["category"]) for row in rows if row.get("category")}),
+            "variants": sorted({str(row["variant_id"]) for row in rows if row.get("variant_id")}),
+        }
 
     def campaign_contacts(self, campaign_id: str) -> list[dict[str, Any]]:
         rows, _ = self.list_campaign_contacts(campaign_id, limit=100000)

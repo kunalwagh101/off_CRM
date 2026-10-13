@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sys
+import socket
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,6 +19,7 @@ from offsetx_apollo_builder.discovery import (
     DiscoveryService,
     ParsedPage,
     ScraplingPageParser,
+    SafePublicFetcher,
     validate_public_url,
 )
 from offsetx_apollo_builder.outreach.store import OutreachStore
@@ -73,6 +77,84 @@ def test_public_url_policy_blocks_social_and_private_targets():
         validate_public_url("https://user:secret@example.com/team")
     with pytest.raises(ValueError, match="outside"):
         validate_public_url("https://other.test/team", allowed_domains=["example.com"])
+
+
+def test_A08_public_fetch_connects_to_the_verified_address_not_second_dns(monkeypatch):
+    """A real HTTP request through the public fetcher, with DNS changing.
+
+    The intended address is public. A socket that resolved the hostname again
+    could reach a rebinding private address. The fixture routes the *verified*
+    numeric destination to an isolated local test server, retaining the Host.
+    """
+    from urllib3.util import connection as transport
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.server.recorded_host = self.headers["Host"]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<html>public</html>")
+
+        def log_message(self, *_):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    attempts = []
+    actual_connect = transport.create_connection
+
+    def connect(address, *args, **kwargs):
+        attempts.append(address)
+        # A checked public IP is deliberately mapped to the controlled local
+        # fixture. Connecting by hostname instead would fail this assertion.
+        assert address[0] == "93.184.216.34", "unverified DNS lookup at connect"
+        return actual_connect(("127.0.0.1", server.server_port), *args, **kwargs)
+
+    def resolver(host, port, **kwargs):
+        assert host == "outside.example"
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+
+    try:
+        monkeypatch.setattr(transport, "create_connection", connect)
+        guard = SafePublicFetcher(
+            CrawlPolicy(allowed_domains=("outside.example",), request_delay_seconds=0),
+            resolver=resolver,
+        )
+        body, final_url, code = guard._request_bytes(
+            "http://outside.example/info", max_bytes=1_000, accepted_types=("text/html",)
+        )
+        assert (body, code) == (b"<html>public</html>", 200)
+        assert final_url == "http://outside.example/info"
+        assert attempts == [("93.184.216.34", 80)]
+        assert server.recorded_host == "outside.example"
+    finally:
+        server.shutdown()
+        worker.join(timeout=5)
+        server.server_close()
+
+
+def test_A08_rejects_private_dns_before_any_http_socket(monkeypatch):
+    from urllib3.util import connection as transport
+
+    attempts = []
+
+    def socket_attempt(*args, **kwargs):
+        attempts.append((args, kwargs))
+        raise AssertionError("a private destination must not be contacted")
+
+    guard = SafePublicFetcher(
+        CrawlPolicy(allowed_domains=("outside.example",), request_delay_seconds=0),
+        resolver=lambda host, port, **kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", port))
+        ],
+    )
+    monkeypatch.setattr(transport, "create_connection", socket_attempt)
+    with pytest.raises(ValueError, match="Private, local and reserved"):
+        guard._request_bytes("http://outside.example/", max_bytes=300,
+                             accepted_types=("text/html",))
+    assert not attempts
 
 
 def test_scrapling_parser_extracts_structured_people_without_fetcher_stealth():

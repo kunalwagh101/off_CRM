@@ -576,6 +576,25 @@ def test_cli_rejects_an_unknown_suite(capsys, tmp_path):
     assert "No suite named" in capsys.readouterr().out
 
 
+def test_gtm_plan_eval_rejects_unregistered_channel_and_excess_volume():
+    checks = load_suites(SUITE_PATH)["gtm_plan"].cases[0].checks
+    valid = {"summary": "A measured plan", "audience": {"source": "existing_contacts"},
+             "channels": [{"kind": "email", "daily_volume": 10}]}
+    ok = run_checks(json.dumps(valid), checks)
+    assert all(result.passed for result in ok), ok
+    for channels in (
+        [{"kind": "invented_chat", "daily_volume": 2}],
+        [{"kind": "email", "daily_volume": 31}],
+        [{"kind": "email", "daily_volume": True}],
+        [{"kind": "distribution", "daily_volume": 1}],
+    ):
+        altered = {**valid, "channels": channels}
+        assert any(
+            not result.passed and result.name == "declared_email_scope"
+            for result in run_checks(json.dumps(altered), checks)
+        )
+
+
 def test_gtm_plan_ablation_preserves_goals_and_removes_only_reference_fields():
     from offsetx_apollo_builder.ai.evals import without_references
 

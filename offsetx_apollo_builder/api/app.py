@@ -3575,7 +3575,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             accounts=lambda: state.distribution_store.list_accounts(workspace_id=workspace_id),
             apollo_ready=lambda: bool(os.getenv("APOLLO_API_KEY", "").strip()),
             ask=ask,
-            expert_search=lambda query: state.engine.store.search_expert_chunks(query, limit=4),
+            # The legacy expert_chunks table has no workspace_id. Until it is
+            # tenant-scoped, do not offer the install owner's imported corpus
+            # to another workspace's model calls.
+            expert_search=(
+                (lambda query: state.engine.store.search_expert_chunks(query, limit=4))
+                if workspace_id == "local" else None
+            ),
             winning_reference=lambda: state.ai_context.reference_for_models(workspace_id),
             # Apply goes through the engine's own campaign creation, the same
             # call `POST /campaigns` makes, so a plan's campaign is exactly the

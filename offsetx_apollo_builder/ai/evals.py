@@ -554,7 +554,10 @@ class EvalRunner:
         subject = f"{provider_id}:{model_id}" if model_id else provider_id
         started = time.monotonic()
         results = [
-            self._run_case(case, settings, provider_id=provider_id, model_id=model_id)
+            self._run_case(
+                case, settings, provider_id=provider_id, model_id=model_id,
+                system_prompt=suite.system_prompt,
+            )
             for case in suite.cases
         ]
         return EvalReport(
@@ -638,6 +641,7 @@ class EvalRunner:
         *,
         provider_id: str,
         model_id: str,
+        system_prompt: str = "",
     ) -> CaseResult:
         started = time.monotonic()
         pinned = settings
@@ -647,7 +651,7 @@ class EvalRunner:
             result = self.broker.call(
                 case.to_request(),
                 pinned,
-                system_prompt="",
+                system_prompt=system_prompt,
                 provider_id=provider_id,
             )
         except Exception as exc:  # noqa: BLE001

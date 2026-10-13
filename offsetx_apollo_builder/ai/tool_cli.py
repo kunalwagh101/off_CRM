@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from ..data_paths import data_dir, resolved
+from ..data_paths import data_dir, resolved, load_project_env
 from ..outreach.workspace_lock import cli_workspace_lease
 from .errors import AIModuleError
 from .sandbox import SandboxWorkspace, sandbox_available
@@ -191,6 +191,7 @@ def cmd_runs(args: argparse.Namespace) -> int:
 
 @traced_command("offsetx-tools")
 def main(argv: Sequence[str] | None = None) -> int:
+    load_project_env()
     parser = argparse.ArgumentParser(
         prog="offsetx-tools",
         description="Register and run sandboxed tools. Registration is yours alone.",

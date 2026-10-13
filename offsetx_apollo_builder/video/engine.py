@@ -305,7 +305,9 @@ class VideoEditorEngine:
             )
         direction = director.direct(
             topic=topic,
-            ask=self.director,
+            # A bound campaign is known here, but not at the pure director.
+            # Pass it explicitly so the API broker can classify its product.
+            ask=lambda **kwargs: self.director(campaign_id=campaign_id, **kwargs),
             style=style,
             pinned_ticks=int(target_ticks),
         )

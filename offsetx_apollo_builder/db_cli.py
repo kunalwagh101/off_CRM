@@ -29,7 +29,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 
 from .ai.log import copy_egress_log
-from .data_paths import data_dir, database_path
+from .data_paths import data_dir, database_path, load_project_env
 from .db import (
     DATABASE_URL_ENV,
     DatabaseError,
@@ -40,7 +40,7 @@ from .db import (
 )
 from .db.connection import is_postgres_url
 from .db.hosted import SECRETS_KEY_ENV, HostedStorage
-from .outreach.workspace_lock import cli_workspace_lease
+from .outreach.workspace_lock import cli_workspace_lease, cli_workspace_leases
 
 
 def _lease(*targets: object) -> AbstractContextManager[None]:
@@ -53,13 +53,13 @@ def _lease(*targets: object) -> AbstractContextManager[None]:
     is stuck.
     """
     workspace = data_dir(Path.cwd())
-    for target in targets:
-        if is_postgres_url(target):
-            continue
-        path = Path(str(target)).resolve()
-        if path.is_relative_to(workspace) or path == database_path():
-            return cli_workspace_lease(workspace)
-    return nullcontext()
+    files = [Path(str(target)).resolve() for target in targets
+             if target and not is_postgres_url(target)]
+    if not files:
+        return nullcontext()
+    needs_default = any(path.is_relative_to(workspace) or path == database_path()
+                        for path in files)
+    return cli_workspace_leases(*files, workspace=workspace if needs_default else None)
 
 
 def _cmd_check(args: argparse.Namespace) -> int:
@@ -317,7 +317,7 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
         print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first: they name the database.", file=sys.stderr)
         return 2
     try:
-        with cli_workspace_lease(data_dir(Path.cwd())):
+        with cli_workspace_leases(crm_file, workspace=data_dir(Path.cwd())):
             hosted.check_secrets_key()
             if args.yes:
                 report = import_crm(hosted, crm_file, hosted.target)
@@ -339,6 +339,7 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
 
 @traced_command("offsetx-db")
 def main(argv: list[str] | None = None) -> int:
+    load_project_env()
     parser = argparse.ArgumentParser(
         prog="offsetx-db",
         description="Inspect the database backend, list the stores and move the egress log.",

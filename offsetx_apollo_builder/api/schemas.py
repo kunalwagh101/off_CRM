@@ -34,6 +34,7 @@ class WorkspaceCreate(StrictModel):
     username: str = Field(min_length=1, max_length=100)
     workspace_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")
     password: str = Field(min_length=12, max_length=500)
+    confirm_install_owner: bool = False
 
 
 class WorkspaceUpdate(StrictModel):

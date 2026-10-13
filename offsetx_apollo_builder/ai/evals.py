@@ -212,6 +212,44 @@ def _check_json_has_keys(text: str, config: dict[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
+def _check_gtm_plan_shape(text: str, config: dict[str, Any]) -> tuple[bool, str]:
+    """Deterministically reject invented GTM channels or impossible volume.
+
+    This is a schema/declared-envelope check, not a substitute for the full
+    production parse_plan() validator or real owner-labelled eval cases.
+    """
+    content = text.strip()
+    if content.startswith("```"):
+        content = re.sub(r"^```[a-zA-Z]*\\n?|```$", "", content).strip()
+    try:
+        parsed = json.loads(content)
+    except (ValueError, TypeError):
+        return False, "not valid JSON"
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("audience"), dict):
+        return False, "plan requires object with audience"
+    channels = parsed.get("channels")
+    if not isinstance(channels, list) or not channels:
+        return False, "plan requires a nonempty channels list"
+    kinds = set(config.get("allowed_kinds", ["email", "distribution", "image"]))
+    seen: set[str] = set()
+    for row in channels:
+        if not isinstance(row, dict):
+            return False, "channel is not an object"
+        kind = str(row.get("kind") or "")
+        if kind not in kinds or kind in seen:
+            return False, f"undeclared or repeated channel: {kind}"
+        seen.add(kind)
+        if kind in ("email", "distribution"):
+            volume = row.get("daily_volume")
+            maximum = int(config.get(f"max_{kind}_daily_volume", 0))
+            if type(volume) is not int or volume < 0 or volume > maximum:
+                return False, f"{kind} exceeds declared daily capacity {maximum}"
+    required = str(config.get("require_kind") or "")
+    if required and required not in seen:
+        return False, f"required channel {required} is absent"
+    return True, "declared channel shapes and daily caps satisfied"
+
+
 def _check_valid_python(text: str, _config: dict[str, Any]) -> tuple[bool, str]:
     """Parse, do not execute.
 
@@ -257,6 +295,7 @@ CHECKS: dict[str, CheckFn] = {
     "no_email_address": _check_no_email_address,
     "valid_json": _check_valid_json,
     "json_has_keys": _check_json_has_keys,
+    "gtm_plan_shape": _check_gtm_plan_shape,
     "valid_python": _check_valid_python,
     "mentions_all": _check_mentions_all,
 }

@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from .backup import restore_pending
@@ -137,3 +137,42 @@ def cli_workspace_lease(data_dir: Path) -> Iterator[None]:
         yield
     finally:
         lease.__exit__(None, None, None)
+
+
+def _locked_workspace_ancestors(file_path: Path) -> set[Path]:
+    """Find the restore-lock owner of a file, including nested run folders.
+
+    WorkspaceLock keeps its file *beside* its root. Discover those actual
+    locks instead of assuming the CLI's current directory is the owner. The
+    restore process creates its lock file before acquiring exclusivity.
+    """
+    target = Path(file_path).expanduser().resolve()
+    found: set[Path] = set()
+    for candidate in (target.parent, *target.parents):
+        if candidate == candidate.parent:
+            break
+        lock = candidate.parent / f".{candidate.name}.workspace.lock"
+        journal = candidate.parent / f".{candidate.name}.restore-journal.json"
+        if lock.exists() or journal.exists():
+            found.add(candidate)
+    return found
+
+
+@contextmanager
+def cli_workspace_leases(*file_paths: Path, workspace: Path | None = None) -> Iterator[None]:
+    """Lease every *actual* workspace containing a CLI's file targets.
+
+    Existing CLI callers may continue to use cli_workspace_lease(root).
+    A caller with an explicit --db, --token, --context or nested --run-dir
+    passes those paths here. Sorted acquisition order prevents lock inversion
+    when a command touches two workspaces, such as a database copy.
+    """
+    roots = set()
+    if workspace is not None:
+        roots.add(Path(workspace).expanduser().resolve())
+    for path in file_paths:
+        roots.update(_locked_workspace_ancestors(Path(path)))
+    with ExitStack() as stack:
+        for root in sorted(roots):
+            stack.enter_context(cli_workspace_lease(root))
+        yield

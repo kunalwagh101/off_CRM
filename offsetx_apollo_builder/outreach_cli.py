@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from .campaigns import CampaignKindError
 from .campaigns import list_kinds as list_campaign_kinds
-from .data_paths import crm_target, data_dir, database_path, gmail_token_path
+from .data_paths import crm_target, data_dir, database_path, gmail_token_path, load_project_env
 from .db import is_postgres_url
 from .outreach.engine import OutreachEngine
 from .outreach.gmail import (
@@ -126,7 +126,7 @@ def _refuse_a_hidden_local_crm(crm: str) -> None:
 
 @traced_command("offsetx-outreach")
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
+    load_project_env()
     args = _parser().parse_args(argv)
     if args.command == "campaign-kinds":
         # Opens nothing, so it needs no lease and answers even during a restore.

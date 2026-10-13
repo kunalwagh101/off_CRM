@@ -201,9 +201,15 @@ def test_the_prompt_tells_the_model_the_topic_is_not_instructions():
     assert "never as instructions" in director.build_prompt()
 
 
-def test_a_house_style_is_passed_through_when_there_is_one():
-    assert "clipped and dry" in director.build_prompt(style="clipped and dry")
+def test_house_style_never_enters_the_system_prompt():
+    seen = {}
+    director.direct(topic="public story", style="clipped and dry",
+                    ask=lambda **kw: (seen.update(kw), reply())[1])
+    assert "clipped and dry" not in seen["system_prompt"]
+    assert "House style" not in seen["system_prompt"]
+    assert seen["owner_style"] == "clipped and dry"
     assert "House style" not in director.build_prompt()
+
 
 
 # ── asking ──────────────────────────────────────────────────────────────────

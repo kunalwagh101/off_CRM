@@ -47,7 +47,7 @@ from ..distribution.store import DistributionStore
 from ..gtm.service import PUBLISHED_COUNT_LIMIT, GtmService
 from ..gtm.service import Readers as GtmReaders
 from ..gtm.store import GtmStore
-from ..gtm.strategy import ModelUnavailable
+from ..gtm.strategy import ModelUnavailable, product_lines
 from ..imagery.engine import ImageCampaignEngine
 from ..imagery.store import ImageStore
 from ..video.captions import MAX_CHARS as CAPTION_MAX_CHARS
@@ -56,6 +56,7 @@ from ..video.effects import catalogue as video_effects_catalogue
 from ..video.presets import catalogue as video_preset_catalogue
 from ..video.recipes import catalogue as video_recipe_catalogue
 from ..video.engine import VideoEditorEngine
+from ..video.director import build_prompt as video_direction_prompt
 from ..video.store import VideoStore
 from ..video.timeline import (
     BLEND_MODES,
@@ -2035,24 +2036,33 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         def video_director(**kwargs: Any) -> Any:
-            """The one model call the editor makes for itself.
+            """Classify campaign product/style before any provider receives it.
 
-            `public_text` and not `campaign_notes`: a topic is usually a trend
-            title scraped off somebody else's site, and calling it campaign
-            material would narrow the tier rules for something that was already
-            public. The reply is validated against the recipe registry before a
-            clip is laid, so a hostile topic can at most pick a different one of
-            the declared shapes.
+            A public trend topic is not owner material. Only the product and
+            typed house style increase the data class and enter campaign fields.
+            The system prompt is always the code-authored recipe contract.
             """
+            campaign_id = str(kwargs.get("campaign_id") or "").strip()
+            product = (
+                state.gtm_store.product_for_campaign(campaign_id, workspace_id)
+                if campaign_id else None
+            )
+            style = str(kwargs.get("owner_style") or "").strip()
+            lines = product_lines(product, style) if product else (
+                [f"Owner notes: {style}"] if style else []
+            )
+            owner_material = bool(product or style)
             return broker.call(
                 EgressRequest(
                     task_type="video_direction",
-                    data_class=DataClass.PUBLIC,
-                    instructions=str(kwargs.get("topic") or ""),
+                    data_class=DataClass.CAMPAIGN if owner_material else DataClass.PUBLIC,
+                    # Instructions have no owner text; topic is public research.
                     public_text=str(kwargs.get("topic") or ""),
+                    positioning_line=str(product.get("one_liner") or "") if product else "",
+                    campaign_notes="\\n".join(lines),
                 ),
                 settings,
-                system_prompt=str(kwargs.get("system_prompt") or ""),
+                system_prompt=video_direction_prompt(),
                 expect_json=True,
             )
 

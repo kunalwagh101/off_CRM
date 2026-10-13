@@ -2059,7 +2059,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     # Instructions have no owner text; topic is public research.
                     public_text=str(kwargs.get("topic") or ""),
                     positioning_line=str(product.get("one_liner") or "") if product else "",
-                    campaign_notes="\\n".join(lines),
+                    campaign_notes="\n".join(lines),
                 ),
                 settings,
                 system_prompt=video_direction_prompt(),

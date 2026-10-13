@@ -51,6 +51,10 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
+| R-164 | S-06.02.36 | 2 | owner confirmation required for local login at authenticated API boundary; regression cases committed | full API/auth suites, real login, independent review and board verification unrun |
+| R-155 | S-06.02.28 | 3 | path-aware lease resolver, CLI wiring and shared dotenv loader; cross-cwd and config regression cases committed | all real CLIs against concurrent restore, symlink/filesystem checks, full suite and verifier unrun |
+| R-161 | S-06.02.34 | 3 | per-provider local usage visible without cap; documented OpenRouter/DeepSeek balance endpoints, workspace-key endpoint, safe parser and UI tests committed | headers capture for OpenAI/Anthropic/Groq, real provider check, frontend/API/full suites and verifier unrun |
+
 | R-165 | S-06.02.37 | 2 | skip event handler and Settings/Contacts route preservation regression committed | frontend Vitest/build, full regression and real Chromium keyboard/pointer flows unrun |
 | R-167 | S-03.01.03 | 3 | IP-literal/noncanonical/local-name denial plus guard tests committed, isolated 16-case classification smoke passed | DNS-rebind/Chrome Docker network gateway and zero-private-connection tests absent; full suite unrun |
 | R-168 | S-05.01.04 | 3 | Requests source uses DNS-approved IP for TCP while retaining HTTP Host/TLS identity; local HTTP/HTTPS socket and cert checks passed | Crawl4AI render transport still unpinned; live rebinding, full suite and S-05.01.01 upstream DONE gate outstanding |

@@ -114,6 +114,13 @@ export default function Connectors() {
         notify(`${row.name} connected. Its key is encrypted before it is saved.`, "success");
       }
       setOpenProvider("");
+      // The next saved key may have a different balance; never show its old
+      // predecessor's provider-reported amount as if it belongs to this key.
+      setBalances((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
       providers.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not connect this provider", "error");
@@ -128,6 +135,11 @@ export default function Connectors() {
     try {
       await api.post(`/ai/providers/${row.id}/disconnect`, {});
       notify(`${row.name} disconnected`, "success");
+      setBalances((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
       providers.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not disconnect", "error");

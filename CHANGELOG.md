@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **GTM controlled A/B correction** (`S-12.02.05`, D-268, 2026-10-13, IN_REVIEW): separate expert references from baseline product/campaign notes. Ablation now removes expert notes and the winning template without discarding product facts. The three synthetic GTM examples and packaged suite use the new key; new regression check is committed, unrun. The full suite and live A/B remain unverified.
+
 - **Video product-aware direction and prompt audit** (`S-12.01.03`, 2026-10-13, IN_REVIEW): video director sends linked product facts and owner style through classified broker fields; constant system instructions; bounded `system_prompt` field in all text-call egress logs with additive SQLite/Postgres migration and tests. Full regression, provider and deployment verification still required.
 - **Frontend dependency audit enforcement** (`S-06.02.16`, 2026-10-13, IN_REVIEW): npm audit production and development gates added to CI with regression coverage. The npm registry-backed audit could not run and specific dependency findings are unresolved/unknown; not a clean bill of health.
 - **Reference-informed GTM strategy** (`S-12.02.05`, 2026-10-13, IN_REVIEW): optional expert retrieval and workspace winning templates go through classified fields, A/B removes reference fields only, and GTM eval cases check plan structures. Three synthetic starter cases explicitly cannot qualify for a trusted model-promotion verdict; owner corpus and 30 judged real cases remain absent.

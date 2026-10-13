@@ -298,6 +298,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-265 | 2026-10-09 | bug | medium | Invalid pre-upgrade scheduling dates blocked every valid publication and next-slot allocation. Two reproduced RED tests; quarantine invalid scheduled rows with a safe reference, include failures in publish results, preserve published receipts and continue valid work | fixed · S-12.02.06 |
 | D-266 | 2026-10-11 | security | high | The browser navigation guard does not reject all private and local IP destinations; current source still uses a limited hostname list. Confirmed by an isolated policy-condition check, not a full browser test | in review · `S-03.01.03` |
 | D-267 | 2026-10-11 | security | high | The public-page fetcher checks DNS then makes a separate request without binding the connection to the validated destination; current source confirms the gap, live retest pending | in review · `S-05.01.04` |
+| D-268 | 2026-10-13 | bug | medium | GTM reference A/B discarded non-reference campaign/product notes with expert references, making the two arms measure different product contexts. Confirmed by code inspection; regression committed but pending execution | in review · `S-12.02.05` |
 
 
 

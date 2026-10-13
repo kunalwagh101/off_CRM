@@ -623,16 +623,44 @@ def test_gtm_plan_ablation_preserves_goals_and_removes_only_reference_fields():
     suite = load_suites(SUITE_PATH)["gtm_plan"]
     assert suite.cases
     case = suite.cases[0]
-    assert case.campaign_notes and case.template_text
+    assert case.expert_reference_notes and case.template_text
     empty = without_references(suite)
     before, after = case.to_request(), empty.cases[0].to_request()
     assert before.data_class is DataClass.CAMPAIGN
     assert after.data_class is DataClass.CAMPAIGN
     assert before.instructions == after.instructions
     assert before.positioning_line == after.positioning_line
-    assert not after.campaign_notes
+    assert before.campaign_notes == case.expert_reference_notes
+    assert after.campaign_notes == case.campaign_notes
     assert not after.template_text
     assert len(empty) == len(suite)
+
+
+def test_gtm_plan_ablation_keeps_product_notes_when_expert_context_is_removed():
+    """Only expert citations and the winning template change between A/B arms."""
+    from dataclasses import replace
+    from offsetx_apollo_builder.ai.evals import without_references
+
+    suite = load_suites(SUITE_PATH)["gtm_plan"]
+    original = suite.cases[0]
+    case = replace(
+        original,
+        campaign_notes="Verified product facts: freight checks are automated.",
+        expert_reference_notes="Independent expert guidance: cite shipment data.",
+        template_text="Owner-approved winning copy.",
+    )
+    controlled = replace(suite, cases=(case,))
+    before = case.to_request()
+    after = without_references(controlled).cases[0].to_request()
+    assert before.campaign_notes == (
+        "Verified product facts: freight checks are automated.\n"
+        "Independent expert guidance: cite shipment data."
+    )
+    assert after.campaign_notes == "Verified product facts: freight checks are automated."
+    assert after.positioning_line == before.positioning_line
+    assert after.instructions == before.instructions
+    assert after.data_class == before.data_class
+    assert not after.template_text
 
 
 def test_gtm_plan_ablation_dry_run_doubles_calls_and_warns_on_small_suite(

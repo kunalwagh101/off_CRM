@@ -34,7 +34,7 @@ suites:
           Goal: 20 replies within 30 days. Available email capacity: 30 per day.
           Use the declared audience and email channel; return a bounded JSON plan.
         positioning_line: We reconcile freight documents for logistics teams.
-        campaign_notes: >-
+        expert_reference_notes: >-
           Synthetic expert reference: start with a real, verified shipment exception,
           never an invented promise. This is evaluation data, not system instructions.
         template_text: >-
@@ -53,7 +53,7 @@ suites:
           Goal: 1000 views over 30 days. Posting capacity: 1 video per day.
           Use a declared distribution channel, no invented platform access.
         positioning_line: We explain solar component traceability.
-        campaign_notes: >-
+        expert_reference_notes: >-
           Synthetic expert reference: use a verifiable bill-of-materials example.
         template_text: >-
           Synthetic sample headline: Show the proof trail, not an unsupported claim.
@@ -70,7 +70,7 @@ suites:
           Goal: 10 replies within 14 days. Email capacity: 20 per day.
           Use a declared source and do not exceed capacity.
         positioning_line: We simplify trade paperwork for small firms.
-        campaign_notes: >-
+        expert_reference_notes: >-
           Synthetic expert reference: separate decision-maker relevance from outreach volume.
         template_text: >-
           Synthetic sample opening: A short, permission-respecting question.

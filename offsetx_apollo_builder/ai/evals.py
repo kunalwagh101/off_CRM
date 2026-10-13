@@ -348,6 +348,8 @@ class EvalCase:
     public_text: str = ""
     template_text: str = ""
     campaign_notes: str = ""
+    # Expert citations are a controlled treatment, not baseline product context.
+    expert_reference_notes: str = ""
     positioning_line: str = ""
     checks: tuple[dict[str, Any], ...] = ()
     weight: float = 1.0
@@ -363,7 +365,9 @@ class EvalCase:
             person=self.person,
             public_text=self.public_text,
             template_text=self.template_text,
-            campaign_notes=self.campaign_notes,
+            campaign_notes="\n".join(
+                note for note in (self.campaign_notes, self.expert_reference_notes) if note
+            ),
             positioning_line=self.positioning_line,
         )
 
@@ -400,11 +404,11 @@ def trustworthy_gtm_suite(suite: EvalSuite) -> bool:
 
 
 def without_references(suite: EvalSuite) -> EvalSuite:
-    """A controlled A/B: remove references, keep goal/capacity/plan checks."""
+    """Remove expert references, keeping unchanged product and campaign facts."""
     return replace(
         suite,
         cases=tuple(
-            replace(case, campaign_notes="", template_text="")
+            replace(case, expert_reference_notes="", template_text="")
             for case in suite.cases
         ),
     )
@@ -465,6 +469,7 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
                     public_text=str(case_raw.get("public_text", "")),
                     template_text=str(case_raw.get("template_text", "")),
                     campaign_notes=str(case_raw.get("campaign_notes", "")),
+                    expert_reference_notes=str(case_raw.get("expert_reference_notes", "")),
                     positioning_line=str(case_raw.get("positioning_line", "")),
                     checks=tuple(defaults + list(case_raw.get("checks", ()))),
                     weight=float(case_raw.get("weight", 1.0)),

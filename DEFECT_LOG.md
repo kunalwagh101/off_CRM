@@ -301,6 +301,15 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-268 | 2026-10-13 | bug | medium | GTM reference A/B discarded non-reference campaign/product notes with expert references, making the two arms measure different product contexts. Confirmed by code inspection; regression committed but pending execution | in review · `S-12.02.05` |
 | D-269 | 2026-10-13 | bug | medium | Thirty identically identified GTM eval cases labelled as real were accepted as enough evidence for model promotion. Source review and duplicate-case regression committed; live run pending | in review · `S-12.02.05` |
 | D-270 | 2026-10-13 | gap | high | The deployed Render configuration starts only web services; no independently supervised durable email worker runs queued approved sends. Found by read-only comparison of render.yaml and the existing worker CLI against audit A25; hosting/worker choice remains open | open · `S-06.02.40` |
+| D-271 | 2026-10-13 | gap | medium | Contacts UI fetched at most 500 records without next-page controls; rows beyond 500 were inaccessible. Source review and tests prepared | in review · `S-06.02.41` |
+| D-272 | 2026-10-13 | security | high | Apollo contact text was written directly into CSV/XLSX spreadsheets, allowing formula interpretation. Export-time protection and tests prepared, tests unrun | in review · `S-06.02.42` |
+| D-273 | 2026-10-13 | security | high | Logout deleted the cookie but did not invalidate a copied signed session. Durable token-digest revocation and tests prepared, tests unrun | in review · `S-06.02.43` |
+| D-274 | 2026-10-13 | gap | medium | Contacts could not download the full matching filtered list across pages. A bounded all-pages CSV endpoint and tests prepared, tests unrun | in review · `S-06.02.44` |
+| D-275 | 2026-10-13 | gap | medium | Contacts could not filter its existing server-backed table by category or variant from the screens. Facet endpoint and UI tests prepared | in review · `S-06.02.45` |
+| D-276 | 2026-10-13 | gap | medium | Stored checkbox selections could not be viewed across pagination. SQL-level marked-only view and tests prepared | in review · `S-06.02.46` |
+| D-277 | 2026-10-13 | reliability | medium | Send Queue API returned the entire campaign's full recipient rows with no pagination. Bounded UI endpoint and tests prepared | in review · `S-06.02.47` |
+| D-278 | 2026-10-13 | reporting | medium | Queue dashboard counts were computed from the list on screen instead of separately from full campaign state. Server-wide counters and tests prepared | in review · `S-06.02.48` |
+| D-279 | 2026-10-13 | usability | medium | Queue offered no view isolating ready, needs approval or replied contacts. View filter and tests prepared | in review · `S-06.02.49` |
 
 
 

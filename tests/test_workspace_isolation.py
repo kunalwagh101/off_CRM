@@ -283,6 +283,10 @@ def test_S060236_local_login_requires_explicit_install_owner_confirmation(tmp_pa
         assert all(row["username"] != "second-owner"
                    for row in client.get("/api/v1/workspaces", headers=owner).json()["items"])
 
+        wrong_type = client.post("/api/v1/workspaces", headers=owner,
+                                 json={**payload, "confirm_install_owner": "true"})
+        assert wrong_type.status_code == 422
+
         no_access = client.post("/api/v1/workspaces",
                                 json={**payload, "confirm_install_owner": True})
         assert no_access.status_code == 403

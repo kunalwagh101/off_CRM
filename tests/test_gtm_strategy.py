@@ -536,6 +536,45 @@ def test_the_request_the_brain_sends_is_campaign_class_with_the_product_classifi
     assert plan["provider_id"] == "mistral"
 
 
+def test_gtm_references_are_classified_not_smuggled_into_instructions(client, monkeypatch):
+    product_id = client.post("/api/v1/gtm/products", json=PRODUCT_BODY).json()["id"]
+    experts = [{
+        "id": "expert-001", "document_name": "Sourcing handbook",
+        "content": "Compare three buying triggers before outreach; never fabricate proof."
+    }]
+    monkeypatch.setattr(client.app.state.engine.store, "search_expert_chunks",
+                        lambda query, *, limit=4: experts[:limit])
+    monkeypatch.setattr(client.app.state.ai_context, "reference_for_models",
+                        lambda workspace_id: "Winning opening: show a customer case study first")
+    seen = _spy(client, monkeypatch, text=reply())
+    result = client.post("/api/v1/gtm/plans", json={
+        "product_id": product_id, "goal_kind": "replies", "goal_target": 20,
+    })
+    assert result.status_code == 201, result.text
+    sent = seen["requests"][-1]
+    assert "Compare three buying triggers" in sent.campaign_notes
+    assert "Winning opening" in sent.template_text
+    assert "Winning opening" not in sent.instructions
+    assert "Compare three buying triggers" not in sent.instructions
+    assert "Winning opening" not in seen["system_prompts"][-1]
+    assert "Compare three buying triggers" not in seen["system_prompts"][-1]
+    assert any("1 expert excerpt" in n and "winning template" in n for n in result.json()["notes"])
+
+
+def test_gtm_minimal_policy_says_reference_text_was_not_sent(client, monkeypatch):
+    product_id = client.post("/api/v1/gtm/products", json=PRODUCT_BODY).json()["id"]
+    monkeypatch.setattr(client.app.state.engine.store, "search_expert_chunks",
+                        lambda query, *, limit=4: [{"id": "one", "document_name": "Guide",
+                                                    "content": "Use peer benchmarks"}])
+    seen = _spy(client, monkeypatch, text=reply(), policy="minimal")
+    result = client.post("/api/v1/gtm/plans", json={
+        "product_id": product_id, "goal_kind": "replies", "goal_target": 20,
+    })
+    assert result.status_code == 201, result.text
+    assert seen["requests"][-1].campaign_notes
+    assert any("references were not sent" in note.lower() for note in result.json()["notes"])
+
+
 def test_forbidden_claim_never_survives_into_a_stored_plan(client, monkeypatch):
     product_id = client.post("/api/v1/gtm/products", json=PRODUCT_BODY).json()["id"]
     _spy(client, monkeypatch, text=reply(summary="Results guaranteed in a week."))

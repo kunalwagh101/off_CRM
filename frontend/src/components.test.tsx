@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Badge, Button, PageHeader, Progress, StatePanel, StatCard, StorageNote, storageWording } from "./components";
-import { LoginScreen, focusMainContent } from "./App";
+import { LoginScreen, focusMainContent, skipToMainContent } from "./App";
 import { AppContext } from "./context";
 import { stageLabel } from "./hooks";
 import SalesTracker, { formatSalesMoney } from "./pages/SalesTracker";
@@ -226,6 +226,32 @@ describe("keyboard and screen-reader contract", () => {
       (globalThis as Record<string, unknown>).document = previousDocument;
     }
   });
+
+  it.each(["#settings", "#contacts"])(
+    "skip to content keeps route %s on keyboard/pointer activation",
+    (route) => {
+      const calls: string[] = [];
+      const oldWindow = globalThis.window;
+      const oldDocument = globalThis.document;
+      (globalThis as Record<string, unknown>).window = {
+        location: { hash: route },
+        requestAnimationFrame: (callback: () => void) => { callback(); return 1; },
+        scrollTo: () => calls.push("scroll")
+      };
+      (globalThis as Record<string, unknown>).document = {
+        getElementById: (id: string) =>
+          id === "main-content" ? { focus: () => calls.push("focus") } : null
+      };
+      try {
+        skipToMainContent({ preventDefault: () => calls.push("prevent") });
+        expect(calls).toEqual(["prevent", "focus", "scroll"]);
+        expect(window.location.hash).toBe(route);
+      } finally {
+        (globalThis as Record<string, unknown>).window = oldWindow;
+        (globalThis as Record<string, unknown>).document = oldDocument;
+      }
+    }
+  );
 
   it("uses native interactive elements instead of click-only divs/spans", () => {
     const offenders: string[] = [];

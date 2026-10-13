@@ -22,4 +22,4 @@ The GitHub connector can read/commit private source, but the local execution con
 Export fails if more than 50,000 rows match. In-flight exports use a single database snapshot and may wait on writer locks; measure large campaigns before release. Existing authorization design for multi-workspace CRM ownership is still Q-27, not silently solved here.
 
 ## Defect tracking
-New functional gaps recorded as **D-274** (no filtered list export), **D-275** (category/variant selectors unavailable), **D-276** (marked contacts cannot be viewed across pages). The central `DEFECT_LOG.md` had connector write failures in the previous batch; reconcile these references before any DONE claim.
+New functional gaps recorded as **D-274** (no filtered list export), **D-275** (category/variant selectors unavailable), **D-276** (marked contacts cannot be viewed across pages). The central `DEFECT_LOG.md` has since been updated with D-274–D-276 (develop commit d6dd98d); test and deployment gates remain open.

@@ -2922,3 +2922,7 @@ Next three areas requested by owner: reliable Git board verification (S-06.02.20
 
 ## 2026-10-13 latest owner-authorised three-story batch
 Implemented and pushed on develop: S-06.02.37 skip-link click handler + two route regression cases; S-03.01.03 deny internal literal hosts and noncanonical aliases in browser policy + guard tests; S-05.01.04 Requests DNS-IP-pinned HTTP/HTTPS transport + regression cases. Each is IN_REVIEW; see `docs/evidence/S-06.02.37-validation.md`, `docs/evidence/S-03.01.03-validation.md`, `docs/evidence/S-05.01.04-validation.md`. Full repo tests, real Chromium, Docker firewall and Crawl4AI protections remain open. S-06.02.23 continues IN_PROGRESS. Main unaffected.
+
+## 2026-10-13 owner-selected latest three stories
+
+Active branch: `develop` only. Newly selected: `S-06.02.36` (explicit install-owner login confirmation), `S-06.02.28` (path-aware CLI restore leases with shared local dotenv defaults), `S-06.02.34` (local AI provider usage, classified reporting support, OpenRouter/DeepSeek on-demand balance). Code, tests and work orders were committed for all three. They are **IN_REVIEW, NOT DONE**: full Python/front-end tests, CI, real restore contention and live vendor endpoints were not executed in this environment. Provider response-header quota capture remains unimplemented and must not be described as available. See individual evidence files. The production-audit S-06.02.23 stays the only IN_PROGRESS story; main untouched.

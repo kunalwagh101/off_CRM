@@ -144,13 +144,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-05.01.04 · Public-page fetches connect only to checked destinations
-  work_order: docs/work-orders/S-05.01.04-verified-destinations.md
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-05.01.04 · Public-page fetches connect only to checked destinations
+  work_order: docs/work-orders/S-05.01.04-verified-destinations.md
+  review: docs/evidence/S-05.01.04-validation.md; pinned HTTP/TLS source patch, browser egress and full suite pending; upstream S-05.01.01 IN_REVIEW
 
 - S-03.01.03 · Browser blocks internal network access
   work_order: docs/work-orders/S-03.01.03-network-isolation.md

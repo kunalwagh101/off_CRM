@@ -3,7 +3,7 @@ import { ApiError, api } from "../api";
 import { Badge, Button, Field, PageHeader, Panel } from "../components";
 import { useApp } from "../context";
 import { useResource } from "../hooks";
-import type { AIProviderRow, AIProvidersPayload, StatusPayload } from "../types";
+import type { AIProviderRow, AIProvidersPayload, ProviderBalance, StatusPayload } from "../types";
 import CapPicker, { CALL_CAP_PRESETS, SPEND_CAP_PRESETS, readCap } from "./CapPicker";
 import ModelPicker from "./ModelPicker";
 import {
@@ -68,6 +68,7 @@ export default function Connectors() {
   // remounted with its own state closed the section after every change.
   const [trustFor, setTrustFor] = useState<string>("");
   const [showBlocked, setShowBlocked] = useState(false);
+  const [balances, setBalances] = useState<Record<string, ProviderBalance>>({});
 
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
   const status = useResource(() => api.get<StatusPayload>("/settings/status"), []);
@@ -130,6 +131,20 @@ export default function Connectors() {
       providers.reload();
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not disconnect", "error");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function checkBalance(row: AIProviderRow) {
+    setBusy(`balance-${row.id}`);
+    try {
+      const result = await api.post<ProviderBalance>(
+        `/ai/providers/${row.id}/balance`, {}
+      );
+      setBalances((current) => ({ ...current, [row.id]: result }));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not check provider balance", "error");
     } finally {
       setBusy("");
     }
@@ -352,6 +367,8 @@ export default function Connectors() {
                         row={row}
                         open={openProvider === row.id}
                         busy={busy}
+                        balance={balances[row.id]}
+                        onCheckBalance={() => checkBalance(row)}
                         showModels={modelsFor === row.id}
                         onToggle={() => setOpenProvider(openProvider === row.id ? "" : row.id)}
                         onModels={() => setModelsFor(modelsFor === row.id ? "" : row.id)}
@@ -406,6 +423,8 @@ function ProviderCard({
   row,
   open,
   busy,
+  balance,
+  onCheckBalance,
   showModels,
   onToggle,
   onModels,
@@ -421,6 +440,8 @@ function ProviderCard({
   row: AIProviderRow;
   open: boolean;
   busy: string;
+  balance?: ProviderBalance;
+  onCheckBalance: () => void;
   showModels: boolean;
   onToggle: () => void;
   onModels: () => void;
@@ -521,12 +542,34 @@ function ProviderCard({
         </p>
       ) : null}
 
-      {usage && (usage.day_limit > 0 || usage.minute_limit > 0) ? (
-        <p className="provider-usage">
-          Used today: {usage.day_used}
-          {usage.day_limit > 0 ? ` / ${usage.day_limit}` : ""} · counted by off_CRM
-          {usage.exhausted ? <em className="provider-warn"> Out of quota — skipped until it resets.</em> : null}
-        </p>
+      {row.connected ? (
+        <div className="provider-usage" aria-label={`Usage for ${row.name}`}>
+          {usage ? (
+            <p>
+              Used today: {usage.day_used}
+              {usage.day_limit > 0 ? ` / ${usage.day_limit}` : " · no local daily cap configured"}
+              {" "}· counted by off_CRM (UTC day)
+              {usage.exhausted ? <em className="provider-warn"> Local cap reached; calls are paused.</em> : null}
+            </p>
+          ) : <p>Local usage counter is not available for this provider.</p>}
+          {row.usage_report === "balance_endpoint" ? (
+            <>
+              <Button tone="secondary" busy={busy === `balance-${row.id}`} onClick={onCheckBalance}>Check provider balance</Button>
+              {balance?.supported ? (
+                <p role="status">
+                  {balance.available && balance.remaining != null
+                    ? `Provider-reported ${balance.kind === "key_spend_limit" ? "remaining key spend limit" : "account balance"}: ${balance.remaining} ${balance.unit}`
+                    : balance.description || "No provider balance is available"}
+                  {balance.checked_at ? ` · checked ${new Date(balance.checked_at).toLocaleString()}` : ""}
+                </p>
+              ) : null}
+            </>
+          ) : row.usage_report === "rate_limit_headers" ? (
+            <p>Provider reports rate limits in response headers; off_CRM does not yet display a verified remaining amount.</p>
+          ) : (
+            <p>{row.name} does not report a supported remaining quota to off_CRM.</p>
+          )}
+        </div>
       ) : null}
 
       {row.self_hostable && row.effective_tier === "C" ? (

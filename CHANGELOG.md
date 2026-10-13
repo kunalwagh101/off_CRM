@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Skip link keeps current CRM screen** (`S-06.02.37`, 2026-10-13, IN_REVIEW): prevent the skip-link's `#main-content` anchor from rewriting the hash router to Dashboard; focus and scroll main without navigation, with Settings and Contacts regression cases. Full frontend/browser suite remains unrun.
+
 - **Shallow Git ancestry verification** (`S-06.02.20`, 2026-10-13, IN_REVIEW): board verification now identifies insufficient history and says `git fetch --unshallow`, instead of falsely accusing historical evidence. Adds real depth-one clone regression and requires full-history checkout for both GitHub Actions jobs. Three isolated Git tests passed; the repository suite and CI remain unrun.
 
 - **Accept short low-bitrate WebM exports** (`S-06.02.39`, in review, 2026-10-12): valid 2-second VP9 videos no longer fail only because they compress to fewer than 4096 bytes. Small WebM files now need evidence of real video blocks; metadata-only and malformed exports remain refused. Added a real independent 60-frame VP9 fixture and targeted tests. Isolated sample/ffprobe checks passed; full Python, frontend and browser validation remains open.

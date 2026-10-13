@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **GTM real-case uniqueness guard** (`S-12.02.05`, D-269, 2026-10-13, IN_REVIEW): a minimum 30-case suite now requires distinct case IDs as well as the explicitly judged-real label. Add a repeated-case regression; no real corpus or executable full-suite results yet.
+
 - **GTM controlled A/B correction** (`S-12.02.05`, D-268, 2026-10-13, IN_REVIEW): separate expert references from baseline product/campaign notes. Ablation now removes expert notes and the winning template without discarding product facts. The three synthetic GTM examples and packaged suite use the new key; new regression check is committed, unrun. The full suite and live A/B remain unverified.
 
 - **Video product-aware direction and prompt audit** (`S-12.01.03`, 2026-10-13, IN_REVIEW): video director sends linked product facts and owner style through classified broker fields; constant system instructions; bounded `system_prompt` field in all text-call egress logs with additive SQLite/Postgres migration and tests. Full regression, provider and deployment verification still required.

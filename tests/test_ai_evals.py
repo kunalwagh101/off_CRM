@@ -616,6 +616,14 @@ def test_unjudged_gtm_cases_cannot_fake_a_30_case_verdict():
     assert judged_gtm_case_count(thirty_real) == 30
     assert trustworthy_gtm_suite(thirty_real)
 
+    repeated_real = replace(
+        original,
+        cases=tuple(replace(case, evidence_origin="judged_real")
+                    for case in original.cases * 10),
+    )
+    assert judged_gtm_case_count(repeated_real) == 30
+    assert not trustworthy_gtm_suite(repeated_real)
+
 
 def test_gtm_plan_ablation_preserves_goals_and_removes_only_reference_fields():
     from offsetx_apollo_builder.ai.evals import without_references

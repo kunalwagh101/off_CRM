@@ -400,6 +400,7 @@ def trustworthy_gtm_suite(suite: EvalSuite) -> bool:
         suite.id == "gtm_plan"
         and len(suite.cases) >= 30
         and judged_gtm_case_count(suite) == len(suite.cases)
+        and len({case.id for case in suite.cases}) == len(suite.cases)
     )
 
 

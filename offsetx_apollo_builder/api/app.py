@@ -3099,7 +3099,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/performance")
     def campaign_performance_endpoint(campaign_id: str, request: Request) -> dict[str, Any]:
-        return _engine(request).store.campaign_performance(campaign_id)
+        store = _engine(request).store
+        # A campaign can receive a reply while these aggregate queries run.
+        # Use one consistent DB snapshot instead of mixing counts from before
+        # and after that reply; no writer or sender is called from this route.
+        with store.transaction():
+            if store.backend == "postgres":
+                store.connection.execute(
+                    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+                )
+            return store.campaign_performance(campaign_id)
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:

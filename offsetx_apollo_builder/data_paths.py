@@ -49,3 +49,15 @@ def gmail_token_path(root: Path | str | None = None) -> Path | None:
     base = Path(root or Path.cwd()).resolve()
     value = os.getenv("OFFSETX_GMAIL_TOKEN", str(data_dir(base) / "gmail_token.json")).strip()
     return resolved(value, base) if value else None
+
+
+def load_project_env(root: Path | str | None = None) -> None:
+    """Load the same optional local .env for each CLI before resolving paths.
+
+    Explicit shell environment variables win, as for the web entry point.
+    This never creates or writes an environment file.
+    """
+    from dotenv import load_dotenv
+
+    base = Path(root or Path.cwd()).resolve()
+    load_dotenv(dotenv_path=base / ".env", override=False)

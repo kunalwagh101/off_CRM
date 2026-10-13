@@ -351,6 +351,7 @@ class EvalCase:
     positioning_line: str = ""
     checks: tuple[dict[str, Any], ...] = ()
     weight: float = 1.0
+    evidence_origin: str = "unverified"
 
     def to_request(self) -> EgressRequest:
         """Build the egress request.  The broker applies policy to it as usual —
@@ -380,6 +381,22 @@ class EvalSuite:
 
     def __len__(self) -> int:
         return len(self.cases)
+
+
+def judged_gtm_case_count(suite: EvalSuite) -> int:
+    """Owner-labelled real cases, not generated smoke fixtures, are evidence."""
+    if suite.id != "gtm_plan":
+        return len(suite.cases)
+    return sum(case.evidence_origin == "judged_real" for case in suite.cases)
+
+
+def trustworthy_gtm_suite(suite: EvalSuite) -> bool:
+    """Never promote a model using generated or unreviewed examples."""
+    return (
+        suite.id == "gtm_plan"
+        and len(suite.cases) >= 30
+        and judged_gtm_case_count(suite) == len(suite.cases)
+    )
 
 
 def without_references(suite: EvalSuite) -> EvalSuite:
@@ -451,6 +468,7 @@ def load_suites(path: Path | str) -> dict[str, EvalSuite]:
                     positioning_line=str(case_raw.get("positioning_line", "")),
                     checks=tuple(defaults + list(case_raw.get("checks", ()))),
                     weight=float(case_raw.get("weight", 1.0)),
+                    evidence_origin=str(case_raw.get("evidence_origin", "unverified")),
                 )
             )
         if not cases:

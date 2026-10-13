@@ -576,6 +576,42 @@ def test_cli_rejects_an_unknown_suite(capsys, tmp_path):
     assert "No suite named" in capsys.readouterr().out
 
 
+def test_gtm_plan_ablation_preserves_goals_and_removes_only_reference_fields():
+    from offsetx_apollo_builder.ai.evals import without_references
+
+    suite = load_suites(SUITE_PATH)["gtm_plan"]
+    assert suite.cases
+    case = suite.cases[0]
+    assert case.campaign_notes and case.template_text
+    empty = without_references(suite)
+    before, after = case.to_request(), empty.cases[0].to_request()
+    assert before.data_class is DataClass.CAMPAIGN
+    assert after.data_class is DataClass.CAMPAIGN
+    assert before.instructions == after.instructions
+    assert before.positioning_line == after.positioning_line
+    assert not after.campaign_notes
+    assert not after.template_text
+    assert len(empty) == len(suite)
+
+
+def test_gtm_plan_ablation_dry_run_doubles_calls_and_warns_on_small_suite(
+        capsys, tmp_path, monkeypatch):
+    from offsetx_apollo_builder.ai import eval_cli
+
+    store = eval_cli.WorkspaceAISettingsStore(tmp_path, eval_cli.ProviderRegistry())
+    store.connect_provider("local", "mistral", api_key="k")
+    def cannot_call(*a, **k):
+        raise AssertionError("dry run must not call a model")
+    monkeypatch.setattr(eval_cli.EvalRunner, "run_model", cannot_call)
+    code = eval_cli.main(["--data-dir", str(tmp_path), "run", "--suite", "gtm_plan",
+                          "--ablate", "references", "--dry-run"])
+    out = capsys.readouterr().out
+    assert code == 0
+    count = len(load_suites(SUITE_PATH)["gtm_plan"])
+    assert f"calls     : ~{count * 2}" in out
+    assert "no verdict is trustworthy yet" in out.lower()
+
+
 def test_cli_dry_run_sends_nothing(capsys, tmp_path, monkeypatch):
     """The plan and the call count, without spending tokens."""
     from offsetx_apollo_builder.ai import eval_cli

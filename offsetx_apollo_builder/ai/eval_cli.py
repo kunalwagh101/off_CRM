@@ -29,7 +29,7 @@ from ..db import resolve_target
 from ..db.hosted import SECRETS_KEY_ENV, HostedStorage
 from ..outreach.workspace_lock import cli_workspace_lease
 from .broker import EgressBroker
-from .evals import EvalRunner, default_evals_path, load_suites, suite_summary
+from .evals import EvalRunner, default_evals_path, load_suites, suite_summary, without_references
 from .log import EgressLog
 from .modes import ModeRunner
 from .quota import QuotaTracker
@@ -107,6 +107,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"No suite named {args.suite!r}. Known: {', '.join(sorted(suites))}")
         return 2
 
+    ablate = str(getattr(args, "ablate", "") or "")
+    if ablate and (ablate != "references" or suite.id != "gtm_plan"):
+        print("--ablate references is supported only for the gtm_plan suite.")
+        return 2
+    if ablate and args.modes:
+        print("Choose either --ablate references or --modes; a mode is not an A/B model.")
+        return 2
+
     settings = workspaces.egress_settings(args.workspace)
     if not settings.enabled_provider_ids:
         print(
@@ -126,7 +134,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             subjects.append((provider_id, ""))
 
     modes = ["compare", "orchestrated"] if args.modes else []
-    calls = len(subjects) * len(suite.cases) + len(modes) * len(suite.cases) * 3
+    calls = len(subjects) * len(suite.cases) * (2 if ablate else 1) + len(modes) * len(suite.cases) * 3
 
     print(f"suite     : {suite.id} ({len(suite.cases)} cases)")
     print(f"models    : {', '.join(f'{p}:{m}' if m else p for p, m in subjects)}")
@@ -134,12 +142,16 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"modes     : {', '.join(modes)}")
     print(f"calls     : ~{calls}")
     print()
+    if suite.id == "gtm_plan" and len(suite.cases) < 30:
+        print(f"Only {len(suite.cases)} cases: no verdict is trustworthy yet. "
+              f"Add {30-len(suite.cases)} judged real cases before promotion.")
     if args.dry_run:
         print("Dry run. Nothing was sent.")
         return 0
 
     runner = EvalRunner(broker)
     reports = []
+    comparisons = []
     for provider_id, model_id in subjects:
         label = f"{provider_id}:{model_id}" if model_id else provider_id
         print(f"  running {label} ...", flush=True)
@@ -148,6 +160,21 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         board.record(report, workspace_id=args.workspace)
         reports.append(report)
+        if ablate:
+            stripped = runner.run_model(
+                without_references(suite), settings,
+                provider_id=provider_id, model_id=model_id,
+            )
+            comparisons.append((label, report.score, stripped.score))
+
+    if ablate:
+        print()
+        print("REFERENCE A/B (same tasks, goals and scoring checks)")
+        for label, with_refs, without_refs in comparisons:
+            print(f"  {label}: with {with_refs:.3f}; without {without_refs:.3f}")
+    if suite.id == "gtm_plan" and len(suite.cases) < 30:
+        print("No champion promoted: no verdict is trustworthy yet.")
+        return 0
 
     champion = best_of(reports)
     mode_reports = []
@@ -252,6 +279,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--modes",
         action="store_true",
         help="also score compare and orchestrated, and decide the routing",
+    )
+    run.add_argument(
+        "--ablate", choices=("references",), default="",
+        help="for gtm_plan, compare each model with and without reference fields",
     )
     run.add_argument(
         "--dry-run",

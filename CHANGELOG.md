@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **F-06.10 Reply Inbox & Human Triage** (IN_REVIEW, 2026-10-14): authenticated per-campaign reply inbox, review/outcome classification, metadata-only events, and linked human follow-up creation. Triage does not resume or send messages.
+- **F-06.11 Contact Communication History** (IN_REVIEW): campaign-membership scoped inbound/outbound message timeline with bounded subject/body, SQL-level pagination, no raw provider JSON and new Contacts/Reply Inbox access.
+- **F-06.12 Human Follow-up Task Manager** (IN_REVIEW): durable task list and create/edit/complete/reopen, due dates and display-only assignments, stale-revision 409 protection. Additive two-table SQLite v10 and PostgreSQL CRM step 2 migration; hosted backup/restore a release gate.
+- New Python/Vitest and hosted-store count/migration test source prepared. **Not executed**: CI jobs previously terminated with zero steps; SQLite/PostgreSQL, full suite, browser and restore acceptance remain required.
+
+
 - **Audience Management Workspace** (`F-06.07`, IN_REVIEW, 2026-10-14): manual contact entry with deduplicated email linking, explicit at-most-100-row batch mark/unmark/stop and confirmation; existing imports, sender and contact editor remain unchanged. API and frontend tests authored; not executed.
 - **Campaign Launch Readiness Center** (`F-06.08`, IN_REVIEW): nonmutating campaign preparation checks for active status, audience, approved/due candidates and daily cap. It does not certify external mail, consent, suppression, provider availability or final send preflight.
 - **Campaign Activity & Audit Timeline** (`F-06.09`, IN_REVIEW): campaign event facets, exact server event-type filtering, 50-row paginated accessible history and allowlisted visible metadata. Existing event response remains compatible.

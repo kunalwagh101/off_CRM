@@ -87,6 +87,7 @@ from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 from ..outreach.engine import OutreachEngine
 from ..outreach.email_expert import route_for_category
 from ..outreach.launch import launch_readiness
+from ..outreach.relationships import CampaignRelationships, TaskConflictError
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
@@ -155,6 +156,9 @@ from .schemas import (
     CampaignCreate,
     CampaignClone,
     CampaignUpdate,
+    ReplyTriageUpdate,
+    FollowupTaskCreate,
+    FollowupTaskUpdate,
     ContactCreate,
     ContactBulkAction,
     ContactUpdate,
@@ -3117,6 +3121,84 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/replies/inbox")
+    def reply_inbox(
+        campaign_id: str, request: Request,
+        limit: int = Query(50, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+        review_status: str = Query("all", pattern="^(all|unreviewed|triaged)$"),
+        outcome: str = Query("", pattern="^(|positive|neutral|negative|meeting|not_interested|wrong_person)$"),
+    ) -> dict[str, Any]:
+        return CampaignRelationships(_engine(request).store).inbox(
+            campaign_id, limit=limit, offset=offset,
+            review_status=review_status, outcome=outcome,
+        )
+
+    @app.patch(f"{API_PREFIX}/campaigns/{{campaign_id}}/replies/{{campaign_contact_id}}/triage")
+    def triage_reply(
+        campaign_id: str, campaign_contact_id: str,
+        body: ReplyTriageUpdate, request: Request,
+    ) -> dict[str, Any]:
+        with request.app.state.campaign_locks.hold(campaign_id):
+            return CampaignRelationships(_engine(request).store).triage(
+                campaign_id, campaign_contact_id,
+                review_status=body.review_status, outcome=body.outcome,
+                note=body.note,
+            )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/{{campaign_contact_id}}/messages")
+    def contact_messages(
+        campaign_id: str, campaign_contact_id: str, request: Request,
+        limit: int = Query(50, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CampaignRelationships(_engine(request).store).conversation(
+            campaign_id, campaign_contact_id, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/followups")
+    def followup_tasks(
+        campaign_id: str, request: Request,
+        limit: int = Query(50, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+        status: str = Query("open", pattern="^(open|done|all)$"),
+        overdue_only: bool = Query(False),
+    ) -> dict[str, Any]:
+        return CampaignRelationships(_engine(request).store).list_tasks(
+            campaign_id, limit=limit, offset=offset,
+            status=status, overdue_only=overdue_only,
+        )
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/followups", status_code=201)
+    def create_followup(
+        campaign_id: str, body: FollowupTaskCreate, request: Request,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict[str, Any]:
+        engine = _engine(request)
+
+        def operation() -> dict[str, Any]:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                return CampaignRelationships(engine.store).create_task(
+                    campaign_id, **body.model_dump()
+                )
+
+        return _idempotent(
+            engine, f"followup_create:{campaign_id}", idempotency_key, operation
+        )
+
+    @app.patch(f"{API_PREFIX}/campaigns/{{campaign_id}}/followups/{{task_id}}")
+    def update_followup(
+        campaign_id: str, task_id: str,
+        body: FollowupTaskUpdate, request: Request,
+    ) -> dict[str, Any]:
+        try:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                return CampaignRelationships(_engine(request).store).update_task(
+                    campaign_id, task_id, **body.model_dump(exclude_unset=True)
+                )
+        except TaskConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/launch-readiness")
     def campaign_launch_readiness(campaign_id: str, request: Request) -> dict[str, Any]:

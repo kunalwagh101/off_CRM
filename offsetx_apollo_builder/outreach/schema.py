@@ -4,7 +4,7 @@ import re
 #: `offcrm_schema` (component "crm"), which started at 1 with this schema whole.
 #: Changing the schema after that means a step for each: `_migrate_legacy_schema`
 #: for SQLite files, and a new entry in `store._POSTGRES_STEPS`.
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 #: Indexes over columns that arrived through a migration. They cannot live in
@@ -695,7 +695,46 @@ CREATE INDEX IF NOT EXISTS idx_email_events_recipient
 ON email_delivery_events(recipient_email, occurred_at DESC);
 """
 
-SCHEMA_SQL = SCHEMA_SQL + _EMAIL_DELIVERY_SCHEMA
+_RELATIONSHIP_SCHEMA = """
+CREATE TABLE IF NOT EXISTS campaign_reply_triage (
+    campaign_contact_id TEXT PRIMARY KEY REFERENCES campaign_contacts(id) ON DELETE CASCADE,
+    review_status TEXT NOT NULL DEFAULT 'unreviewed'
+        CHECK(review_status IN ('unreviewed', 'triaged')),
+    outcome TEXT NOT NULL DEFAULT ''
+        CHECK(outcome IN ('', 'positive', 'neutral', 'negative', 'meeting',
+                          'not_interested', 'wrong_person')),
+    note TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_reply_triage_review
+ON campaign_reply_triage(review_status, outcome);
+
+CREATE TABLE IF NOT EXISTS campaign_followup_tasks (
+    id TEXT PRIMARY KEY,
+    campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    campaign_contact_id TEXT REFERENCES campaign_contacts(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    assigned_to TEXT NOT NULL DEFAULT '',
+    due_at TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'normal'
+        CHECK(priority IN ('normal', 'high')),
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK(status IN ('open', 'done')),
+    revision BIGINT NOT NULL DEFAULT 1,
+    completed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_followup_tasks_campaign_due
+ON campaign_followup_tasks(campaign_id, status, due_at, id);
+CREATE INDEX IF NOT EXISTS idx_followup_tasks_contact
+ON campaign_followup_tasks(campaign_contact_id, created_at DESC);
+"""
+
+SCHEMA_SQL = SCHEMA_SQL + _EMAIL_DELIVERY_SCHEMA + _RELATIONSHIP_SCHEMA
 
 #: Every table the CRM owns, read from the schema itself so a new table cannot
 #: be missed by the copy tool or a count. The FTS5 index is not one: SQLite

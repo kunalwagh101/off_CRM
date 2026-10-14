@@ -164,6 +164,46 @@ class ContactBulkAction(StrictModel):
         return values
 
 
+class ReplyTriageUpdate(StrictModel):
+    review_status: Literal["unreviewed", "triaged"]
+    outcome: Literal["", "positive", "neutral", "negative", "meeting",
+                     "not_interested", "wrong_person"] = ""
+    note: str = Field(default="", max_length=1000)
+
+
+class FollowupTaskCreate(StrictModel):
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=2000)
+    assigned_to: str = Field(default="", max_length=100)
+    campaign_contact_id: str | None = Field(default=None, max_length=100)
+    due_at: datetime
+    priority: Literal["normal", "high"] = "normal"
+
+    @field_validator("due_at")
+    @classmethod
+    def time_with_zone(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Due time must specify a timezone")
+        return value
+
+
+class FollowupTaskUpdate(StrictModel):
+    revision: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
+    assigned_to: str | None = Field(default=None, max_length=100)
+    due_at: datetime | None = None
+    priority: Literal["normal", "high"] | None = None
+    status: Literal["open", "done"] | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def time_with_zone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("Due time must specify a timezone")
+        return value
+
+
 class ContactUpdate(StrictModel):
     checkbox: bool | None = None
     full_name: str | None = Field(default=None, max_length=200)

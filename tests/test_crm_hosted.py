@@ -152,7 +152,7 @@ def test_every_crm_table_is_counted(crm_target):
                 )
             }
         assert set(store.table_counts()) == made == set(CRM_TABLES)
-        assert len(CRM_TABLES) == 31
+        assert len(CRM_TABLES) == 33  # reply triage and human follow-up task tables
 
 
 def test_a_duplicate_is_refused_as_the_backends_integrity_error(crm_target):

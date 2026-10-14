@@ -202,3 +202,14 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-172 | F-06.09 | 3 | `tests/test_audience_launch_activity.py`, `frontend/src/pages/AudienceLaunchActivity.test.tsx` | `offsetx_apollo_builder/outreach/store.py`, `frontend/src/pages/CampaignActivity.tsx` |
 
 No executed verification or DONE claim for these requirements.
+
+
+## 2026-10-14 — Relationship workflow product features (IN_REVIEW)
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-173 | F-06.10 | 3 | `tests/test_relationship_workflows.py`, `frontend/src/pages/RelationshipWorkflows.test.tsx` | `outreach/relationships.py`, `api/app.py`, `frontend/src/pages/ReplyInbox.tsx` |
+| R-174 | F-06.11 | 3 | `tests/test_relationship_workflows.py`, `frontend/src/pages/RelationshipWorkflows.test.tsx` | `outreach/relationships.py`, `frontend/src/pages/ContactConversation.tsx`, `Contacts.tsx` |
+| R-175 | F-06.12 | 3 | `tests/test_relationship_workflows.py`, `tests/test_crm_hosted.py`, `frontend/src/pages/RelationshipWorkflows.test.tsx` | `outreach/{schema,store,relationships}.py`, `frontend/src/pages/Followups.tsx` |
+
+All three remain IN_REVIEW; tests, migration and hosted rollback/restore still require actual execution.

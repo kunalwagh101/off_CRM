@@ -316,6 +316,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-283 | 2026-10-14 | gap | medium | Contacts screen had no manual single-contact entry or safe explicit bulk stop, forcing a file import or per-row edits. Code, UI and tests prepared; verification pending | in review · `F-06.07` |
 | D-284 | 2026-10-14 | gap | medium | The CRM had no read-only campaign-level readiness explanation before sending, making approval/schedule/limit problems hard to see. Code and tests prepared; verification pending | in review · `F-06.08` |
 | D-285 | 2026-10-14 | usability | medium | Existing campaign events were accessible through the API but not from a paginated, filtered audit timeline in the interface. Source and tests prepared; execution pending | in review · `F-06.09` |
+| D-286 | 2026-10-14 | product gap | medium | Actual incoming replies had no campaign-level review inbox or per-campaign outcome, making received conversations hard to triage. Implemented in source with tests authored; not yet executed | in review · `F-06.10` |
+| D-287 | 2026-10-14 | product gap | medium | A campaign contact had no in-product chronological message history; mail context was scattered. Bounded member-only history API and UI authored; verification pending | in review · `F-06.11` |
+| D-288 | 2026-10-14 | reliability gap | medium | No persistent per-campaign human follow-up worklist with owner, due dates and conflict-safe completion. New schema/API/UI and tests authored; migration and restore execution pending | in review · `F-06.12` |
 
 
 

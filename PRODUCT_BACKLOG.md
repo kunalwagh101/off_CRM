@@ -2297,3 +2297,28 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - **Given** an event-type filter, **when** selected, **then** the server counts and returns only events of that exact type; event choices are derived from current campaign records.
 - **Given** potentially sensitive historical payloads, **when** events are displayed, **then** only whitelisted operation/count metadata is shown, never raw message/customer content. Historical events are unchanged.
 - **Dependencies:** existing campaign event writer and auth (DONE). **Size:** L. **Feature design:** `docs/features/campaign-activity-timeline.md`.
+
+
+### F-06.10 — Reply Inbox & Human Triage  *(E-06, product feature)*
+
+**As a** campaign operator, **I want** a central review inbox of received responses, **so that** I can prioritise real conversations and plan human next steps.
+- **Given** a received campaign reply, **when** it is saved by the existing sync engine, **then** the newest message appears in a bounded, paginated conversation list, initially unreviewed.
+- **Given** an authorised review decision, **when** I assign a valid outcome and note, **then** that campaign membership's triage state updates without changing shared global contact outcome, canceling reply-stop protection or sending mail.
+- **Given** another campaign's membership ID, **when** read or updated, **then** it is not leaked or modified.
+- **Dependencies:** existing CRM inbound messages and protected campaign routes (DONE). **Size:** L. **Feature spec:** `docs/features/reply-inbox-triage.md`.
+
+### F-06.11 — Contact Communication History  *(E-06, product feature)*
+
+**As a** campaign operator, **I want** a chronology of messages for one campaign contact, **so that** I can understand what was sent and received before following up.
+- **Given** a campaign member with sent and received mail, **when** History opens from Contacts or Reply Inbox, **then** the server returns only this member's timestamped correspondence, newest-first, in bounded pages.
+- **Given** message bodies longer than 2,000 characters, **when** presented, **then** a truncated preview notice appears; raw provider JSON/keys are never returned.
+- **Given** a foreign campaign member, **when** requesting history, **then** the API rejects it without revealing content.
+- **Dependencies:** existing outbound/inbound `messages` table and campaign membership (DONE). **Size:** L. **Feature spec:** `docs/features/contact-communication-history.md`.
+
+### F-06.12 — Human Follow-up Task Manager  *(E-06, product feature)*
+
+**As a** sales or outreach operator, **I want** durable human-action tasks with due times, owners and completion status, **so that** leads do not get forgotten after a reply or meeting.
+- **Given** a campaign or its contact, **when** I create a task with an explicit timezone-aware due date, **then** it is saved, optionally linked to that campaign member, and survives process restarts and database moves.
+- **Given** two edits based on the same revision, **when** one saves first, **then** the stale edit receives HTTP 409; no colleague's work is overwritten.
+- **Given** a task, **when** I edit, complete, reopen or filter due/overdue work, **then** saved state and completed timestamp are consistent, without any automatic external contact.
+- **Dependencies:** versioned CRM schema, storage backup and campaign membership (DONE for code path; hosted restore gate open). **Size:** L. **Feature spec:** `docs/features/human-followup-tasks.md`.

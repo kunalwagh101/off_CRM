@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.10 · Reply Inbox & Human Triage
+  work_order: docs/features/reply-inbox-triage.md
+  review: campaign-scoped response inbox, per-membership triage and human task linkage implemented; tests authored, actual execution/tenancy gates open
+
+- F-06.11 · Contact Communication History
+  work_order: docs/features/contact-communication-history.md
+  review: bounded member-scoped correspondence API and UI from Contacts/Reply Inbox/tasks implemented; tests authored, auth/browser/recovery gates open
+
+- F-06.12 · Human Follow-up Task Manager
+  work_order: docs/features/human-followup-tasks.md
+  review: durable task creation, editing, due dates, labels, optimistic revisions, SQLite/Postgres migration and UI implemented; migration/backup/CI tests pending
+
+
 - F-06.07 · Audience Management Workspace
   work_order: docs/features/audience-workspace.md
   review: manual contact capture, safe linking, bounded exact-ID mark/unmark/stop and UI/tests authored; executable/worker-concurrency gates open

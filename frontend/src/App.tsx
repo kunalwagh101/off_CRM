@@ -6,6 +6,8 @@ import { CampaignSelection } from "./campaignSelection";
 import Dashboard from "./pages/Dashboard";
 import Campaigns from "./pages/Campaigns";
 import Contacts from "./pages/Contacts";
+import LaunchReadiness from "./pages/LaunchReadiness";
+import CampaignActivity from "./pages/CampaignActivity";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
@@ -33,6 +35,8 @@ const pages = {
   campaigns: Campaigns,
   discovery: Discovery,
   contacts: Contacts,
+  readiness: LaunchReadiness,
+  activity: CampaignActivity,
   drafts: Drafts,
   queue: Queue,
   deliverability: Deliverability,
@@ -55,7 +59,7 @@ type Page = keyof typeof pages;
 // Screens that act on the selected campaign. Each remounts when the campaign
 // changes, so a half-filled form cannot keep another campaign's rows (S-06.02.22).
 const campaignScopedPages = new Set<Page>([
-  "contacts", "discovery", "drafts", "queue", "deliverability", "experiments",
+  "contacts", "discovery", "readiness", "activity", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting", "settings"
 ]);
 // Screens that read the campaign list or the selection, and so wait for its
@@ -66,7 +70,7 @@ const campaignScopedPages = new Set<Page>([
 // selection too, but copes with none: its campaign export asks for one first.
 export const campaignListPages = new Set<Page>([
   "dashboard", "campaigns", "product",
-  "contacts", "discovery", "drafts", "queue", "deliverability", "experiments",
+  "contacts", "discovery", "readiness", "activity", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting"
 ]);
 
@@ -81,6 +85,8 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "campaigns", label: "Campaigns", icon: "◫" },
   { page: "discovery", label: "Lead discovery", icon: "⌕" },
   { page: "contacts", label: "Contacts", icon: "◎" },
+  { page: "readiness", label: "Launch readiness", icon: "✓" },
+  { page: "activity", label: "Campaign activity", icon: "◷" },
   { page: "product", label: "Product", icon: "◆", group: "Strategy" },
   { page: "strategy", label: "Go-to-market plan", icon: "⌖" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },

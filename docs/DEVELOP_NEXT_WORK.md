@@ -167,3 +167,10 @@ All code, regression-test source and work orders are tracked on `develop` as IN_
 The owner explicitly requested feature-level selection, so the new work is tracked as **F-06.04 Campaign Management, F-06.05 Campaign Blueprint Reuse and F-06.06 Campaign Performance Intelligence**. Source implementation, authenticated endpoints, real UI forms/cards, regression-test source, product specs, decisions and defects are prepared on `develop`; each is IN_REVIEW pending actual test execution and deployment acceptance. The existing send path, contacts and providers were not changed. See `docs/evidence/2026-10-13-campaign-three-features.md` and three `docs/features/campaign-*.md` specifications.
 
 The working session has no network path for cloning the private repository into the executable container; GitHub-hosted `quality` and `postgres` jobs have also been failing with zero steps. Therefore no full pytest/Vitest/build, live Chrome, PostgreSQL or worker-race acceptance can be claimed. `S-06.02.23` remains sole IN_PROGRESS audit; feature-level slices are IN_REVIEW, not DONE. No promotions to main or other branch changes.
+
+
+## 2026-10-14 — Next three product features, develop only
+
+Three **features** selected and implemented in source: `F-06.07` Audience Management Workspace, `F-06.08` Campaign Launch Readiness Center, `F-06.09` Campaign Activity & Audit Timeline. Each has an authenticated API and frontend path; the first includes persistent manual linking and atomic 100-ID bulk controls, the second is a read-only preflight, and the third is a filtered event history. No new sender, database schema, provider integration, or paid service.
+
+Product specs `docs/features/audience-workspace.md`, `campaign-launch-readiness.md`, `campaign-activity-timeline.md`; evidence ledger `docs/evidence/2026-10-14-audience-readiness-activity.md`. Tests are authored but unrun: `tests/test_audience_launch_activity.py`, `frontend/src/pages/AudienceLaunchActivity.test.tsx`. All features **IN_REVIEW**; `S-06.02.23` stays sole IN_PROGRESS. Main is untouched. Full Python/frontend, PostgreSQL, browser, concurrent worker and CI checks remain required.

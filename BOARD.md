@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.07 · Audience Management Workspace
+  work_order: docs/features/audience-workspace.md
+  review: manual contact capture, safe linking, bounded exact-ID mark/unmark/stop and UI/tests authored; executable/worker-concurrency gates open
+
+- F-06.08 · Campaign Launch Readiness Center
+  work_order: docs/features/campaign-launch-readiness.md
+  review: read-only stored-state launch checks and guided screen authored; Python/frontend/Chrome/PostgreSQL gates pending
+
+- F-06.09 · Campaign Activity & Audit Timeline
+  work_order: docs/features/campaign-activity-timeline.md
+  review: server event facets/filter/paging, authenticated screen and privacy-minimising display authored; regression execution and review pending
+
+
 - F-06.04 · Campaign Management
   work_order: docs/features/campaign-management.md
   review: real UI editor, safe archive/restore, IANA backend validation, and integration tests authored; execution/live browser/hosted checks pending

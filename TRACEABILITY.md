@@ -191,3 +191,14 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-130 | S-12.02.02 | 5 | `tests/test_gtm_apply.py`, `tests/test_distribution.py`, `tests/test_content_automation.py` | `gtm/service.py`, `distribution/engine.py`, `distribution/automation.py` |
 | R-131, R-132 | S-12.02.03 | 8 | `tests/test_gtm_review.py`, `tests/test_pacing_cap.py` | `gtm/review.py`, `gtm/service.py`, `api/gtm.py` |
 | R-133, R-134 | S-12.02.04 | 4 | `tests/test_gtm_revise.py` | `gtm/review.py`, `gtm/service.py`, `gtm/store.py` |
+
+
+## 2026-10-14 — Product feature traceability, IN_REVIEW
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-170 | F-06.07 | 3 | `tests/test_audience_launch_activity.py`, `frontend/src/pages/AudienceLaunchActivity.test.tsx` | `offsetx_apollo_builder/outreach/store.py`, `frontend/src/pages/AudienceOperations.tsx`, `frontend/src/pages/Contacts.tsx` |
+| R-171 | F-06.08 | 3 | `tests/test_audience_launch_activity.py`, `frontend/src/pages/AudienceLaunchActivity.test.tsx` | `offsetx_apollo_builder/outreach/launch.py`, `frontend/src/pages/LaunchReadiness.tsx` |
+| R-172 | F-06.09 | 3 | `tests/test_audience_launch_activity.py`, `frontend/src/pages/AudienceLaunchActivity.test.tsx` | `offsetx_apollo_builder/outreach/store.py`, `frontend/src/pages/CampaignActivity.tsx` |
+
+No executed verification or DONE claim for these requirements.

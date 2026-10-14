@@ -71,7 +71,7 @@ from ..db.hosted import HostedStorage
 from ..outreach.store_copy import check_local_crm
 from ..outreach.contact_export import contact_list_csv, ContactExportError
 from ..discovery import DiscoveryService
-from ..locked_categories import LOCKED_CATEGORIES
+from ..locked_categories import LOCKED_CATEGORIES, DEFAULT_CATEGORY, normalize_category
 from ..meetings import MeetingError, MeetingStore, MeetingTranscriber, MeetingTranscriptionError
 from ..meetings.service import MAX_MEETING_CHUNK_BYTES
 from ..privacy import (
@@ -85,6 +85,8 @@ from ..outreach.automation import AutomationService
 from ..outreach.backup import recover_interrupted_restore, restore_pending
 from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 from ..outreach.engine import OutreachEngine
+from ..outreach.email_expert import route_for_category
+from ..outreach.launch import launch_readiness
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
@@ -92,7 +94,7 @@ from ..outreach.deliverability.service import EmailDeliveryService
 from ..outreach.deliverability.ses import SesMailProvider
 from ..outreach.deliverability.store import DeliverabilityStore
 from ..outreach.deliverability.unsubscribe import UnsubscribeService
-from ..outreach.models import ROUTES, utc_now
+from ..outreach.models import ROUTES, ContactInput, utc_now
 from ..outreach.ai_chat import AIChatService
 from ..outreach.notion import (
     NotionClient,
@@ -153,6 +155,8 @@ from .schemas import (
     CampaignCreate,
     CampaignClone,
     CampaignUpdate,
+    ContactCreate,
+    ContactBulkAction,
     ContactUpdate,
     DraftApprove,
     DraftBulkReplace,
@@ -3114,6 +3118,49 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
 
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/launch-readiness")
+    def campaign_launch_readiness(campaign_id: str, request: Request) -> dict[str, Any]:
+        return launch_readiness(_engine(request).store, campaign_id)
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/manual")
+    def manual_contact(
+        campaign_id: str,
+        body: ContactCreate,
+        request: Request,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict[str, Any]:
+        engine = _engine(request)
+        category = normalize_category(body.category or DEFAULT_CATEGORY, default=DEFAULT_CATEGORY)
+
+        def operation() -> dict[str, Any]:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                return engine.store.create_manual_campaign_contact(
+                    campaign_id,
+                    ContactInput(
+                        full_name=body.full_name,
+                        email=body.email,
+                        company=body.company,
+                        title=body.title,
+                        category=category,
+                        route=route_for_category(category),
+                        public_hook=body.public_hook,
+                        hook_source=body.hook_source,
+                        recipient_timezone=body.recipient_timezone,
+                        source_ref="manual",
+                    ),
+                )
+
+        return _idempotent(engine, f"manual_contact:{campaign_id}", idempotency_key, operation)
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/bulk")
+    def bulk_contacts(
+        campaign_id: str, body: ContactBulkAction, request: Request
+    ) -> dict[str, Any]:
+        with request.app.state.campaign_locks.hold(campaign_id):
+            return _engine(request).store.bulk_update_campaign_contacts(
+                campaign_id, body.contact_ids, body.action
+            )
+
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/import")
     async def import_contacts_endpoint(
         campaign_id: str,
@@ -4768,15 +4815,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         items = _engine(request).store.ab_report(campaign_id)
         return {"items": items, "total": len(items)}
 
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/events/types")
+    def event_type_facets(campaign_id: str, request: Request) -> dict[str, Any]:
+        items = _engine(request).store.event_types(campaign_id)
+        return {"items": items, "total": len(items)}
+
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/events")
     def events(
         campaign_id: str,
         request: Request,
         limit: int = Query(100, ge=1, le=500),
         offset: int = Query(0, ge=0),
+        event_type: str = Query("", max_length=100),
     ) -> dict[str, Any]:
         items, total = _engine(request).store.list_events(
-            campaign_id, limit=limit, offset=offset
+            campaign_id, limit=limit, offset=offset, event_type=event_type
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 

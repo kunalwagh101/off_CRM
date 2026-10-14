@@ -313,6 +313,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-280 | 2026-10-13 | gap | medium | Campaigns screen lacked editable campaign settings despite backend PATCH; invalid timezone could persist until send scheduling. Product editor and boundary validation prepared, tests not yet executed | in review · `F-06.04` |
 | D-281 | 2026-10-13 | usability | medium | A configured campaign could not be reused without manually rebuilding; naive reuse risks copying recipients or briefly activating a sender. Paused configuration-only clone prepared, integration test unrun | in review · `F-06.05` |
 | D-282 | 2026-10-13 | reporting | medium | Campaign cards lacked accountable per-campaign contacted and reply-rate measurements; manually replied unsent prospects could distort results. CRM-based measures and tests authored, not run | in review · `F-06.06` |
+| D-283 | 2026-10-14 | gap | medium | Contacts screen had no manual single-contact entry or safe explicit bulk stop, forcing a file import or per-row edits. Code, UI and tests prepared; verification pending | in review · `F-06.07` |
+| D-284 | 2026-10-14 | gap | medium | The CRM had no read-only campaign-level readiness explanation before sending, making approval/schedule/limit problems hard to see. Code and tests prepared; verification pending | in review · `F-06.08` |
+| D-285 | 2026-10-14 | usability | medium | Existing campaign events were accessible through the API but not from a paginated, filtered audit timeline in the interface. Source and tests prepared; execution pending | in review · `F-06.09` |
 
 
 

@@ -5,6 +5,7 @@ import { useApp } from "../context";
 import { formatDate, useResource } from "../hooks";
 import type { Contact, Paginated } from "../types";
 import { Loadable, NoCampaign, statusTone } from "./shared";
+import { ManualContactModal, StopContactsModal } from "./AudienceOperations";
 
 const DEFAULT_CATEGORY = "Sustainability / ESG / Climate";
 export const CONTACTS_PAGE_SIZE = 100;
@@ -49,6 +50,10 @@ export default function Contacts() {
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [stopOpen, setStopOpen] = useState(false);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -58,6 +63,7 @@ export default function Contacts() {
       : Promise.resolve({ categories: [], variants: [] }),
     [campaignId]
   );
+  const lockedCategories = useResource(() => api.get<{ categories: string[] }>("/meta"), []);
   const filters = { category, variant_id: variant, selected_only: selectedOnly };
   const contacts = useResource(
     () =>
@@ -69,6 +75,8 @@ export default function Contacts() {
     [campaignId, search, status, page, category, variant, selectedOnly]
   );
 
+  // Batch selection is transient; persistent "Marked" is a distinct CRM field.
+  useEffect(() => setChosen(new Set()), [campaignId]);
   const total = contacts.data?.total ?? 0;
   const range = contactPageBounds(page, total);
   useEffect(() => {
@@ -78,6 +86,48 @@ export default function Contacts() {
   }, [contacts.loading, contacts.error, contacts.data, page, range.pages]);
 
   if (!campaignId) return <><PageHeader title="Contacts" /><NoCampaign /></>;
+
+  function toggleBatch(id: string) {
+    setChosen((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 100) next.add(id);
+      else notify("A batch can contain at most 100 contacts.", "info");
+      return next;
+    });
+  }
+
+  function selectVisible() {
+    const ids = contacts.data?.items.map((contact) => contact.id) ?? [];
+    const next = new Set(chosen);
+    for (const id of ids) {
+      if (next.size >= 100 && !next.has(id)) break;
+      next.add(id);
+    }
+    setChosen(next);
+    if (next.size < chosen.size + ids.filter((id) => !chosen.has(id)).length) {
+      notify("A batch can contain at most 100 contacts.", "info");
+    }
+  }
+
+  async function applyBulk(action: "mark" | "unmark" | "stop") {
+    if (!chosen.size) return;
+    setBulkBusy(true);
+    try {
+      const result = await api.post<{ changed: number; requested: number }>(
+        `/campaigns/${encodeURIComponent(campaignId)}/contacts/bulk`,
+        { contact_ids: [...chosen], action }
+      );
+      notify(`${result.changed} of ${result.requested} contacts updated.`, "success");
+      setChosen(new Set());
+      setStopOpen(false);
+      contacts.reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Bulk update failed", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function toggleCheckbox(contact: Contact) {
     try {
@@ -164,7 +214,7 @@ export default function Contacts() {
         eyebrow={activeCampaign?.name}
         title="Contacts"
         description="One clean CRM table. No assignment engine, no owner field and no hidden server."
-        actions={<><Button tone="secondary" busy={exporting} onClick={downloadFilteredContacts}>Export filtered CSV</Button> <Button onClick={() => setImportOpen(true)}>Import CSV / Excel</Button></>}
+        actions={<><Button tone="secondary" busy={exporting} onClick={downloadFilteredContacts}>Export filtered CSV</Button> <Button tone="secondary" onClick={() => setManualOpen(true)}>Add contact</Button> <Button onClick={() => setImportOpen(true)}>Import CSV / Excel</Button></>}
       />
       <Panel>
         <div className="toolbar">
@@ -202,14 +252,23 @@ export default function Contacts() {
           </label>
           <span className="toolbar-count">{total} contacts</span>
         </div>
+        <div className="toolbar" aria-label="Audience bulk operations">
+          <span>{chosen.size} selected for batch</span>
+          <Button tone="ghost" disabled={contacts.loading || !contacts.data?.items.length} onClick={selectVisible}>Select visible page</Button>
+          <Button tone="ghost" disabled={!chosen.size} onClick={() => setChosen(new Set())}>Clear batch</Button>
+          <Button tone="secondary" disabled={!chosen.size || bulkBusy} onClick={() => void applyBulk("mark")}>Mark selected</Button>
+          <Button tone="secondary" disabled={!chosen.size || bulkBusy} onClick={() => void applyBulk("unmark")}>Unmark selected</Button>
+          <Button tone="danger" disabled={!chosen.size || bulkBusy} onClick={() => setStopOpen(true)}>Stop outreach</Button>
+        </div>
         {contacts.loading || contacts.error ? state : contacts.data?.items.length ? (
           <div className="table-wrap">
             <table>
-              <thead><tr><th className="checkbox-cell"><span className="sr-only">Selected</span></th><th>Contact</th><th>Company</th><th>Category</th><th>Sequence</th><th>Next action</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th className="checkbox-cell"><span className="sr-only">Marked</span></th><th className="checkbox-cell">Batch</th><th>Contact</th><th>Company</th><th>Category</th><th>Sequence</th><th>Next action</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>
                 {contacts.data.items.map((contact) => (
                   <tr key={contact.id}>
-                    <td className="checkbox-cell"><input type="checkbox" checked={contact.checkbox} onChange={() => toggleCheckbox(contact)} aria-label={`Select ${contact.full_name}`} /></td>
+                    <td className="checkbox-cell"><input type="checkbox" checked={contact.checkbox} onChange={() => toggleCheckbox(contact)} aria-label={`Mark ${contact.full_name}`} /></td>
+                    <td className="checkbox-cell"><input type="checkbox" checked={chosen.has(contact.id)} onChange={() => toggleBatch(contact.id)} aria-label={`Include ${contact.full_name} in batch`} /></td>
                     <td><button className="text-button contact-name" onClick={() => setEditContact(contact)}>{contact.full_name}</button><small>{contact.email || "Email missing"}</small></td>
                     <td><strong>{contact.company || "Not provided"}</strong><small>{contact.title}</small></td>
                     <td><span className="category-text">{contact.category}</span><small>{contact.route === "expert_validation" ? "Expert validation" : "Future client"}</small></td>
@@ -234,6 +293,11 @@ export default function Contacts() {
         )}
       </Panel>
 
+      <ManualContactModal campaignId={campaignId} open={manualOpen} onClose={() => setManualOpen(false)}
+        categories={lockedCategories.data?.categories ?? []} notify={notify}
+        onSaved={() => { setPage(0); contacts.reload(); facets.reload(); refreshCampaigns(); }} />
+      <StopContactsModal open={stopOpen} total={chosen.size} busy={bulkBusy}
+        onClose={() => setStopOpen(false)} onConfirm={() => applyBulk("stop")} />
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import contacts" description="Files are processed on your application host. Contacts are saved only in the selected campaign.">
         <form className="form-stack" onSubmit={importFile}>
           <Field label="CSV or Excel file" hint="Maximum 10 MB. Name is required. Email and a verified public hook are required before sending.">

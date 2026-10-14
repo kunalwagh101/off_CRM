@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from pydantic_core import PydanticCustomError
@@ -115,6 +116,52 @@ class CampaignUpdate(StrictModel):
     experiment_metric: Literal["reply_rate"] | None = None
     experiment_min_sample: int | None = Field(default=None, ge=10, le=100000)
     control_variant: str | None = Field(default=None, min_length=1, max_length=40)
+
+
+class ContactCreate(StrictModel):
+    """A manual contact is a draft audience record, never permission to send."""
+    full_name: str = Field(min_length=1, max_length=200)
+    email: str = Field(min_length=3, max_length=254)
+    company: str = Field(default="", max_length=200)
+    title: str = Field(default="", max_length=200)
+    category: str = Field(default="Sustainability / ESG / Climate", max_length=120)
+    public_hook: str = Field(default="", max_length=1000)
+    hook_source: str = Field(default="", max_length=1000)
+    recipient_timezone: str = Field(default="", max_length=80)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str) -> str:
+        text = value.strip().lower()
+        if text.count("@") != 1 or any(c.isspace() for c in text):
+            raise ValueError("Enter a valid email address")
+        local, domain = text.split("@")
+        if not local or not domain or "." not in domain or domain.startswith(".") or domain.endswith("."):
+            raise ValueError("Enter a valid email address")
+        return text
+
+    @field_validator("recipient_timezone")
+    @classmethod
+    def valid_timezone(cls, value: str) -> str:
+        if value:
+            try:
+                ZoneInfo(value)
+            except (ZoneInfoNotFoundError, ValueError) as exc:
+                raise ValueError("Enter a valid IANA timezone") from exc
+        return value
+
+
+class ContactBulkAction(StrictModel):
+    """Actions are explicit, on at most 100 exact campaign membership IDs."""
+    contact_ids: list[str] = Field(min_length=1, max_length=100)
+    action: Literal["mark", "unmark", "stop"]
+
+    @field_validator("contact_ids")
+    @classmethod
+    def distinct_ids(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)) or any(not item.strip() for item in values):
+            raise ValueError("Contact IDs must be non-empty and distinct")
+        return values
 
 
 class ContactUpdate(StrictModel):

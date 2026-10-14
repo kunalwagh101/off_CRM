@@ -2272,3 +2272,28 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - **Given** a non-email campaign, **when** metrics are opened, **then** the email-specific reply rate is shown as N/A, rather than mislabelling the campaign.
 
 **Dependencies:** existing campaign/CRM send/draft storage (DONE). **Size:** L. **Feature specification:** `docs/features/campaign-performance.md`.
+
+
+### F-06.07 — Audience Management Workspace  *(E-06, product feature)*
+
+**As a** campaign operator, **I want** to add, recognise and manage exact recipient records without needing a file import, **so that** outreach data is accurate and selected recipients can be stopped without contacting anyone unintentionally.
+- **Given** a valid name and email, **when** added manually, **then** one campaign membership is created, never a draft or send; repeated or shared emails are linked without overwriting an existing global contact profile.
+- **Given** up to 100 explicitly selected campaign membership IDs, **when** the owner marks/unmarks/stops, **then** all IDs are checked to belong to this campaign before an atomic transaction; foreign or missing IDs cause no mutation.
+- **Given** an operator stops selected contacts, **when** the queue is subsequently evaluated, **then** those contacts are excluded by the existing sender; replied/completed contacts are not revived.
+- **Dependencies:** existing CRM memberships, selection, authenticated API (DONE). **Size:** L. **Feature design:** `docs/features/audience-workspace.md`.
+
+### F-06.08 — Campaign Launch Readiness Center  *(E-06, product feature)*
+
+**As a** campaign operator, **I want** to see what is missing before starting email operations, **so that** I can correct drafts, settings and daily limits without failed runs or unsafe sends.
+- **Given** an email campaign, **when** the readiness screen opens, **then** its active status, audience size, approved/due draft candidates and remaining daily cap are checked using saved CRM state; failures link to the appropriate screens.
+- **Given** an empty, paused or unapproved campaign, **when** evaluated, **then** its local readiness is false with an actionable reason.
+- **Given** a locally passing campaign, **when** readiness is green, **then** it still states that provider availability, suppression, permission, recipient validity and final send rules have **not** been cleared. No send or approval occurs.
+- **Dependencies:** existing queue store, source of truth, auth and send gates (DONE). **Size:** L. **Feature design:** `docs/features/campaign-launch-readiness.md`.
+
+### F-06.09 — Campaign Activity & Audit Timeline  *(E-06, product feature)*
+
+**As a** campaign operator, **I want** to inspect what changed and when in this campaign, **so that** activity is explainable without raw database access or private message disclosure.
+- **Given** many recorded events, **when** the timeline opens or changes page, **then** it returns stable, authenticated 50-event slices and an accurate total.
+- **Given** an event-type filter, **when** selected, **then** the server counts and returns only events of that exact type; event choices are derived from current campaign records.
+- **Given** potentially sensitive historical payloads, **when** events are displayed, **then** only whitelisted operation/count metadata is shown, never raw message/customer content. Historical events are unchanged.
+- **Dependencies:** existing campaign event writer and auth (DONE). **Size:** L. **Feature design:** `docs/features/campaign-activity-timeline.md`.

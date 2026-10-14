@@ -14,7 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Any, Iterable, Iterator, Sequence
 
-from ..campaigns import DEFAULT_KIND, assert_runnable, coerce_kind, kind_spec
+from ..campaigns import DEFAULT_KIND, assert_kind, assert_runnable, coerce_kind, kind_spec
 from ..db import (
     Database,
     DatabaseBusy,
@@ -797,6 +797,83 @@ class OutreachStore:
                 (row_id, campaign_id, contact_id, variant_id, now, now, now),
             )
         return row_id, True
+
+    def create_manual_campaign_contact(self, campaign_id: str, contact: ContactInput) -> dict[str, Any]:
+        """Link an existing email without overwriting its shared global profile.
+
+        An explicit manual entry never creates a sendable draft or authorises a
+        provider. Serialize the lookup/create/link so two callers cannot attach
+        duplicate memberships after reading the same missing email.
+        """
+        contact = contact.normalized()
+        if not contact.full_name or not contact.email or "@" not in contact.email:
+            raise ValueError("A name and email are required")
+        with self.transaction(immediate=True):
+            assert_kind(self.get_campaign(campaign_id), "email", action="adding manual contacts")
+            existing = self._row(
+                "SELECT id FROM contacts WHERE lower(email) = ?",
+                (contact.email,),
+            )
+            contact_id = str(existing["id"]) if existing else self.upsert_contact(contact)
+            membership_id, added = self.add_contact_to_campaign(campaign_id, contact_id)
+            if added:
+                self.add_event(
+                    campaign_id, "contact_added_manually",
+                    {"reused_contact": bool(existing)},
+                    campaign_contact_id=membership_id,
+                )
+            row = self.get_campaign_contact(campaign_id, membership_id)
+            row["added"] = added
+            row["reused_contact"] = bool(existing)
+            return row
+
+    def bulk_update_campaign_contacts(
+        self, campaign_id: str, contact_ids: Sequence[str], action: str,
+    ) -> dict[str, int | str]:
+        """Atomic batch controls; 'stop' is never an implicit resume or send."""
+        if action not in {"mark", "unmark", "stop"}:
+            raise ValueError("Unknown contact action")
+        ids = list(contact_ids)
+        if not 1 <= len(ids) <= 100 or len(ids) != len(set(ids)) or any(not cid for cid in ids):
+            raise ValueError("Choose 1 to 100 distinct campaign contact IDs")
+        slots = ",".join("?" for _ in ids)
+        with self.transaction(immediate=True) as conn:
+            assert_kind(self.get_campaign(campaign_id), "email", action="updating outreach contacts")
+            rows = self._rows(
+                f"SELECT id, status, checkbox FROM campaign_contacts WHERE campaign_id = ? AND id IN ({slots})",
+                (campaign_id, *ids),
+            )
+            if len(rows) != len(ids):
+                raise KeyError("One or more contacts do not belong to the selected campaign")
+            now = to_utc_iso()
+            changed = 0
+            for row in rows:
+                old_status = str(row["status"])
+                old_mark = bool(row["checkbox"])
+                if action == "stop":
+                    if old_status in {"replied", "completed", "stopped"}:
+                        continue
+                    conn.execute(
+                        """UPDATE campaign_contacts
+                           SET status = 'stopped', next_action_at = NULL, updated_at = ?
+                           WHERE campaign_id = ? AND id = ?""",
+                        (now, campaign_id, row["id"]),
+                    )
+                else:
+                    new_mark = action == "mark"
+                    if old_mark == new_mark:
+                        continue
+                    conn.execute(
+                        """UPDATE campaign_contacts SET checkbox = ?, updated_at = ?
+                           WHERE campaign_id = ? AND id = ?""",
+                        (int(new_mark), now, campaign_id, row["id"]),
+                    )
+                changed += 1
+            self.add_event(
+                campaign_id, "contacts_bulk_updated",
+                {"action": action, "requested": len(ids), "changed": changed},
+            )
+        return {"action": action, "requested": len(ids), "changed": changed}
 
     def get_campaign_contact(self, campaign_id: str, campaign_contact_id: str) -> dict[str, Any]:
         row = self._row(
@@ -1662,20 +1739,33 @@ class OutreachStore:
                 ),
             )
 
+    def event_types(self, campaign_id: str) -> list[dict[str, Any]]:
+        """Distinct event facets from only the selected campaign."""
+        self.get_campaign(campaign_id)
+        return self._rows(
+            """SELECT event_type, COUNT(*) AS count FROM campaign_events
+               WHERE campaign_id = ? GROUP BY event_type ORDER BY event_type""",
+            (campaign_id,),
+        )
+
     def list_events(
-        self, campaign_id: str, *, limit: int = 100, offset: int = 0
+        self, campaign_id: str, *, limit: int = 100, offset: int = 0,
+        event_type: str = "",
     ) -> tuple[list[dict[str, Any]], int]:
         self.get_campaign(campaign_id)
+        where = "campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if event_type:
+            where += " AND event_type = ?"
+            params.append(event_type)
         total = self.connection.execute(
-            "SELECT COUNT(*) AS count FROM campaign_events WHERE campaign_id = ?",
-            (campaign_id,),
+            f"SELECT COUNT(*) AS count FROM campaign_events WHERE {where}",
+            params,
         ).fetchone()
         rows = self._rows(
-            """
-            SELECT * FROM campaign_events WHERE campaign_id = ?
-            ORDER BY created_at DESC LIMIT ? OFFSET ?
-            """,
-            (campaign_id, limit, offset),
+            f"""SELECT * FROM campaign_events WHERE {where}
+                ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?""",
+            (*params, limit, offset),
         )
         for row in rows:
             try:

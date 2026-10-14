@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Audience Management Workspace** (`F-06.07`, IN_REVIEW, 2026-10-14): manual contact entry with deduplicated email linking, explicit at-most-100-row batch mark/unmark/stop and confirmation; existing imports, sender and contact editor remain unchanged. API and frontend tests authored; not executed.
+- **Campaign Launch Readiness Center** (`F-06.08`, IN_REVIEW): nonmutating campaign preparation checks for active status, audience, approved/due candidates and daily cap. It does not certify external mail, consent, suppression, provider availability or final send preflight.
+- **Campaign Activity & Audit Timeline** (`F-06.09`, IN_REVIEW): campaign event facets, exact server event-type filtering, 50-row paginated accessible history and allowlisted visible metadata. Existing event response remains compatible.
+- **Verification remains open:** focused/full Python, frontend build/SPA, PostgreSQL, browser and independent review were not executed in this connector-only environment. GitHub Actions jobs previously failed before executing any steps. No release claim.
+
 - **Campaign Management** (F-06.04, IN_REVIEW, 2026-10-13): editable campaign settings, IANA timezone validation, explicit typed archive, safe paused restore, status controls and frontend/API regressions. Email-specific settings stay within email campaigns.
 - **Campaign Blueprint Reuse** (F-06.05, IN_REVIEW): create an idempotent paused configuration-only clone from an existing campaign; no copied recipients, drafts, messages, history or credentials; regression and restart checks authored.
 - **Campaign Performance Intelligence** (F-06.06, IN_REVIEW): on-demand CRM-based campaign metrics, unique-contacted denominator, replies from contacted recipients, unsent/pending and stopped state plus draft counts. No model generated statistics.

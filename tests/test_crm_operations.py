@@ -86,7 +86,7 @@ def seed(tmp_path: Path):
 
 
 def test_quality_filters_exact_saved_records_and_no_private_fields(tmp_path):
-    engine, sales, first, _, alice, unused, _ = seed(tmp_path)
+    engine, sales, first, second, alice, unused, _ = seed(tmp_path)
     try:
         service = CRMOperations(engine.store, sales)
         missing = service.contact_quality(issue="missing_company")
@@ -96,8 +96,20 @@ def test_quality_filters_exact_saved_records_and_no_private_fields(tmp_path):
         overlap = service.contact_quality(issue="sales_overlap")
         assert overlap["total"] == 1
         assert overlap["items"][0]["id"] == alice
-        assert overlap["items"][0]["campaign_id"] == first
-        assert overlap["items"][0]["campaign_contact_id"]
+        # Two memberships can share a creation timestamp; their UUIDs do not
+        # encode insertion order. Assert pair integrity and stable selection,
+        # not which arbitrary UUID sorts first.
+        picked = overlap["items"][0]
+        assert picked["campaign_id"] in {first, second}
+        assert picked["campaign_contact_id"]
+        linked = engine.store.get_campaign_contact(
+            picked["campaign_id"], picked["campaign_contact_id"]
+        )
+        assert linked["contact_id"] == alice
+        again = service.contact_quality(issue="sales_overlap")["items"][0]
+        assert (again["campaign_id"], again["campaign_contact_id"]) == (
+            picked["campaign_id"], picked["campaign_contact_id"]
+        )
         assert "notes" not in overlap["items"][0]
         assert "source_json" not in overlap["items"][0]
         orphan = service.contact_quality(issue="not_in_campaign")

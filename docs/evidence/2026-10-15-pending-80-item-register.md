@@ -6,6 +6,88 @@ This is an **evidence log**, not a replacement for `BOARD.md`; board statuses ha
 
 Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmoan0` on `develop` (`311f1ab`): **85 passed, 1 failed, 14 skipped, 2 warnings**, and earlier `dep-db892nij9qps73c46gvg` (`fc3f3d9`): **83 passed, 3 failed, 14 skipped**. Final F-06.19 retest `dep-db89530u01pc73f01t7g` on `e671607` **completed 86 passed, 14 skipped, 2 warnings**; no focused Python failure. The Docker build still **failed** at `npm audit --audit-level=high` with 5 development advisories (3 moderate, 2 high). Frontend separate run: 212 passed. Full Python broader run: 2,678 passed, 72 failed, 46 skipped (context-dependent verifier/CI failures included); see `docs/evidence/2026-10-15-all-in-review-audit.md`.
 
+## 57-item prioritised review queue — operational order
+
+The source of status remains `BOARD.md`; this is a review execution order, **not** 57 concurrent active stories. Only two records are active at a time. Each listed item remains IN_REVIEW until all its own Definition of Done gates pass; a focused unit test cannot silently close it.
+
+### P0 — active, two-item WIP (2)
+
+| Order | Item | Specific review target |
+|---:|---|---|
+| 1 | S-06.02.16 — Resolve frontend development dependency audit findings | Registry-backed npm audit + lockfile + npm ci + 212 frontend tests/build |
+| 2 | S-06.02.20 — The verifier tells a shallow clone apart from a missing commit | Real Git history fixture, full CI tests, full repository verifier |
+
+### P1 — security and durable data (11)
+
+| Order | Item | Specific review target |
+|---:|---|---|
+| 3 | S-06.02.43 — Logout revokes the copied browser session | Copied session must remain revoked after restart |
+| 4 | S-06.01.01 — Workspaces with their own keys and their own logins | Named acceptance tests and remaining live integration/recovery gates |
+| 5 | S-06.02.36 — A second owner login is made on purpose | Named acceptance tests and remaining live integration/recovery gates |
+| 6 | S-06.02.02 — Every endpoint authorises and validates | Named acceptance tests and remaining live integration/recovery gates |
+| 7 | S-06.02.01 — No secret may enter a model prompt | Named acceptance tests and remaining live integration/recovery gates |
+| 8 | S-06.02.04 — Data deletion and subject access | Named acceptance tests and remaining live integration/recovery gates |
+| 9 | S-06.02.21 — Durable customer state and safe recovery (audit WP1) | Durable Postgres/test DB migration, recovery and restore |
+| 10 | S-06.02.38 — Any error can be traced back the next day | Named acceptance tests and remaining live integration/recovery gates |
+| 11 | S-03.01.03 — Browser blocks internal network access | Real browser block of private IP, WebSockets and redirects |
+| 12 | S-05.01.04 — Public-page fetches connect only to checked destinations | Named acceptance tests and remaining live integration/recovery gates |
+| 13 | S-06.02.28 — A command-line tool locks the workspace it actually opens | Named acceptance tests and remaining live integration/recovery gates |
+
+### P2 — complete CRM user journeys (26)
+
+| Order | Item | Specific review target |
+|---:|---|---|
+| 14 | F-06.19 — CRM Data Quality Centre | Real CRM end-to-end UI/API with permissions and persistence |
+| 15 | F-06.20 — Campaign Comparison Dashboard | Real CRM end-to-end UI/API with permissions and persistence |
+| 16 | F-06.21 — Follow-up Performance Centre | Real CRM end-to-end UI/API with permissions and persistence |
+| 17 | F-06.16 — Unified CRM Search | Real CRM end-to-end UI/API with permissions and persistence |
+| 18 | F-06.17 — Account Intelligence Workspace | Real CRM end-to-end UI/API with permissions and persistence |
+| 19 | F-06.18 — Campaign-to-Revenue Attribution | Real CRM end-to-end UI/API with permissions and persistence |
+| 20 | F-06.13 — Qualified Reply-to-Sales Conversion | Real CRM end-to-end UI/API with permissions and persistence |
+| 21 | F-06.14 — Contact 360 Workspace | Real CRM end-to-end UI/API with permissions and persistence |
+| 22 | F-06.15 — Daily Action Command Center | Real CRM end-to-end UI/API with permissions and persistence |
+| 23 | F-06.10 — Reply Inbox & Human Triage | Real CRM end-to-end UI/API with permissions and persistence |
+| 24 | F-06.11 — Contact Communication History | Real CRM end-to-end UI/API with permissions and persistence |
+| 25 | F-06.12 — Human Follow-up Task Manager | Real CRM end-to-end UI/API with permissions and persistence |
+| 26 | F-06.07 — Audience Management Workspace | Real CRM end-to-end UI/API with permissions and persistence |
+| 27 | F-06.08 — Campaign Launch Readiness Center | Real CRM end-to-end UI/API with permissions and persistence |
+| 28 | F-06.09 — Campaign Activity & Audit Timeline | Real CRM end-to-end UI/API with permissions and persistence |
+| 29 | F-06.04 — Campaign Management | Real CRM end-to-end UI/API with permissions and persistence |
+| 30 | F-06.05 — Campaign Blueprint Reuse | Real CRM end-to-end UI/API with permissions and persistence |
+| 31 | F-06.06 — Campaign Performance Intelligence | Real CRM end-to-end UI/API with permissions and persistence |
+| 32 | S-06.02.47 — Large send queues are paginated | Named acceptance tests and remaining live integration/recovery gates |
+| 33 | S-06.02.48 — Campaign-wide queue counters do not mislead | Named acceptance tests and remaining live integration/recovery gates |
+| 34 | S-06.02.49 — Queue views focus on actionable cohorts | Named acceptance tests and remaining live integration/recovery gates |
+| 35 | S-06.02.44 — Download all filtered Contacts rows | Named acceptance tests and remaining live integration/recovery gates |
+| 36 | S-06.02.45 — Category and variant filters for contacts | Named acceptance tests and remaining live integration/recovery gates |
+| 37 | S-06.02.46 — Marked-only contacts remain reachable | Named acceptance tests and remaining live integration/recovery gates |
+| 38 | S-06.02.41 — Contacts beyond row 500 are reachable | Named acceptance tests and remaining live integration/recovery gates |
+| 39 | S-06.02.42 — Enrichment exports cannot run spreadsheet formulas | Named acceptance tests and remaining live integration/recovery gates |
+
+### P3 — AI, agents, GTM, media, accessibility and other remaining items (18)
+
+| Order | Item | Specific review target |
+|---:|---|---|
+| 40 | S-12.02.05 — The brain drafts against the expert corpus and the owner's winners | Named acceptance tests and remaining live integration/recovery gates |
+| 41 | S-12.01.03 — The video director uses the product | Named acceptance tests and remaining live integration/recovery gates |
+| 42 | S-06.02.34 — Connectors show how much is left | Named acceptance tests and remaining live integration/recovery gates |
+| 43 | S-06.02.37 — Skip navigation keeps the current screen | Named acceptance tests and remaining live integration/recovery gates |
+| 44 | S-06.02.39 — Valid low-bitrate WebM exports pass verification | Named acceptance tests and remaining live integration/recovery gates |
+| 45 | S-12.02.06 — A plan's posting channel runs from the screens | Named acceptance tests and remaining live integration/recovery gates |
+| 46 | S-06.02.25 — Every screen opens at its top, its warnings in view | Named acceptance tests and remaining live integration/recovery gates |
+| 47 | S-06.02.22 — A created or selected campaign stays the active workspace | Named acceptance tests and remaining live integration/recovery gates |
+| 48 | S-07.01.03 — Meeting transcription with no bot in the call | Named acceptance tests and remaining live integration/recovery gates |
+| 49 | S-06.02.05 — The UI is usable by keyboard and screen reader | Named acceptance tests and remaining live integration/recovery gates |
+| 50 | S-06.01.04 — Routines that fire agent runs on a schedule or an event | Named acceptance tests and remaining live integration/recovery gates |
+| 51 | S-04.01.01 — Companions: persisted agent profiles | Named acceptance tests and remaining live integration/recovery gates |
+| 52 | S-02.02.02 — PLAN.md as the single source of truth | Named acceptance tests and remaining live integration/recovery gates |
+| 53 | S-03.02.05 — A platform is a row, not a code change | Named acceptance tests and remaining live integration/recovery gates |
+| 54 | S-05.01.03 — Take a competitor post apart and rebuild the shape | Named acceptance tests and remaining live integration/recovery gates |
+| 55 | S-05.01.02 — Extraction packs as declared data | Named acceptance tests and remaining live integration/recovery gates |
+| 56 | S-05.01.01 — A crawler with a frontier, not a loop | Named acceptance tests and remaining live integration/recovery gates |
+| 57 | S-07.01.04 — Reports and artifacts | Named acceptance tests and remaining live integration/recovery gates |
+
+
 ## IN_REVIEW — every implemented feature/story requiring certification
 | # | ID | Description | Focused test evidence | Last completed outcome | Remaining gate |
 |---:|---|---|---|---|---|

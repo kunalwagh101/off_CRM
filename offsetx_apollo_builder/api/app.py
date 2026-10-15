@@ -333,11 +333,21 @@ RECOVERY_WAIT_SECONDS = 120.0
 
 
 #: The workspace of the request being served: its login's, or `local` for the
-#: install token. "" for a request nobody signed. Unset (None) outside a request,
-#: which is a timer acting for the install. The engine is shared by every
+#: install token. Missing and unsigned requests use "" (deny by default).
+#: Only a deliberately scoped installation timer uses None. The engine is shared by every
 #: request, so its product reader cannot be handed a caller — it reads one here
 #: (D-125). Set by the security middleware, around the whole request.
-_CALLER_WORKSPACE: ContextVar[str | None] = ContextVar("offcrm_caller_workspace", default=None)
+_CALLER_WORKSPACE: ContextVar[str | None] = ContextVar("offcrm_caller_workspace", default="")
+
+
+@contextmanager
+def _install_content_scope() -> Iterator[None]:
+    """Grant only an explicitly authorised content cycle install-wide product access."""
+    marker = _CALLER_WORKSPACE.set(None)
+    try:
+        yield
+    finally:
+        _CALLER_WORKSPACE.reset(marker)
 
 
 def _engine(request: Request) -> OutreachEngine:
@@ -776,6 +786,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             angle_resolver=lambda campaign_id, declared: resolve_angle(
                 app.state.gtm_store, None, campaign_id, declared
             ),
+            timer_context=_install_content_scope,
             campaign_status=lambda campaign_id: str(
                 _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
             ),
@@ -1891,8 +1902,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         for the install, which is why only the owner may start it (D-125).
         """
         require_install_owner(request)
-        _CALLER_WORKSPACE.set(None)
-        results = request.app.state.content_automation.run_once()
+        with _install_content_scope():
+            results = request.app.state.content_automation.run_once()
         return {"results": results, "total": len(results)}
 
     @app.get(f"{API_PREFIX}/campaigns")

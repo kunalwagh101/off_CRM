@@ -10,6 +10,16 @@ RUN npm test
 RUN npm run build
 RUN npm audit --omit=dev --audit-level=low
 
+# Temporary lockfile remediation probe, executed only by this isolated QA build.
+FROM node:24-alpine AS lock-patch
+WORKDIR /review/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN cp package-lock.json /tmp/original-lock.json
+RUN npm install vitest@4.1.11 --save-dev --save-exact --package-lock-only --ignore-scripts --no-fund --no-audit
+RUN npm audit fix --package-lock-only --ignore-scripts --no-fund
+RUN node -e 'const fs=require("fs");const a=JSON.parse(fs.readFileSync("/tmp/original-lock.json"));const b=JSON.parse(fs.readFileSync("package-lock.json"));for(const k of Object.keys(b.packages)){if(JSON.stringify(a.packages[k])!==JSON.stringify(b.packages[k])){console.log("LOCK_PATCH "+k+" "+JSON.stringify(b.packages[k]))}}for(const k of Object.keys(a.packages)){if(!b.packages[k])console.log("LOCK_REMOVE "+k)}console.log("LOCK_MANIFEST "+fs.readFileSync("package.json","utf8").replace(/\\s*\\n\\s*/g,""))'
+RUN npm audit --audit-level=high
+
 FROM python:3.12-slim AS backend-checks
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /review
@@ -36,6 +46,7 @@ RUN uv run pytest -v --tb=short \
     tests/test_gtm_strategy.py
 # All Python gates must run even when a development-only npm advisory fails.
 FROM frontend-checks AS final-audit
+COPY --from=lock-patch /review/frontend/package-lock.json /tmp/lock-remediation-probe.json
 COPY --from=backend-checks /review/frontend/dist /tmp/python-gates-passed
 RUN npm audit --audit-level=high
 EXPOSE 10000

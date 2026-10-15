@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.16 · Unified CRM Search
+  work_order: docs/features/unified-crm-search.md
+  review: full API/UI literal-safe contact and lead search, server pagination and cross-campaign membership navigation; regression tests authored, not executed
+
+- F-06.17 · Account Intelligence Workspace
+  work_order: docs/features/account-intelligence-workspace.md
+  review: company-grouped contacts/leads, campaign/message/task coverage and interactive account profile; regression and performance/security review pending
+
+- F-06.18 · Campaign-to-Revenue Attribution
+  work_order: docs/features/campaign-revenue-attribution.md
+  review: first-link unique lead assignment, won/cash metrics and no-causal-claim UI, database and frontend tests authored; financial semantics and hosted acceptance pending
+
+
 - F-06.13 · Qualified Reply-to-Sales Conversion
   work_order: docs/features/reply-to-sales-conversion.md
   review: source-backed explicit positive-reply conversion, durable campaign-to-lead link, duplicate fail-closed and API/frontend test source prepared; runtime and migration gates open

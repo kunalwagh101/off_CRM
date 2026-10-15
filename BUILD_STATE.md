@@ -2982,3 +2982,12 @@ On develop only, source-level product features F-06.13, F-06.14 and F-06.15 are 
 New outreach/relationship_ops.py, frontend Contact360.tsx and ActionCenter.tsx, protected API endpoints and UI integrations. CRM SQLite schema 11; PostgreSQL schema step 3; sales-link table included in CRM_TABLES backup inventory. Test source tests/test_relationship_intelligence.py and frontend/src/pages/RelationshipIntelligence.test.tsx; legacy CRM table count now 34. All docs/evidence/2026-10-15-three-relationship-features.md gates still required, especially disposable real PostgreSQL migration, backup/restore, concurrency, full pytest/TypeScript build, Chrome UI and Q-27 workspace authorisation review.
 
 Do not claim verified, deployed, or DONE. A code-only downgrade of a migrated schema is unsafe. Original send path unmodified; previous S-06.02.23 audit remains IN_PROGRESS.
+
+
+## 2026-10-15 — Cross-campaign Search, Account Intelligence, Revenue Attribution
+
+Feature-level work chosen and implemented in source: F-06.16 Unified CRM Search, F-06.17 Account Intelligence Workspace, F-06.18 Campaign-to-Revenue Attribution. Scope stays `kunalwagh101/off_CRM` / `develop` only. Backend in `offsetx_apollo_builder/outreach/crm_insights.py`, protected read-only endpoints in `api/app.py`, screens `frontend/src/pages/{CRMSearch,AccountIntelligence,RevenueAttribution}.tsx`, routes in `App.tsx`. No writes or schema changes.
+
+Global search is bounded, literal-query escaped and correctly aligns the selected campaign/member. Company accounts are grouped by `lower(trim(company))` with independently counted existing contacts, memberships, tasks and workspace sales leads; not a legal-entity verification. Attribution uses SQL `ROW_NUMBER` over existing human-created campaign-sales links to count each opportunity and its won/booked/cash values at most once, via earliest link. Monetary units aren't converted and association isn't proof of causation.
+
+Test source `tests/test_crm_insights.py`, `frontend/src/pages/CRMIntelligence.test.tsx`; specifications `docs/features/unified-crm-search.md`, `account-intelligence-workspace.md`, `campaign-revenue-attribution.md`, evidence `docs/evidence/2026-10-15-crm-intelligence-three.md`. Real pytest/Ruff/Vitest/frontend build/PostgreSQL/Chromium/tenant review are still required. All three IN_REVIEW, not DONE/deployed; original S-06.02.23 audit remains IN_PROGRESS. Existing unresolved CI runner-allocation and backup/retention/tenant boundaries unaffected; no new database table is added.

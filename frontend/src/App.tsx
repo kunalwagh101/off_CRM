@@ -11,6 +11,9 @@ import CampaignActivity from "./pages/CampaignActivity";
 import ReplyInbox from "./pages/ReplyInbox";
 import Followups from "./pages/Followups";
 import ActionCenter from "./pages/ActionCenter";
+import CRMSearch from "./pages/CRMSearch";
+import AccountIntelligence from "./pages/AccountIntelligence";
+import RevenueAttribution from "./pages/RevenueAttribution";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
@@ -43,6 +46,9 @@ const pages = {
   replies: ReplyInbox,
   followups: Followups,
   priorities: ActionCenter,
+  crmsearch: CRMSearch,
+  accounts: AccountIntelligence,
+  attribution: RevenueAttribution,
   drafts: Drafts,
   queue: Queue,
   deliverability: Deliverability,
@@ -75,7 +81,7 @@ const campaignScopedPages = new Set<Page>([
 // among them, where backup and restore live (D-130). Settings reads the
 // selection too, but copes with none: its campaign export asks for one first.
 export const campaignListPages = new Set<Page>([
-  "dashboard", "campaigns", "product",
+  "dashboard", "campaigns", "product", "crmsearch", "accounts", "attribution",
   "contacts", "discovery", "readiness", "activity", "replies", "followups", "priorities", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting"
 ]);
@@ -96,6 +102,9 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "replies", label: "Reply inbox", icon: "↩" },
   { page: "followups", label: "Human follow-ups", icon: "☷" },
   { page: "priorities", label: "Today’s priorities", icon: "⚑" },
+  { page: "crmsearch", label: "Unified CRM search", icon: "⌕" },
+  { page: "accounts", label: "Company accounts", icon: "▦" },
+  { page: "attribution", label: "Revenue attribution", icon: "↗" },
   { page: "product", label: "Product", icon: "◆", group: "Strategy" },
   { page: "strategy", label: "Go-to-market plan", icon: "⌖" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },

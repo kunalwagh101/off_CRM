@@ -2350,3 +2350,31 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - Given filtering, when paging a large campaign, then apply type filters before page limits and preserve truthful full-campaign counts.
 - Given a cross-campaign record, when reading this queue, then exclude it; never mutate a task, approve a draft or send a message from the report.
 - **Dependency:** F-06.10–F-06.14. **Size:** L. **Specification:** docs/features/daily-action-command-center.md.
+
+
+### F-06.16 — Unified CRM Search  *(E-06, product feature)*
+
+**As a CRM operator**, I want to find a person across all campaigns and the existing Sales Tracker from one search box, **so that** I can use the correct existing record rather than duplicate it.
+
+- **Given** a 2–100 character name, email or company query, **when** searching Contacts or Sales, **then** I see accurately counted, bounded, server-filtered pages of only relevant identity/pipeline metadata.
+- **Given** a person in multiple campaigns, **when** opening them, **then** the result contains one global contact, its membership count, and a correct paired campaign/member ID for Contact 360.
+- **Given** a literal `%` or `_`, **when** searching, **then** it is escaped rather than becoming a wildcard; raw message bodies/notes and unauthorised workspaces are not searched.
+- **Dependencies:** existing Contacts/SalesTracker and authenticated API. **Size:** L. **Feature specification:** `docs/features/unified-crm-search.md`.
+
+### F-06.17 — Account Intelligence Workspace  *(E-06, product feature)*
+
+**As a CRM operator**, I want to view company-level relationship coverage from saved contacts, campaigns and sales opportunities, **so that** I can identify account engagement and outstanding work.
+
+- **Given** company names with only case/outer whitespace differences, **when** viewing Accounts, **then** records group under one normalized company key, without guessing legal entities or merging uncertain subsidiaries.
+- **Given** an account, **when** opening its profile, **then** I see its people, sales opportunities, distinct campaign coverage, actual message counts and open contact-linked tasks, with links to campaign Contact 360.
+- **Given** high-volume accounts, **when** paging, **then** filtering happens in SQL and aggregate counts do not inflate from many-to-many joins.
+- **Dependencies:** existing global contacts, campaign memberships, tasks and SalesTracker. **Size:** L. **Feature specification:** `docs/features/account-intelligence-workspace.md`.
+
+### F-06.18 — Campaign-to-Revenue Attribution  *(E-06, product feature)*
+
+**As a campaign owner**, I want defensible reporting from recorded campaign links to actual sales outcomes, **so that** I can understand commercial progress without double-counting revenue.
+
+- **Given** a sales lead linked to multiple campaigns, **when** attribution is calculated, **then** exactly one campaign receives its lead/won/cash credit by earliest persisted link; others retain their link counts without revenue duplication.
+- **Given** campaign activity, **when** viewing the report, **then** I see recorded contacts, replied/qualified statuses, linked memberships, allocated leads, won/lost deals, booked value and recorded cash with full-campaign totals unaffected by paging.
+- **Given** no linked sale or different currencies, **when** reporting, **then** zero or clear warnings appear; no misleading causal claim or invented FX conversions.
+- **Dependencies:** F-06.13 campaign-sales links and existing SalesTracker. **Size:** L. **Feature specification:** `docs/features/campaign-revenue-attribution.md`.

@@ -89,6 +89,7 @@ from ..outreach.email_expert import route_for_category
 from ..outreach.launch import launch_readiness
 from ..outreach.relationships import CampaignRelationships, TaskConflictError
 from ..outreach.relationship_ops import RelationshipOperations
+from ..outreach.crm_insights import CRMInsights
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
@@ -3122,6 +3123,51 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
+
+    @app.get(f"{API_PREFIX}/crm/search")
+    def crm_unified_search(
+        request: Request,
+        query: str = Query(min_length=2, max_length=100),
+        kind: str = Query("contacts", pattern="^(contacts|leads)$"),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        """Search CRM fields only; never provider message contents."""
+        return CRMInsights(_engine(request).store, _sales(request)).search(
+            query, kind=kind, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/crm/accounts")
+    def crm_accounts(
+        request: Request,
+        search: str = Query("", max_length=100),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMInsights(_engine(request).store, _sales(request)).accounts(
+            search=search, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/crm/account")
+    def crm_account_detail(
+        request: Request,
+        company_key: str = Query(min_length=1, max_length=200),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMInsights(_engine(request).store, _sales(request)).account(
+            company_key, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/crm/attribution")
+    def crm_revenue_attribution(
+        request: Request,
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMInsights(_engine(request).store, _sales(request)).revenue_attribution(
+            limit=limit, offset=offset,
+        )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/actions")
     def campaign_action_center(

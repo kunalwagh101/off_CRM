@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **F-06.16 Unified CRM Search** (IN_REVIEW, 2026-10-15): authenticated, paged cross-campaign contact and existing Sales Tracker search by name/email/company; escaped literal queries and matched campaign/member navigation. No message-body search.
+- **F-06.17 Account Intelligence Workspace** (IN_REVIEW): company grouping by normalized exact name, count-safe contacts/campaigns/leads and company view with message/task coverage. No unverified firmographic enrichment or company merger.
+- **F-06.18 Campaign-to-Revenue Attribution** (IN_REVIEW): source-backed first-campaign-link attribution, one credited sales lead per deal, qualified-reply/lead/won and recorded cash figures with explicit noncausal label and no FX guessing.
+- New CRM insights API and three React pages plus Python/frontend tests authored. No schema change and no external sender/provider use. Full test suites/PostgreSQL/Chrome/security review remain execution gates.
+
+
 - **F-06.13 Qualified Reply-to-Sales Conversion** (IN_REVIEW, 2026-10-15): explicitly convert reviewed Positive/Meeting incoming replies into deduplicated Sales Tracker leads. Link saved campaign membership; reuse existing same-email lead without rewriting it; fail closed on multiple duplicates. No automatic sending.
 - **F-06.14 Contact 360 Workspace** (IN_REVIEW): campaign-scoped and privacy-allowlisted identity, reply, task and opportunity overview, accessible from Contacts, Reply Inbox, Follow-ups and Today's Priorities.
 - **F-06.15 Daily Action Command Center** (IN_REVIEW): read-only ranked worklist of overdue tasks, replies requiring triage and stale/unworked linked sales opportunities; accurate filtered counts and pagination.

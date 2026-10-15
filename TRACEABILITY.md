@@ -224,3 +224,14 @@ All three remain IN_REVIEW; tests, migration and hosted rollback/restore still r
 | R-178 | F-06.15 | 3 | tests/test_relationship_intelligence.py, frontend/src/pages/RelationshipIntelligence.test.tsx | outreach/relationship_ops.py, frontend/src/pages/ActionCenter.tsx |
 
 These are authored test paths, not passed test evidence. All features IN_REVIEW.
+
+
+## 2026-10-15 — CRM intelligence product features, IN_REVIEW
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-179 | F-06.16 | 3 | `tests/test_crm_insights.py`, `frontend/src/pages/CRMIntelligence.test.tsx` | `outreach/crm_insights.py`, `api/app.py`, `frontend/src/pages/CRMSearch.tsx` |
+| R-180 | F-06.17 | 3 | `tests/test_crm_insights.py`, `frontend/src/pages/CRMIntelligence.test.tsx` | `outreach/crm_insights.py`, `frontend/src/pages/AccountIntelligence.tsx` |
+| R-181 | F-06.18 | 3 | `tests/test_crm_insights.py`, `frontend/src/pages/CRMIntelligence.test.tsx` | `outreach/crm_insights.py`, `frontend/src/pages/RevenueAttribution.tsx` |
+
+IN_REVIEW = authored but not tested or deployed.

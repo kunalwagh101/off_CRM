@@ -322,6 +322,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-289 | 2026-10-15 | product gap | medium | Positive replies remained disconnected from the commercial Sales Tracker pipeline and manually reentering contacts could create duplicate leads. Explicit deduplicated promotion/source link prepared; tests unrun | in review · F-06.13 |
 | D-290 | 2026-10-15 | usability | medium | Contact identity, reply context, task status and sales progress were scattered across multiple screens. Campaign-scoped Contact 360 prepared; privacy and browser review pending | in review · F-06.14 |
 | D-291 | 2026-10-15 | product gap | medium | Operators lacked one ranked source-backed view of overdue human tasks, incoming replies awaiting triage and sales follow-ups. Daily Action Center prepared; runtime and query plan tests pending | in review · F-06.15 |
+| D-292 | 2026-10-15 | product gap | medium | Contacts could be searched only inside selected campaigns, while sales leads lived in another screen; cross-campaign identity discovery had no unified UI. Read-only CRM Search feature code and tests prepared; runtime gates open | in review · F-06.16 |
+| D-293 | 2026-10-15 | product gap | medium | No company-centric relationship view joined existing global contacts, campaign touchpoints and Sales Tracker opportunities. Account intelligence code/tests authored; grouping identity and performance review open | in review · F-06.17 |
+| D-294 | 2026-10-15 | reporting gap | medium | Multiple campaign links to the same won sales lead could overstate commercial attribution if aggregated naively. Deterministic first-link metric and tests prepared; causal/financial semantics and PostgreSQL verification open | in review · F-06.18 |
 
 
 

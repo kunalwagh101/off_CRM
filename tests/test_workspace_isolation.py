@@ -289,7 +289,7 @@ def test_S060236_local_login_requires_explicit_install_owner_confirmation(tmp_pa
 
         no_access = client.post("/api/v1/workspaces",
                                 json={**payload, "confirm_install_owner": True})
-        assert no_access.status_code == 403
+        assert no_access.status_code == 401
 
         created = client.post("/api/v1/workspaces", headers=owner,
                               json={**payload, "confirm_install_owner": True})

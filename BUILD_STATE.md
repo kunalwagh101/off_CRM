@@ -6,7 +6,7 @@
 
 **Verified green review runner:** `dep-db8cnnou01pc73fb3d8g` on `76bc929240192120e7506a80f60039d15548e9f5`: focused security/GTM **3 passed**, verifier/CI fixture **67 passed**, full SQLite **2754 passed / 45 skipped**, full real disposable PostgreSQL 17 CRM **2774 passed / 94 skipped**, dedicated PostgreSQL storage suite **215 passed**, separate two-instance PostgreSQL logout revocation **1 passed**. Full review image built and reached LIVE. npm audits already clean (0 production, 0 dev), 212 frontend tests passed, frontend production build passed on prior frontend-compatible revision.
 
-**Separate QA web app** `srv-db86h3gm7kps73d8ud1g` was triggered for updated `develop` at `dep-db8cttm89jmc73d2ip00`; report live status only after verified. The original production service and `main` are untouched.
+**Separate QA web app** `srv-db86h3gm7kps73d8ud1g` was triggered for updated `develop` at `dep-db8cttm89jmc73d2ip00`; Render confirmed LIVE at source commit `fff73e1`: Uvicorn application startup complete and HEAD /, GET / both 200; direct `/health/ready` response and browser workflows not independently fetched. The original production service and `main` are untouched.
 
 **Open:** GitHub Actions quality/postgres jobs still fail at runner allocation with 0 steps (run `38738223007`); authentic full-history board verifier remains unexecuted. Owner decisions/recovery, browser acceptance, independent security review and remaining story-specific criteria prevent promotion. Board remains **70 DONE, 57 IN_REVIEW, 16 BACKLOG, 6 BLOCKED, 1 IN_PROGRESS**, as recorded in `docs/evidence/2026-10-15-pending-80-item-register.md`.
 

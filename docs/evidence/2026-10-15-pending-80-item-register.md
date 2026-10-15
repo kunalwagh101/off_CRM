@@ -4,12 +4,12 @@ Date: 2026-10-15 · Repository: `kunalwagh101/off_CRM` · branch: `develop`
 ## Interpretation
 This is an **evidence log**, not a replacement for `BOARD.md`; board statuses have not been silently promoted. There are **80 unfinished board items**: 57 IN_REVIEW (18 product-level F features + 39 S stories), 16 BACKLOG, 6 BLOCKED and 1 IN_PROGRESS. There are 70 DONE, 0 READY, 0 DEFERRED. A focused test PASS does **not** mean a feature is DONE: end-to-end, live PostgreSQL, privacy, migration recovery, dependencies and owner acceptance may still be open.
 
-Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmoan0` on `develop` (`311f1ab`): **85 passed, 1 failed, 14 skipped, 2 warnings**, and earlier `dep-db892nij9qps73c46gvg` (`fc3f3d9`): **83 passed, 3 failed, 14 skipped**. Retest of F-06.19 fix `e671607` was triggered separately (`dep-db89530u01pc73f01t7g`); do not call that one passed until its log confirms it. Frontend separate run: 212 passed. Full Python broader run: 2,678 passed, 72 failed, 46 skipped (context-dependent verifier/CI failures included); see `docs/evidence/2026-10-15-all-in-review-audit.md`.
+Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmoan0` on `develop` (`311f1ab`): **85 passed, 1 failed, 14 skipped, 2 warnings**, and earlier `dep-db892nij9qps73c46gvg` (`fc3f3d9`): **83 passed, 3 failed, 14 skipped**. Final F-06.19 retest `dep-db89530u01pc73f01t7g` on `e671607` **completed 86 passed, 14 skipped, 2 warnings**; no focused Python failure. The Docker build still **failed** at `npm audit --audit-level=high` with 5 development advisories (3 moderate, 2 high). Frontend separate run: 212 passed. Full Python broader run: 2,678 passed, 72 failed, 46 skipped (context-dependent verifier/CI failures included); see `docs/evidence/2026-10-15-all-in-review-audit.md`.
 
 ## IN_REVIEW — every implemented feature/story requiring certification
 | # | ID | Description | Focused test evidence | Last completed outcome | Remaining gate |
 |---:|---|---|---|---|---|
-| 1 | F-06.19 | CRM Data Quality Centre | `tests/test_crm_operations.py::test_quality_filters_exact_saved_records_and_no_private_fields` | FAIL in latest finished run: UUID-tie ordering assumption; fix committed e671607, rerun underway | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
+| 1 | F-06.19 | CRM Data Quality Centre | `tests/test_crm_operations.py::test_quality_filters_exact_saved_records_and_no_private_fields` | PASS focused after correcting UUID-tie test flake (86-pass rerun, dep-db89530u01pc73f01t7g) | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 2 | F-06.20 | Campaign Comparison Dashboard | `tests/test_crm_operations.py::test_comparison_counts_unique_memberships_not_message_fanout` | PASS focused | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 3 | F-06.21 | Follow-up Performance Centre | `tests/test_crm_operations.py::test_followup_performance_groups_labels_and_preserves_global_totals` | PASS focused | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 4 | F-06.16 | Unified CRM Search | `tests/test_crm_insights.py::test_unified_search_filters_privately_and_returns_consistent_campaign_links` | PASS focused | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
@@ -113,7 +113,7 @@ Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmo
 | D-300, F-06.04 | Invalid timezone returned 422 while old test expected 400 | HTTP test/contract drift: ValueError handler explicitly returns 422 | Updated test to expect 422; still asserts rejected write and restart persistence; rerun passed focused |
 | F-06.13 | Promotion before positive human triage returned 422 while old test expected 400 | Test/contract drift: ValueError handler deliberately returns 422 | Updated test to assert 422 **and** visible prerequisites; rerun passed focused |
 | F-06.12 | Migrated SQLite user_version 11 vs old test expectation 10 | Stale schema-version assertion | Test now expects `SCHEMA_VERSION`; rerun passed focused |
-| F-06.19 | First campaign UUID asserted for a contact with two campaigns; actual UUID order can differ on equal timestamps | Flaky test assumption, not proven backend regression | Assert consistent campaign/member pair, referential contact ID and stable repeated read. Commit `e671607`. Rerun pending at time of this entry |
+| F-06.19 | First campaign UUID asserted for a contact with two campaigns; actual UUID order can differ on equal timestamps | Flaky test assumption, not proven backend regression | Assert consistent campaign/member pair, referential contact ID and stable repeated read. Commit `e671607`. Rerun PASS: 86 passed, 14 skipped (dep-db89530u01pc73f01t7g) |
 | D-299, S-06.02.16 | npm audit found 5 development dependency findings (2 high, 3 moderate) | Open security/dependency vulnerability | Upgrade locked dependencies, retest npm audit, Vitest, production build |
 | D-298, S-06.02.20 | Full Python test stage excludes .github and .git from Docker context; .github workflow and Git verifier tests fail in QA container | Review harness is not a complete repository checkout | Run these tests with real Git history and CI config; cannot claim they passed |
 | Q-27 | CRM contact/campaign data is install-wide, no customer tenant ownership proof | Product/security blocker | Owner decision + verified isolation required before multi-tenant release |
@@ -128,7 +128,7 @@ Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmo
 - Original app service is intentionally untouched; no external email was sent, no real customer data mutated.
 
 ## Required next verification
-1. Complete and record fresh focused rerun after the flaky-test fix.
+1. **COMPLETED:** focused rerun passed 86/86 Python checks; PostgreSQL-specific 14 skipped, and independent end-to-end acceptance remains open.
 2. Fix/read through full Python failure traces separately (harness-context failures vs actual code), rerun with true repository metadata.
 3. Update vulnerable frontend development dependencies without suppressing npm audit and rerun.
 4. Execute actual PostgreSQL migrations, rollback/restore, hosted durability and concurrency tests **only** against disposable QA data.

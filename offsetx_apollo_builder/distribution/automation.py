@@ -49,8 +49,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from contextlib import contextmanager
-from typing import Any, Callable
+from contextlib import contextmanager, nullcontext
+from typing import Any, Callable, ContextManager
 
 from . import pacing
 from ..outreach.workspace_lock import WorkspaceLock
@@ -125,6 +125,7 @@ class ContentAutomationService:
         pacing_reader: Callable[[str], dict[str, Any]] | None = None,
         angle_resolver: Callable[[str, str], str] | None = None,
         campaign_status: Callable[[str], str] | None = None,
+        timer_context: Callable[[], ContextManager[None]] | None = None,
     ) -> None:
         self.path = Path(path)
         self.trends_factory = trends_factory
@@ -148,6 +149,9 @@ class ContentAutomationService:
         #: are active: planning makes pictures, which costs money, and a paused
         #: campaign is the owner saying stop (D-87). ``None`` checks nothing.
         self.campaign_status = campaign_status
+        # The scheduler, not an arbitrary thread, may assert installation-owner
+        # authority. Keep the provider-independent service neutral by injection.
+        self.timer_context = timer_context or nullcontext
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
         self._run_lock = threading.Lock()
@@ -739,6 +743,9 @@ class ContentAutomationService:
                 pass
             if config["enabled"] and config["pipelines"]:
                 try:
-                    await asyncio.to_thread(self.run_once)
+                    # to_thread copies the current context: the timer's explicit
+                    # scope survives the worker hop and cannot leak back to requests.
+                    with self.timer_context():
+                        await asyncio.to_thread(self.run_once)
                 except Exception:  # noqa: BLE001 - already recorded in status
                     pass

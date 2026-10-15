@@ -535,7 +535,15 @@ def test_the_engine_reads_the_product_linked_from_another_workspace(app_client):
     store.set_links(product["id"], "acme", [campaign])
 
     reader = client.app.state.engine.email_expert.product_reader
-    assert reader(campaign)["id"] == product["id"]
+    # Reading without a principal was formerly treated as owner access (D-313).
+    # An explicit, scoped installation timer may follow the product link, but a
+    # lost request context must not expose another workspace's private offer.
+    with pytest.raises(PermissionError, match="workspace"):
+        reader(campaign)
+    with client.app.state.content_automation.timer_context():
+        assert reader(campaign)["id"] == product["id"]
+    with pytest.raises(PermissionError, match="workspace"):
+        reader(campaign)
 
 
 def test_the_content_timer_builds_its_engines_without_a_login(app_client):

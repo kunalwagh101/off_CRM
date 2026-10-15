@@ -472,6 +472,20 @@ def test_a_workspace_cannot_draft_another_workspaces_product(tmp_path):
         assert all("another workspace" in json.dumps(draft) for draft in drafts)
 
 
+def test_lost_request_context_cannot_read_other_workspaces_product(tmp_path):
+    """WP1 review: a bare thread must not acquire owner powers by losing a contextvar.
+
+    A linked product contains private workspace positioning, so the shared
+    campaign's reader must fail closed if its request identity disappeared.
+    """
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        campaign, _ = _two_workspaces_and_a_shared_campaign(client, app)
+        reader = app.state.engine.email_expert.product_reader
+        with pytest.raises(PermissionError, match="workspace"):
+            reader(campaign)
+
+
 def test_the_linking_workspace_still_drafts_its_own_product(tmp_path):
     """The other half: acme's own login drafts with its product (D-109)."""
     app = create_app(_settings(tmp_path))

@@ -345,6 +345,57 @@ def test_a_privacy_request_reaches_a_hosted_login(hosted_url, tmp_path, monkeypa
             "username": "alice@example.com", "password": "alice-password-123"}).status_code in (401, 404)
 
 
+def test_postgres_logout_revocation_reaches_another_live_app_and_survives_restart(
+    postgres_url, tmp_path, monkeypatch,
+):
+    """S-06.02.43: a copied cookie is invalid on every hosted app instance.
+
+    The database is a dedicated disposable PostgreSQL schema supplied by the
+    fixture. Each app has its own local data root but shares durable hosted
+    revocations; no production account or connection is ever used.
+    """
+    from offsetx_apollo_builder.api.auth import SESSION_COOKIE
+
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", postgres_url)
+    key = _new_key()
+
+    def settings_for(name: str):
+        settings = _settings(tmp_path / name, key)
+        settings.demo_username = "session-owner"
+        settings.demo_password = "qa-only-password-123"
+        return settings
+
+    with TestClient(create_app(settings_for("first")), base_url="https://testserver") as first:
+        signed_in = first.post(f"{API}/auth/login", json={
+            "username": "session-owner", "password": "qa-only-password-123",
+        })
+        assert signed_in.status_code == 200, signed_in.text
+        stolen = signed_in.cookies.get(SESSION_COOKIE)
+        assert stolen
+
+        with TestClient(create_app(settings_for("second")), base_url="https://testserver") as second:
+            second.cookies.set(SESSION_COOKIE, stolen, domain="testserver", path="/")
+            assert second.get(f"{API}/dashboard").status_code == 200
+            assert first.post(f"{API}/auth/logout", json={}).status_code == 200
+            assert second.get(f"{API}/dashboard").status_code == 401
+
+    with TestClient(create_app(settings_for("after-restart")), base_url="https://testserver") as reopened:
+        reopened.cookies.set(SESSION_COOKIE, stolen, domain="testserver", path="/")
+        assert reopened.get(f"{API}/dashboard").status_code == 401
+
+    import hashlib
+    database = open_database(postgres_url)
+    try:
+        rows = database.execute(
+            "SELECT token_digest FROM workspace_revoked_sessions"
+        ).fetchall()
+        assert [row["token_digest"] for row in rows] == [
+            hashlib.sha256(stolen.encode("utf-8")).hexdigest()
+        ]
+    finally:
+        database.close()
+
+
 # ── the operator's two commands ───────────────────────────────────────────────
 
 def test_new_secrets_key_prints_a_key_the_app_accepts(capsys):

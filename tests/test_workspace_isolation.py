@@ -486,6 +486,27 @@ def test_lost_request_context_cannot_read_other_workspaces_product(tmp_path):
             reader(campaign)
 
 
+def test_only_explicit_timer_scope_can_read_linked_product_without_a_request(tmp_path):
+    """A lost context fails closed; an owner's explicitly scoped timer may run."""
+    import asyncio
+
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        campaign, _ = _two_workspaces_and_a_shared_campaign(client, app)
+        reader = app.state.engine.email_expert.product_reader
+        with pytest.raises(PermissionError, match="workspace"):
+            reader(campaign)
+
+        with app.state.content_automation.timer_context():
+            # The real scheduler uses asyncio.to_thread; it copies the scope
+            # into its worker without publishing privileged state globally.
+            product = asyncio.run(asyncio.to_thread(reader, campaign))
+            assert ACME_OFFER in json.dumps(product)
+
+        with pytest.raises(PermissionError, match="workspace"):
+            reader(campaign)
+
+
 def test_the_linking_workspace_still_drafts_its_own_product(tmp_path):
     """The other half: acme's own login drafts with its product (D-109)."""
     app = create_app(_settings(tmp_path))

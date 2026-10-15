@@ -256,7 +256,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.43 · Logout revokes the copied browser session
   work_order: docs/work-orders/S-06.02.43-logout-revocation.md
-  review: persisted revocations and tests prepared; live database verification pending
+  review: docs/evidence/S-06.02.43-validation.md; disposable PostgreSQL two-instance replay/restart 1 passed, hosted suite 215 passed, PG full suite 2772 passed; real browser and old-hosted-data upgrade acceptance open
 
 
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners
@@ -325,6 +325,7 @@ write the code, then the evidence block.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
+  review: D-313 confirmed lost-request-context product disclosure in cold review; RED reproduced, fail-closed/timer-scope fix has 2 focused PASS; full and PostgreSQL regression, independent review, recovery and browser gates open
 - S-06.02.22 · A created or selected campaign stays the active workspace
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 

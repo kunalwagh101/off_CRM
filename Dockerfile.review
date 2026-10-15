@@ -1,0 +1,26 @@
+# Review-only build harness. It is not used by off_CRM's production Dockerfile.
+# Source: develop. A failed gate fails the image build and is visible in Render build logs.
+FROM node:24-alpine AS frontend-checks
+WORKDIR /review/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+COPY tests/fixtures/timeline_conformance.json /review/tests/fixtures/timeline_conformance.json
+RUN npm test
+RUN npm run build
+RUN npm audit --omit=dev --audit-level=low
+RUN npm audit --audit-level=high
+
+FROM python:3.12-slim AS backend-checks
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /review
+COPY . .
+COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
+COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
+RUN uv sync --locked --extra dev --extra email --extra postgres
+ENV PATH="/review/.venv/bin:$PATH"
+RUN uv run ruff check --select E9,F63,F7,F82 .
+RUN uv run pytest -q
+# Serve a non-customer marker only after the checks above succeed.
+EXPOSE 10000
+CMD ["python", "-m", "http.server", "10000", "--bind", "0.0.0.0"]

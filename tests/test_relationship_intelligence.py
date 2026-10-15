@@ -233,7 +233,7 @@ def test_relationship_action_apis_enforce_auth_and_promote_once(tmp_path: Path):
         assert client.post(promote_path).status_code == 401
         before_triage = client.post(promote_path, headers=auth, json={})
         assert before_triage.status_code == 422
-        assert "Mark a received reply" in before_triage.json()["detail"
+        assert "Mark a received reply" in before_triage.json()["detail"]
         assert client.get(base + "/actions", headers=auth, params={"action_type": "bad"}).status_code == 422
         assert client.get(base + "/actions", headers=auth, params={"limit": 101}).status_code == 422
         assert client.get(base + f"/contacts/missing/overview", headers=auth).status_code == 404

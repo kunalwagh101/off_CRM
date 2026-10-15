@@ -341,6 +341,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-308 | 2026-10-15 | process | medium | GTM video-direction tests created unsupported campaign kind 'video'; registry's 'image' campaign handles image/video work. Test setup now uses real registered kind; rerun pending | fixed after 352-case security/storage QA rerun · `S-12.01.02`, `286c4b2` |
 | D-309 | 2026-10-15 | bug | high | Egress-log copy opened target Postgres before checking that source SQLite database existed; offline target hid actionable missing-source error. Added source preflight before any remote connection; rerun pending | fixed after 352-case security/storage QA rerun · `S-06.03.02`, `9ace6b0` |
 | D-310 | 2026-10-15 | reliability | medium | EGRESS_COLUMNS order diverged from ai_egress_log schema after system_prompt addition; fixed explicit column tuple to match schema and protect cross-engine copy contract; rerun pending | fixed after 352-case security/storage QA rerun · `S-06.03.02`, `9ace6b0` |
+| D-311 | 2026-10-15 | bug | low | Python parsed a JavaScript `/\\s+/` regex in browser Enter-safety script as an invalid Python string escape, causing startup/test SyntaxWarning. Script literal is now raw so JS bytes are preserved; wave-four rerun 187 passed and warning total fell 45 to 44 | fixed · `S-02.02.04`, `024ef206` |
 
 
 

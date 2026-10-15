@@ -9,7 +9,6 @@ COPY tests/fixtures/ /review/tests/fixtures/
 RUN npm test
 RUN npm run build
 RUN npm audit --omit=dev --audit-level=low
-RUN npm audit --audit-level=high
 
 FROM python:3.12-slim AS backend-checks
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
@@ -21,6 +20,9 @@ RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run ruff check --select E9,F63,F7,F82 .
 RUN uv run pytest -q
-# Serve a non-customer marker only after the checks above succeed.
+# All Python gates must run even when a development-only npm advisory fails.
+FROM frontend-checks AS final-audit
+COPY --from=backend-checks /review/frontend/dist /tmp/python-gates-passed
+RUN npm audit --audit-level=high
 EXPOSE 10000
-CMD ["python", "-m", "http.server", "10000", "--bind", "0.0.0.0"]
+CMD ["node", "-e", "require('http').createServer((_,res)=>{res.writeHead(200);res.end('QA checks passed')}).listen(10000,'0.0.0.0')"]

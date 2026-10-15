@@ -328,6 +328,11 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-295 | 2026-10-15 | product gap | medium | No consolidated non-destructive contact field-completeness and possible Sales Tracker email-overlap queue. Read-only CRM quality source/UI/test prepared; no actual runtime or tenancy verification yet | in review · F-06.19 |
 | D-296 | 2026-10-15 | reporting gap | medium | Per-campaign signals were scattered and repeated messages could distort direct comparisons. Unique-member comparison source/UI/test prepared; query plan/real DB/Chrome gates open | in review · F-06.20 |
 | D-297 | 2026-10-15 | operations gap | medium | Human follow-up tasks lacked a cross-campaign assignee-label workload and completion timeliness view. Saved-state reporting source/UI/test prepared; label identity and runtime review open | in review · F-06.21 |
+| D-298 | 2026-10-15 | process | high | Render review image excludes CI workflow and Git metadata, so source-context verifier tests fail without testing actual board behaviour. Re-run in a real Git checkout / fixture-complete review environment | in review · `S-06.02.20`, `S-06.02.16` |
+| D-299 | 2026-10-15 | security | high | npm development audit found 5 dependency vulnerabilities (2 high, 3 moderate): @vitest/mocker/Vitest, nanoid, postcss and source-map-js; production-only audit clean. Upgrade reviewed lockfile and rerun | in review · `S-06.02.16` |
+| D-300 | 2026-10-15 | bug | medium | Campaign settings rejected invalid timezone with HTTP 422 where explicit acceptance test expects HTTP 400. Contract/validation status must be made consistent and rechecked with persistence | in review · `F-06.04` |
+| D-301 | 2026-10-15 | process | medium | Account Intelligence SSR test supplied list-shaped resource for detail request; test crashed on nested contacts.total. Test double fixed; 212 frontend tests passed on retest | fixed · `F-06.17`, `6885444` |
+| D-302 | 2026-10-15 | process | medium | Render review image omitted committed WebM fixture and two Vitest suites failed to load. Review Dockerfile fixed to include tests/fixtures; 212 frontend tests passed on retest | fixed · `S-06.02.39`, `423913c` |
 
 
 

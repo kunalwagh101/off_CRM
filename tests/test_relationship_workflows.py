@@ -150,6 +150,7 @@ def test_followup_tasks_due_assignment_revision_and_persistence(tmp_path):
 
 
 
+@pytest.mark.crm_sqlite_only("This deliberately edits SQLite PRAGMA user_version 9 and checks a SQLite file migration; PostgreSQL has separate schema-step tests.")
 def test_existing_sqlite_crm_receives_additive_relationship_tables(tmp_path):
     """Simulate a version-nine file with no relationship tables, then reopen."""
     from offsetx_apollo_builder.outreach.schema import CRM_TABLES, SCHEMA_VERSION

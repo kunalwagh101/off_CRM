@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from ..db import Database, open_database
+from ..db import Database, DatabaseError, open_database
 from ..outreach.models import to_utc_iso
 
 SCHEMA = """
@@ -319,10 +319,10 @@ EGRESS_COLUMNS = (
     "findings",
     "duration_ms",
     "payload",
+    "system_prompt",
     "payload_summary",
     "response_text",
     "failure_kind",
-    "system_prompt",
 )
 
 
@@ -334,6 +334,12 @@ def copy_egress_log(source: Path | str, destination: str, *, batch_size: int = 5
     about none of them.
     """
     from ..db.copy import copy_table
+
+    # Reject a missing source *before* opening a remote destination: an
+    # unreachable PostgreSQL host must not hide the actionable source error.
+    # The generic copy function repeats this check at its own boundary.
+    if not Path(str(source)).exists():
+        raise DatabaseError(f"No SQLite database at {source}. Nothing to copy.")
 
     # Old SQLite logs and older Postgres targets predate system_prompt.
     # The generic copier does not run store-specific additive migrations.

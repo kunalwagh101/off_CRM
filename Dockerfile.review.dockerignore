@@ -1,0 +1,16 @@
+# Review image includes CI workflows, unlike production's .dockerignore.
+# Never upload credentials, Git checkout metadata or mutable user data.
+.env
+.git
+.pytest_cache
+.testvenv
+.venv
+__pycache__
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+local_data
+frontend/node_modules
+frontend/dist
+output*

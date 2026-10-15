@@ -235,3 +235,14 @@ These are authored test paths, not passed test evidence. All features IN_REVIEW.
 | R-181 | F-06.18 | 3 | `tests/test_crm_insights.py`, `frontend/src/pages/CRMIntelligence.test.tsx` | `outreach/crm_insights.py`, `frontend/src/pages/RevenueAttribution.tsx` |
 
 IN_REVIEW = authored but not tested or deployed.
+
+
+## 2026-10-15 — CRM operations product features, IN_REVIEW
+
+| Req | Feature | Criteria | Test source | Source |
+|---|---|---|---|---|
+| R-182 | F-06.19 | 3 | `tests/test_crm_operations.py`, `frontend/src/pages/CRMOperations.test.tsx` | `outreach/crm_operations.py`, `api/app.py`, `frontend/src/pages/CRMOperations.tsx` |
+| R-183 | F-06.20 | 3 | `tests/test_crm_operations.py`, `frontend/src/pages/CRMOperations.test.tsx` | `outreach/crm_operations.py`, `api/app.py`, `frontend/src/pages/CRMOperations.tsx` |
+| R-184 | F-06.21 | 3 | `tests/test_crm_operations.py`, `frontend/src/pages/CRMOperations.test.tsx` | `outreach/crm_operations.py`, `api/app.py`, `frontend/src/pages/CRMOperations.tsx` |
+
+Tests are **authored**, not evidence of a passing run. Q-27 customer isolation remains unresolved.

@@ -14,6 +14,7 @@ import ActionCenter from "./pages/ActionCenter";
 import CRMSearch from "./pages/CRMSearch";
 import AccountIntelligence from "./pages/AccountIntelligence";
 import RevenueAttribution from "./pages/RevenueAttribution";
+import { CRMDataQuality, CampaignComparison, FollowupPerformance } from "./pages/CRMOperations";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
@@ -49,6 +50,9 @@ const pages = {
   crmsearch: CRMSearch,
   accounts: AccountIntelligence,
   attribution: RevenueAttribution,
+  crmquality: CRMDataQuality,
+  campaigncompare: CampaignComparison,
+  followupmetrics: FollowupPerformance,
   drafts: Drafts,
   queue: Queue,
   deliverability: Deliverability,
@@ -81,7 +85,7 @@ const campaignScopedPages = new Set<Page>([
 // among them, where backup and restore live (D-130). Settings reads the
 // selection too, but copes with none: its campaign export asks for one first.
 export const campaignListPages = new Set<Page>([
-  "dashboard", "campaigns", "product", "crmsearch", "accounts", "attribution",
+  "dashboard", "campaigns", "product", "crmsearch", "accounts", "attribution", "crmquality", "campaigncompare", "followupmetrics",
   "contacts", "discovery", "readiness", "activity", "replies", "followups", "priorities", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting"
 ]);
@@ -105,6 +109,9 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "crmsearch", label: "Unified CRM search", icon: "⌕" },
   { page: "accounts", label: "Company accounts", icon: "▦" },
   { page: "attribution", label: "Revenue attribution", icon: "↗" },
+  { page: "crmquality", label: "CRM data quality", icon: "◎" },
+  { page: "campaigncompare", label: "Compare campaigns", icon: "▤" },
+  { page: "followupmetrics", label: "Follow-up performance", icon: "◷" },
   { page: "product", label: "Product", icon: "◆", group: "Strategy" },
   { page: "strategy", label: "Go-to-market plan", icon: "⌖" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },

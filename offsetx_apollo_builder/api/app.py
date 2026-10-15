@@ -90,6 +90,7 @@ from ..outreach.launch import launch_readiness
 from ..outreach.relationships import CampaignRelationships, TaskConflictError
 from ..outreach.relationship_ops import RelationshipOperations
 from ..outreach.crm_insights import CRMInsights
+from ..outreach.crm_operations import CRMOperations
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
@@ -3123,6 +3124,40 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
+
+    @app.get(f"{API_PREFIX}/crm/quality")
+    def crm_data_quality(
+        request: Request,
+        issue: str = Query("all", pattern="^(all|missing_email|missing_company|missing_title|not_in_campaign|sales_overlap)$"),
+        search: str = Query("", max_length=100),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMOperations(_engine(request).store, _sales(request)).contact_quality(
+            issue=issue, search=search, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/crm/compare")
+    def crm_campaign_comparison(
+        request: Request,
+        search: str = Query("", max_length=100),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMOperations(_engine(request).store, _sales(request)).campaign_comparison(
+            search=search, limit=limit, offset=offset,
+        )
+
+    @app.get(f"{API_PREFIX}/crm/followup-performance")
+    def crm_followup_performance(
+        request: Request,
+        campaign_id: str = Query("", max_length=160),
+        limit: int = Query(25, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMOperations(_engine(request).store, _sales(request)).followup_performance(
+            campaign_id=campaign_id, limit=limit, offset=offset,
+        )
 
     @app.get(f"{API_PREFIX}/crm/search")
     def crm_unified_search(

@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.19 · CRM Data Quality Centre
+  work_order: docs/features/crm-data-quality.md
+  review: read-only incomplete-contact and sales-email-overlap review screen, authenticated filtered API and tests authored; real environment, privacy and tenant gates open
+
+- F-06.20 · Campaign Comparison Dashboard
+  work_order: docs/features/campaign-comparison.md
+  review: unique-contact outreach comparison with explicit denominator, paginated UI and tests authored; PostgreSQL/performance/browser gates open
+
+- F-06.21 · Follow-up Performance Centre
+  work_order: docs/features/followup-performance.md
+  review: saved human-task workload by free-text assignee label, truthful overdue/on-time totals, UI and tests authored; execution/tenancy review pending
+
+
 - F-06.16 · Unified CRM Search
   work_order: docs/features/unified-crm-search.md
   review: full API/UI literal-safe contact and lead search, server pagination and cross-campaign membership navigation; regression tests authored, not executed

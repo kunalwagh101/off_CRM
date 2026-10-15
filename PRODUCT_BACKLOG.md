@@ -2378,3 +2378,31 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - **Given** campaign activity, **when** viewing the report, **then** I see recorded contacts, replied/qualified statuses, linked memberships, allocated leads, won/lost deals, booked value and recorded cash with full-campaign totals unaffected by paging.
 - **Given** no linked sale or different currencies, **when** reporting, **then** zero or clear warnings appear; no misleading causal claim or invented FX conversions.
 - **Dependencies:** F-06.13 campaign-sales links and existing SalesTracker. **Size:** L. **Feature specification:** `docs/features/campaign-revenue-attribution.md`.
+
+
+### F-06.19 — CRM Data Quality Centre *(E-06, product feature)*
+
+**As a CRM operator**, I want a safe data-quality workbench with accurate filters, **so that** I can prioritise corrections and review potential contact-to-sales overlaps without destructive automated merges.
+
+- **Given** incomplete contacts, **when** choosing a specific issue or all issues, **then** I get only matching records with all applicable missing-email/company/title, no-campaign or exact-email-sales-overlap flags and stable pagination.
+- **Given** a possible sales overlap, **when** inspecting the result, **then** it is explicitly only a review candidate, cannot trigger an automatic merge, and reveals no message bodies or sensitive notes.
+- **Given** a filtered result, **when** navigating to a related campaign or Sales Tracker, **then** a real operator path is available; all filters and page bounds are validated.
+- **Dependencies:** contacts, campaign membership and SalesTracker. **Size:** L. **Specification:** docs/features/crm-data-quality.md. **Status:** IN_REVIEW pending executed tests/security checks.
+
+### F-06.20 — Campaign Comparison Dashboard *(E-06, product feature)*
+
+**As a campaign manager**, I want to compare saved contact, outbound, inbound, qualification and sales-link outcomes across campaigns, **so that** I can see actual patterns without false lift or duplicated messages.
+
+- **Given** repeated messages, **when** comparing campaigns, **then** contacted and replied counts are unique per campaign membership, not inflated by multiple messages.
+- **Given** no outbound contacts, **when** computing descriptive reply rate, **then** it shows N/A rather than an invented percentage; the denominator and measurement limitations are visible.
+- **Given** many campaigns, **when** searching and paging, **then** counts and results remain correct and operators can open Campaign activity.
+- **Dependencies:** existing campaign membership, persisted message events, triage and sales links. **Size:** L. **Specification:** docs/features/campaign-comparison.md. **Status:** IN_REVIEW.
+
+### F-06.21 — Follow-up Performance Centre *(E-06, product feature)*
+
+**As a sales operations lead**, I want human follow-up workload and timeliness reports across campaigns, **so that** I can spot overdue queues and redistribute work through existing forms.
+
+- **Given** open/done saved tasks, **when** viewing the report, **then** overdue, completed and on-time counts reflect saved due/completed times, never inferred activity.
+- **Given** variations in assignee labels and unassigned tasks, **when** grouping, **then** whitespace/case-normalised display groups appear without implying real login ownership or permissions.
+- **Given** a campaign filter and many labels, **when** paging, **then** overall counts remain unchanged and the UI links to follow-up work.
+- **Dependencies:** F-06.12 human follow-up tasks, existing campaigns. **Size:** L. **Specification:** docs/features/followup-performance.md. **Status:** IN_REVIEW.

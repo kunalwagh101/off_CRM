@@ -36,6 +36,7 @@ RUN set -eu; \
     su postgres -c "psql -v ON_ERROR_STOP=1 -c \"CREATE ROLE offcrmqa LOGIN PASSWORD 'qa-only-local' CREATEDB\""; \
     su postgres -c "createdb -O offcrmqa offcrmqa"; \
     export OFF_CRM_TEST_POSTGRES_URL="postgresql://offcrmqa:qa-only-local@127.0.0.1:5432/offcrmqa"; \
+    uv run pytest -q tests/test_hosted_storage.py::test_postgres_logout_revocation_reaches_another_live_app_and_survives_restart; \
     uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py tests/test_db_backend.py tests/test_storage_inventory.py tests/test_video_postgres.py tests/test_crm_harness.py; \
     OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q
 

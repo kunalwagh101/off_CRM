@@ -363,9 +363,10 @@ def test_postgres_logout_revocation_reaches_another_live_app_and_survives_restar
         settings = _settings(tmp_path / name, key)
         settings.demo_username = "session-owner"
         settings.demo_password = "qa-only-password-123"
+        settings.allowed_hosts = ("crm.test",)
         return settings
 
-    with TestClient(create_app(settings_for("first")), base_url="https://testserver") as first:
+    with TestClient(create_app(settings_for("first")), base_url="https://crm.test") as first:
         signed_in = first.post(f"{API}/auth/login", json={
             "username": "session-owner", "password": "qa-only-password-123",
         })
@@ -373,14 +374,14 @@ def test_postgres_logout_revocation_reaches_another_live_app_and_survives_restar
         stolen = signed_in.cookies.get(SESSION_COOKIE)
         assert stolen
 
-        with TestClient(create_app(settings_for("second")), base_url="https://testserver") as second:
-            second.cookies.set(SESSION_COOKIE, stolen, domain="testserver", path="/")
-            assert second.get(f"{API}/dashboard").status_code == 200
+        with TestClient(create_app(settings_for("second")), base_url="https://crm.test") as second:
+            second.cookies.set(SESSION_COOKIE, stolen, domain="crm.test", path="/")
+            assert second.get(f"{API}/dashboard").status_code == 200, "Copied cookie must authenticate on another app BEFORE logout"
             assert first.post(f"{API}/auth/logout", json={}).status_code == 200
             assert second.get(f"{API}/dashboard").status_code == 401
 
-    with TestClient(create_app(settings_for("after-restart")), base_url="https://testserver") as reopened:
-        reopened.cookies.set(SESSION_COOKIE, stolen, domain="testserver", path="/")
+    with TestClient(create_app(settings_for("after-restart")), base_url="https://crm.test") as reopened:
+        reopened.cookies.set(SESSION_COOKIE, stolen, domain="crm.test", path="/")
         assert reopened.get(f"{API}/dashboard").status_code == 401
 
     import hashlib

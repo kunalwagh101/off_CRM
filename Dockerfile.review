@@ -39,8 +39,8 @@ RUN set -eu; \
     uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py tests/test_db_backend.py tests/test_storage_inventory.py tests/test_video_postgres.py tests/test_crm_harness.py; \
     OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q
 
-# All Python gates must run even when a development-only npm advisory fails.
-FROM frontend-checks AS final-audit
+# Require both audited frontend and fully tested SQLite/PostgreSQL backend before publishing the QA marker.
+FROM frontend-checks AS verified-review
 COPY --from=postgres-checks /review/frontend/dist /tmp/python-and-postgres-gates-passed
 EXPOSE 10000
 CMD ["node", "-e", "require('http').createServer((_,res)=>{res.writeHead(200);res.end('QA checks passed')}).listen(10000,'0.0.0.0')"]

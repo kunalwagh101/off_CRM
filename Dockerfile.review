@@ -22,6 +22,8 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run ruff check --select E9,F63,F7,F82 .
+# WP1 security review: run the lost-context regression before other suites.
+RUN uv run pytest -q tests/test_workspace_isolation.py::test_lost_request_context_cannot_read_other_workspaces_product
 # Verify CI contracts and shallow/full clone behaviour with real git first.
 RUN uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py
 # Run every installed Python test, not only a curated selection of review items.

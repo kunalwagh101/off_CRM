@@ -269,6 +269,7 @@ def test_relationship_action_apis_enforce_auth_and_promote_once(tmp_path: Path):
         assert client.get(base + "/actions", headers=auth).json()["counts"]["sales_attention"] == 1
 
 
+@pytest.mark.crm_sqlite_only("This checks SQLite PRAGMA user_version and an existing SQLite file upgrade; PostgreSQL is covered by the hosted schema migration tests.")
 def test_sqlite_v10_upgrade_adds_sales_links_without_touching_old_records(tmp_path: Path):
     from offsetx_apollo_builder.outreach.schema import CRM_TABLES, SCHEMA_VERSION
 

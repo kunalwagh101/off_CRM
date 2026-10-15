@@ -12,7 +12,14 @@ Verification rules: PASS = actual completed test with evidence; FAIL = executed 
 | API startup | PASS | Render 2026-10-15 05:57:08Z startup complete, port 10000 |
 | PostgreSQL network connections | PASS (connectivity only) | Render PG active_connections=3 at 05:58–05:59Z after QA startup; not schema or data correctness |
 | Python SyntaxWarning | WARNING | browser/page.py:106 invalid escape sequence '\\s'; did not prevent startup; fix needed and retest |
-| Python/React full regression | NOT RUN | QA deployment Dockerfile does not execute tests. Separate Render review runner `srv-db86p4u89jmc73cehns0` created, Dockerfile.review executes gated checks. Read current runner logs for results. |
+| React regression | PASS | Render review runner dep-db86q8ss728c738d66ug: 18 test files, 212/212 tests passed, 2026-10-15 |
+| Frontend TypeScript/Vite build | PASS | Same review runner: `npm run build` succeeded |
+| Frontend production dependency audit | PASS | Same review runner: `npm audit --omit=dev --audit-level=low`: found 0 vulnerabilities |
+| Frontend development dependency audit | FAIL | Same review runner: `npm audit --audit-level=high`: 5 vulnerabilities (3 moderate, 2 high): `@vitest/mocker` GHSA-82fw-gwwq-j7x9, `nanoid` GHSA-2v37-7h3g-55p8, `postcss` GHSA-fxqj-rqcc-2cmp, `source-map-js` GHSA-68fv-2mgg-jv7q, and transitive Vitest; fix by upgrading reviewed lockfile, then rerun |
+| Python Ruff syntax/name lint | PASS | Render review runner dep-db86qqaj9qps73bskiq0: `uv run ruff check --select E9,F63,F7,F82 .` reported All checks passed |
+| Python full regression | RUNNING (not pass) | Same review runner: `uv run pytest -q` has reached at least 28% with no printed F; final result awaits completion |
+| Browser React SSR regression | PASS after test mock repair | First build: `CRMIntelligence.test.tsx` crashed Account Intelligence mock with `Cannot read properties of undefined (reading 'total')`; corrected mock shape, rerun passed 212/212 |
+| Video fixture harness | PASS after QA fixture repair | First build: two test files couldn't load `/review/tests/fixtures/muxed_sample.webm`; Dockerfile.review now copies actual committed fixtures. No video feature logic changed |
 | Migration, restart, backup/restore | NOT RUN | Needs isolated DB and real destructive/recovery harness; do not run against customer data |
 | Chrome/browser end-to-end | NOT RUN | No trusted browser execution yet |
 | Live provider / email delivery | NOT RUN | Would create external side effects; QA smoke tests must be side-effect-safe |
@@ -86,3 +93,11 @@ Review-only `Dockerfile.review`: `npm ci`, `npm test`, `npm run build`, `npm aud
 ## Release restrictions
 
 Unresolved customer tenancy/Q-27, persistence of non-PostgreSQL artifacts, hosted backups, browser egress isolation, independent review and CI runner failure remain release gates. No item was moved to DONE based on startup alone.
+
+## Observed review gate failures, 2026-10-15
+
+1. **Harness bug, repaired:** First run `dep-db86p5m89jmc73cehrng` executed `npm test`: 173 passed, 1 failed, and 2 test suites failed to import due to missing WebM fixture. Incorrect AccountIntelligence mock returned an account-list record for an account-detail resource. Fix `688544493984c80143f8b28b7d818871d78ccb6f` supplies documented nested `contacts`/`sales_leads` shapes. Fix `423913c45cdb494e12f52c29bc0fa0d1a518aee2` adds committed media fixtures to QA-only Docker image. Rerun: 212/212 frontend tests pass. These are harness/test-double corrections, not application bug repairs.
+2. **High-severity dependency findings, open:** Review run `dep-db86q8ss728c738d66ug` passed frontend tests, build, and production-only audit (0 vulnerabilities), then `npm audit --audit-level=high` failed with 5 findings (2 high, 3 moderate). High: nanoid GHSA-2v37-7h3g-55p8 and source-map-js GHSA-68fv-2mgg-jv7q; moderate: @vitest/mocker GHSA-82fw-gwwq-j7x9 and postcss GHSA-fxqj-rqcc-2cmp, plus Vitest transitive dependency. Actual npm lockfile resolution must be upgraded and all gates rerun; no `--force` workaround or suppression.
+3. **Review runner now runs Python before dependency audit:** Commit `e250ed80b6de40376da840cddf3e398368dc5130` stages `uv run ruff check` and full `uv run pytest -q` before the development dependency audit without weakening either check; pending final Python results and external integration acceptance.
+
+The feature rows retain NOT RUN as their feature-specific end-to-end browser/PG acceptance gates remain unexecuted; the shared passing React suite alone does not justify DONE.

@@ -330,7 +330,8 @@ def test_a_privacy_request_reaches_a_hosted_login(hosted_url, tmp_path, monkeypa
     monkeypatch.setenv("OFFSETX_DATABASE_URL", hosted_url)
     with _running(tmp_path / "data", _new_key()) as (app, client):
         made = client.post(f"{API}/workspaces", json={
-            "username": "alice@example.com", "workspace_id": "local", "password": "alice-password-123"})
+            "username": "alice@example.com", "workspace_id": "local", "password": "alice-password-123",
+            "confirm_install_owner": True})
         assert made.status_code == 201, made.text
         subject = SubjectIdentity.from_mapping({"emails": ["alice@example.com"]})
         found = next(item for item in app.state.privacy.access(subject)["stores"]

@@ -325,7 +325,7 @@ write the code, then the evidence block.)*
 
 - S-06.02.21 · Durable customer state and safe recovery (audit WP1)
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
-  review: D-313 confirmed lost-request-context product disclosure in cold review; RED reproduced, fail-closed/timer-scope fix has 2 focused PASS; full and PostgreSQL regression, independent review, recovery and browser gates open
+  review: docs/evidence/S-06.02.21-security-review-2026-10-15.md; D-313 RED reproduced and fixed; 3 focused, full SQLite 2754 and PostgreSQL 2774 PASS; independent review, live browser, backup/recovery and original Git-history/CI gates still open
 - S-06.02.22 · A created or selected campaign stays the active workspace
   work_order: docs/work-orders/S-06.02.21-S-06.02.22-close-out.md
 

@@ -5,7 +5,7 @@ WORKDIR /review/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-COPY tests/fixtures/timeline_conformance.json /review/tests/fixtures/timeline_conformance.json
+COPY tests/fixtures/ /review/tests/fixtures/
 RUN npm test
 RUN npm run build
 RUN npm audit --omit=dev --audit-level=low

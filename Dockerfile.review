@@ -19,25 +19,33 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run ruff check --select E9,F63,F7,F82 .
-# Review wave 2: security, browser containment, GTM and recovery regressions.
-# -v preserves every result; any failure stops this QA image.
+# Review wave 3: agent, GTM, email and media/video feature integration.
+# These suites only use temporary fixtures/fakes, not customer's live mail.
 RUN uv run pytest -v --tb=short \
-    tests/test_workspace_isolation.py \
-    tests/test_workspace_lock.py \
-    tests/test_cli_workspace_lease.py \
-    tests/test_browser_agent.py \
-    tests/test_browser_box.py \
-    tests/test_browser_vault.py \
-    tests/test_browser_vault_wiring.py \
-    tests/test_browser_revoke.py \
-    tests/test_browser_countdown.py \
-    tests/test_browser_platform_registry.py \
-    tests/test_ai_egress_wall.py \
-    tests/test_privacy.py \
-    tests/test_gtm_product_wiring.py \
-    tests/test_hosted_storage.py \
-    tests/test_db_backend.py \
-    tests/test_frontend_accessibility_contract.py
+    tests/test_agent_run.py \
+    tests/test_agent_recovery.py \
+    tests/test_agent_resume.py \
+    tests/test_agent_provenance.py \
+    tests/test_agent_claim_verification.py \
+    tests/test_agent_companions.py \
+    tests/test_agent_routines.py \
+    tests/test_agent_plan.py \
+    tests/test_agent_artifacts.py \
+    tests/test_agent_injection.py \
+    tests/test_gtm_strategy.py \
+    tests/test_gtm_apply.py \
+    tests/test_gtm_review.py \
+    tests/test_gtm_revise.py \
+    tests/test_gtm_products.py \
+    tests/test_email_delivery.py \
+    tests/test_video_director.py \
+    tests/test_video_gates.py \
+    tests/test_video_engine.py \
+    tests/test_video_review.py \
+    tests/test_video_timeline.py \
+    tests/test_api_auth.py \
+    tests/test_security_audit.py \
+    tests/test_frontend_routes_exist.py
 # All Python gates must run even when a development-only npm advisory fails.
 FROM frontend-checks AS final-audit
 COPY --from=backend-checks /review/frontend/dist /tmp/python-gates-passed

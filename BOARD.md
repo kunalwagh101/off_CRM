@@ -265,7 +265,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
   work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md
-  review: docs/evidence/S-06.02.16-validation.md; CI audit enforcement committed, real npm audit and upgrades remain unverified
+  review: docs/evidence/S-06.02.16-validation.md; npm-regenerated Vitest/lockfile fixed 5 advisories; clean npm ci, 212 Vitest, build, both npm audits zero findings; full CI/board history review pending
 
 - S-12.01.03 · The video director uses the product
   work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md
@@ -297,7 +297,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
   work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
-  review: docs/evidence/S-06.02.20-validation.md; isolated real Git reproduction passed, full repository and CI unrun
+  review: docs/evidence/S-06.02.20-validation.md; 67 real Git-fixture and CI tests passed in Render QA; full historical Git ancestry and GitHub Actions verification pending
 
 - S-06.02.39 · Valid low-bitrate WebM exports pass verification
   work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md

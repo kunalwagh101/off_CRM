@@ -134,3 +134,21 @@ Test outcomes below are from completed Render QA-only run `dep-db8944m89jmc73cmo
 4. Execute actual PostgreSQL migrations, rollback/restore, hosted durability and concurrency tests **only** against disposable QA data.
 5. Run browser accessibility/security/e2e checks, verify tenant boundary Q-27 and external integrations with explicit owner approvals.
 6. Update `DEFECT_LOG.md`, `BOARD.md` and per-story evidence only after the required real gates pass.
+
+## Wave 2 — security, browser, GTM, storage and privacy (completed)
+Date: 2026-10-15. Runner: `dep-db896lqj9qps73c4hlb0` initially **346 passed, 6 failed, 15 skipped, 3 warnings**. Remediation commit `9ace6b0d08f039dba1c760964301967c3c2c04de` and earlier focused test changes produced runner `dep-db898aaj9qps73c4n530`: **352 passed, 0 failed, 15 skipped, 3 warnings**, across 16 explicit test modules.
+
+Affected stories and invariants: S-06.02.36 workspace owner approval and no cross-workspace access; S-03.01.03 browser isolation; S-03.02.02 vault separation; S-03.02.03 revoke/forget; S-02.02.04 countdown; S-03.02.05 platform registry; S-06.02.01 AI data egress; S-06.02.04 privacy; S-12.01.02 product request classification; S-06.03.02 hosted storage/egress copy. Those modules' focused tests passed, but the board remains IN_REVIEW where it was already IN_REVIEW; Docker real-sandbox, external provider/browser and PostgreSQL release gates remain.
+
+| Failure | Reproduced actual error | Cause and repair | Rerun |
+|---|---|---|---|
+| D-306 | Owner-creation request without credentials returned 401, old test expected 403 | Correct authentication boundary is 401; test updated, no access weakened | PASS |
+| D-307 | Creating new 'local' owner account without explicit `confirm_install_owner` returned 400 | Correct security requirement, updated hosted-privacy test to express explicit confirmation | PASS |
+| D-308 | Video direction tests failed `Unknown campaign kind 'video'` | `video` is not a registered campaign kind; valid media campaign kind is `image` | PASS |
+| D-309 | Missing source DB produced network/DNS failure to dummy PostgreSQL before 'Nothing to copy' | True defect: `copy_egress_log` migrated the destination before checking source exists; now validates source first | PASS |
+| D-310 | `test_the_copied_columns_match_the_schema` reported mismatch at `payload_summary`/`system_prompt` | True schema-copy contract drift: reordered explicit `EGRESS_COLUMNS` to match schema | PASS |
+
+`uv run ruff check --select E9,F63,F7,F82 .` also passed. The frontend's 212 Vitest tests and build passed again. **The final Docker build remains FAILED solely at the unsuppressed development-dependency audit**, which still finds 5 vulnerabilities (2 high, 3 moderate). A pass of the Python wave does not erase that security release blocker.
+
+PostgreSQL read-only metadata query through hosted Render connector was **BLOCKED** because the QA database has an empty external IP allowlist. This is intentional security isolation: do not open the allowlist to all IPs. The QA app itself previously established internal DB connections, but this does not prove live migration/backup correctness. PostgreSQL-specific test cases remain skipped pending a private-network execution path.
+

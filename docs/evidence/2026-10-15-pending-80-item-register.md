@@ -119,7 +119,7 @@ The source of status remains `BOARD.md`; this is a review execution order, **not
 | 26 | S-06.02.42 | Enrichment exports cannot run spreadsheet formulas | `tests/test_contacts_filters_export.py::test_download_covers_503_rows_and_never_executes_spreadsheet_formulas` | PASS focused | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 27 | S-06.02.43 | Logout revokes the copied browser session | `docs/work-orders/S-06.02.43-logout-revocation.md` | PASS general API auth/logout; explicit copied-session revocation live gate not independently tested | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 28 | S-12.02.05 | The brain drafts against the expert corpus and the owner's winners | `docs/work-orders/S-12.02.05-plans-with-expert-references.md` | PASS focused GTM/template code; owner expert corpus, 30 judged real cases and live A/B NOT RUN | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
-| 29 | S-06.02.16 | Resolve frontend development dependency audit findings | `docs/work-orders/S-06.02.16-frontend-dependency-audit.md` | FAIL: 5 open advisories (2 high, 3 moderate) | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
+| 29 | S-06.02.16 | Resolve frontend development dependency audit findings | `docs/work-orders/S-06.02.16-frontend-dependency-audit.md` | PASS current audits 0 vulnerabilities, npm ci, 212 React tests, frontend build; prior 5 advisories FIXED | Full DoD still requires repository verifier with real history, CI and independent review |
 | 30 | S-12.01.03 | The video director uses the product | `docs/work-orders/S-12.01.03-video-director-uses-the-product.md` | PASS focused; no live video provider verification | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 31 | S-06.02.34 | Connectors show how much is left | `docs/work-orders/S-06.02.34-usage-remaining.md` | PASS simulated usage parsing; real balance vendor and header capture NOT VERIFIED | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 32 | S-06.02.28 | A command-line tool locks the workspace it actually opens | `docs/work-orders/S-06.02.28-path-aware-workspace-lock.md` | PASS focused; live concurrent restore pending | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
@@ -127,7 +127,7 @@ The source of status remains `BOARD.md`; this is a review execution order, **not
 | 34 | S-05.01.04 | Public-page fetches connect only to checked destinations | `docs/work-orders/S-05.01.04-verified-destinations.md` | PASS safe HTTP/DNS pinning fixtures; Crawl4AI blocked pending egress isolation | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 35 | S-03.01.03 | Browser blocks internal network access | `docs/work-orders/S-03.01.03-network-isolation.md` | PASS code tests; real sandbox/network proof pending | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 36 | S-06.02.37 | Skip navigation keeps the current screen | `docs/work-orders/S-06.02.37-skip-keeps-current-page.md` | PASS frontend component suite; real Chrome skip-link interaction NOT RUN | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
-| 37 | S-06.02.20 | The verifier tells a shallow clone apart from a missing commit | `docs/work-orders/S-06.02.20-shallow-git-history.md` | BLOCKED: real repository .git context excluded from Docker QA context | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
+| 37 | S-06.02.20 | The verifier tells a shallow clone apart from a missing commit | `docs/work-orders/S-06.02.20-shallow-git-history.md` | PASS: 67 real Git-fixture + CI contract tests; complete historical ancestry not available in QA Docker | Full-history checkout board verifier and CI run remain required |
 | 38 | S-06.02.39 | Valid low-bitrate WebM exports pass verification | `docs/work-orders/S-06.02.39-low-bitrate-export.md` | PASS general video gates; low-bitrate browser export not independently verified | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 39 | S-12.02.06 | A plan's posting channel runs from the screens | `docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md` | PASS core GTM apply; live screen-to-provider posting not verified | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
 | 40 | S-06.02.38 | Any error can be traced back the next day | `docs/work-orders/S-06.02.38-traceable-errors.md` | PASS focused failure-reference logs; hosted 5xx trace not live verified | Full DoD: live user flow, applicable security/PG/browser/recovery/dependency tests |
@@ -264,3 +264,23 @@ Warnings: FastAPI Starlette TestClient/httpx deprecation (one), Python browser E
 ## Verified browser script warning fix — final review run
 
 Commit `024ef2064b72ac9ee6e5bec14caea31949dd848a` was tested in Render runner `dep-db89cl5g1s2s739hc8cg`. Results: 187 passed, zero failed, **44 warnings**, down from 45 before changing the `_WHAT_ENTER_WOULD_DO` Python triple string to a raw string. The remaining warnings were a Starlette TestClient/httpx deprecation and third-party lxml parser deprecations. Final build intentionally remained FAILED at development `npm audit` with its five published vulnerability findings.
+
+## New repository-wide gate: 2026-10-15, clean npm audits and full Python
+
+Render QA runner `dep-db8akqs9v7es73877d9g`, source snapshot `30f48cfca8d1e7d5b1f016d01860c9cd45e8d088` reached **live** after all its required build gates.
+
+- `npm ci` (frontend) — PASS, 57 packages installed, 0 vulnerabilities.
+- `npm test` (frontend) — **212 passed** across 18 files on patched Vitest 4.1.11.
+- `npm run build` — PASS.
+- `npm audit --omit=dev --audit-level=low` — **0 vulnerabilities**.
+- `npm audit --audit-level=high` — **0 vulnerabilities**. This supersedes the previous five development advisories (D-299 fixed).
+- `uv run ruff check --select E9,F63,F7,F82 .` — PASS.
+- `uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py` — **67 passed** in 19.38 seconds. Real temporary Git repositories and shallow/full fixture tests were exercised.
+- `uv run pytest -q` — **2,752 passed, 44 skipped, 44 warnings in 245.52 seconds**, no failures. This supersedes the prior *historical* full-suite failure of 72 tests.
+- Original production service and the separate application QA service were not redeployed. This is an isolated review build, not a customer deployment.
+
+Important limitations: the review image intentionally excludes `.git`, so historical commit-ancestry verification of the actual repo and full `scripts/verify_board.py` execution in an authenticated full-history checkout remain open. The 44 skipped tests include PostgreSQL-specific execution that was not configured in this run. Do not close unrelated items or call system-wide production readiness based on this green runner.
+
+### Dedicated PostgreSQL verification underway
+
+A subsequent isolated build `dep-db8aoopsrm7s73e0j1eg` configures disposable, container-local PostgreSQL with no credentials/data from the real Render/Neon environment. Its goals are a real Postgres storage suite and full suite with `OFF_CRM_TEST_CRM_ON_POSTGRES=1`, with destructive fixtures limited to this disposable database. PostgreSQL result must not be recorded as PASS until logs finish; any hosted backup/restore acceptance requires separate proof.

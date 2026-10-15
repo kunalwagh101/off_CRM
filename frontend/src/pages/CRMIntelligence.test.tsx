@@ -24,6 +24,9 @@ vi.mock("../hooks", async (original) => ({
     } : {
       total: 1,
       identity_rule: "Grouped by case-insensitive trimmed company name",
+      contacts: { items: [], total: 0 },
+      sales_leads: { items: [], total: 0 },
+      coverage: { campaigns: 0, replied_memberships: 0, outbound_messages: 0, inbound_messages: 0, open_contact_tasks: 0 },
       items: [{
         company_key: "acme", company_name: "Acme", contacts: 2,
         campaigns: 1, sales_leads: 1, won_leads: 1

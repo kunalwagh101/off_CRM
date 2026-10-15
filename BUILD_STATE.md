@@ -1,5 +1,18 @@
 # BUILD_STATE.md
 
+## Latest verification update — 2026-10-15, fail-closed security regression
+
+`develop` committed a high-severity fix **D-313** discovered during S-06.02.21 cold review: a missing request-context principal inherited installation-owner authority when reading linked products. Reproduced RED in Render `dep-db8cjmajnfac73f52o2g`. Fixed `_CALLER_WORKSPACE` to default deny and wrapped explicitly authorised content timers in a resettable scoped owner context; manual runs still require `require_install_owner`. Decisions `DD-121`. Linked-product GTM compatibility tests assert both deny-without-context and allow-with-an-explicit-timer-context. Full evidence: `docs/evidence/S-06.02.21-security-review-2026-10-15.md`.
+
+**Verified green review runner:** `dep-db8cnnou01pc73fb3d8g` on `76bc929240192120e7506a80f60039d15548e9f5`: focused security/GTM **3 passed**, verifier/CI fixture **67 passed**, full SQLite **2754 passed / 45 skipped**, full real disposable PostgreSQL 17 CRM **2774 passed / 94 skipped**, dedicated PostgreSQL storage suite **215 passed**, separate two-instance PostgreSQL logout revocation **1 passed**. Full review image built and reached LIVE. npm audits already clean (0 production, 0 dev), 212 frontend tests passed, frontend production build passed on prior frontend-compatible revision.
+
+**Separate QA web app** `srv-db86h3gm7kps73d8ud1g` was triggered for updated `develop` at `dep-db8cttm89jmc73d2ip00`; report live status only after verified. The original production service and `main` are untouched.
+
+**Open:** GitHub Actions quality/postgres jobs still fail at runner allocation with 0 steps (run `38738223007`); authentic full-history board verifier remains unexecuted. Owner decisions/recovery, browser acceptance, independent security review and remaining story-specific criteria prevent promotion. Board remains **70 DONE, 57 IN_REVIEW, 16 BACKLOG, 6 BLOCKED, 1 IN_PROGRESS**, as recorded in `docs/evidence/2026-10-15-pending-80-item-register.md`.
+
+---
+
+
 ## QA review checkpoint — 2026-10-15 (latest test evidence)
 
 **Branch:** `develop` only. The official board holds **57 IN_REVIEW** (18 product features + 39 stories), 16 BACKLOG, 6 BLOCKED, 1 IN_PROGRESS, 70 DONE (150 total). Do not silently move status from green unit tests. Prioritised 57-item order, exact per-story test mapping and blockers: `docs/evidence/2026-10-15-pending-80-item-register.md`. Live review logs: https://dashboard.render.com/web/srv-db86p4u89jmc73cehns0.

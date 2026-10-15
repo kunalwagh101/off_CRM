@@ -1,5 +1,21 @@
 # BUILD_STATE.md
 
+## QA review checkpoint — 2026-10-15 (latest test evidence)
+
+**Branch:** `develop` only. The official board holds **57 IN_REVIEW** (18 product features + 39 stories), 16 BACKLOG, 6 BLOCKED, 1 IN_PROGRESS, 70 DONE (150 total). Do not silently move status from green unit tests. Prioritised 57-item order, exact per-story test mapping and blockers: `docs/evidence/2026-10-15-pending-80-item-register.md`. Live review logs: https://dashboard.render.com/web/srv-db86p4u89jmc73cehns0.
+
+**S-06.02.16 registry security blocker repaired:** after reproducing npm dev audit 5 advisories (2 high, 3 moderate), a networked npm lockfile regeneration installed Vitest 4.1.11 and upgraded nanoid, postcss and source-map-js. Matching `frontend/package.json` and lockfile committed. Render review deploy `dep-db8akqs9v7es73877d9g` ran clean `npm ci`, **212/212 Vitest passed**, production build passed, production `npm audit --omit=dev --audit-level=low` and dev `npm audit --audit-level=high` both returned **0 vulnerabilities**.
+
+**S-06.02.20 board/CI checks:** review Dockerfile includes real Git executable and `.github` workflow files but excludes `.git` and secrets. Real shallow/full Git-fixture and workflow contract tests: `uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py` = **67 passed** (19.38 s). Original private repository commit ancestry cannot be certified in this Docker build because `.git` is excluded. A full-history authenticated checkout and CI runner remain required.
+
+**Latest complete Python regression:** `uv run pytest -q` ran in isolated QA Build, **2,752 passed, 44 skipped, 44 warnings in 245.52 s**, zero failures, superseding the historical 72-failure baseline. The review runner reached **live**; original application service unchanged.
+
+**PostgreSQL verification:** separate build `dep-db8aoopsrm7s73e0j1eg` adds a disposable local PostgreSQL test server, runs dedicated database cases and full suite with `OFF_CRM_TEST_CRM_ON_POSTGRES=1`. Do not record outcomes until build completes. Separate QA app `srv-db86h3gm7kps73d8ud1g` was manually triggered to deploy current `develop` after the clean SQLite build; no production app deploy was requested.
+
+**Remaining release gates:** real hosted PostgreSQL migration/recovery and backups, live Chromium accessibility/network egress, external providers/recordings, explicit Q-27 customer tenancy boundaries, historical Git ancestry and GitHub Actions running, plus per-feature DoD/independent acceptance. Never use a test runner marker endpoint as a substitute for real app feature testing.
+
+---
+
 Working record for the off_CRM AI orchestration module. Read **this file** to
 recover context between sessions rather than re-reading the codebase.
 

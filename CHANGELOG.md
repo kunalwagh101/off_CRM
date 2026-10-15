@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **2026-10-15 review verification:** isolated Render review runner exercised 86 focused CRM Python tests (86 passed, 14 PostgreSQL-only skipped), 352 security/workspace/browser/hosted-storage tests (352 passed, 15 skipped), and 212 frontend tests (212 passed). The full Python 2,796-case run earlier recorded 72 failures, including Git-context gaps; those are **not** claimed resolved by focused passes. npm development audit remains failed with 5 advisories (2 high, 3 moderate). Neither the production deployment nor board DONE statuses was changed.
+- **Egress-log copy reliability fix:** `copy_egress_log` now rejects a missing SQLite source **before** trying to connect to remote PostgreSQL, preserving an actionable error and avoiding unnecessary connection attempts. `EGRESS_COLUMNS` now matches the declared schema including `system_prompt`, protecting explicit cross-engine copy ordering; regression tests passed in Render (352-pass security/storage wave). No schema migration was introduced.
+- **Acceptance test repairs:** corrected stale FastAPI HTTP 400/422 expectations, SQLite 10/11 migration assertion, workspace-owner safety fixture, supported image/video campaign kind, and a random-UUID ordering assumption. Documented D-298–D-310 in `DEFECT_LOG.md`. The complete 80-item outstanding register and individual results live in `docs/evidence/2026-10-15-pending-80-item-register.md`.
+
+
 - **F-06.16 Unified CRM Search** (IN_REVIEW, 2026-10-15): authenticated, paged cross-campaign contact and existing Sales Tracker search by name/email/company; escaped literal queries and matched campaign/member navigation. No message-body search.
 - **F-06.17 Account Intelligence Workspace** (IN_REVIEW): company grouping by normalized exact name, count-safe contacts/campaigns/leads and company view with message/task coverage. No unverified firmographic enrichment or company merger.
 - **F-06.18 Campaign-to-Revenue Attribution** (IN_REVIEW): source-backed first-campaign-link attribution, one credited sales lead per deal, qualified-reply/lead/won and recorded cash figures with explicit noncausal label and no FX guessing.

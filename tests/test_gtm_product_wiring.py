@@ -311,7 +311,7 @@ def test_video_direction_classifies_product_and_style_not_in_system_text(app_cli
     from offsetx_apollo_builder.ai.tiers import DataClass
 
     client, recorded = app_client
-    campaign = _campaign(client, "video")
+    campaign = _campaign(client, "image")
     product = client.post("/api/v1/gtm/products", json=product_values()).json()
     assert client.put(
         f"/api/v1/gtm/products/{product['id']}/campaigns",
@@ -339,7 +339,7 @@ def test_video_direction_without_product_or_style_remains_public(app_client):
     from offsetx_apollo_builder.ai.tiers import DataClass
 
     client, recorded = app_client
-    campaign = _campaign(client, "video")
+    campaign = _campaign(client, "image")
     result = client.post(
         f"/api/v1/campaigns/{campaign}/video-projects/direct",
         json={"topic": "A public launch"},

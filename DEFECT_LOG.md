@@ -330,9 +330,12 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-297 | 2026-10-15 | operations gap | medium | Human follow-up tasks lacked a cross-campaign assignee-label workload and completion timeliness view. Saved-state reporting source/UI/test prepared; label identity and runtime review open | in review · F-06.21 |
 | D-298 | 2026-10-15 | process | high | Render review image excludes CI workflow and Git metadata, so source-context verifier tests fail without testing actual board behaviour. Re-run in a real Git checkout / fixture-complete review environment | in review · `S-06.02.20`, `S-06.02.16` |
 | D-299 | 2026-10-15 | security | high | npm development audit found 5 dependency vulnerabilities (2 high, 3 moderate): @vitest/mocker/Vitest, nanoid, postcss and source-map-js; production-only audit clean. Upgrade reviewed lockfile and rerun | in review · `S-06.02.16` |
-| D-300 | 2026-10-15 | bug | medium | Campaign settings rejected invalid timezone with HTTP 422 where explicit acceptance test expects HTTP 400. Contract/validation status must be made consistent and rechecked with persistence | in review · `F-06.04` |
+| D-300 | 2026-10-15 | process | medium | Campaign settings test expected 400 though API intentionally maps validation ValueError to 422. Updated assertion keeps rejection and persistence checks; focused rerun 86 passed | fixed · `F-06.04`, `dbf6562` |
 | D-301 | 2026-10-15 | process | medium | Account Intelligence SSR test supplied list-shaped resource for detail request; test crashed on nested contacts.total. Test double fixed; 212 frontend tests passed on retest | fixed · `F-06.17`, `6885444` |
 | D-302 | 2026-10-15 | process | medium | Render review image omitted committed WebM fixture and two Vitest suites failed to load. Review Dockerfile fixed to include tests/fixtures; 212 frontend tests passed on retest | fixed · `S-06.02.39`, `423913c` |
+| D-303 | 2026-10-15 | process | medium | Follow-up migration test asserted SQLite user_version 10 even though migrated schema now targets 11; corrected to SCHEMA_VERSION and focused rerun passed | fixed · `F-06.12`, `f71d204` |
+| D-304 | 2026-10-15 | process | medium | Reply-to-sales API regression expected HTTP 400 for missing qualification, but intentional ValueError response is 422; regression now checks 422 and reason, focused rerun passed | fixed · `F-06.13`, `311f1ab` |
+| D-305 | 2026-10-15 | process | medium | CRM quality test assumed first inserted campaign UUID always sorts first, causing nondeterministic failures when two memberships share created_at; checks stable valid membership pair instead, focused 86-case rerun passed | fixed · `F-06.19`, `e671607` |
 
 
 

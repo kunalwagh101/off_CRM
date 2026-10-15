@@ -2969,3 +2969,16 @@ Mode TASK · Product-level continuation on `develop` only. Feature IDs F-06.10, 
 Requirements, UI and release gates: `docs/features/reply-inbox-triage.md`, `contact-communication-history.md`, `human-followup-tasks.md`, `docs/evidence/2026-10-14-relationships-batch.md`. Authored tests: `tests/test_relationship_workflows.py`, `frontend/src/pages/RelationshipWorkflows.test.tsx`; expected CRM inventory increased from 31 to 33 in `tests/test_crm_hosted.py`. Original send code not touched. No task reminder or autonomous follow-up sends. Contact review outcome is not the shared global contact label. Assignments are labels, not RBAC.
 
 **Mandatory gates open:** no runnable repository checkout in this session; no pytest/Ruff/Vitest/build/Chromium or PostgreSQL migration evidence. Previous Actions `quality` and `postgres` failed before a step; inspect new run before any DONE assertion. Need tenant isolation Q-27 review, real hosted backup/key-custody plan, baseline and upgrade database restore, SQLite 9→10/Postgres1→2 tests, concurrency, security review, and real end-to-end UX. **Schema version downgrade is not safe simply by reverting source**: restore from verified pre-migration backup or forward-migrate. S-06.02.23 remains the sole IN_PROGRESS review.
+
+
+## 2026-10-15 — Qualified reply conversion, Contact 360 and human priority queue
+
+On develop only, source-level product features F-06.13, F-06.14 and F-06.15 are prepared and IN_REVIEW. Existing Reply Inbox, Human Follow-ups and Sales Tracker were inspected first; no parallel lead database or unauthorised provider action was created.
+
+- F-06.13: explicit positive/meeting reply promotion reuses one existing matching sales lead or creates one, with campaign membership relation and event within one transaction, idempotency, ambiguous lead rejection and unchanged send stops.
+- F-06.14: protected Contact 360 overview of campaign identity, message counts, latest reply metadata, triage, next human task and existing sales lead, with response allowlists; integrated across operator screens.
+- F-06.15: read-only selected-campaign priorities from overdue open tasks, unreviewed replies and linked untouched/stale opportunities; deterministic SQL filtering/pagination and navigation.
+
+New outreach/relationship_ops.py, frontend Contact360.tsx and ActionCenter.tsx, protected API endpoints and UI integrations. CRM SQLite schema 11; PostgreSQL schema step 3; sales-link table included in CRM_TABLES backup inventory. Test source tests/test_relationship_intelligence.py and frontend/src/pages/RelationshipIntelligence.test.tsx; legacy CRM table count now 34. All docs/evidence/2026-10-15-three-relationship-features.md gates still required, especially disposable real PostgreSQL migration, backup/restore, concurrency, full pytest/TypeScript build, Chrome UI and Q-27 workspace authorisation review.
+
+Do not claim verified, deployed, or DONE. A code-only downgrade of a migrated schema is unsafe. Original send path unmodified; previous S-06.02.23 audit remains IN_PROGRESS.

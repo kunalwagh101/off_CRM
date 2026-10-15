@@ -2322,3 +2322,31 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - **Given** two edits based on the same revision, **when** one saves first, **then** the stale edit receives HTTP 409; no colleague's work is overwritten.
 - **Given** a task, **when** I edit, complete, reopen or filter due/overdue work, **then** saved state and completed timestamp are consistent, without any automatic external contact.
 - **Dependencies:** versioned CRM schema, storage backup and campaign membership (DONE for code path; hosted restore gate open). **Size:** L. **Feature spec:** `docs/features/human-followup-tasks.md`.
+
+
+### F-06.13 — Qualified Reply-to-Sales Conversion (E-06, product feature)
+
+**As a campaign owner**, I want to turn reviewed positive incoming replies into deduplicated sales opportunities, so that commercial work follows evidence instead of duplicate manual entry.
+
+- Given an actual received reply triaged Positive/Meeting, when I explicitly confirm Convert in Contact 360, then create or link one Sales Tracker lead in the same workspace, without sending mail, resuming automation or copying reply bodies.
+- Given a previously promoted membership, when conversion repeats, then return its existing link. Given the same email in another campaign, reuse the existing lead without changing its fields.
+- Given zero or multiple matching sales leads, missing qualified review, or foreign membership, when conversion is attempted, then use a safe deterministic create/deny path and preserve sender status.
+- **Dependency:** F-06.10 Reply Inbox, SalesTracker, versioned CRM schema. **Size:** L. **Specification:** docs/features/reply-to-sales-conversion.md.
+
+### F-06.14 — Contact 360 Workspace (E-06, product feature)
+
+**As a campaign owner**, I want one reliable campaign contact view for identity, reply context, tasks and opportunity, so that I can act without navigating five separate modules.
+
+- Given a campaign membership, when Contact 360 opens, then show only allowlisted identity, status, message counts, latest reply metadata, triage, next task and linked opportunity.
+- Given a foreign membership, when requested, then deny without disclosing details; never include raw provider payloads, full email bodies or private contact notes.
+- Given reviewed positive reply, when no opportunity is linked, then offer explicit promotion; support opening message history and follow-ups.
+- **Dependency:** F-06.11, F-06.12, F-06.13. **Size:** L. **Specification:** docs/features/contact-360-workspace.md.
+
+### F-06.15 — Daily Action Command Center (E-06, product feature)
+
+**As a campaign operator**, I want source-backed human priorities in one campaign queue, so that overdue work, unreviewed replies and neglected commercial opportunities do not get lost.
+
+- Given saved CRM records, when priorities loads, then show actual overdue open tasks, most recent unreviewed replies and linked open sales leads with missing/stale touch information, not a generated estimate.
+- Given filtering, when paging a large campaign, then apply type filters before page limits and preserve truthful full-campaign counts.
+- Given a cross-campaign record, when reading this queue, then exclude it; never mutate a task, approve a draft or send a message from the report.
+- **Dependency:** F-06.10–F-06.14. **Size:** L. **Specification:** docs/features/daily-action-command-center.md.

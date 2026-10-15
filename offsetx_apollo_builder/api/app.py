@@ -88,6 +88,7 @@ from ..outreach.engine import OutreachEngine
 from ..outreach.email_expert import route_for_category
 from ..outreach.launch import launch_readiness
 from ..outreach.relationships import CampaignRelationships, TaskConflictError
+from ..outreach.relationship_ops import RelationshipOperations
 from ..outreach.gmail import GmailMailProvider, LocalOutboxProvider
 from ..outreach.deliverability.events import SnsVerifier
 from ..outreach.deliverability.models import PermanentDeliveryError
@@ -3121,6 +3122,43 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/summary")
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/actions")
+    def campaign_action_center(
+        campaign_id: str, request: Request,
+        action_type: str = Query("all", pattern="^(all|overdue_task|reply_review|sales_attention)$"),
+        limit: int = Query(50, ge=1, le=100),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return RelationshipOperations(
+            _engine(request).store, _sales(request)
+        ).action_center(campaign_id, action_type=action_type, limit=limit, offset=offset)
+
+    @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/{{campaign_contact_id}}/overview")
+    def relationship_overview(
+        campaign_id: str, campaign_contact_id: str, request: Request,
+    ) -> dict[str, Any]:
+        return RelationshipOperations(
+            _engine(request).store, _sales(request)
+        ).contact_360(campaign_id, campaign_contact_id)
+
+    @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/{{campaign_contact_id}}/promote", status_code=200)
+    def promote_contact_reply(
+        campaign_id: str, campaign_contact_id: str, request: Request,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    ) -> dict[str, Any]:
+        engine = _engine(request)
+
+        def operation() -> dict[str, Any]:
+            with request.app.state.campaign_locks.hold(campaign_id):
+                return RelationshipOperations(engine.store, _sales(request)).promote_reply(
+                    campaign_id, campaign_contact_id,
+                )
+
+        return _idempotent(
+            engine, f"sales_promote:{campaign_id}:{campaign_contact_id}",
+            idempotency_key, operation,
+        )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/replies/inbox")
     def reply_inbox(

@@ -10,6 +10,7 @@ import LaunchReadiness from "./pages/LaunchReadiness";
 import CampaignActivity from "./pages/CampaignActivity";
 import ReplyInbox from "./pages/ReplyInbox";
 import Followups from "./pages/Followups";
+import ActionCenter from "./pages/ActionCenter";
 import Discovery from "./pages/Discovery";
 import Drafts from "./pages/Drafts";
 import Queue from "./pages/Queue";
@@ -41,6 +42,7 @@ const pages = {
   activity: CampaignActivity,
   replies: ReplyInbox,
   followups: Followups,
+  priorities: ActionCenter,
   drafts: Drafts,
   queue: Queue,
   deliverability: Deliverability,
@@ -63,7 +65,7 @@ type Page = keyof typeof pages;
 // Screens that act on the selected campaign. Each remounts when the campaign
 // changes, so a half-filled form cannot keep another campaign's rows (S-06.02.22).
 const campaignScopedPages = new Set<Page>([
-  "contacts", "discovery", "readiness", "activity", "replies", "followups", "drafts", "queue", "deliverability", "experiments",
+  "contacts", "discovery", "readiness", "activity", "replies", "followups", "priorities", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting", "settings"
 ]);
 // Screens that read the campaign list or the selection, and so wait for its
@@ -74,7 +76,7 @@ const campaignScopedPages = new Set<Page>([
 // selection too, but copes with none: its campaign export asks for one first.
 export const campaignListPages = new Set<Page>([
   "dashboard", "campaigns", "product",
-  "contacts", "discovery", "readiness", "activity", "replies", "followups", "drafts", "queue", "deliverability", "experiments",
+  "contacts", "discovery", "readiness", "activity", "replies", "followups", "priorities", "drafts", "queue", "deliverability", "experiments",
   "imagereview", "videoeditor", "posting"
 ]);
 
@@ -93,6 +95,7 @@ const navigation: Array<{ page: Page; label: string; icon: string; group?: strin
   { page: "activity", label: "Campaign activity", icon: "◷" },
   { page: "replies", label: "Reply inbox", icon: "↩" },
   { page: "followups", label: "Human follow-ups", icon: "☷" },
+  { page: "priorities", label: "Today’s priorities", icon: "⚑" },
   { page: "product", label: "Product", icon: "◆", group: "Strategy" },
   { page: "strategy", label: "Go-to-market plan", icon: "⌖" },
   { page: "drafts", label: "Draft review", icon: "✎", group: "Outreach" },

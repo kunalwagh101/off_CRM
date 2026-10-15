@@ -213,3 +213,14 @@ No executed verification or DONE claim for these requirements.
 | R-175 | F-06.12 | 3 | `tests/test_relationship_workflows.py`, `tests/test_crm_hosted.py`, `frontend/src/pages/RelationshipWorkflows.test.tsx` | `outreach/{schema,store,relationships}.py`, `frontend/src/pages/Followups.tsx` |
 
 All three remain IN_REVIEW; tests, migration and hosted rollback/restore still require actual execution.
+
+
+## 2026-10-15 — Relationship product features, IN_REVIEW
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-176 | F-06.13 | 3 | tests/test_relationship_intelligence.py, frontend/src/pages/RelationshipIntelligence.test.tsx | outreach/relationship_ops.py, outreach/schema.py, api/app.py, frontend/src/pages/Contact360.tsx |
+| R-177 | F-06.14 | 3 | tests/test_relationship_intelligence.py, frontend/src/pages/RelationshipIntelligence.test.tsx | outreach/relationship_ops.py, frontend/src/pages/Contact360.tsx |
+| R-178 | F-06.15 | 3 | tests/test_relationship_intelligence.py, frontend/src/pages/RelationshipIntelligence.test.tsx | outreach/relationship_ops.py, frontend/src/pages/ActionCenter.tsx |
+
+These are authored test paths, not passed test evidence. All features IN_REVIEW.

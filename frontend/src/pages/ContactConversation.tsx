@@ -40,7 +40,7 @@ export default function ContactConversation({ campaignId, membershipId, onClose 
     [campaignId, membershipId, page]
   );
   const total = result.data?.total ?? 0;
-  return <Modal open={Boolean(membershipId)} title={`Communication history — ${result.data?.contact.full_name || "Contact"}`}
+  return <Modal open={Boolean(membershipId)} title={`Communication history — ${result.data?.contact?.full_name || "Contact"}`}
     description="Campaign-scoped correspondence. Message previews are limited to 2,000 characters; raw provider metadata is not shown."
     onClose={() => { setPage(0); onClose(); }} wide>
     {result.loading ? <p>Loading correspondence…</p>

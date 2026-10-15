@@ -319,6 +319,9 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-286 | 2026-10-14 | product gap | medium | Actual incoming replies had no campaign-level review inbox or per-campaign outcome, making received conversations hard to triage. Implemented in source with tests authored; not yet executed | in review · `F-06.10` |
 | D-287 | 2026-10-14 | product gap | medium | A campaign contact had no in-product chronological message history; mail context was scattered. Bounded member-only history API and UI authored; verification pending | in review · `F-06.11` |
 | D-288 | 2026-10-14 | reliability gap | medium | No persistent per-campaign human follow-up worklist with owner, due dates and conflict-safe completion. New schema/API/UI and tests authored; migration and restore execution pending | in review · `F-06.12` |
+| D-289 | 2026-10-15 | product gap | medium | Positive replies remained disconnected from the commercial Sales Tracker pipeline and manually reentering contacts could create duplicate leads. Explicit deduplicated promotion/source link prepared; tests unrun | in review · F-06.13 |
+| D-290 | 2026-10-15 | usability | medium | Contact identity, reply context, task status and sales progress were scattered across multiple screens. Campaign-scoped Contact 360 prepared; privacy and browser review pending | in review · F-06.14 |
+| D-291 | 2026-10-15 | product gap | medium | Operators lacked one ranked source-backed view of overdue human tasks, incoming replies awaiting triage and sales follow-ups. Daily Action Center prepared; runtime and query plan tests pending | in review · F-06.15 |
 
 
 

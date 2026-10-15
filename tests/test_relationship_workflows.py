@@ -165,8 +165,8 @@ def test_existing_sqlite_crm_receives_additive_relationship_tables(tmp_path):
 
     reopened = OutreachEngine(tmp_path / "upgrade.db")
     try:
-        assert SCHEMA_VERSION == 10
-        assert len(CRM_TABLES) == 33
+        assert SCHEMA_VERSION == 11
+        assert len(CRM_TABLES) == 34
         assert reopened.store.connection.execute("PRAGMA user_version").fetchone()[0] == 10
         assert reopened.store.get_campaign(cid)["name"] == "Pre-upgrade campaign"
         tasks = CampaignRelationships(reopened.store)

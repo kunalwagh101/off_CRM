@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **F-06.13 Qualified Reply-to-Sales Conversion** (IN_REVIEW, 2026-10-15): explicitly convert reviewed Positive/Meeting incoming replies into deduplicated Sales Tracker leads. Link saved campaign membership; reuse existing same-email lead without rewriting it; fail closed on multiple duplicates. No automatic sending.
+- **F-06.14 Contact 360 Workspace** (IN_REVIEW): campaign-scoped and privacy-allowlisted identity, reply, task and opportunity overview, accessible from Contacts, Reply Inbox, Follow-ups and Today's Priorities.
+- **F-06.15 Daily Action Command Center** (IN_REVIEW): read-only ranked worklist of overdue tasks, replies requiring triage and stale/unworked linked sales opportunities; accurate filtered counts and pagination.
+- Added CRM SQLite schema v11 and PostgreSQL step 3 for campaign_sales_links; updated CRM inventory to 34 tables and related test source. Backup/migration/restore and full tests are mandatory gates; not run in this connector-only session.
+
+
 - **F-06.10 Reply Inbox & Human Triage** (IN_REVIEW, 2026-10-14): authenticated per-campaign reply inbox, review/outcome classification, metadata-only events, and linked human follow-up creation. Triage does not resume or send messages.
 - **F-06.11 Contact Communication History** (IN_REVIEW): campaign-membership scoped inbound/outbound message timeline with bounded subject/body, SQL-level pagination, no raw provider JSON and new Contacts/Reply Inbox access.
 - **F-06.12 Human Follow-up Task Manager** (IN_REVIEW): durable task list and create/edit/complete/reopen, due dates and display-only assignments, stale-revision 409 protection. Additive two-table SQLite v10 and PostgreSQL CRM step 2 migration; hosted backup/restore a release gate.

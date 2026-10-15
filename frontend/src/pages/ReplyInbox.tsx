@@ -5,6 +5,7 @@ import { useApp } from "../context";
 import { useResource } from "../hooks";
 import { Loadable, NoCampaign } from "./shared";
 import ContactConversation from "./ContactConversation";
+import Contact360 from "./Contact360";
 import { TaskComposer } from "./Followups";
 
 type ReplyItem = {
@@ -38,6 +39,7 @@ export default function ReplyInbox() {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<ReplyItem | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [overviewId, setOverviewId] = useState<string | null>(null);
   const [taskFor, setTaskFor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inbox = useResource(
@@ -106,6 +108,7 @@ export default function ReplyInbox() {
             <div className="toolbar">
               <Button tone="secondary" onClick={() => setEditing(item)}>Review outcome</Button>
               <Button tone="ghost" onClick={() => setConversationId(item.campaign_contact_id)}>Full conversation</Button>
+              <Button tone="ghost" onClick={() => setOverviewId(item.campaign_contact_id)}>Contact 360</Button>
               <Button tone="ghost" onClick={() => setTaskFor(item.campaign_contact_id)}>Create follow-up</Button>
             </div>
           </article>)}
@@ -138,6 +141,7 @@ export default function ReplyInbox() {
       {taskFor && <TaskComposer key={taskFor} campaignId={campaignId} contactId={taskFor}
         onClose={() => setTaskFor(null)} onSaved={() => notify("Follow-up created. Review it in Follow-up tasks.", "success")} />}
     </Modal>
+    <Contact360 campaignId={campaignId} membershipId={overviewId} onClose={() => setOverviewId(null)} />
     <ContactConversation campaignId={campaignId} membershipId={conversationId} onClose={() => setConversationId(null)} />
   </>;
 }

@@ -7,6 +7,7 @@ import type { Contact, Paginated } from "../types";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 import { ManualContactModal, StopContactsModal } from "./AudienceOperations";
 import ContactConversation from "./ContactConversation";
+import Contact360 from "./Contact360";
 
 const DEFAULT_CATEGORY = "Sustainability / ESG / Climate";
 export const CONTACTS_PAGE_SIZE = 100;
@@ -57,6 +58,7 @@ export default function Contacts() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [overviewId, setOverviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const facets = useResource(
@@ -277,7 +279,7 @@ export default function Contacts() {
                     <td><Badge tone={contact.variant_id === "A" ? "blue" : "violet"}>Variant {contact.variant_id}</Badge><small>{contact.sent_count} sent</small></td>
                     <td><span>{formatDate(contact.next_action_at)}</span><small>{contact.current_stage || "Not started"}</small></td>
                     <td><Badge tone={statusTone(contact.status)}>{contact.status.replaceAll("_", " ")}</Badge></td>
-                    <td><Button tone="ghost" onClick={() => setEditContact(contact)}>Edit</Button><Button tone="ghost" onClick={() => setConversationId(contact.id)}>History</Button></td>
+                    <td><Button tone="ghost" onClick={() => setEditContact(contact)}>Edit</Button><Button tone="ghost" onClick={() => setConversationId(contact.id)}>History</Button><Button tone="ghost" onClick={() => setOverviewId(contact.id)}>Contact 360</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -295,6 +297,8 @@ export default function Contacts() {
         )}
       </Panel>
 
+      <Contact360 campaignId={campaignId} membershipId={overviewId}
+        onClose={() => setOverviewId(null)} />
       <ContactConversation campaignId={campaignId} membershipId={conversationId}
         onClose={() => setConversationId(null)} />
       <ManualContactModal campaignId={campaignId} open={manualOpen} onClose={() => setManualOpen(false)}

@@ -142,6 +142,19 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- F-06.13 · Qualified Reply-to-Sales Conversion
+  work_order: docs/features/reply-to-sales-conversion.md
+  review: source-backed explicit positive-reply conversion, durable campaign-to-lead link, duplicate fail-closed and API/frontend test source prepared; runtime and migration gates open
+
+- F-06.14 · Contact 360 Workspace
+  work_order: docs/features/contact-360-workspace.md
+  review: field-allowlisted campaign relationship overview, integrated modal across four operator screens and tests prepared; UX/privacy gates open
+
+- F-06.15 · Daily Action Command Center
+  work_order: docs/features/daily-action-command-center.md
+  review: read-only combined human priorities, source-backed counts, SQL paging and navigation implemented; performance/postgres/browser gates open
+
+
 - F-06.10 · Reply Inbox & Human Triage
   work_order: docs/features/reply-inbox-triage.md
   review: campaign-scoped response inbox, per-membership triage and human task linkage implemented; tests authored, actual execution/tenancy gates open

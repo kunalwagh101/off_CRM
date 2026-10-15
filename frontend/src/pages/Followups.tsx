@@ -5,6 +5,7 @@ import { useApp } from "../context";
 import { useResource } from "../hooks";
 import { Loadable, NoCampaign } from "./shared";
 import ContactConversation from "./ContactConversation";
+import Contact360 from "./Contact360";
 
 export type FollowupTask = {
   id: string;
@@ -91,6 +92,7 @@ export default function Followups() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<FollowupTask | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [overviewId, setOverviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const tasks = useResource(
     () => campaignId
@@ -175,6 +177,7 @@ export default function Followups() {
               })}>{task.status === "done" ? "Reopen" : "Complete"}</Button>
               <Button tone="ghost" onClick={() => setEditing(task)}>Edit</Button>
               {task.campaign_contact_id && <Button tone="ghost" onClick={() => setConversationId(task.campaign_contact_id || null)}>Conversation</Button>}
+              {task.campaign_contact_id && <Button tone="ghost" onClick={() => setOverviewId(task.campaign_contact_id || null)}>Contact 360</Button>}
             </div>
           </article>)}
         </div> : <StatePanel title="No follow-ups match"
@@ -204,6 +207,7 @@ export default function Followups() {
         </div>
       </form>}
     </Modal>
+    <Contact360 campaignId={campaignId} membershipId={overviewId} onClose={() => setOverviewId(null)} />
     <ContactConversation campaignId={campaignId} membershipId={conversationId} onClose={() => setConversationId(null)} />
   </>;
 }

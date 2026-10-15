@@ -99,7 +99,7 @@ MAX_CONTROL_LABEL_CHARS = 120
 #:
 #: Reads labels only — `aria-label`, then the button's own text, then `value`.
 #: Never a field's contents.
-_WHAT_ENTER_WOULD_DO = """
+_WHAT_ENTER_WOULD_DO = r"""
 (() => {
   const label = (n) => String(
     n.getAttribute('aria-label') || n.innerText || n.value || n.name || ''

@@ -17,7 +17,7 @@ Verification rules: PASS = actual completed test with evidence; FAIL = executed 
 | Frontend production dependency audit | PASS | Same review runner: `npm audit --omit=dev --audit-level=low`: found 0 vulnerabilities |
 | Frontend development dependency audit | FAIL | Same review runner: `npm audit --audit-level=high`: 5 vulnerabilities (3 moderate, 2 high): `@vitest/mocker` GHSA-82fw-gwwq-j7x9, `nanoid` GHSA-2v37-7h3g-55p8, `postcss` GHSA-fxqj-rqcc-2cmp, `source-map-js` GHSA-68fv-2mgg-jv7q, and transitive Vitest; fix by upgrading reviewed lockfile, then rerun |
 | Python Ruff syntax/name lint | PASS | Render review runner dep-db86qqaj9qps73bskiq0: `uv run ruff check --select E9,F63,F7,F82 .` reported All checks passed |
-| Python full regression | RUNNING (not pass) | Same review runner: `uv run pytest -q` has reached at least 28% with no printed F; final result awaits completion |
+| Python full regression | FAIL | Review runner `dep-db86qqaj9qps73bskiq0`: 72 failed, 2678 passed, 46 skipped, 46 warnings (246.40 s). See backend failure inventory below. `Dockerfile.review` exits nonzero |
 | Browser React SSR regression | PASS after test mock repair | First build: `CRMIntelligence.test.tsx` crashed Account Intelligence mock with `Cannot read properties of undefined (reading 'total')`; corrected mock shape, rerun passed 212/212 |
 | Video fixture harness | PASS after QA fixture repair | First build: two test files couldn't load `/review/tests/fixtures/muxed_sample.webm`; Dockerfile.review now copies actual committed fixtures. No video feature logic changed |
 | Migration, restart, backup/restore | NOT RUN | Needs isolated DB and real destructive/recovery harness; do not run against customer data |
@@ -101,3 +101,11 @@ Unresolved customer tenancy/Q-27, persistence of non-PostgreSQL artifacts, hoste
 3. **Review runner now runs Python before dependency audit:** Commit `e250ed80b6de40376da840cddf3e398368dc5130` stages `uv run ruff check` and full `uv run pytest -q` before the development dependency audit without weakening either check; pending final Python results and external integration acceptance.
 
 The feature rows retain NOT RUN as their feature-specific end-to-end browser/PG acceptance gates remain unexecuted; the shared passing React suite alone does not justify DONE.
+
+## Backend regression result — 2026-10-15
+
+Full Python suite actually completed on Render review runner `dep-db86qqaj9qps73bskiq0`, on commit `e250ed80b6de40376da840cddf3e398368dc5130`. Exact output: **72 failed, 2678 passed, 46 skipped, 46 warnings in 246.40 seconds**. The build failed correctly and no application feature was promoted to DONE.
+
+Confirmed root causes from initial failure trace: (1) `tests/test_campaign_product_features.py::test_campaign_settings_save_and_timezone_is_rejected_before_database_write` expected HTTP 400 for invalid timezone, actual endpoint returned HTTP 422 (API contract mismatch); (2) multiple `tests/test_ci_verifier_environment.py` failed with `FileNotFoundError: .github/workflows/ci.yml` because production `.dockerignore` excludes `.github` from QA image; (3) many `tests/test_verify_board.py` cases require a real Git repository and cannot execute correctly from a Docker context excluding `.git`. These latter categories are harness execution limitations, not evidence that the verifier is broken. Non-harness failures include `tests/test_gtm_product_wiring.py`, `tests/test_hosted_storage.py`, `tests/test_relationship_intelligence.py`, `tests/test_relationship_workflows.py`, `tests/test_db_backend.py`, and `tests/test_workspace_isolation.py`; individual root-cause triage, fixes and reruns remain OPEN. Use complete per-test traceback logs rather than assuming a common cause.
+
+**Root-cause classification is partial.** The completed run is a *FAIL* regardless of fixture/harness faults; 2678 passes are not an overall pass. Independent Chrome/PG migration/restart tests and feature-specific acceptance remain unexecuted.

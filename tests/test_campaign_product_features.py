@@ -62,11 +62,11 @@ def test_campaign_settings_save_and_timezone_is_rejected_before_database_write(t
         assert fields["send_weekdays"] == [0, 1, 2, 3]
         assert fields["approval_mode"] == "whole_sequence"
         bad = client.patch(endpoint, headers=headers, json={"timezone": "No/Such_Zone"})
-        assert bad.status_code == 400
+        assert bad.status_code == 422
         after = client.get(endpoint, headers=headers).json()
         assert after["timezone"] == "Europe/London"
         assert client.patch(endpoint, headers=headers, json={"kind": "image"}).status_code == 422
-        assert client.patch(endpoint, headers=headers, json={"control_variant": "Z"}).status_code == 400
+        assert client.patch(endpoint, headers=headers, json={"control_variant": "Z"}).status_code == 422
 
     with TestClient(create_app(settings)) as restarted:
         assert restarted.get(endpoint, headers=headers).json()["name"] == "Production sequence"

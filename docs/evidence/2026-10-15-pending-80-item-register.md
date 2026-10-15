@@ -284,3 +284,14 @@ Important limitations: the review image intentionally excludes `.git`, so histor
 ### Dedicated PostgreSQL verification underway
 
 A subsequent isolated build `dep-db8aoopsrm7s73e0j1eg` configures disposable, container-local PostgreSQL with no credentials/data from the real Render/Neon environment. Its goals are a real Postgres storage suite and full suite with `OFF_CRM_TEST_CRM_ON_POSTGRES=1`, with destructive fixtures limited to this disposable database. PostgreSQL result must not be recorded as PASS until logs finish; any hosted backup/restore acceptance requires separate proof.
+
+## 2026-10-15 PostgreSQL 17 build-verified storage and failure diagnosis
+
+Review build `dep-db8aoopsrm7s73e0j1eg` started a **real disposable local PostgreSQL 17** cluster in Docker (not the user's Render database) and ran two real suites:
+
+1. `OFF_CRM_TEST_POSTGRES_URL=<test-only local PostgreSQL> uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py tests/test_db_backend.py tests/test_storage_inventory.py tests/test_video_postgres.py tests/test_crm_harness.py` → **214 passed, 1 warning, 0 failed in 50.24s**. This is a supported PostgreSQL-hosted storage validation, not a production/hosted backup certification.
+2. `OFF_CRM_TEST_POSTGRES_URL=<test-only local PostgreSQL> OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q` → **2,771 passed, 2 failed, 92 skipped, 44 warnings in 308.03s**. Both failures were explicitly SQLite-file migration tests with hardcoded `PRAGMA user_version` statements mistakenly exercised against PostgreSQL by the global CRM backend swap: `tests/test_relationship_intelligence.py::test_sqlite_v10_upgrade_adds_sales_links_without_touching_old_records` and `tests/test_relationship_workflows.py::test_existing_sqlite_crm_receives_additive_relationship_tables`. This is harness classification, not evidence that the real PG schema migration failed.
+
+**Corrective action:** both tests were annotated with `@pytest.mark.crm_sqlite_only`, with per-test reasons. They stay in SQLite full-suite coverage; PostgreSQL schema upgrades have independent tests in `tests/test_crm_hosted.py` and related modules. D-312 in DEFECT_LOG. The rerun `dep-db8aujom7kps73do3jh0` was triggered with these fixes plus a new Postgres two-instance copied-cookie revocation/restart acceptance test, `tests/test_hosted_storage.py::test_postgres_logout_revocation_reaches_another_live_app_and_survives_restart`. **Do not claim the new test or full PG rerun passes until its logs finish.**
+
+The standalone application QA deploy `dep-db8apipsrm7s73e0lbm0` is LIVE at updated `develop` commit `bcc831c`, and logs show Uvicorn startup, HTTP 200, and the linked QA database subsequently measured three active connections. It is distinct from these destructive tests.

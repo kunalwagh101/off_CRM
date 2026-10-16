@@ -105,7 +105,9 @@ def main() -> None:
                                 "mimeType": "text/csv",
                                 "buffer": _dataset(),
                             })
-                            page.locator('form:has(input[name="contacts-file"])').get_by_role(\n                                "button", name="Import contacts", exact=True\n                            ).click()
+                            page.locator('form:has(input[name="contacts-file"])').get_by_role(
+                                "button", name="Import contacts", exact=True
+                            ).click()
                             with httpx.Client(base_url=BASE, headers=headers, timeout=30.0) as client:
                                 for _ in range(40):
                                     response = client.get(

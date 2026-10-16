@@ -248,11 +248,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.41 · Contacts beyond row 500 are reachable
   work_order: docs/work-orders/S-06.02.41-contacts-pagination.md
-  review: paged contacts and tests prepared; frontend and browser checks pending
+  review: Render QA dep-db93t2mi0phs73c6msq0 executed 503-persisted-contact real FastAPI pagination/auth regression PASS; prior 212 Vitest and frontend build PASS; live Chromium keyboard/visual, shrinking-page and independent review still required (docs/evidence/2026-10-16-S-06.02.41-42-validation.md)
 
 - S-06.02.42 · Enrichment exports cannot run spreadsheet formulas
   work_order: docs/work-orders/S-06.02.42-spreadsheet-formulas.md
-  review: export guards and tests prepared; full pipeline validation pending
+  review: Render QA dep-db93t2mi0phs73c6msq0 spreadsheet CSV/XLSX full-report tabs/source-immutability security regression PASS; isolated Excel/LibreOffice open and independent review still required (docs/evidence/2026-10-16-S-06.02.41-42-validation.md)
 
 - S-06.02.43 · Logout revokes the copied browser session
   work_order: docs/work-orders/S-06.02.43-logout-revocation.md

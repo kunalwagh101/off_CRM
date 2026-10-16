@@ -146,3 +146,50 @@ def test_export_refuses_incomplete_or_excessively_large_files():
             return [], 2
     with pytest.raises(ContactExportError, match="changed while exporting"):
         contact_list_csv(Vanishing(), "c1")
+
+
+def test_503_persisted_contacts_can_be_reached_across_authenticated_pages(tmp_path):
+    """S-06.02.41: persisted contacts beyond row 500 are not lost in the UI API.
+
+    This uses the actual FastAPI application and contact store, not a paged mock.
+    Browser focus, keyboard and visual acceptance remain separate gates.
+    """
+    headers = {"Authorization": "Bearer " + "t" * 40}
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        created = client.post("/api/v1/campaigns", headers=headers, json={"name": "503 contacts"})
+        assert created.status_code == 201, created.text
+        campaign = created.json()["id"]
+        base = f"/api/v1/campaigns/{campaign}/contacts"
+        csv_body = (
+            "Full Name,Email,Company,Category\n"
+            + "".join(
+                f"Pagination Person {i:03d},pagination{i:03d}@example.test,Example,CBAM\\n"
+                for i in range(503)
+            )
+        ).encode("utf-8").replace(b"\\n", b"\n")
+        imported = client.post(
+            base + "/import",
+            headers=headers,
+            files={"file": ("large-contact-list.csv", csv_body, "text/csv")},
+        )
+        assert imported.status_code == 200, imported.text
+        assert imported.json()["added"] == 503
+        seen_ids = set()
+        seen_names = set()
+        for offset in (0, 100, 200, 300, 400, 500):
+            page = client.get(base, headers=headers, params={"limit": 100, "offset": offset})
+            assert page.status_code == 200, page.text
+            assert page.json()["total"] == 503
+            batch = page.json()["items"]
+            assert len(batch) == min(100, 503 - offset)
+            for row in batch:
+                assert row["id"] not in seen_ids
+                seen_ids.add(row["id"])
+                seen_names.add(row["full_name"])
+        assert len(seen_ids) == 503
+        assert "Pagination Person 502" in seen_names
+        filtered = client.get(base, headers=headers, params={"limit": 100, "offset": 0, "search": "Person 502"})
+        assert filtered.status_code == 200, filtered.text
+        assert filtered.json()["total"] == 1
+        assert filtered.json()["items"][0]["full_name"] == "Pagination Person 502"
+        assert client.get(base, params={"limit": 100, "offset": 500}).status_code == 401

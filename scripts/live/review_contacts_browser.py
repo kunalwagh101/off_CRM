@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -91,8 +92,7 @@ def main() -> None:
                     for width in (1280, 390):
                         context = browser.new_context(viewport={"width": width, "height": 900})
                         context.add_init_script(
-                            "(token) => sessionStorage.setItem('offsetx-api-token', token)",
-                            TOKEN,
+                            "sessionStorage.setItem('offsetx-api-token', " + json.dumps(TOKEN) + ")"
                         )
                         page = context.new_page()
                         page.goto(BASE + "/#contacts", wait_until="domcontentloaded")

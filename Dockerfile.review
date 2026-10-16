@@ -31,6 +31,13 @@ RUN uv run pytest -q tests/test_workspace_isolation.py::test_lost_request_contex
 RUN uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py
 # Run every installed Python test, not only a curated selection of review items.
 RUN uv run pytest -q
+# Chromium acceptance is isolated to the review image, never production.
+# The script starts a disposable local FastAPI server and imports synthetic CSV.
+FROM backend-checks AS chromium-checks
+RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
+RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
+RUN uv run python scripts/live/review_contacts_browser.py
+
 # Review-only PostgreSQL: all state is disposable inside this Docker build.
 # Both runs use a real PostgreSQL server and never touch Render QA/customer DB.
 FROM backend-checks AS postgres-checks
@@ -48,5 +55,6 @@ RUN set -eu; \
 # Require both audited frontend and fully tested SQLite/PostgreSQL backend before publishing the QA marker.
 FROM frontend-checks AS verified-review
 COPY --from=postgres-checks /review/frontend/dist /tmp/python-and-postgres-gates-passed
+COPY --from=chromium-checks /review/frontend/dist /tmp/chromium-contacts-accepted
 EXPOSE 10000
 CMD ["node", "-e", "require('http').createServer((_,res)=>{res.writeHead(200);res.end('QA checks passed')}).listen(10000,'0.0.0.0')"]

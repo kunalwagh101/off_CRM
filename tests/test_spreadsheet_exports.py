@@ -67,3 +67,40 @@ def test_real_enrichment_export_escapes_formula_but_leaves_source_unchanged(tmp_
     cell = sheet.cell(2, headers["Full Name"])
     assert cell.data_type != "f"
     assert cell.value.startswith("'=HYPERLINK")
+
+
+def test_every_report_tab_escapes_untrusted_rows_without_mutating_source(tmp_path: Path):
+    """S-06.02.42: accepted, rejected, raw, decision and metadata tabs stay inert."""
+    accepted = [{"Full Name": "=HYPERLINK(\"https://evil.invalid\",\"open\")",
+                 "Company / Organisation": "+SUM(1,1)", "Email": "safe@example.test"}]
+    rejected = [{"reason": "@RISK", "name": "-1+2"}]
+    raw = [{"name": "\t=SUM(1,1)", "website": "https://example.test"}]
+    decisions = [{"Reason": "  =2+2", "Decision": "rejected"}]
+    meta = {"run_id": "=INDIRECT(A1)", "output_dir": str(tmp_path)}
+    import copy
+    before = copy.deepcopy((accepted, rejected, raw, decisions, meta))
+    write_outputs(tmp_path, accepted, rejected, meta, raw_candidates=raw, decision_log=decisions)
+    assert (accepted, rejected, raw, decisions, meta) == before
+
+    checks = [
+        ("Final_POIs", "Full Name", "=HYPERLINK"),
+        ("Final_POIs", "Company / Organisation", "+SUM"),
+        ("Rejected_Log", "reason", "@RISK"),
+        ("Rejected_Log", "name", "-1+2"),
+        ("Raw_Apollo_Search", "name", "\t=SUM"),
+        ("Decision_Audit", "Reason", "  =2+2"),
+        ("Run_Metadata", "run_id", "=INDIRECT"),
+    ]
+    book = load_workbook(tmp_path / "offsetx_final_pois_with_emails.xlsx", data_only=False)
+    for sheet_name, heading, raw_value in checks:
+        sheet = book[sheet_name]
+        columns = {cell.value: cell.column for cell in sheet[1]}
+        cell = sheet.cell(2, columns[heading])
+        assert cell.data_type == "s", (sheet_name, heading, cell.data_type)
+        assert str(cell.value).startswith("'" + raw_value), (sheet_name, heading, cell.value)
+
+    report_csv = tmp_path / "offsetx_rejected_duplicate_conflict_log.csv"
+    with report_csv.open(encoding="utf-8", newline="") as fp:
+        saved = next(csv.DictReader(fp))
+    assert saved["reason"].startswith("'@RISK")
+    assert saved["name"].startswith("'-1+2")

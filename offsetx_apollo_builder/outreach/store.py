@@ -435,11 +435,17 @@ class OutreachStore:
         return row is not None
 
     def _row(self, query: str, params: Iterable[Any] = ()) -> dict[str, Any] | None:
-        row = self.connection.execute(query, tuple(params)).fetchone()
-        return dict(row) if row else None
+        # D-314: GuardedConnection locks execute(), but releases its lock
+        # before fetchone(). A concurrent write/read may then invalidate or
+        # alter the active SQLite cursor before a 201 response materialises.
+        # Keep statement, fetch and row copying in one reentrant lock scope.
+        with self._write_lock:
+            row = self.connection.execute(query, tuple(params)).fetchone()
+            return dict(row) if row else None
 
     def _rows(self, query: str, params: Iterable[Any] = ()) -> list[dict[str, Any]]:
-        return [dict(row) for row in self.connection.execute(query, tuple(params)).fetchall()]
+        with self._write_lock:
+            return [dict(row) for row in self.connection.execute(query, tuple(params)).fetchall()]
 
     @staticmethod
     def _like(value: str) -> str:

@@ -296,7 +296,12 @@ def test_concurrent_api_writes_are_all_durable_after_restart(tmp_path):
     settings = _settings(tmp_path)
     with TestClient(create_app(settings)) as client, ThreadPoolExecutor(8) as executor:
         responses = list(executor.map(lambda i: client.post('/api/v1/campaigns', json={'name': f'Customer {i}'}), range(40)))
-        assert all(response.status_code == 201 for response in responses)
+        errors = [
+            {"index": index, "status": response.status_code, "detail": response.json().get("detail")}
+            for index, response in enumerate(responses)
+            if response.status_code != 201
+        ]
+        assert not errors, f"Concurrent campaign writes returned errors: {errors}"
         ids = {response.json()['id'] for response in responses}
     with TestClient(create_app(settings)) as client:
         assert {row['id'] for row in client.get('/api/v1/campaigns?limit=100').json()['items']} == ids

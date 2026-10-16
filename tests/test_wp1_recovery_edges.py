@@ -302,9 +302,17 @@ def test_concurrent_api_writes_are_all_durable_after_restart(tmp_path):
             if response.status_code != 201
         ]
         assert not errors, f"Concurrent campaign writes returned errors: {errors}"
+        invalid_ids = [
+            {"index": index, "id": response.json().get("id"), "name": response.json().get("name")}
+            for index, response in enumerate(responses)
+            if not isinstance(response.json().get("id"), str) or not response.json().get("id")
+        ]
+        assert not invalid_ids, f"HTTP 201 campaign-create returned invalid IDs: {invalid_ids}"
         ids = {response.json()['id'] for response in responses}
+        assert len(ids) == 40, "Every successful create response must have a distinct campaign ID"
     with TestClient(create_app(settings)) as client:
-        assert {row['id'] for row in client.get('/api/v1/campaigns?limit=100').json()['items']} == ids
+        saved = {row['id'] for row in client.get('/api/v1/campaigns?limit=100').json()['items']}
+        assert saved == ids, f"Durable campaign mismatch; missing={ids - saved}, unexpected={saved - ids}"
 
 
 @pytest.mark.parametrize('crash', ['old_moved', 'new_installed', 'committed'])

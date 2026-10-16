@@ -1,5 +1,17 @@
 # BUILD_STATE.md
 
+## Active review closure — 2026-10-16, real 503-contact and formula-safe XLSX checks
+
+Two independent `IN_REVIEW` stories: S-06.02.41 and S-06.02.42. New test-only implementation:
+- `tests/test_contacts_filters_export.py::test_503_persisted_contacts_can_be_reached_across_authenticated_pages` imports 503 persisted CRM contacts via the actual FastAPI/SQLite backend and reads six bounded authenticated pages including row 502, unique IDs, filter and unauthorised 401.
+- `tests/test_spreadsheet_exports.py::test_every_report_tab_escapes_untrusted_rows_without_mutating_source` generates real CSV/XLSX and checks accepted, rejected, raw, decision and metadata report cells are safe text, with unchanged original input.
+- Review runner `dep-db93t2mi0phs73c6msq0` executed the four relevant test files: **19 passed, 1 warning** (5.40s). Three fail-closed security tests passed, verifier/CI fixtures 67 passed. Evidence: `docs/evidence/2026-10-16-S-06.02.41-42-validation.md`; D-271/D-272 status notes updated; board still has 57 IN_REVIEW.
+- **New D-314, not yet root-caused:** the same full SQLite run finished **2755 passed, 1 failed, 45 skipped**. One of 40 concurrent campaign creates returned HTTP **404**, not 201, during WP1 durability/restart test `tests/test_wp1_recovery_edges.py::test_concurrent_api_writes_are_all_durable_after_restart`. No conclusion yet about lost rows. Full QA build FAILED. This cannot be waived based on the 19 green targeted tests.
+- Current QA rerun `dep-db941vm7bikc73dk5e5g` adds detailed failed-response reporting and 12 independent executions of that concurrency test before the full suite. The review-only Dockerfile also now attempts actual synthetic Chromium Contacts UI import/page/search with `scripts/live/review_contacts_browser.py`. Neither rerun nor Chromium acceptance is a pass until its build log finishes. Original customer service remains untouched; disposable loopback server/database only.
+- Remaining S-06.02.41 gate: full Chrome/keyboard/screen-reader/edit/shrinking-page and independent review; remaining S-06.02.42 gate: offline Excel/LibreOffice opening and independent spreadsheet security review; CI full-history Git evidence blocked. Work only on `develop`.
+
+---
+
 ## Latest verification update — 2026-10-15, fail-closed security regression
 
 `develop` committed a high-severity fix **D-313** discovered during S-06.02.21 cold review: a missing request-context principal inherited installation-owner authority when reading linked products. Reproduced RED in Render `dep-db8cjmajnfac73f52o2g`. Fixed `_CALLER_WORKSPACE` to default deny and wrapped explicitly authorised content timers in a resettable scoped owner context; manual runs still require `require_install_owner`. Decisions `DD-121`. Linked-product GTM compatibility tests assert both deny-without-context and allow-with-an-explicit-timer-context. Full evidence: `docs/evidence/S-06.02.21-security-review-2026-10-15.md`.

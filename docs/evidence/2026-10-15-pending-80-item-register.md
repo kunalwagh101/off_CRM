@@ -1,6 +1,14 @@
 # off_CRM — complete outstanding work and test register
 Date: 2026-10-15 · Repository: `kunalwagh101/off_CRM` · branch: `develop`
 
+## Latest active review update — 2026-10-16
+
+Two independent, dependency-free review stories are the current detailed closure targets: **S-06.02.41** (authenticated 503-persisted-contact pagination) and **S-06.02.42** (formula-safe report exports). On Render `dep-db93t2mi0phs73c6msq0` (source `f7ba9f3`), `uv run pytest -v --tb=short tests/test_contacts_filters_export.py tests/test_spreadsheet_exports.py tests/test_existing_poi_enrichment.py tests/test_apollo_rejection_ledger.py` **actually passed 19 tests**, plus 3 fail-closed access tests. The 67 Git/CI fixture tests passed. A complete full Python/PG/React build continues in that same run; its final outcome must be read from Render logs before any claim.
+
+For S-06.02.41 a disposable real FastAPI+SQLite flow imported and paged 503 contacts and checked that row 502 was reachable; this does **not** equal completed Chromium UI/keyboard and reload validation. For S-06.02.42 tests opened the generated XLSX with `openpyxl`, found escaped text rather than formula cells across accepted/rejected/raw/audit/metadata tabs, and confirmed inputs remained unchanged; real spreadsheet-application and independent review remain open.
+
+**Authoritative board at this checkpoint remains 57 IN_REVIEW, 70 DONE**. This is a deliberate DoD decision, not 57 failing automated tests. Refer to `docs/evidence/2026-10-16-S-06.02.41-42-validation.md`; D-271 and D-272 are updated with this exact new evidence. Historic comments further down describe earlier states and are not the latest pass/fail summary. npm dependency audits were already cleared (0 vulnerabilities) in the 2026-10-15 verified Render build.
+
 ## Interpretation
 This is an **evidence log**, not a replacement for `BOARD.md`; board statuses have not been silently promoted. There are **80 unfinished board items**: 57 IN_REVIEW (18 product-level F features + 39 S stories), 16 BACKLOG, 6 BLOCKED and 1 IN_PROGRESS. There are 70 DONE, 0 READY, 0 DEFERRED. A focused test PASS does **not** mean a feature is DONE: end-to-end, live PostgreSQL, privacy, migration recovery, dependencies and owner acceptance may still be open.
 

@@ -129,8 +129,9 @@ def main() -> None:
                         page.get_by_role("button", name="Pagination Person 502").wait_for(timeout=30000)
                         page.get_by_role("textbox", name="Search contacts").fill("Person 502")
                         page.get_by_role("button", name="Search", exact=True).click()
+                        page.locator(".toolbar-count").filter(has_text="1 contacts").wait_for(timeout=30000)
                         page.get_by_role("button", name="Pagination Person 502").wait_for(timeout=30000)
-                        assert "1 contacts" in page.locator(".toolbar-count").inner_text()
+                        assert nav.count() == 0, "Search must reset the page index to the sole result page"
                         print(f"PASS Chromium {width}px: 503 persisted import, six pages, final row, search and controls", flush=True)
                         context.close()
                 finally:

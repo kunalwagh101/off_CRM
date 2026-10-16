@@ -27,6 +27,12 @@ RUN uv run pytest -v --tb=short tests/test_contacts_filters_export.py tests/test
 
 # WP1 security review: run the lost-context regression before other suites.
 RUN uv run pytest -q tests/test_workspace_isolation.py::test_lost_request_context_cannot_read_other_workspaces_product tests/test_workspace_isolation.py::test_only_explicit_timer_scope_can_read_linked_product_without_a_request tests/test_gtm_product_wiring.py::test_the_engine_reads_the_product_linked_from_another_workspace
+# Diagnose intermittent WP1 concurrent campaign create. Every iteration is a real
+# independent SQLite app/restart run; do not silence any failed 201 response.
+RUN for attempt in $(seq 1 12); do \
+      echo "WP1 concurrency repetition ${attempt}/12"; \
+      uv run pytest -q tests/test_wp1_recovery_edges.py::test_concurrent_api_writes_are_all_durable_after_restart || exit 1; \
+    done
 # Verify CI contracts and shallow/full clone behaviour with real git first.
 RUN uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py
 # Run every installed Python test, not only a curated selection of review items.

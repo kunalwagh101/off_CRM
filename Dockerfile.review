@@ -42,7 +42,7 @@ RUN uv run pytest -q
 FROM backend-checks AS chromium-checks
 RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
 RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
-RUN uv run python scripts/live/review_contacts_browser.py
+RUN uv run --no-sync python scripts/live/review_contacts_browser.py
 
 # Review-only PostgreSQL: all state is disposable inside this Docker build.
 # Both runs use a real PostgreSQL server and never touch Render QA/customer DB.

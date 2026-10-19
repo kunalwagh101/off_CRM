@@ -54,7 +54,7 @@ describe("CRM operations product features", () => {
   it("shows real denominator and zero-campaign state", () => {
     const markup = html(<CampaignComparison />);
     expect(markup).toContain("Compare campaigns");
-    expect(markup).toContain("members with both saved outbound and inbound messages");
+    expect(markup).toContain("an inbound message recorded at or after an outbound message");
     expect(markup).toContain("No campaigns found");
   });
 

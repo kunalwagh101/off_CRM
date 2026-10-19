@@ -133,7 +133,7 @@ export function CampaignComparison() {
       description="Compare saved sends and replies using the same definitions across campaigns. No predicted numbers."
       actions={<Button tone="secondary" onClick={data.reload}>Refresh</Button>} />
     <Panel title="Campaign performance side by side"
-      subtitle="Reply rate = members with both saved outbound and inbound messages, divided by members with outbound. This does not establish message order.">
+      subtitle="Reply rate = members with an inbound message recorded at or after an outbound message, divided by members with outbound. This does not prove the outbound caused the reply.">
       <form className="toolbar" onSubmit={event => { event.preventDefault(); setSearch(input.trim()); setPage(0); }}>
         <Field label="Campaign name"><input value={input} maxLength={100} onChange={e => setInput(e.target.value)} /></Field>
         <Button type="submit">Compare</Button>

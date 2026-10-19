@@ -177,6 +177,81 @@ def test_followup_performance_groups_labels_and_preserves_global_totals(tmp_path
         engine.close()
 
 
+
+def test_quality_sales_overlap_is_scoped_to_sales_workspace(tmp_path):
+    engine, sales, _, _, alice, _, _ = seed(tmp_path)
+    try:
+        # The CRM contact table is install-wide pending Q-27, but a Sales
+        # Tracker collision must not cross a workspace boundary.
+        other = CRMOperations(engine.store, SalesTracker(engine.store, workspace_id="other"))
+        assert other.contact_quality(issue="sales_overlap")["total"] == 0
+        assert CRMOperations(engine.store, sales).contact_quality(
+            issue="sales_overlap"
+        )["items"][0]["id"] == alice
+    finally:
+        engine.close()
+
+
+def test_comparison_requires_a_recorded_outbound_before_the_inbound(tmp_path):
+    engine = OutreachEngine(tmp_path / "reverse-order.db")
+    try:
+        campaign = engine.create_campaign(name="Reverse order")
+        contact = engine.store.upsert_contact(ContactInput(
+            full_name="Morgan Green", email="morgan@example.com",
+            company="Example", title="Manager",
+        ))
+        member, _ = engine.store.add_contact_to_campaign(campaign, contact)
+        with engine.store.transaction(immediate=True) as conn:
+            conn.execute(
+                "INSERT INTO messages (id, campaign_contact_id, stage, direction, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("in-before", member, "initial", "inbound", "2026-10-10T10:00:00+00:00"),
+            )
+            conn.execute(
+                "INSERT INTO messages (id, campaign_contact_id, stage, direction, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("out-after", member, "initial", "outbound", "2026-10-11T10:00:00+00:00"),
+            )
+        service = CRMOperations(engine.store, SalesTracker(engine.store))
+        result = service.campaign_comparison()["items"][0]
+        assert result["contacted"] == 1
+        assert result["inbound_contacts"] == 1
+        assert result["replied_after_outreach"] == 0
+        assert result["reply_rate_percent"] == 0.0
+        with engine.store.transaction(immediate=True) as conn:
+            conn.execute(
+                "INSERT INTO messages (id, campaign_contact_id, stage, direction, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("in-after", member, "followup1", "inbound", "2026-10-12T10:00:00+00:00"),
+            )
+        after = service.campaign_comparison()["items"][0]
+        assert after["replied_after_outreach"] == 1
+        assert after["reply_rate_percent"] == 100.0
+    finally:
+        engine.close()
+
+
+def test_followup_reopen_clears_completed_and_on_time_counts(tmp_path):
+    engine, sales, first, second, *_ = seed(tmp_path)
+    try:
+        service = CRMOperations(engine.store, sales)
+        completed = engine.store._row(
+            "SELECT id, revision FROM campaign_followup_tasks "
+            "WHERE campaign_id = ? AND status = 'done'", (second,),
+        )
+        assert completed is not None
+        reopened = CampaignRelationships(engine.store).update_task(
+            second, completed["id"], revision=int(completed["revision"]), status="open"
+        )
+        assert reopened["completed_at"] is None
+        summary = service.followup_performance(campaign_id=second)["overall"]
+        assert summary["tasks"] == 1
+        assert summary["open"] == 1
+        assert summary["done"] == 0
+        assert summary["on_time"] == 0
+    finally:
+        engine.close()
+
 def test_crm_operations_endpoints_require_auth_and_validate_filters(tmp_path):
     settings = AppSettings(
         project_root=Path.cwd(),

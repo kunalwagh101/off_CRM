@@ -4,13 +4,13 @@
 
 ## Outcome and end-to-end flow
 
-**Compare campaigns** shows all existing campaigns, with optional literal-safe name filter and server-side paging. Each campaign shows saved contact membership, uniquely contacted members (at least one outbound message), uniquely replied members with both outbound and inbound messages, all members with inbound messages, manually qualified Positive/Meeting replies and campaign-sales *link memberships*.
+**Compare campaigns** shows all existing campaigns, with optional literal-safe name filter and server-side paging. Each campaign shows saved contact membership, uniquely contacted members (at least one outbound message), uniquely replied members with a recorded inbound at or after an outbound message, all members with inbound messages, manually qualified Positive/Meeting replies and campaign-sales *link memberships*.
 
-GET /api/v1/crm/compare?search=&limit=25&offset=0 uses correlated indexed membership/message existence checks. Messages are never duplicated into contact counts. Reply rate is (members with both outbound and inbound)/(members with outbound), or N/A when no member has outbound, and is a descriptive rate, not causal lift. Inbound-before-outbound timing is not inferred; the rate counts presence of both records, not causal chronology. Sales links are not won deals or unique revenue; the existing attribution screen remains authoritative for unique recorded financial association. The operator can open Campaign activity in the existing UI.
+GET /api/v1/crm/compare?search=&limit=25&offset=0 uses correlated indexed membership/message existence checks. Messages are never duplicated into contact counts. Reply rate is (members with an inbound timestamp at or after an outbound timestamp)/(members with outbound), or N/A when no member has outbound. An inbound saved before every outbound does not count as a reply. Stored timestamp order is not causal proof, and the metric is not causal lift. Sales links are not won deals or unique revenue; the existing attribution screen remains authoritative for unique recorded financial association. The operator can open Campaign activity in the existing UI.
 
 ## Criteria
 
-1. Repeated outgoing or incoming messages do not double-count members; campaigns with no sends show N/A, not a misleading zero percent.
+1. Repeated outgoing or incoming messages do not double-count members; inbound-before-outbound messages do not inflate the rate; campaigns with no sends show N/A, not a misleading zero percent.
 2. Page/filter limits are enforced, names are searched literally, and stable pagination does not discard empty campaigns.
 3. UI shows definitions, loading/error/empty states, six real metrics, navigation and accessible paging.
 

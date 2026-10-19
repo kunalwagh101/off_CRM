@@ -118,11 +118,13 @@ class CRMOperations:
                    )) AS contacted,
                    (SELECT COUNT(*) FROM campaign_contacts cc
                     WHERE cc.campaign_id = ca.id AND EXISTS (
-                        SELECT 1 FROM messages m WHERE m.campaign_contact_id = cc.id
-                          AND m.direction = 'outbound'
-                   ) AND EXISTS (
-                        SELECT 1 FROM messages m WHERE m.campaign_contact_id = cc.id
-                          AND m.direction = 'inbound'
+                        SELECT 1 FROM messages sent
+                        JOIN messages received
+                          ON received.campaign_contact_id = sent.campaign_contact_id
+                         AND received.direction = 'inbound'
+                         AND received.created_at >= sent.created_at
+                        WHERE sent.campaign_contact_id = cc.id
+                          AND sent.direction = 'outbound'
                    )) AS replied_after_outreach,
                    (SELECT COUNT(*) FROM campaign_contacts cc
                     WHERE cc.campaign_id = ca.id AND EXISTS (
@@ -147,7 +149,7 @@ class CRMOperations:
         return {
             "items": rows, "total": int(total["count"] or 0),
             "limit": limit, "offset": offset, "search": term,
-            "rate_note": "Reply rate uses contacts with saved outbound messages as denominator; only those with both outbound and inbound count as replies. No statistical adjustment.",
+            "rate_note": "Reply rate uses contacts with saved outbound messages as denominator; only those with an inbound message recorded at or after an outbound message count as replies. Saved order is not proof of causation.",
             "sales_note": "Sales links are membership associations, not unique attributed revenue or causal proof.",
         }
 

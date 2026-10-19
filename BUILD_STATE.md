@@ -1,5 +1,12 @@
 # BUILD_STATE.md
 
+## Active three-feature review hardening — 2026-10-19
+
+Selected **existing IN_REVIEW product features**, not fresh builds: F-06.19 CRM Data Quality, F-06.20 Campaign Comparison and F-06.21 Follow-up Performance. F-06.19 adds Sales Tracker workspace-isolation regression; F-06.20 fixes inbound-before-outbound reply-rate inflation and adds chronology regression and clear UI wording (D-317); F-06.21 adds task-reopen/on-time regression. Detailed scope, isolated reproduction, exact commands and pending gates: `docs/evidence/2026-10-19-crm-operations-review-checkpoint.md`. No schema or provider changes.
+
+**Test truth:** isolated SQLite old-vs-new SQL reproduction executed (old 1 / corrected 0). The new repository tests, browser acceptance, full Python/PostgreSQL, board verifier and redeployment are unverified at this checkpoint. Keep all three IN_REVIEW; preserve D-314/315/316 and owner question Q-27. Do not treat earlier 2026-10-16 Render LIVE as proof that the current source passed.
+
+
 ## Active review closure — 2026-10-16, real 503-contact and formula-safe XLSX checks
 
 Two independent `IN_REVIEW` stories: S-06.02.41 and S-06.02.42. New test-only implementation:

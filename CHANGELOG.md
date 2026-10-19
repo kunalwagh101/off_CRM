@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-19 — CRM operations correctness and review tests (IN_REVIEW)
+
+- F-06.20: prevent pre-outreach inbound messages from inflating campaign reply rate; keep JSON contract stable and clarify chronology in UI and documentation (D-317).
+- F-06.19: add Sales Tracker workspace-overlap isolation regression.
+- F-06.21: add reopen-follow-up counter regression.
+- No schema migration, live sending or production deployment; full application tests, browser/PG review and board verifier remain required. See `docs/evidence/2026-10-19-crm-operations-review-checkpoint.md`.
+
+
 ## Unreleased
 - **2026-10-16, off_CRM review acceptance:** added authentic 503-contact pagination regression across six authenticated API pages and real CSV/XLSX formula-injection checks covering accepted/rejected/raw/decision/metadata tabs without mutating input; 19 affected tests passed on Render. Added disposable Chromium 1280/390px contacts import, navigation, search acceptance gate; its final green build is still required. Failures from test timing (D-315) and duplicate Import contacts selector (D-316) were recorded, not suppressed.
 - **2026-10-16, concurrent CRM response integrity (D-314):** a 40-create/8-worker recovery test intermittently returned HTTP 404 or reported IDs inconsistent with persisted rows after restart. The CRM read helpers now hold their existing SQLite RLock across statement execution, cursor fetch and materialisation, not only through `execute`. Added deterministic cursor-lock ownership test and strengthened per-response and restart-set assertions; deterministic test and 12x40 focused stress passed in preliminary Render verification. The full cross-backend regression and review release gates remain open until final build evidence is logged.

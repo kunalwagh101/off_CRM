@@ -1,6 +1,6 @@
 # F-06.20 — Campaign Comparison Dashboard
 
-**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; no passed executable checks claimed.
+**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; chronological reply metric passed full SQLite/PostgreSQL tests at `54864b0`; independent acceptance pending. See `docs/evidence/2026-10-19-render-qa-54864b0.md`.
 
 ## Outcome and end-to-end flow
 

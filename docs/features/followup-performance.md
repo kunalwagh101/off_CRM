@@ -1,6 +1,6 @@
 # F-06.21 — Follow-up Performance Centre
 
-**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; implementation and tests authored, verification pending.
+**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; task-reopen metrics regression passed full SQLite/PostgreSQL tests at `54864b0`; manual browser review pending. See `docs/evidence/2026-10-19-render-qa-54864b0.md`.
 
 ## Outcome and end-to-end flow
 

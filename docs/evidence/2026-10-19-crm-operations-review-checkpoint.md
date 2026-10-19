@@ -27,3 +27,7 @@ cd frontend && npm ci && npm test && npm run build
 Then validate against disposable PostgreSQL, chromium keyboard/screen-reader paths, large-data query plans and restart/recovery. Obtain independent security/data review. Q-27 unresolved CRM tenancy blocks multi-customer release. D-314 concurrency and D-315/D-316 browser acceptance remain IN_REVIEW until the last exact-source Render run is independently inspected; Render deploy LIVE is not sufficient to assert test pass.
 
 **Status:** implementation changes committed to develop once the linked Git commit exists. All three feature IDs stay IN_REVIEW; no production release claim.
+
+## 2026-10-19 verified Render follow-up
+
+Full QA results on the source revision `54864b0`: **2760 passed/45 skipped SQLite**, **2780 passed/94 skipped PostgreSQL**, **212 frontend passed**, **215 focused PostgreSQL passed**, **12/12 concurrency stress**, and **desktop/mobile Chromium Contacts passed**. See `docs/evidence/2026-10-19-render-qa-54864b0.md` for actual commands and limits. All three product features remain IN_REVIEW pending independent acceptance. Previous 'not executed' language documents the earlier pre-Render checkpoint and is not the latest test state.

@@ -1,4 +1,9 @@
 # off_CRM — complete outstanding work and test register
+
+## Latest QA checkpoint — 2026-10-19
+
+Render `dep-dbapefvbtjjs73834l00` on source `54864b0` completed 2760 passing SQLite tests, 2780 passing PostgreSQL tests, 212 React tests, 12/12 concurrency stress iterations, 215 PostgreSQL storage tests, zero npm advisories, and Chromium Contacts flows at 1280/390px. See `docs/evidence/2026-10-19-render-qa-54864b0.md` for skipped counts and open gates. **Board states have not been promoted:** independent acceptance, Q-27, full history verifier, real product UX and backups remain unresolved.
+
 Date: 2026-10-15 · Repository: `kunalwagh101/off_CRM` · branch: `develop`
 
 ## Latest active review update — 2026-10-16

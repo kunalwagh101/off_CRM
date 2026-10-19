@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — QA verified review (docs only)
+
+- Code commit `54864b0b` passed 212 frontend, 2760 full SQLite, 2780 full PostgreSQL, 215 storage PostgreSQL, 67 CI/verifier tests and 12/12 concurrency stress repeats. Chromium Contacts passed at 1280px and 390px; both npm audits reported 0 vulnerabilities.
+- Repaired D-317/D-316 log record separation (D-318) during evidence handoff. No application code or database migration in this follow-up.
+- F-06.19/F-06.20/F-06.21 remain IN_REVIEW. See `docs/evidence/2026-10-19-render-qa-54864b0.md` for exact evidence and open production gates.
+
+
 ## 2026-10-19 — CRM operations correctness and review tests (IN_REVIEW)
 
 - F-06.20: prevent pre-outreach inbound messages from inflating campaign reply rate; keep JSON contract stable and clarify chronology in UI and documentation (D-317).

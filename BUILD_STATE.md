@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## QA verified — 2026-10-19 (source 54864b0b)
+
+Render QA deploy `dep-dbapefvbtjjs73834l00` tested develop `54864b0bb9172e73e2c1858aba06c82af1166277`. **212 React tests**, Ruff clean, npm audits **0 vulnerabilities**, **2760 SQLite passed / 45 skipped / 44 warnings**, **2780 PostgreSQL passed / 94 skipped / 44 warnings**, **215 focused PostgreSQL passed**, **19 contact/export passed**, **3 security passed**, **67 verifier/CI tests passed**, **12/12 concurrent 40-create/restart repetitions passed**, Chromium Contacts **1280px PASS / 390px PASS**. Named commands, times, warnings, limits: `docs/evidence/2026-10-19-render-qa-54864b0.md`. All build test stages green; final Render status pending last check. The original 3 features remain IN_REVIEW, S-06.02.23 IN_PROGRESS and Q-27 unresolved. No real production app deployment or complete full-history board verifier. Subsequent documentation-only commit does not change the tested source.
+
+
 ## Active three-feature review hardening — 2026-10-19
 
 Selected **existing IN_REVIEW product features**, not fresh builds: F-06.19 CRM Data Quality, F-06.20 Campaign Comparison and F-06.21 Follow-up Performance. F-06.19 adds Sales Tracker workspace-isolation regression; F-06.20 fixes inbound-before-outbound reply-rate inflation and adds chronology regression and clear UI wording (D-317); F-06.21 adds task-reopen/on-time regression. Detailed scope, isolated reproduction, exact commands and pending gates: `docs/evidence/2026-10-19-crm-operations-review-checkpoint.md`. No schema or provider changes.

@@ -1,6 +1,6 @@
 # F-06.19 — CRM Data Quality Centre
 
-**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; implementation authored, runtime verification pending.
+**Mode:** TASK · **Branch:** develop · **Status:** IN_REVIEW; Render full SQLite/PostgreSQL and frontend tests passed for source `54864b0`; manual privacy/UX sign-off pending. See `docs/evidence/2026-10-19-render-qa-54864b0.md`.
 
 ## Outcome and end-to-end flow
 

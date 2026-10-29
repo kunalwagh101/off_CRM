@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 — Executed A15 stream guard regression (S-06.02.51)
+
+- Render review tested application commit `71fb99c`: **2777 SQLite**, **2797 PostgreSQL**, **215 targeted PostgreSQL** tests passed. Eleven new adversarial video/ASGI cases passed in both Python suites. Concurrency stress 12/12 and desktop/mobile Chromium Contacts accepted.
+- The real ASGI guard caps multipart bodies before Starlette parsing, limits in-flight uploads, times out stalled clients and cleans temporary files. This is tested code, **not an independently verified production-wide penetration or load result**.
+- Kept A15 S-06.02.51 IN_REVIEW, D-321 open, `main`/production untouched; evidence `docs/evidence/2026-10-30-video-stream-qa.md`.
+
+
 ## 2026-10-30 — Pre-parser video upload security (A15, S-06.02.51)
 
 - Added ASGI guard to both video-media and render multipart routes, before Starlette consumes their bodies. Bounded counted bytes (configured file limit plus 16 KiB multipart overhead), 256 KiB in-memory spool threshold, two in-flight uploads per worker, 30-second idle limit, and deterministic close on disconnect.

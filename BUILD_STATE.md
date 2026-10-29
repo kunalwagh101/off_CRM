@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — S-06.02.51 video ASGI request guard QA tests passed
+
+**Tested source:** `71fb99c554bf7d566ad6ad27e921c214c339884c`, Render review deploy `dep-dbhqq2u1egvs7388ool0` (isolated review service only). **2777 SQLite passed / 45 skipped**, **2797 disposable PostgreSQL passed / 94 skipped**, **215 focused PostgreSQL**, **12/12 concurrency repeats**, **67 verifier test cases**, **19 contact tests**, **Chromium desktop/mobile PASS**, Ruff clean. Frontend and npm audit gates passed in test image build. Eleven new video upload/body guard tests pass. See `docs/evidence/2026-10-30-video-stream-qa.md`. Render status was `build_in_progress` while export finished when documentation authored; check deployment state separately. **No customer production promotion.** S-06.02.51 remains IN_REVIEW: global concurrency, measured resource pressure, network penetration and multi-replica scenarios unresolved; A15 partially mitigated, not closed. D-321 moderate Vitest advisories remain.
+
+
 ## 2026-10-30 — Next F-06.02 security increment: A15 pre-parser upload guard
 
 Owner selected next priority after QA of handler size limits: stop unbounded multipart parsing/spooling for video uploads. S-06.02.51 implements an ASGI request-body cap before FastAPI file parsing, private bounded temporary spool (256 KiB RAM before disk), per-worker max 2 concurrent uploads, 30-second inactive-sender timeout, deterministic cleanup, with both authenticated HTTP and low-level ASGI security tests. Independent local FastAPI prototype: initial test collection RED (guard absent), then 11 passed after code and test corrections. The prototype is not the actual off_CRM application; authoritative full-unit/integration/security/PostgreSQL results require Render QA. D-322. **IN_REVIEW pending deployment tests; A15 not marked closed.** No change to main/customer deployment.

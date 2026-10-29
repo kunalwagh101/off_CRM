@@ -38,6 +38,7 @@ from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace, signature_in, signature_mark
 from .plan import MAX_PLAN_CHARS, PlanError, RunPlan
+from .permissions import AgentPermissionPolicy, ChatPermissionGrants
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -670,6 +671,8 @@ class AgentRun:
         trace: Trace,
         decision_data_class: DataClass = DataClass.INTERNAL,
         planner_provider_id: str = "",
+        permission_policy: AgentPermissionPolicy | None = None,
+        chat_permissions: ChatPermissionGrants | None = None,
     ) -> None:
         self.broker = broker
         self.settings = settings
@@ -678,6 +681,8 @@ class AgentRun:
         self.plan = RunPlan(trace.directory)
         self.decision_data_class = decision_data_class
         self.planner_provider_id = str(planner_provider_id or "").strip()
+        self.permission_policy = permission_policy or AgentPermissionPolicy()
+        self.chat_permissions = chat_permissions
 
     async def run(
         self,
@@ -1026,6 +1031,25 @@ class AgentRun:
             # step recording no signature is one nobody watching can name and
             # no resumed run can match.  `S-11.04.02`
             signature = action_signature(decision)
+
+            # Runs, including unattended routines, must enforce this before
+            # a real browser action or an in-memory read shortcut.
+            permission = self.permission_policy.decide(
+                decision.action, grants=self.chat_permissions,
+            )
+            if permission != "allow":
+                self.trace.append(Step(
+                    kind="permission_gate",
+                    detail=f"Tool {decision.action}: {permission}; no browser action taken.",
+                    url=self.page.url or snapshot.url, ok=False,
+                ))
+                return self._outcome(
+                    "permission_denied" if permission == "deny" else "needs_permission",
+                    cleaned_goal, budget, decisions, actions,
+                    f"Tool {decision.action} requires "
+                    + ("policy change." if permission == "deny" else "owner permission."),
+                    schema=schema, findings=collected,
+                )
 
             # A page already read in this run is answered from the memo.  `S-11.02.04`
             #

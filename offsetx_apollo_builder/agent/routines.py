@@ -34,6 +34,7 @@ from ..browser.policy import Refused, check_navigation, host_of
 from ..browser.session import free_port, open_session, probe
 from ..browser.trace import Trace
 from .run import AgentRun, RunOutcome
+from .permissions import AgentPermissionPolicy
 
 _EVENT = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,99}$")
 _WORKSPACE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -921,6 +922,9 @@ class RoutineAgentExecutor:
                 page=page,
                 trace=trace,
                 decision_data_class=DataClass.INTERNAL,
+                permission_policy=AgentPermissionPolicy.from_mapping(
+                    self.workspaces.raw(routine.workspace_id).get("agent_permissions", {})
+                ),
             )
             # A routine may notify only from a source-verified page finding.
             # "No updates found" prose is therefore not a notification, and a

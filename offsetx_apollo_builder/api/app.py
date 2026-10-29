@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import hmac
 import os
 import threading
@@ -149,6 +151,7 @@ from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
+from ..agent.permissions import AgentPermissionPolicy, PermissionErrorRule
 from .storage_readiness import describe_storage_readiness
 from .email_delivery import build_email_delivery_router
 from .production_runtime import TIMERS, RecoveryGate, install_runtime_routes
@@ -1779,6 +1782,45 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         memory_id: str, body: MemoryApproval, request: Request
     ) -> dict[str, Any]:
         return _engine(request).store.set_memory_approval(memory_id, body.approved)
+
+    @app.get(f"{API_PREFIX}/agent-permissions")
+    def get_agent_permissions(
+        request: Request, workspace_id: str = Query("", max_length=64)
+    ) -> dict[str, Any]:
+        caller = _workspace_id(request)
+        target = workspace_id or caller
+        if target != caller and not valid_api_token(request):
+            raise HTTPException(403, "Cannot inspect another workspace's rules")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", target):
+            raise HTTPException(400, "Invalid workspace")
+        try:
+            return AgentPermissionPolicy.from_mapping(
+                request.app.state.ai_workspaces.raw(target).get("agent_permissions", {})
+            ).to_dict()
+        except PermissionErrorRule as exc:
+            raise HTTPException(503, "Stored agent permissions invalid; stop routines") from exc
+
+    @app.put(f"{API_PREFIX}/agent-permissions")
+    def set_agent_permissions(
+        body: dict[str, Any], request: Request,
+        workspace_id: str = Query("", max_length=64),
+    ) -> dict[str, Any]:
+        require_workspace_admin(request)
+        target = workspace_id or "local"
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", target):
+            raise HTTPException(400, "Invalid workspace")
+        if target != "local" and target not in {
+            item["workspace_id"] for item in workspace_auth.list_accounts()
+        }:
+            raise HTTPException(404, "Workspace not found")
+        try:
+            policy = AgentPermissionPolicy.from_mapping(body)
+        except PermissionErrorRule as exc:
+            raise HTTPException(400, str(exc)) from exc
+        request.app.state.ai_workspaces.save(
+            target, {"agent_permissions": policy.to_dict()}
+        )
+        return policy.to_dict()
 
     @app.get(f"{API_PREFIX}/agent-routines")
     def list_agent_routines(request: Request) -> dict[str, Any]:

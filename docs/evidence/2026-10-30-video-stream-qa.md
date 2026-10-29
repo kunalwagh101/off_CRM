@@ -45,3 +45,7 @@
 7. Full-history `uv run python scripts/verify_board.py` was not verified by this Render Docker build (shallow checkout history); 67 unit tests verify the verifier but do not certify the board.
 
 `main`, customer/production services, provider credentials and databases remained untouched.
+
+## Final Render deploy status observed after evidence authoring
+
+Connected Render `get_deploy` confirms **`status=live`**, **`finishedAt=2026-10-29T20:45:28.238135Z`** on isolated QA service `srv-db86p4u89jmc73cehns0`, deploy `dep-dbhqq2u1egvs7388ool0`, tested source `71fb99c554bf7d566ad6ad27e921c214c339884c`. Actual build log at 2026-10-29T20:45:28Z reports "Your service is live". QA marker: https://off-crm-review-runner-20261015.onrender.com. This supersedes the interim status above. All remaining security, board and production limitations still apply.

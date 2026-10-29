@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — Render QA status confirmed LIVE
+
+Deploy `dep-dbhqd96i0phs73f1vfrg` on isolated QA review runner `srv-db86p4u89jmc73cehns0` returned **status `live`**, `finishedAt=2026-10-29T20:18:37.915787Z` (2026-10-30 IST), checked out application source `0c28d7c9be64d24a67f846142c5ff1dd56f50af3`. Actual Render logs say "Your service is live." **Not a production/customer application deploy.** Tested source and exact suite gates: `docs/evidence/2026-10-30-a15-video-upload-qa.md`. QA success does not close audit A15 or change IN_REVIEW to DONE.
+
+
 ## 2026-10-30 — A15 video upload endpoint fix verified on Render QA
 
 **Actual source tested:** `0c28d7c9be64d24a67f846142c5ff1dd56f50af3`, isolated QA deploy `dep-dbhqd96i0phs73f1vfrg`. **2766 SQLite passed / 45 skipped**, **2786 PostgreSQL passed / 94 skipped**, **212 React passed**, **215 focused PostgreSQL passed**, **12/12 repeated concurrency runs passed**, **Chromium 1280px & 390px PASS**, **Ruff clean**. npm ci confirmed Vite 8.1.6 lockfile. Production npm audit 0 vulnerabilities; high-severity npm audit passed, but two **moderate** Vitest dev advisories remain (D-321). Six new A15 adversarial HTTP API tests passed in both Python suites. See `docs/evidence/2026-10-30-a15-video-upload-qa.md` for exact limits and warnings.

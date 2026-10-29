@@ -40,3 +40,7 @@ The six newly added `tests/test_video_upload_security.py` tests are included in 
 - No rollback execution needed (no schema changes), but reversing this handler patch reopens the A15 memory issue; do not revert without a different tested byte cap. No production rollout has been authorized.
 
 **Render final status at first handoff draft:** test-backed image stages completed, exported image pushed, registry cache export pending. If status later becomes `live`, append an explicit separately verified update; do not infer LIVE from the image build pass.
+
+## Final Render status observed after image build
+
+Connected Render `get_deploy` confirmed **`status=live`** for `dep-dbhqd96i0phs73f1vfrg`, `finishedAt=2026-10-29T20:18:37.915787Z`, source SHA `0c28d7c9be64d24a67f846142c5ff1dd56f50af3`. Build log at `2026-10-29T20:18:38Z` explicitly said "Your service is live." The published QA marker is `https://off-crm-review-runner-20261015.onrender.com`; **the production application was not deployed**. This supersedes the earlier interim `build_in_progress` status, not the open security caveats.

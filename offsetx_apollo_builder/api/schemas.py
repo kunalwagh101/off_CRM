@@ -44,6 +44,14 @@ class WorkspaceUpdate(StrictModel):
 
 
 
+class AgentPermissionUpdate(StrictModel):
+    """A typed and bounded contract for every persistent browser permission."""
+    global_mode: Literal["allow", "ask", "deny"] = "allow"
+    tool_rules: dict[str, Literal["allow", "ask", "deny"]] = Field(
+        default_factory=dict, max_length=10
+    )
+
+
 class AgentRoutineCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     goal: str = Field(min_length=1, max_length=4000)

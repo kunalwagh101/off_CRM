@@ -159,6 +159,7 @@ from .gtm import build_gtm_router, resolve_angle
 from .schemas import (
     AutomationUpdate,
     AgentRoutineCreate,
+    AgentPermissionUpdate,
     AgentRoutineUpdate,
     AgentRoutineEvent,
     CampaignCreate,
@@ -1802,7 +1803,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.put(f"{API_PREFIX}/agent-permissions")
     def set_agent_permissions(
-        body: dict[str, Any], request: Request,
+        body: AgentPermissionUpdate, request: Request,
         workspace_id: str = Query("", max_length=64),
     ) -> dict[str, Any]:
         require_workspace_admin(request)
@@ -1814,7 +1815,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         }:
             raise HTTPException(404, "Workspace not found")
         try:
-            policy = AgentPermissionPolicy.from_mapping(body)
+            policy = AgentPermissionPolicy.from_mapping(body.model_dump())
         except PermissionErrorRule as exc:
             raise HTTPException(400, str(exc)) from exc
         request.app.state.ai_workspaces.save(

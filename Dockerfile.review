@@ -22,6 +22,9 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run ruff check --select E9,F63,F7,F82 .
+# F-06.03 storage readiness TDD: fail fast before the long regression stages.
+RUN uv run pytest -q tests/test_hosted_storage_readiness.py
+
 # Story-specific QA acceptance: persisted >500 contacts and every spreadsheet tab.
 RUN uv run pytest -v --tb=short tests/test_contacts_filters_export.py tests/test_spreadsheet_exports.py tests/test_existing_poi_enrichment.py tests/test_apollo_rejection_ledger.py
 

@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — QA blocked by a newly published Vite security advisory, patch authored
+
+Actual isolated Render review build **dep-dbhqbjpsrm7s738gnbq0** on develop source `477a3fe` stopped at `npm audit --audit-level=high` (3 vulnerabilities, one high) on pinned vite@8.1.4. New docs/code revision pins patched vite@8.1.6 in both `frontend/package.json` and `frontend/package-lock.json`; exact integrity and compatible dependency references updated, no forced major upgrade. Rerun needed: `npm ci`, security audits, React tests/build, Python upload regressions and PostgreSQL suites. No claim that upload tests executed in the failed build. A15 and S-06.02.50 still IN_REVIEW; D-320 filed.
+
+
 ## 2026-10-30 — F-06.02 bounded video upload handlers in review
 
 A15 video-media/render endpoints had unbounded file.read() despite configured max-upload setting. Under owner authorisation to start next existing feature, prepared S-06.02.50 with a bounded read helper, 6 new real-API/unit/security tests and D-319. Mechanism RED was locally reproduced in a minimal FastAPI endpoint: 4096 bytes returned 201 instead of 413; **this was not a run of the off_CRM app**. Tests in repository require Render execution before any PASS claim. **A15 remains open:** multipart parsing/spooling and concurrent disk/memory use are not capped by the endpoint read limit. Next: deploy QA review runner, inspect tests, fix, update status. No main or production changes.

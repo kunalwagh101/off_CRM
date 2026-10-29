@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-30 — Frontend security gate: Vite patch upgrade
+
+- An actual Render QA build failed at `npm audit --audit-level=high` with **three Vite advisories** on pinned Vite 8.1.4. Updated the project and npm lockfile to patched **Vite 8.1.6** (verified package tarball SHA-512) and compatible dependency ranges; kept existing Rolldown 1.1.5.
+- No `npm audit fix --force`, no policy bypass. Re-run `npm ci`, frontend tests/build and npm audits on Render before claiming pass. D-320 tracks the finding.
+
+
 ## 2026-10-30 — Video upload input hardening (F-06.02, A15)
 
 - Added a configured byte ceiling at video-media and render endpoints before media decoding; empty uploads return a clear 400, oversize uploads return 413. Reuses OFFSETX_MAX_UPLOAD_BYTES; no schema or dependency change.

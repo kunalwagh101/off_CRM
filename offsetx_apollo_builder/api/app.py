@@ -149,6 +149,7 @@ from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
+from .storage_readiness import describe_storage_readiness
 from .email_delivery import build_email_delivery_router
 from .production_runtime import TIMERS, RecoveryGate, install_runtime_routes
 from .gtm import build_gtm_router, resolve_angle
@@ -3694,6 +3695,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ),
         )
 
+
+    @app.get(f"{API_PREFIX}/storage/readiness")
+    def get_storage_readiness(request: Request) -> dict[str, Any]:
+        """An owner-only, read-only summary. Never disclose URLs, paths or keys."""
+        require_install_owner(request)
+        return describe_storage_readiness(resolved)
 
     def _require_local_capture_origin(request: Request) -> None:
         """Meeting audio is accepted only from this machine's own browser.

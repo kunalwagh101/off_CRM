@@ -18,6 +18,12 @@ TOKEN = "g" * 40
 AUTH = {"Authorization": "Bearer " + TOKEN}
 
 
+@pytest.fixture
+def anyio_backend():
+    """The ASGI guard uses asyncio and does not require a Trio runner."""
+    return "asyncio"
+
+
 def _settings(tmp_path: Path, max_bytes: int = 2048) -> AppSettings:
     return AppSettings(
         project_root=Path.cwd(),
@@ -107,7 +113,7 @@ def test_a15_preparser_rejects_malformed_content_length(tmp_path):
         assert response.status_code == 400, response.text
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_a15_chunked_body_stops_reading_at_the_ceiling():
     async def app(scope, receive, send):
         raise AssertionError("Request must never reach the application")
@@ -132,7 +138,7 @@ async def test_a15_chunked_body_stops_reading_at_the_ceiling():
     assert next(x["status"] for x in sent if x["type"] == "http.response.start") == 413
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_a15_concurrent_upload_limit_releases_after_completion():
     entered, allow_finish = asyncio.Event(), asyncio.Event()
 
@@ -170,7 +176,7 @@ async def test_a15_concurrent_upload_limit_releases_after_completion():
     assert next(x["status"] for x in results[2] if x["type"] == "http.response.start") == 200
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_a15_stalled_upload_returns_timeout_and_releases_capacity():
     called = 0
 
@@ -202,7 +208,7 @@ async def test_a15_stalled_upload_returns_timeout_and_releases_capacity():
     assert called == 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_a15_spooled_file_rolls_to_disk_and_closes_on_success(monkeypatch):
     import offsetx_apollo_builder.api.video_upload_guard as module
 
@@ -235,7 +241,7 @@ async def test_a15_spooled_file_rolls_to_disk_and_closes_on_success(monkeypatch)
     assert opened[0]._rolled and opened[0].closed
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_a15_disconnected_upload_cleans_temporary_file(monkeypatch):
     import offsetx_apollo_builder.api.video_upload_guard as module
 

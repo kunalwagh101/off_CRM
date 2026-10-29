@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+from tempfile import gettempdir
 from typing import TYPE_CHECKING, Any
 
 from ..db.connection import DATABASE_URL_ENV
@@ -17,6 +19,15 @@ def _files_have_verified_mount(settings: AppSettings) -> bool:
         return False
     data = settings.data_dir.resolve()
     mount = root.resolve()
+    # A container's OS root is a mount too, but it is not a separate durable
+    # customer-data volume. Production also refuses temporary directories.
+    if mount == Path("/"):
+        return False
+    temporary = (
+        Path(gettempdir()).resolve(), Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"),
+    )
+    if any(path == data or path in data.parents for path in temporary):
+        return False
     return mount != data and mount in data.parents
 
 

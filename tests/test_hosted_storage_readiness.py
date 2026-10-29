@@ -113,3 +113,38 @@ def test_report_has_distinct_actionable_non_secret_next_steps(tmp_path, isolated
         assert all(isinstance(action, str) and action for action in actions)
         assert any("OFFSETX_PERSISTENT_MOUNT" in action for action in actions)
         json.dumps(result)
+
+
+def test_non_owner_workspace_cannot_view_global_storage_inventory(tmp_path, isolated):
+    with TestClient(create_app(_settings(tmp_path / "local"))) as owner:
+        created = owner.post(
+            "/api/v1/workspaces",
+            headers={"X-Offsetx-Token": OWNER_TOKEN},
+            json={
+                "username": "regular-team-member",
+                "workspace_id": "member-workspace",
+                "password": "a-long-member-password-123",
+            },
+        )
+        assert created.status_code == 201, created.text
+        member = TestClient(owner.app)
+        login = member.post(
+            "/api/v1/auth/login",
+            json={"username": "regular-team-member", "password": "a-long-member-password-123"},
+        )
+        assert login.status_code == 200, login.text
+        denied = member.get(API)
+        assert denied.status_code == 403, denied.text
+        assert "stores" not in denied.text
+
+
+def test_root_filesystem_mount_does_not_claim_data_durability(tmp_path, isolated):
+    settings = _settings(tmp_path / "local")
+    settings.persistent_mount = Path("/")  # Mountpoint, not a customer disk.
+    with TestClient(create_app(settings)) as client:
+        result = _get(client)
+        assert result.status_code == 200, result.text
+        body = result.json()
+        assert body["files"]["durability"] == "unverified"
+        assert body["production"]["status"] == "blocked"
+        assert "ephemeral_customer_files" in body["production"]["blockers"]

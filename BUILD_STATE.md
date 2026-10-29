@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — Initial F-06.03 API fully regression-tested, later security patch awaiting QA
+
+Render source `fc0a4cfa768ad24666477739dbae8c74e6e5df3d`, deploy `dep-dbhr63ff3r2c73c62te0`, executed and passed **5 targeted owner readiness tests**, **2,782 full SQLite tests (45 skipped, 44 warnings)**, **2,802 full disposable PostgreSQL tests (94 skipped, 44 warnings)**, **215 targeted PostgreSQL tests**, desktop/mobile Chromium Contacts and Ruff checks. This is code/review evidence for **only that source**, not source `d89bebb` with the two later non-owner/root-mount regressions. The later source could not be re-deployed through the available execution interface. Both new security tests and the complete latest commit remain IN_REVIEW; no customer production claim. See `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`.
+
+
 ## 2026-10-30 — F-06.03 storage-readiness QA checkpoint
 
 Render TDD RED **5 failed/404**, implementation GREEN **5 passed**; initial implementation full SQLite **2,782 passed/45 skipped**, targeted PostgreSQL **215 passed** and Chromium desktop/mobile passed on `fc0a4cf`. Source `d89bebb` adds two tenant/mount regression tests **not yet run in Render**; final redeploy could not be triggered through available execution interface. Full PostgreSQL suite on initial GREEN source remained in progress at this checkpoint. **IN_REVIEW, not DONE**. See `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`. Q-29/S-06.03.04 and S-06.03.06 production storage blockers remain.

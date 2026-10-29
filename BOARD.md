@@ -142,6 +142,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.03.08 · Install owner sees actual storage durability and production blockers
+  work_order: docs/work-orders/S-06.03.08-storage-readiness-report.md
+  review: real Render TDD RED 5/5 absent API, initial GREEN 5/5, then added non-owner 403 and OS-root false mount regression; full final Render QA required
+
 - S-06.02.51 · Video uploads have a bounded request stream and concurrency gate (A15)
   work_order: docs/work-orders/S-06.02.51-video-upload-stream-guard.md
   review: 11 new adversarial HTTP and ASGI regressions passed within full Render SQLite (2777) and PostgreSQL (2797) suites on 71fb99c; standalone penetration/load tests, cross-process quotas and full-history board verification remain open

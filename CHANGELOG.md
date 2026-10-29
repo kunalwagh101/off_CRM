@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 — F-06.03 install storage-readiness API
+
+- Added owner-only, read-only `/api/v1/storage/readiness` to classify the existing store inventory and report production blockers; no secrets, URLs, raw paths or customer content.
+- Initial 5 tests failed RED on Render without the endpoint and passed after code implementation. Added separate normal-workspace 403 and OS-root mount false-positive security regressions.
+- No schema or storage migration and no production validation relaxation; backup Q-29 and store placement S-06.03.06 remain release blockers. Final QA pending.
+
+
 ## 2026-10-30 — Executed A15 stream guard regression (S-06.02.51)
 
 - Render review tested application commit `71fb99c`: **2777 SQLite**, **2797 PostgreSQL**, **215 targeted PostgreSQL** tests passed. Eleven new adversarial video/ASGI cases passed in both Python suites. Concurrency stress 12/12 and desktop/mobile Chromium Contacts accepted.

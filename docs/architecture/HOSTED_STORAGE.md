@@ -197,6 +197,12 @@ agent screenshots and exports are files, not rows, and 0.5 GB would not hold
 them. On the free plan they are still lost on a deploy; the screens that hold
 them must say so. Object storage is its own question, raised when phase 2 lands.
 
+## Storage-readiness report for the install owner (S-06.03.08; IN_REVIEW)
+
+An authenticated install owner can query `GET /api/v1/storage/readiness`. It lists every existing inventory store's durability, the configured local/hosted topology and production blockers. A hosted CRM and encrypted provider keys do not imply that media, email outboxes, agent routines and privacy files have durable homes. No URL, secret, raw path or customer content is exposed; a normal workspace account is refused.
+
+This report is read-only. A `storage_contract_met` result is **not** evidence of restored backups or a safe production rollout. The current production startup guard remains unchanged. The owner must resolve Q-29 / S-06.03.04 encrypted external backups and S-06.03.06 remaining data-store placement.
+
 ## Inventory
 
 Generated from `offsetx_apollo_builder/db/inventory.py` by

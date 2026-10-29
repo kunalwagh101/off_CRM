@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — Next feature F-06.03 storage-readiness report
+
+Actual Render TDD RED: commit `0b96e38`, deploy `dep-dbhr4i2jnfac73an8ee0`: 5 failed because the endpoint returned 404. Initial GREEN: `fc0a4cf`, deploy `dep-dbhr63ff3r2c73c62te0`, same 5 targeted tests passed. New owner-only `GET /api/v1/storage/readiness` uses checked storage inventory, safe durability classifications and action codes; no URL/key/path contents or database writes. Additional non-owner workspace and OS-root mount tests at `d89bebb` require final QA. **IN_REVIEW**, not customer production: external encrypted backup S-06.03.04/Q-29 and remaining local stores S-06.03.06 are unresolved. Main unchanged.
+
+
 ## 2026-10-30 — ASGI video guard QA confirmed LIVE
 
 Connected Render `get_deploy` returned **status `live`**, `finishedAt=2026-10-29T20:45:28.238135Z` for test-only review runner `dep-dbhqq2u1egvs7388ool0`, source `71fb99c554bf7d566ad6ad27e921c214c339884c`. Render logs also state "Your service is live" at 20:45:28Z. Tested source passed **2777 SQLite / 2797 PostgreSQL / 215 targeted PG**, Ruff, npm/frontend gates and Chromium checks; see `docs/evidence/2026-10-30-video-stream-qa.md`. **No customer/production deployment; A15 and S-06.02.51 remain IN_REVIEW for independent load, cross-process and security checks.**

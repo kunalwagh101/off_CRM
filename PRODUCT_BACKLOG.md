@@ -2162,6 +2162,13 @@ stories until opened.
 
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
+#### S-06.03.08 — Owner storage readiness and data-loss risk
+- **Given** local or hosted configuration, **when** the owner requests `GET /api/v1/storage/readiness`, **then** the API lists each inventoried store's durability and safe next steps without private paths or credentials.
+- **Given** a hosted CRM but remaining local media, routines and outboxes, **when** viewing the report, **then** it still blocks production readiness.
+- **Given** a normal team workspace, invalid token or no authentication, **when** requesting the report, **then** it returns 403/401 with no store details.
+- **Given** the operating-system mount `/` or temporary storage, **when** checking durability, **then** that is not certified as a persistent customer disk.
+- **Status:** IN_REVIEW; tests: `tests/test_hosted_storage_readiness.py`; external backup Q-29 and S-06.03.06 remain open.
+
 The owner's answer to `Q-26` (2026-09-25): stay on Render's free plan and keep
 the data in a free hosted PostgreSQL. Design: `docs/architecture/HOSTED_STORAGE.md`.
 

@@ -1,5 +1,12 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — A15 video upload endpoint fix verified on Render QA
+
+**Actual source tested:** `0c28d7c9be64d24a67f846142c5ff1dd56f50af3`, isolated QA deploy `dep-dbhqd96i0phs73f1vfrg`. **2766 SQLite passed / 45 skipped**, **2786 PostgreSQL passed / 94 skipped**, **212 React passed**, **215 focused PostgreSQL passed**, **12/12 repeated concurrency runs passed**, **Chromium 1280px & 390px PASS**, **Ruff clean**. npm ci confirmed Vite 8.1.6 lockfile. Production npm audit 0 vulnerabilities; high-severity npm audit passed, but two **moderate** Vitest dev advisories remain (D-321). Six new A15 adversarial HTTP API tests passed in both Python suites. See `docs/evidence/2026-10-30-a15-video-upload-qa.md` for exact limits and warnings.
+
+**A15 PARTIAL mitigation, not closed:** endpoint `UploadFile.read` now byte-bounded but multipart parser spooling, concurrent disk/resource quotas, interrupted transfers and a real video browser/penetration check still need work. `S-06.02.50` IN_REVIEW; `S-06.02.23` IN_PROGRESS. Full-history board verification and production release not performed. Docs-only handoff revisions after `0c28d7c` must not be described as new tested source.
+
+
 ## 2026-10-30 — QA blocked by a newly published Vite security advisory, patch authored
 
 Actual isolated Render review build **dep-dbhqbjpsrm7s738gnbq0** on develop source `477a3fe` stopped at `npm audit --audit-level=high` (3 vulnerabilities, one high) on pinned vite@8.1.4. New docs/code revision pins patched vite@8.1.6 in both `frontend/package.json` and `frontend/package-lock.json`; exact integrity and compatible dependency references updated, no forced major upgrade. Rerun needed: `npm ci`, security audits, React tests/build, Python upload regressions and PostgreSQL suites. No claim that upload tests executed in the failed build. A15 and S-06.02.50 still IN_REVIEW; D-320 filed.

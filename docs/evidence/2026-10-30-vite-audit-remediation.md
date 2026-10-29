@@ -12,3 +12,7 @@ Actual Render review deploy `dep-dbhqbjpsrm7s738gnbq0` on commit `477a3fe` faile
 ## To verify (not claimed until executed)
 
 Render Dockerfile.review must complete `npm ci`, 212+ frontend tests, frontend build, both npm audits with no high advisories, all Python suites (SQLite and real disposable PostgreSQL), and Chromium UI. This entry is a dependency remediation record, not a finished security certification.
+
+## Verified follow-up after Vite patch
+
+Actual Render `dep-dbhqd96i0phs73f1vfrg` on `0c28d7c9be64d24a67f846142c5ff1dd56f50af3` completed `npm ci`, 212 frontend tests, build, and `npm audit --audit-level=high` successfully. Production-only audit found zero; **two moderate Vitest @vitest/mocker dev advisories remain**. Do not describe all npm advisories as cleared. Those are tracked as D-321; full QA evidence: `docs/evidence/2026-10-30-a15-video-upload-qa.md`.

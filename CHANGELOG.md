@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-30 — Executed A15 upload QA and dependency audit
+
+- Render QA `dep-dbhqd96i0phs73f1vfrg` executed tested source `0c28d7c`; Python SQLite **2766 passed**, PostgreSQL **2786 passed**, frontend **212 passed**, 215 PG focus passed, Chromium 1280/390px passed.
+- The six A15 video-upload tests passed in both Python suites. Scope: handler size, empty upload, authentication and forged Content-Length, not Starlette request-body stream hardening. Leave A15 open.
+- Vite high-severity advisories cleared by Vite 8.1.6, but two moderate Vitest development-tool advisories remain open as D-321. See `docs/evidence/2026-10-30-a15-video-upload-qa.md`.
+- QA evidence only, no customer/production deployment or board DONE promotion.
+
+
 ## 2026-10-30 — Frontend security gate: Vite patch upgrade
 
 - An actual Render QA build failed at `npm audit --audit-level=high` with **three Vite advisories** on pinned Vite 8.1.4. Updated the project and npm lockfile to patched **Vite 8.1.6** (verified package tarball SHA-512) and compatible dependency ranges; kept existing Rolldown 1.1.5.

@@ -144,7 +144,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.50 · Video media and renders obey configured upload limits (A15 partial remediation)
   work_order: docs/work-orders/S-06.02.50-bounded-video-uploads.md
-  review: source and 6 authenticated unit/integration/hostile-upload checks added for both endpoints; Render execution and request-stream upload caps still pending
+  review: 6 authenticated API/security cases passed in Render full SQLite (2766) and PostgreSQL (2786) suites on 0c28d7c; only endpoint byte limit fixed, request-stream/disk/concurrency and real-world penetration gates open
 
 - F-06.19 · CRM Data Quality Centre
   work_order: docs/features/crm-data-quality.md

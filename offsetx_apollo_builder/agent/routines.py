@@ -853,6 +853,22 @@ class RoutineAgentExecutor:
             )
         goal = routine.goal + event_context
 
+        # The initial goto occurs OUTSIDE AgentRun; check its permission
+        # before starting a browser container or making a network request.
+        policy = AgentPermissionPolicy.from_mapping(
+            self.workspaces.raw(routine.workspace_id).get("agent_permissions", {})
+        )
+        navigation_permission = policy.decide("goto")
+        if navigation_permission != "allow":
+            return RoutineExecution(
+                status=(
+                    "permission_denied" if navigation_permission == "deny"
+                    else "needs_permission"
+                ),
+                useful=False,
+                summary="Browser navigation requires an explicit owner permission.",
+            )
+
         port = free_port()
         box = BrowserBox(
             workspace_id=routine.workspace_id,
@@ -922,9 +938,7 @@ class RoutineAgentExecutor:
                 page=page,
                 trace=trace,
                 decision_data_class=DataClass.INTERNAL,
-                permission_policy=AgentPermissionPolicy.from_mapping(
-                    self.workspaces.raw(routine.workspace_id).get("agent_permissions", {})
-                ),
+                permission_policy=policy,
             )
             # A routine may notify only from a source-verified page finding.
             # "No updates found" prose is therefore not a notification, and a

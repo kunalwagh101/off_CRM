@@ -95,3 +95,33 @@ def test_non_owner_workspace_can_view_but_cannot_change_install_global_permissio
         assert member.get(API).status_code==200
         assert member.put(API,json={"global_mode":"deny","tool_rules":{}}).status_code==403
         assert client.get(API,headers=HEADERS).json()["global_mode"]=="allow"
+
+
+@pytest.mark.parametrize("mode,expected", [
+    ("deny", "permission_denied"), ("ask", "needs_permission"),
+])
+def test_unattended_routine_refuses_goto_before_browser_launch(tmp_path, mode, expected, monkeypatch):
+    """An initial Page.goto happens outside AgentRun and cannot bypass policy."""
+    import asyncio
+    from types import SimpleNamespace
+    from offsetx_apollo_builder.agent.routines import RoutineAgentExecutor
+    import offsetx_apollo_builder.agent.routines as routines
+
+    def forbidden_browser(*args, **kwargs):
+        raise AssertionError("Browser must not start before owner grants navigation")
+
+    monkeypatch.setattr(routines, "free_port", forbidden_browser)
+    workspaces = SimpleNamespace(raw=lambda ws: {
+        "agent_permissions": {"global_mode": mode, "tool_rules": {}}
+    })
+    executor = RoutineAgentExecutor(
+        data_dir=tmp_path, workspaces=workspaces,
+        broker_factory=lambda workspace: forbidden_browser(),
+    )
+    routine = SimpleNamespace(
+        workspace_id="local", goal="Check lead", target_url="https://example.org/",
+        target_host="example.org", step_budget=2,
+    )
+    result = asyncio.run(executor(routine, {}))
+    assert result.status == expected
+    assert result.useful is False

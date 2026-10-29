@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — Initial storage-readiness QA marker LIVE; final 7-case security revision not tested
+
+Render `dep-dbhr63ff3r2c73c62te0` confirmed **LIVE**, `finishedAt=2026-10-29T21:11:37.469348Z`, tested application source **`fc0a4cfa768ad24666477739dbae8c74e6e5df3d`**. That revision passed 5 new tests, 2,782 full SQLite, 2,802 full disposable PostgreSQL, 215 focused PostgreSQL, Chromium Contacts desktop/mobile and existing code/audit gates. The latest application source `d89bebb` adds two more security fixes/tests and has **not** had a successful Render run or deployment. Keep **S-06.03.08 IN_REVIEW** and do not call the latest SHA QA LIVE. Production/main untouched. Evidence: `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`.
+
+
 ## 2026-10-30 — Initial F-06.03 API fully regression-tested, later security patch awaiting QA
 
 Render source `fc0a4cfa768ad24666477739dbae8c74e6e5df3d`, deploy `dep-dbhr63ff3r2c73c62te0`, executed and passed **5 targeted owner readiness tests**, **2,782 full SQLite tests (45 skipped, 44 warnings)**, **2,802 full disposable PostgreSQL tests (94 skipped, 44 warnings)**, **215 targeted PostgreSQL tests**, desktop/mobile Chromium Contacts and Ruff checks. This is code/review evidence for **only that source**, not source `d89bebb` with the two later non-owner/root-mount regressions. The later source could not be re-deployed through the available execution interface. Both new security tests and the complete latest commit remain IN_REVIEW; no customer production claim. See `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`.

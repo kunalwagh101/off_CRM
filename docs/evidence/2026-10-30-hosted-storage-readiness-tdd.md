@@ -19,3 +19,7 @@ Run latest `develop` on the isolated review runner, not the live customer servic
 ## Observed full-suite completion on initial GREEN source
 
 On `fc0a4cfa768ad24666477739dbae8c74e6e5df3d`, the actual Render build log reports `uv run pytest -q` **2782 passed, 45 skipped, 44 warnings in 255.69s**, disposable PostgreSQL `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q` **2802 passed, 94 skipped, 44 warnings in 328.25s**, focused PostgreSQL **215 passed, 1 warning**, browser Contacts `PASS Chromium 1280px` and `PASS Chromium 390px`, and previously observed targeted storage tests **5 passed, 1 warning**. These counts are **not** evidence that the later non-owner/root-mount security change or latest handoff SHA passed. The image build completed the full test-backed stages, but final Render `LIVE` status had not yet been observed when appended.
+
+## Confirmed Render LIVE — initial five-test source only
+
+Connected Render `get_deploy` on the isolated QA runner `srv-db86p4u89jmc73cehns0` reported `status=live`, `finishedAt=2026-10-29T21:11:37.469348Z` for deploy `dep-dbhr63ff3r2c73c62te0`. Build logs include `Your service is live` and published the QA marker at https://off-crm-review-runner-20261015.onrender.com. This **only** verifies application SHA `fc0a4cfa768ad24666477739dbae8c74e6e5df3d`, not the later source `d89bebb` or the docs commits. No production off_CRM customer application was deployed and S-06.03.08 stays IN_REVIEW.

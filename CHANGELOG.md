@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 — Typed agent permission request and strengthened QA
+
+- A complete Render SQLite run caught the new permission `PUT` API's untyped raw dictionary (1 failed, 2798 passed); the existing no-untyped-body test correctly failed. D-325.
+- Replaced it with strict `AgentPermissionUpdate` in `api/schemas.py` and conversion via `model_dump()`. Added the existing contract regression as an early targeted Dockerfile.review gate. **22 agent/permission tests + typed-body regression passed** on source `851d6de`; full suite pending.
+- Existing role, workspace and browser permissions remain unchanged in semantics; no migration or production push.
+
+
 ## 2026-10-30 — Three-level browser-agent permissions (F-06.01)
 
 - Added configurable `allow`/`ask`/`deny` default policy and per-tool overrides for the existing ten declared browser verbs. An explicit global deny cannot be elevated by a per-tool rule or temporary chat grant.

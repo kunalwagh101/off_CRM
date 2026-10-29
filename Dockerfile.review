@@ -28,6 +28,8 @@ RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 RUN uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py
 # Enforce the existing typed-body API contract before the long regressions.
 RUN uv run pytest -q tests/test_api_auth.py::test_no_api_route_accepts_an_untyped_raw_dict_body
+# F-06.02 operator scheduler health; targeted API/security gate first.
+RUN uv run pytest -q tests/test_operational_health.py
 
 # Story-specific QA acceptance: persisted >500 contacts and every spreadsheet tab.
 RUN uv run pytest -v --tb=short tests/test_contacts_filters_export.py tests/test_spreadsheet_exports.py tests/test_existing_poi_enrichment.py tests/test_apollo_rejection_ledger.py

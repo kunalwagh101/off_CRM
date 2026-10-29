@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — F-06.03 storage-readiness QA checkpoint
+
+Render TDD RED **5 failed/404**, implementation GREEN **5 passed**; initial implementation full SQLite **2,782 passed/45 skipped**, targeted PostgreSQL **215 passed** and Chromium desktop/mobile passed on `fc0a4cf`. Source `d89bebb` adds two tenant/mount regression tests **not yet run in Render**; final redeploy could not be triggered through available execution interface. Full PostgreSQL suite on initial GREEN source remained in progress at this checkpoint. **IN_REVIEW, not DONE**. See `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`. Q-29/S-06.03.04 and S-06.03.06 production storage blockers remain.
+
+
 ## 2026-10-30 — Next feature F-06.03 storage-readiness report
 
 Actual Render TDD RED: commit `0b96e38`, deploy `dep-dbhr4i2jnfac73an8ee0`: 5 failed because the endpoint returned 404. Initial GREEN: `fc0a4cf`, deploy `dep-dbhr63ff3r2c73c62te0`, same 5 targeted tests passed. New owner-only `GET /api/v1/storage/readiness` uses checked storage inventory, safe durability classifications and action codes; no URL/key/path contents or database writes. Additional non-owner workspace and OS-root mount tests at `d89bebb` require final QA. **IN_REVIEW**, not customer production: external encrypted backup S-06.03.04/Q-29 and remaining local stores S-06.03.06 are unresolved. Main unchanged.

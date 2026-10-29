@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — S-06.02.52 fully QA-tested on isolated Render review service
+
+**Exact tested code:** `3e5058c1ac6dcd574534c78529a7c7e7e72bf3a8`. **Render QA:** `dep-dbhsifajnfac73c7bu4g` returned **live**, finished 2026-10-29T22:46:47.765324Z. Tests: operational-health 7, hosted-readiness 7, agent/permissions 22, full SQLite **2806 passed / 45 skipped / 44 warnings**, full disposable PostgreSQL **2826 passed / 94 skipped / 44 warnings**, focused PostgreSQL 215, concurrency 12/12, verifier unit tests 67, Ruff, existing Chromium Contacts desktop/mobile. The feature is owner-only read-only in-process scheduler diagnostics; `/health/ready` continues checking only required web components. **S-06.02.52 IN_REVIEW, A17 still OPEN**: no external email-worker heartbeat, measured queue age, configured alert dispatch, independent penetration/live worker interruption or full-history board verifier execution. No production/main change. Full source/test distinctions: `docs/evidence/2026-10-30-operational-health-qa.md`.
+
+
 ## 2026-10-30 — F-06.02 owner operational health, verified targeted tests
 
 Story S-06.02.52 new owner-only `GET /api/v1/operations/health`, with healthy/disabled/degraded/unknown states for three in-process schedulers, all-workspace routine count, safe error references and no change to existing `/health/ready`. Render TDD RED on `3cf2c69`, `dep-dbhsga67bikc73fr5nrg`: **7 failed** missing route. Initial GREEN `b7d9bbd`, `dep-dbhsh9ks728c73cqtkl0`: **7 passed**. Final hardened source `3e5058c`, `dep-dbhsifajnfac73c7bu4g`: **7 targeted tests passed**, existing agent permissions 22 passed, storage readiness 7 passed and Ruff clean; full SQLite/PostgreSQL/Chromium still in progress at checkpoint. Separate external email-worker heartbeat, queue age, real alert delivery and independent penetration checks not implemented. S-06.02.52 stays **IN_REVIEW**; A17 not closed. Work order `docs/work-orders/S-06.02.52-operational-health.md` and evidence `docs/evidence/2026-10-30-operational-health-qa.md`. No `main` or production deployment.

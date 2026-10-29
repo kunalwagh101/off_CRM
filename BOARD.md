@@ -142,6 +142,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.52 · Owner sees operational scheduler health separate from web readiness
+  work_order: docs/work-orders/S-06.02.52-operational-health.md
+  review: TDD RED 7/7 missing route on Render dep-dbhsga67bikc73fr5nrg; initial GREEN 7/7 on b7d9bbd; error-reference hardening at 3e5058c, final full Render QA pending. Independent email worker heartbeat/alert delivery and load/penetration verification not implemented.
+
 - S-06.01.02 · Owner sets global, per-tool and chat-lifetime browser permissions
   work_order: docs/work-orders/S-06.01.02-three-level-agent-permissions.md
   review: test-first RED on Render dep-dbhrl9d9fdbs73aejus0; 20 targeted tests GREEN on 2e9872f; after initial-goto guard 22 tests PASS and typed-body API fast gate PASS on 851d6de; full SQLite/Postgres and attended chat grant lifecycle pending, upstream S-04.01.01 IN_REVIEW

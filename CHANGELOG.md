@@ -1,4 +1,9 @@
 # Changelog
+## 2026-10-30 — Owner operational health for schedulers (F-06.02)
+- New read-only install-owner API `GET /api/v1/operations/health`, separate from basic `/health/live` and `/health/ready`. It checks enabled automation, content automation and all-workspace agent routines, returning healthy/disabled/degraded/unknown with static status codes and an alert flag.
+- Failure inspections log a safe error reference and return that same reference without exposing exception text. No new schema, no SMTP calls and no change to existing readiness routing.
+- Actual Render TDD RED: seven 404 failures on `3cf2c69`, initial GREEN seven passes on `b7d9bbd`. Error-reference change at `3e5058c` needs final full QA. Email-worker CLI heartbeat and external alert dispatch remain **unimplemented**, so this is not full A17 closure.
+
 
 ## 2026-10-30 — Typed agent permission request and strengthened QA
 

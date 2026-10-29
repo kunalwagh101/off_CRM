@@ -621,6 +621,14 @@ that** one client's customers and product text never reach another's login.
 
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
+#### S-06.02.52 — Owner can inspect operational scheduler health (A17)
+- **Given** the install owner, **when** they call `GET /api/v1/operations/health`, **then** the report lists email automation, content automation and all-workspace agent-routine scheduler health with static codes, without secrets, customer content or raw exceptions.
+- **Given** an enabled but stopped scheduler, **when** the report is requested, **then** the relevant component is degraded and `alert_required=true`, while optional automation does not turn `/health/ready` into an HTTP 503.
+- **Given** disabled optional schedulers, **when** read, **then** they are explicitly disabled, not falsely failed.
+- **Given** invalid config or inaccessible routine inventory, **when** inspected, **then** it reports unknown and a logged error reference, never healthy.
+- **Given** no install-owner authorization, **when** requested, **then** the response is 401/403 without topology details.
+- **Status:** IN_REVIEW. Real external email worker heartbeat, queue age, configured alerts and independent penetration/load testing still separate production gates. **Tests:** `tests/test_operational_health.py`.
+
 #### S-06.02.51 — Video upload stream and resource guard (A15)
 **As an** operator, **I want** uploads to be rejected before multipart parsing exhausts RAM or temporary storage, **so that** malformed, large or stalled media uploads cannot overwhelm a web worker.
 - **Given** a video-media or render POST, **when** its request body exceeds the configured per-file limit plus 16 KiB multipart overhead, **then** the ASGI reader sends 413 without invoking the endpoint or reading the rest.

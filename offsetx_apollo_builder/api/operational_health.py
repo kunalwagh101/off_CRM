@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..observability import report_failure
+
 
 def _check_scheduler(name: str, service: Any) -> dict[str, str]:
     try:
@@ -23,10 +25,12 @@ def _check_scheduler(name: str, service: Any) -> dict[str, str]:
         if task is None or task.done():
             return {"name": name, "state": "degraded", "code": "scheduler_not_running"}
         return {"name": name, "state": "healthy", "code": "running"}
-    except Exception:
-        # Stored config and exceptions can contain customer text, filenames,
-        # or provider credentials. Only bounded static error codes leave here.
-        return {"name": name, "state": "unknown", "code": "inspection_failed"}
+    except Exception as exc:
+        # Log the details through the secret-safe failure reporter, and return
+        # the exact reference. Never serialize exception text into this API.
+        reference = report_failure(exc, operation="health.operational.scheduler")
+        return {"name": name, "state": "unknown",
+                "code": "inspection_failed", "error_id": reference}
 
 
 def _check_routines(state: Any) -> dict[str, str]:
@@ -50,9 +54,10 @@ def _check_routines(state: Any) -> dict[str, str]:
             return {"name": "agent_routines", "state": "degraded",
                     "code": "scheduler_not_running"}
         return {"name": "agent_routines", "state": "healthy", "code": "running"}
-    except Exception:
+    except Exception as exc:
+        reference = report_failure(exc, operation="health.operational.routines")
         return {"name": "agent_routines", "state": "unknown",
-                "code": "inspection_failed"}
+                "code": "inspection_failed", "error_id": reference}
 
 
 def describe_operational_health(state: Any) -> dict[str, Any]:

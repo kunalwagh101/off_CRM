@@ -138,5 +138,6 @@ def test_config_failure_reports_unknown_not_false_success(tmp_path, monkeypatch)
         row = next(x for x in body["components"] if x["name"] == "automation")
         assert row["state"] == "unknown"
         assert row["code"] == "inspection_failed"
+        assert row["error_id"].startswith("E-")
         assert "sensitive-private" not in response.text
         assert body["alert_required"] is True

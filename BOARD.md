@@ -142,6 +142,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.01.02 · Owner sets global, per-tool and chat-lifetime browser permissions
+  work_order: docs/work-orders/S-06.01.02-three-level-agent-permissions.md
+  review: test-first RED on Render dep-dbhrl9d9fdbs73aejus0; 20 targeted tests GREEN on 2e9872f; unattended initial goto bypass fixed at 27aad6e; final QA and real attended chat grant lifecycle not verified; upstream S-04.01.01 IN_REVIEW
+
 - S-06.03.08 · Install owner sees actual storage durability and production blockers
   work_order: docs/work-orders/S-06.03.08-storage-readiness-report.md
   review: real Render TDD RED 5/5 absent API, initial GREEN 5/5, then added non-owner 403 and OS-root false mount regression; full final Render QA required

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-30 — Three-level browser-agent permissions (F-06.01)
+
+- Added configurable `allow`/`ask`/`deny` default policy and per-tool overrides for the existing ten declared browser verbs. An explicit global deny cannot be elevated by a per-tool rule or temporary chat grant.
+- Owner-only `PUT /api/v1/agent-permissions`; authenticated workspace policy read via `GET`; saved using existing workspace AI settings, including hosted PostgreSQL-backed configuration. Invalid modes, unknown actions and unauthorized writes fail closed.
+- AgentRun now checks each selected action before browser execution or cached reads. `ask` returns `needs_permission` with an audit step; `deny` returns `permission_denied`. Scheduled RoutineAgentExecutor also preflights its initial navigation before launching a browser.
+- Temporary ChatPermissionGrants are memory-only and expire on close or within one hour; no new schema and no provider egress changes. The attended chat API/UI for granting/ending a chat is not implemented.
+- TDD RED collection failure observed, targeted GREEN **20 passed** on 2e9872f; two new initial-goto regressions authored at 27aad6e. Full final QA and upstream signoff pending, **IN_REVIEW**.
+
+
 ## 2026-10-30 — F-06.03 install storage-readiness API
 
 - Added owner-only, read-only `/api/v1/storage/readiness` to classify the existing store inventory and report production blockers; no secrets, URLs, raw paths or customer content.

@@ -565,6 +565,8 @@ sessions, **so that** my work and my credentials are mine.
 - **Dependencies:** S-03.02.02. **Size:** M. **Indicator:** distinct workspaces in weekly use.
 
 #### S-06.01.02 — Three-level permissions
+**2026-10-30 implementation note:** Workspace and per-tool policy, owner-only API, action-dispatch protection, unattended initial-navigation protection and expiring chat-grant object are implemented on `develop`. **IN_REVIEW** until final Render QA, an authenticated attended-chat grant/close path, and upstream S-04.01.01 are DONE. No production rollout.
+
 **As an** owner, **I want** a global mode, a per-tool rule and a chat-scoped
 override, **so that** trust is granted at the size of the decision.
 - **Given** a tool set to `ask`, **when** an agent calls it, **then** the run

@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — F-06.01 team permissions / S-06.01.02 implementation in review
+
+Owner requested the next backend feature. Selected the existing F-06.01 / S-06.01.02 global, per-tool and chat-lifetime permissions. TDD RED: review deploy `dep-dbhrl9d9fdbs73aejus0` on `926144d`, targeted `uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py` **failed at collection** because the permission module was absent; existing storage readiness 7 passed. Initial GREEN: same targeted gate **20 passed, 1 warning** on source `2e9872f`, review deploy `dep-dbhrmilg1s2s73fgfpbg`. Global and per-tool policy is stored in existing workspace AI settings (Neon/PostgreSQL supported); authenticated install token can update; normal member cannot. AgentRun checks before any browser action; unattended RoutineAgentExecutor loads the workspace policy. Found and closed initial routine `page.goto()` bypass in `27aad6e` with two new regression cases; final full QA still pending. ChatPermissionGrants are bounded, memory-only and expiring; **they are not yet wired to an authenticated attended chat grant/close API**, so S-06.01.02 remains **IN_REVIEW**. S-04.01.01 dependency also remains IN_REVIEW. No main or customer production change.
+
+
 ## 2026-10-30 — Initial storage-readiness QA marker LIVE; final 7-case security revision not tested
 
 Render `dep-dbhr63ff3r2c73c62te0` confirmed **LIVE**, `finishedAt=2026-10-29T21:11:37.469348Z`, tested application source **`fc0a4cfa768ad24666477739dbae8c74e6e5df3d`**. That revision passed 5 new tests, 2,782 full SQLite, 2,802 full disposable PostgreSQL, 215 focused PostgreSQL, Chromium Contacts desktop/mobile and existing code/audit gates. The latest application source `d89bebb` adds two more security fixes/tests and has **not** had a successful Render run or deployment. Keep **S-06.03.08 IN_REVIEW** and do not call the latest SHA QA LIVE. Production/main untouched. Evidence: `docs/evidence/2026-10-30-hosted-storage-readiness-tdd.md`.

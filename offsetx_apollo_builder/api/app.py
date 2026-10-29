@@ -153,6 +153,7 @@ from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, Works
 from .config import AppSettings
 from ..agent.permissions import AgentPermissionPolicy, PermissionErrorRule
 from .storage_readiness import describe_storage_readiness
+from .operational_health import describe_operational_health
 from .email_delivery import build_email_delivery_router
 from .production_runtime import TIMERS, RecoveryGate, install_runtime_routes
 from .gtm import build_gtm_router, resolve_angle
@@ -1901,6 +1902,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return {"items": items, "total": len(items), "scheduler_error": (
             request.app.state.agent_routines.last_error if _workspace_id(request) == "local" else ""
         )}
+
+    @app.get(f"{API_PREFIX}/operations/health")
+    def operations_health(request: Request) -> dict[str, Any]:
+        """Owner-only operational signal, separate from router/liveness probes."""
+        require_install_owner(request)
+        return describe_operational_health(request.app.state)
 
     @app.get(f"{API_PREFIX}/agent-routine-status")
     def agent_routine_status(request: Request) -> dict[str, Any]:

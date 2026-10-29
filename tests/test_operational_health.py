@@ -78,8 +78,9 @@ def test_enabled_stopped_scheduler_is_degraded_without_breaking_readiness(
     with TestClient(create_app(settings(tmp_path))) as client:
         service = getattr(client.app.state, component)
         monkeypatch.setattr(service, "config", lambda: {"enabled":True})
-        monkeypatch.setattr(service, "_task", Stopped())
-        result = _get(client)
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "_task", Stopped())
+            result = _get(client)
         assert result.status_code == 200
         body = result.json()
         row = next(x for x in body["components"] if x["name"] == component)
@@ -102,8 +103,9 @@ def test_enabled_agent_routine_scheduler_stopped_is_degraded(tmp_path):
                  VALUES ('routine-1','local','Check','Check page','https://example.org',
                  'example.org','interval',60,'',2,1,0,0,0)"""
             )
-        client.app.state.agent_routines._task = Stopped()
-        body = _get(client).json()
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(client.app.state.agent_routines, "_task", Stopped())
+            body = _get(client).json()
         row = next(x for x in body["components"] if x["name"] == "agent_routines")
         assert row["state"] == "degraded"
         assert row["code"] == "scheduler_not_running"

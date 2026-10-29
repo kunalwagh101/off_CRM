@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 — Video upload input hardening (F-06.02, A15)
+
+- Added a configured byte ceiling at video-media and render endpoints before media decoding; empty uploads return a clear 400, oversize uploads return 413. Reuses OFFSETX_MAX_UPLOAD_BYTES; no schema or dependency change.
+- Added authenticated API tests for both routes, repeated oversized requests, bounded reads, forged Content-Length, missing credentials, and real WebM happy path.
+- **IN_REVIEW, pending Render QA.** Multipart pre-parser spooling and aggregate concurrency/disk caps remain open as A15; not a production security clearance.
+
+
 ## 2026-10-19 — QA verified review (docs only)
 
 - Code commit `54864b0b` passed 212 frontend, 2760 full SQLite, 2780 full PostgreSQL, 215 storage PostgreSQL, 67 CI/verifier tests and 12/12 concurrency stress repeats. Chromium Contacts passed at 1280px and 390px; both npm audits reported 0 vulnerabilities.

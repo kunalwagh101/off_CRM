@@ -455,6 +455,24 @@ async def _read_upload(
     return filename, content
 
 
+async def _read_video_upload(upload: UploadFile, *, max_bytes: int) -> bytes:
+    """Limit the in-memory video payload before codec inspection or persistence.
+
+    Reuse the configured upload ceiling used by contact/expert imports. Starlette
+    has already spooled the multipart part by this point; request-stream and
+    aggregate concurrency limits are a separate production-audit gate.
+    """
+    content = await upload.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=(
+            "Video upload exceeds the configured size limit. "
+            "Reduce the file size or ask the operator to change OFFSETX_MAX_UPLOAD_BYTES."
+        ))
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded video file is empty")
+    return content
+
+
 def _temporary_upload(filename: str, content: bytes) -> Path:
     suffix = Path(filename).suffix.lower()
     with NamedTemporaryFile(prefix="offsetx-upload-", suffix=suffix, delete=False) as handle:
@@ -2360,7 +2378,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         the file claims to be a render of, because a check the browser runs on
         its own output is a check that cannot fail.
         """
-        payload = await file.read()
+        payload = await _read_video_upload(file, max_bytes=_settings(request).max_upload_bytes)
         return _video(request).store_render(project_id, payload, renderer=renderer)
 
     @app.get(f"{API_PREFIX}/video-projects/{{project_id}}/renders")
@@ -2454,7 +2472,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         whose source duration is a guess cannot be stopped from reading past its
         own end.
         """
-        payload = await file.read()
+        payload = await _read_video_upload(file, max_bytes=_settings(request).max_upload_bytes)
         return _video(request).import_media(
             campaign_id, payload, name=name or (file.filename or "")
         )

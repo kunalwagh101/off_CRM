@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — F-06.02 bounded video upload handlers in review
+
+A15 video-media/render endpoints had unbounded file.read() despite configured max-upload setting. Under owner authorisation to start next existing feature, prepared S-06.02.50 with a bounded read helper, 6 new real-API/unit/security tests and D-319. Mechanism RED was locally reproduced in a minimal FastAPI endpoint: 4096 bytes returned 201 instead of 413; **this was not a run of the off_CRM app**. Tests in repository require Render execution before any PASS claim. **A15 remains open:** multipart parsing/spooling and concurrent disk/memory use are not capped by the endpoint read limit. Next: deploy QA review runner, inspect tests, fix, update status. No main or production changes.
+
+
 ## 2026-10-19 — FINAL RENDER STATUS: QA REVIEW MARKER LIVE
 
 Review QA service `srv-db86p4u89jmc73cehns0` returned `status=live` for `dep-dbapefvbtjjs73834l00`, completed **2026-10-19T04:22:14Z**, using tested source `54864b0bb9172e73e2c1858aba06c82af1166277`. The Render build log confirms all executable Dockerfile.review test stages succeeded. **This is the QA marker, not the actual production off_CRM web service.** No production promotion, customer database changes, or `main` edits. Evidence: `docs/evidence/2026-10-19-render-qa-54864b0.md`. Full-history board verifier and independent user-path release gates remain open.

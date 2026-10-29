@@ -619,6 +619,15 @@ that** one client's customers and product text never reach another's login.
 
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
+#### S-06.02.50 — Bounded video media and render uploads (A15 partial remediation)
+**As an** authenticated video operator, **I want** the configured size budget enforced on video imports and renders, **so that** a malicious oversized file cannot be read unbounded into the handler heap.
+- **Given** a bounded upload budget, **when** the file exceeds it, **then** the API returns 413 without creating media/render records; both endpoints use `read(limit+1)`.
+- **Given** an empty or unauthenticated upload, **when** sent, **then** it is rejected before decoding/storage.
+- **Given** a valid WebM below the budget, **when** sent, **then** it is accepted and recorded.
+- **Open production gap:** multipart stream spooling and cumulative concurrent memory/disk are not yet bounded. Source audit A15 stays OPEN pending separate stream, concurrency and interruption acceptance. Tests: `tests/test_video_upload_security.py`.
+
+
+
 #### S-06.02.01 — No secret may enter a model prompt
 - **Given** the payload builder, **when** any request is assembled, **then** a
   scan for credential-shaped material passes.

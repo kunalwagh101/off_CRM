@@ -142,6 +142,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.50 · Video media and renders obey configured upload limits (A15 partial remediation)
+  work_order: docs/work-orders/S-06.02.50-bounded-video-uploads.md
+  review: source and 6 authenticated unit/integration/hostile-upload checks added for both endpoints; Render execution and request-stream upload caps still pending
+
 - F-06.19 · CRM Data Quality Centre
   work_order: docs/features/crm-data-quality.md
   review: read-only incomplete-contact and sales-email-overlap review screen, authenticated filtered API and tests authored; real environment, privacy and tenant gates open

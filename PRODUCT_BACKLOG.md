@@ -619,6 +619,16 @@ that** one client's customers and product text never reach another's login.
 
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
+#### S-06.02.51 — Video upload stream and resource guard (A15)
+**As an** operator, **I want** uploads to be rejected before multipart parsing exhausts RAM or temporary storage, **so that** malformed, large or stalled media uploads cannot overwhelm a web worker.
+- **Given** a video-media or render POST, **when** its request body exceeds the configured per-file limit plus 16 KiB multipart overhead, **then** the ASGI reader sends 413 without invoking the endpoint or reading the rest.
+- **Given** two concurrent video upload requests on one worker, **when** a third arrives, **then** the third receives 429 and capacity is restored when an active request finishes.
+- **Given** a stalled or disconnected sender, **when** it times out or disconnects, **then** temporary data and capacity are released without media rows.
+- **Given** a small valid upload or a nonvideo request, **when** sent, **then** the previous API behaviour is preserved.
+- **Tests:** `tests/test_video_upload_body_guard.py`; existing `tests/test_video_upload_security.py`. **No schema changes.** Deployment-wide multi-instance/global quotas and independent load testing remain separate production gates.
+
+
+
 #### S-06.02.50 — Bounded video media and render uploads (A15 partial remediation)
 **As an** authenticated video operator, **I want** the configured size budget enforced on video imports and renders, **so that** a malicious oversized file cannot be read unbounded into the handler heap.
 - **Given** a bounded upload budget, **when** the file exceeds it, **then** the API returns 413 without creating media/render records; both endpoints use `read(limit+1)`.

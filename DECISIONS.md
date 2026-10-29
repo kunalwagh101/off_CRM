@@ -27,7 +27,8 @@ wastes a session when nobody can answer it.
 ---
 
 | ID | Date | The call | Cost |
-|---|---|---|---|
+|---|---|---|
+| DD-122 | 2026-10-30 | Pre-read video multipart request bodies into a size-limited temporary spool before Starlette's multipart parser rather than rely on endpoint UploadFile limits | Costs one extra disk write/read per accepted video, bounded by file budget plus 16 KiB; two concurrent streams per worker, not global across web replicas. Revisit when adding a streaming object-store media intake or a reverse proxy upload limit. |
 | DD-01 | 2026-08-25 | No proxy inside the browser box | The allow-list lives in the browser, not at the socket |
 | DD-02 | 2026-08-28 | off_CRM never handles a password | Sign-in cannot be automated at all |
 | DD-03 | 2026-09-05 | A signed-in page counts as private by default | Planning fails closed without an approved high-trust model |

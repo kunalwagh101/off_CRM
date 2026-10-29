@@ -24,6 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
 from ..observability import FailureMiddleware, FailureReporter, reported_reference
+from .video_upload_guard import VideoUploadBodyGuard
 from ..agent.companions import CompanionError, CompanionRegistry
 from ..agent.routines import (
     RoutineAgentExecutor,
@@ -879,6 +880,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
+    # Innermost ASGI guard: cap raw video multipart data BEFORE it is parsed.
+    # This sits behind the API's authentication middleware; FailureMiddleware
+    # remains outermost so unexpected failures are still reported.
+    app.add_middleware(VideoUploadBodyGuard, max_file_bytes=resolved.max_upload_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

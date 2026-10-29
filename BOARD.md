@@ -142,6 +142,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.51 · Video uploads have a bounded request stream and concurrency gate (A15)
+  work_order: docs/work-orders/S-06.02.51-video-upload-stream-guard.md
+  review: pre-parser ASGI byte cap and bounded private spool, two concurrent uploads per worker, timeout/cleanup; real HTTP and ASGI adversarial tests authored, Render execution and production load validation pending
+
 - S-06.02.50 · Video media and renders obey configured upload limits (A15 partial remediation)
   work_order: docs/work-orders/S-06.02.50-bounded-video-uploads.md
   review: 6 authenticated API/security cases passed in Render full SQLite (2766) and PostgreSQL (2786) suites on 0c28d7c; only endpoint byte limit fixed, request-stream/disk/concurrency and real-world penetration gates open

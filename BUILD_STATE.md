@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — Next F-06.02 security increment: A15 pre-parser upload guard
+
+Owner selected next priority after QA of handler size limits: stop unbounded multipart parsing/spooling for video uploads. S-06.02.51 implements an ASGI request-body cap before FastAPI file parsing, private bounded temporary spool (256 KiB RAM before disk), per-worker max 2 concurrent uploads, 30-second inactive-sender timeout, deterministic cleanup, with both authenticated HTTP and low-level ASGI security tests. Independent local FastAPI prototype: initial test collection RED (guard absent), then 11 passed after code and test corrections. The prototype is not the actual off_CRM application; authoritative full-unit/integration/security/PostgreSQL results require Render QA. D-322. **IN_REVIEW pending deployment tests; A15 not marked closed.** No change to main/customer deployment.
+
+
 ## 2026-10-30 — Render QA status confirmed LIVE
 
 Deploy `dep-dbhqd96i0phs73f1vfrg` on isolated QA review runner `srv-db86p4u89jmc73cehns0` returned **status `live`**, `finishedAt=2026-10-29T20:18:37.915787Z` (2026-10-30 IST), checked out application source `0c28d7c9be64d24a67f846142c5ff1dd56f50af3`. Actual Render logs say "Your service is live." **Not a production/customer application deploy.** Tested source and exact suite gates: `docs/evidence/2026-10-30-a15-video-upload-qa.md`. QA success does not close audit A15 or change IN_REVIEW to DONE.

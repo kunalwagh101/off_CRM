@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-30 — Pre-parser video upload security (A15, S-06.02.51)
+
+- Added ASGI guard to both video-media and render multipart routes, before Starlette consumes their bodies. Bounded counted bytes (configured file limit plus 16 KiB multipart overhead), 256 KiB in-memory spool threshold, two in-flight uploads per worker, 30-second idle limit, and deterministic close on disconnect.
+- Added real FastAPI HTTP and direct ASGI adversarial regressions for oversized/forged header, early chunked abort, concurrency 429, timeout 408, disk rollover and cleanup; local standalone prototype 11 passed. Full off_CRM suites and Render QA pending at commit time.
+- No schema, AI provider, sending or production service change. Cross-process quotas and independent resource-pressure measurements still pending.
+
+
 ## 2026-10-30 — Executed A15 upload QA and dependency audit
 
 - Render QA `dep-dbhqd96i0phs73f1vfrg` executed tested source `0c28d7c`; Python SQLite **2766 passed**, PostgreSQL **2786 passed**, frontend **212 passed**, 215 PG focus passed, Chromium 1280/390px passed.

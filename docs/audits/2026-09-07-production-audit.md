@@ -127,7 +127,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A12 | P1 | The AI cache can return an old answer after the facts change | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A13 | P1 | A cached answer can be falsely attributed to the newly selected model | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A14 | P1 | HTTP idempotency permits duplicate operations under a race | Reproduced | Not rechecked on develop; S-06.02.23 |
-| A15 | P1 | Media uploads bypass the configured size limit and read the whole file into memory | Reproduced | Open D-319 / S-06.02.50: handler byte bound authored 2026-10-30; pre-parser stream, disk/concurrency and runtime verification still required |
+| A15 | P1 | Media uploads bypass the configured size limit and read the whole file into memory | Reproduced | IN_REVIEW D-319/S-06.02.50 handler cap, D-322/S-06.02.51 pre-parser body/concurrency cap; real Render test and independent load/stream recovery gate pending |
 | A16 | P1 | Provider construction failure strands a durable email job | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A17 | P1 | Readiness stays green when required product components are unavailable | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A18 | P1 | Claim verification accepts the wrong numeric value | Reproduced | Not rechecked on develop; S-06.02.23 |

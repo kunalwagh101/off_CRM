@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-10-30 — F-06.02 owner operational health, verified targeted tests
+
+Story S-06.02.52 new owner-only `GET /api/v1/operations/health`, with healthy/disabled/degraded/unknown states for three in-process schedulers, all-workspace routine count, safe error references and no change to existing `/health/ready`. Render TDD RED on `3cf2c69`, `dep-dbhsga67bikc73fr5nrg`: **7 failed** missing route. Initial GREEN `b7d9bbd`, `dep-dbhsh9ks728c73cqtkl0`: **7 passed**. Final hardened source `3e5058c`, `dep-dbhsifajnfac73c7bu4g`: **7 targeted tests passed**, existing agent permissions 22 passed, storage readiness 7 passed and Ruff clean; full SQLite/PostgreSQL/Chromium still in progress at checkpoint. Separate external email-worker heartbeat, queue age, real alert delivery and independent penetration checks not implemented. S-06.02.52 stays **IN_REVIEW**; A17 not closed. Work order `docs/work-orders/S-06.02.52-operational-health.md` and evidence `docs/evidence/2026-10-30-operational-health-qa.md`. No `main` or production deployment.
+
+
 ## 2026-10-30 — F-06.01 permissions typed API fix verified; full regression rerun underway
 
 The first complete SQLite run on `b27d6de`, Render `dep-dbhro9nlk1mc738sjic0`, found **1 FAILED, 2798 PASSED, 45 SKIPPED, 44 warnings**. The failure was the existing contract test `tests/test_api_auth.py::test_no_api_route_accepts_an_untyped_raw_dict_body`: the new `PUT /api/v1/agent-permissions` used `dict[str, Any]`. D-325 tracks it. Fixed on **`851d6de`** with `AgentPermissionUpdate(StrictModel)` in `api/schemas.py` and a fast review gate for the existing API contract. Actual Render review `dep-dbhrs0l9fdbs73af8e60` reports **22 permission/AgentRun tests passed**, **1 typed-body contract test passed**, **7 hosted storage tests passed**, Ruff passed. Full SQLite/PostgreSQL/Chromium stages were still pending when this note was authored. **Feature still IN_REVIEW**, not DONE or production released. Evidence: `docs/evidence/2026-10-30-agent-permissions-tdd.md`.

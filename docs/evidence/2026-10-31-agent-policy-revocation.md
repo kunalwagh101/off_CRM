@@ -81,9 +81,18 @@ no-keyword wrapper. **This was a real regression and was not waived.**
 
 **Fix:** source `e8200718c786b8d1fe2e9118b249aa405e087950` uses
 `_document()` unchanged for normal writes, and `_document(strict=True)`
-only for permission writes. Final review
-`dep-dbifv8942hec73f36l50` was triggered; all test/deploy results
-must be captured before claiming GREEN or complete verification.
+only for permission writes. Final isolated Render review: `dep-dbifv8942hec73f36l50` for exact
+source `e8200718c786b8d1fe2e9118b249aa405e087950` has passed:
+- **26** agent/permission tests, **7** storage readiness cases, **1** API typed-body contract test, and **7** operational health cases.
+- **19** contact/export/enrichment tests, **3** workspace isolation cases, **12** repeated concurrency checks, **67** board-verifier unit tests; Ruff check passed.
+- Full SQLite **2810 passed, 45 skipped, 44 warnings**.
+- Focused disposable PostgreSQL integration **215 passed**.
+- Full disposable PostgreSQL **2830 passed, 94 skipped, 44 warnings**.
+- Chromium Contacts synthetic acceptance at desktop **1280px PASS**, mobile **390px PASS**.
+- Frontend build/npm high-severity audit gates passed within this Docker review image.
+The final image was built successfully through the verification copy stages.
+Render **LIVE deployment status must still be confirmed separately**; neither
+these automated tests nor a LIVE QA marker prove independent penetration testing.
 
 ## D-330 static review: missing policy document is not yet fail closed
 

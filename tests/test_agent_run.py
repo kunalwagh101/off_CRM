@@ -311,3 +311,54 @@ def test_temporary_chat_grant_lets_ask_action_run_but_never_bypasses_deny(tmp_pa
     grants.close()
     stopped, page = drive(tmp_path/"three", AgentPermissionPolicy(global_mode="ask"), grants)
     assert stopped.status == "needs_permission" and page.actions == []
+
+def test_mid_run_permission_revocation_blocks_the_second_browser_action(tmp_path):
+    """Policy is read at the action boundary, not once when the run begins."""
+    from offsetx_apollo_builder.agent.permissions import AgentPermissionPolicy
+
+    broker = _Broker([
+        '{"state":"act","action":"click","args":{"handle":1},"reason":"first"}',
+        '{"state":"act","action":"click","args":{"handle":1},"reason":"second"}',
+    ])
+    page = _Page()
+    next_policy = iter([
+        AgentPermissionPolicy(global_mode="allow"),
+        AgentPermissionPolicy(global_mode="deny"),
+    ])
+    run = AgentRun(
+        broker=broker,
+        settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+        page=page,
+        trace=Trace.open(tmp_path),
+        permission_policy=AgentPermissionPolicy(global_mode="allow"),
+        permission_policy_provider=lambda: next(next_policy),
+    )
+
+    outcome = asyncio.run(run.run("Review records", step_budget=2))
+    assert outcome.status == "permission_denied"
+    assert outcome.actions == 1
+    assert len(page.actions) == 1
+    assert any(step.kind == "permission_gate" for step in run.trace.steps)
+
+
+def test_permission_store_failure_fails_closed_without_leaking_error(tmp_path):
+    """An unavailable policy store must never silently fall back to allow."""
+    from offsetx_apollo_builder.agent.permissions import AgentPermissionPolicy
+
+    def unavailable():
+        raise RuntimeError("database unavailable: private password=canary")
+
+    page = _Page()
+    run = AgentRun(
+        broker=_Broker(['{"state":"act","action":"click","args":{"handle":1},"reason":"next"}']),
+        settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+        page=page, trace=Trace.open(tmp_path),
+        permission_policy=AgentPermissionPolicy(),
+        permission_policy_provider=unavailable,
+    )
+    outcome = asyncio.run(run.run("Review records", step_budget=1))
+    assert outcome.status == "permission_denied"
+    assert outcome.actions == 0
+    assert page.actions == []
+    assert "canary" not in outcome.message
+    assert all("canary" not in step.detail for step in run.trace.steps)

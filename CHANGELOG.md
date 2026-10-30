@@ -1,4 +1,12 @@
 # Changelog
+## 2026-10-31 — Live agent-permission revocation (F-06.01 / D-327)
+
+- Scheduled browser agents now reload workspace permission settings before **each** selected browser action. Owner changes to `deny` stop later actions in the same run; cached reads are covered.
+- Security-sensitive workspace permission reads now reject corrupt settings and storage errors instead of silently returning an empty/default-allow policy. The authenticated permission GET/PUT API refuses damaged state rather than claiming an allow policy or overwriting it.
+- A read failure produces a secret-safe operational error reference and a no-action refusal. Ordinary settings consumers keep their old lenient read behavior. No schema migration and no extra model/provider egress.
+- Real Render TDD RED: `dep-dbifi0ui0phs739b7m80`, source `a45716a`, **2 failed / 22 passed**. GREEN candidate `12b9251`: **25 permission/agent tests passed**, typed-body API contract **1 passed**, operational health **7 passed** on review runner `dep-dbifjnrbc2fs73fbd6c0`. Full review stages are separate and must be confirmed before release.
+- Still **IN_REVIEW**: attended chat permission-grant/close API, independent penetration and full-history verifier; upstream `S-04.01.01` remains IN_REVIEW. Not deployed to `main` or production.
+
 ## 2026-10-30 — Owner operational health for schedulers (F-06.02)
 - New read-only install-owner API `GET /api/v1/operations/health`, separate from basic `/health/live` and `/health/ready`. It checks enabled automation, content automation and all-workspace agent routines, returning healthy/disabled/degraded/unknown with static status codes and an alert flag.
 - Failure inspections log a safe error reference and return that same reference without exposing exception text. No new schema, no SMTP calls and no change to existing readiness routing.

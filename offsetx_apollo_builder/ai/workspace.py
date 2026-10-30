@@ -362,7 +362,9 @@ class WorkspaceAISettingsStore:
         with self._exclusive_write():
             # The strict check and write share the same exclusive lock.
             # This prevents a corrupt file being overwritten after preflight.
-            document = self._document(strict=strict)
+            # Preserve the no-keyword legacy read contract for existing
+            # instrumentation and ordinary settings writes.
+            document = self._document(strict=True) if strict else self._document()
             current = dict(document.get(workspace_id) or self._blank(workspace_id))
             mutate(current)
             current["workspace_id"] = workspace_id

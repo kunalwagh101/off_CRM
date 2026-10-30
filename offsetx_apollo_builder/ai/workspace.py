@@ -356,9 +356,13 @@ class WorkspaceAISettingsStore:
         self,
         workspace_id: str,
         mutate: Callable[[dict[str, Any]], None],
+        *,
+        strict: bool = False,
     ) -> dict[str, Any]:
         with self._exclusive_write():
-            document = self._document()
+            # The strict check and write share the same exclusive lock.
+            # This prevents a corrupt file being overwritten after preflight.
+            document = self._document(strict=strict)
             current = dict(document.get(workspace_id) or self._blank(workspace_id))
             mutate(current)
             current["workspace_id"] = workspace_id
@@ -367,11 +371,13 @@ class WorkspaceAISettingsStore:
             self._write_document(document)
             return dict(current)
 
-    def save(self, workspace_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    def save(
+        self, workspace_id: str, values: dict[str, Any], *, strict: bool = False,
+    ) -> dict[str, Any]:
         def apply(current: dict[str, Any]) -> None:
             current.update(values)
 
-        return self._update_workspace(workspace_id, apply)
+        return self._update_workspace(workspace_id, apply, strict=strict)
 
     # ── provider enable / configure ─────────────────────────────────────────
 

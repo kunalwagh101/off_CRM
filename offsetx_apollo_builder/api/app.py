@@ -1797,10 +1797,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(400, "Invalid workspace")
         try:
             return AgentPermissionPolicy.from_mapping(
-                request.app.state.ai_workspaces.raw(target).get("agent_permissions", {})
+                request.app.state.ai_workspaces.raw_permissions(target).get("agent_permissions", {})
             ).to_dict()
-        except PermissionErrorRule as exc:
-            raise HTTPException(503, "Stored agent permissions invalid; stop routines") from exc
+        except (PermissionErrorRule, ValueError, OSError) as exc:
+            raise HTTPException(503, "Stored agent permissions unavailable; stop routines and check storage") from exc
 
     @app.put(f"{API_PREFIX}/agent-permissions")
     def set_agent_permissions(
@@ -1819,9 +1819,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             policy = AgentPermissionPolicy.from_mapping(body.model_dump())
         except PermissionErrorRule as exc:
             raise HTTPException(400, str(exc)) from exc
-        request.app.state.ai_workspaces.save(
-            target, {"agent_permissions": policy.to_dict()}
-        )
+        try:
+            # Do not overwrite a damaged settings document with a blank one.
+            request.app.state.ai_workspaces.raw_permissions(target)
+            request.app.state.ai_workspaces.save(
+                target, {"agent_permissions": policy.to_dict()}
+            )
+        except (ValueError, OSError) as exc:
+            raise HTTPException(503, "Workspace settings unavailable; check storage before editing") from exc
         return policy.to_dict()
 
     @app.get(f"{API_PREFIX}/agent-routines")

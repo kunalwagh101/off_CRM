@@ -148,7 +148,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.01.02 · Owner sets global, per-tool and chat-lifetime browser permissions
   work_order: docs/work-orders/S-06.01.02-three-level-agent-permissions.md
-  review: test-first RED on Render dep-dbhrl9d9fdbs73aejus0; 20 targeted tests GREEN on 2e9872f; after initial-goto guard 22 tests PASS and typed-body API fast gate PASS on 851d6de; full SQLite/Postgres and attended chat grant lifecycle pending, upstream S-04.01.01 IN_REVIEW
+  review: original permission gates 22 tests PASS on 851d6de; D-327 mid-run revocation TDD RED 2 failed/22 passed (a45716a, Render dep-dbifi0ui0phs739b7m80); strict per-action permission reload and corrupt settings protection GREEN 25 targeted PASS on 12b9251 (Render dep-dbifjnrbc2fs73fbd6c0), full SQLite/Postgres review stages pending; attended chat grant lifecycle, upstream S-04.01.01 and independent penetration/full-history verifier still open; evidence docs/evidence/2026-10-31-agent-policy-revocation.md
 
 - S-06.03.08 · Install owner sees actual storage durability and production blockers
   work_order: docs/work-orders/S-06.03.08-storage-readiness-report.md

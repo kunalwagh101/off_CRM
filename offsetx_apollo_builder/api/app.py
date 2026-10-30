@@ -1823,7 +1823,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # Do not overwrite a damaged settings document with a blank one.
             request.app.state.ai_workspaces.raw_permissions(target)
             request.app.state.ai_workspaces.save(
-                target, {"agent_permissions": policy.to_dict()}
+                target, {"agent_permissions": policy.to_dict()}, strict=True
             )
         except (ValueError, OSError) as exc:
             raise HTTPException(503, "Workspace settings unavailable; check storage before editing") from exc

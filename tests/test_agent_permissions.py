@@ -150,3 +150,28 @@ def test_corrupt_saved_settings_fail_closed_for_owner_reads_and_updates(tmp_path
         )
         assert changed.status_code == 503
         assert path.read_text(encoding="utf-8") == damaged
+
+def test_permission_update_refuses_corruption_between_validation_and_write(tmp_path, monkeypatch):
+    """Preflight alone is not enough: a write must re-check under its lock."""
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        saved = client.put(
+            API, headers=HEADERS,
+            json={"global_mode": "deny", "tool_rules": {}},
+        )
+        assert saved.status_code == 200, saved.text
+        store = client.app.state.ai_workspaces
+        original_read = store.raw_permissions
+        damaged = '{"broken":'
+
+        def corrupted_after_preflight(workspace_id):
+            result = original_read(workspace_id)
+            store.settings_path.write_text(damaged, encoding="utf-8")
+            return result
+
+        monkeypatch.setattr(store, "raw_permissions", corrupted_after_preflight)
+        changed = client.put(
+            API, headers=HEADERS,
+            json={"global_mode": "allow", "tool_rules": {}},
+        )
+        assert changed.status_code == 503, changed.text
+        assert store.settings_path.read_text(encoding="utf-8") == damaged

@@ -63,6 +63,28 @@ the corrected source. Capture its actual final targeted, full SQLite,
 PostgreSQL, Chromium and deploy results before treating D-328 as verified.
 The review-only runner never establishes an independent live penetration test.
 
+## D-329 follow-up: preserve the legacy document-reader call
+
+The new strict write did not alter permissions, but it unconditionally called
+`_document(strict=False)` in ordinary settings writes. An existing concurrency
+regression monkeypatches `_document()` with a no-keyword wrapper. That was an
+unintended compatibility break.
+
+**Actual Render full SQLite RED:** tested source
+`09ded49a7c41c3b1402664e2fd83f3c64e53fd9c`, deployment
+`dep-dbifrl2jnfac738ptqhg` **build_failed** after targeted permissions
+**26 passed** and the full SQLite run **1 failed, 2809 passed, 45 skipped,
+44 warnings**. Exact failure:
+`tests/test_workspace_isolation.py::test_independent_workspace_stores_do_not_lose_concurrent_provider_updates`.
+The traceback identifies the unexpected `strict` keyword in the old
+no-keyword wrapper. **This was a real regression and was not waived.**
+
+**Fix:** source `e8200718c786b8d1fe2e9118b249aa405e087950` uses
+`_document()` unchanged for normal writes, and `_document(strict=True)`
+only for permission writes. Final review
+`dep-dbifv8942hec73f36l50` was triggered; all test/deploy results
+must be captured before claiming GREEN or complete verification.
+
 ## Open verification and release gates
 
 - F-06.01 / S-06.01.02 stays **IN_REVIEW**, not DONE, because upstream `S-04.01.01` is IN_REVIEW and the authenticated attended-chat grant/close path is still not available.

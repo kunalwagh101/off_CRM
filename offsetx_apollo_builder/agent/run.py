@@ -38,7 +38,8 @@ from ..browser.cdp import CDPTimeout
 from ..browser.page import ACTIONS, ActionRefused, ActionResult, Page
 from ..browser.trace import Step, Trace, signature_in, signature_mark
 from .plan import MAX_PLAN_CHARS, PlanError, RunPlan
-from .permissions import AgentPermissionPolicy, ChatPermissionGrants
+from .permissions import AgentPermissionPolicy, ChatPermissionGrants, PermissionErrorRule
+from ..observability import report_failure
 from .injection import scan as scan_for_injection
 from .report import write as write_report
 from .result import (
@@ -673,6 +674,7 @@ class AgentRun:
         planner_provider_id: str = "",
         permission_policy: AgentPermissionPolicy | None = None,
         chat_permissions: ChatPermissionGrants | None = None,
+        permission_policy_provider: Callable[[], AgentPermissionPolicy] | None = None,
     ) -> None:
         self.broker = broker
         self.settings = settings
@@ -683,6 +685,7 @@ class AgentRun:
         self.planner_provider_id = str(planner_provider_id or "").strip()
         self.permission_policy = permission_policy or AgentPermissionPolicy()
         self.chat_permissions = chat_permissions
+        self.permission_policy_provider = permission_policy_provider
 
     async def run(
         self,
@@ -1034,9 +1037,33 @@ class AgentRun:
 
             # Runs, including unattended routines, must enforce this before
             # a real browser action or an in-memory read shortcut.
-            permission = self.permission_policy.decide(
-                decision.action, grants=self.chat_permissions,
-            )
+            try:
+                # Routines supply a fresh workspace read at every action. A policy
+                # changed mid-run must not leave an old allow decision active.
+                current_policy = (
+                    self.permission_policy_provider()
+                    if self.permission_policy_provider is not None
+                    else self.permission_policy
+                )
+                if not isinstance(current_policy, AgentPermissionPolicy):
+                    raise PermissionErrorRule("Permission store returned an invalid policy")
+                permission = current_policy.decide(
+                    decision.action, grants=self.chat_permissions,
+                )
+            except Exception as exc:
+                # Unavailable or malformed settings cannot become default allow.
+                # The failure log records only exception type and frame locations.
+                reference = report_failure(exc, operation="agent.permission_check")
+                self.trace.append(Step(
+                    kind="permission_gate",
+                    detail=f"Permission rules unavailable; no browser action taken. Reference: {reference}",
+                    url=self.page.url or snapshot.url, ok=False,
+                ))
+                return self._outcome(
+                    "permission_denied", cleaned_goal, budget, decisions, actions,
+                    f"Current permissions could not be checked. Retry after storage recovers. Reference: {reference}",
+                    schema=schema, findings=collected,
+                )
             if permission != "allow":
                 self.trace.append(Step(
                     kind="permission_gate",

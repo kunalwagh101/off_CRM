@@ -91,8 +91,7 @@ source `e8200718c786b8d1fe2e9118b249aa405e087950` has passed:
 - Chromium Contacts synthetic acceptance at desktop **1280px PASS**, mobile **390px PASS**.
 - Frontend build/npm high-severity audit gates passed within this Docker review image.
 The final image was built successfully through the verification copy stages.
-Render **LIVE deployment status must still be confirmed separately**; neither
-these automated tests nor a LIVE QA marker prove independent penetration testing.
+Render deploy **dep-dbifv8942hec73f36l50 reached LIVE** on the exact tested source at **2026-10-30T20:50:54.075282Z**. This is the isolated QA service, not production; neither automated tests nor its LIVE marker prove independent penetration testing.
 
 ## D-330 static review: missing policy document is not yet fail closed
 

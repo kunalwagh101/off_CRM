@@ -28,7 +28,40 @@ Exact application-code candidate: `12b92516e02b1b73121ef31cbaf4672057c07114`.
   - `uv run pytest -q tests/test_operational_health.py`: **7 passed, 1 warning**.
   - `uv run pytest -v --tb=short tests/test_contacts_filters_export.py tests/test_spreadsheet_exports.py tests/test_existing_poi_enrichment.py tests/test_apollo_rejection_ledger.py`: **19 passed, 1 warning**.
   - Existing workspace GTM isolation tests: **3 passed, 1 warning**.
-- Wider full SQLite/PostgreSQL/Chromium build stages are **still being checked**; a triggered build does not establish they passed.
+- Full SQLite `uv run pytest -q`: **2809 passed, 45 skipped, 44 warnings**.
+  - Full disposable PostgreSQL `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q`: **2829 passed, 94 skipped, 44 warnings**.
+  - Focused PostgreSQL integration: **215 passed, 1 warning**.
+  - Chromium Contacts synthetic import at 1280px and 390px: **PASS**.
+  - Board-verifier unit cases **67 passed**; Ruff fast severity check passed. Frontend build/audit stages passed as required by the review image.
+  - Render QA deploy `dep-dbifjnrbc2fs73fbd6c0` reached **LIVE**. These complete QA results belong to code `12b9251`, **not** the later D-328 correction.
+
+
+## D-328 follow-up: strict validation and write must be atomic
+
+A source-code review found that the owner PUT route called a strict read and
+then used the existing lenient save later. If the document became corrupt
+between them, the new permission could overwrite damaged policy data.
+This is a distinct defect, recorded as `D-328`.
+
+**Actual RED:** test
+`tests/test_agent_permissions.py::test_permission_update_refuses_corruption_between_validation_and_write`
+was written first on commit `498ec0d` (later doc-only commits did not change
+the test). Render deployment `dep-dbifr0afngtc73dig9l0` on
+`7a648c5cc42c2173c4a2d8906fc18cac27ba7123` **build_failed**:
+`uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py`
+reported **1 failed, 25 passed, 1 warning**, with precisely that new test
+failing on the former lenient write path.
+
+**Corrected source:** `09ded49a7c41c3b1402664e2fd83f3c64e53fd9c`.
+`WorkspaceAISettingsStore.save(..., strict=True)` makes the document read
+strict *inside* its existing exclusive write lock. The permission owner PUT
+uses it. Other callers retain their original default (`strict=False`),
+minimising unrelated migration risk. No new persistence or schema change.
+
+**GREEN QA deployment:** `dep-dbifrl2jnfac738ptqhg` was triggered on
+the corrected source. Capture its actual final targeted, full SQLite,
+PostgreSQL, Chromium and deploy results before treating D-328 as verified.
+The review-only runner never establishes an independent live penetration test.
 
 ## Open verification and release gates
 

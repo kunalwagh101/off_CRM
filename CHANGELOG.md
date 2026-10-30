@@ -5,6 +5,8 @@
 - Security-sensitive workspace permission reads now reject corrupt settings and storage errors instead of silently returning an empty/default-allow policy. The authenticated permission GET/PUT API refuses damaged state rather than claiming an allow policy or overwriting it.
 - A read failure produces a secret-safe operational error reference and a no-action refusal. Ordinary settings consumers keep their old lenient read behavior. No schema migration and no extra model/provider egress.
 - Real Render TDD RED: `dep-dbifi0ui0phs739b7m80`, source `a45716a`, **2 failed / 22 passed**. GREEN candidate `12b9251`: **25 permission/agent tests passed**, typed-body API contract **1 passed**, operational health **7 passed** on review runner `dep-dbifjnrbc2fs73fbd6c0`. Full review stages are separate and must be confirmed before release.
+- The first source `12b9251` passed full Render QA: **2809 SQLite tests, 2829 disposable PostgreSQL tests**, 215 focused PostgreSQL tests, and desktop/mobile Chromium; review deployment reached LIVE, not production.
+- Follow-up D-328: an owner permission edit could preflight strict storage and then overwrite damage caused before its lenient write. Test-first Render RED **1 failed/25 passed** on `dep-dbifr0afngtc73dig9l0`. The corrected `save(..., strict=True)` checks the document **inside** the existing exclusive write lock. Targeted GREEN **26 passed** on corrected source `09ded49`; its final full QA remains a separate gate.
 - Still **IN_REVIEW**: attended chat permission-grant/close API, independent penetration and full-history verifier; upstream `S-04.01.01` remains IN_REVIEW. Not deployed to `main` or production.
 
 ## 2026-10-30 — Owner operational health for schedulers (F-06.02)

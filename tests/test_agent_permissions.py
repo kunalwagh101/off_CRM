@@ -125,3 +125,28 @@ def test_unattended_routine_refuses_goto_before_browser_launch(tmp_path, mode, e
     result = asyncio.run(executor(routine, {}))
     assert result.status == expected
     assert result.useful is False
+
+
+def test_corrupt_saved_settings_fail_closed_for_owner_reads_and_updates(tmp_path):
+    """A broken settings document must never be shown as allow or overwritten."""
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        stored = client.put(
+            API, headers=HEADERS,
+            json={"global_mode": "deny", "tool_rules": {}},
+        )
+        assert stored.status_code == 200, stored.text
+
+        path = client.app.state.ai_workspaces.settings_path
+        damaged = '{"private_settings":'
+        path.write_text(damaged, encoding="utf-8")
+
+        with pytest.raises(ValueError):
+            client.app.state.ai_workspaces.raw_permissions("local")
+        fetched = client.get(API, headers=HEADERS)
+        assert fetched.status_code == 503
+        changed = client.put(
+            API, headers=HEADERS,
+            json={"global_mode": "allow", "tool_rules": {}},
+        )
+        assert changed.status_code == 503
+        assert path.read_text(encoding="utf-8") == damaged

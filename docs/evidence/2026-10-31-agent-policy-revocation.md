@@ -85,6 +85,21 @@ only for permission writes. Final review
 `dep-dbifv8942hec73f36l50` was triggered; all test/deploy results
 must be captured before claiming GREEN or complete verification.
 
+## D-330 static review: missing policy document is not yet fail closed
+
+The strict reader rejects corrupt JSON and read errors, but `_document(strict=True)`
+still returns an empty document for a *missing* settings file or hosted row.
+That is needed by existing fresh installs, which default to global allow.
+A deployed installation whose saved deny settings disappear could therefore
+be mistaken for a fresh install. This was found by **static inspection**;
+it was **not** reproduced as a destructive live test or corrected here.
+
+A safe fix needs an explicit first-run marker or owner-approved fail-closed
+migration, plus hosted persistence and restart acceptance. Tracked as
+**D-330**, open under S-06.01.02/F-06.03. Do **not** claim full missing-store
+fail-closed protection, loss-of-disk tolerance, independent pen clearance or
+production release from the current test counts.
+
 ## Open verification and release gates
 
 - F-06.01 / S-06.01.02 stays **IN_REVIEW**, not DONE, because upstream `S-04.01.01` is IN_REVIEW and the authenticated attended-chat grant/close path is still not available.

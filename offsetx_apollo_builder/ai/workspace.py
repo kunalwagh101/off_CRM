@@ -297,7 +297,7 @@ class WorkspaceAISettingsStore:
 
     # ── settings document ───────────────────────────────────────────────────
 
-    def _document(self) -> dict[str, Any]:
+    def _document(self, *, strict: bool = False) -> dict[str, Any]:
         try:
             if self._hosted is not None:
                 body = self._hosted.read(SETTINGS)
@@ -307,8 +307,14 @@ class WorkspaceAISettingsStore:
             else:
                 return {}
         except (OSError, json.JSONDecodeError):
+            if strict:
+                raise
             return {}
-        return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            if strict:
+                raise ValueError("Stored workspace settings are invalid")
+            return {}
+        return payload
 
     def _write_document(self, document: dict[str, Any]) -> None:
         if self._hosted is not None:
@@ -331,6 +337,20 @@ class WorkspaceAISettingsStore:
     def raw(self, workspace_id: str = DEFAULT_WORKSPACE) -> dict[str, Any]:
         with self._lock:
             return dict(self._document().get(workspace_id) or self._blank(workspace_id))
+
+    def raw_permissions(self, workspace_id: str = DEFAULT_WORKSPACE) -> dict[str, Any]:
+        """Read current policy without hiding settings corruption or read failures.
+
+        Other non-security consumers keep the historical lenient raw() contract.
+        A browser permission check must not turn malformed state into allow.
+        """
+        with self._lock:
+            record = self._document(strict=True).get(workspace_id)
+            if record is None:
+                return self._blank(workspace_id)
+            if not isinstance(record, dict):
+                raise ValueError("Stored workspace permissions are invalid")
+            return dict(record)
 
     def _update_workspace(
         self,

@@ -855,9 +855,15 @@ class RoutineAgentExecutor:
 
         # The initial goto occurs OUTSIDE AgentRun; check its permission
         # before starting a browser container or making a network request.
-        policy = AgentPermissionPolicy.from_mapping(
-            self.workspaces.raw(routine.workspace_id).get("agent_permissions", {})
-        )
+        def current_permission_policy() -> AgentPermissionPolicy:
+            # Normal reads historically hide malformed JSON and missing files.
+            # Security decisions use the strict reader and fail closed.
+            reader = getattr(self.workspaces, "raw_permissions", self.workspaces.raw)
+            return AgentPermissionPolicy.from_mapping(
+                reader(routine.workspace_id).get("agent_permissions", {})
+            )
+
+        policy = current_permission_policy()
         navigation_permission = policy.decide("goto")
         if navigation_permission != "allow":
             return RoutineExecution(
@@ -939,6 +945,7 @@ class RoutineAgentExecutor:
                 trace=trace,
                 decision_data_class=DataClass.INTERNAL,
                 permission_policy=policy,
+                permission_policy_provider=current_permission_policy,
             )
             # A routine may notify only from a source-verified page finding.
             # "No updates found" prose is therefore not a notification, and a

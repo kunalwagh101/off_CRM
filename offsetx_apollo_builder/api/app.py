@@ -3752,7 +3752,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         ):
             raise HTTPException(400, "Choose a public HTTP(S) URL without embedded credentials")
         try:
-            check_navigation(body.target_url, unattended=False)
+            # No live watch or cancel UI: enforce unattended host policy.
+            check_navigation(body.target_url, unattended=True)
         except (Refused, ValueError) as exc:
             raise HTTPException(400, "Choose a public site, not a local or private address") from exc
         try:
@@ -3793,10 +3794,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
         except asyncio.TimeoutError as exc:
             ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
-            raise HTTPException(503, f"Browser reading timed out. Reference: {ref}") from exc
+            raise HTTPException(503, f"Browser reading timed out. {ref}") from exc
         except Exception as exc:
             ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
-            raise HTTPException(503, f"Browser reading failed. Reference: {ref}") from exc
+            raise HTTPException(503, f"Browser reading failed. {ref}") from exc
         finally:
             store.release_workspace_lease(workspace, lease_owner)
         return {

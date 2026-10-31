@@ -45,7 +45,7 @@ The parts share one safety boundary: models do not pull data from the CRM. off_C
 | Video editor | Beta | Browser-rendered timeline editing, still/video import, transitions, effects, retiming, audio mixdown, captions, review queue and WebM/MP4-oriented workflows. AI editing and generated footage/audio remain incomplete. |
 | Content distribution | Beta | Goals, posts, approval, scheduling, owner-set caps, pacing recommendations, engagement snapshots, content automation and a working local outbox. Live Instagram, Facebook, TikTok, LinkedIn and X publishing adapters are not built. |
 | Trend intelligence | Beta | YouTube public-data trend detection, topic clustering and trend-to-post planning. Other platforms depend on their official API permissions. |
-| Browser agent | Alpha | Low-level CDP browser control, accessibility-tree perception, real input events, screenshots, policy checks and append-only traces. It is not yet wired into the main AI/API/UI loop and needs further network hardening. |
+| Browser agent | Alpha | Low-level CDP browser control, accessibility-tree perception, screenshots, policy checks and append-only traces. An experimental owner-only AI chat API can request a bounded read-oriented run, but there is no live monitoring/cancellation UI or verified real hosted browser run; unattended domain restrictions stay enforced. Production network hardening remains open. |
 | Hosted multi-user service | Not ready | The current workspace is effectively single-user, most state is local, and the included Render configuration is for disposable demonstrations only. |
 
 ## Free and open source

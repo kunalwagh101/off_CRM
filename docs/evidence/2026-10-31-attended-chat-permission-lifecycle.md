@@ -90,8 +90,7 @@ is `revoke_chat()`; `db/inventory.py NOT_STORES` records this as an
 in-memory service that persists nothing. `Dockerfile.review` now runs
 both regression tests **before** the full suite. Corrected source
 `8a35417505d6c03efc4f13ec79b2e3bdcc7bc304`, QA
-`dep-dbiqtah42hec73b8v1sg` triggered; target/full/Chromium and LIVE
-status require separate results.
+`dep-dbiqtah42hec73b8v1sg`: **33 targeted agent/permission tests passed**, **2 runtime inventory/restore-close tests passed**, **67 verifier unit tests passed**, **full SQLite 2817 passed / 45 skipped / 44 warnings**, and **Chromium desktop 1280px/mobile 390px PASS**. Focused and full PostgreSQL and LIVE status are separate checks still pending here.
 
 ## Remaining product and security gates
 

@@ -567,6 +567,8 @@ sessions, **so that** my work and my credentials are mine.
 #### S-06.01.02 — Three-level permissions
 **2026-10-30 implementation note:** Workspace and per-tool policy, owner-only API, action-dispatch protection, unattended initial-navigation protection and expiring chat-grant object are implemented on `develop`. **IN_REVIEW** until final Render QA, an authenticated attended-chat grant/close path, and upstream S-04.01.01 are DONE. No production rollout.
 
+**2026-10-31 backend update:** The owner-only AI chat permission grant, close and tenant isolation APIs exist, and a bounded read-oriented `POST /api/v1/ai/chats/{chat_id}/browser-runs` connects those grants to the existing AgentRun through an isolated workspace browser lease. This is deliberately **not** a full attended browser: there is no live watch/cancel control, so the API refuses attended-only social sites and disables click/type/press/select. Source `3150fbb`, real Render QA `dep-dbiskimc6qcc739ivrcg` targeted 40 passed; full QA in progress. **IN_REVIEW** pending complete QA, actual external browser smoke, D-330, live monitoring/cancel UI and production security acceptance. See `docs/evidence/2026-10-31-read-only-chat-browser-run.md`.
+
 **As an** owner, **I want** a global mode, a per-tool rule and a chat-scoped
 override, **so that** trust is granted at the size of the decision.
 - **Given** a tool set to `ask`, **when** an agent calls it, **then** the run

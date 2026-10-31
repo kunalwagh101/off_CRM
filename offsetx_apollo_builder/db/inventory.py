@@ -177,6 +177,7 @@ NOT_STORES: frozenset[str] = frozenset({
     "agent_routines",       # RoutineService over agent_routine_store
     "ai_broker",            # sends; records through ai_egress_log and ai_quota
     "ai_chat",              # over the CRM
+    "chat_browser_runs",      # process-local running asyncio tasks; never persisted
     "chat_permission_grants",  # bounded in-memory approvals; never persisted
     "ai_registry",          # config/providers.yaml, read only
     "campaign_locks",       # in memory

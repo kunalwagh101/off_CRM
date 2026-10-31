@@ -1,5 +1,14 @@
 # BUILD_STATE.md
 
+## 2026-10-31 — F-06.01 authenticated chat isolation and owner-approved grants
+
+**Latest code candidate:** `35881993a267a4c261348d61edc83adb4cfdf6b1` on `develop`. Existing AI Copilot project/chat endpoints had omitted the current workspace, risking access to local-owner conversations (D-331); `send_message` lacked a pre-responder ownership guard. All API routes now pass the authenticated workspace; service reads and writes verify ownership before user content reaches the provider. The existing in-memory `ChatPermissionGrants` class now has explicit install-owner tool approval and close endpoints under the chat, a bounded workspace/chat registry and cleanup on delete, restart, runtime restore and shutdown (D-332). Grants cannot override `deny` and expire within one hour. No new persistent table, external AI provider or production change.
+
+**Real Render RED:** source `43a5d14`, deploy `dep-dbiqkes9v7es738bb040`: **3 failed / 26 passed** (missing tenant-safe chat path and owner approval API). First implementation `d3978d8`, deploy `dep-dbiqlkajnfac73bc10vg`: **2 failed / 29 passed** due to test lifecycle misuse and approving an already-`allow` tool; both corrected in `a4e0855`. Targeted **31 passed** on Render `dep-dbiqmb142hec73b8c12g`; final source adds shutdown-closure regression and is under independent review deployment `dep-dbiqn77b9u1s73c8pp80`. Do not infer final full SQLite/PostgreSQL/Chromium/QA LIVE from the targeted pass.
+
+**Status: IN_REVIEW.** No attended browser run endpoint or owner approval UI yet, so the grant cannot currently be used through a customer-facing browser-agent chat. Upstream S-04.01.01 IN_REVIEW, D-330 missing-settings fail-open, independent pen test, full-history verifier and cross-process restart acceptance remain release blockers. Files: `agent/permissions.py`, `outreach/ai_chat.py`, `api/schemas.py`, `api/app.py`, `tests/test_agent_permissions.py`. Evidence: `docs/evidence/2026-10-31-attended-chat-permission-lifecycle.md`. No `main` or production deploy.
+
+
 ## 2026-10-31 — F-06.01 permission revocation while agent runs (D-327)
 
 **Working branch:** `develop`, **initial application candidate:** `12b92516e02b1b73121ef31cbaf4672057c07114`. The scheduled browser agent formerly retained a run-start permission snapshot and the workspace settings reader could silently return empty/default-allow state when settings became corrupt. The fix adds a current-workspace strict permission reader, per-action refresh before any browser operation or cached read, a fail-closed refusal with a secret-safe error reference, and authenticated permission API protection against corrupt settings. No new model egress or database schema migration. Runtime files: `offsetx_apollo_builder/agent/run.py`, `agent/routines.py`, `ai/workspace.py`, `api/app.py`.

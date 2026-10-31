@@ -1,5 +1,14 @@
 # BUILD_STATE.md
 
+## 2026-10-31 — cancel in-flight owner browser read
+
+**Current feature slice:** F-06.01 / S-06.01.02 (IN_REVIEW). Added owner-only GET of the active chat browser run and DELETE cancellation by opaque run ID, with a process-local asyncio task registry. The POST browser-read task now returns `cancelled` after its runner has handled cancellation and the shared workspace browser lease is released in a finally block. Chat deletion, runtime restore and shutdown request cancellation. Registry has a close hook and a non-durable inventory entry; no schema migration or new AI provider path. No cross-process cancellation or live watch/cancel UI is claimed.
+
+**Test-first Render:** RED `cf31c149515f598538f789f49afd4185c1d121c2`, isolated `dep-dbiugrm7bikc73dtnrr0`, **3 failed / 40 passed**. Candidate `fd8a73ae4a13eb1e04aaf2f59a970050883df806`, isolated `dep-dbiuigg473hc73ambq30`, targeted **44 passed**. Full SQLite/PostgreSQL, Chromium and final LIVE status pending at this checkpoint. Source files: `agent/active_runs.py`, `api/app.py`, `db/inventory.py`, `tests/test_agent_permissions.py`. Evidence `docs/evidence/2026-10-31-chat-browser-cancellation.md`. Defect D-337; design DD-130.
+
+**Still blocked for DONE:** real nested-Docker/browser/provider acceptance, cross-instance cancellation, owner progress/watch UI, cancellation during real browser IO, D-330 missing settings, upstream S-04.01.01, production network/durability, independent pen and full Git-history board verification. `develop` only; do not promote to `main`.
+
+
 ## 2026-10-31 — owner-initiated read-oriented chat browser run
 
 **Tested application source candidate:** `3150fbb0de3a20e7f58f2ddcd59700353677fb0f` on `develop`; isolated review `dep-dbiskimc6qcc739ivrcg`. The user may now request a bounded browser reading task from an owned chat via an owner-only typed API. It uses a public HTTP(S) start URL, 1–5 decisions, strict live workspace policy, an existing short-lived chat-grant object, and shared workspace browser lease. The existing isolated `RoutineAgentExecutor` passes the chat grants into `AgentRun`, with read-only policy overlay; no new model provider path or durable store.

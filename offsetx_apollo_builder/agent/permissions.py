@@ -119,11 +119,15 @@ class ChatPermissionRegistry:
             current.grant(tool)
             return current
 
-    def close(self, workspace_id: str, chat_id: str) -> None:
+    def revoke_chat(self, workspace_id: str, chat_id: str) -> None:
         with self._lock:
             grant = self._grants.pop((workspace_id, chat_id), None)
             if grant is not None:
                 grant.close()
+
+    def close(self) -> None:
+        """Runtime close hook; revoke even references held by an active run."""
+        self.close_all()
 
     def close_all(self) -> None:
         with self._lock:

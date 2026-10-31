@@ -3745,10 +3745,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         require_install_owner(request)
         workspace = require_own_chat(request, chat_id)
-        parts = urlsplit(body.target_url)
+        try:
+            parts = urlsplit(body.target_url)
+            hostname = parts.hostname
+            username = parts.username
+            password = parts.password
+        except ValueError as exc:
+            raise HTTPException(400, "Choose a valid public HTTP(S) URL") from exc
         if (
-            parts.scheme not in {"https", "http"} or not parts.hostname
-            or parts.username is not None or parts.password is not None
+            parts.scheme not in {"https", "http"} or not hostname
+            or username is not None or password is not None
         ):
             raise HTTPException(400, "Choose a public HTTP(S) URL without embedded credentials")
         try:

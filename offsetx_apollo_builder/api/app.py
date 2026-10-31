@@ -29,6 +29,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .. import __version__
 from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message
 from .video_upload_guard import VideoUploadBodyGuard
+from ..agent.active_runs import ChatBrowserRuns
 from ..agent.companions import CompanionError, CompanionRegistry
 from ..agent.routines import (
     Routine,
@@ -299,6 +300,7 @@ def is_public_api_path(path: str) -> bool:
 #: `test_every_open_service_is_closed_for_a_restore`.
 RUNTIME_CLOSE_ORDER: tuple[str, ...] = (
     # Temporary browser approvals must die before the underlying stores close.
+    "chat_browser_runs",
     "chat_permission_grants",
     "privacy",
     "ai_tools",
@@ -665,6 +667,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         # Reopening a restored runtime must revoke grants held by any old runs.
+        old_runs = getattr(app.state, "chat_browser_runs", None)
+        if old_runs is not None:
+            old_runs.close()
+        app.state.chat_browser_runs = ChatBrowserRuns()
         old_grants = getattr(app.state, "chat_permission_grants", None)
         if old_grants is not None:
             old_grants.close_all()
@@ -3791,20 +3797,36 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             enabled=True, next_due_at=0.0,
             created_at=start, updated_at=start,
         )
+        registry = request.app.state.chat_browser_runs
+        task = asyncio.create_task(
+            request.app.state.agent_routines.runner(
+                routine, {}, attended=True, chat_permissions=grants,
+            ),
+            name=f"chat-browser-{chat_id[:8]}",
+        )
+        run_id = ""
         try:
-            execution = await asyncio.wait_for(
-                request.app.state.agent_routines.runner(
-                    routine, {}, attended=True, chat_permissions=grants,
-                ),
-                timeout=115.0,
-            )
+            run_id = registry.register(workspace, chat_id, task)
+            execution = await asyncio.wait_for(task, timeout=115.0)
+        except asyncio.CancelledError:
+            # A concurrent owner cancellation is not an application error.
+            # The actual runner's finally block terminates the container.
+            return {
+                "status": "cancelled", "agent_run_id": run_id,
+                "summary": "The browser run was cancelled.", "result": {},
+            }
         except asyncio.TimeoutError as exc:
             ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
             raise HTTPException(503, f"Browser reading timed out. {ref}") from exc
+        except ValueError as exc:
+            task.cancel()
+            raise HTTPException(409, "A browser run is already active for this chat") from exc
         except Exception as exc:
             ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
             raise HTTPException(503, f"Browser reading failed. {ref}") from exc
         finally:
+            if run_id:
+                registry.finish(workspace, chat_id, run_id)
             store.release_workspace_lease(workspace, lease_owner)
         return {
             "status": execution.status,
@@ -3812,6 +3834,24 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "summary": execution.summary,
             "result": execution.result,
         }
+
+    @app.get(f"{API_PREFIX}/ai/chats/{{chat_id}}/browser-runs")
+    def ai_chat_active_browser_run(chat_id: str, request: Request) -> dict[str, Any]:
+        require_install_owner(request)
+        workspace = require_own_chat(request, chat_id)
+        record = request.app.state.chat_browser_runs.active(workspace, chat_id)
+        return record if record is not None else {"active": False}
+
+    @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}/browser-runs/{{run_id}}", status_code=202)
+    def ai_cancel_chat_browser_run(
+        chat_id: str, run_id: str, request: Request,
+    ) -> dict[str, str]:
+        require_install_owner(request)
+        workspace = require_own_chat(request, chat_id)
+        accepted = request.app.state.chat_browser_runs.cancel(workspace, chat_id, run_id)
+        if not accepted:
+            raise HTTPException(404, "No matching active browser run")
+        return {"status": "cancellation_requested", "run_id": run_id}
 
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}/permissions")
     def ai_close_chat_permissions(chat_id: str, request: Request) -> dict[str, Any]:
@@ -3823,6 +3863,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}")
     def ai_delete_chat(chat_id: str, request: Request) -> dict[str, Any]:
         workspace = require_own_chat(request, chat_id)
+        request.app.state.chat_browser_runs.revoke_chat(workspace, chat_id)
         _ai_chat(request).delete_chat(chat_id, workspace_id=workspace)
         request.app.state.chat_permission_grants.revoke_chat(workspace, chat_id)
         return {"deleted": chat_id}

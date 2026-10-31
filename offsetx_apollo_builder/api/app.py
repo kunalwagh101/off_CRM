@@ -658,6 +658,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             memory_backend=app.state.engine.store,
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
+        # Reopening a restored runtime must revoke grants held by any old runs.
+        old_grants = getattr(app.state, "chat_permission_grants", None)
+        if old_grants is not None:
+            old_grants.close_all()
         # Attended grants are never restored from a database, backup or another process.
         app.state.chat_permission_grants = ChatPermissionRegistry()
         app.state.sales = SalesTracker(app.state.engine.store)
@@ -879,6 +883,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             finally:
                 for name in TIMERS:
                     await getattr(app.state, name).stop()
+                app.state.chat_permission_grants.close_all()
                 _close_runtime(app)
 
     app = FastAPI(

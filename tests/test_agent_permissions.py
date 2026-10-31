@@ -175,3 +175,75 @@ def test_permission_update_refuses_corruption_between_validation_and_write(tmp_p
         )
         assert changed.status_code == 503, changed.text
         assert store.settings_path.read_text(encoding="utf-8") == damaged
+
+
+def test_workspace_chat_routes_never_read_or_modify_another_workspace(tmp_path):
+    """Hostile authenticated tenant cannot use local owner's chat APIs."""
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        private = owner.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Private"})
+        assert private.status_code == 200, private.text
+        owner_chat = private.json()["id"]
+        owner.app.state.ai_chat.add_message(owner_chat, "user", "private owner note")
+        created = owner.post("/api/v1/workspaces", headers=HEADERS, json={
+            "username": "member", "workspace_id": "other-space",
+            "password": "safe-member-password-123",
+        })
+        assert created.status_code == 201, created.text
+        with TestClient(owner.app) as member:
+            login = member.post("/api/v1/auth/login", json={
+                "username": "member", "password": "safe-member-password-123",
+            })
+            assert login.status_code == 200, login.text
+            own = member.post("/api/v1/ai/chats", json={"title": "Their own"})
+            assert own.status_code == 200, own.text
+            own_id = own.json()["id"]
+            assert member.get("/api/v1/ai/chats").status_code == 200
+            assert [item["id"] for item in member.get("/api/v1/ai/chats").json()["items"]] == [own_id]
+            assert member.get(f"/api/v1/ai/chats/{owner_chat}/messages").status_code == 404
+            assert member.delete(f"/api/v1/ai/chats/{owner_chat}").status_code == 404
+            assert member.post(f"/api/v1/ai/chats/{owner_chat}/rename", json={"title": "Stolen"}).status_code == 404
+            assert member.post(f"/api/v1/ai/chats/{owner_chat}/messages", json={"content": "injected"}).status_code == 404
+        assert owner.app.state.ai_chat.get_chat(owner_chat)["title"] == "Private"
+        assert owner.app.state.ai_chat.list_messages(owner_chat)[0]["content"] == "private owner note"
+
+
+def test_chat_permission_grant_owner_approval_close_and_non_owner_refusal(tmp_path):
+    """Permissions may be issued only by the owner for a real local chat."""
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        created = owner.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Attended"})
+        assert created.status_code == 200
+        chat_id = created.json()["id"]
+        route = f"/api/v1/ai/chats/{chat_id}/permissions"
+        owner.put(API, headers=HEADERS, json={
+            "global_mode": "ask", "tool_rules": {"type": "deny"},
+        })
+        assert owner.post(route, json={"tool": "click"}).status_code == 401
+        assert owner.post(route, headers=HEADERS, json={"tool": "bogus"}).status_code == 422
+        allowed = owner.post(route, headers=HEADERS, json={"tool": "click"})
+        assert allowed.status_code == 200, allowed.text
+        registry = owner.app.state.chat_permission_grants
+        grants = registry.get("local", chat_id)
+        assert grants is not None
+        policy = AgentPermissionPolicy(global_mode="ask", tool_rules={"type": "deny"})
+        assert policy.decide("click", grants=grants) == "allow"
+        assert policy.decide("type", grants=grants) == "deny"
+        assert policy.decide("scroll", grants=grants) == "ask"
+        assert owner.delete(route, headers=HEADERS).status_code == 200
+        assert policy.decide("click", grants=grants) == "ask"
+        assert owner.post(route, headers=HEADERS, json={"tool": "click"}).status_code == 200
+        assert owner.delete(f"/api/v1/ai/chats/{chat_id}", headers=HEADERS).status_code == 200
+        assert registry.get("local", chat_id) is None
+        assert owner.post(route, headers=HEADERS, json={"tool": "click"}).status_code == 404
+
+
+def test_chat_permission_grants_do_not_survive_restart(tmp_path):
+    settings = _settings(tmp_path)
+    with TestClient(create_app(settings)) as first:
+        chat = first.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Temporary"}).json()
+        assert first.post(f"/api/v1/ai/chats/{chat['id']}/permissions",
+                          headers=HEADERS, json={"tool": "click"}).status_code == 200
+    with TestClient(create_app(settings)) as restarted:
+        route = f"/api/v1/ai/chats/{chat['id']}/permissions"
+        result = restarted.get(route, headers=HEADERS)
+        assert result.status_code == 200, result.text
+        assert result.json()["granted_tools"] == []

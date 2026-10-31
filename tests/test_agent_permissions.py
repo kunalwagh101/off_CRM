@@ -609,3 +609,31 @@ def test_member_cannot_cancel_or_inspect_another_workspace_browser_run(tmp_path)
         assert member.delete(route + "/secret").status_code == 403
         assert owner.get(route, headers=HEADERS).json() == {"active": False}
         assert owner.delete(route + "/no-such-run", headers=HEADERS).status_code == 404
+
+
+def test_chat_browser_registry_shutdown_cancels_all_running_tasks():
+    import asyncio
+    from offsetx_apollo_builder.agent.active_runs import ChatBrowserRuns
+
+    async def exercise():
+        registry = ChatBrowserRuns()
+        started = [asyncio.Event(), asyncio.Event()]
+
+        async def idle(index):
+            started[index].set()
+            await asyncio.Event().wait()
+
+        tasks = [asyncio.create_task(idle(i)) for i in range(2)]
+        a = registry.register("local", "a", tasks[0])
+        b = registry.register("another", "b", tasks[1])
+        await asyncio.gather(*(event.wait() for event in started))
+        assert registry.active("local", "a")["run_id"] == a
+        assert registry.active("another", "b")["run_id"] == b
+        registry.close()
+        for task in tasks:
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        assert registry.active("local", "a") is None
+        assert registry.active("another", "b") is None
+
+    asyncio.run(exercise())

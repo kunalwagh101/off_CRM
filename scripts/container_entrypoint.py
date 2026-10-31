@@ -18,7 +18,15 @@ def main():
     os.chmod(root, 0o700)
     os.umask(0o077)
     import sys
-    os.execvp(sys.argv[1], sys.argv[1:])
+    command = sys.argv[1:]
+    if os.getenv("OFFSETX_PUBLIC_DEMO", "").strip().lower() in {"1", "true", "yes", "on"}:
+        # Public installations always boot the guarded web app. A custom CMD
+        # must not bypass its read-only boundary or depend on shell quoting.
+        import secrets
+        if not os.environ.get("OFFSETX_SESSION_SECRET"):
+            os.environ["OFFSETX_SESSION_SECRET"] = secrets.token_urlsafe(48)
+        command = [sys.executable, "run_offsetx_web.py"]
+    os.execvp(command[0], command)
 
 
 if __name__ == '__main__':

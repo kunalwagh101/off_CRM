@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from threading import RLock
 from typing import Any, Mapping
 from ..browser.page import ACTIONS
 
@@ -70,6 +71,62 @@ class ChatPermissionGrants:
     def permitted(self, tool: str) -> bool:
         return not self._closed and time.monotonic() < self._deadline and tool in self._tools
 
+    @property
+    def active(self) -> bool:
+        return not self._closed and time.monotonic() < self._deadline
+
+    @property
+    def granted_tools(self) -> list[str]:
+        return sorted(self._tools) if self.active else []
+
     def close(self) -> None:
         self._closed = True
         self._tools.clear()
+
+
+class ChatPermissionRegistry:
+    """Per-process, workspace-scoped approval records; never stored or restored."""
+
+    MAX_ACTIVE = 256
+
+    def __init__(self) -> None:
+        self._lock = RLock()
+        self._grants: dict[tuple[str, str], ChatPermissionGrants] = {}
+
+    def get(self, workspace_id: str, chat_id: str) -> ChatPermissionGrants | None:
+        with self._lock:
+            key = (workspace_id, chat_id)
+            value = self._grants.get(key)
+            if value is not None and not value.active:
+                value.close()
+                self._grants.pop(key, None)
+                return None
+            return value
+
+    def grant(self, workspace_id: str, chat_id: str, tool: str) -> ChatPermissionGrants:
+        with self._lock:
+            current = self.get(workspace_id, chat_id)
+            if current is None:
+                if len(self._grants) >= self.MAX_ACTIVE:
+                    for key, value in list(self._grants.items()):
+                        if not value.active:
+                            value.close()
+                            del self._grants[key]
+                if len(self._grants) >= self.MAX_ACTIVE:
+                    raise PermissionErrorRule("Too many active attended chats; close a chat first")
+                current = ChatPermissionGrants(chat_id=chat_id)
+                self._grants[(workspace_id, chat_id)] = current
+            current.grant(tool)
+            return current
+
+    def close(self, workspace_id: str, chat_id: str) -> None:
+        with self._lock:
+            grant = self._grants.pop((workspace_id, chat_id), None)
+            if grant is not None:
+                grant.close()
+
+    def close_all(self) -> None:
+        with self._lock:
+            for grant in self._grants.values():
+                grant.close()
+            self._grants.clear()

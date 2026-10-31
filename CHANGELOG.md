@@ -3,7 +3,7 @@
 
 - Added GET `/api/v1/ai/chats/{chat_id}/browser-runs` to view an owner chat's active run ID, and owner-only DELETE `/api/v1/ai/chats/{chat_id}/browser-runs/{run_id}` to request cancellation (HTTP 202). Foreign and stale run IDs cannot cancel other tasks. The existing POST now returns `cancelled` only after the running task's cancellation and cleanup; its workspace browser lease is always released.
 - Browser tasks are tracked in a non-persistent registry, cancelled on chat deletion/shutdown/restore, and included in runtime close and storage inventory. No new AI egress or provider credentials. Cancelling a task is not the same as a monitored browser session.
-- TDD RED `cf31c14` on Render `dep-dbiugrm7bikc73dtnrr0`: **3 failed / 40 passed**. Targeted GREEN `fd8a73a` on `dep-dbiuigg473hc73ambq30`: **44 passed**. Full suite and live deployment status pending.
+- TDD RED `cf31c14` on Render `dep-dbiugrm7bikc73dtnrr0`: **3 failed / 40 passed**. Targeted GREEN `fd8a73a` on `dep-dbiuigg473hc73ambq30`: **44 passed**. Full SQLite **2828 PASS**, focused PostgreSQL **215 PASS**, full PostgreSQL **2848 PASS**, Chromium desktop/mobile **PASS**, verifier unit **67 PASS**; final Render LIVE status pending.
 - IN_REVIEW, not production: real browser/provider cancellation, cross-process transport, watch-and-cancel UI, D-330, DNS/network firewall, upstream companions and independent penetration verification still pending.
 
 ## 2026-10-31 — Owner chat browser reading (F-06.01)

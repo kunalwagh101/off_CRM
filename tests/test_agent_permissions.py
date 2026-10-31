@@ -498,3 +498,114 @@ def test_chat_agent_executor_requires_goto_grant_before_browser_launch(tmp_path,
     with pytest.raises(RuntimeError, match="browser would start now"):
         asyncio.run(executor(routine, {}, attended=True, chat_permissions=grants))
     assert opened == [True]
+
+
+def test_chat_browser_run_registry_cancels_exact_owner_run():
+    """Cancellation must be scoped and must not leave a runnable job behind."""
+    import asyncio
+    from offsetx_apollo_builder.agent.active_runs import ChatBrowserRuns
+
+    async def exercise():
+        store = ChatBrowserRuns()
+        started = asyncio.Event()
+
+        async def operation():
+            started.set()
+            await asyncio.Event().wait()
+
+        task = asyncio.create_task(operation())
+        run_id = store.register("local", "chat-a", task)
+        await started.wait()
+        assert store.active("other", "chat-a") is None
+        assert store.active("local", "chat-b") is None
+        assert store.cancel("local", "chat-b", run_id) is False
+        assert store.cancel("other", "chat-a", run_id) is False
+        assert not task.done()
+        assert store.active("local", "chat-a")["run_id"] == run_id
+        assert store.cancel("local", "chat-a", run_id) is True
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        store.finish("local", "chat-a", run_id)
+        assert store.active("local", "chat-a") is None
+
+    asyncio.run(exercise())
+
+
+def test_owner_can_cancel_active_browser_run_and_lease_is_released(tmp_path, monkeypatch):
+    """An HTTP cancellation has to reach the actual in-flight runner."""
+    import asyncio
+    import threading
+
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        chat_id = client.post("/api/v1/ai/chats", headers=HEADERS, json={
+            "title": "Cancel this run",
+        }).json()["id"]
+        route = f"/api/v1/ai/chats/{chat_id}/browser-runs"
+        started = threading.Event()
+        canceled = threading.Event()
+        seen = {}
+
+        async def blocked_runner(*args, **kwargs):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                canceled.set()
+
+        monkeypatch.setattr(client.app.state.agent_routines, "runner", blocked_runner)
+
+        def post():
+            try:
+                seen["response"] = client.post(route, headers=HEADERS, json={
+                    "goal": "Read the public page", "target_url": "https://example.org/",
+                    "step_budget": 1,
+                })
+            except BaseException as exc:
+                seen["error"] = exc
+
+        worker = threading.Thread(target=post)
+        worker.start()
+        try:
+            assert started.wait(10), "The fake runner never started"
+            status = client.get(route, headers=HEADERS)
+            assert status.status_code == 200, status.text
+            assert status.json()["active"] is True
+            run_id = status.json()["run_id"]
+            assert client.delete(route + "/not-this-run", headers=HEADERS).status_code == 404
+            assert client.delete(route + f"/{run_id}").status_code == 401
+            stopped = client.delete(route + f"/{run_id}", headers=HEADERS)
+            assert stopped.status_code == 202, stopped.text
+            assert canceled.wait(8), "Cancellation never reached the runner"
+            worker.join(8)
+            assert not worker.is_alive(), "Owner cancel did not release HTTP request"
+            assert "error" not in seen, repr(seen.get("error"))
+            assert seen["response"].json()["status"] == "cancelled"
+            assert client.get(route, headers=HEADERS).json()["active"] is False
+            lease = client.app.state.agent_routine_store
+            assert lease.acquire_workspace_lease("local", "next-owner-run", lease_seconds=120)
+            lease.release_workspace_lease("local", "next-owner-run")
+        finally:
+            if worker.is_alive():
+                client.app.state.chat_browser_runs.close()
+                worker.join(10)
+
+
+def test_member_cannot_cancel_or_inspect_another_workspace_browser_run(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        chat_id = owner.post("/api/v1/ai/chats", headers=HEADERS, json={
+            "title": "Owner browser",
+        }).json()["id"]
+        created = owner.post("/api/v1/workspaces", headers=HEADERS, json={
+            "username": "viewer", "workspace_id": "viewer-workspace",
+            "password": "strong-viewer-password-123",
+        })
+        assert created.status_code == 201, created.text
+        member = TestClient(owner.app)
+        assert member.post("/api/v1/auth/login", json={
+            "username": "viewer", "password": "strong-viewer-password-123",
+        }).status_code == 200
+        route = f"/api/v1/ai/chats/{chat_id}/browser-runs"
+        assert member.get(route).status_code == 403
+        assert member.delete(route + "/secret").status_code == 403
+        assert owner.get(route, headers=HEADERS).json() == {"active": False}
+        assert owner.delete(route + "/no-such-run", headers=HEADERS).status_code == 404

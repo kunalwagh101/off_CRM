@@ -31,7 +31,7 @@ def verify(browser, base):
                 page.screenshot(path=str(target / f"demo-login-{width}.png"), full_page=True)
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.get_by_role("status").filter(has_text="Visitor demo").wait_for()
-            page.get_by_role("navigation", name="Main navigation").get_by_role("link", name="Contacts", exact=True).click()
+            page.get_by_role("navigation", name="Mobile navigation" if width <= 860 else "Main navigation").get_by_role("link", name="Contacts", exact=True).click()
             page.get_by_text("Anita Rao", exact=True).wait_for()
             assert page.request.post(base + "/api/v1/campaigns", data={"name": "blocked"}).status == 403
             if screenshot_dir:

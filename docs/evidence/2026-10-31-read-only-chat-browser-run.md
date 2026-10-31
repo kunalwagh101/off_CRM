@@ -70,8 +70,7 @@ provider import path or persistent chat-approval record.
   - Board-verifier unit cases **67 passed**, Ruff syntax/severity gate passed,
     browser Chromium Contacts synthetic 1280px and 390px **PASS**.
   - Frontend build and audit checks were part of the reviewed Docker build.
-  - Render `LIVE` review status must be confirmed separately; a completed
-    test stage does not prove a running service.
+  - Render `dep-dbiskimc6qcc739ivrcg` **LIVE**, finished at **2026-10-31T11:18:11.991249Z**, on the exact tested application source `3150fbb0de3a20e7f58f2ddcd59700353677fb0f`. This is the isolated QA service only, not production.
   - Additional tests cover owner/member scope, internal and attended-only
     destinations, invalid URL parsing, failure references, lease cleanup,
     and the executor's goto preflight.

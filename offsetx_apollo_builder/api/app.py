@@ -151,7 +151,7 @@ from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
 from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
 from .config import AppSettings
-from ..agent.permissions import AgentPermissionPolicy, PermissionErrorRule
+from ..agent.permissions import AgentPermissionPolicy, ChatPermissionRegistry, PermissionErrorRule
 from .storage_readiness import describe_storage_readiness
 from .operational_health import describe_operational_health
 from .email_delivery import build_email_delivery_router
@@ -161,6 +161,7 @@ from .schemas import (
     AutomationUpdate,
     AgentRoutineCreate,
     AgentPermissionUpdate,
+    AttendedChatGrant,
     AgentRoutineUpdate,
     AgentRoutineEvent,
     CampaignCreate,
@@ -657,6 +658,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             memory_backend=app.state.engine.store,
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
+        # Attended grants are never restored from a database, backup or another process.
+        app.state.chat_permission_grants = ChatPermissionRegistry()
         app.state.sales = SalesTracker(app.state.engine.store)
         app.state.campaign_locks = CampaignLocks()
         delivery_store = DeliverabilityStore(app.state.engine.store)
@@ -3651,50 +3654,112 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.get(f"{API_PREFIX}/ai/projects")
     def ai_list_projects(request: Request) -> dict[str, Any]:
-        return {"items": _ai_chat(request).list_projects()}
+        return {"items": _ai_chat(request).list_projects(workspace_id=_workspace_id(request))}
 
     @app.post(f"{API_PREFIX}/ai/projects")
     def ai_create_project(body: AIProjectCreateBody, request: Request) -> dict[str, Any]:
-        return _ai_chat(request).create_project(str(body.get("name", "")))
+        return _ai_chat(request).create_project(
+            str(body.get("name", "")), workspace_id=_workspace_id(request),
+        )
 
     @app.delete(f"{API_PREFIX}/ai/projects/{{project_id}}")
     def ai_delete_project(project_id: str, request: Request) -> dict[str, Any]:
-        _ai_chat(request).delete_project(project_id)
+        _ai_chat(request).delete_project(project_id, workspace_id=_workspace_id(request))
         return {"deleted": project_id}
 
     @app.get(f"{API_PREFIX}/ai/chats")
     def ai_list_chats(request: Request, project_id: str = Query("", max_length=64), limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
-        chats = _ai_chat(request).list_chats(project_id=project_id or None, limit=limit)
+        chats = _ai_chat(request).list_chats(
+            workspace_id=_workspace_id(request), project_id=project_id or None, limit=limit,
+        )
         return {"items": chats}
 
     @app.post(f"{API_PREFIX}/ai/chats")
     def ai_create_chat(body: AIChatCreateBody, request: Request) -> dict[str, Any]:
-        return _ai_chat(request).create_chat(title=str(body.get("title", "New chat")), project_id=body.get("project_id"))
+        try:
+            return _ai_chat(request).create_chat(
+                title=str(body.get("title", "New chat")),
+                project_id=body.get("project_id"), workspace_id=_workspace_id(request),
+            )
+        except ValueError as exc:
+            raise HTTPException(404, "Project not found") from exc
+
+    def require_own_chat(request: Request, chat_id: str) -> str:
+        workspace = _workspace_id(request)
+        if _ai_chat(request).get_chat(chat_id, workspace_id=workspace) is None:
+            raise HTTPException(404, "Chat not found")
+        return workspace
+
+    @app.get(f"{API_PREFIX}/ai/chats/{{chat_id}}/permissions")
+    def ai_chat_permissions(chat_id: str, request: Request) -> dict[str, Any]:
+        workspace = require_own_chat(request, chat_id)
+        grants = request.app.state.chat_permission_grants.get(workspace, chat_id)
+        return {"granted_tools": grants.granted_tools if grants else []}
+
+    @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/permissions")
+    def ai_approve_chat_permission(
+        chat_id: str, body: AttendedChatGrant, request: Request,
+    ) -> dict[str, Any]:
+        # A model response or workspace member cannot self-authorise a browser tool.
+        require_install_owner(request)
+        workspace = require_own_chat(request, chat_id)
+        try:
+            policy = AgentPermissionPolicy.from_mapping(
+                request.app.state.ai_workspaces.raw_permissions(workspace).get(
+                    "agent_permissions", {}
+                )
+            )
+        except (PermissionErrorRule, ValueError, OSError) as exc:
+            raise HTTPException(503, "Cannot check current browser permissions") from exc
+        mode = policy.decide(body.tool)
+        if mode == "deny":
+            raise HTTPException(403, "Owner policy denies this browser tool")
+        if mode != "ask":
+            raise HTTPException(409, "This browser tool does not require temporary approval")
+        try:
+            grants = request.app.state.chat_permission_grants.grant(workspace, chat_id, body.tool)
+        except PermissionErrorRule as exc:
+            raise HTTPException(409, str(exc)) from exc
+        return {"granted_tools": grants.granted_tools}
+
+    @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}/permissions")
+    def ai_close_chat_permissions(chat_id: str, request: Request) -> dict[str, Any]:
+        require_install_owner(request)
+        workspace = require_own_chat(request, chat_id)
+        request.app.state.chat_permission_grants.close(workspace, chat_id)
+        return {"closed": chat_id}
 
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}")
     def ai_delete_chat(chat_id: str, request: Request) -> dict[str, Any]:
-        _ai_chat(request).delete_chat(chat_id)
+        workspace = require_own_chat(request, chat_id)
+        _ai_chat(request).delete_chat(chat_id, workspace_id=workspace)
+        request.app.state.chat_permission_grants.close(workspace, chat_id)
         return {"deleted": chat_id}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/move")
     def ai_move_chat(chat_id: str, body: AIChatMoveBody, request: Request) -> dict[str, Any]:
-        from fastapi import HTTPException
-        result = _ai_chat(request).move_chat(chat_id, body.get("project_id"))
+        workspace = require_own_chat(request, chat_id)
+        result = _ai_chat(request).move_chat(
+            chat_id, body.get("project_id"), workspace_id=workspace,
+        )
         if not result:
-            raise HTTPException(404, "Chat not found")
+            raise HTTPException(404, "Chat or project not found")
         return result
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/rename")
     def ai_rename_chat(chat_id: str, body: AIChatRenameBody, request: Request) -> dict[str, Any]:
-        from fastapi import HTTPException
-        result = _ai_chat(request).rename_chat(chat_id, str(body.get("title", "")))
+        workspace = require_own_chat(request, chat_id)
+        result = _ai_chat(request).rename_chat(
+            chat_id, str(body.get("title", "")), workspace_id=workspace,
+        )
         if not result:
             raise HTTPException(404, "Chat not found")
         return result
 
     @app.get(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_list_messages(chat_id: str, request: Request) -> dict[str, Any]:
-        return {"items": _ai_chat(request).list_messages(chat_id)}
+        workspace = require_own_chat(request, chat_id)
+        return {"items": _ai_chat(request).list_messages(chat_id, workspace_id=workspace)}
 
     # ── AI module: workspace, providers, egress ──────────────────────────
 
@@ -4047,8 +4112,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         code and general questions and lets restricted-tier models help;
         ``campaign`` is the default and keeps the conversation on trusted tiers.
         """
+        workspace_id = require_own_chat(request, chat_id)
         broker, workspaces, _ = _ai(request)
-        workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
         broker = broker.with_credential_resolver(
             workspaces.credential_resolver(workspace_id)

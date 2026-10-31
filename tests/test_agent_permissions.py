@@ -419,3 +419,47 @@ def test_browser_chat_run_refuses_workspace_lease_collision(tmp_path, monkeypatc
         assert response.status_code == 409, response.text
         assert called == []
         client.app.state.agent_routine_store.release_workspace_lease("local", "already-running")
+
+
+def test_browser_run_releases_lease_on_provider_failure_and_redacts_response(tmp_path, monkeypatch):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        chat = client.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Failure"}).json()
+        endpoint = f"/api/v1/ai/chats/{chat['id']}/browser-runs"
+        async def failing_runner(*args, **kwargs):
+            raise RuntimeError("private-provider-password-CANARY")
+        monkeypatch.setattr(client.app.state.agent_routines, "runner", failing_runner)
+        response = client.post(endpoint, headers=HEADERS, json={
+            "goal": "Review public site", "target_url": "https://example.org/", "step_budget": 1,
+        })
+        assert response.status_code == 503
+        assert "CANARY" not in response.text
+        assert "Reference: E-" in response.text
+        # Errors must release the same workspace lease, not deadlock later work.
+        store = client.app.state.agent_routine_store
+        assert store.acquire_workspace_lease("local", "next-run", lease_seconds=120)
+        store.release_workspace_lease("local", "next-run")
+
+
+def test_browser_run_rejects_member_even_when_they_own_their_chat(tmp_path, monkeypatch):
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        created = owner.post("/api/v1/workspaces", headers=HEADERS, json={
+            "username": "team-member", "workspace_id": "another-team",
+            "password": "safe-team-pass-123",
+        })
+        assert created.status_code == 201, created.text
+        member = TestClient(owner.app)
+        login = member.post("/api/v1/auth/login", json={
+            "username": "team-member", "password": "safe-team-pass-123",
+        })
+        assert login.status_code == 200, login.text
+        chat = member.post("/api/v1/ai/chats", json={"title": "Own"}).json()
+        calls = []
+        async def forbidden_runner(*a, **kw):
+            calls.append(True)
+        monkeypatch.setattr(owner.app.state.agent_routines, "runner", forbidden_runner)
+        response = member.post(
+            f"/api/v1/ai/chats/{chat['id']}/browser-runs",
+            json={"goal": "Read public data", "target_url": "https://example.org/", "step_budget": 1},
+        )
+        assert response.status_code == 403, response.text
+        assert calls == []

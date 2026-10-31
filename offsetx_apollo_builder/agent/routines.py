@@ -886,16 +886,19 @@ class RoutineAgentExecutor:
             )
 
         port = free_port()
+        # An HTTP request is not a watched session. Until live monitoring and
+        # cancellation exist, preserve unattended site restrictions even when
+        # chat-lifetime tool approvals were supplied.
         box = BrowserBox(
             workspace_id=routine.workspace_id,
-            unattended=not attended,
+            unattended=True,
             allowed_hosts=frozenset({routine.target_host}),
             port=port,
         )
         # Re-check immediately before execution too. Creation-time validation
         # is the acceptance criterion; this second check protects old rows if
         # policy becomes stricter after they were created.
-        check_navigation(routine.target_url, unattended=not attended)
+        check_navigation(routine.target_url, unattended=True)
 
         log = tempfile.NamedTemporaryFile(
             "w+", prefix="offcrm-routine-browser-", suffix=".log", delete=False
@@ -937,7 +940,7 @@ class RoutineAgentExecutor:
             page = Page(
                 connection=session.connection,
                 session_id=session_id,
-                unattended=not attended,
+                unattended=True,
                 allowed_hosts=frozenset({routine.target_host}),
                 pace=session.pace,
             )

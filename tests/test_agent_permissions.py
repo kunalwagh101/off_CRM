@@ -334,3 +334,83 @@ def test_foreign_workspace_project_delete_reports_not_found(tmp_path):
         assert member.get("/api/v1/ai/projects").json()["items"] == []
         assert member.delete(f"/api/v1/ai/projects/{project_id}").status_code == 404
         assert owner.get("/api/v1/ai/projects", headers=HEADERS).json()["items"][0]["id"] == project_id
+
+
+def test_read_only_chat_run_refuses_unsafe_actions_even_when_owner_approved():
+    """HTTP chat run must not expose writes before live cancellation is built."""
+    from offsetx_apollo_builder.agent.permissions import read_only_chat_policy
+    policy = AgentPermissionPolicy(global_mode="ask", tool_rules={
+        "goto": "ask", "click": "allow", "type": "allow", "read": "ask",
+    })
+    grants = ChatPermissionGrants(chat_id="owned-chat")
+    for verb in ("goto", "click", "read"):
+        grants.grant(verb)
+    guarded = read_only_chat_policy(policy)
+    assert guarded.decide("goto", grants=grants) == "allow"
+    assert guarded.decide("read", grants=grants) == "allow"
+    for verb in ("click", "type", "press", "select"):
+        assert guarded.decide(verb, grants=grants) == "deny"
+
+
+def test_browser_chat_run_requires_owner_and_blocks_internal_urls(tmp_path, monkeypatch):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        chat = client.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Browse"}).json()
+        endpoint = f"/api/v1/ai/chats/{chat['id']}/browser-runs"
+        body = {"goal": "Read the public homepage", "target_url": "https://example.org/", "step_budget": 2}
+        assert client.post(endpoint, json=body).status_code == 401
+        called = []
+        async def fake_runner(*args, **kwargs):
+            called.append((args, kwargs))
+            raise AssertionError("Disallowed run reached the browser")
+        monkeypatch.setattr(client.app.state.agent_routines, "runner", fake_runner)
+        assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "http://127.0.0.1/admin"}).status_code == 400
+        assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "https://metadata.google.internal/"}).status_code == 400
+        assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "https://user:pass@example.org/"}).status_code == 400
+        assert client.post(endpoint, headers=HEADERS, json={**body, "step_budget": 20}).status_code == 422
+        assert called == []
+
+
+def test_browser_chat_run_rechecks_goto_approval_and_owner_scope(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.agent.routines import RoutineExecution
+
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        chat = client.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Browse"}).json()
+        endpoint = f"/api/v1/ai/chats/{chat['id']}/browser-runs"
+        body = {"goal": "Read the homepage", "target_url": "https://example.org/", "step_budget": 2}
+        assert client.put(API, headers=HEADERS, json={"global_mode": "ask", "tool_rules": {}}).status_code == 200
+        assert client.post(endpoint, headers=HEADERS, json=body).status_code == 409
+        calls = []
+        async def fake_runner(routine, event, **kwargs):
+            calls.append((routine, event, kwargs))
+            return RoutineExecution(status="completed", useful=True, result={"status": "completed"})
+        monkeypatch.setattr(client.app.state.agent_routines, "runner", fake_runner)
+        assert client.post(f"/api/v1/ai/chats/{chat['id']}/permissions", headers=HEADERS, json={"tool": "goto"}).status_code == 200
+        response = client.post(endpoint, headers=HEADERS, json=body)
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "completed"
+        assert len(calls) == 1
+        assert calls[0][2]["attended"] is True
+        assert calls[0][2]["chat_permissions"].chat_id == chat["id"]
+        assert calls[0][0].workspace_id == "local"
+        assert calls[0][0].step_budget == 2
+        assert client.put(API, headers=HEADERS, json={"global_mode": "deny", "tool_rules": {"goto": "ask"}}).status_code == 200
+        assert client.post(endpoint, headers=HEADERS, json=body).status_code == 403
+        assert len(calls) == 1
+
+
+def test_browser_chat_run_refuses_workspace_lease_collision(tmp_path, monkeypatch):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        chat = client.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Busy"}).json()
+        endpoint = f"/api/v1/ai/chats/{chat['id']}/browser-runs"
+        assert client.app.state.agent_routine_store.acquire_workspace_lease("local", "already-running", lease_seconds=120)
+        called = []
+        async def fake_runner(*a, **k):
+            called.append(True)
+            raise AssertionError("No browser run may start with an active lease")
+        monkeypatch.setattr(client.app.state.agent_routines, "runner", fake_runner)
+        response = client.post(endpoint, headers=HEADERS, json={
+            "goal": "Check records", "target_url": "https://example.org/", "step_budget": 1,
+        })
+        assert response.status_code == 409, response.text
+        assert called == []
+        client.app.state.agent_routine_store.release_workspace_lease("local", "already-running")

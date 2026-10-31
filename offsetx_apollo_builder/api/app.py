@@ -294,6 +294,8 @@ def is_public_api_path(path: str) -> bool:
 #: Everything on app.state with a `close()` must be here — see
 #: `test_every_open_service_is_closed_for_a_restore`.
 RUNTIME_CLOSE_ORDER: tuple[str, ...] = (
+    # Temporary browser approvals must die before the underlying stores close.
+    "chat_permission_grants",
     "privacy",
     "ai_tools",
     "engine",
@@ -883,7 +885,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             finally:
                 for name in TIMERS:
                     await getattr(app.state, name).stop()
-                app.state.chat_permission_grants.close_all()
                 _close_runtime(app)
 
     app = FastAPI(
@@ -3735,14 +3736,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def ai_close_chat_permissions(chat_id: str, request: Request) -> dict[str, Any]:
         require_install_owner(request)
         workspace = require_own_chat(request, chat_id)
-        request.app.state.chat_permission_grants.close(workspace, chat_id)
+        request.app.state.chat_permission_grants.revoke_chat(workspace, chat_id)
         return {"closed": chat_id}
 
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}")
     def ai_delete_chat(chat_id: str, request: Request) -> dict[str, Any]:
         workspace = require_own_chat(request, chat_id)
         _ai_chat(request).delete_chat(chat_id, workspace_id=workspace)
-        request.app.state.chat_permission_grants.close(workspace, chat_id)
+        request.app.state.chat_permission_grants.revoke_chat(workspace, chat_id)
         return {"deleted": chat_id}
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/move")

@@ -1,4 +1,11 @@
 # Changelog
+## 2026-10-31 — Owner browser-run cancellation (F-06.01)
+
+- Added GET `/api/v1/ai/chats/{chat_id}/browser-runs` to view an owner chat's active run ID, and owner-only DELETE `/api/v1/ai/chats/{chat_id}/browser-runs/{run_id}` to request cancellation (HTTP 202). Foreign and stale run IDs cannot cancel other tasks. The existing POST now returns `cancelled` only after the running task's cancellation and cleanup; its workspace browser lease is always released.
+- Browser tasks are tracked in a non-persistent registry, cancelled on chat deletion/shutdown/restore, and included in runtime close and storage inventory. No new AI egress or provider credentials. Cancelling a task is not the same as a monitored browser session.
+- TDD RED `cf31c14` on Render `dep-dbiugrm7bikc73dtnrr0`: **3 failed / 40 passed**. Targeted GREEN `fd8a73a` on `dep-dbiuigg473hc73ambq30`: **44 passed**. Full suite and live deployment status pending.
+- IN_REVIEW, not production: real browser/provider cancellation, cross-process transport, watch-and-cancel UI, D-330, DNS/network firewall, upstream companions and independent penetration verification still pending.
+
 ## 2026-10-31 — Owner chat browser reading (F-06.01)
 
 - Added owner-only, strictly typed and workspace-locked `POST /api/v1/ai/chats/{chat_id}/browser-runs`. A bounded goal and public URL reach the existing sandboxed AgentRun with the chat's temporary grants, strict live workspace policy and broker egress boundary. Read-only overlay denies click/type/press/select, and a 115-second wall / 90-second latency / $0.25 spend limit bounds a request.

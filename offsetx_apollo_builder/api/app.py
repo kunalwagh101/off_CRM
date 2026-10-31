@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import asyncio
+import time
 
 import hmac
 import os
@@ -25,10 +27,11 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
-from ..observability import FailureMiddleware, FailureReporter, reported_reference
+from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message
 from .video_upload_guard import VideoUploadBodyGuard
 from ..agent.companions import CompanionError, CompanionRegistry
 from ..agent.routines import (
+    Routine,
     RoutineAgentExecutor,
     RoutineError,
     RoutineService,
@@ -162,6 +165,7 @@ from .schemas import (
     AgentRoutineCreate,
     AgentPermissionUpdate,
     AttendedChatGrant,
+    ReadOnlyChatBrowserRun,
     AgentRoutineUpdate,
     AgentRoutineEvent,
     CampaignCreate,
@@ -3731,6 +3735,76 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         except PermissionErrorRule as exc:
             raise HTTPException(409, str(exc)) from exc
         return {"granted_tools": grants.granted_tools}
+
+    @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/browser-runs")
+    async def ai_chat_read_only_browser_run(
+        chat_id: str, body: ReadOnlyChatBrowserRun, request: Request,
+    ) -> dict[str, Any]:
+        """Owner-initiated and read-oriented only. No live watch/cancel UI yet."""
+        from ..browser.policy import Refused, check_navigation, host_of
+
+        require_install_owner(request)
+        workspace = require_own_chat(request, chat_id)
+        parts = urlsplit(body.target_url)
+        if (
+            parts.scheme not in {"https", "http"} or not parts.hostname
+            or parts.username is not None or parts.password is not None
+        ):
+            raise HTTPException(400, "Choose a public HTTP(S) URL without embedded credentials")
+        try:
+            check_navigation(body.target_url, unattended=False)
+        except (Refused, ValueError) as exc:
+            raise HTTPException(400, "Choose a public site, not a local or private address") from exc
+        try:
+            from ..agent.permissions import read_only_chat_policy
+            workspace_policy = AgentPermissionPolicy.from_mapping(
+                request.app.state.ai_workspaces.raw_permissions(workspace).get(
+                    "agent_permissions", {}
+                )
+            )
+            policy = read_only_chat_policy(workspace_policy)
+        except (PermissionErrorRule, ValueError, OSError) as exc:
+            raise HTTPException(503, "Current browser permissions are unavailable") from exc
+        grants = request.app.state.chat_permission_grants.get(workspace, chat_id)
+        navigation = policy.decide("goto", grants=grants)
+        if navigation == "deny":
+            raise HTTPException(403, "Owner policy refuses browser navigation")
+        if navigation != "allow":
+            raise HTTPException(409, "Approve the goto tool for this chat before starting")
+        store = request.app.state.agent_routine_store
+        lease_owner = f"attended-chat:{uuid.uuid4().hex}"
+        if not store.acquire_workspace_lease(workspace, lease_owner, lease_seconds=180):
+            raise HTTPException(409, "Another browser run is using this workspace")
+        start = time.time()
+        routine = Routine(
+            id=chat_id, workspace_id=workspace, name="Attended chat reading",
+            goal=body.goal, target_url=body.target_url,
+            target_host=host_of(body.target_url), trigger_type="event",
+            interval_seconds=0, event_name="", step_budget=body.step_budget,
+            enabled=True, next_due_at=0.0,
+            created_at=start, updated_at=start,
+        )
+        try:
+            execution = await asyncio.wait_for(
+                request.app.state.agent_routines.runner(
+                    routine, {}, attended=True, chat_permissions=grants,
+                ),
+                timeout=115.0,
+            )
+        except asyncio.TimeoutError as exc:
+            ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
+            raise HTTPException(503, f"Browser reading timed out. Reference: {ref}") from exc
+        except Exception as exc:
+            ref = failure_message(exc, operation="attended_chat_browser", workspace=workspace)
+            raise HTTPException(503, f"Browser reading failed. Reference: {ref}") from exc
+        finally:
+            store.release_workspace_lease(workspace, lease_owner)
+        return {
+            "status": execution.status,
+            "agent_run_id": execution.agent_run_id,
+            "summary": execution.summary,
+            "result": execution.result,
+        }
 
     @app.delete(f"{API_PREFIX}/ai/chats/{{chat_id}}/permissions")
     def ai_close_chat_permissions(chat_id: str, request: Request) -> dict[str, Any]:

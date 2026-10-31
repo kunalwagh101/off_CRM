@@ -63,7 +63,11 @@ affected no row. A dedicated two-workspace test was added:
 `AIChatService.delete_project` now returns a truthful bool and the HTTP
 route returns 404 for missing or foreign projects. Final application source
 `d2d4788c9b1f76cf2a099c7dae15edc7be4bda16`, isolated Render
-review `dep-dbiqouvlk1mc73ffueb0` triggered. This additional test did
+review `dep-dbiqouvlk1mc73ffueb0` confirmed targeted
+`uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py`
+**33 passed, 1 warning**, typed-body **1 passed**, hosted readiness **7 passed**,
+operational health **7 passed** and Ruff checks clean. Full SQLite,
+PostgreSQL and Chromium are still pending at this checkpoint. This additional test did
 not have a separately observed RED deployment; no such claim is made.
 The passing 32 tests above belong to the earlier `3588199` source;
 check final QA results separately.

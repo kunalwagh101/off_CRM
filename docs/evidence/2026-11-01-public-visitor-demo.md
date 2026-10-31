@@ -29,3 +29,5 @@ No schema migration or private-data persistence change. Sample data is intention
 ## Final test result
 
 Render review `dep-dbj5mth42hec73c3jo8g` on core source `5e5039c`: SQLite **2838 passed / 45 skipped**, PostgreSQL **2858 passed / 94 skipped**, focused PostgreSQL **215 passed**, board-verifier unit tests **67 passed**, desktop/mobile visitor Chromium **PASS**. PostgreSQL summary observed at 2026-10-31T21:34:26.782030942Z. The later container entrypoint change at `aaa0a59` has four local targeted checks and real live Render startup/login/read-only/logout evidence; do not claim that startup file was included in the older review image's full suite. No production integration, private dataset, external email or provider was used. Existing production blockers remain separate.
+
+Final isolated Render review reached **LIVE**: `dep-dbj5mth42hec73c3jo8g`, exact core source `5e5039cee3b80c48efd8908d17343a7b93cf2edc`, finished `2026-10-31T21:35:58.367537Z` (1 November IST). Public visitor app remains LIVE on `aaa0a59`; final handoff updates are documentation only and do not change deployed runtime code.

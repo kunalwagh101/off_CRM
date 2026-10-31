@@ -42,8 +42,17 @@ was not accessible through authenticated owner approval or chat deletion.
   TestClient context, and a second tried to approve an already-allow tool
   (correctly 409). These were test setup errors, not waived backend defects.
 - Tests corrected in candidate `a4e08558683c8be0ae4de8c615b7c736cbfe0b4c`.
-  Review `dep-dbiqmb142hec73b8c12g` triggered; capture actual final
-  targeted, SQLite/PostgreSQL, browser and deployment outcomes here.
+  Review `dep-dbiqmb142hec73b8c12g` passed **31 targeted** agent
+  and permission tests. The final code `35881993a267a4c261348d61edc83adb4cfdf6b1`
+  adds shutdown and runtime-restore grant invalidation. Isolated review
+  `dep-dbiqn77b9u1s73c8pp80` confirmed:
+  - `uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py`:
+    **32 passed, 1 warning**.
+  - `uv run pytest -q tests/test_hosted_storage_readiness.py`:
+    **7 passed**.
+  - API typed-body contract **1 passed**, operational health **7 passed**.
+  - Full SQLite/PostgreSQL, frontend/npm and Chromium stages are separate
+    checks; do not infer those results from the targeted pass.
 
 ## Remaining product and security gates
 

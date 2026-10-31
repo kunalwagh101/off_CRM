@@ -46,12 +46,19 @@ class AIChatService:
             )
         return {"id": row_id, "name": name, "created_at": now}
 
-    def delete_project(self, project_id: str, workspace_id: str = "local") -> None:
+    def delete_project(self, project_id: str, workspace_id: str = "local") -> bool:
         with self.store.transaction(immediate=True):
+            row = self.store.connection.execute(
+                "SELECT id FROM ai_chat_projects WHERE id = ? AND workspace_id = ?",
+                (project_id, workspace_id),
+            ).fetchone()
+            if row is None:
+                return False
             self.store.connection.execute(
                 "DELETE FROM ai_chat_projects WHERE id = ? AND workspace_id = ?",
                 (project_id, workspace_id),
             )
+            return True
 
     # ── chats ────────────────────────────────────────────────────────────────
 

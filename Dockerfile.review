@@ -26,6 +26,8 @@ RUN uv run ruff check --select E9,F63,F7,F82 .
 RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 # F-06.01.02: targeted permission and browser action-gate tests run first.
 RUN uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py
+# A new app-state service must be in the storage inventory and close on restore.
+RUN uv run pytest -q tests/test_storage_inventory.py::test_every_service_the_app_opens_is_classified tests/test_audit_wp1.py::test_every_open_service_is_closed_for_a_restore
 # Enforce the existing typed-body API contract before the long regressions.
 RUN uv run pytest -q tests/test_api_auth.py::test_no_api_route_accepts_an_untyped_raw_dict_body
 # F-06.02 operator scheduler health; targeted API/security gate first.

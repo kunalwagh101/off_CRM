@@ -298,3 +298,18 @@ def test_chat_service_fails_before_responder_for_foreign_workspace(tmp_path):
                 chat["id"], "assistant", "forged", workspace_id="other-space",
             )
         assert len(service.list_messages(chat["id"], workspace_id="local")) == 1
+
+
+def test_attended_grant_is_revoked_on_app_shutdown(tmp_path):
+    """An in-flight agent may keep a grants object; teardown must revoke it."""
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        chat_id = owner.post("/api/v1/ai/chats", headers=HEADERS,
+                             json={"title": "Shutdown"}).json()["id"]
+        assert owner.put(API, headers=HEADERS,
+                         json={"global_mode": "ask"}).status_code == 200
+        assert owner.post(f"/api/v1/ai/chats/{chat_id}/permissions",
+                          headers=HEADERS, json={"tool": "click"}).status_code == 200
+        grants = owner.app.state.chat_permission_grants.get("local", chat_id)
+        policy = AgentPermissionPolicy(global_mode="ask")
+        assert policy.decide("click", grants=grants) == "allow"
+    assert policy.decide("click", grants=grants) == "ask"

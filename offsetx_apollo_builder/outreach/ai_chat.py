@@ -87,6 +87,13 @@ class AIChatService:
         chat_id = str(uuid.uuid4())
         title = clean_text(title)[:200] or "New chat"
         with self.store.transaction(immediate=True):
+            if project_id is not None:
+                owner = self.store.connection.execute(
+                    "SELECT id FROM ai_chat_projects WHERE id = ? AND workspace_id = ?",
+                    (project_id, workspace_id),
+                ).fetchone()
+                if owner is None:
+                    raise ValueError("Project not found")
             self.store.connection.execute(
                 "INSERT INTO ai_chats(id, workspace_id, title, project_id, created_at, updated_at)"
                 " VALUES(?,?,?,?,?,?)",
@@ -118,6 +125,13 @@ class AIChatService:
     ) -> dict[str, Any] | None:
         now = to_utc_iso()
         with self.store.transaction(immediate=True):
+            if project_id is not None:
+                owner = self.store.connection.execute(
+                    "SELECT id FROM ai_chat_projects WHERE id = ? AND workspace_id = ?",
+                    (project_id, workspace_id),
+                ).fetchone()
+                if owner is None:
+                    return None
             self.store.connection.execute(
                 "UPDATE ai_chats SET project_id = ?, updated_at = ? "
                 "WHERE id = ? AND workspace_id = ?",
@@ -140,11 +154,14 @@ class AIChatService:
 
     # ── messages ─────────────────────────────────────────────────────────────
 
-    def list_messages(self, chat_id: str) -> list[dict[str, Any]]:
+    def list_messages(
+        self, chat_id: str, workspace_id: str = "local"
+    ) -> list[dict[str, Any]]:
         rows = self.store.connection.execute(
-            "SELECT id, role, content, provider, model, created_at "
-            "FROM ai_messages WHERE chat_id = ? ORDER BY created_at ASC",
-            (chat_id,),
+            "SELECT m.id, m.role, m.content, m.provider, m.model, m.created_at "
+            "FROM ai_messages m JOIN ai_chats c ON c.id = m.chat_id "
+            "WHERE c.id = ? AND c.workspace_id = ? ORDER BY m.created_at ASC",
+            (chat_id, workspace_id),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -160,6 +177,8 @@ class AIChatService:
         now = to_utc_iso()
         msg_id = str(uuid.uuid4())
         with self.store.transaction(immediate=True):
+            if self.get_chat(chat_id, workspace_id) is None:
+                raise ValueError("Chat not found")
             self.store.connection.execute(
                 "INSERT INTO ai_messages(id, chat_id, role, content, provider, model, created_at)"
                 " VALUES(?,?,?,?,?,?,?)",
@@ -200,9 +219,11 @@ class AIChatService:
         if not user_content:
             raise ValueError("Message content is required")
 
+        if self.get_chat(chat_id, workspace_id) is None:
+            raise ValueError("Chat not found")
         self.add_message(chat_id, "user", user_content, workspace_id=workspace_id)
 
-        history = self.list_messages(chat_id)
+        history = self.list_messages(chat_id, workspace_id)
         turns = [
             {"role": str(item["role"]), "content": str(item["content"])}
             for item in history

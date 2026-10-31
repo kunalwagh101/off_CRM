@@ -3669,7 +3669,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.delete(f"{API_PREFIX}/ai/projects/{{project_id}}")
     def ai_delete_project(project_id: str, request: Request) -> dict[str, Any]:
-        _ai_chat(request).delete_project(project_id, workspace_id=_workspace_id(request))
+        deleted = _ai_chat(request).delete_project(
+            project_id, workspace_id=_workspace_id(request),
+        )
+        if not deleted:
+            raise HTTPException(404, "Project not found")
         return {"deleted": project_id}
 
     @app.get(f"{API_PREFIX}/ai/chats")

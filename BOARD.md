@@ -148,7 +148,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.01.02 · Owner sets global, per-tool and chat-lifetime browser permissions
   work_order: docs/work-orders/S-06.01.02-three-level-agent-permissions.md
-  review: F-06.01 current e820071 per-action revocation and locked policy saves tested on Render dep-dbifv8942hec73f36l50: TDD D-327 RED 2 failed/22 passed, D-328 RED 1 failed/25 passed, D-329 full SQLite RED 1 failed/2809 passed; corrected GREEN 26 targeted, full SQLite 2810, focused PostgreSQL 215, full PostgreSQL 2830, Chromium desktop/mobile, Ruff and verifier 67 passed; isolated review LIVE dep-dbifv8942hec73f36l50 on e820071. Remains IN_REVIEW: D-330 missing-settings fallback, attended chat grant/close lifecycle, upstream S-04.01.01, independent pen test and full-history verifier. Evidence docs/evidence/2026-10-31-agent-policy-revocation.md
+  review: prior D-327/D-328/D-329 per-action revocation and strict writes QA LIVE at e820071 (SQLite 2810/PG 2830); D-331 cross-workspace AI chat protection and D-332 owner chat grant APIs TDD RED 3 failed/26 passed (43a5d14, Render dep-dbiqkes9v7es738bb040), first code/test refinement 2 failed/29 passed, latest 3588199 targeted 32 PASS on Render dep-dbiqn77b9u1s73c8pp80; complete SQLite/PostgreSQL/Chromium QA pending. Still IN_REVIEW: no attended AgentRun chat API/UI, D-330 missing-settings fallback, upstream S-04.01.01, independent penetration and full-history verifier; evidence docs/evidence/2026-10-31-attended-chat-permission-lifecycle.md
 
 - S-06.03.08 · Install owner sees actual storage durability and production blockers
   work_order: docs/work-orders/S-06.03.08-storage-readiness-report.md

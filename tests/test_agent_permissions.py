@@ -371,6 +371,9 @@ def test_browser_chat_run_requires_owner_and_blocks_internal_urls(tmp_path, monk
             **body, "target_url": "https://www.linkedin.com/feed/"
         }).status_code == 400
         assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "https://user:pass@example.org/"}).status_code == 400
+        assert client.post(endpoint, headers=HEADERS, json={
+            **body, "target_url": "http://[broken-ipv6/"
+        }).status_code == 400
         assert client.post(endpoint, headers=HEADERS, json={**body, "step_budget": 20}).status_code == 422
         assert called == []
 
@@ -463,3 +466,35 @@ def test_browser_run_rejects_member_even_when_they_own_their_chat(tmp_path, monk
         )
         assert response.status_code == 403, response.text
         assert calls == []
+
+
+def test_chat_agent_executor_requires_goto_grant_before_browser_launch(tmp_path, monkeypatch):
+    """The real executor, not just the HTTP route, refuses an unapproved goto."""
+    import asyncio
+    from types import SimpleNamespace
+    import offsetx_apollo_builder.agent.routines as routines
+
+    rules = {"agent_permissions": {"global_mode": "ask", "tool_rules": {}}}
+    workspace = SimpleNamespace(raw=lambda _id: rules)
+    opened = []
+    def forbidden_port():
+        opened.append(True)
+        raise RuntimeError("browser would start now")
+    monkeypatch.setattr(routines, "free_port", forbidden_port)
+    routine = SimpleNamespace(
+        id="test-chat", workspace_id="local", goal="Read data",
+        target_host="example.org", target_url="https://example.org/",
+        step_budget=1,
+    )
+    executor = routines.RoutineAgentExecutor(
+        data_dir=tmp_path, workspaces=workspace,
+        broker_factory=lambda _id: (_ for _ in ()).throw(AssertionError("No broker")),
+    )
+    refused = asyncio.run(executor(routine, {}, attended=True))
+    assert refused.status == "needs_permission"
+    assert opened == []
+    grants = ChatPermissionGrants(chat_id="test-chat")
+    grants.grant("goto")
+    with pytest.raises(RuntimeError, match="browser would start now"):
+        asyncio.run(executor(routine, {}, attended=True, chat_permissions=grants))
+    assert opened == [True]

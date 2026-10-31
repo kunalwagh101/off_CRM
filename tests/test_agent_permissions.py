@@ -189,20 +189,22 @@ def test_workspace_chat_routes_never_read_or_modify_another_workspace(tmp_path):
             "password": "safe-member-password-123",
         })
         assert created.status_code == 201, created.text
-        with TestClient(owner.app) as member:
-            login = member.post("/api/v1/auth/login", json={
-                "username": "member", "password": "safe-member-password-123",
-            })
-            assert login.status_code == 200, login.text
-            own = member.post("/api/v1/ai/chats", json={"title": "Their own"})
-            assert own.status_code == 200, own.text
-            own_id = own.json()["id"]
-            assert member.get("/api/v1/ai/chats").status_code == 200
-            assert [item["id"] for item in member.get("/api/v1/ai/chats").json()["items"]] == [own_id]
-            assert member.get(f"/api/v1/ai/chats/{owner_chat}/messages").status_code == 404
-            assert member.delete(f"/api/v1/ai/chats/{owner_chat}").status_code == 404
-            assert member.post(f"/api/v1/ai/chats/{owner_chat}/rename", json={"title": "Stolen"}).status_code == 404
-            assert member.post(f"/api/v1/ai/chats/{owner_chat}/messages", json={"content": "injected"}).status_code == 404
+        # Two clients share one lifespan. Do not enter a second context and
+        # shut down the owner's database while the first client still uses it.
+        member = TestClient(owner.app)
+        login = member.post("/api/v1/auth/login", json={
+            "username": "member", "password": "safe-member-password-123",
+        })
+        assert login.status_code == 200, login.text
+        own = member.post("/api/v1/ai/chats", json={"title": "Their own"})
+        assert own.status_code == 200, own.text
+        own_id = own.json()["id"]
+        assert member.get("/api/v1/ai/chats").status_code == 200
+        assert [item["id"] for item in member.get("/api/v1/ai/chats").json()["items"]] == [own_id]
+        assert member.get(f"/api/v1/ai/chats/{owner_chat}/messages").status_code == 404
+        assert member.delete(f"/api/v1/ai/chats/{owner_chat}").status_code == 404
+        assert member.post(f"/api/v1/ai/chats/{owner_chat}/rename", json={"title": "Stolen"}).status_code == 404
+        assert member.post(f"/api/v1/ai/chats/{owner_chat}/messages", json={"content": "injected"}).status_code == 404
         assert owner.app.state.ai_chat.get_chat(owner_chat)["title"] == "Private"
         assert owner.app.state.ai_chat.list_messages(owner_chat)[0]["content"] == "private owner note"
 
@@ -240,6 +242,7 @@ def test_chat_permission_grants_do_not_survive_restart(tmp_path):
     settings = _settings(tmp_path)
     with TestClient(create_app(settings)) as first:
         chat = first.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Temporary"}).json()
+        assert first.put(API, headers=HEADERS, json={"global_mode": "ask"}).status_code == 200
         assert first.post(f"/api/v1/ai/chats/{chat['id']}/permissions",
                           headers=HEADERS, json={"tool": "click"}).status_code == 200
     with TestClient(create_app(settings)) as restarted:

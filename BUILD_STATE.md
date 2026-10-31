@@ -1,5 +1,14 @@
 # BUILD_STATE.md
 
+## 2026-10-31 — owner-initiated read-oriented chat browser run
+
+**Tested application source candidate:** `3150fbb0de3a20e7f58f2ddcd59700353677fb0f` on `develop`; isolated review `dep-dbiskimc6qcc739ivrcg`. The user may now request a bounded browser reading task from an owned chat via an owner-only typed API. It uses a public HTTP(S) start URL, 1–5 decisions, strict live workspace policy, an existing short-lived chat-grant object, and shared workspace browser lease. The existing isolated `RoutineAgentExecutor` passes the chat grants into `AgentRun`, with read-only policy overlay; no new model provider path or durable store.
+
+**TDD:** Render RED `f92a3e5`/`dep-dbisfo67bikc73dohamg`: **4 failed / 33 passed**. First GREEN `08c6380`: **37 targeted passed**. D-335 found unmonitored HTTP being treated as attended: RED `b6cc20e`/`dep-dbisj1ks728c7386u920`: **1 failed / 36 passed**; corrected social-site unattended restrictions in `3150fbb`. Targeted **40 passed** on final QA `dep-dbiskimc6qcc739ivrcg`. Final full SQLite/PostgreSQL, Chromium and deployment status not yet confirmed at this handoff checkpoint. Evidence: `docs/evidence/2026-10-31-read-only-chat-browser-run.md`. Design DD-129; defects D-335/D-336.
+
+**Status IN_REVIEW, no main/production promotion:** no live watch/cancel screen, no demonstrated live isolated browser/provider session (the Render review uses synthetic tests), no proof of DNS rebinding isolation, no cross-process approval channel, upstream S-04.01.01 IN_REVIEW, D-330 still open, full-history verifier/independent penetration incomplete, and free Render trace durability insufficient. HTTP request is **read-oriented, not a true attended session**; it denies click/type/press/select and attended-only hosts, and GET navigation can still have effects.
+
+
 ## 2026-10-31 — F-06.01 authenticated chat isolation and owner-approved grants
 
 **Current application candidate:** `8a35417505d6c03efc4f13ec79b2e3bdcc7bc304` on `develop`. Existing AI Copilot project/chat endpoints had omitted the current workspace, risking access to local-owner conversations (D-331); `send_message` lacked a pre-responder ownership guard. All API routes now pass the authenticated workspace; service reads and writes verify ownership before user content reaches the provider. The existing in-memory `ChatPermissionGrants` class now has explicit install-owner tool approval and close endpoints under the chat, a bounded workspace/chat registry and cleanup on delete, restart, runtime restore and shutdown (D-332). Grants cannot override `deny` and expire within one hour. No new persistent table, external AI provider or production change.

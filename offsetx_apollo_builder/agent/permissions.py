@@ -49,6 +49,23 @@ class AgentPermissionPolicy:
         return mode
 
 
+# Until the owner can watch and stop a run in real time, the HTTP entry
+# point must not expose actions that may submit or alter site state.
+READ_ONLY_CHAT_ACTIONS = frozenset({"goto", "read", "screenshot", "scroll", "wait_for", "back"})
+
+
+def read_only_chat_policy(policy: AgentPermissionPolicy) -> AgentPermissionPolicy:
+    """Narrow effective permissions; never mutate persisted owner policy."""
+    if not isinstance(policy, AgentPermissionPolicy):
+        raise PermissionErrorRule("Missing browser permission policy")
+    denied = {verb: "deny" for verb in TOOLS - READ_ONLY_CHAT_ACTIONS}
+    return AgentPermissionPolicy(
+        global_mode=policy.global_mode,
+        tool_rules={**policy.tool_rules, **denied},
+    )
+
+
+
 class ChatPermissionGrants:
     """A live attended conversation's bounded, local-only grants."""
     def __init__(self, *, chat_id: str, lifetime_seconds: float = 3600.0):

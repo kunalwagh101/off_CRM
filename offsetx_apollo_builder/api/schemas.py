@@ -52,6 +52,13 @@ class AgentPermissionUpdate(StrictModel):
     )
 
 
+class ReadOnlyChatBrowserRun(StrictModel):
+    """One owner-initiated, bounded browser reading task."""
+    goal: str = Field(min_length=1, max_length=4000)
+    target_url: str = Field(min_length=10, max_length=2048)
+    step_budget: int = Field(default=2, ge=1, le=5)
+
+
 class AttendedChatGrant(StrictModel):
     """Explicit owner decision; model-generated text cannot create a grant."""
     tool: str = Field(min_length=1, max_length=40)

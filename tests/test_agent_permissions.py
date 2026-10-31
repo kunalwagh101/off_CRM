@@ -365,6 +365,11 @@ def test_browser_chat_run_requires_owner_and_blocks_internal_urls(tmp_path, monk
         monkeypatch.setattr(client.app.state.agent_routines, "runner", fake_runner)
         assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "http://127.0.0.1/admin"}).status_code == 400
         assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "https://metadata.google.internal/"}).status_code == 400
+        # No live supervision or cancellation UI exists. Social sites whose
+        # policy requires a watched session cannot be used by this HTTP run.
+        assert client.post(endpoint, headers=HEADERS, json={
+            **body, "target_url": "https://www.linkedin.com/feed/"
+        }).status_code == 400
         assert client.post(endpoint, headers=HEADERS, json={**body, "target_url": "https://user:pass@example.org/"}).status_code == 400
         assert client.post(endpoint, headers=HEADERS, json={**body, "step_budget": 20}).status_code == 422
         assert called == []

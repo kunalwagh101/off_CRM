@@ -1,4 +1,12 @@
 # Changelog
+## 2026-10-31 — Authenticated chat tenant isolation and temporary browser approvals (F-06.01)
+
+- Closed D-331: AI chat/project API calls now use the authenticated workspace, including lists, chat and project creation, message history, send, move, rename and delete. The AIChatService verifies ownership before storing messages or calling the AI responder, preventing foreign chat content from entering provider egress.
+- Added D-332 backend owner workflow: typed `POST /api/v1/ai/chats/{id}/permissions` grants only an existing policy `ask` browser verb, `GET` reports active chat grants, owner `DELETE` closes them, and chat deletion also closes them. Approval is explicitly owner-only, bounded and memory-only, with expiry within one hour; a global or tool `deny` cannot be overridden.
+- Runtime restore/shutdown revokes held grant objects. No new schema, long-lived token, external provider call or `main`/production deployment.
+- Actual isolated Render TDD RED: `43a5d14` on `dep-dbiqkes9v7es738bb040`, **3 failed/26 passed**. First implementation review found two test-harness mistakes, corrected. Latest code `3588199` targeted agent/permissions **32 passed**, typed-body contract **1 passed**, hosted readiness **7 passed**, operational health **7 passed** on `dep-dbiqn77b9u1s73c8pp80`. Full suite/Chromium and LIVE QA still pending.
+- **IN_REVIEW**, not customer-ready: the AI Copilot lacks the attended browser-agent execution and approval UI, D-330 and upstream S-04.01.01 remain open, and independent penetration/full-history verifier remain unverified.
+
 ## 2026-10-31 — Live agent-permission revocation (F-06.01 / D-327)
 
 - Scheduled browser agents now reload workspace permission settings before **each** selected browser action. Owner changes to `deny` stop later actions in the same run; cached reads are covered.

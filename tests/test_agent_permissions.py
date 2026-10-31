@@ -247,3 +247,51 @@ def test_chat_permission_grants_do_not_survive_restart(tmp_path):
         result = restarted.get(route, headers=HEADERS)
         assert result.status_code == 200, result.text
         assert result.json()["granted_tools"] == []
+
+
+def test_chat_grants_reject_deny_and_expire_without_database_storage(tmp_path, monkeypatch):
+    import offsetx_apollo_builder.agent.permissions as permissions
+
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        chat_id = owner.post("/api/v1/ai/chats", headers=HEADERS, json={"title": "Deny"}).json()["id"]
+        route = f"/api/v1/ai/chats/{chat_id}/permissions"
+        assert owner.put(API, headers=HEADERS, json={
+            "global_mode": "deny", "tool_rules": {"click": "ask"},
+        }).status_code == 200
+        assert owner.post(route, headers=HEADERS, json={"tool": "click"}).status_code == 403
+        assert owner.get(route, headers=HEADERS).json()["granted_tools"] == []
+        assert owner.put(API, headers=HEADERS, json={
+            "global_mode": "ask", "tool_rules": {"type": "deny"},
+        }).status_code == 200
+        issued = owner.post(route, headers=HEADERS, json={"tool": "click"})
+        assert issued.status_code == 200
+        grants = owner.app.state.chat_permission_grants.get("local", chat_id)
+        assert grants is not None
+        policy = AgentPermissionPolicy(global_mode="ask", tool_rules={"type": "deny"})
+        assert policy.decide("click", grants=grants) == "allow"
+        now = permissions.time.monotonic()
+        monkeypatch.setattr(permissions.time, "monotonic", lambda: now + 3601)
+        assert policy.decide("click", grants=grants) == "ask"
+        assert owner.app.state.chat_permission_grants.get("local", chat_id) is None
+        assert owner.get(route, headers=HEADERS).json()["granted_tools"] == []
+
+
+def test_chat_service_fails_before_responder_for_foreign_workspace(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        service = owner.app.state.ai_chat
+        chat = service.create_chat("Owner data", workspace_id="local")
+        service.add_message(chat["id"], "user", "private text", workspace_id="local")
+        called = []
+        with pytest.raises(ValueError, match="Chat not found"):
+            service.send_message(
+                chat_id=chat["id"], workspace_id="other-space",
+                user_content="pretend to be the owner",
+                responder=lambda **kwargs: called.append(kwargs),
+            )
+        assert called == []
+        assert service.list_messages(chat["id"], workspace_id="other-space") == []
+        with pytest.raises(ValueError, match="Chat not found"):
+            service.add_message(
+                chat["id"], "assistant", "forged", workspace_id="other-space",
+            )
+        assert len(service.list_messages(chat["id"], workspace_id="local")) == 1

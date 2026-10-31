@@ -34,7 +34,7 @@ from ..browser.policy import Refused, check_navigation, host_of
 from ..browser.session import free_port, open_session, probe
 from ..browser.trace import Trace
 from .run import AgentRun, RunOutcome
-from .permissions import AgentPermissionPolicy
+from .permissions import AgentPermissionPolicy, ChatPermissionGrants, read_only_chat_policy
 
 _EVENT = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,99}$")
 _WORKSPACE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -841,7 +841,9 @@ class RoutineAgentExecutor:
         self.broker_factory = broker_factory
 
     async def __call__(
-        self, routine: Routine, event_payload: Mapping[str, Any]
+        self, routine: Routine, event_payload: Mapping[str, Any], *,
+        attended: bool = False,
+        chat_permissions: ChatPermissionGrants | None = None,
     ) -> RoutineExecution:
         # Event data is context, not instruction. It is serialized after a fixed
         # label and bounded so a webhook cannot grow a prompt without limit.
@@ -859,12 +861,20 @@ class RoutineAgentExecutor:
             # Normal reads historically hide malformed JSON and missing files.
             # Security decisions use the strict reader and fail closed.
             reader = getattr(self.workspaces, "raw_permissions", self.workspaces.raw)
-            return AgentPermissionPolicy.from_mapping(
+            current = AgentPermissionPolicy.from_mapping(
                 reader(routine.workspace_id).get("agent_permissions", {})
             )
+            return read_only_chat_policy(current) if attended else current
 
+        if attended and (
+            chat_permissions is not None
+            and chat_permissions.chat_id != routine.id
+        ):
+            raise RoutineError("Chat permissions do not belong to this chat")
         policy = current_permission_policy()
-        navigation_permission = policy.decide("goto")
+        navigation_permission = policy.decide(
+            "goto", grants=chat_permissions if attended else None
+        )
         if navigation_permission != "allow":
             return RoutineExecution(
                 status=(
@@ -878,14 +888,14 @@ class RoutineAgentExecutor:
         port = free_port()
         box = BrowserBox(
             workspace_id=routine.workspace_id,
-            unattended=True,
+            unattended=not attended,
             allowed_hosts=frozenset({routine.target_host}),
             port=port,
         )
         # Re-check immediately before execution too. Creation-time validation
         # is the acceptance criterion; this second check protects old rows if
         # policy becomes stricter after they were created.
-        check_navigation(routine.target_url, unattended=True)
+        check_navigation(routine.target_url, unattended=not attended)
 
         log = tempfile.NamedTemporaryFile(
             "w+", prefix="offcrm-routine-browser-", suffix=".log", delete=False
@@ -927,11 +937,23 @@ class RoutineAgentExecutor:
             page = Page(
                 connection=session.connection,
                 session_id=session_id,
-                unattended=True,
+                unattended=not attended,
                 allowed_hosts=frozenset({routine.target_host}),
                 pace=session.pace,
             )
             await page.start()
+            # A grant can be closed while Chromium starts. Re-check before
+            # the initial navigation, which runs outside AgentRun.
+            now_policy = current_permission_policy()
+            now_mode = now_policy.decide(
+                "goto", grants=chat_permissions if attended else None
+            )
+            if now_mode != "allow":
+                return RoutineExecution(
+                    status="permission_denied" if now_mode == "deny" else "needs_permission",
+                    useful=False,
+                    summary="Browser navigation permission changed before the page opened.",
+                )
             await page.goto(routine.target_url)
 
             trace = Trace.open(
@@ -945,6 +967,7 @@ class RoutineAgentExecutor:
                 trace=trace,
                 decision_data_class=DataClass.INTERNAL,
                 permission_policy=policy,
+                chat_permissions=chat_permissions if attended else None,
                 permission_policy_provider=current_permission_policy,
             )
             # A routine may notify only from a source-verified page finding.
@@ -953,8 +976,19 @@ class RoutineAgentExecutor:
             outcome = await agent.run(
                 goal,
                 step_budget=routine.step_budget,
-                result_schema=("notification",),
+                result_schema=None if attended else ("notification",),
+                # This HTTP path is a short, budgeted, read-oriented request.
+                spend_ceiling_usd=0.25 if attended else 0.0,
+                latency_ceiling_ms=90_000 if attended else 0,
             )
+            if attended:
+                return RoutineExecution(
+                    status=outcome.status,
+                    useful=bool(outcome.findings or outcome.result),
+                    agent_run_id=outcome.run_id,
+                    summary=outcome.message[:2000],
+                    result=outcome.to_dict(),
+                )
             return RoutineExecution.from_agent_outcome(outcome)
         finally:
             if session is not None:

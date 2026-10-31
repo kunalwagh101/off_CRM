@@ -54,6 +54,20 @@ was not accessible through authenticated owner approval or chat deletion.
   - Full SQLite/PostgreSQL, frontend/npm and Chromium stages are separate
     checks; do not infer those results from the targeted pass.
 
+## D-333 project delete false-success closure
+
+A source review found that an authenticated user deleting a foreign
+workspace project received `{\"deleted\": id}` even though the SQL delete
+affected no row. A dedicated two-workspace test was added:
+`test_foreign_workspace_project_delete_reports_not_found`.
+`AIChatService.delete_project` now returns a truthful bool and the HTTP
+route returns 404 for missing or foreign projects. Final application source
+`d2d4788c9b1f76cf2a099c7dae15edc7be4bda16`, isolated Render
+review `dep-dbiqouvlk1mc73ffueb0` triggered. This additional test did
+not have a separately observed RED deployment; no such claim is made.
+The passing 32 tests above belong to the earlier `3588199` source;
+check final QA results separately.
+
 ## Remaining product and security gates
 
 This does NOT yet connect an authenticated attended browser-agent execution

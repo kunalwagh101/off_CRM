@@ -52,6 +52,19 @@ class AgentPermissionUpdate(StrictModel):
     )
 
 
+class AttendedChatGrant(StrictModel):
+    """Explicit owner decision; model-generated text cannot create a grant."""
+    tool: str = Field(min_length=1, max_length=40)
+
+    @field_validator("tool")
+    @classmethod
+    def declared_browser_verb(cls, value: str) -> str:
+        from ..agent.permissions import TOOLS
+        if value not in TOOLS:
+            raise ValueError("Unknown browser tool")
+        return value
+
+
 class AgentRoutineCreate(StrictModel):
     name: str = Field(min_length=1, max_length=120)
     goal: str = Field(min_length=1, max_length=4000)

@@ -56,16 +56,28 @@ provider import path or persistent chat-approval record.
 - First code `08c6380750563fbd9210011150a1d24a8c3ddb7e`: targeted
   **37 passed** on `dep-dbish8o473hc73ahe7r0`; broader QA was not a
   release claim and the D-335 follow-up required correction.
-- Final code `3150fbb0de3a20e7f58f2ddcd59700353677fb0f`, review
-  `dep-dbiskimc6qcc739ivrcg`: **final test/deploy status pending at this
-  checkpoint**. Additional tests cover owner/member scope, internal and
-  attended-only destinations, invalid URL parsing, timeout/failure reference,
-  lease cleanup, and the real executor's goto preflight.
-- Confirm exact targeted, full SQLite, full disposable PostgreSQL,
-  Chromium and Render deployment status from this final review before
-  claiming GREEN. No live provider/browser execution was performed on the
-  isolated Render CI runner. The Docker nested-container and real browser
-  session path need separate owner-supervised acceptance.
+- Final code `3150fbb0de3a20e7f58f2ddcd59700353677fb0f`,
+  isolated Render review `dep-dbiskimc6qcc739ivrcg`:
+  - `uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py`:
+    **40 passed, 1 warning**.
+  - Runtime inventory/close-order cases: **2 passed**; API typed-body contract
+    **1 passed**; hosted readiness **7 passed**; operational health **7 passed**.
+  - Full SQLite `uv run pytest -q`: **2824 passed, 45 skipped,
+    44 warnings**.
+  - Focused disposable PostgreSQL: **215 passed, 1 warning**.
+  - Full disposable PostgreSQL `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q`:
+    **2844 passed, 94 skipped, 44 warnings**.
+  - Board-verifier unit cases **67 passed**, Ruff syntax/severity gate passed,
+    browser Chromium Contacts synthetic 1280px and 390px **PASS**.
+  - Frontend build and audit checks were part of the reviewed Docker build.
+  - Render `LIVE` review status must be confirmed separately; a completed
+    test stage does not prove a running service.
+  - Additional tests cover owner/member scope, internal and attended-only
+    destinations, invalid URL parsing, failure references, lease cleanup,
+    and the executor's goto preflight.
+- No real external provider/Docker browser execution was performed on the
+  isolated Render test runner. The actual browser session, DNS rebinding
+  firewall and owner-supervised experience require distinct live acceptance.
 
 ## Remaining release blockers
 

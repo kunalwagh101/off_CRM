@@ -1,4 +1,9 @@
 # Changelog
+
+## 2026-11-01 — Separate public visitor demo
+
+- Add opt-in sample-only read-only visitor installation, public-demo workspace, visible login details and sample data. Private credentials are never advertised. Startup refuses existing private storage and shared database configuration; timers and connected-service actions stay disabled.
+- Separate Render deployment and full review evidence are tracked in docs/evidence/2026-11-01-public-visitor-demo.md. S-06.02.53 remains IN_REVIEW pending deployment acceptance.
 ## 2026-10-31 — Owner browser-run cancellation (F-06.01)
 
 - Added GET `/api/v1/ai/chats/{chat_id}/browser-runs` to view an owner chat's active run ID, and owner-only DELETE `/api/v1/ai/chats/{chat_id}/browser-runs/{run_id}` to request cancellation (HTTP 202). Foreign and stale run IDs cannot cancel other tasks. The existing POST now returns `cancelled` only after the running task's cancellation and cleanup; its workspace browser lease is always released.

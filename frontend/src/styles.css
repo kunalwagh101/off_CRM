@@ -1074,3 +1074,9 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
     justify-self: start;
   }
 }
+
+.demo-credentials { margin:0 0 20px; padding:14px; border:1px solid var(--border); border-radius:8px; background:#f4f7f5; color:#14213a; font-size:.8rem; }
+.demo-credentials p { margin:8px 0; overflow-wrap:anywhere; }
+.demo-credentials code { user-select:all; font-weight:600; }
+.demo-credentials small { display:block; line-height:1.5; color:#526170; }
+.demo-banner { padding:12px 16px; border:1px solid #a4c4b3; border-radius:8px; background:#edf6f0; color:#234b36; line-height:1.5; }

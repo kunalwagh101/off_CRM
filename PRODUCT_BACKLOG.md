@@ -623,6 +623,15 @@ that** one client's customers and product text never reach another's login.
 
 ### F-06.02 — Non-functional work, with its own IDs  *(E-06)*
 
+#### S-06.02.53 — Separate public visitor demo with visible login details
+**As the** owner, **I want** visitors to use a dedicated demo account shown on the login screen, **so that** my credentials and QA data stay private.
+- **Given** a separate sample-only installation, **when** a visitor opens sign-in, **then** its public username and password are displayed and prefilled; private installations never disclose credentials.
+- **Given** the visitor credentials, **when** signed in, **then** the account is in `public-demo`, sees one paused sample campaign and three fictional contacts, and can log out without affecting another session.
+- **Given** any anonymous or visitor request, **when** it attempts a mutation other than login/logout or a connected-service read, **then** the server refuses before validation or execution.
+- **Given** private/QA storage, external database, escaped paths or private integration settings, **when** public demo mode starts, **then** startup refuses rather than publishing existing data.
+- **Given** a restart, **when** the sample-only folder is reopened, **then** no duplicate sample records appear, no scheduler starts, and stale advertised credentials cause startup refusal.
+**Dependencies:** none. **Size:** S. **Tests:** `tests/test_public_demo.py`, frontend login rendering, `scripts/live/review_public_demo_browser.py`. **Status:** IN_REVIEW until separate Render deployment and real browser acceptance.
+
 #### S-06.02.52 — Owner can inspect operational scheduler health (A17)
 - **Given** the install owner, **when** they call `GET /api/v1/operations/health`, **then** the report lists email automation, content automation and all-workspace agent-routine scheduler health with static codes, without secrets, customer content or raw exceptions.
 - **Given** an enabled but stopped scheduler, **when** the report is requested, **then** the relevant component is degraded and `alert_required=true`, while optional automation does not turn `/health/ready` into an HTTP 503.
@@ -912,6 +921,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-162 | Keys, settings, logins and CRM data survive a deploy on the free plan, in a hosted PostgreSQL | S-06.03.01, S-06.03.02, S-06.03.03, S-06.03.04, S-06.03.05, S-06.03.06, S-06.03.07 |
 | R-167 | Browser network isolation denies non-public destinations before connection | S-03.01.03 |
 | R-168 | Public fetcher connections use verified public destination addresses | S-05.01.04 |
+| R-170 | Third-party visitors use a separate sample-only read-only installation with a visible public login | S-06.02.53 |
 | R-169 | A real low-bitrate WebM with encoded frames must not fail a byte-length-only export gate | S-06.02.39 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*

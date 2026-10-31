@@ -22,6 +22,7 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run ruff check --select E9,F63,F7,F82 .
+RUN uv run pytest -q tests/test_public_demo.py tests/test_api_auth.py
 # F-06.03 storage readiness TDD: fail fast before the long regression stages.
 RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 # F-06.01.02: targeted permission and browser action-gate tests run first.
@@ -56,6 +57,7 @@ FROM backend-checks AS chromium-checks
 RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
 RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
 RUN uv run --no-sync python scripts/live/review_contacts_browser.py
+RUN uv run --no-sync python scripts/live/review_public_demo_browser.py
 
 # Review-only PostgreSQL: all state is disposable inside this Docker build.
 # Both runs use a real PostgreSQL server and never touch Render QA/customer DB.

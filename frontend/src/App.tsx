@@ -147,7 +147,7 @@ export function skipToMainContent(event: { preventDefault(): void }) {
   focusMainContent();
 }
 
-export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => void }) {
+export function LoginScreen({ onLogin, publicDemo }: { onLogin: (session: AuthSession) => void; publicDemo?: AuthSession["public_demo"] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -161,7 +161,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
         username: String(data.get("username") ?? ""),
         password: String(data.get("password") ?? "")
       });
-      onLogin({ configured: true, authenticated: result.authenticated, username: result.username, expires_at: null });
+      onLogin({ configured: true, authenticated: result.authenticated, username: result.username, expires_at: null, public_demo: publicDemo });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed");
     } finally {
@@ -173,16 +173,22 @@ export function LoginScreen({ onLogin }: { onLogin: (session: AuthSession) => vo
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
         <div className="login-brand"><span className="brand-symbol">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
-        <p className="eyebrow">Protected demo</p>
+        <p className="eyebrow">{publicDemo ? "Visitor demo" : "Protected workspace"}</p>
         <h1 id="login-title">Sign in to the CRM</h1>
-        <p className="login-copy">Use the temporary demo credentials configured privately in Render.</p>
+        <p className="login-copy">{publicDemo ? "Explore the CRM with fictional sample data. Use the demo login below." : "Use the private credentials given by your workspace owner."}</p>
+        {publicDemo ? <aside className="demo-credentials" aria-label="Demo login details">
+          <strong>Try the visitor demo</strong>
+          <p>Username: <code>{publicDemo.username}</code></p>
+          <p>Password: <code>{publicDemo.password}</code></p>
+          <small>Read-only access. Your personal account is not needed.</small>
+        </aside> : null}
         <form className="form-stack" onSubmit={submit}>
-          <Field label="Username"><input name="username" autoComplete="username" required autoFocus /></Field>
-          <Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>
+          <Field label="Username"><input name="username" autoComplete="username" defaultValue={publicDemo?.username} required autoFocus /></Field>
+          <Field label="Password"><input name="password" type="password" autoComplete="current-password" defaultValue={publicDemo?.password} required /></Field>
           {error ? <p className="login-error" role="alert">{error}</p> : null}
           <Button type="submit" busy={busy}>Sign in</Button>
         </form>
-        <p className="login-safety">Demo mode uses the local outbox. Gmail is not required.</p>
+        <p className="login-safety">{publicDemo ? "Sample data only. Email sending and connected services are disabled." : "Gmail is not required to sign in."}</p>
       </section>
     </main>
   );
@@ -258,7 +264,9 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
     }),
     [campaigns, campaignId, activeCampaign, selection]
   );
-  const Screen = pages[page];
+  const demoPages = new Set<Page>(["dashboard", "campaigns", "contacts", "readiness", "activity", "replies", "followups", "priorities", "crmsearch", "accounts", "attribution", "crmquality", "campaigncompare", "followupmetrics", "drafts", "queue", "sales", "experiments"]);
+  const visibleNavigation = auth.public_demo ? navigation.filter((item) => demoPages.has(item.page)) : navigation;
+  const Screen = pages[auth.public_demo && !demoPages.has(page) ? "dashboard" : page];
 
   return (
     <AppContext.Provider value={context}>
@@ -270,7 +278,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
             <span><strong>off_CRM</strong><small>Your outreach, your data</small></span>
           </a>
           <nav aria-label="Main navigation">
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <div key={item.page}>
                 {item.group ? <p className="nav-group">{item.group}</p> : null}
                 <a
@@ -313,7 +321,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
             </div>
           </header>
           <nav className="mobile-nav" aria-label="Mobile navigation">
-            {navigation.map((item) => (
+            {visibleNavigation.map((item) => (
               <a
                 key={item.page}
                 className={page === item.page ? "nav-active" : ""}
@@ -325,6 +333,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
             ))}
           </nav>
           <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content">
+            {auth.public_demo ? <p className="demo-banner" role="status">Visitor demo · Fictional sample data · Read-only. Changes, email sending and connected services are disabled.</p> : null}
             {campaignsResource.storageWarning ? <p className="form-note" role="alert">{campaignsResource.storageWarning}</p> : null}
             {campaignsResource.selectionNotice ? <p className="form-note" role="status">{campaignsResource.selectionNotice}</p> : null}
             {campaignsResource.error ? <StatePanel title="Could not refresh campaigns" description={campaignsResource.error + (campaignsResource.ready ? " Your current selection has been kept." : " Retry before starting campaign work.")} action={<Button onClick={() => void selection.refresh()} busy={campaignsResource.loading}>Retry campaigns</Button>} /> : null}
@@ -375,7 +384,7 @@ export default function App() {
       await api.post("/auth/logout", {});
     } finally {
       setToken("");
-      setAuth({ ...EMPTY_AUTH, configured: true });
+      setAuth({ ...EMPTY_AUTH, configured: true, public_demo: auth?.public_demo });
     }
   }
 
@@ -386,7 +395,7 @@ export default function App() {
     return <main className="login-shell"><div className="spinner spinner-large" aria-label="Loading CRM" /></main>;
   }
   if (auth.configured && !auth.authenticated) {
-    return <LoginScreen onLogin={setAuth} />;
+    return <LoginScreen onLogin={setAuth} publicDemo={auth.public_demo} />;
   }
   return <AuthenticatedApp auth={auth} onLogout={logout} />;
 }

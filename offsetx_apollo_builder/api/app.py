@@ -29,6 +29,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .. import __version__
 from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message
 from .video_upload_guard import VideoUploadBodyGuard
+from . import public_demo
 from ..agent.active_runs import ChatBrowserRuns
 from ..agent.companions import CompanionError, CompanionRegistry
 from ..agent.routines import (
@@ -512,6 +513,7 @@ def _idempotent(
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved = settings or AppSettings.from_env()
     resolved.validate()
+    public_demo.prepare(resolved)
     resolved.prepare()
     resolved.ensure_session_secret()
     # With OFFSETX_DATABASE_URL, keys, AI settings, the usage counters and the
@@ -538,8 +540,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     workspace_auth.bootstrap(
         username=resolved.demo_username,
         password=resolved.demo_password,
-        workspace_id="local",
+        workspace_id="public-demo" if resolved.public_demo else "local",
     )
+    if resolved.public_demo:
+        identity = workspace_auth.authenticate(resolved.demo_username, resolved.demo_password)
+        if identity is None or identity.workspace_id != "public-demo":
+            raise ValueError("Public demo login differs from stored sample account; use an empty dedicated data folder")
     login_limiter = LoginAttemptLimiter()
     loopback = resolved.host in {"127.0.0.1", "localhost", "::1"}
 
@@ -880,6 +886,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     "Stop it, then start off_CRM again."
                 ) from exc
         _open_runtime(app, {})
+        if resolved.public_demo:
+            public_demo.seed(app.state.engine)
         # Production is one instance per disk: SQLite state is not shared
         # between web instances, and the lock refuses a second one.
         lease = (
@@ -889,7 +897,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
         with lease:
             for name in TIMERS:
-                await getattr(app.state, name).start()
+                if not resolved.public_demo:
+                    await getattr(app.state, name).start()
             try:
                 yield
             finally:
@@ -991,6 +1000,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
             )
 
+        if resolved.public_demo and not public_demo.request_allowed(request.method, request.url.path):
+            return security_headers(JSONResponse(status_code=403, content={"detail": (
+                "This visitor demo is read-only. Explore the sample CRM data; "
+                "changes and connected services are disabled."
+            )}))
         is_public = is_public_api_path(request.url.path)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
@@ -1184,6 +1198,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 else ("local" if token_authenticated or resolved.allow_unauthenticated else "")
             ),
             "expires_at": identity.expires_at if identity else None,
+            **({"public_demo": {
+                "username": resolved.demo_username, "password": resolved.demo_password,
+                "read_only": True,
+            }} if resolved.public_demo else {}),
         }
 
     @app.post(f"{API_PREFIX}/auth/login")

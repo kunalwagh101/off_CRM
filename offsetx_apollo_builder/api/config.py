@@ -41,6 +41,7 @@ class AppSettings:
     #: True when the token came from the file beside the data, so a restore that
     #: brings back an older file must reload it (S-06.02.21).
     api_token_from_file: bool = False
+    public_demo: bool = False
     demo_username: str = ""
     demo_password: str = ""
     session_secret: str = ""
@@ -85,6 +86,7 @@ class AppSettings:
             host=os.getenv("OFFSETX_WEB_HOST", "127.0.0.1").strip(),
             port=int(os.getenv("PORT") or os.getenv("OFFSETX_WEB_PORT", "8766")),
             api_token=os.getenv("OFFSETX_LOCAL_API_TOKEN", "").strip(),
+            public_demo=_enabled(os.getenv("OFFSETX_PUBLIC_DEMO", "")),
             demo_username=os.getenv("OFFSETX_DEMO_USERNAME", "").strip(),
             demo_password=os.getenv("OFFSETX_DEMO_PASSWORD", ""),
             session_secret=os.getenv("OFFSETX_SESSION_SECRET", ""),
@@ -130,6 +132,8 @@ class AppSettings:
         return settings
 
     def validate(self) -> None:
+        from .public_demo import validate_layout
+        validate_layout(self)
         loopback = self.host in {"127.0.0.1", "localhost", "::1"}
         demo_values = (self.demo_username, self.demo_password, self.session_secret)
         # The session secret also signs workspace logins (S-06.01.01), so a

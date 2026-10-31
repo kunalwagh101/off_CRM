@@ -67,7 +67,10 @@ export type Campaign = {
   control_variant: string;
 };
 
+export type PublicDemo = { username: string; password: string; read_only: boolean };
+
 export type AuthSession = {
+  public_demo?: PublicDemo;
   configured: boolean;
   authenticated: boolean;
   username: string;

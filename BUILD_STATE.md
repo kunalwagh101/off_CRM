@@ -1,5 +1,9 @@
 # BUILD_STATE.md
 
+## 2026-11-01 — Separate public visitor demo (S-06.02.53)
+
+Owner requested a visible demo login separate from owner and QA accounts. Implemented opt-in sample-only installation, public-demo workspace, read-only server guard, visible/prefilled credentials and visitor banner. Existing CRM tenancy limits require a separate Render service, with fresh local sample-only storage and no hosted DB or private integrations. Targeted local 49 Python and 213 frontend tests/build pass; full Render and browser verification pending. See docs/evidence/2026-11-01-public-visitor-demo.md. Private and QA services unchanged. IN_REVIEW, develop only.
+
 ## 2026-10-31 — cancel in-flight owner browser read
 
 **Current feature slice:** F-06.01 / S-06.01.02 (IN_REVIEW). Added owner-only GET of the active chat browser run and DELETE cancellation by opaque run ID, with a process-local asyncio task registry. The POST browser-read task now returns `cancelled` after its runner has handled cancellation and the shared workspace browser lease is released in a finally block. Chat deletion, runtime restore and shutdown request cancellation. Registry has a close hook and a non-durable inventory entry; no schema migration or new AI provider path. No cross-process cancellation or live watch/cancel UI is claimed.

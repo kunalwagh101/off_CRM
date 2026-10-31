@@ -32,6 +32,8 @@ anything) · `process` (the way we work went wrong, not the code).
 
 | ID | Found | Kind | Severity | What went wrong, in one line | Status |
 |---|---|---|---|---|---|
+| D-338 | 2026-11-01 | security/usability | high | The existing privately configured demo login is the install owner, and CRM campaign/contact rows are shared across logins. Publishing that password or adding a guest over the same installation could expose owner/QA data. Added separate sample-only public-demo installation with fail-closed storage guards and server read-only access. | S-06.02.53 IN_REVIEW; targeted local checks passed, Render verification pending |
+| D-339 | 2026-11-01 | process | medium | Baseline board verifier found S-06.01.02 in BACKLOG and IN_REVIEW. Removed obsolete BACKLOG copy and preserved full existing IN_REVIEW evidence. | fixed in S-06.02.53 documentation; verifier rerun pending |
 | D-01 | 2026-08-25 | bug | high | The CDP client froze forever when a listener replied to an event | fixed · `S-03.01.01` |
 | D-02 | 2026-08-25 | security | high | A URL checker checked its own prefix, so its first rule never ran | fixed · `S-03.01.01` |
 | D-03 | 2026-08-25 | process | medium | A test passed with the feature deleted | fixed · `S-03.01.01` |

@@ -43,6 +43,17 @@ describe("shared production UI", () => {
     expect(html).toContain("Gmail is not required");
   });
 
+  it("shows only explicitly supplied public demo credentials", () => {
+    const publicHtml = renderToStaticMarkup(<LoginScreen onLogin={() => undefined} publicDemo={{ username: "visitor", password: "Public-Demo-2026!", read_only: true }} />);
+    expect(publicHtml).toContain("Demo login details");
+    expect(publicHtml).toContain("Public-Demo-2026!");
+    expect(publicHtml).toContain('value="visitor"');
+    expect(publicHtml).toContain("Read-only access");
+    const privateHtml = renderToStaticMarkup(<LoginScreen onLogin={() => undefined} />);
+    expect(privateHtml).not.toContain("Demo login details");
+    expect(privateHtml).not.toContain("Public-Demo-2026!");
+  });
+
   it("renders all sales tracker operating views from one lead-card source", () => {
     const html = renderToStaticMarkup(
       <AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: () => undefined, createCampaign: async () => { throw new Error("Unexpected creation in a rendering test"); }, refreshCampaigns: () => undefined, notify: () => undefined }}>

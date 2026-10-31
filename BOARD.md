@@ -45,7 +45,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
   work_order: docs/work-orders/S-04.01.02-on-demand-agent-skills.md
 - S-04.01.03 · Sub-agents for context isolation
 - S-04.01.04 · The five roles, wired to what already exists
-- S-06.01.02 · Three-level permissions
 - S-06.01.05 · Deployment, monitoring and rollback
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
@@ -141,6 +140,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.53 · Public visitor demo has its own visible login and isolated sample data
+  work_order: docs/work-orders/S-06.02.53-public-visitor-demo.md
+  review: 49 targeted Python checks, 213 frontend tests and production frontend build passed locally; separate Render full regression and browser acceptance pending. No private/QA data or credential reuse.
 
 - S-06.02.52 · Owner sees operational scheduler health separate from web readiness
   work_order: docs/work-orders/S-06.02.52-operational-health.md

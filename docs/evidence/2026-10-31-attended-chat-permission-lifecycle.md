@@ -72,6 +72,27 @@ not have a separately observed RED deployment; no such claim is made.
 The passing 32 tests above belong to the earlier `3588199` source;
 check final QA results separately.
 
+## D-334 full SQLite failure and runtime lifecycle correction
+
+Final pre-inventory source `d2d4788` was tested in isolated Render
+`dep-dbiqouvlk1mc73ffueb0`. Targeted permissions **33 passed**,
+typed-body **1 passed**, hosted readiness **7 passed** and operational health
+**7 passed**. The first complete SQLite run **FAILED** with
+**2 failed / 2815 passed / 45 skipped / 44 warnings**:
+`test_every_open_service_is_closed_for_a_restore` and
+`test_every_service_the_app_opens_is_classified`. The new transient registry
+was not part of the existing app-state inventory or generic restore-close
+contract. These were real regressions, not waived.
+
+Fix: `ChatPermissionRegistry.close()` now revokes all grants and is listed
+in `RUNTIME_CLOSE_ORDER` before persistent services. Per-chat closure
+is `revoke_chat()`; `db/inventory.py NOT_STORES` records this as an
+in-memory service that persists nothing. `Dockerfile.review` now runs
+both regression tests **before** the full suite. Corrected source
+`8a35417505d6c03efc4f13ec79b2e3bdcc7bc304`, QA
+`dep-dbiqtah42hec73b8v1sg` triggered; target/full/Chromium and LIVE
+status require separate results.
+
 ## Remaining product and security gates
 
 This does NOT yet connect an authenticated attended browser-agent execution

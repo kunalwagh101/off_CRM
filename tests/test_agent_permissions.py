@@ -313,3 +313,24 @@ def test_attended_grant_is_revoked_on_app_shutdown(tmp_path):
         policy = AgentPermissionPolicy(global_mode="ask")
         assert policy.decide("click", grants=grants) == "allow"
     assert policy.decide("click", grants=grants) == "ask"
+
+
+def test_foreign_workspace_project_delete_reports_not_found(tmp_path):
+    """Do not report successful deletion when the project belongs to a tenant."""
+    with TestClient(create_app(_settings(tmp_path))) as owner:
+        project = owner.post("/api/v1/ai/projects", headers=HEADERS,
+                             json={"name": "Owner project"})
+        assert project.status_code == 200
+        project_id = project.json()["id"]
+        created = owner.post("/api/v1/workspaces", headers=HEADERS, json={
+            "username": "project-member", "workspace_id": "member-project",
+            "password": "another-safe-password-123",
+        })
+        assert created.status_code == 201
+        member = TestClient(owner.app)
+        assert member.post("/api/v1/auth/login", json={
+            "username": "project-member", "password": "another-safe-password-123",
+        }).status_code == 200
+        assert member.get("/api/v1/ai/projects").json()["items"] == []
+        assert member.delete(f"/api/v1/ai/projects/{project_id}").status_code == 404
+        assert owner.get("/api/v1/ai/projects", headers=HEADERS).json()["items"][0]["id"] == project_id

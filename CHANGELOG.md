@@ -3,7 +3,7 @@
 
 - Added owner-only, strictly typed and workspace-locked `POST /api/v1/ai/chats/{chat_id}/browser-runs`. A bounded goal and public URL reach the existing sandboxed AgentRun with the chat's temporary grants, strict live workspace policy and broker egress boundary. Read-only overlay denies click/type/press/select, and a 115-second wall / 90-second latency / $0.25 spend limit bounds a request.
 - Security fix D-335: an HTTP request is not a watched browser session; always enforce the existing unattended domain rule. Render RED `dep-dbisj1ks728c7386u920` **1 failed / 36 passed**; corrected on `3150fbb`. Malformed URL/embedded credential rejection (D-336), owner scope, lease cleanup and executor preflight tests added.
-- TDD RED `f92a3e5`, isolated Render `dep-dbisfo67bikc73dohamg`: **4 failed / 33 passed**. Targeted GREEN on latest `3150fbb`: **40 passed**. Full regression/deployment status must be verified separately.
+- TDD RED `f92a3e5`, isolated Render `dep-dbisfo67bikc73dohamg`: **4 failed / 33 passed**. Targeted GREEN on latest `3150fbb`: **40 passed**. Final source `3150fbb` passed full SQLite **2824**, focused PostgreSQL **215**, full PostgreSQL **2844**, Chromium desktop/mobile, Ruff and verifier unit **67**; isolated Render `dep-dbiskimc6qcc739ivrcg` **LIVE**. No customer-facing attended run or production promotion.
 - Remains IN_REVIEW: no live watch/cancel UI, no demonstrated real external provider/Docker browser session, owner-only read-oriented (not fully attended), DNS rebinding and production durability controls, D-330, upstream companions, independent pen and history verifier. No `main` or production deployment.
 
 ## 2026-10-31 — Authenticated chat tenant isolation and temporary browser approvals (F-06.01)

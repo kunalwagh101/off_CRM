@@ -173,3 +173,62 @@ def test_operator_cli_requires_explicit_choice_and_archive_location(legacy, stor
     ]) == 2
     assert (legacy / "automation.json").exists()
     assert "--yes" in capsys.readouterr().err
+
+
+def test_exclusive_migration_refuses_while_an_active_workspace_lock_is_held(
+    legacy, storage, tmp_path
+):
+    from offsetx_apollo_builder.outreach.workspace_lock import WorkspaceLock
+
+    with WorkspaceLock(legacy):
+        with pytest.raises(TimerMigrationError, match="busy"):
+            migrate_timers(storage, legacy, tmp_path / "archive", import_settings=True)
+    assert (legacy / "automation.json").exists()
+    assert storage.read("timer.email") is None
+
+
+def test_successful_cli_import_from_real_entrypoint_is_disabled(
+    legacy, tmp_path, monkeypatch, capsys
+):
+    key = Fernet.generate_key().decode()
+    target = str(tmp_path / "hosted.db")
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", target)
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", key)
+    assert db_cli.main([
+        "import-timers", "--data-dir", str(legacy),
+        "--archive-dir", str(tmp_path / "protected-archive"), "--yes",
+    ]) == 0
+    stdout = capsys.readouterr().out
+    assert "disabled" in stdout
+    reopened = HostedStorage(target, key)
+    try:
+        assert _email(legacy / "automation.json", reopened).config()["enabled"] is False
+        assert _content(legacy / "content_automation.json", reopened).config()["enabled"] is False
+    finally:
+        reopened.close()
+
+
+def test_retry_after_interruption_between_db_commit_and_cleanup(
+    legacy, storage, tmp_path, monkeypatch
+):
+    original = Path.unlink
+    interrupted = {"once": False}
+
+    def crash_once(self, *args, **kwargs):
+        if self.name == "automation.json" and not interrupted["once"]:
+            interrupted["once"] = True
+            raise OSError("simulated interruption after commit")
+        return original(self, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", crash_once)
+        with pytest.raises(OSError, match="simulated interruption"):
+            migrate_timers(storage, legacy, tmp_path / "archive", import_settings=True)
+
+    assert (legacy / "automation.json").exists()
+    assert (tmp_path / "archive" / "automation.json").exists()
+    assert storage.read("timer.email") is not None
+    assert sorted(migrate_timers(storage, legacy, tmp_path / "archive", import_settings=True)) == [
+        "automation.json", "content_automation.json"
+    ]
+    assert not (legacy / "automation.json").exists()

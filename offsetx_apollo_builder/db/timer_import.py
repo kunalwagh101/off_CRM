@@ -8,10 +8,12 @@ from __future__ import annotations
 import json
 import os
 import stat
+from contextlib import contextmanager
 from pathlib import Path
 
 from .hosted import HostedStorage
-from ..outreach.workspace_lock import cli_workspace_lease
+from ..outreach.backup import restore_pending
+from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 
 TIMERS = (
     ("automation.json", "timer.email"),
@@ -83,6 +85,22 @@ def _archive_one(target: Path, raw: bytes) -> None:
         raise
 
 
+@contextmanager
+def _exclusive_workspace_lock(root: Path):
+    """No active web request, timer mutation or workspace restore may overlap."""
+    try:
+        with WorkspaceLock(root, exclusive=True):
+            if restore_pending(root):
+                raise TimerMigrationError(
+                    "A workspace restore is pending. Resolve recovery before changing timer settings."
+                )
+            yield
+    except WorkspaceBusy:
+        raise TimerMigrationError(
+            "The workspace is busy. Stop the app and worker before migrating timers."
+        ) from None
+
+
 def migrate_timers(
     storage: HostedStorage, data_dir: Path, archive_dir: Path, *, import_settings: bool
 ) -> list[str]:
@@ -100,7 +118,7 @@ def migrate_timers(
         raise TimerMigrationError("Choose an archive outside the temporary data workspace.")
     if archive in (root / filename for filename, _ in TIMERS):
         raise TimerMigrationError("Choose an archive outside the temporary data workspace.")
-    with cli_workspace_lease(root):
+    with _exclusive_workspace_lock(root):
         sources: dict[str, bytes] = {}
         for filename, _ in TIMERS:
             local = root / filename

@@ -312,22 +312,22 @@ unresolved; this slice does not complete F-06.03 or lift production blockers.
 
 ## Legacy scheduler migration (operator-only, 2026-11-02)
 
-A hosted installation with a remaining \`automation.json\` or
-\`content_automation.json\` refuses to boot rather than ignoring old consent.
-Stop the web app and every email/content worker. Set \`OFFSETX_DATABASE_URL\`
-and \`OFFSETX_SECRETS_KEY\` for this *same* installation, and choose an
+A hosted installation with a remaining `automation.json` or
+`content_automation.json` refuses to boot rather than ignoring old consent.
+Stop the web app and every email/content worker. Set `OFFSETX_DATABASE_URL`
+and `OFFSETX_SECRETS_KEY` for this *same* installation, and choose an
 access-controlled **persistent** archive directory outside the data root.
 Then deliberately choose **one**:
 
-\`\`\`bash
+```bash
 offsetx-db import-timers --data-dir /old/offsetx-data --archive-dir /durable/private/timers --yes
 offsetx-db import-timers --data-dir /old/offsetx-data --archive-dir /durable/private/timers --skip
-\`\`\`
+```
 
-- \`--yes\`: archives both original JSON files unchanged, imports the settings
+- `--yes`: archives both original JSON files unchanged, imports the settings
   into hosted documents, but disables automation, Gmail live-send consent and
   every content posting pair. Re-enable only through the approved app controls.
-- \`--skip\`: archives old files unchanged and keeps the hosted values; nothing
+- `--skip`: archives old files unchanged and keeps the hosted values; nothing
   new is scheduled by this command.
 - Both modes refuse symbolic-link sources, archive collisions, unprivate archive
   locations, a concurrent workspace operation, a pending restore and ambiguous
@@ -339,7 +339,7 @@ offsetx-db import-timers --data-dir /old/offsetx-data --archive-dir /durable/pri
   permissions are 0700. The tool has not been run on a customer installation.
 - Current supported configuration migration does not migrate media files,
   mail/post outboxes, CRM databases or OAuth tokens. It is not an independent
-  production worker. See \`S-06.03.04\`, \`S-06.03.06\`, \`S-06.02.40\`.
+  production worker. See `S-06.03.04`, `S-06.03.06`, `S-06.02.40`.
 
 Rollback: with the app/worker stopped, verify the archived JSON copies on a
 persistent disk, recover the prior local configuration if necessary, and use

@@ -716,7 +716,7 @@ multi-instance supervised scheduler exist. See S-06.03.06 and S-06.02.40.
 
 ### DD-41 — Manual archive-first timer import, no consent carryover · 2026-11-02
 
-**The call.** An explicit \`offsetx-db import-timers\` CLI action uses the
+**The call.** An explicit `offsetx-db import-timers` CLI action uses the
 existing hosted-document transaction to accept or skip old timer settings.
 Its operator-supplied archive must sit outside the app data directory, use
 private permissions, keep the original bytes, and be fully fsynced before

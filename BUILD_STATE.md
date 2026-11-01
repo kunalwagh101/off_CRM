@@ -2,9 +2,9 @@
 
 ## 2026-11-02 — S-06.03.06 legacy timer configuration migration
 
-Source \`095c1a6\` test-first: initial Render \`dep-dbjrc2h42hec73ds2qr0\` stopped with missing timer-import module, as expected. Code \`3e9b87c\`: nine focused migration tests and six timer-persistence regressions passed in isolated Render \`dep-dbjrd3p42hec73ds5j40\`; full suite not yet confirmed at this checkpoint. Security follow-up \`fe93aad\`: use an exclusive workspace lock instead of the shared lease; adds tests for concurrent workspace use, CLI positive path, and retry after database commit. **The security follow-up has not yet been tested on Render** at this checkpoint.
+Source `095c1a6` test-first: initial Render `dep-dbjrc2h42hec73ds2qr0` stopped with missing timer-import module, as expected. Code `3e9b87c`: nine focused migration tests and six timer-persistence regressions passed in isolated Render `dep-dbjrd3p42hec73ds5j40`; full suite not yet confirmed at this checkpoint. Security follow-up `fe93aad`: use an exclusive workspace lock instead of the shared lease; adds tests for concurrent workspace use, CLI positive path, and retry after database commit. **The security follow-up has not yet been tested on Render** at this checkpoint.
 
-The \`import-timers\` command is operator-only and does not perform an actual migration or external send unless invoked by the install owner. It refuses conflicting stored settings, archives old JSON privately outside the ephemeral workspace, and imports timers disabled. See \`docs/evidence/2026-11-02-timer-migration.md\`; other F-06.03 stores, Q-29 backups and S-06.02.40 worker remain open. Board retains S-06.03.06 BACKLOG and audit S-06.02.23 IN_PROGRESS. No main/customer deploy.
+The `import-timers` command is operator-only and does not perform an actual migration or external send unless invoked by the install owner. It refuses conflicting stored settings, archives old JSON privately outside the ephemeral workspace, and imports timers disabled. See `docs/evidence/2026-11-02-timer-migration.md`; other F-06.03 stores, Q-29 backups and S-06.02.40 worker remain open. Board retains S-06.03.06 BACKLOG and audit S-06.02.23 IN_PROGRESS. No main/customer deploy.
 
 
 ## 2026-11-02 — F-06.03 / S-06.03.06 hosted timer configuration slice

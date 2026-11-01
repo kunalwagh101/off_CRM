@@ -2,8 +2,8 @@
 
 ## 2026-11-02 — Explicit legacy timer migration (S-06.03.06 partial)
 
-- Added \`offsetx-db import-timers --yes|--skip --data-dir PATH --archive-dir PATH\` to copy legacy email/content timer settings safely into existing hosted documents or preserve hosted state. The tool archives original files before changing their names, refuses conflicts and symlinks, and keeps imported schedules and Gmail live-send consent disabled.
-- Tests added for protected backups, conflicting hosted data, partial DB rollback, archive permissions, CLI confirmation, active workspace lock and crash-safe retry. First Render RED stopped at missing module; initial GREEN 9 focused tests passed on \`3e9b87c\`. Exclusive-lock follow-up \`fe93aad\` requires its own Render QA. No main/customer deploy, automatic sends or whole-feature DONE claim.
+- Added `offsetx-db import-timers --yes|--skip --data-dir PATH --archive-dir PATH` to copy legacy email/content timer settings safely into existing hosted documents or preserve hosted state. The tool archives original files before changing their names, refuses conflicts and symlinks, and keeps imported schedules and Gmail live-send consent disabled.
+- Tests added for protected backups, conflicting hosted data, partial DB rollback, archive permissions, CLI confirmation, active workspace lock and crash-safe retry. First Render RED stopped at missing module; initial GREEN 9 focused tests passed on `3e9b87c`. Exclusive-lock follow-up `fe93aad` requires its own Render QA. No main/customer deploy, automatic sends or whole-feature DONE claim.
 
 
 ## 2026-11-02 — Hosted scheduler settings (S-06.03.06 partial)

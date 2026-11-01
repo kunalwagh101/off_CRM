@@ -309,3 +309,39 @@ fails the write and never falls back to disposable files. Existing scheduled
 tasks still require an independently supervised worker and duplicate-effect
 checks before multi-instance use. All other `S-06.03.06` stores remain
 unresolved; this slice does not complete F-06.03 or lift production blockers.
+
+## Legacy scheduler migration (operator-only, 2026-11-02)
+
+A hosted installation with a remaining \`automation.json\` or
+\`content_automation.json\` refuses to boot rather than ignoring old consent.
+Stop the web app and every email/content worker. Set \`OFFSETX_DATABASE_URL\`
+and \`OFFSETX_SECRETS_KEY\` for this *same* installation, and choose an
+access-controlled **persistent** archive directory outside the data root.
+Then deliberately choose **one**:
+
+\`\`\`bash
+offsetx-db import-timers --data-dir /old/offsetx-data --archive-dir /durable/private/timers --yes
+offsetx-db import-timers --data-dir /old/offsetx-data --archive-dir /durable/private/timers --skip
+\`\`\`
+
+- \`--yes\`: archives both original JSON files unchanged, imports the settings
+  into hosted documents, but disables automation, Gmail live-send consent and
+  every content posting pair. Re-enable only through the approved app controls.
+- \`--skip\`: archives old files unchanged and keeps the hosted values; nothing
+  new is scheduled by this command.
+- Both modes refuse symbolic-link sources, archive collisions, unprivate archive
+  locations, a concurrent workspace operation, a pending restore and ambiguous
+  hosted records. All local source filenames are removed **only** after archive
+  fsync and successful hosted transaction. On an interruption, the protected
+  originals and database state permit a checked retry; no silent overwrite.
+- The archive directory is chosen by the operator. A folder under the free
+  Render service or an ephemeral disk **is not a durable backup**, even if
+  permissions are 0700. The tool has not been run on a customer installation.
+- Current supported configuration migration does not migrate media files,
+  mail/post outboxes, CRM databases or OAuth tokens. It is not an independent
+  production worker. See \`S-06.03.04\`, \`S-06.03.06\`, \`S-06.02.40\`.
+
+Rollback: with the app/worker stopped, verify the archived JSON copies on a
+persistent disk, recover the prior local configuration if necessary, and use
+the previous application release. Do not delete hosted documents automatically
+or start two timer instances against the same queue.

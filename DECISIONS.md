@@ -713,3 +713,27 @@ restore or durable media/outbox files.
 
 **Revisit when.** A verified, owner-approved timer import/skip tool and
 multi-instance supervised scheduler exist. See S-06.03.06 and S-06.02.40.
+
+### DD-41 — Manual archive-first timer import, no consent carryover · 2026-11-02
+
+**The call.** An explicit \`offsetx-db import-timers\` CLI action uses the
+existing hosted-document transaction to accept or skip old timer settings.
+Its operator-supplied archive must sit outside the app data directory, use
+private permissions, keep the original bytes, and be fully fsynced before
+removing source names. An exclusive workspace lease prevents simultaneous
+operations. Imports disable all automated email/content scheduling and Gmail
+send consent until the owner reauthorises it; skip preserves hosted settings.
+Conflicting hosted values cause a refusal, not a guess or overwrite.
+
+**Why.** Auto-import at app startup would recreate live unattended actions
+without checking consent, and just discarding local files would lose approved
+schedules. A nonexclusive lease was rejected because two processes could
+change settings between backup and database commit.
+
+**Cost.** Install owners must stop web and worker processes, retain a durable
+private archive and explicitly choose import/skip. There is no transparent
+hands-free migration, and pending schedules do not resume on import.
+A free Render filesystem is *not* a safe archive destination.
+
+**Revisit.** When S-06.03.06 provides verified shared-config migrations for
+all stores and S-06.02.40 delivers supervised, idempotent worker execution.

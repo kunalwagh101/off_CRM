@@ -44,3 +44,7 @@ Direct Render build-log observations from `dep-dbjp60etlv9c73dt6sng`:
 - Full Docker QA gates and image export completed successfully in the observed build log. The Render deployment status at the most recent deployment-status poll was still `build_in_progress`; do not call it LIVE without a separate status observation.
 
 These test cases recheck specific A06/A19/A23 behaviours, not the 35-finding production audit. Remaining issues include live customer authentication/worker, full-history board verifier, independent penetration, external providers and the unresolved durable mail worker. S-06.02.23 stays IN_PROGRESS, and S-06.02.40 is still BACKLOG. No customer production or `main` promotion.
+
+## Final isolated review deployment state
+
+Render connector confirmed isolated review deployment `dep-dbjp60etlv9c73dt6sng` on exact test source `37a6d2f7bc13f4d59a450b381d92c7ce7a825912` reached **LIVE** at **2026-11-01T19:46:27.662103Z** (2026-11-02 01:16:27 IST). This service is the Docker QA marker, not the customer `off-crm` or public visitor application. All listed test and browser stages passed before the marker became LIVE. No customer-facing service was redeployed. The three audit findings have scoped regression evidence, but S-06.02.23 still requires the other findings, full-history board verifier and independent production/security acceptance before DONE.

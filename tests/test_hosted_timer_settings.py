@@ -116,6 +116,7 @@ def test_real_app_uses_hosted_timer_settings_and_reports_them_as_hosted(tmp_path
         data_dir=data, export_dir=data / "exports",
         frontend_dist=tmp_path / "missing-frontend",
         host="127.0.0.1",
+        secrets_key=key,
         api_token="timer-storage-test-token-" + "t" * 30,
         allowed_hosts=("testserver",),
     )

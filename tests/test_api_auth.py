@@ -132,6 +132,37 @@ def test_revoking_one_workspace_session_does_not_revoke_a_second(tmp_path):
 
 
 
+
+def test_api_logout_revokes_only_current_session(tmp_path):
+    """A06: revoking one browser's cookie must not revoke another live login."""
+    settings = _demo_settings(tmp_path)
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        first = client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        )
+        assert first.status_code == 200
+        first_token = first.cookies.get(SESSION_COOKIE)
+        assert first_token
+
+        second = client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        )
+        assert second.status_code == 200
+        second_token = second.cookies.get(SESSION_COOKIE)
+        assert second_token and second_token != first_token
+
+        assert client.get("/api/v1/dashboard").status_code == 200
+        assert client.post("/api/v1/auth/logout", json={}).status_code == 200
+
+        client.cookies.set(SESSION_COOKIE, second_token, domain="crm.test", path="/")
+        assert client.get("/api/v1/dashboard").status_code == 401
+
+        client.cookies.set(SESSION_COOKIE, first_token, domain="crm.test", path="/")
+        assert client.get("/api/v1/dashboard").status_code == 200
+
+
 def test_session_signature_and_expiry_are_enforced():
     auth = DemoSessionAuth(
         username="demo",

@@ -120,7 +120,7 @@ STORES: tuple[StoredThing, ...] = (
     ),
     StoredThing(
         "Timers", "the email and content timers' settings", ("automation.json", "content_automation.json"),
-        "JSON files", LATER, "automation",
+        "JSON files", "hosted database — `S-06.03.06` (timer settings)", "automation",
     ),
     StoredThing(
         "Privacy requests", "data-subject requests and their artifacts",

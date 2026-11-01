@@ -234,7 +234,7 @@ are wiped — so the owner's numbers are still to be taken.
 | Posts | scheduled and sent posts' records | SQLite file | not decided — `S-06.03.06` |
 | Trends | trend snapshots the content engine reads | SQLite file | not decided — `S-06.03.06` |
 | Notion link | the Notion token, encrypted, and target pages | JSON and encrypted files | not decided — `S-06.03.06` |
-| Timers | the email and content timers' settings | JSON files | not decided — `S-06.03.06` |
+| Timers | the email and content timers' settings | JSON files | hosted database — `S-06.03.06` (timer settings) |
 | Privacy requests | data-subject requests and their artifacts | SQLite file | not decided — `S-06.03.06` |
 | Crawler | the discovery crawler's frontier | SQLite file | not decided — `S-06.03.06` |
 | Prospecting files | who was already contacted or ruled out, rejected matches, and lists waiting to be read | CSV files and folders | not decided — `S-06.03.06` |
@@ -290,3 +290,22 @@ are wiped — so the owner's numbers are still to be taken.
 Expensive, not irreversible: PostgreSQL is PostgreSQL, so changing host is a
 dump and a restore, and the SQLite path stays for local installs. The cost is
 the work in phases 1–2 and the network dependency they add.
+
+### 2026-11-02 — S-06.03.06 timer-settings delivery slice
+
+When `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` configure a hosted
+installation, the email and content automation services now read/write named
+`timer.email` and `timer.content` documents in `offcrm_documents`. These
+settings persist across deletion of the local data folder; writes are wrapped
+in the existing cross-process database transaction lock. The local JSON
+behaviour is unchanged for installations without a hosted database.
+
+A pre-existing local timer settings file prevents the hosted install from
+starting rather than being silently ignored or overwritten. The operator
+must first preserve and explicitly migrate the settings. There is no automatic
+migration, no new scheduling side effect, no new independent worker and no
+change to the free-plan filesystem for assets or outboxes. A database outage
+fails the write and never falls back to disposable files. Existing scheduled
+tasks still require an independently supervised worker and duplicate-effect
+checks before multi-instance use. All other `S-06.03.06` stores remain
+unresolved; this slice does not complete F-06.03 or lift production blockers.

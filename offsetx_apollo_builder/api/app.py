@@ -826,6 +826,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 LIVE_SEND_CONFIRMATION if authorized else "",
             ),
             own_email_factory=lambda: resolved.own_email,
+            hosted_storage=hosted,
         )
         # The content engine's own timer. Separate from the email one on
         # purpose: that service is email-shaped — a mail provider, an own
@@ -844,6 +845,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             campaign_status=lambda campaign_id: str(
                 _engine(_TimerScope(app)).store.get_campaign(campaign_id).get("status") or ""
             ),
+            hosted_storage=hosted,
         )
         if previous.get("discovery_fetcher_factory") is not None:
             app.state.discovery_fetcher_factory = previous["discovery_fetcher_factory"]

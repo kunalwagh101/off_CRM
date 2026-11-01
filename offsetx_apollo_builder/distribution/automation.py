@@ -52,6 +52,7 @@ from tempfile import NamedTemporaryFile
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, ContextManager
 
+from ..db.hosted import HostedStorage
 from . import pacing
 from ..outreach.workspace_lock import WorkspaceLock
 from ..observability import ReportedFailure, failure_boundary, failure_message, failure_summary, report_failure
@@ -126,8 +127,15 @@ class ContentAutomationService:
         angle_resolver: Callable[[str, str], str] | None = None,
         campaign_status: Callable[[str], str] | None = None,
         timer_context: Callable[[], ContextManager[None]] | None = None,
+        hosted_storage: HostedStorage | None = None,
     ) -> None:
         self.path = Path(path)
+        self.hosted_storage = hosted_storage
+        if hosted_storage is not None and self.path.is_file():
+            raise ValueError(
+                "Existing local timer settings require an explicit migration before hosted storage starts. "
+                "Keep the local file and resolve it with the install owner."
+            )
         self.trends_factory = trends_factory
         #: Called with the angle, because the pipeline chooses its data class
         #: from whether an angle is present — an owner's positioning is not
@@ -164,20 +172,23 @@ class ContentAutomationService:
 
     def config(self) -> dict[str, Any]:
         payload = dict(DEFAULT_CONTENT_AUTOMATION)
-        if self.path.exists():
-            try:
-                stored = json.loads(self.path.read_text(encoding="utf-8"))
+        try:
+            if self.hosted_storage is not None:
+                body = self.hosted_storage.read("timer.content")
+            else:
+                body = self.path.read_text(encoding="utf-8") if self.path.exists() else None
+            if body is not None:
+                stored = json.loads(body)
                 if isinstance(stored, dict):
                     payload.update(stored)
-            except (OSError, json.JSONDecodeError) as exc:
-                # A corrupt settings file must not start an unattended poster
-                # with whatever half-parsed values survived.
-                self.last_error = (
-                    "Content automation settings are invalid; safe defaults are active "
-                    "and nothing is enabled. "
-                    + failure_message(exc, operation="content.automation.settings", data_dir=self.path.parent)
-                )
-                payload = dict(DEFAULT_CONTENT_AUTOMATION)
+        except (OSError, json.JSONDecodeError) as exc:
+            # Invalid JSON must never enable an unattended poster.
+            self.last_error = (
+                "Content automation settings are invalid; safe defaults are active "
+                "and nothing is enabled. "
+                + failure_message(exc, operation="content.automation.settings", data_dir=self.path.parent)
+            )
+            payload = dict(DEFAULT_CONTENT_AUTOMATION)
         return self._normalise(payload)
 
     @staticmethod
@@ -261,7 +272,12 @@ class ContentAutomationService:
 
     @contextmanager
     def _settings_mutation(self):
-        with self._settings_lock, WorkspaceLock(self.path.parent), WorkspaceLock(self.path, exclusive=True, wait_seconds=2):
+        with (
+            self._settings_lock,
+            WorkspaceLock(self.path.parent),
+            WorkspaceLock(self.path, exclusive=True, wait_seconds=2),
+            self.hosted_storage.exclusive() if self.hosted_storage is not None else nullcontext(),
+        ):
             yield
 
     def register_pipeline(self, pair: dict[str, Any]) -> dict[str, Any]:
@@ -346,11 +362,14 @@ class ContentAutomationService:
                 "distribution campaign to post from and an image campaign to "
                 "draw from — before enabling unattended runs."
             )
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
-            json.dump(normalised, handle, indent=2)
-            temporary = Path(handle.name)
-        os.replace(temporary, self.path)
+        if self.hosted_storage is not None:
+            self.hosted_storage.write("timer.content", json.dumps(normalised, indent=2))
+        else:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
+                json.dump(normalised, handle, indent=2)
+                temporary = Path(handle.name)
+            os.replace(temporary, self.path)
         self.last_error = ""
         # The committed normalized document is the response. Reading it again
         # could fail after activation succeeded and trigger a false rollback.

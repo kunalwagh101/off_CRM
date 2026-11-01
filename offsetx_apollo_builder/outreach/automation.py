@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable
 
+from ..db.hosted import HostedStorage
 from .models import to_utc_iso
 from .workspace_lock import WorkspaceLock
 from ..observability import ReportedFailure, failure_boundary, failure_message, failure_summary, report_failure
@@ -33,8 +34,15 @@ class AutomationService:
         engine_factory: Callable[[], Any],
         mail_provider_factory: Callable[[str, bool], Any],
         own_email_factory: Callable[[], str],
+        hosted_storage: HostedStorage | None = None,
     ):
         self.path = Path(path)
+        self.hosted_storage = hosted_storage
+        if hosted_storage is not None and self.path.is_file():
+            raise ValueError(
+                "Existing local timer settings require an explicit migration before hosted storage starts. "
+                "Keep the local file and resolve it with the install owner."
+            )
         self.engine_factory = engine_factory
         self.mail_provider_factory = mail_provider_factory
         self.own_email_factory = own_email_factory
@@ -47,13 +55,17 @@ class AutomationService:
 
     def config(self) -> dict[str, Any]:
         payload = dict(DEFAULT_AUTOMATION)
-        if self.path.exists():
-            try:
-                stored = json.loads(self.path.read_text(encoding="utf-8"))
+        try:
+            if self.hosted_storage is not None:
+                body = self.hosted_storage.read("timer.email")
+            else:
+                body = self.path.read_text(encoding="utf-8") if self.path.exists() else None
+            if body is not None:
+                stored = json.loads(body)
                 if isinstance(stored, dict):
                     payload.update(stored)
-            except (OSError, json.JSONDecodeError) as exc:
-                self.last_error = "Automation settings are invalid; safe defaults are active. " + failure_message(exc, operation="email.automation.settings", data_dir=self.path.parent)
+        except (OSError, json.JSONDecodeError) as exc:
+            self.last_error = "Automation settings are invalid; safe defaults are active. " + failure_message(exc, operation="email.automation.settings", data_dir=self.path.parent)
         payload["enabled"] = bool(payload.get("enabled"))
         payload["mode"] = "gmail" if payload.get("mode") == "gmail" else "local"
         payload["interval_seconds"] = max(60, min(int(payload.get("interval_seconds", 300)), 86400))
@@ -63,6 +75,12 @@ class AutomationService:
         return payload
 
     def update(self, values: dict[str, Any], *, gmail_confirmation: str = "") -> dict[str, Any]:
+        if self.hosted_storage is not None:
+            with self.hosted_storage.exclusive():
+                return self._update(values, gmail_confirmation=gmail_confirmation)
+        return self._update(values, gmail_confirmation=gmail_confirmation)
+
+    def _update(self, values: dict[str, Any], *, gmail_confirmation: str) -> dict[str, Any]:
         config = self.config()
         for key in {"enabled", "mode", "interval_seconds", "max_messages_per_campaign", "sync_replies_first"}:
             if key in values:
@@ -80,11 +98,14 @@ class AutomationService:
         normalized["mode"] = "gmail" if normalized["mode"] == "gmail" else "local"
         normalized["interval_seconds"] = max(60, min(int(normalized["interval_seconds"]), 86400))
         normalized["max_messages_per_campaign"] = max(1, min(int(normalized["max_messages_per_campaign"]), 500))
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
-            json.dump(normalized, handle, indent=2)
-            temporary = Path(handle.name)
-        os.replace(temporary, self.path)
+        if self.hosted_storage is not None:
+            self.hosted_storage.write("timer.email", json.dumps(normalized, indent=2))
+        else:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
+                json.dump(normalized, handle, indent=2)
+                temporary = Path(handle.name)
+            os.replace(temporary, self.path)
         return self.status()
 
     def status(self) -> dict[str, Any]:

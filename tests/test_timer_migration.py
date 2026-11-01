@@ -232,3 +232,40 @@ def test_retry_after_interruption_between_db_commit_and_cleanup(
         "automation.json", "content_automation.json"
     ]
     assert not (legacy / "automation.json").exists()
+
+
+@pytest.mark.skipif(
+    not os.getenv("OFF_CRM_TEST_POSTGRES_URL"),
+    reason="requires disposable PostgreSQL provided by the isolated test runner",
+)
+def test_disposable_postgres_import_survives_new_connection(legacy, tmp_path):
+    """Real PostgreSQL transaction, advisory locking and persisted documents."""
+    import uuid
+    import psycopg
+
+    base_url = os.environ["OFF_CRM_TEST_POSTGRES_URL"]
+    schema = f"timer_migration_{uuid.uuid4().hex[:12]}"
+    with psycopg.connect(base_url, autocommit=True) as admin:
+        admin.execute(f'CREATE SCHEMA "{schema}"')
+    suffix = "&" if "?" in base_url else "?"
+    isolated = f"{base_url}{suffix}options=-csearch_path%3D{schema}"
+    key = Fernet.generate_key().decode()
+    try:
+        storage = HostedStorage(isolated, key)
+        try:
+            migrated = migrate_timers(
+                storage, legacy, tmp_path / "external-backup", import_settings=True
+            )
+            assert len(migrated) == 2
+        finally:
+            storage.close()
+        reopened = HostedStorage(isolated, key)
+        try:
+            assert _email(legacy / "automation.json", reopened).config()["interval_seconds"] == 900
+            assert _email(legacy / "automation.json", reopened).config()["enabled"] is False
+            assert _content(legacy / "content_automation.json", reopened).config()["enabled"] is False
+        finally:
+            reopened.close()
+    finally:
+        with psycopg.connect(base_url, autocommit=True) as admin:
+            admin.execute(f'DROP SCHEMA "{schema}" CASCADE')

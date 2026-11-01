@@ -44,7 +44,15 @@ def _document(name: str, raw: bytes) -> str:
 
             if "pipelines" in value and not isinstance(value["pipelines"], list):
                 raise ValueError("pipelines must be a list")
+            declared = value.get("pipelines") or []
+            for pair in declared:
+                if not isinstance(pair, dict):
+                    raise ValueError("Each declared pipeline must be an object")
+                if "account_ids" in pair and not isinstance(pair["account_ids"], list):
+                    raise ValueError("Pipeline account_ids must be a list")
             value = ContentAutomationService._normalise(value)
+            if len(value["pipelines"]) != len(declared):
+                raise ValueError("A legacy pipeline has incomplete campaign IDs")
             value["enabled"] = False
             value["pipelines"] = [
                 {**pipeline, "enabled": False}

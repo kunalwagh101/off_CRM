@@ -1,5 +1,13 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — F-06.03 / S-06.03.06 hosted timer configuration slice
+
+**Code:** `ff40ea84843ea119be48b7d1eedbebac23f9e838`, corrected test `6166be72a618736e6bb0a60afcd6235bb45cee22`, branch `develop` only.
+**TDD RED:** `dep-dbjqsn3bc2fs73dkcag0`, new `tests/test_hosted_timer_settings.py` 6 failed before feature code. **GREEN correction:** `dep-dbjqtnjbc2fs73dkedjg` 5 passed, 1 invalid fixture because settings omitted `secrets_key`; fixed fixture, no production guard relaxed. **Current Render review:** `dep-dbjqubh42hec73dr2bu0` pinned to 6166be7; six new tests and seven storage-readiness tests PASS. Full frontend, SQLite, PostgreSQL, Chromium and verifier outcome not yet seen at this checkpoint.
+
+The email/content timer documents are stored in `offcrm_documents` for hosted installations. No temporary-file fallback, silent migration, independent worker or new external provider actions. All other stores in S-06.03.06 remain open and the story stays BACKLOG while S-06.02.23 is IN_PROGRESS; a linked work order records the partial implementation and complete remaining acceptance. No production or main deploy.
+
+
 ## 2026-11-02 — Production audit A06 session-revocation recheck (S-06.02.23)
 **2026-11-02 final observed review gates:** For pinned A06 test source `37a6d2f`, Render `dep-dbjp60etlv9c73dt6sng`: auth 34 PASS; export/contact 19 PASS (A19/A23); full SQLite 2848 PASS/45 skipped; Chromium Contacts and visitor desktop/mobile PASS; focused disposable PostgreSQL 215 PASS; full disposable PostgreSQL 2868 PASS/94 skipped; verifier-unit 67 PASS; 12 concurrent API repetitions PASS. Docker image export succeeded in build logs. The deployment status was not yet independently confirmed LIVE at documentation time; no customer or main deployment. Audit table updated for A06/A19/A23 only; audit still IN_PROGRESS. See `docs/evidence/2026-11-02-a06-logout-recheck.md`.
 

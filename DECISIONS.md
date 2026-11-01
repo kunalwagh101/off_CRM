@@ -686,3 +686,30 @@ availability now depends on obtaining that local SQLite lock. **Revisit when:**
 workspace settings themselves move to the shared production database; at that
 point the database transaction becomes the write lock and this sidecar can be
 deleted while the application is stopped.
+
+### DD-40 — Keep timer settings in hosted documents, refuse silent local loss · 2026-11-02
+
+**The call.** Email and content scheduler settings use separate `timer.email`
+and `timer.content` named documents through the existing `HostedStorage`
+seam when a hosted database is configured. Local installs retain the original
+JSON files. Writes run under the existing cross-process database transaction
+lock. A hosted instance seeing an old timer JSON file refuses to start until
+its owner explicitly preserves/migrates that file; a failed database write
+never falls back to the temporary folder.
+
+**Why not the obvious thing.** Copying whatever local file happened to be
+present would take a race with a previous deployment; ignoring it could
+silently erase active schedules or live-send consent. Inventing a second timer
+settings table also duplicates locking and schema. Fail-closed migration is
+safer for existing approved automation.
+
+**What it costs.** An existing hosted installation that has a nonempty or
+empty timer JSON file requires explicit operator resolution, and only new
+hosted installs or migrated ones can use this storage without intervention.
+The timer configuration can survive deployments, but a timer **runner** is
+still not independently supervised and multiple app instances must not be
+assumed safe to run the same job. This is not proof of external email sends,
+restore or durable media/outbox files.
+
+**Revisit when.** A verified, owner-approved timer import/skip tool and
+multi-instance supervised scheduler exist. See S-06.03.06 and S-06.02.40.

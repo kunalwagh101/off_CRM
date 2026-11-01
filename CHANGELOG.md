@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-02 — Hosted scheduler settings (S-06.03.06 partial)
+
+- Email and content scheduler configuration now use existing hosted database documents when `OFFSETX_DATABASE_URL` is configured. The unhosted file format is unchanged. An existing local settings file blocks silent cutover; database write errors do not create temporary fallback data.
+- Added six TDD tests covering restart, old-file collision, database failure, local compatibility and real application storage classification. RED Render `dep-dbjqsn3bc2fs73dkcag0`: 6 failed (before implementation). First GREEN attempt `dep-dbjqtnjbc2fs73dkedjg`: 5 passed, 1 fixture key setup error; corrected test at `6166be7`. Latest Render `dep-dbjqubh42hec73dr2bu0`: 6 focused and 7 storage-readiness cases passed; broad QA still under way at this checkpoint.
+- Remaining F-06.03 stories, independent security/recovery and owner-approved external backup/worker decisions are open; no main/customer deploy and no DONE claim.
+
+
 ## 2026-11-02 — A06 production-audit session-revocation regression
 
 - Isolated Render review of the A06 session test completed the full Docker QA stages: 34 auth PASS, 19 export/contact PASS, 2848 full SQLite PASS, 2868 full PostgreSQL PASS, targeted PG 215 PASS, and both Chromium desktop/mobile suites PASS. Audit evidence now rechecks A06, A19 and A23. This is not a claim of full 35-finding audit closure, independent penetration or customer deployment.

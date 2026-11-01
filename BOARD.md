@@ -95,6 +95,7 @@ next day, `AGENTS.md` "Logging".)*
 *(Filed 2026-10-02 from the inventory, `S-06.03.01`: stores with no phase.)*
 
 - S-06.03.06 · Every other store has a decided home
+  work_order: docs/work-orders/S-06.03.06-store-homes.md
   design: docs/architecture/HOSTED_STORAGE.md
 
 *(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*

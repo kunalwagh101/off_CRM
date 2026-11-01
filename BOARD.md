@@ -143,7 +143,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.54 · Restore actual AI and orchestration in the visitor demo
   work_order: docs/work-orders/S-06.02.54-restore-visitor-ai.md
-  review: Corrective owner request. Local RED four visitor AI failures and one cross-workspace log exposure; initial GREEN 75 auth/workspace/public/mode tests. Real Render and browser checks pending. Original site upgrade waits for backup access; live model verification needs a valid provider key. No DONE claim or main branch change.
+  review: Visitor AI repair LIVE on 39084d3 via dep-dbj8g5h42hec73ca9vd0; original updated to reviewed 97e1e7b via dep-dbj8r2tg1s2s73f2oghg, LIVE 00:55:24Z after owner-approved temporary-data reset. Real visitor HTTPS 37 checks and live AI/provider-setup browser flow passed. Final Render review 97e1e7b / dep-dbj8jdgu01pc73eomva0 LIVE: SQLite 2847, focused PostgreSQL 215, full PostgreSQL 2867, frontend 214/build, desktop/mobile Chromium and verifier unit 67 PASS. D-344/D-345 harness fixes verified. Original real HTTPS readiness/private-auth/anonymous protection/frontend match PASS; private authenticated login not exercised. Live model needs a valid key; arbitrary CRM actions from chat, independent security/recovery and full-history verifier remain open. Evidence docs/evidence/2026-11-01-restore-demo-ai.md. IN_REVIEW; no main change.
 
 - S-06.02.53 · Public visitor demo has its own visible login and isolated sample data
   work_order: docs/work-orders/S-06.02.53-public-visitor-demo.md

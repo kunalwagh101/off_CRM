@@ -4,6 +4,7 @@
 
 - Restore AI Chat, Compare, Plan and Image through the existing broker, with provider setup and AI-first navigation. Visitor AI keys/chats/logs are scoped to the verified login session. Keys are removed on logout; sample CRM writes remain protected.
 - Fix foreign-workspace egress log detail exposure. Live vendor verification and original deployment backup/upgrade remain open; do not confuse tests with working external credentials.
+- Deployed the repair on the existing visitor service at source 39084d3, 2026-11-01T00:31:55Z. Real HTTPS 37 checks and live AI/provider-setup browser flow passed. Final reviewed source 97e1e7b passed SQLite 2847, focused PostgreSQL 215, full PostgreSQL 2867, frontend 214/build and desktop/mobile Chromium; review service LIVE. Corrected two browser-harness locator/loading races. Updated the original service to 97e1e7b after the owner's go-ahead for the described temporary-data reset; LIVE 2026-11-01T00:55:24Z, existing Render credential settings retained. No main promotion. The existing Plan mode coordinates text work; this does not implement arbitrary CRM actions from chat.
 
 ## 2026-11-01 — Separate public visitor demo
 

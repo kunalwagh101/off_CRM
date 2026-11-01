@@ -7,7 +7,7 @@ they are not permission for an agent to promote routine feature work.
 
 **The rule.** This repository has two branches.
 
-| Branch | What it is | Render service |
+| Branch | What it is | Blueprint service |
 |---|---|---|
 | `develop` | Where every change lands first. The newest code, always. | `off-crm-develop` |
 | `main` | What has been checked on `develop` and promoted. | `off-crm-demo` |
@@ -57,6 +57,20 @@ commit, or undone with `git revert`, so everyone's copy stays valid.
 
 ## Render
 
+### Observed existing services — 2026-11-01
+
+The Blueprint below describes an intended layout, not the live service inventory. The connected Render service configuration was checked directly during S-06.02.54:
+
+| Existing service | URL | Configured branch | Auto-deploy |
+|---|---|---|---|
+| Original `off_CRM` (`srv-d9d4i8ok1i2s73cv41ig`) | https://off-crm.onrender.com/ | `develop` | off |
+| Public visitor (`srv-dbj5q5vb9u1s73d4fe1g`) | https://off-crm-public-demo.onrender.com/ | `develop` | off |
+| Isolated review (`srv-db86p4u89jmc73cehns0`) | https://off-crm-review-runner-20261015.onrender.com/ | `develop` | off |
+
+A push to develop does not update these manual services. Check the live deploy's commit, not only the configured branch. The original had remained on eb4c820 since September despite newer develop commits. Corrective deployments and their exact results are recorded in `docs/evidence/2026-11-01-restore-demo-ai.md`. No promotion to main or change to these services' auto-deploy settings is implied by a develop push.
+
+### Blueprint configuration
+
 `render.yaml` is a Blueprint with both services. Render builds each one from
 the repository's `Dockerfile`, on its own branch, and checks
 `/health/ready` before sending it traffic.
@@ -68,7 +82,7 @@ next push. This is deliberate — a persistent disk needs a paid service
 ([Render: disks](https://render.com/docs/disks)), and paying is the owner's
 decision (`OPEN_QUESTIONS.md` Q-26), not something a merge should do.
 
-Both deploy on every commit (`autoDeployTrigger: commit`). The safer setting,
+In this Blueprint, both deploy on every commit (`autoDeployTrigger: commit`); this does not describe the manual existing services above. The safer setting,
 `checksPass`, waits for CI; CI cannot start a runner on this repository today
 (`D-75`), so it would mean never deploying. Switch it once CI runs.
 

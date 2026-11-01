@@ -20,7 +20,7 @@ Gmail OAuth is easier to authorize on the host first. If Gmail is needed inside 
 
 ## Disposable Render demo
 
-`render.yaml` defines two free Docker web services with `/health/ready` as their health check: `off-crm-demo` on `main` and `off-crm-develop` on `develop` (`docs/BRANCHING.md`). For the manual Render form, use Docker, the service's branch, Singapore, an empty root directory and the Free plan.
+`render.yaml` defines an intended pair of free Docker web services with `/health/ready` as their health check: `off-crm-demo` on `main` and `off-crm-develop` on `develop`. This is not the live inventory: the existing original `off-crm.onrender.com` and public visitor service both track `develop` with auto-deploy off. Check the actual service's live deploy commit after each manual deployment; a develop push alone does not update those URLs. The observed service table is in `docs/BRANCHING.md`. For the manual Render form, use Docker, the service's branch, Singapore, an empty root directory and the Free plan.
 
 Set these secrets in Render, never in Git:
 

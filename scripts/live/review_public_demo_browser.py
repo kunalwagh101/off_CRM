@@ -34,7 +34,7 @@ def verify(browser, base):
             page.get_by_role("status").filter(has_text="Visitor demo").wait_for()
             page.get_by_role("heading", name="AI", exact=True).wait_for()
             page.get_by_role("button", name=re.compile(r"^Plan\b")).wait_for()
-            page.get_by_text("No AI provider is connected yet.", exact=True).first.wait_for()
+            page.locator("p.ai-welcome-warn").filter(has_text="No AI provider is connected yet.").wait_for()
             page.get_by_role("button", name="Open Connectors", exact=True).click()
             page.get_by_role("heading", name="Connectors", exact=True).wait_for()
             assert page.get_by_role("button", name=re.compile("^Connect")).count() > 0

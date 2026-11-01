@@ -35,13 +35,15 @@ Free Render instances have an ephemeral filesystem. This means SQLite, outbox fi
 
 ## Public visitor demo
 
-The live visitor installation is https://off-crm-public-demo.onrender.com/. Its sign-in screen displays the public credentials. This service is separate from owner and QA installations; it contains fictional sample contacts and permits read-only CRM access.
+The visitor installation is https://off-crm-public-demo.onrender.com/. Its sign-in screen displays the public credentials. This service is separate from owner and QA installations; it contains fictional sample contacts and permits read-only CRM access. The corrective AI release restores Chat, Compare, Plan and Image, with AI as the first screen after login. Consult `docs/evidence/2026-11-01-restore-demo-ai.md` for its deployment and verification status.
 
 For a fresh dedicated Docker service, set `OFFSETX_PUBLIC_DEMO=1`, `OFFSETX_DEMO_USERNAME`, `OFFSETX_DEMO_PASSWORD`, a new `OFFSETX_DATA_DIR`, and `OFFSETX_OUTREACH_DB` inside that folder. Use the image's default command. Its entrypoint generates a private session signing secret when none is configured. Sessions expire after a container restart. Never copy the owner's or QA data folder, external database settings, provider credentials or Gmail integration into this service.
 
-Public mode refuses existing unmarked data, escaped file paths, hosted databases, API tokens, production mode and private integrations. It starts no schedulers and refuses API writes except login/logout. One paused campaign and three fictional example.com contacts are created atomically. Empty storage recreates the sample; reopening existing sample storage does not duplicate records.
+Public mode refuses existing unmarked data, escaped file paths, hosted databases, API tokens, production mode and private integrations. It starts no schedulers. Its explicit API allowlist permits existing broker-backed AI, provider setup and chat/project operations, while refusing sample CRM writes, external sending and owner/browser operations. One paused campaign and three fictional example.com contacts are created atomically. Empty storage recreates the sample; reopening existing sample storage does not duplicate records.
 
-Retire the separate visitor service to withdraw access. Do not disable public mode on a service that still has a publicly known account. The visitor demo is disposable; it does not establish production tenancy or durability. Acceptance and rollback: `docs/evidence/2026-11-01-public-visitor-demo.md`.
+Each verified signed login session gets a separate AI workspace. Visitors connect their own provider through Connectors; the key is encrypted on the demo server, scoped to that session and removed when it logs out. A login in another browser does not inherit it. No owner key is copied, and a missing key produces a setup action rather than model output. Free Render storage and sessions remain disposable. The existing Plan mode distributes text tasks among models; arbitrary CRM action execution from chat is not implemented by this release.
+
+Retire the separate visitor service to withdraw access. Do not disable public mode on a service that still has a publicly known account. Do not roll back the session isolation while continuing to serve visitor keys: withdraw access first. The visitor demo is disposable; it does not establish production tenancy or durability. Initial acceptance: `docs/evidence/2026-11-01-public-visitor-demo.md`; corrective AI acceptance: `docs/evidence/2026-11-01-restore-demo-ai.md`.
 
 ## CI
 

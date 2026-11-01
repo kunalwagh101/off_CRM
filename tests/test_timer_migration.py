@@ -269,3 +269,20 @@ def test_disposable_postgres_import_survives_new_connection(legacy, tmp_path):
     finally:
         with psycopg.connect(base_url, autocommit=True) as admin:
             admin.execute(f'DROP SCHEMA "{schema}" CASCADE')
+
+
+@pytest.mark.parametrize("invalid_pair", [
+    {"distribution_campaign_id": "only-one-side"},
+    {"distribution_campaign_id": "d", "image_campaign_id": "i", "account_ids": "bad"},
+])
+def test_import_rejects_invalid_pipeline_instead_of_silently_dropping_it(
+    legacy, storage, tmp_path, invalid_pair
+):
+    (legacy / "content_automation.json").write_text(
+        json.dumps({"enabled": True, "pipelines": [invalid_pair]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(TimerMigrationError, match="invalid"):
+        migrate_timers(storage, legacy, tmp_path / "archive", import_settings=True)
+    assert (legacy / "content_automation.json").exists()
+    assert storage.read("timer.content") is None

@@ -111,7 +111,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 
 ## Findings at a glance
 
-| ID | Priority | Finding | Evidence | Status on develop (2026-10-13) |
+| ID | Priority | Finding | Evidence | Status on develop (updated through 2026-11-02) |
 |---|---|---|---|---|
 | A01 | P0 | The supplied hosted deployment discards customer state | Source/configuration confirmed | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A02 | P0 | Concurrent CRM transactions can roll back each other's work | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |

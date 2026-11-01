@@ -1,6 +1,8 @@
 # BUILD_STATE.md
 
 ## 2026-11-02 — Production audit A06 session-revocation recheck (S-06.02.23)
+**2026-11-02 final observed review gates:** For pinned A06 test source `37a6d2f`, Render `dep-dbjp60etlv9c73dt6sng`: auth 34 PASS; export/contact 19 PASS (A19/A23); full SQLite 2848 PASS/45 skipped; Chromium Contacts and visitor desktop/mobile PASS; focused disposable PostgreSQL 215 PASS; full disposable PostgreSQL 2868 PASS/94 skipped; verifier-unit 67 PASS; 12 concurrent API repetitions PASS. Docker image export succeeded in build logs. The deployment status was not yet independently confirmed LIVE at documentation time; no customer or main deployment. Audit table updated for A06/A19/A23 only; audit still IN_PROGRESS. See `docs/evidence/2026-11-02-a06-logout-recheck.md`.
+
 
 New API-level regression `test_api_logout_revokes_only_current_session` added to `tests/test_api_auth.py` on `develop` at `37a6d2f`. Two distinct owner logins are issued; logout of the current login must revoke only its own cookie, leaving the other live login valid. Isolated Render review `dep-dbjp60etlv9c73dt6sng` launched on the exact test commit and was still building at the checkpoint; no test pass or production conclusion is claimed. See `docs/evidence/2026-11-02-a06-logout-recheck.md`. A06 and S-06.02.23 stay open until actual results and other findings are reviewed. The durable worker S-06.02.40 remains blocked on runtime, cost and durable-storage decisions. No customer/main deployment.
 

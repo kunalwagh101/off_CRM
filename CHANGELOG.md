@@ -2,6 +2,9 @@
 
 ## 2026-11-02 — A06 production-audit session-revocation regression
 
+- Isolated Render review of the A06 session test completed the full Docker QA stages: 34 auth PASS, 19 export/contact PASS, 2848 full SQLite PASS, 2868 full PostgreSQL PASS, targeted PG 215 PASS, and both Chromium desktop/mobile suites PASS. Audit evidence now rechecks A06, A19 and A23. This is not a claim of full 35-finding audit closure, independent penetration or customer deployment.
+
+
 - Added an API-level test that a logout revokes only its own session cookie, preventing cross-session logout or reuse of the revoked token. Render full review was started against exact test commit `37a6d2f`; no new QA pass or production release is claimed pending build completion. No runtime application change or migration.
 
 

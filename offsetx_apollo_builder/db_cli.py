@@ -244,6 +244,50 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def _cmd_import_timers(args: argparse.Namespace) -> int:
+    """Explicit archive-then-import/skip; not a background data migration."""
+    from .db.hosted import HostedStorageError
+    from .db.timer_import import TimerMigrationError, migrate_timers
+
+    if args.yes == args.skip:
+        print(
+            "Choose --yes to import dormant timer settings or --skip to keep hosted "
+            "settings. Stop the web app and worker before running the command.",
+            file=sys.stderr,
+        )
+        return 2
+
+    root = Path(args.data_dir) if args.data_dir else data_dir(Path.cwd())
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+    except HostedStorageError as exc:
+        report_failure(exc, operation="offsetx-db.import-timers")
+        print(failure_message(exc, operation="offsetx-db.import-timers"), file=sys.stderr)
+        return 2
+    if hosted is None:
+        print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first.", file=sys.stderr)
+        return 2
+    try:
+        migrated = migrate_timers(
+            hosted, root, Path(args.archive_dir), import_settings=args.yes
+        )
+    except (TimerMigrationError, HostedStorageError, DatabaseError, OSError, ValueError) as exc:
+        report_failure(exc, operation="offsetx-db.import-timers")
+        print(failure_message(exc, operation="offsetx-db.import-timers"), file=sys.stderr)
+        return 2
+    finally:
+        hosted.close()
+
+    print(f"Protected archive created for {len(migrated)} timer configuration file(s).")
+    if args.yes:
+        print("Imported with all automatic sending/posting disabled. Review and re-enable each plan explicitly.")
+    else:
+        print("Skipped old timer settings. Existing hosted configuration was not changed.")
+    print("The old filenames were removed after backup and commit. Keep the archive on durable storage.")
+    return 0
+
+
 def _cmd_import_local(args: argparse.Namespace) -> int:
     """Say once what happens to a data folder's keys, settings and logins (D-210).
 
@@ -397,6 +441,20 @@ def main(argv: list[str] | None = None) -> int:
     choice.add_argument("--yes", action="store_true", help="copy them in")
     choice.add_argument("--skip", action="store_true", help="keep the database as it is")
     move.set_defaults(func=_cmd_import_local)
+
+    timers = sub.add_parser(
+        "import-timers",
+        help="archive legacy timer JSON, then import disabled settings or skip them",
+    )
+    timers.add_argument("--data-dir", default="", help="legacy data folder")
+    timers.add_argument(
+        "--archive-dir", required=True,
+        help="PRIVATE durable directory outside the old data folder; no existing data overwritten",
+    )
+    timer_choice = timers.add_mutually_exclusive_group()
+    timer_choice.add_argument("--yes", action="store_true", help="copy timer settings, disabled")
+    timer_choice.add_argument("--skip", action="store_true", help="keep hosted values")
+    timers.set_defaults(func=_cmd_import_timers)
 
     crm = sub.add_parser(
         "import-crm", help="copy a local CRM file into the database's CRM, or start without it"

@@ -225,6 +225,28 @@ Provider registry examples are under `config/`. Connected provider profiles and 
 
 Use `uv run <command> --help` for the complete options.
 
+### Migrating legacy timer settings to a hosted database
+
+When moving an existing installation to `OFFSETX_DATABASE_URL`, stop the web
+app and all worker processes first. Set `OFFSETX_DATABASE_URL` and
+`OFFSETX_SECRETS_KEY` for the same installation. Keep a private **persistent**
+archive outside the old data folder, then choose exactly one command:
+
+```bash
+uv run offsetx-db import-timers --data-dir /old/data --archive-dir /secure/persistent/timer-archive --yes
+uv run offsetx-db import-timers --data-dir /old/data --archive-dir /secure/persistent/timer-archive --skip
+```
+
+`--yes` copies the settings into hosted documents **with email/content
+automation and Gmail live-send permission disabled** until the owner reviews
+and re-enables them. `--skip` preserves hosted settings and archives the
+old files without applying them. Existing hosted conflicts are refused. Source
+files are removed only after private backups and database commit succeed.
+Do **not** use a temporary Render folder as the archive. This command does
+not migrate media, the CRM database, other AI records or email outbox data.
+See `docs/work-orders/S-06.03.06-store-homes.md` for the remaining work.
+
+
 ## Tests and quality checks
 
 ```bash

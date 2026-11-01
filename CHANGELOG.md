@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-02 — Verified manual legacy timer cutover QA
+
+- Isolated Render `dep-dbjri0utlv9c73e36570` reached LIVE on source `0232cf5e2d15493dd7538b10fcbc69e404609c47` after complete configured Docker QA: 14 targeted migration tests PASS (one PostgreSQL-only early-stage skip), 2,868 full SQLite PASS, 215 focused PostgreSQL PASS, 2,889 full PostgreSQL PASS, and Chromium desktop/mobile PASS. The CLI defaults imported automation to disabled and refuses concurrent/invalid/conflicting imports. No customer deployment or F-06.03 DONE claim.
+
+
 ## 2026-11-02 — Explicit legacy timer migration (S-06.03.06 partial)
 
 - Added `offsetx-db import-timers --yes|--skip --data-dir PATH --archive-dir PATH` to copy legacy email/content timer settings safely into existing hosted documents or preserve hosted state. The tool archives original files before changing their names, refuses conflicts and symlinks, and keeps imported schedules and Gmail live-send consent disabled.

@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — Production audit A06 session-revocation recheck (S-06.02.23)
+
+New API-level regression `test_api_logout_revokes_only_current_session` added to `tests/test_api_auth.py` on `develop` at `37a6d2f`. Two distinct owner logins are issued; logout of the current login must revoke only its own cookie, leaving the other live login valid. Isolated Render review `dep-dbjp60etlv9c73dt6sng` launched on the exact test commit and was still building at the checkpoint; no test pass or production conclusion is claimed. See `docs/evidence/2026-11-02-a06-logout-recheck.md`. A06 and S-06.02.23 stay open until actual results and other findings are reviewed. The durable worker S-06.02.40 remains blocked on runtime, cost and durable-storage decisions. No customer/main deployment.
+
+
 ## 2026-11-01 — Corrective AI demo restoration (S-06.02.54)
 
 The owner rejected the AI-disabled visitor demo. Restored existing broker-backed AI Chat/Compare/Plan/Image and provider setup, with AI-first public login. Each signed session gets its own AI workspace; logout removes that session's connected keys. Egress detail lookup now checks workspace (D-342). Visitor service LIVE on **39084d3**, deploy **dep-dbj8g5h42hec73ca9vd0**, at **2026-11-01T00:31:55Z**. Real HTTPS **37 checks passed**, including separate logins/chats/provider settings, no inherited keys, AI missing-provider errors, protected CRM writes and logout. Live browser verified AI and loaded provider Connect controls. Local 75 auth/AI/workspace checks and frontend 214/build passed. Final review **97e1e7b / dep-dbj8jdgu01pc73eomva0 LIVE at 2026-11-01T00:54:58Z**: **2847 SQLite**, **215 focused PostgreSQL**, **2867 full PostgreSQL**, verifier unit 67, desktop/mobile Chromium and all early gates passed. D-344/D-345 browser-harness selector/loading races were corrected and verified; the two earlier cancelled full PostgreSQL runs are not counted as passes. Runtime application files are identical between visitor source 39084d3 and reviewed source 97e1e7b.

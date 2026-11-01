@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-02 — A06 production-audit session-revocation regression
+
+- Added an API-level test that a logout revokes only its own session cookie, preventing cross-session logout or reuse of the revoked token. Render full review was started against exact test commit `37a6d2f`; no new QA pass or production release is claimed pending build completion. No runtime application change or migration.
+
+
 ## 2026-11-01 — Restore AI in the public demo
 
 - Restore AI Chat, Compare, Plan and Image through the existing broker, with provider setup and AI-first navigation. Visitor AI keys/chats/logs are scoped to the verified login session. Keys are removed on logout; sample CRM writes remain protected.

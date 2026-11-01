@@ -2,6 +2,10 @@
 
 ## 2026-11-02 — F-06.03 / S-06.03.06 hosted timer configuration slice
 
+**2026-11-02 final isolated QA:** On exact code/test commit `6166be7`, Render `dep-dbjqubh42hec73dr2bu0` reached LIVE at 2026-11-01T21:45:53Z; six S-06.03.06 timer tests, seven readiness tests, 2854 SQLite, 215 focused PostgreSQL, 2874 full PostgreSQL, 67 verifier-unit, 12 repeated concurrency and Chromium desktop/mobile passed. 45/94 suite skips recorded. This is the QA marker service, not a customer deploy; only the timer settings part of S-06.03.06 is implemented. The current develop documentation commits followed the pinned code test source, and the full-history board verifier, production restore and independent security review remain unresolved. See docs/evidence/2026-11-02-hosted-timer-settings.md.
+
+
+
 **Code:** `ff40ea84843ea119be48b7d1eedbebac23f9e838`, corrected test `6166be72a618736e6bb0a60afcd6235bb45cee22`, branch `develop` only.
 **TDD RED:** `dep-dbjqsn3bc2fs73dkcag0`, new `tests/test_hosted_timer_settings.py` 6 failed before feature code. **GREEN correction:** `dep-dbjqtnjbc2fs73dkedjg` 5 passed, 1 invalid fixture because settings omitted `secrets_key`; fixed fixture, no production guard relaxed. **Current Render review:** `dep-dbjqubh42hec73dr2bu0` pinned to 6166be7; six new tests and seven storage-readiness tests PASS. Full frontend, SQLite, PostgreSQL, Chromium and verifier outcome not yet seen at this checkpoint.
 

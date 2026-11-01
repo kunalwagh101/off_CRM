@@ -2,6 +2,9 @@
 
 ## 2026-11-02 — Hosted scheduler settings (S-06.03.06 partial)
 
+- The isolated Render review `dep-dbjqubh42hec73dr2bu0` reached LIVE after all configured QA gates for source `6166be7`: hosted timer tests 6 PASS, SQLite 2854 PASS, focused PostgreSQL 215 PASS, full PostgreSQL 2874 PASS, Chromium desktop/mobile PASS and verifier-unit 67 PASS. This does not close the entire F-06.03 feature or the active production audit.
+
+
 - Email and content scheduler configuration now use existing hosted database documents when `OFFSETX_DATABASE_URL` is configured. The unhosted file format is unchanged. An existing local settings file blocks silent cutover; database write errors do not create temporary fallback data.
 - Added six TDD tests covering restart, old-file collision, database failure, local compatibility and real application storage classification. RED Render `dep-dbjqsn3bc2fs73dkcag0`: 6 failed (before implementation). First GREEN attempt `dep-dbjqtnjbc2fs73dkedjg`: 5 passed, 1 fixture key setup error; corrected test at `6166be7`. Latest Render `dep-dbjqubh42hec73dr2bu0`: 6 focused and 7 storage-readiness cases passed; broad QA still under way at this checkpoint.
 - Remaining F-06.03 stories, independent security/recovery and owner-approved external backup/worker decisions are open; no main/customer deploy and no DONE claim.

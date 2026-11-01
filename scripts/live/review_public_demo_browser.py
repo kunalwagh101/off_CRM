@@ -37,7 +37,7 @@ def verify(browser, base):
             page.locator("p.ai-welcome-warn").filter(has_text="No AI provider is connected yet.").wait_for()
             page.get_by_role("button", name="Open Connectors", exact=True).click()
             page.get_by_role("heading", name="Connectors", exact=True).wait_for()
-            assert page.get_by_role("button", name=re.compile("^Connect")).count() > 0
+            page.get_by_role("button", name="Connect", exact=True).first.wait_for()
             page.get_by_role("navigation", name="Mobile navigation" if width <= 860 else "Main navigation").get_by_role("link", name="Contacts", exact=True).click()
             page.get_by_text("Anita Rao", exact=True).wait_for()
             assert page.request.post(base + "/api/v1/campaigns", data={"name": "blocked"}).status == 403

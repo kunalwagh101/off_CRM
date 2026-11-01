@@ -1,5 +1,9 @@
 # BUILD_STATE.md
 
+## 2026-11-01 — Corrective AI demo restoration (S-06.02.54)
+
+The owner rejected the AI-disabled visitor demo. Restore existing broker-backed AI Chat/Compare/Plan/Image and provider setup. Use per-signed-session AI workspaces and remove the session's connected keys on logout. Egress detail lookup now checks workspace (D-342). Local 75 auth/AI/workspace checks initially pass; Render, live browser and provider evidence pending. The original off-crm service remains eb4c820: backup access was declined and no destructive redeploy was attempted. No valid model key is configured on the visitor service. See docs/evidence/2026-11-01-restore-demo-ai.md. IN_REVIEW, develop only.
+
 ## 2026-11-01 — Separate public visitor demo (S-06.02.53)
 
 Owner requested a visible demo login separate from owner and QA accounts. Implemented opt-in sample-only installation, public-demo workspace, read-only server guard, visible/prefilled credentials and visitor banner. Existing CRM tenancy limits require a separate Render service, with fresh local sample-only storage and no hosted DB or private integrations. Visitor deployment LIVE at https://off-crm-public-demo.onrender.com/ on aaa0a59; real HTTPS login/read-only/logout/readiness verified. Local 49 Python and 213 frontend tests/build pass; Render core source 5e5039c full SQLite 2838 PASS and visitor Chromium desktop/mobile PASS. Render core PostgreSQL 2858 PASS, focused PostgreSQL 215 PASS; exact-latest startup covered by 4 local checks and real live service acceptance. Independent security/recovery review remains open. See docs/evidence/2026-11-01-public-visitor-demo.md. Private and QA services unchanged. IN_REVIEW, develop only.

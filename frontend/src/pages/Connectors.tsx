@@ -60,7 +60,7 @@ export function formLevel(saved: string, standing: string): string {
 const TIER_ORDER = ["A", "B", "C", "D"] as const;
 
 export default function Connectors() {
-  const { notify } = useApp();
+  const { notify, publicDemo } = useApp();
   const [busy, setBusy] = useState("");
   const [openProvider, setOpenProvider] = useState<string>("");
   const [modelsFor, setModelsFor] = useState<string>("");
@@ -267,7 +267,7 @@ export default function Connectors() {
       />
 
       {/* ── Gmail ───────────────────────────────────────────────────────── */}
-      <Panel
+      {!publicDemo ? <Panel
         title="Gmail"
         subtitle="Sending only. No AI provider can read this mailbox."
       >
@@ -299,7 +299,8 @@ export default function Connectors() {
           prompt. Mailbox content reaching an AI provider is blocked by default for every provider, in every
           country.
         </p>
-      </Panel>
+      </Panel> : null}
+      {publicDemo ? <p className="form-note" role="status">Use your own provider key. It is encrypted on this demo server, separate from other visitors, and removed when you log out.</p> : null}
 
       {/* ── What leaves ─────────────────────────────────────────────────── */}
       <Panel

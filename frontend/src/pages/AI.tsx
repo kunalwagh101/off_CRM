@@ -12,7 +12,7 @@ type Chat = { id: string; title: string; project_id: string | null; created_at: 
 type Project = { id: string; name: string; created_at: string };
 
 export default function AIPage() {
-  const { notify } = useApp();
+  const { notify, publicDemo } = useApp();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -26,7 +26,7 @@ export default function AIPage() {
   const [modelChoice, setModelChoice] = useState("");
   // "campaign" keeps the conversation on trusted providers. "public" is for code
   // and general questions, and lets restricted-tier models help with those.
-  const [taskMode, setTaskMode] = useState<"campaign" | "public">("campaign");
+  const [taskMode, setTaskMode] = useState<"campaign" | "public">(publicDemo ? "public" : "campaign");
   const [listening, setListening] = useState(false);
   // Three ways to work. Chat is the everyday one and stays the default.
   const [workMode, setWorkMode] = useState<"chat" | "compare" | "plan" | "image">("chat");

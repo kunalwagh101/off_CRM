@@ -141,6 +141,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.54 · Restore actual AI and orchestration in the visitor demo
+  work_order: docs/work-orders/S-06.02.54-restore-visitor-ai.md
+  review: Corrective owner request. Local RED four visitor AI failures and one cross-workspace log exposure; initial GREEN 75 auth/workspace/public/mode tests. Real Render and browser checks pending. Original site upgrade waits for backup access; live model verification needs a valid provider key. No DONE claim or main branch change.
+
 - S-06.02.53 · Public visitor demo has its own visible login and isolated sample data
   work_order: docs/work-orders/S-06.02.53-public-visitor-demo.md
   review: Dedicated visitor service LIVE on aaa0a59; live login/sample data/read-only/logout/readiness verified. Render core 5e5039c: 2838 SQLite PASS, visitor Chromium 1440px/390px PASS, frontend 213/build PASS. Core PostgreSQL 2858 PASS, focused PostgreSQL 215 PASS. Startup delta has 4 local checks plus live service acceptance; independent security/recovery review and exact-latest-source full review remain open. Evidence docs/evidence/2026-11-01-public-visitor-demo.md. No private/QA data or credential reuse.

@@ -161,6 +161,7 @@ export function LoginScreen({ onLogin, publicDemo }: { onLogin: (session: AuthSe
         username: String(data.get("username") ?? ""),
         password: String(data.get("password") ?? "")
       });
+      if (publicDemo) window.location.hash = "ai";
       onLogin({ configured: true, authenticated: result.authenticated, username: result.username, expires_at: null, public_demo: publicDemo });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed");
@@ -175,12 +176,12 @@ export function LoginScreen({ onLogin, publicDemo }: { onLogin: (session: AuthSe
         <div className="login-brand"><span className="brand-symbol">off_</span><span><strong>off_CRM</strong><small>Your outreach, your data</small></span></div>
         <p className="eyebrow">{publicDemo ? "Visitor demo" : "Protected workspace"}</p>
         <h1 id="login-title">Sign in to the CRM</h1>
-        <p className="login-copy">{publicDemo ? "Explore the CRM with fictional sample data. Use the demo login below." : "Use the private credentials given by your workspace owner."}</p>
+        <p className="login-copy">{publicDemo ? "Try AI chat and multi-model orchestration. Use the demo login below." : "Use the private credentials given by your workspace owner."}</p>
         {publicDemo ? <aside className="demo-credentials" aria-label="Demo login details">
           <strong>Try the visitor demo</strong>
           <p>Username: <code>{publicDemo.username}</code></p>
           <p>Password: <code>{publicDemo.password}</code></p>
-          <small>Read-only access. Your personal account is not needed.</small>
+          <small>AI enabled. Your AI space is separate from other visitors.</small>
         </aside> : null}
         <form className="form-stack" onSubmit={submit}>
           <Field label="Username"><input name="username" autoComplete="username" defaultValue={publicDemo?.username} required autoFocus /></Field>
@@ -188,7 +189,7 @@ export function LoginScreen({ onLogin, publicDemo }: { onLogin: (session: AuthSe
           {error ? <p className="login-error" role="alert">{error}</p> : null}
           <Button type="submit" busy={busy}>Sign in</Button>
         </form>
-        <p className="login-safety">{publicDemo ? "Sample data only. Email sending and connected services are disabled." : "Gmail is not required to sign in."}</p>
+        <p className="login-safety">{publicDemo ? "AI uses a provider key you connect in this session. Sample CRM data is read-only." : "Gmail is not required to sign in."}</p>
       </section>
     </main>
   );
@@ -254,6 +255,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
 
   const context = useMemo(
     () => ({
+      publicDemo: Boolean(auth.public_demo),
       campaigns,
       campaignId,
       activeCampaign,
@@ -262,9 +264,9 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
       refreshCampaigns: selection.refresh,
       notify
     }),
-    [campaigns, campaignId, activeCampaign, selection]
+    [campaigns, campaignId, activeCampaign, selection, auth.public_demo]
   );
-  const demoPages = new Set<Page>(["dashboard", "campaigns", "contacts", "readiness", "activity", "replies", "followups", "priorities", "crmsearch", "accounts", "attribution", "crmquality", "campaigncompare", "followupmetrics", "drafts", "queue", "sales", "experiments"]);
+  const demoPages = new Set<Page>(["ai", "connectors", "egress", "dashboard", "campaigns", "contacts", "readiness", "activity", "replies", "followups", "priorities", "crmsearch", "accounts", "attribution", "crmquality", "campaigncompare", "followupmetrics", "drafts", "queue", "sales", "experiments"]);
   const visibleNavigation = auth.public_demo ? navigation.filter((item) => demoPages.has(item.page)) : navigation;
   const Screen = pages[auth.public_demo && !demoPages.has(page) ? "dashboard" : page];
 
@@ -333,7 +335,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
             ))}
           </nav>
           <main id="main-content" className="page-content" tabIndex={-1} aria-label="Main content">
-            {auth.public_demo ? <p className="demo-banner" role="status">Visitor demo · Fictional sample data · Read-only. Changes, email sending and connected services are disabled.</p> : null}
+            {auth.public_demo ? <p className="demo-banner" role="status">Visitor demo · AI chat, Compare and Plan are enabled. Connect your own provider in Connectors. Keys and chats belong to this login session. Keys are encrypted on the demo server and removed on logout. Sample CRM data is read-only.</p> : null}
             {campaignsResource.storageWarning ? <p className="form-note" role="alert">{campaignsResource.storageWarning}</p> : null}
             {campaignsResource.selectionNotice ? <p className="form-note" role="status">{campaignsResource.selectionNotice}</p> : null}
             {campaignsResource.error ? <StatePanel title="Could not refresh campaigns" description={campaignsResource.error + (campaignsResource.ready ? " Your current selection has been kept." : " Retry before starting campaign work.")} action={<Button onClick={() => void selection.refresh()} busy={campaignsResource.loading}>Retry campaigns</Button>} /> : null}

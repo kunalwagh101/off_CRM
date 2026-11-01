@@ -48,10 +48,22 @@ describe("shared production UI", () => {
     expect(publicHtml).toContain("Demo login details");
     expect(publicHtml).toContain("Public-Demo-2026!");
     expect(publicHtml).toContain('value="visitor"');
-    expect(publicHtml).toContain("Read-only access");
+    expect(publicHtml).toContain("AI enabled");
     const privateHtml = renderToStaticMarkup(<LoginScreen onLogin={() => undefined} />);
     expect(privateHtml).not.toContain("Demo login details");
     expect(privateHtml).not.toContain("Public-Demo-2026!");
+  });
+
+  it("public visitor connectors expose AI setup without a dead Gmail control", async () => {
+    const { default: Connectors } = await import("./pages/Connectors");
+    const html = renderToStaticMarkup(
+      <AppContext.Provider value={{ publicDemo: true, campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: () => undefined, createCampaign: async () => { throw new Error("Unexpected creation"); }, refreshCampaigns: () => undefined, notify: () => undefined }}>
+        <Connectors />
+      </AppContext.Provider>
+    );
+    expect(html).toContain("Use your own provider key");
+    expect(html).toContain("AI providers");
+    expect(html).not.toContain("Gmail");
   });
 
   it("renders all sales tracker operating views from one lead-card source", () => {

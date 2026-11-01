@@ -572,7 +572,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return hmac.compare_digest(supplied, resolved.api_token)
 
     def session_identity(request: Request):
-        return workspace_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
+        token = request.cookies.get(SESSION_COOKIE, "")
+        identity = workspace_auth.verify(token)
+        if identity is not None and resolved.public_demo:
+            return replace(identity, workspace_id=public_demo.workspace_for(token))
+        return identity
 
     def _decided_by(request: Request) -> str:
         """Who a recorded decision is from, as the server knows it."""
@@ -1002,8 +1006,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         if resolved.public_demo and not public_demo.request_allowed(request.method, request.url.path):
             return security_headers(JSONResponse(status_code=403, content={"detail": (
-                "This visitor demo is read-only. Explore the sample CRM data; "
-                "changes and connected services are disabled."
+                "The sample CRM is read-only. AI chat and orchestration are available; "
+                "CRM changes, external sending and owner actions are disabled."
             )}))
         is_public = is_public_api_path(request.url.path)
         # No configuration clause any more. Whether auth is set up is decided at
@@ -1200,7 +1204,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "expires_at": identity.expires_at if identity else None,
             **({"public_demo": {
                 "username": resolved.demo_username, "password": resolved.demo_password,
-                "read_only": True,
+                "read_only": False, "crm_read_only": True,
             }} if resolved.public_demo else {}),
         }
 
@@ -1220,16 +1224,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             login_limiter.failed(client_key)
             raise HTTPException(status_code=401, detail="Invalid username or password")
         login_limiter.clear(client_key)
+        token = workspace_auth.issue(identity)
+        login_workspace = public_demo.workspace_for(token) if resolved.public_demo else identity.workspace_id
         response = JSONResponse(
             content={
                 "authenticated": True,
                 "username": identity.username,
-                "workspace_id": identity.workspace_id,
+                "workspace_id": login_workspace,
             }
         )
         response.set_cookie(
             SESSION_COOKIE,
-            workspace_auth.issue(identity),
+            token,
             max_age=workspace_auth.session_seconds,
             httponly=True,
             secure=not loopback,
@@ -1243,7 +1249,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # Deleting a cookie alone cannot revoke a stolen copy (audit A06).
         # Persist its digest before returning success; a storage outage must not
         # claim logout succeeded while a bearer token remains valid.
+        identity = session_identity(request)
         workspace_auth.revoke(request.cookies.get(SESSION_COOKIE, ""))
+        if resolved.public_demo and identity is not None:
+            workspaces = request.app.state.ai_workspaces
+            for provider_id in tuple(workspaces.raw(identity.workspace_id).get("providers") or {}):
+                workspaces.disconnect_provider(identity.workspace_id, provider_id)
         response = JSONResponse(content={"authenticated": False})
         response.delete_cookie(
             SESSION_COOKIE,
@@ -5031,7 +5042,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """The exact payload that was sent, so the guarantee is verified."""
         _, _, log = _ai(request)
         record = log.get(log_id)
-        if record is None:
+        if record is None or record["workspace_id"] != _workspace_id(request):
             raise HTTPException(404, "Egress log entry not found")
         return record
 

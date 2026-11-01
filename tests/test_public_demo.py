@@ -25,7 +25,7 @@ def test_public_hint_login_sample_data_and_logout(tmp_path, monkeypatch):
     with TestClient(create_app(config)) as client:
         session = client.get("/api/v1/auth/session").json()
         assert session["public_demo"] == {
-            "username": "visitor", "password": "Public-Demo-2026!", "read_only": True,
+            "username": "visitor", "password": "Public-Demo-2026!", "read_only": False, "crm_read_only": True,
         }
         assert config.session_secret not in str(session)
         assert client.get("/api/v1/dashboard").status_code == 401
@@ -33,7 +33,7 @@ def test_public_hint_login_sample_data_and_logout(tmp_path, monkeypatch):
             "username": "visitor", "password": "Public-Demo-2026!",
         })
         assert login.status_code == 200
-        assert login.json()["workspace_id"] == "public-demo"
+        assert login.json()["workspace_id"].startswith("demo-")
         campaigns = client.get("/api/v1/campaigns").json()["items"]
         assert len(campaigns) == 1 and campaigns[0]["status"] == "paused"
         contacts = client.get(f"/api/v1/campaigns/{campaigns[0]['id']}/contacts").json()
@@ -51,7 +51,7 @@ def test_public_hint_login_sample_data_and_logout(tmp_path, monkeypatch):
 def test_public_demo_refuses_mutations_before_validation_even_anonymous(tmp_path, monkeypatch):
     with TestClient(create_app(settings(tmp_path, monkeypatch))) as client:
         for method in ("POST", "PUT", "PATCH", "DELETE"):
-            for path in ("/api/v1/campaigns", "/api/v1/ai/run", "/api/v1/workspaces",
+            for path in ("/api/v1/campaigns", "/api/v1/ai/workspace/mailbox-unlock", "/api/v1/workspaces",
                          "/api/v1/provider-profiles", "/api/v1/email-delivery/events/ses/sns"):
                 response = client.request(method, path, content=b"invalid-json")
                 assert response.status_code == 403, (method, path, response.text)
@@ -99,7 +99,7 @@ def test_signed_in_visitor_cannot_write_or_become_owner(tmp_path, monkeypatch):
         client.post("/api/v1/auth/login", json={
             "username": "visitor", "password": "Public-Demo-2026!",
         })
-        assert client.get("/api/v1/auth/session").json()["workspace_id"] == "public-demo"
+        assert client.get("/api/v1/auth/session").json()["workspace_id"].startswith("demo-")
         for route in client.app.routes:
             path = getattr(route, "path", "")
             if not path.startswith("/api/") or path in {"/api/v1/auth/login", "/api/v1/auth/logout"}:
@@ -107,7 +107,9 @@ def test_signed_in_visitor_cannot_write_or_become_owner(tmp_path, monkeypatch):
             import re
             path = re.sub(r"\{[^}]+\}", "example", path)
             for method in (getattr(route, "methods", set()) or set()) - {"GET", "HEAD", "OPTIONS"}:
-                assert client.request(method, path, content=b"{}").status_code == 403, (method, path)
+                from offsetx_apollo_builder.api.public_demo import request_allowed
+                if not request_allowed(method, path):
+                    assert client.request(method, path, content=b"{}").status_code == 403, (method, path)
         for name in ("automation", "content_automation", "agent_routines"):
             service = getattr(client.app.state, name)
             assert service._task is None

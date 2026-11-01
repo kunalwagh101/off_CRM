@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-01 — Restore AI in the public demo
+
+- Restore AI Chat, Compare, Plan and Image through the existing broker, with provider setup and AI-first navigation. Visitor AI keys/chats/logs are scoped to the verified login session. Keys are removed on logout; sample CRM writes remain protected.
+- Fix foreign-workspace egress log detail exposure. Live vendor verification and original deployment backup/upgrade remain open; do not confuse tests with working external credentials.
+
 ## 2026-11-01 — Separate public visitor demo
 
 - Add opt-in sample-only read-only visitor installation, public-demo workspace, visible login details and sample data. Private credentials are never advertised. Startup refuses existing private storage and shared database configuration; timers and connected-service actions stay disabled.

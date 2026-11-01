@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -31,6 +32,12 @@ def verify(browser, base):
                 page.screenshot(path=str(target / f"demo-login-{width}.png"), full_page=True)
             page.get_by_role("button", name="Sign in", exact=True).click()
             page.get_by_role("status").filter(has_text="Visitor demo").wait_for()
+            page.get_by_role("heading", name="AI", exact=True).wait_for()
+            page.get_by_role("button", name=re.compile(r"^Plan\b")).wait_for()
+            page.get_by_text("No AI provider is connected yet.", exact=True).first.wait_for()
+            page.get_by_role("button", name="Open Connectors", exact=True).click()
+            page.get_by_role("heading", name="Connectors", exact=True).wait_for()
+            assert page.get_by_role("button", name=re.compile("^Connect")).count() > 0
             page.get_by_role("navigation", name="Mobile navigation" if width <= 860 else "Main navigation").get_by_role("link", name="Contacts", exact=True).click()
             page.get_by_text("Anita Rao", exact=True).wait_for()
             assert page.request.post(base + "/api/v1/campaigns", data={"name": "blocked"}).status == 403
@@ -40,7 +47,7 @@ def verify(browser, base):
             page.get_by_role("complementary", name="Demo login details").wait_for()
             assert page.request.get(base + "/api/v1/dashboard").status == 401
             assert not errors, errors
-            print(f"PUBLIC DEMO CHROMIUM PASS {width}px: visible credentials, login, sample contacts, write refusal, logout", flush=True)
+            print(f"PUBLIC DEMO CHROMIUM PASS {width}px: visible credentials, AI landing, Plan mode, provider setup, sample contacts, write refusal, logout", flush=True)
         finally:
             context.close()
 

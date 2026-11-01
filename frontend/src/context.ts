@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { Campaign } from "./types";
 
 export type AppContextValue = {
+  publicDemo?: boolean;
   campaigns: Campaign[];
   campaignId: string;
   activeCampaign: Campaign | null;

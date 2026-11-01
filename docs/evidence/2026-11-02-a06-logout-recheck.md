@@ -21,3 +21,9 @@ No runtime code, storage or schema change was made. Customer/main deployments we
 ## Follow-up
 
 Read the deployment status and complete build log, record actual pass/fail counts and update A06 in the original audit table only after evidence supports it. For a failing regression, add an open defect and preserve the RED behaviour in the remediation work order; do not silently claim closure.
+
+## Observed isolated review gates (2026-11-01)
+
+Dockerfile.review on commit `37a6d2f7bc13f4d59a450b381d92c7ce7a825912`, Render deployment `dep-dbjp60etlv9c73dt6sng`, ran the early authentication/public-demo gate and reported **34 passed, 1 warning**. This includes the two A06 logout regression tests. A separate export/contact gate reported **19 passed, 1 warning**, including the three `tests/test_spreadsheet_exports.py` A19 regressions and the authenticated 503-contact pagination A23 regression. Storage-readiness 7 passed, agent permissions/run 44 passed, health 7 passed, inventory 2 passed, and the twelve repeated concurrency checks each passed. These are directly observed in Render build logs on the pinned source.
+
+The audit index marks the tested A06, A19, A23 local/isolated behaviours closed; **this is not full production certification**. At this checkpoint the full SQLite and PostgreSQL suites, Chromium, overall review deployment success and independent live penetration remain unverified. S-06.02.23 continues IN_PROGRESS; all other findings retain their original status. Do not count this checkpoint as a full suite pass.

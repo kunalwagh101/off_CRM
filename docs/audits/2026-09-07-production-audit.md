@@ -118,7 +118,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A03 | P1 | Backup restore breaks sales, delivery and AI chats—even when the archive is rejected | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A04 | P1 | The backup cannot recover the full workspace and can exceed its own restore limit | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A05 | P1 | Company users have no individual identity or enforced permissions | Source confirmed | Not rechecked on develop; S-06.02.23 |
-| A06 | P1 | Logging out does not revoke the session | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A06 | P1 | Logging out does not revoke the session | Reproduced | Closed for isolated API replay and independent-login behaviour on develop: `tests/test_api_auth.py::test_logout_revokes_copied_cookie_even_after_application_restart`, `tests/test_api_auth.py::test_api_logout_revokes_only_current_session` (Render review `dep-dbjp60etlv9c73dt6sng`, early auth gate 34 passed on 37a6d2f); cross-instance live production acceptance pending |
 | A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary | Open D-266 / S-03.01.03; production Docker-bridge launch now refused in source, private egress isolation and live zero-connection proof pending |
 | A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture | Open D-267 / S-05.01.04; HTTP transport pins verified IP, unsafe Crawl4AI starts now refused; live DNS-rebind/JS replacement proof pending |
 | A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome | Not rechecked on develop; S-06.02.23 |
@@ -131,11 +131,11 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A16 | P1 | Provider construction failure strands a durable email job | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A17 | P1 | Readiness stays green when required product components are unavailable | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A18 | P1 | Claim verification accepts the wrong numeric value | Reproduced | Not rechecked on develop; S-06.02.23 |
-| A19 | P1 | Enrichment exports turn untrusted text into spreadsheet formulas | Reproduced | Not rechecked on develop; S-06.02.23 |
+| A19 | P1 | Enrichment exports turn untrusted text into spreadsheet formulas | Reproduced | Closed for isolated CSV/XLSX and enrichment/report-tab paths: `tests/test_spreadsheet_exports.py` (3 tests passed in Render review `dep-dbjp60etlv9c73dt6sng` on 37a6d2f); independent live acceptance pending |
 | A20 | P2 | API-token authentication breaks media loading and misreports login status | Reproduced with frontend and API tests | Not rechecked on develop; S-06.02.23 |
 | A21 | P2 | Image quality gates accept corrupt data and can raise on malformed headers | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A22 | P2 | Several write APIs lack typed validation and malformed input produces 500 | Reproduced; wider surface inventoried | Not rechecked on develop; S-06.02.23 |
-| A23 | P2 | The contact screen stops at 500 rows without pagination | Source confirmed | Not rechecked on develop; S-06.02.23 |
+| A23 | P2 | The contact screen stops at 500 rows without pagination | Source confirmed | Closed for authenticated 503-row API paging/export: `tests/test_contacts_filters_export.py::test_503_persisted_contacts_can_be_reached_across_authenticated_pages` and related cases (Render review `dep-dbjp60etlv9c73dt6sng` targeted gate passed on 37a6d2f); full browser acceptance remains pending |
 | A24 | P1 | There is no complete customer-data deletion and retention workflow | Source/API inventory confirmed | Not rechecked on develop; S-06.02.23 |
 | A25 | P1 | The deployment does not run the durable email worker; other automation is process-local | Source/configuration confirmed | Open from develop render.yaml: web services only, no durable email worker; D-270 / S-06.02.40 (deployment/tier pending) |
 | A26 | P1 | The Docker build omits feature dependencies and does not reproduce the Python lock | Source/configuration confirmed | Pending regression re-run; earlier remediation: Dockerfile locked dependencies |

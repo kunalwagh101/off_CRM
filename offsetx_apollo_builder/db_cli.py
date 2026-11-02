@@ -337,6 +337,42 @@ def _cmd_import_local(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_context(args: argparse.Namespace) -> int:
+    """Archive SQLite AI history, then explicitly import or skip."""
+    from .db.context_import import ContextImportError, import_context
+    from .db.hosted import HostedStorageError
+
+    if args.yes == args.skip:
+        print("Choose --yes or --skip for AI context migration.", file=sys.stderr)
+        return 2
+    source = Path(args.source) if args.source else data_dir(Path.cwd()) / "ai_context.db"
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+        if hosted is None:
+            print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first.", file=sys.stderr)
+            return 2
+        try:
+            hosted.check_secrets_key()
+            counts = import_context(
+                source, hosted.target, Path(args.archive), skip=args.skip
+            )
+        finally:
+            hosted.close()
+    except (ContextImportError, HostedStorageError, DatabaseError, OSError, ValueError) as exc:
+        report_failure(exc, operation="offsetx-db.import-context")
+        print(failure_message(exc, operation="offsetx-db.import-context"), file=sys.stderr)
+        return 2
+
+    print(f"Preserved private AI context backup; {counts['ai_task_state']} tasks and "
+          f"{counts['ai_template_stats']} template records.")
+    if args.yes:
+        print("Imported into hosted context; original local file removed after verification.")
+    else:
+        print("Skipped importing; existing hosted context remains unchanged.")
+    print("Retain the archive on a genuinely durable, private disk.")
+    return 0
+
+
 def _cmd_import_crm(args: argparse.Namespace) -> int:
     """Say once what happens to a local CRM file (S-06.03.03), as `import-local`
     does for keys and logins: copied into the database's CRM, or left unread."""
@@ -455,6 +491,16 @@ def main(argv: list[str] | None = None) -> int:
     timer_choice.add_argument("--yes", action="store_true", help="copy timer settings, disabled")
     timer_choice.add_argument("--skip", action="store_true", help="keep hosted values")
     timers.set_defaults(func=_cmd_import_timers)
+
+    context = sub.add_parser(
+        "import-context", help="privately archive old AI task history, then explicitly import or skip"
+    )
+    context.add_argument("--source", default="", help="old ai_context.db; defaults to data folder")
+    context.add_argument("--archive", required=True, help="private durable backup outside the data folder")
+    context_choice = context.add_mutually_exclusive_group()
+    context_choice.add_argument("--yes", action="store_true", help="import into an empty hosted context")
+    context_choice.add_argument("--skip", action="store_true", help="keep the hosted context untouched")
+    context.set_defaults(func=_cmd_import_context)
 
     crm = sub.add_parser(
         "import-crm", help="copy a local CRM file into the database's CRM, or start without it"

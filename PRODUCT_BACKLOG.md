@@ -2465,3 +2465,8 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 - **Given** variations in assignee labels and unassigned tasks, **when** grouping, **then** whitespace/case-normalised display groups appear without implying real login ownership or permissions.
 - **Given** a campaign filter and many labels, **when** paging, **then** overall counts remain unchanged and the UI links to follow-up work.
 - **Dependencies:** F-06.12 human follow-up tasks, existing campaigns. **Size:** L. **Specification:** docs/features/followup-performance.md. **Status:** IN_REVIEW.
+
+
+## F-06.22 — Duplicate Contact Review
+
+Backend-first, owner-requested next independent CRM feature. Three sub-stories (discovery, bounded inspection, API security) and acceptance are specified in `docs/features/crm-duplicate-review.md`. No automatic merge and no schema changes. Q-27 prevents production DONE until customer-data scope is resolved.

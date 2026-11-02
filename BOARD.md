@@ -137,6 +137,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
+- F-06.22 · Duplicate Contact Review (backend)
+  work_order: docs/features/crm-duplicate-review.md
+  review: Test-first implementation; independent QA and Q-27 privacy decision required before DONE.
+
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 

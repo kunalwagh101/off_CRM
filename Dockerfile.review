@@ -27,6 +27,7 @@ RUN uv run pytest -q tests/test_public_demo.py tests/test_public_demo_ai.py test
 RUN uv run pytest -q tests/test_timer_migration.py
 RUN uv run pytest -q tests/test_hosted_timer_settings.py
 # S-06.03.06: AI context durability RED/GREEN gate before wide regressions.
+RUN uv run pytest -q tests/test_context_import.py
 RUN uv run pytest -q tests/test_hosted_ai_context.py
 # Hosted SQLite readiness must use the actual context database, not the old file.
 RUN uv run pytest -q tests/test_crm_hosted.py::test_a_campaign_made_in_the_app_outlives_the_disk tests/test_crm_hosted.py::test_a_local_crm_holding_only_what_every_start_writes_does_not_stop_the_start tests/test_hosted_storage.py::test_readiness_checks_the_hosted_database

@@ -466,7 +466,8 @@ class ContextLayer:
                 f" id, workspace_id, template_id, variant_id, {column}, created_at, updated_at"
                 ") VALUES(?,?,?,?,1,?,?)"
                 " ON CONFLICT(workspace_id, template_id, variant_id) DO UPDATE SET"
-                f" {column} = {column} + 1, updated_at = excluded.updated_at",
+                f" {column} = ai_template_stats.{column} + 1,"
+                " updated_at = excluded.updated_at",
                 (str(uuid.uuid4()), workspace_id, template_id, variant_id, now, now),
             )
 

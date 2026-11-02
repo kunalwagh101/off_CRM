@@ -140,10 +140,12 @@ def test_hosted_context_on_disposable_postgres_after_reconnect(tmp_path):
         first.record_decision(t.id, "Owner confirms")
         first.register_template(workspace_id="alpha", template_id="pg")
         first.record_send(workspace_id="alpha", template_id="pg")
+        first.record_reply(workspace_id="alpha", template_id="pg")
         first.close()
         reopened = ContextLayer(tmp_path / "local.db", database_target=url)
         assert reopened.get_task(t.id).decisions[0]["text"] == "Owner confirms"
         assert reopened.score_for("alpha", "pg").sends == 1
+        assert reopened.score_for("alpha", "pg").replies == 1
         assert not (tmp_path / "local.db").exists()
         reopened.close()
     finally:

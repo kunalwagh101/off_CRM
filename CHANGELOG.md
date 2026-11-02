@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 — Backend duplicate-contact review (F-06.22, IN_REVIEW)
+
+- Added authenticated, read-only `GET /api/v1/crm/duplicates`: case- and outer-whitespace-normalized email groups, full group totals, safe search, bounded pagination and three-record previews. No migration or automatic merge.
+- Four TDD tests observed RED on Render `e86ff75` (4 failed as feature missing), then GREEN on `a0e9daf` (4 passed), including auth and SQL-shaped input cases. Full isolated QA runs separately; no production deploy or completed independent penetration.
+- Release stays in review for Q-27 CRM tenancy, scale/PG and additional QA evidence.
+
 ## 2026-11-02 — AI history migration: isolated Render QA passed
 
 - Reviewed on `develop` implementation source `1236104` in isolated

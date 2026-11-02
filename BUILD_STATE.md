@@ -1,5 +1,9 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — F-06.22 duplicate review, test-first backend delivery
+
+Source on `develop`: `e86ff75` RED / `a0e9daf` GREEN. Four targeted tests failed on isolated Render `dep-dbk95sbbc2fs73epnd40` as expected; then all four passed on isolated Render `dep-dbk9797f3r2c73932q0g`, with other early API/permissions and verifier-unit suites passing. The complete Docker review is still underway at this entry. Read-only authenticated `/api/v1/crm/duplicates` groups email collisions (case/trim), provides bounded paginated previews and never merges/writes contacts. No schema/data migration, customer deployment or main change. `BOARD.md` status IN_REVIEW; Q-27 tenancy, independent penetration, PostgreSQL-specific load/query-plan and full-history verifier remain release blockers. Full evidence `docs/evidence/2026-11-02-crm-duplicate-review.md`.
+
 ## 2026-11-02 — Verified AI-context migration review: isolated Render LIVE
 
 Exact implementation/test source `12361049103a8913753899b34eba5ef2f18698e6`

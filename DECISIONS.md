@@ -785,3 +785,14 @@ restore proof.
 
 **Revisit.** When all S-06.03.06 stores are in verified durable homes and the
 per-install/shared-database decision in S-06.03.07 is agreed.
+
+
+### DD-133 — Duplicate candidates are read-only and preview-limited · 2026-11-02
+
+**The call.** The CRM duplicate-review endpoint groups existing nonempty emails with `lower(trim(email))` and returns only three allowlisted identities per group. It never auto-merges records or accepts any correction command; this uses the same protected CRM API boundary and data already stored. No new index/schema was installed until a query-plan and scale test proves one is needed.
+
+**Why not automatic deduplication.** Shared addresses and legacy whitespace differences are not proof that two contacts represent the same person. Merging can destroy campaign history, permissions, evidence and audit trails. A broad raw-contact payload also exposes more information than a reviewer needs.
+
+**Cost.** Operators have to use existing contact-edit tools, group preview can omit extra records, and `lower(trim(email))` grouping may need a dedicated expression index for very large imports. Performance and tenant isolation remain release gates.
+
+**Revisit.** After Q-27 establishes CRM tenancy and a measured PostgreSQL query plan justifies new indexing or a carefully audited human-approved merge flow.

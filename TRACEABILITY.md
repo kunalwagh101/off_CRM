@@ -246,3 +246,12 @@ IN_REVIEW = authored but not tested or deployed.
 | R-184 | F-06.21 | 3 | `tests/test_crm_operations.py`, `frontend/src/pages/CRMOperations.test.tsx` | `outreach/crm_operations.py`, `api/app.py`, `frontend/src/pages/CRMOperations.tsx` |
 
 Tests are **authored**, not evidence of a passing run. Q-27 customer isolation remains unresolved.
+
+
+## 2026-11-02 — F-06.22 duplicate contact review (IN_REVIEW)
+
+| Req | Feature / sub-stories | Criteria | Tests | Source |
+|---|---|---|---|---|
+| R-185 | F-06.22a / F-06.22b / F-06.22c | 3 | `tests/test_crm_duplicate_review.py` (4 tests) | `outreach/crm_operations.py`, `api/app.py` |
+
+TDD RED and GREEN observed on isolated Render; independent release security, tenancy Q-27, full-history verifier and live operator acceptance remain open. No DONE claim.

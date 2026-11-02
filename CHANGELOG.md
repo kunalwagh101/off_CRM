@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-02 — AI context history migration (S-06.03.06 partial)
+
+- Added `offsetx-db import-context --yes|--skip`: owner-controlled import or deliberate skip of old local AI task context. Uses a private SQLite online archive, rejects conflicting hosted records, preserves workspace and template counts, and imports both context tables in one database transaction.
+- Tests added for imported task decisions and counters, workspace isolation, WAL-aware backup, archive permission/restore, interrupted cleanup, destination rollback, exclusive workspace locks, missing/corrupt source, CLI approval and real PostgreSQL re-open.
+- TDD RED `ffd81e0` failed test collection as the module did not exist; initial GREEN `2adfdcc` six focused tests passed. Hardened code through `1236104`, reviewed in isolated Render `dep-dbk8on7f3r2c7391pn50`: 12 targeted tests passed, 1 PostgreSQL-only test skipped at the SQLite stage; full QA status recorded separately in BUILD_STATE.
+- The wider F-06.03 storage story, live customer import, external backup/restore, and independent security review remain open. No main or customer deployment.
+
+
 ## 2026-11-02 — Correct PostgreSQL AI template counter UPSERT
 
 - First hosted context review detected two separate failures the focused SQLite tests missed: health check used an old local file (D-348, corrected in `7fdc4f2`), and PostgreSQL rejected ambiguous counter UPSERT columns (D-349, corrected in `1ff58da`). Added exact failing tests as early review gates, without hiding or weakening them. Full QA on the corrected PostgreSQL change remains open.

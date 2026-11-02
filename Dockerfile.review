@@ -26,6 +26,8 @@ RUN uv run pytest -q tests/test_public_demo.py tests/test_public_demo_ai.py test
 # S-06.03.06: hosted automation settings, test-first gate before broad suites.
 RUN uv run pytest -q tests/test_timer_migration.py
 RUN uv run pytest -q tests/test_hosted_timer_settings.py
+# S-06.03.06: AI context durability RED/GREEN gate before wide regressions.
+RUN uv run pytest -q tests/test_hosted_ai_context.py
 # F-06.03 storage readiness TDD: fail fast before the long regression stages.
 RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 # F-06.01.02: targeted permission and browser action-gate tests run first.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-02 — Correct PostgreSQL AI template counter UPSERT
+
+- First hosted context review detected two separate failures the focused SQLite tests missed: health check used an old local file (D-348, corrected in `7fdc4f2`), and PostgreSQL rejected ambiguous counter UPSERT columns (D-349, corrected in `1ff58da`). Added exact failing tests as early review gates, without hiding or weakening them. Full QA on the corrected PostgreSQL change remains open.
+
+
 ## 2026-11-02 — Fix hosted AI-context health readiness regression
 
 - Full SQLite QA found 3 HTTP 503 failures: readiness still probed the former local `ai_context.db` instead of the active hosted context database. Fix `7fdc4f2` selects the real database target, adds API readiness assertions and tests those three exact regressions before the broad suite. Follow-up isolated Render is still in progress, not yet green at documentation time. Defect D-348 logged.

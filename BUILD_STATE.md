@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — S-06.03.06 PG counter portability repair
+
+Full SQLite on `7fdc4f2`: 2,873 PASS/47 skipped/44 warnings. Focused PostgreSQL 215 PASS, Chromium contacts/visitor desktop/mobile PASS. Full PostgreSQL on that source had 1 FAIL, 2,894 PASS, 94 skipped: `test_hosted_context_on_disposable_postgres_after_reconnect` failed with PostgreSQL ambiguous `sends` column in counter UPSERT. Code `1ff58da` qualifies target table columns, checks both `sends` and `replies`, and adds an early real PostgreSQL test gate. Isolated Render `dep-dbk6enmtlv9c73f01ld0` is running, not yet accepted. Defect D-349 logged. Keep S-06.03.06 BACKLOG and do not infer customer deployment.
+
+
 ## 2026-11-02 — S-06.03.06 AI context readiness regression repair
 
 Initial context source `ce82d33` failed full isolated SQLite QA `dep-dbk623cs728c73c78no0`: 3 failed / 2,870 passed / 47 skipped. Exact three hosted readiness cases returned `ai_context:OSError` because `production_runtime.runtime_health` probed the old ephemeral file instead of the configured database. Fix `7fdc4f2` selects `database_target` and adds targeted health assertions plus three previously failed tests before the full suite. Second Render review `dep-dbk66k0473hc73fo5bd0` is pending; no claim of green/full test acceptance yet. See docs/evidence/2026-11-02-hosted-ai-context.md.

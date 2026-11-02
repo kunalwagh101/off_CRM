@@ -16,3 +16,16 @@
 - Review *not* DONE: no direct independent live penetration exercise, no PostgreSQL query-plan/large data benchmark of the new aggregation, no confirmed Q-27 workspace ownership model, no full-history `uv run python scripts/verify_board.py` invocation, no customer/browser screen acceptance. Synthetic test identities only.
 - No provider sends and no production/live demo deployment. Restore is irrelevant because schema/data untouched; rollback is removal of the API route and service method via a normal revert on `develop`.
 - The broader S-06.02.23 production audit is unrelated and remains IN_PROGRESS. Distinguish isolated QA image from production certification.
+
+## Final isolated Render gate — 2026-11-02
+
+Source `a0e9daf9e826cc7415964dd9dec42dd42daca119`, review deployment `dep-dbk9797f3r2c73932q0g` finished **LIVE** at 2026-11-02T14:01:41Z. This is the isolated QA marker service, not a customer or demo deployment.
+
+- Targeted new feature: `uv run pytest -q tests/test_crm_duplicate_review.py` **4 passed**; initial RED prior commit **4 failed** due to missing code.
+- Full SQLite: **2,889 passed, 48 skipped, 44 warnings** (298.97s).
+- Focused PostgreSQL: **215 passed**.
+- Full disposable PostgreSQL: **2,912 passed, 94 skipped, 44 warnings** (368.72s). The `tests/conftest.py` harness switches each path-backed `OutreachStore`, including the four new duplicate tests, to a dedicated real PostgreSQL schema, then drops it.
+- Board verifier **unit tests**: **67 passed**. Repeated concurrency: **12 of 12 runs passed**.
+- Chromium contacts and visitor desktop/mobile acceptance: **PASS**; frontend tests/build/audits and Ruff checks were required successful build stages.
+
+**Unverified:** independent penetration test, production end-to-end release, large-scale PostgreSQL query plan, full-history `uv run python scripts/verify_board.py`, owner decision Q-27 about CRM tenant isolation. Keep F-06.22 **IN_REVIEW**, not DONE. No real customer records or production services were changed. No migrations or provider sends.

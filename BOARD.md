@@ -145,7 +145,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - F-06.22 · Duplicate Contact Review (backend)
   work_order: docs/features/crm-duplicate-review.md
-  review: Render QA LIVE dep-dbk9797f3r2c73932q0g on a0e9daf: TDD RED 4 fail, GREEN 4 pass; SQLite 2889 pass, PostgreSQL 2912 pass, PG focused 215 pass, verifier unit 67 pass, concurrency 12/12 and Chromium desktop/mobile pass. Q-27 tenant choice, independent penetration, large-scale query plan and full-history verifier remain open. No customer deployment; evidence docs/evidence/2026-11-02-crm-duplicate-review.md.
+  review: F-06.22 TDD RED (2 failed/4 passed) in dep-dbk9k6ijnfac73a0jpjg, fixed D-351/352 and test harness D-353; final pinned source f6de8a1 isolated Render dep-dbk9o0gn74is73brdodg LIVE. New 7 tests PASS, SQLite 2892 PASS/48 skipped, real PostgreSQL 2915 PASS/94 skipped, focused PG 215 PASS, verifier unit 67 PASS, concurrency 12/12, Chromium desktop/mobile PASS, frontend and audit stages PASS. Q-27 workspace ownership, independent live penetration, full-history board verifier and beyond-5k query-scale proof remain open. No customer/main deployment.
 
 
 - S-06.02.54 · Restore actual AI and orchestration in the visitor demo

@@ -41,3 +41,22 @@ The independent test expansion is *automated adversarial regression*, not an ind
 ## Query-plan harness correction (D-353)
 
 Isolated Render `dep-dbk9mpff3r2c7394ert0` on `d931ba8` ran the seven-case focused suite: **6 passed, 1 failed**. The only failure was `test_large_import_duplicate_review_has_a_real_query_plan`: it assumed the first returned EXPLAIN column contained planner text. SQLite returns integer id/parent before the string detail. The actual application features (including imported TAB/CR/LF and massive offset rejection) passed. Corrected to inspect text cells, preserving real SQLite/PostgreSQL planner assertions. A rerun is mandatory; no GREEN assertion yet.
+
+## Final corrected gate — 2026-11-02T14:37:46Z
+
+Source `f6de8a1b7b9fc1541489ec49e37654d5b5530f6a` on **develop**; isolated Render service `srv-db86p4u89jmc73cehns0`, deploy `dep-dbk9o0gn74is73brdodg` reached **LIVE**. This is a review marker only, not public customer rollout.
+
+| Executed gate | Observed final result |
+|---|---|
+| `uv run pytest -q -s tests/test_crm_duplicate_review.py` | **7 passed, 1 warning** (3.86s) |
+| SQLite synthetic 5,004 records | **11.4ms** duplicate query, `SCAN c` and `USE TEMP B-TREE FOR GROUP BY` |
+| Full SQLite `uv run pytest -q` | **2,892 passed / 48 skipped / 44 warnings** (292.51s) |
+| Focused real PostgreSQL | **215 passed** |
+| Full `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q` | **2,915 passed / 94 skipped / 44 warnings** (371.14s) |
+| Verifier unit tests | **67 passed** (not full-history evidence invocation) |
+| Concurrent API writes | **12/12 repeated runs passed** |
+| Chromium: Contacts 1280px/390px | PASS |
+| Chromium: visitor demo 1440px/390px | PASS |
+| Frontend tests/build/npm audit and Ruff | PASS as required Docker stages |
+
+PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` and the 5,004-row fixture ran within the full PostgreSQL suite, but stdout is captured there, so **no numeric PostgreSQL latency or exact plan is claimed**. The SQLite plan is a full table scan; more extensive performance review is still needed for very large contact bases. The fixes for D-351 and D-352 and QA harness D-353 are regression-protected. F-06.22 stays **IN_REVIEW** because Q-27 install-wide contacts/workspace privacy, independently executed live penetration testing, full-history `uv run python scripts/verify_board.py` and production operator acceptance are unverified. No customer records, schema, production service, `main` or email sends were changed.

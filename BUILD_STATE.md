@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — F-06.22 full independent isolated Render gate completed
+
+Exact final tested source `f6de8a1b7b9fc1541489ec49e37654d5b5530f6a` on `develop`, isolated review `dep-dbk9o0gn74is73brdodg` **LIVE** at 14:37:46Z. RED a1c68e1 2 failed/4 passed for D-351 (legacy TAB/CR/LF) and D-352 (offset overflow risk); intermediate d931ba8 had 6 pass/1 failure solely due to D-353 test reading an integer EXPLAIN column. Final targeted **7 PASS**, full SQLite **2,892 PASS/48 skip**, full PostgreSQL **2,915 PASS/94 skip**, focused PostgreSQL **215 PASS**, verifier-unit **67 PASS**, concurrent API writes **12/12 PASS**, Chromium desktop/mobile Contacts and visitor demo PASS, frontend build/tests/audit and Ruff gates PASS. Synthetic 5,004-row SQLite duplicate scan **11.4ms**, planner SCAN+TEMP B-TREE; PostgreSQL 5,004-row EXPLAIN executed but actual time not logged. No new dependencies, schemas, provider calls, merges or production data change. F-06.22 remains IN_REVIEW, blocked by Q-27 tenant decision, independent live pen, full-history verifier, large-scale performance and manual production acceptance. See docs/evidence/2026-11-02-crm-duplicate-review.md.
+
+
 ## 2026-11-02 — F-06.22 TDD red and new security/performance gate
 
 Committed to `develop` test `a1c68e1`, Render `dep-dbk9k6ijnfac73a0jpjg` 2 expected FAILED, 4 PASSED. Defects D-351/352: imported email with TAB/CR/LF missed by space-only trim; huge offset lacked upper bound. Fix code `d931ba8` uses matching SQL normalization in group, filter and contact preview, and rejects `offset > 1_000_000` at direct service and authenticated HTTP API. Added 5,004-row fixture for real SQL `EXPLAIN` on SQLite/PostgreSQL and permissive 20s regression alarm. Render GREEN review `dep-dbk9mpff3r2c7394ert0` started, not yet verified at this record. Q-27 workspace ownership, independently conducted penetration and production end-to-end acceptance remain release blockers. No main/customer deploy.

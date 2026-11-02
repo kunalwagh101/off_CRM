@@ -23,7 +23,7 @@ No database migration, sending, merge, dedupe rewrite or background job. Existin
 
 TDD RED: commit `e86ff75`, Render `dep-dbk95sbbc2fs73epnd40`, **4 expected failures** before API/method existed. TDD GREEN: commit `a0e9daf`, Render `dep-dbk9797f3r2c73932q0g`, **4 passed** in 3.42s. Full isolated review deployment `dep-dbk9797f3r2c73932q0g` finished LIVE at 2026-11-02T14:01:41Z on exact code `a0e9daf`. Full SQLite **2,889 PASS/48 skipped**, full PostgreSQL **2,912 PASS/94 skipped**, focused PostgreSQL **215 PASS**, verifier unit **67 PASS**, repeated concurrency **12/12 PASS**, Chromium contacts and visitor desktop/mobile PASS, frontend tests/build/audits and Ruff PASS. The PostgreSQL test fixture runs this feature's four cases on real PostgreSQL. No production rollout. Further evidence: `docs/evidence/2026-11-02-crm-duplicate-review.md`.
 
-A reported duplicate is only a review candidate. No edit, merge, email, provider call or migration was performed. Read-only endpoint rollback is a version revert after checking no clients depend on it; no database rollback required. Full PostgreSQL result, large-scale grouping performance, cross-workspace isolation Q-27, full-history evidence rerun, manual release acceptance and independent penetration remain open and prevent DONE.
+A reported duplicate is only a review candidate. No edit, merge, email, provider call or migration was performed. Read-only endpoint rollback is a version revert after checking no clients depend on it; no database rollback required. larger-scale grouping performance, cross-workspace isolation Q-27, full-history evidence rerun, manual release acceptance and independent penetration remain open and prevent DONE.
 
 
 ## Security/performance review extension (2026-11-02)
@@ -34,3 +34,7 @@ A reported duplicate is only a review candidate. No edit, merge, email, provider
 ## 2026-11-02 — TDD review extension
 
 Real Render RED on `a1c68e1` / `dep-dbk9k6ijnfac73a0jpjg`: **2 failed / 4 passed**. D-351 confirms legacy email TAB/CR/LF normalization was incomplete. D-352 confirms direct/HTTP group OFFSET was unbounded. Fix `d931ba8` adds one shared normalisation SQL expression and enforces offset <= 1,000,000. It includes a 5,004-row synthetic query-plan test on both databases. Full review and PostgreSQL performance numbers remain to be verified; Q-27 tenancy and independent penetration remain release blockers.
+
+### Final isolation result (2026-11-02)
+
+Final pinned Render `dep-dbk9o0gn74is73brdodg` on `f6de8a1` is LIVE as an **isolated QA marker**. New tests **7 PASS**, full SQLite **2,892 PASS**, real PostgreSQL **2,915 PASS**, focused PG **215 PASS**, verifier-unit **67 PASS**, repeated concurrency **12/12 PASS**, Chromium desktop/mobile PASS and frontend/npm audit/Ruff PASS. Synthetic SQLite 5,004-row query measured **11.4ms** with full table scan; the same fixture and EXPLAIN assertion ran on PostgreSQL without published latency. No independent live penetration or full-history verifier. No main/customer deployment. Q-27 remains open, so status remains **IN_REVIEW**.

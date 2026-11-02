@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-02 — F-06.22 independent QA completion (IN_REVIEW)
+
+- Final implementation/test source `f6de8a1`, isolated Render review `dep-dbk9o0gn74is73brdodg` **LIVE at 2026-11-02T14:37:46Z**. Seven targeted tests PASS; full SQLite **2,892 passed/48 skipped**, full disposable PostgreSQL **2,915 passed/94 skipped**; focused PG **215 passed**, verifier unit **67 passed**, 12/12 concurrency and Chromium desktop/mobile PASS. Frontend tests/build/audits and Ruff passed as Docker build gates.
+- D-351/352 imported-email whitespace and oversized-pagination fixes verified. D-353 test harness corrected to read textual EXPLAIN columns. SQLite 5,004-row synthetic query measured 11.4ms but the query performs a table scan; PostgreSQL 5,004-row test executed with planner assertion, execution time not separately recorded.
+- Release **IN_REVIEW**: Q-27 shared-vs-isolated CRM, independent live penetration test, full-history board verifier and larger production-scale query-plan proof remain open. No customer/main deployment or data migration.
+
+
 ## 2026-11-02 — F-06.22 security and imported-contact corrections
 
 - Render TDD RED `dep-dbk9k6ijnfac73a0jpjg` on `a1c68e1`: 2 failed, 4 passed. Found D-351 (TAB/CR/LF values missed by contact duplicate search) and D-352 (unbounded OFFSET).

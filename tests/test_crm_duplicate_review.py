@@ -215,7 +215,10 @@ def test_large_import_duplicate_review_has_a_real_query_plan(tmp_path):
         else:
             plan = engine.store._rows("EXPLAIN QUERY PLAN " + sql)
         assert plan
-        lines = [str(next(iter(row.values()))) for row in plan]
+        # SQLite EXPLAIN returns id/parent/notused before the textual detail;
+        # PostgreSQL EXPLAIN returns a QUERY PLAN text column. Inspect only
+        # text cells rather than assuming the first column is the plan.
+        lines = [value for row in plan for value in row.values() if isinstance(value, str)]
         assert any("scan" in x.lower() or "aggregate" in x.lower() or "group" in x.lower()
                    for x in lines)
         print("DUPLICATE_REVIEW_PLAN backend=" + engine.store.backend +

@@ -37,3 +37,7 @@ Source `a0e9daf9e826cc7415964dd9dec42dd42daca119`, review deployment `dep-dbk979
 **Correction:** `d931ba82f94a29fdc04bb5169b4d8b3c01edcbf3` on develop only. Refused huge offsets in both service and HTTP FastAPI validation; all duplicate-selection SQL now applies the same explicit outer ASCII whitespace normalization to email. Added a synthetic 5,004-contact regression with query execution time, real SQLite `EXPLAIN QUERY PLAN` and real PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`. Targeted run emits a `DUPLICATE_REVIEW_PLAN` line from each database; the measured time is not a production SLA. Follow-on isolated Render deployment `dep-dbk9mpff3r2c7394ert0` started at 2026-11-02T14:17Z. **No GREEN result is asserted in this checkpoint.**
 
 The independent test expansion is *automated adversarial regression*, not an independently commissioned penetration test or external customer-tenant proof. Q-27 remains open. Do not release or mark DONE.
+
+## Query-plan harness correction (D-353)
+
+Isolated Render `dep-dbk9mpff3r2c7394ert0` on `d931ba8` ran the seven-case focused suite: **6 passed, 1 failed**. The only failure was `test_large_import_duplicate_review_has_a_real_query_plan`: it assumed the first returned EXPLAIN column contained planner text. SQLite returns integer id/parent before the string detail. The actual application features (including imported TAB/CR/LF and massive offset rejection) passed. Corrected to inspect text cells, preserving real SQLite/PostgreSQL planner assertions. A rerun is mandatory; no GREEN assertion yet.

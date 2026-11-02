@@ -134,3 +134,41 @@ def test_retry_after_database_commit_before_local_cleanup(tmp_path, monkeypatch)
     hosted = ContextLayer(tmp_path / "unused.db", database_target=destination)
     assert hosted.get_task(task.id).title == "A saved plan"
     hosted.close()
+
+
+def test_failed_destination_write_rolls_back_both_tables(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.db.connection import SQLiteDatabase
+    source = tmp_path / "data" / "ai_context.db"
+    _source(source)
+    target = str(tmp_path / "target.db")
+    original = SQLiteDatabase.execute
+    def fail_on_template(self, statement, parameters=None):
+        if statement.startswith("INSERT INTO ai_template_stats("):
+            raise OSError("simulated database failure")
+        return original(self, statement, parameters)
+    with monkeypatch.context() as patch:
+        patch.setattr(SQLiteDatabase, "execute", fail_on_template)
+        with pytest.raises(OSError, match="database failure"):
+            import_context(source, target, tmp_path / "archive" / "ai_context.db")
+    assert source.exists()
+    hosted = ContextLayer(tmp_path / "unused.db", database_target=target)
+    assert hosted.open_tasks("alpha") == []
+    assert hosted.score_for("alpha", "intro") is None
+    hosted.close()
+
+
+def test_cli_requires_approval_and_imports_legacy_history(tmp_path, monkeypatch, capsys):
+    from cryptography.fernet import Fernet
+    from offsetx_apollo_builder import db_cli
+    source = tmp_path / "data" / "ai_context.db"
+    _source(source)
+    target = str(tmp_path / "hosted.db")
+    archive = tmp_path / "archive" / "ai_context.db"
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", target)
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", Fernet.generate_key().decode("ascii"))
+    args = ["import-context", "--source", str(source), "--archive", str(archive)]
+    assert db_cli.main(args) == 2
+    assert source.exists()
+    assert db_cli.main([*args, "--yes"]) == 0
+    assert "Imported" in capsys.readouterr().out
+    assert archive.exists() and not source.exists()

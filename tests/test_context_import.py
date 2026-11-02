@@ -86,3 +86,51 @@ def test_archive_must_be_outside_ephemeral_source_dir(tmp_path):
     with pytest.raises(ContextImportError, match="outside"):
         import_context(source, str(tmp_path / "hosted.db"), source.parent / "archive.db")
     assert source.exists()
+
+
+def test_busy_workspace_blocks_migration(tmp_path):
+    from offsetx_apollo_builder.outreach.workspace_lock import WorkspaceLock
+    source = tmp_path / "data" / "ai_context.db"
+    _source(source)
+    with WorkspaceLock(source.parent):
+        with pytest.raises(ContextImportError, match="busy"):
+            import_context(source, str(tmp_path / "target.db"), tmp_path / "archive" / "ai_context.db")
+    assert source.exists()
+
+
+def test_archive_is_private_and_can_restore_original_history(tmp_path):
+    import stat
+    source = tmp_path / "data" / "ai_context.db"
+    task = _source(source)
+    archive = tmp_path / "archive" / "ai_context.db"
+    import_context(source, str(tmp_path / "target.db"), archive)
+    assert stat.S_IMODE(archive.stat().st_mode) == 0o600
+    assert stat.S_IMODE(archive.parent.stat().st_mode) == 0o700
+    recovered_path = tmp_path / "recovery" / "ai_context.db"
+    recovered_path.parent.mkdir()
+    recovered_path.write_bytes(archive.read_bytes())
+    recovered = ContextLayer(recovered_path)
+    assert recovered.get_task(task.id).title == "A saved plan"
+    recovered.close()
+
+
+def test_retry_after_database_commit_before_local_cleanup(tmp_path, monkeypatch):
+    source = tmp_path / "data" / "ai_context.db"
+    task = _source(source)
+    destination = str(tmp_path / "target.db")
+    archive = tmp_path / "archive" / "ai_context.db"
+    original = Path.unlink
+    def interrupt(path, *args, **kwargs):
+        if path == source:
+            raise OSError("simulated interrupted cleanup")
+        return original(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", interrupt)
+        with pytest.raises(OSError, match="interrupted cleanup"):
+            import_context(source, destination, archive)
+    assert archive.exists() and source.exists()
+    import_context(source, destination, archive)
+    assert not source.exists()
+    hosted = ContextLayer(tmp_path / "unused.db", database_target=destination)
+    assert hosted.get_task(task.id).title == "A saved plan"
+    hosted.close()

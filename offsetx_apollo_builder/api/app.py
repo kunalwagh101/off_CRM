@@ -3276,6 +3276,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def campaign_summary(campaign_id: str, request: Request) -> dict[str, Any]:
         return _engine(request).store.campaign_summary(campaign_id)
 
+    @app.get(f"{API_PREFIX}/crm/duplicates")
+    def crm_duplicate_contacts(
+        request: Request,
+        search: str = Query("", max_length=100),
+        limit: int = Query(25, ge=1, le=25),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        return CRMOperations(_engine(request).store, _sales(request)).contact_duplicates(
+            search=search, limit=limit, offset=offset,
+        )
+
     @app.get(f"{API_PREFIX}/crm/quality")
     def crm_data_quality(
         request: Request,

@@ -93,6 +93,57 @@ class CRMOperations:
             "identity_note": "A matching email in Sales Tracker is a review hint, not proof of a duplicate.",
         }
 
+    def contact_duplicates(
+        self, *, search: str = "", limit: int = 25, offset: int = 0,
+    ) -> dict[str, Any]:
+        """Find case/whitespace email collisions without merging contacts."""
+        self._page(limit, offset)
+        if limit > 25:
+            raise ValueError("Duplicate review page limit must not exceed 25")
+        term = clean_text(search).strip()
+        if len(term) > 100:
+            raise ValueError("Email search must not exceed 100 characters")
+
+        # A fixed grouping expression and bound LIKE argument preserve the
+        # actual duplicate counts even when the operator pages the results.
+        where = "WHERE trim(c.email) <> ''"
+        args: list[Any] = []
+        if term:
+            where += " AND lower(trim(c.email)) LIKE lower(?) ESCAPE '\\'"
+            args.append(self.store._like(term))
+        grouped = (
+            "SELECT lower(trim(c.email)) AS normalized_email, "
+            "COUNT(*) AS contact_count FROM contacts c " + where +
+            " GROUP BY lower(trim(c.email)) HAVING COUNT(*) > 1"
+        )
+        total = self.store._row(
+            "SELECT COUNT(*) AS count FROM (" + grouped + ") duplicate_groups",
+            tuple(args),
+        )
+        groups = self.store._rows(
+            "SELECT normalized_email, contact_count FROM (" + grouped + ") duplicate_groups "
+            "ORDER BY normalized_email LIMIT ? OFFSET ?",
+            (*args, limit, offset),
+        )
+        for group in groups:
+            # A bounded preview avoids returning thousands of PII records
+            # when an imported address has many historical variants.
+            group["contacts"] = self.store._rows(
+                """SELECT id, full_name, company, title FROM contacts
+                   WHERE lower(trim(email)) = ?
+                   ORDER BY lower(full_name), id LIMIT 3""",
+                (group["normalized_email"],),
+            )
+            group["has_more"] = int(group["contact_count"]) > len(group["contacts"])
+        return {
+            "items": groups, "total": int(total["count"] or 0),
+            "limit": limit, "offset": offset, "search": term,
+            "identity_note": (
+                "Matching emails are review hints, not proof of duplicate people. "
+                "No contact records were merged or changed."
+            ),
+        }
+
     def campaign_comparison(
         self, *, search: str = "", limit: int = 25, offset: int = 0,
     ) -> dict[str, Any]:

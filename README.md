@@ -247,6 +247,26 @@ not migrate media, the CRM database, other AI records or email outbox data.
 See `docs/work-orders/S-06.03.06-store-homes.md` for the remaining work.
 
 
+### Importing old AI task history into hosted storage
+
+A hosted app will refuse to hide a remaining local `ai_context.db` file.
+Stop the app and workers first. Configure the correct `OFFSETX_DATABASE_URL`
+and `OFFSETX_SECRETS_KEY`, then choose a genuinely persistent private archive
+outside the application's temporary data directory.
+
+```bash
+uv run offsetx-db import-context --source /old/data/ai_context.db --archive /secure/backup/ai_context.db --yes
+uv run offsetx-db import-context --source /old/data/ai_context.db --archive /secure/backup/ai_context.db --skip
+```
+
+`--yes` copies AI task decisions, steps and template counts only into an empty
+hosted AI context, after archiving the complete original SQLite database.
+`--skip` preserves the old history in the archive but keeps hosted history
+unchanged. Neither option sends messages. Conflicting destinations are
+refused; a damaged source, busy workspace or failed copy keeps the original.
+Do not use Render's temporary filesystem for the archive. See
+`docs/evidence/2026-11-02-ai-context-import.md`.
+
 ## Tests and quality checks
 
 ```bash

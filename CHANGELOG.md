@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-02 — AI history migration: isolated Render QA passed
+
+- Reviewed on `develop` implementation source `1236104` in isolated
+  Render `dep-dbk8on7f3r2c7391pn50` (LIVE). New migration tests:
+  12 PASS / 1 PostgreSQL-only skip at SQLite gate, the PG import case
+  later PASS; full SQLite **2,885 PASS** and full PostgreSQL **2,908 PASS**.
+  Focused PostgreSQL 215 PASS, Chromium desktop/mobile PASS, verifier unit
+  67 PASS and concurrency 12/12 PASS. No customer/main deployment.
+- AI context import/skip is operator-only with a protected source backup.
+  The entire F-06.03 and S-06.03.06 remain open for other stores and
+  external backup/restore proof.
+
+
 ## 2026-11-02 — AI-context import QA
 
 - 2026-11-02: isolated Render review `dep-dbk8on7f3r2c7391pn50` on source `12361049103a8913753899b34eba5ef2f18698e6` finished LIVE at 2026-11-02T13:30:28Z. Full PostgreSQL 2,908 passed, 94 skipped, 44 warnings. Docker review completion requires SQLite, frontend, Chromium, PostgreSQL and focused early stages. No customer deployment. Full-history board verification, independent penetration and external backup restore not evidenced; S-06.03.06 stays BACKLOG.

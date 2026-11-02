@@ -172,3 +172,30 @@ def test_cli_requires_approval_and_imports_legacy_history(tmp_path, monkeypatch,
     assert db_cli.main([*args, "--yes"]) == 0
     assert "Imported" in capsys.readouterr().out
     assert archive.exists() and not source.exists()
+
+
+@pytest.mark.skipif(
+    not __import__("os").getenv("OFF_CRM_TEST_POSTGRES_URL"),
+    reason="isolated PostgreSQL runs only in the Render review image",
+)
+def test_postgresql_context_import_survives_reconnect(tmp_path):
+    import os
+    import uuid
+    import psycopg
+    base = os.environ["OFF_CRM_TEST_POSTGRES_URL"]
+    schema = "ai_import_" + uuid.uuid4().hex[:12]
+    with psycopg.connect(base, autocommit=True) as admin:
+        admin.execute(f'CREATE SCHEMA "{schema}"')
+    target = base + ("&" if "?" in base else "?") + "options=-csearch_path%3D" + schema
+    source = tmp_path / "data" / "ai_context.db"
+    task = _source(source)
+    try:
+        counts = import_context(source, target, tmp_path / "archive" / "ai_context.db")
+        assert counts == {"ai_task_state": 1, "ai_template_stats": 1}
+        reopened = ContextLayer(tmp_path / "unused.db", database_target=target)
+        assert reopened.get_task(task.id).title == "A saved plan"
+        assert reopened.score_for("alpha", "intro").replies == 1
+        reopened.close()
+    finally:
+        with psycopg.connect(base, autocommit=True) as admin:
+            admin.execute(f'DROP SCHEMA "{schema}" CASCADE')

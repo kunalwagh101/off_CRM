@@ -1,5 +1,26 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — Verified AI-context migration review: isolated Render LIVE
+
+Exact implementation/test source `12361049103a8913753899b34eba5ef2f18698e6`
+on `develop`, isolated Render review `dep-dbk8on7f3r2c7391pn50`,
+status **LIVE** at 2026-11-02T13:30:28Z. TDD migration gate 12 PASS /
+1 PostgreSQL-only skip in SQLite stage; that PostgreSQL import case then
+PASS in the real disposable PostgreSQL gate. Full SQLite 2885 PASS/48 skipped,
+focused PostgreSQL 215 PASS, full PostgreSQL 2908 PASS/94 skipped, real
+Chromium desktop/mobile contacts and visitor demo PASS, verifier-unit 67 PASS
+and 12 repeated concurrency checks PASS. Full Docker build also enforced
+frontend tests/build/audit and critical Ruff. Recorded in
+`docs/evidence/2026-11-02-ai-context-import.md`.
+
+The manual `offsetx-db import-context` can archive existing SQLite AI history
+privately and import both tables transactionally (or deliberately skip), but
+has **not** acted on customer files. The LIVE service is a QA marker only;
+no main/customer deployment. Full-history board verifier, independent
+security review, external encrypted backup/restore and other S-06.03.06
+data-store migration are open; story remains BACKLOG under existing WIP policy.
+
+
 ## AI-context import: verified isolated Render review
 
 2026-11-02: isolated Render review `dep-dbk8on7f3r2c7391pn50` on source `12361049103a8913753899b34eba5ef2f18698e6` finished LIVE at 2026-11-02T13:30:28Z. Full PostgreSQL 2,908 passed, 94 skipped, 44 warnings. Docker review completion requires SQLite, frontend, Chromium, PostgreSQL and focused early stages. No customer deployment. Full-history board verification, independent penetration and external backup restore not evidenced; S-06.03.06 stays BACKLOG.

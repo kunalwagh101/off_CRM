@@ -3281,7 +3281,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         request: Request,
         search: str = Query("", max_length=100),
         limit: int = Query(25, ge=1, le=25),
-        offset: int = Query(0, ge=0),
+        offset: int = Query(0, ge=0, le=1_000_000),
     ) -> dict[str, Any]:
         return CRMOperations(_engine(request).store, _sales(request)).contact_duplicates(
             search=search, limit=limit, offset=offset,

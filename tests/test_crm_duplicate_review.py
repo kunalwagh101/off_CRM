@@ -1,5 +1,6 @@
 """F-06.22 duplicate-contact review: safe, bounded, read-only acceptance tests."""
 from pathlib import Path
+from time import perf_counter
 
 import pytest
 from fastapi.testclient import TestClient
@@ -171,3 +172,54 @@ def test_unreasonably_large_pagination_is_rejected_before_database(tmp_path):
         for bad in ("1000001", "999999999999999999999999"):
             response = client.get(endpoint, params={"offset": bad}, headers=headers)
             assert response.status_code == 422, response.text
+
+
+def test_large_import_duplicate_review_has_a_real_query_plan(tmp_path):
+    """Measure the actual grouped query on both disposable database backends."""
+    engine = OutreachEngine(tmp_path / "large-duplicates.db")
+    now = "2026-11-02T00:00:00+00:00"
+    try:
+        with engine.store.transaction() as conn:
+            for i in range(5_000):
+                conn.execute(
+                    """INSERT INTO contacts
+                         (id, identity_key, full_name, email, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (f"bulk-{i}", f"bulk-key-{i}", f"Person {i}",
+                     f"person-{i}@example.test", now, now),
+                )
+            for i in range(1, 5):
+                conn.execute(
+                    """INSERT INTO contacts
+                         (id, identity_key, full_name, email, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (f"duplicate-{i}", f"duplicate-key-{i}", f"Duplicate {i}",
+                     " " * i + "person-1200@example.test", now, now),
+                )
+        service = CRMOperations(engine.store, SalesTracker(engine.store))
+        start = perf_counter()
+        result = service.contact_duplicates()
+        elapsed_ms = (perf_counter() - start) * 1_000
+        assert result["total"] == 1
+        group = result["items"][0]
+        assert group["normalized_email"] == "person-1200@example.test"
+        assert group["contact_count"] == 5
+        assert group["has_more"] is True
+        assert len(group["contacts"]) == 3
+        assert elapsed_ms < 20_000  # Loose alarm, not a production SLA
+        expr = "lower(trim(c.email, ' \t\r\n'))"
+        sql = (f"SELECT {expr}, COUNT(*) FROM contacts c WHERE {expr} <> '' "
+               f"GROUP BY {expr} HAVING COUNT(*) > 1")
+        if engine.store.backend == "postgres":
+            plan = engine.store._rows("EXPLAIN (ANALYZE, BUFFERS) " + sql)
+        else:
+            plan = engine.store._rows("EXPLAIN QUERY PLAN " + sql)
+        assert plan
+        lines = [str(next(iter(row.values()))) for row in plan]
+        assert any("scan" in x.lower() or "aggregate" in x.lower() or "group" in x.lower()
+                   for x in lines)
+        print("DUPLICATE_REVIEW_PLAN backend=" + engine.store.backend +
+              " rows=5004 elapsed_ms=" + str(round(elapsed_ms, 1)) +
+              " plan=" + " | ".join(x[:110] for x in lines[:5]))
+    finally:
+        engine.close()

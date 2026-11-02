@@ -100,21 +100,26 @@ class CRMOperations:
         self._page(limit, offset)
         if limit > 25:
             raise ValueError("Duplicate review page limit must not exceed 25")
+        if offset > 1_000_000:
+            raise ValueError("Duplicate review offset must not exceed 1,000,000")
         term = clean_text(search).strip()
         if len(term) > 100:
             raise ValueError("Email search must not exceed 100 characters")
 
         # A fixed grouping expression and bound LIKE argument preserve the
         # actual duplicate counts even when the operator pages the results.
-        where = "WHERE trim(c.email) <> ''"
+        # Default SQL trim only removes a space. Old imports can contain TAB,
+        # CR or LF; share this expression across discovery and the preview.
+        email_key = "lower(trim(c.email, ' \t\r\n'))"
+        where = f"WHERE {email_key} <> ''"
         args: list[Any] = []
         if term:
-            where += " AND lower(trim(c.email)) LIKE lower(?) ESCAPE '\\'"
+            where += f" AND {email_key} LIKE lower(?) ESCAPE '\\'"
             args.append(self.store._like(term))
         grouped = (
-            "SELECT lower(trim(c.email)) AS normalized_email, "
+            f"SELECT {email_key} AS normalized_email, "
             "COUNT(*) AS contact_count FROM contacts c " + where +
-            " GROUP BY lower(trim(c.email)) HAVING COUNT(*) > 1"
+            f" GROUP BY {email_key} HAVING COUNT(*) > 1"
         )
         total = self.store._row(
             "SELECT COUNT(*) AS count FROM (" + grouped + ") duplicate_groups",
@@ -129,8 +134,8 @@ class CRMOperations:
             # A bounded preview avoids returning thousands of PII records
             # when an imported address has many historical variants.
             group["contacts"] = self.store._rows(
-                """SELECT id, full_name, company, title FROM contacts
-                   WHERE lower(trim(email)) = ?
+                f"""SELECT id, full_name, company, title FROM contacts c
+                   WHERE {email_key} = ?
                    ORDER BY lower(full_name), id LIMIT 3""",
                 (group["normalized_email"],),
             )

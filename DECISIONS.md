@@ -737,3 +737,28 @@ A free Render filesystem is *not* a safe archive destination.
 
 **Revisit.** When S-06.03.06 provides verified shared-config migrations for
 all stores and S-06.02.40 delivers supervised, idempotent worker execution.
+
+### DD-42 — Hosted AI context is explicit; old local context blocks cutover · 2026-11-02
+
+**The call.** The context layer's target is injected explicitly by the FastAPI
+application. Local standalone installs keep their existing SQLite tables;
+hosted installs persist AI task progress and template counters in versioned
+PostgreSQL tables. Never infer a target from a process environment in the
+context class itself, because unit tests and local tools must not write to a
+live owner database.
+
+**Why not auto-copy.** Local AI context may include sensitive owner decisions,
+client strategies and template copy. Automatically creating a new empty
+hosted database would silently erase that history; automatically copying it
+at app startup could mix installs and write data without consent. A detected
+legacy local file fails startup until an explicit, reconciled operator migration
+exists.
+
+**Cost.** A previously local install cannot enable hosted mode when its old
+context DB still exists. The owner must preserve the file and follow a
+verified migration process when developed; this is a deliberate deployment
+blocker, not hidden data loss. Other unhosted stores and external backup still
+prevent full production readiness.
+
+**Revisit.** When S-06.03.06's explicit AI context migration and isolated
+PostgreSQL restore tests are accepted.

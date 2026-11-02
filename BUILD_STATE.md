@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — S-06.03.06 hosted AI task context (partial)
+
+New `tests/test_hosted_ai_context.py`, RED source `daa57cf`: 5 failed, PG-only case skipped; isolated Render `dep-dbk615oae00c73fue270`. Implemented `ContextLayer(database_target=...)` with versioned hosted PostgreSQL/SQLite schema, real application injection and safety guard for existing local data in code commit `ce82d33`. Early Render `dep-dbk623cs728c73c78no0`: 5 context tests PASS, PG-only skip; 6 timer tests and 14 migration tests PASS in focused gates. Broad QA not verified at this documentation point. This fixes a loss-on-restart path for new hosted installs only; historical local context needs an approved importer. F-06.03 remains open, no main/customer deploy. See docs/evidence/2026-11-02-hosted-ai-context.md.
+
+
 ## 2026-11-02 — S-06.03.06 legacy timer migration: pinned Render QA passed
 
 On exact source `0232cf5e2d15493dd7538b10fcbc69e404609c47`, isolated review `dep-dbjri0utlv9c73e36570` is LIVE after all Docker QA gates at 2026-11-01T22:28:58Z. Targeted timer migration 14 PASS/1 PostgreSQL-only skip in SQLite stage; existing timer 6 PASS; readiness 7 PASS; full SQLite 2,868 PASS/46 skipped, 44 warnings; focused disposable PostgreSQL 215 PASS; full disposable PostgreSQL 2,889 PASS/94 skipped, 44 warnings (PostgreSQL migration case included); real Chromium Contacts and visitor demo desktop/mobile PASS; verifier unit 67 PASS, concurrency 12/12 PASS. Frontend and critical static gates passed. The QA marker is not the customer app. No customer/main deployment, real sends, independent penetration, full-history board command, or external backup/restore acceptance. S-06.03.06 and F-06.03 remain open; see docs/evidence/2026-11-02-timer-migration.md.

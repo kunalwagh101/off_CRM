@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 — Hosted AI context and template statistics (S-06.03.06 partial)
+
+- AI task progress, owner decisions, summaries and template performance are now backed by versioned tables in the explicitly configured hosted database. Old local installs still use their existing SQLite file. A hosted startup refuses to silently ignore an old `ai_context.db`, pending a reviewed migration command.
+- TDD RED isolated Render 5 failed; first GREEN early test 5 PASS/one PG-only skip on `ce82d33`. The full SQLite/PostgreSQL/Chromium QA verdict is not yet claimed here. F-06.03 and story S-06.03.06 stay open.
+
+
 ## 2026-11-02 — Verified manual legacy timer cutover QA
 
 - Isolated Render `dep-dbjri0utlv9c73e36570` reached LIVE on source `0232cf5e2d15493dd7538b10fcbc69e404609c47` after complete configured Docker QA: 14 targeted migration tests PASS (one PostgreSQL-only early-stage skip), 2,868 full SQLite PASS, 215 focused PostgreSQL PASS, 2,889 full PostgreSQL PASS, and Chromium desktop/mobile PASS. The CLI defaults imported automation to disabled and refuses concurrent/invalid/conflicting imports. No customer deployment or F-06.03 DONE claim.

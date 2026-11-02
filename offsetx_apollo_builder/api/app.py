@@ -526,6 +526,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # A data folder that still holds these stores is the owner's call,
         # never hidden in silence (D-210).
         hosted.check_local_folder(resolved.data_dir)
+        # S-06.03.06: an older AI history file cannot be silently hidden by
+        # a new hosted installation. Preserve and explicitly migrate it first.
+        if (resolved.data_dir / "ai_context.db").is_file():
+            raise ValueError(
+                "Existing local AI context (ai_context.db) cannot be ignored. "
+                "Stop this installation, preserve the local file, and complete "
+                "an explicit AI-context migration before starting hosted mode."
+            )
     # The CRM follows the database too, by the rule every hosted store uses
     # (S-06.03.03); a CRM file left from before is the owner's call, as above.
     crm = resolve_database_target(default=resolved.database_path)
@@ -659,7 +667,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.hosted_storage = hosted
         app.state.workspace_auth = workspace_auth
         # Both are built before the engine: sending writes through them.
-        app.state.ai_context = ContextLayer(resolved.data_dir / "ai_context.db")
+        app.state.ai_context = ContextLayer(
+            resolved.data_dir / "ai_context.db",
+            database_target=hosted.target if hosted is not None else None,
+        )
         app.state.ai_recall = SentMailIndex(resolved.data_dir / "ai_recall.db")
         app.state.engine = _attach_products(
             OutreachEngine(

@@ -225,7 +225,7 @@ are wiped — so the owner's numbers are still to be taken.
 | Video timelines | edit history, transcripts | SQLite file | follows `OFFSETX_DATABASE_URL` already |
 | Products and plans | the GTM engine's products, plans and reviews | SQLite file | follows `OFFSETX_DATABASE_URL` already |
 | CRM | campaigns, contacts, drafts, sends, replies, delivery jobs | SQLite file (`OFFSETX_OUTREACH_DB`) | hosted database — `S-06.03.03` |
-| Template results | what each template sent and how it did | SQLite file | not decided — `S-06.03.06` |
+| Template results | what each template sent and how it did | SQLite file | hosted database — `S-06.03.06` (AI context) |
 | Sent-mail recall | the index of sent mail drafts learn from | SQLite file | not decided — `S-06.03.06` |
 | Tools and companions | registered tools and companion profiles | SQLite file | not decided — `S-06.03.06` |
 | Agent routines | routines and their runs | SQLite file and trace files | not decided — `S-06.03.06` |
@@ -345,3 +345,19 @@ Rollback: with the app/worker stopped, verify the archived JSON copies on a
 persistent disk, recover the prior local configuration if necessary, and use
 the previous application release. Do not delete hosted documents automatically
 or start two timer instances against the same queue.
+
+### 2026-11-02 — S-06.03.06 AI context hosted-storage slice
+
+When an explicit `OFFSETX_DATABASE_URL` is configured, AI task progress,
+owner decisions, template-performance counters, winners and workspace-scoped
+template records now use versioned tables in the hosted database. The local
+install continues to use its existing SQLite `ai_context.db` without changes.
+Database failures do not fall back to a temporary local file.
+
+A pre-existing local `ai_context.db` file blocks a hosted start. This avoids
+silently discarding client task decisions and conversion statistics. **This
+slice does not yet provide an operator-approved importer for the existing
+file**; preserve that file on durable storage until the importer is tested.
+The other non-hosted stores in S-06.03.06, including sent mail recall, agent
+routines, meetings, media and outboxes, remain open. This is not production
+backup/restore acceptance or a completed S-06.03.06 story.

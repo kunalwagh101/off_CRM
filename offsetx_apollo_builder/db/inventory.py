@@ -89,7 +89,7 @@ STORES: tuple[StoredThing, ...] = (
         ("offsetx_outreach.db*",), SQLITE + " (`OFFSETX_OUTREACH_DB`)", PHASE_2, "engine",
     ),
     StoredThing(
-        "Template results", "what each template sent and how it did", ("ai_context.db*",), SQLITE, LATER, "ai_context",
+        "Template results", "what each template sent and how it did", ("ai_context.db*",), SQLITE, "hosted database — `S-06.03.06` (AI context)", "ai_context",
     ),
     StoredThing(
         "Sent-mail recall", "the index of sent mail drafts learn from", ("ai_recall.db*",), SQLITE, LATER, "ai_recall",

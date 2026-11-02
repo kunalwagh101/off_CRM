@@ -36,6 +36,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..db.connection import Database, open_database
+from ..db.schema import ensure_schema
 from ..outreach.models import to_utc_iso
 from .payload import EgressRequest
 from .tiers import DataClass
@@ -185,28 +187,49 @@ class TemplateScore:
 class ContextLayer:
     """Remembers where a job is, and which templates earn replies.
 
-    Owns its own SQLite tables and connection, like the egress log, so the AI
-    module stays liftable into its own repository.
+    Owns a dedicated SQLite file locally or tables in the explicit hosted
+    database. Models still have no direct retrieval interface.
     """
 
-    def __init__(self, database_path: Path | str) -> None:
+    def __init__(
+        self, database_path: Path | str, *, database_target: str | None = None
+    ) -> None:
         self.path = Path(database_path)
+        # Explicit only. A test or local install never picks up an unrelated
+        # env variable and accidentally writes into the owner's hosted data.
+        self.database_target = str(database_target) if database_target else None
         self._lock = threading.RLock()
-        self._connection: sqlite3.Connection | None = None
+        self._connection: sqlite3.Connection | Database | None = None
 
     @property
-    def connection(self) -> sqlite3.Connection:
+    def connection(self) -> sqlite3.Connection | Database:
         with self._lock:
             if self._connection is None:
-                self.path.parent.mkdir(parents=True, exist_ok=True)
-                connection = sqlite3.connect(
-                    self.path, check_same_thread=False, isolation_level=None
-                )
-                connection.row_factory = sqlite3.Row
-                connection.execute("PRAGMA journal_mode=WAL")
-                connection.execute("PRAGMA busy_timeout=5000")
-                connection.executescript(SCHEMA)
-                self._connection = connection
+                if self.database_target is not None:
+                    database = open_database(self.database_target)
+                    try:
+                        def create_context_schema(target: Database) -> None:
+                            for statement in SCHEMA.split(";"):
+                                if statement.strip():
+                                    target.execute(statement)
+
+                        ensure_schema(
+                            database, "ai_context", [create_context_schema]
+                        )
+                    except BaseException:
+                        database.close()
+                        raise
+                    self._connection = database
+                else:
+                    self.path.parent.mkdir(parents=True, exist_ok=True)
+                    connection = sqlite3.connect(
+                        self.path, check_same_thread=False, isolation_level=None
+                    )
+                    connection.row_factory = sqlite3.Row
+                    connection.execute("PRAGMA journal_mode=WAL")
+                    connection.execute("PRAGMA busy_timeout=5000")
+                    connection.executescript(SCHEMA)
+                    self._connection = connection
             return self._connection
 
     def close(self) -> None:

@@ -55,25 +55,30 @@ def _reader(path: Path) -> sqlite3.Connection:
 
 
 def _snapshot_rows(con: sqlite3.Connection) -> dict[str, list[tuple]]:
-    if con.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-        raise ContextImportError("The source AI context database is invalid.")
-    records = {}
-    for table, columns in TABLES.items():
-        found = {
-            str(row["name"])
-            for row in con.execute(f"PRAGMA table_info({table})")
-        }
-        if found != set(columns):
-            raise ContextImportError(
-                "The source AI context schema is unsupported; keep the original and migrate with a compatible release."
-            )
-        values = ", ".join(columns)
-        records[table] = [
-            tuple(row[name] for name in columns)
-            for row in con.execute(f"SELECT {values} FROM {table} ORDER BY id")
-        ]
-    return records
-
+    """Read the exact supported schema, never silently drop old fields."""
+    try:
+        if con.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise ContextImportError("The source AI context database is invalid.")
+        records = {}
+        for table, columns in TABLES.items():
+            found = {
+                str(row["name"])
+                for row in con.execute(f"PRAGMA table_info({table})")
+            }
+            if found != set(columns):
+                raise ContextImportError(
+                    "The source AI context schema is unsupported; preserve the original and use a compatible release."
+                )
+            values = ", ".join(columns)
+            records[table] = [
+                tuple(row[name] for name in columns)
+                for row in con.execute(f"SELECT {values} FROM {table} ORDER BY id")
+            ]
+        return records
+    except sqlite3.DatabaseError:
+        raise ContextImportError(
+            "The source AI context database is damaged or unreadable; preserve the original."
+        ) from None
 
 def _private_archive(source: Path, archive: Path, expected: dict) -> None:
     if archive.is_symlink():
@@ -147,8 +152,8 @@ def import_context(
     archive_arg = Path(archive_path).expanduser()
     if source_arg.is_symlink() or not source_arg.is_file():
         raise ContextImportError("The local AI context source must be an existing regular file.")
-    if archive_arg.is_symlink():
-        raise ContextImportError("The archive cannot be a symbolic link.")
+    if archive_arg.is_symlink() or archive_arg.parent.is_symlink():
+        raise ContextImportError("The archive and parent must not be symbolic links.")
     source = source_arg.resolve()
     archive = archive_arg.resolve()
     root = source.parent

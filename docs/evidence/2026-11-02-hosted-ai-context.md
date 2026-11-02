@@ -21,3 +21,9 @@ Date: 2026-11-02 IST. Branch: `develop`. Development is a partial slice of F-06.
 ## Unresolved acceptance
 
 An operator-reviewed import/skip tool for existing local `ai_context.db`, real database restore to a new host, full-history board verification, independent penetration, full F-06.03 storage coverage, and external backup Q-29 are still open. No customer service, credential or `main` branch was changed.
+
+## Full SQLite regression failure and correction (2026-11-02)
+
+The first implementation `ce82d33` passed the five focused context checks but **failed** the full isolated SQLite review `dep-dbk623cs728c73c78no0`: **3 failed, 2,870 passed, 47 skipped, 44 warnings**. The three regressions were `tests/test_crm_hosted.py::test_a_campaign_made_in_the_app_outlives_the_disk[sqlite]`, `test_a_local_crm_holding_only_what_every_start_writes_does_not_stop_the_start[sqlite]`, and `tests/test_hosted_storage.py::test_readiness_checks_the_hosted_database[sqlite]`. All returned HTTP 503 for `/health/ready` with component `ai_context:OSError`. **Root cause:** `runtime_health` used the old `ContextLayer.path` to probe a local SQLite file even when the context connection had moved to `database_target`.
+
+**Correction:** `7fdc4f2104a86ea7580f4cdbb6e335742d567195` checks the configured database target first and adds explicit `/health/ready` assertions in the hosted context application test. The isolated review now runs all three previously failing tests *before* the full regression suite. Review `dep-dbk66k0473hc73fo5bd0` is in progress at this evidence checkpoint. No success claim before the fresh logs confirm it.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-02 — Fix hosted AI-context health readiness regression
+
+- Full SQLite QA found 3 HTTP 503 failures: readiness still probed the former local `ai_context.db` instead of the active hosted context database. Fix `7fdc4f2` selects the real database target, adds API readiness assertions and tests those three exact regressions before the broad suite. Follow-up isolated Render is still in progress, not yet green at documentation time. Defect D-348 logged.
+
+
 ## 2026-11-02 — Hosted AI context and template statistics (S-06.03.06 partial)
 
 - AI task progress, owner decisions, summaries and template performance are now backed by versioned tables in the explicitly configured hosted database. Old local installs still use their existing SQLite file. A hosted startup refuses to silently ignore an old `ai_context.db`, pending a reviewed migration command.

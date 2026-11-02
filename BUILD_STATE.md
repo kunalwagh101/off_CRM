@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — S-06.03.06 AI context readiness regression repair
+
+Initial context source `ce82d33` failed full isolated SQLite QA `dep-dbk623cs728c73c78no0`: 3 failed / 2,870 passed / 47 skipped. Exact three hosted readiness cases returned `ai_context:OSError` because `production_runtime.runtime_health` probed the old ephemeral file instead of the configured database. Fix `7fdc4f2` selects `database_target` and adds targeted health assertions plus three previously failed tests before the full suite. Second Render review `dep-dbk66k0473hc73fo5bd0` is pending; no claim of green/full test acceptance yet. See docs/evidence/2026-11-02-hosted-ai-context.md.
+
+
 ## 2026-11-02 — S-06.03.06 hosted AI task context (partial)
 
 New `tests/test_hosted_ai_context.py`, RED source `daa57cf`: 5 failed, PG-only case skipped; isolated Render `dep-dbk615oae00c73fue270`. Implemented `ContextLayer(database_target=...)` with versioned hosted PostgreSQL/SQLite schema, real application injection and safety guard for existing local data in code commit `ce82d33`. Early Render `dep-dbk623cs728c73c78no0`: 5 context tests PASS, PG-only skip; 6 timer tests and 14 migration tests PASS in focused gates. Broad QA not verified at this documentation point. This fixes a loss-on-restart path for new hosted installs only; historical local context needs an approved importer. F-06.03 remains open, no main/customer deploy. See docs/evidence/2026-11-02-hosted-ai-context.md.

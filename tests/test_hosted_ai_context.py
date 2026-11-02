@@ -86,15 +86,17 @@ def test_hosted_app_uses_database_for_ai_context_and_survives_restart(tmp_path, 
         allowed_hosts=("testserver",),
     )
     first = create_app(settings)
-    with TestClient(first, headers={"X-Offsetx-Token": settings.api_token}):
+    with TestClient(first, headers={"X-Offsetx-Token": settings.api_token}) as client:
         task = first.state.ai_context.start_task(workspace_id="team", title="persist")
+        assert client.get("/health/ready").status_code == 200
         first.state.ai_context.register_template(
             workspace_id="team", template_id="v1", template_text="Hello"
         )
     assert not (data / "ai_context.db").exists()
     shutil.rmtree(data)
     second = create_app(settings)
-    with TestClient(second, headers={"X-Offsetx-Token": settings.api_token}):
+    with TestClient(second, headers={"X-Offsetx-Token": settings.api_token}) as client:
+        assert client.get("/health/ready").status_code == 200
         assert second.state.ai_context.get_task(task.id).title == "persist"
         assert second.state.ai_context.score_for("team", "v1").template_text == "Hello"
 

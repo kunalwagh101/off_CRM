@@ -200,7 +200,14 @@ def runtime_health(state: Any, settings: Any, *, include_maintenance: bool = Tru
     for name, store in stores.items():
         try:
             store.connection.execute("SELECT 1").fetchone()
-            target = getattr(store, "target", None) or getattr(store, "path", None)
+            # ContextLayer can be hosted while its legacy .path still names
+            # the disposable local file. Probe the configured database, not
+            # the old file, or a healthy hosted deployment appears unready.
+            target = (
+                getattr(store, "database_target", None)
+                or getattr(store, "target", None)
+                or getattr(store, "path", None)
+            )
             if is_postgres_url(target):
                 store.connection.execute("SELECT count(*) FROM information_schema.tables").fetchone()
             else:

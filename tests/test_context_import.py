@@ -199,3 +199,15 @@ def test_postgresql_context_import_survives_reconnect(tmp_path):
     finally:
         with psycopg.connect(base, autocommit=True) as admin:
             admin.execute(f'DROP SCHEMA "{schema}" CASCADE')
+
+
+def test_corrupt_source_refused_with_actionable_error(tmp_path):
+    source = tmp_path / "local" / "ai_context.db"
+    source.parent.mkdir()
+    source.write_bytes(b"not a valid SQLite database")
+    destination = tmp_path / "hosted.db"
+    archive = tmp_path / "archive" / "ai_context.db"
+    with pytest.raises(ContextImportError, match="invalid|damaged|unsupported"):
+        import_context(source, str(destination), archive)
+    assert source.read_bytes() == b"not a valid SQLite database"
+    assert not archive.exists()

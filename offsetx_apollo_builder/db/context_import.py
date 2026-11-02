@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import stat
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 from ..ai.context import ContextLayer
@@ -85,7 +85,7 @@ def _private_archive(source: Path, archive: Path, expected: dict) -> None:
     if archive.exists():
         if not archive.is_file() or stat.S_IMODE(archive.stat().st_mode) & 0o077:
             raise ContextImportError("The existing archive is not a private SQLite file.")
-        with _reader(archive) as snapshot:
+        with closing(_reader(archive)) as snapshot:
             if _snapshot_rows(snapshot) != expected:
                 raise ContextImportError(
                     "The archive contains different data; choose a fresh private archive."
@@ -97,9 +97,9 @@ def _private_archive(source: Path, archive: Path, expected: dict) -> None:
     fd = os.open(archive, flags, 0o600)
     os.close(fd)
     try:
-        with _reader(source) as original, sqlite3.connect(archive) as backup:
+        with closing(_reader(source)) as original, closing(sqlite3.connect(archive)) as backup:
             original.backup(backup)
-        with _reader(archive) as check:
+        with closing(_reader(archive)) as check:
             if _snapshot_rows(check) != expected:
                 raise ContextImportError("Archived AI history differs from the source.")
         descriptor = os.open(archive, os.O_RDONLY)
@@ -162,7 +162,7 @@ def import_context(
             raise ContextImportError("Source, archive and hosted database must be different files.")
 
     with _exclusive(root):
-        with _reader(source) as local:
+        with closing(_reader(source)) as local:
             expected = _snapshot_rows(local)
         _private_archive(source, archive, expected)
 
@@ -194,7 +194,7 @@ def import_context(
             hosted.close()
 
         # A writer ignoring the workspace lock must never cause silent loss.
-        with _reader(source) as local:
+        with closing(_reader(source)) as local:
             if _snapshot_rows(local) != expected:
                 raise ContextImportError(
                     "The source AI context changed during migration; stop its writer and retry."

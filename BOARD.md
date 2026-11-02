@@ -145,7 +145,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - F-06.22 · Duplicate Contact Review (backend)
   work_order: docs/features/crm-duplicate-review.md
-  review: TDD RED 4 failed on Render dep-dbk95sbbc2fs73epnd40 (e86ff75), GREEN 4 passed on dep-dbk9797f3r2c73932q0g (a0e9daf); full review running. Q-27 privacy/tenancy, independent penetration and full-history verifier remain open. No customer deployment.
+  review: Render QA LIVE dep-dbk9797f3r2c73932q0g on a0e9daf: TDD RED 4 fail, GREEN 4 pass; SQLite 2889 pass, PostgreSQL 2912 pass, PG focused 215 pass, verifier unit 67 pass, concurrency 12/12 and Chromium desktop/mobile pass. Q-27 tenant choice, independent penetration, large-scale query plan and full-history verifier remain open. No customer deployment; evidence docs/evidence/2026-11-02-crm-duplicate-review.md.
 
 
 - S-06.02.54 · Restore actual AI and orchestration in the visitor demo

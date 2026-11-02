@@ -1,5 +1,30 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — S-06.03.06 historical AI-context migration
+
+Source `12361049103a8913753899b34eba5ef2f18698e6` (branch develop) adds an
+explicit `offsetx-db import-context` path to archive old SQLite AI task history
+and either import both tables to the hosted store transactionally or skip it
+without altering hosted records. Original SQLite files are removed only after
+a verified private archive and successful destination transaction. Existing
+hosted records are never silently merged. Changes remain production-inert
+unless the owner runs the CLI.
+
+TDD RED `ffd81e0`, isolated Render `dep-dbk8kfijnfac739tqm40` failed
+collection as expected because the importer was absent. GREEN `2adfdcc`,
+Render `dep-dbk8lnu7bikc739gfoq0`: 6 targeted import cases PASS. Security,
+recovery, CLI and actual PostgreSQL tests were added; code hardened to close
+SQLite connections and fail safely on corrupt sources at `1236104`. Final
+isolated review `dep-dbk8on7f3r2c7391pn50`: 12 new import tests PASS,
+1 PostgreSQL-only case skipped at the first SQLite gate; overall full review
+results not yet certified at this checkpoint.
+
+No real customer data was imported or skipped, no main/customer service
+was deployed. The existing `S-06.02.23` board item remains IN_PROGRESS,
+`S-06.03.06` remains BACKLOG and all other unhosted stores, external
+encrypted backups, independent penetration, full-history board validation
+and customer restore remain open.
+
 ## 2026-11-02 — S-06.03.06 PG counter portability repair
 
 Full SQLite on `7fdc4f2`: 2,873 PASS/47 skipped/44 warnings. Focused PostgreSQL 215 PASS, Chromium contacts/visitor desktop/mobile PASS. Full PostgreSQL on that source had 1 FAIL, 2,894 PASS, 94 skipped: `test_hosted_context_on_disposable_postgres_after_reconnect` failed with PostgreSQL ambiguous `sends` column in counter UPSERT. Code `1ff58da` qualifies target table columns, checks both `sends` and `replies`, and adds an early real PostgreSQL test gate. Isolated Render `dep-dbk6enmtlv9c73f01ld0` is running, not yet accepted. Defect D-349 logged. Keep S-06.03.06 BACKLOG and do not infer customer deployment.

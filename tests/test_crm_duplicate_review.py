@@ -122,3 +122,52 @@ def test_duplicate_api_requires_auth_and_has_strict_input_bounds(tmp_path):
             assert client.get(url, headers=auth, params=params).status_code == 422
         assert client.get(url, headers=auth,
                           params={"search": "%' OR 1=1 --"}).status_code == 200
+
+
+def test_imported_tabs_and_newlines_are_email_outer_whitespace(tmp_path):
+    """An old imported email with CR/LF/tab is the same review key."""
+    engine, (first, second, _, _, _) = _duplicates(tmp_path)
+    try:
+        another = engine.store.upsert_contact(ContactInput(
+            full_name="Alice Three", email="temporary@example.com",
+        ))
+        engine.store.connection.execute(
+            "UPDATE contacts SET email = ? WHERE id = ?",
+            ("\t ALICE@example.com \r\n", another),
+        )
+        service = CRMOperations(engine.store, SalesTracker(engine.store))
+        result = service.contact_duplicates(search="Alice")
+        assert result["total"] == 1
+        group = result["items"][0]
+        assert group["normalized_email"] == "alice@example.com"
+        assert group["contact_count"] == 3
+        assert {v["id"] for v in group["contacts"]} == {first, second, another}
+    finally:
+        engine.close()
+
+
+def test_unreasonably_large_pagination_is_rejected_before_database(tmp_path):
+    """Prevent integer overflow and expensive unbounded OFFSET requests."""
+    engine, _ = _duplicates(tmp_path)
+    try:
+        service = CRMOperations(engine.store, SalesTracker(engine.store))
+        with pytest.raises(ValueError):
+            service.contact_duplicates(offset=1_000_001)
+    finally:
+        engine.close()
+
+    settings = AppSettings(
+        project_root=Path.cwd(),
+        database_path=tmp_path / "bounds.db",
+        data_dir=tmp_path / "bounds-data",
+        export_dir=tmp_path / "bounds-export",
+        frontend_dist=tmp_path / "none",
+        api_token="x" * 40, allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        endpoint = "/api/v1/crm/duplicates"
+        assert client.get(endpoint, params={"offset": "999999999999999999999999"}).status_code == 401
+        headers = {"Authorization": "Bearer " + "x" * 40}
+        for bad in ("1000001", "999999999999999999999999"):
+            response = client.get(endpoint, params={"offset": bad}, headers=headers)
+            assert response.status_code == 422, response.text

@@ -24,3 +24,9 @@ No database migration, sending, merge, dedupe rewrite or background job. Existin
 TDD RED: commit `e86ff75`, Render `dep-dbk95sbbc2fs73epnd40`, **4 expected failures** before API/method existed. TDD GREEN: commit `a0e9daf`, Render `dep-dbk9797f3r2c73932q0g`, **4 passed** in 3.42s. Full isolated review deployment `dep-dbk9797f3r2c73932q0g` finished LIVE at 2026-11-02T14:01:41Z on exact code `a0e9daf`. Full SQLite **2,889 PASS/48 skipped**, full PostgreSQL **2,912 PASS/94 skipped**, focused PostgreSQL **215 PASS**, verifier unit **67 PASS**, repeated concurrency **12/12 PASS**, Chromium contacts and visitor desktop/mobile PASS, frontend tests/build/audits and Ruff PASS. The PostgreSQL test fixture runs this feature's four cases on real PostgreSQL. No production rollout. Further evidence: `docs/evidence/2026-11-02-crm-duplicate-review.md`.
 
 A reported duplicate is only a review candidate. No edit, merge, email, provider call or migration was performed. Read-only endpoint rollback is a version revert after checking no clients depend on it; no database rollback required. Full PostgreSQL result, large-scale grouping performance, cross-workspace isolation Q-27, full-history evidence rerun, manual release acceptance and independent penetration remain open and prevent DONE.
+
+
+## Security/performance review extension (2026-11-02)
+- Imported email normalisation must remove ASCII outer spaces, tabs, carriage returns and newlines *consistently on SQLite and PostgreSQL*, not spaces alone. A matching legacy value must not silently disappear.
+- A requested group offset greater than 1,000,000 is invalid (422 at HTTP boundary), including overflow-sized integers; read-only pagination must not produce a 500 or huge scan.
+- Both rules first enter the test suite as failing acceptance tests. No customer data, automatic merging or schema migration is needed.

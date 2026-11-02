@@ -762,3 +762,26 @@ prevent full production readiness.
 
 **Revisit.** When S-06.03.06's explicit AI context migration and isolated
 PostgreSQL restore tests are accepted.
+
+### DD-43 — Explicit AI context history cutover, never silent merge · 2026-11-02
+
+**The call.** The install owner chooses `offsetx-db import-context --yes` or
+`--skip` with a separate private, persistent archive location. The importer
+uses SQLite's online backup API to include WAL data, checks both AI context
+tables, and runs any destination writes as one database transaction. An
+unrelated hosted context is never merged or overwritten. Identical rows may
+be recognised on retry after an interrupted cleanup.
+
+**Why not automatic conversion.** Task decisions and template performance
+history can belong to different workspaces. Auto-import at startup could
+combine independent installations without the owner's permission. Simply
+deleting the source would silently lose customer strategy and decisions.
+
+**Cost.** The owner must stop web/worker processes, supply truly durable
+private backup storage, and approve import or skip. The importer deliberately
+refuses unknown schemas and existing conflicting data rather than guessing.
+This does not address other unhosted stores or replace independent backup and
+restore proof.
+
+**Revisit.** When all S-06.03.06 stores are in verified durable homes and the
+per-install/shared-database decision in S-06.03.07 is agreed.

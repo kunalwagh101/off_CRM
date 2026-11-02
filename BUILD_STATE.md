@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-02 — F-06.22 TDD red and new security/performance gate
+
+Committed to `develop` test `a1c68e1`, Render `dep-dbk9k6ijnfac73a0jpjg` 2 expected FAILED, 4 PASSED. Defects D-351/352: imported email with TAB/CR/LF missed by space-only trim; huge offset lacked upper bound. Fix code `d931ba8` uses matching SQL normalization in group, filter and contact preview, and rejects `offset > 1_000_000` at direct service and authenticated HTTP API. Added 5,004-row fixture for real SQL `EXPLAIN` on SQLite/PostgreSQL and permissive 20s regression alarm. Render GREEN review `dep-dbk9mpff3r2c7394ert0` started, not yet verified at this record. Q-27 workspace ownership, independently conducted penetration and production end-to-end acceptance remain release blockers. No main/customer deploy.
+
+
 ## 2026-11-02 — F-06.22 duplicate review, test-first backend delivery
 
 Source on `develop`: `e86ff75` RED / `a0e9daf` GREEN. Four targeted tests failed on isolated Render `dep-dbk95sbbc2fs73epnd40` as expected; then all four passed on isolated Render `dep-dbk9797f3r2c73932q0g`, with other early API/permissions and verifier-unit suites passing. The complete isolated Render review finished LIVE at 2026-11-02T14:01:41Z on tested source `a0e9daf`: 2,889 SQLite pass/48 skipped; 2,912 PostgreSQL pass/94 skipped; focused PG 215 pass; verifier unit 67 pass; concurrency 12/12; Chromium desktop/mobile and frontend tests/build/audits pass. No production rollout; Q-27, independent penetration, large-data query-plan and full-history verifier open. Read-only authenticated `/api/v1/crm/duplicates` groups email collisions (case/trim), provides bounded paginated previews and never merges/writes contacts. No schema/data migration, customer deployment or main change. `BOARD.md` status IN_REVIEW; Q-27 tenancy, independent penetration, PostgreSQL-specific load/query-plan and full-history verifier remain release blockers. Full evidence `docs/evidence/2026-11-02-crm-duplicate-review.md`.

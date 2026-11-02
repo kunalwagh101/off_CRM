@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 — F-06.22 security and imported-contact corrections
+
+- Render TDD RED `dep-dbk9k6ijnfac73a0jpjg` on `a1c68e1`: 2 failed, 4 passed. Found D-351 (TAB/CR/LF values missed by contact duplicate search) and D-352 (unbounded OFFSET).
+- Committed fix `d931ba8` to `develop`: one SQL email-normalisation expression across search/group/preview, plus `offset <= 1,000,000` at API and service boundaries. Added 5,004-record performance/query-plan regression on SQLite and real PostgreSQL. No schema change or contact mutation. Full Render QA outcome must be recorded separately.
+
+
 ## 2026-11-02 — Backend duplicate-contact review (F-06.22, IN_REVIEW)
 
 - Added authenticated, read-only `GET /api/v1/crm/duplicates`: case- and outer-whitespace-normalized email groups, full group totals, safe search, bounded pagination and three-record previews. No migration or automatic merge.

@@ -29,3 +29,11 @@ Source `a0e9daf9e826cc7415964dd9dec42dd42daca119`, review deployment `dep-dbk979
 - Chromium contacts and visitor desktop/mobile acceptance: **PASS**; frontend tests/build/audits and Ruff checks were required successful build stages.
 
 **Unverified:** independent penetration test, production end-to-end release, large-scale PostgreSQL query plan, full-history `uv run python scripts/verify_board.py`, owner decision Q-27 about CRM tenant isolation. Keep F-06.22 **IN_REVIEW**, not DONE. No real customer records or production services were changed. No migrations or provider sends.
+
+## 2026-11-02 — Independent follow-on attack review and query-plan gate
+
+**Confirmed TDD RED:** `a1c68e19e97f678338689e697c85411b4d428e28`, isolated Render `dep-dbk9k6ijnfac73a0jpjg`, returned `build_failed`: 2 failed / 4 passed / 1 warning in 3.53s. Failures exactly `test_imported_tabs_and_newlines_are_email_outer_whitespace` and `test_unreasonably_large_pagination_is_rejected_before_database`. No false claims that these failures passed.
+
+**Correction:** `d931ba82f94a29fdc04bb5169b4d8b3c01edcbf3` on develop only. Refused huge offsets in both service and HTTP FastAPI validation; all duplicate-selection SQL now applies the same explicit outer ASCII whitespace normalization to email. Added a synthetic 5,004-contact regression with query execution time, real SQLite `EXPLAIN QUERY PLAN` and real PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`. Targeted run emits a `DUPLICATE_REVIEW_PLAN` line from each database; the measured time is not a production SLA. Follow-on isolated Render deployment `dep-dbk9mpff3r2c7394ert0` started at 2026-11-02T14:17Z. **No GREEN result is asserted in this checkpoint.**
+
+The independent test expansion is *automated adversarial regression*, not an independently commissioned penetration test or external customer-tenant proof. Q-27 remains open. Do not release or mark DONE.

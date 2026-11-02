@@ -30,3 +30,7 @@ A reported duplicate is only a review candidate. No edit, merge, email, provider
 - Imported email normalisation must remove ASCII outer spaces, tabs, carriage returns and newlines *consistently on SQLite and PostgreSQL*, not spaces alone. A matching legacy value must not silently disappear.
 - A requested group offset greater than 1,000,000 is invalid (422 at HTTP boundary), including overflow-sized integers; read-only pagination must not produce a 500 or huge scan.
 - Both rules first enter the test suite as failing acceptance tests. No customer data, automatic merging or schema migration is needed.
+
+## 2026-11-02 — TDD review extension
+
+Real Render RED on `a1c68e1` / `dep-dbk9k6ijnfac73a0jpjg`: **2 failed / 4 passed**. D-351 confirms legacy email TAB/CR/LF normalization was incomplete. D-352 confirms direct/HTTP group OFFSET was unbounded. Fix `d931ba8` adds one shared normalisation SQL expression and enforces offset <= 1,000,000. It includes a 5,004-row synthetic query-plan test on both databases. Full review and PostgreSQL performance numbers remain to be verified; Q-27 tenancy and independent penetration remain release blockers.

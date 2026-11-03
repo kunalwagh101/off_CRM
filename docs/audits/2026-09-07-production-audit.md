@@ -111,7 +111,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 
 ## Findings at a glance
 
-| ID | Priority | Finding | Evidence | Status on develop (updated through 2026-11-02) |
+| ID | Priority | Finding | Evidence | Status on develop (updated through 2026-11-03) |
 |---|---|---|---|---|
 | A01 | P0 | The supplied hosted deployment discards customer state | Source/configuration confirmed | Pending regression re-run; earlier remediation: S-06.02.21 |
 | A02 | P0 | Concurrent CRM transactions can roll back each other's work | Reproduced | Pending regression re-run; earlier remediation: S-06.02.21 |
@@ -121,7 +121,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A06 | P1 | Logging out does not revoke the session | Reproduced | Closed for isolated API replay and independent-login behaviour on develop: `tests/test_api_auth.py::test_logout_revokes_copied_cookie_even_after_application_restart`, `tests/test_api_auth.py::test_api_logout_revokes_only_current_session` (Render review `dep-dbjp60etlv9c73dt6sng`, early auth gate 34 passed on 37a6d2f); cross-instance live production acceptance pending |
 | A07 | P1 | The browser network guard permits private-network addresses | Reproduced at the policy boundary | Open D-266 / S-03.01.03; production Docker-bridge launch now refused in source, private egress isolation and live zero-connection proof pending |
 | A08 | P1 | The public-page fetcher is vulnerable to DNS rebinding | Reproduced with a local HTTP fixture | Open D-267 / S-05.01.04; HTTP transport pins verified IP, unsafe Crawl4AI starts now refused; live DNS-rebind/JS replacement proof pending |
-| A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome | Not rechecked on develop; S-06.02.23 |
+| A09 | P1 | Enter can bypass the browser's consequential-action confirmation | Reproduced in real Chrome | **Closed for the tested keyboard Enter bypass on `develop`:** `tests/test_browser_agent.py::test_A09_enter_unknown_focus_requires_confirmation_without_key_dispatch`, `tests/test_browser_agent.py::test_A09_enter_js_handler_is_blocked_in_real_chromium`, `tests/test_browser_enter_gate.py`. Render review `dep-dbkps0m7bikc73fil3vg` on `065c310` LIVE: 4 focused + 34 legacy + 4 real Chromium A09 PASS, SQLite 2954 and PG 2977 PASS. D-358 / S-06.02.57 IN_REVIEW; independent live penetration, effect-bound consent after DOM changes and production customer acceptance remain open. |
 | A10 | P1 | The AI dollar-spend cap is not accounted for | Reproduced | Not rechecked on develop; S-06.02.23 |
 | A11 | P1 | Quota checks race and separate processes overwrite usage | Reproduced at the accounting boundary | Not rechecked on develop; S-06.02.23 |
 | A12 | P1 | The AI cache can return an old answer after the facts change | Reproduced | Not rechecked on develop; S-06.02.23 |

@@ -1,3 +1,9 @@
+## 2026-11-03 — A09 Enter approval bypass: exact-code isolated QA LIVE, IN_REVIEW
+
+- TDD RED dfe6b78 / Render dep-dbkpkiek1f9s73dllh50: 4 failed by dispatching unapproved Enter. Original first GREEN 0fef11d later exposed five unsafe legacy tests (D-359): 5 failed / 2949 passed SQLite. Corrected tests and explicit model self-approval rejection at 065c310.
+- Final Render dep-dbkps0m7bikc73fil3vg on source 065c310 **LIVE at 08:59:44 UTC**: A09 focused 4 PASS, legacy Enter 34 PASS, real Chrome A09 4 PASS; full SQLite 2954 PASS/54 skip, real PostgreSQL 2977 PASS/100 skip, focused PG 215 PASS, repeated concurrency 12/12, desktop/mobile browser, frontend/build/audits, Ruff and structural verifier PASS.
+- S-06.02.57 moved IN_REVIEW. A09 historical finding closed only for tested Enter custom-JS submission; independent live penetration, effect-bound approval after DOM change, full-history verifier and customer production deployment remain open. No main/customer change. Evidence docs/evidence/2026-11-03-a09-enter-approval.md.
+
 ## 2026-11-03 — A09 keyboard approval escape: TDD RED, guarded fix awaiting QA
 
 - Selected S-06.02.57 with owner build-ahead instruction, existing audit S-06.02.23 still in progress. Test-only develop dfe6b78 was genuinely RED on isolated Render dep-dbkpkiek1f9s73dllh50: 4 A09 cases failed because unapproved Enter reached CDP key dispatch.

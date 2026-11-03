@@ -137,15 +137,15 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.57 · A09: Enter handlers cannot bypass human approval
-  work_order: docs/work-orders/S-06.02.57-enter-approval.md
-
-
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.57 · A09: Enter handlers cannot bypass human approval
+  work_order: docs/work-orders/S-06.02.57-enter-approval.md
+  review: Test-first RED at dfe6b78 / Render dep-dbkpkiek1f9s73dllh50: 4 failed because unapproved Enter reached key dispatch. First GREEN 0fef11d early gate 4 PASS but full SQLite 5 FAILED (legacy unsafe assertions), 2949 PASS/54 skip; corrected tests at 065c310 / Render dep-dbkps0m7bikc73fil3vg LIVE at 08:59:44 UTC: new A09 focused 4 PASS, legacy Enter 34 PASS, Chromium custom-handler 4 PASS, full SQLite 2954 PASS/54 skipped, disposable PostgreSQL full 2977 PASS/100 skipped, focused PostgreSQL 215 PASS, other existing Chromium desktop/mobile and A18 cases PASS, concurrency 12/12, Ruff/frontend build/audits and verifier unit checks PASS; structural board check at source 065c310 PASS with --skip-tests, not full-history command replay. Scope blocks unapproved Enter for arbitrary focused fields including JavaScript handlers; effect-bound approval, independent live penetration, customer acceptance and main production deployment not verified. Evidence docs/evidence/2026-11-03-a09-enter-approval.md; D-358 mitigated; D-359 stale contract corrected.
 
 - S-06.02.56 · Reject corrupt image payloads safely (A21)
   work_order: docs/work-orders/S-06.02.56-complete-image-decoding.md

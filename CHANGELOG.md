@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-03 — F-11.02 numerical evidence verification repair (S-06.02.55, QA pending)
+
+- Real Render TDD RED `dep-dbkn8p59fdbs73bquspg` at test-only source `00b1657`: **15 failed / 13 passed / 8 deselected** in the targeted numeric-claim suite. No production data or model calls.
+- Source-bound numeric matching now checks sign, decimal/thousand continuations, units immediately attached or marked with percent, currency prefixes, and spaced sign/percent. Ordinary sentence punctuation and existing nonnumeric claim behaviour remain covered by integration tests. Recorded DD-134 design/limitations.
+- Full Render QA and board verifier not yet observed. No main/customer rollout. F-11.02 original four sub-stories remain DONE; A18 repair stays IN_PROGRESS pending evidence.
+
 ## 2026-11-03 — Production-audit A18/A21 triage (S-06.02.23, IN_PROGRESS)
 
 - Source-rechecked the current numeric-claim verifier and generated-image gate on `develop`. A18 remains open as D-354 / S-06.02.55 (signed/decimal/grouped figures falsely matching a short claimed number). A21 remains open as D-355 / S-06.02.56 (header-only image accepted and truncated GIF raising uncaught `struct.error`).

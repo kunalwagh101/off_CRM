@@ -796,3 +796,14 @@ per-install/shared-database decision in S-06.03.07 is agreed.
 **Cost.** Operators have to use existing contact-edit tools, group preview can omit extra records, and `lower(trim(email))` grouping may need a dedicated expression index for very large imports. Performance and tenant isolation remain release gates.
 
 **Revisit.** After Q-27 establishes CRM tenancy and a measured PostgreSQL query plan justifies new indexing or a carefully audited human-approved merge flow.
+
+
+### DD-134 — Do not infer numeric evidence from punctuation boundaries · 2026-11-03
+
+**The call.** For source-backed observed numbers, match the whole literal number with its sign, fraction, separator, currency prefix and attached percentage. A quote containing `-42`, `42.7`, `42,000`, `42%` or `$42` is not evidence for the bare `42`. Sentence-ending punctuation and commas followed by words remain valid separators. This uses the one existing source-verification gate, never a post-processing redactor.
+
+**Why not a full locale/units parser.** A typed numeric value and unit schema is not yet available in `Finding`; guessing whether a comma is a thousands mark, or which unit was implied, can create false confidence. Lexical equality is conservative: a different human-written representation may be refused rather than silently converted. The agent must show unsupported or incomplete, never invent a conversion.
+
+**Cost.** More legitimate claims may require the model to quote the exact source representation; spaced units like `42 kg` are not semantically validated without a declared typed field, and derived arithmetic remains labelled derived rather than verified as a calculation. A separate typed-quantity contract would be required for stronger numeric proof. The previous S-11.02.01–04 source provenance and nonnumeric matching remain unchanged.
+
+**Revisit.** When typed locale, units, numeric tolerance and derived-calculation semantics are defined with their own adversarial tests and explicit owner approval.

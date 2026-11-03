@@ -74,10 +74,34 @@ def normalize_claim_text(value: str) -> str:
 
 
 def _span_pattern(needle: str) -> re.Pattern[str]:
-    """Match a normalised span without allowing it inside a larger token."""
+    """Match a quoted value without treating numeric punctuation as a boundary.
+
+    A word boundary rejects 420 for a claim of 42, but accepts -42, 42.7,
+    42,000 and 42%. Those are different numbers, so numeric tokens need
+    stricter boundaries than ordinary words. Keep exact lexical matching
+    instead of guessing locale, arithmetic or units from a model's quote.
+    """
     escaped = re.escape(needle)
-    left = r"(?<!\w)" if needle and needle[0].isalnum() else ""
-    right = r"(?!\w)" if needle and needle[-1].isalnum() else ""
+    number_at_start = bool(re.match(r"^(?:[+\-]|[$€£₹])?\d", needle))
+    number_at_end = bool(re.search(r"\d%?$", needle))
+
+    if number_at_start:
+        # Also forbid the tail of a signed, currency, decimal, fractional or
+        # grouped value, e.g. matching '42' at the end of '1,42'.
+        left = r"(?<!\w)(?<![+\-.$€₹£])(?<!\d[,/])"
+    else:
+        left = r"(?<!\w)" if needle and needle[0].isalnum() else ""
+
+    if number_at_end:
+        # A final sentence period or list comma is fine. A decimal/grouped
+        # continuation, fraction, date, attached percent or unit is not.
+        right = (
+            r"(?!\w|[.,/\-]\d|[%‰°])"
+            if not needle.endswith("%")
+            else r"(?!\w|[%‰°])"
+        )
+    else:
+        right = r"(?!\w)" if needle and needle[-1].isalnum() else ""
     return re.compile(left + escaped + right, flags=re.UNICODE)
 
 
@@ -103,6 +127,17 @@ def _contains_supported_value(context: str, value: str) -> bool:
     for match in _span_pattern(value).finditer(context):
         previous = _preceding_token(context, match.start())
         if not value_starts_negated and previous in _NEGATIONS:
+            continue
+        # Quoted signs/currency/percent can be separated by whitespace.
+        # Without an explicit claim of that sign/unit, do not certify the
+        # bare number. Keep this conservative rather than invent a parser.
+        starts_unsigned_number = bool(re.match(r"^\d", value))
+        ends_number = bool(re.search(r"\d%?$", value))
+        if starts_unsigned_number and previous in {"-", "+", "$", "£", "€", "₹"}:
+            continue
+        if ends_number and not value.endswith("%") and re.match(
+            r"^\s+[%‰°]", context[match.end():]
+        ):
             continue
         return True
     return False

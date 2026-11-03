@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-03 — F-11.02 source-bound numeric verification, RED confirmed
+
+Working on owner-authorised A18 S-06.02.55 in existing F-11.02 (its original four sub-stories are marked DONE). New tests in `tests/test_agent_claim_verification.py` use the real `AgentRun` entry point, and `Dockerfile.review` makes them an early gate. Test-only commit `00b1657`, isolated Render `dep-dbkn8p59fdbs73bquspg`: **15 failed, 13 passed, 8 deselected**, expected RED. Fix to `agent/verify.py` guards numeric punctuation and separated signs, with further adversarial tests; final GREEN and full SQLite/PostgreSQL/Chromium/board verifier not yet observed at this checkpoint. Previous F-06.22 results apply to different source; do not reuse them as acceptance. S-06.02.23 audit remains IN_PROGRESS (WIP=2). No production deployment, external mail, provider usage, migration or schema change.
+
+
 ## 2026-11-03 — Continued S-06.02.23 production audit: two confirmed source gaps
 
 The latest verified `develop` head before this documentation slice was `4dc461fd8b387d2bbd221aaee565d414f0f4241a`. No READY item exists; S-06.02.23 is the sole IN_PROGRESS audit, so new feature code was not pulled. The September audit index now identifies A18 and A21 as OPEN and links D-354/S-06.02.55 and D-355/S-06.02.56. Verification consists of comparing current source control paths with the audit's original adversarial cases; **no new executable pytest, browser, real provider, full-history verifier or Render gate was run for these gaps**. No code or production deployment changed. Next authorised work: continue per-finding audit checks, run full-history evidence verification, and only pull a remediation after READY criteria are met.

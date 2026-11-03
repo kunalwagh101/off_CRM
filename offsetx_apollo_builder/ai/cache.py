@@ -227,18 +227,21 @@ def partition_key(
     options_hash = hashlib.sha256(
         canonical_payload(generation_options or {}).encode("utf-8")
     ).hexdigest()
-    return "|".join(
-        [
-            str(workspace_id),
-            data_class.value,
-            policy.value,
-            str(task_type),
-            str(provider_id),
-            str(model_id),
-            prompt_hash,
-            options_hash,
-        ]
+    # Encode fields as a structured object before hashing. Delimiter-based joins
+    # can alias two different identities if a field includes the separator.
+    identity = canonical_payload(
+        {
+            "workspace_id": str(workspace_id),
+            "data_class": data_class.value,
+            "policy": policy.value,
+            "task_type": str(task_type),
+            "provider_id": str(provider_id),
+            "model_id": str(model_id),
+            "system_prompt_sha256": prompt_hash,
+            "generation_options_sha256": options_hash,
+        }
     )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
 
 def cache_key(*, partition: str, payload: dict[str, Any]) -> str:

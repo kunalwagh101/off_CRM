@@ -17,3 +17,7 @@ This change may ask approval for innocent Enter actions. Custom JavaScript actio
 
 ## Verification
 GREEN and full final QA unverified at this checkpoint. Render does not auto-deploy: explicitly trigger pinned test service, inspect tested commit, logs and terminal LIVE marker. Full historical board-verifier replay and independent penetration must be recorded separately.
+
+## Full-suite test-contract regression (D-359)
+
+The first GREEN-source full SQLite run on Render `dep-dbkpn83bc2fs73a1hljg` showed five `F` markers at approximately 40% while the suite continued. Existing `tests/test_browser_enter_gate.py` had five assumptions that an ordinary or unfocused Enter cannot cause a side effect. Those assumptions contradict the controlled page JavaScript exploit and cannot remain security requirements. Updated them to require approval, retaining a real explicitly approved Enter dispatch test and independent non-effectful-key tests. Added an early gate for that entire legacy test file and an explicit model-argument rejection test for `press(confirmed=true)`. A new exact-code build is required. Final first-suite summary and corrected suite outcomes must be recorded from Render logs before marking this story IN_REVIEW.

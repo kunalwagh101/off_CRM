@@ -216,6 +216,10 @@ def test_model_cannot_invent_action_or_smuggle_undeclared_arguments():
         Decision.parse(
             '{"state":"act","action":"click","args":{"handle":1,"confirmed":true},"reason":"x"}'
         )
+    with pytest.raises(RunRefused, match="undeclared argument"):
+        Decision.parse(
+            '{"state":"act","action":"press","args":{"key":"Enter","confirmed":true},"reason":"x"}'
+        )
 
 
 def test_run_budget_and_goal_are_validated_before_any_work():

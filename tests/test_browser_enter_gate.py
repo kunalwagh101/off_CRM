@@ -10,9 +10,11 @@ apart.** The fix is therefore not a second copy of the check inside `press`. It
 is one gate that both callers go through, so the set of things that need a human
 and the set of things that get asked about are the same set by construction.
 
-The second acceptance criterion is the one that keeps this usable: *a key that
-cannot submit anything asks nothing new*. A gate that interrupts every keystroke
-is worse than no gate, because people switch off things that ask too often.
+The second acceptance criterion preserves keys that cannot activate a page
+action: Tab, Escape and arrows still dispatch without confirmation. Enter is
+different: a site can attach a consequential keydown handler even to an ordinary
+textbox, rich editor or link. Unknown Enter intent now fails closed; a DOM label
+is not proof that the page cannot submit. S-06.02.57 / A09.
 """
 from __future__ import annotations
 
@@ -165,23 +167,32 @@ def test_a_key_that_cannot_submit_does_not_even_ask_the_page():
     assert "Runtime.evaluate" not in page.connection.sent
 
 
-def test_enter_with_nothing_focused_is_ordinary():
+def test_enter_with_nothing_focused_still_needs_approval():
+    """A document-level Enter listener can submit without any focused field."""
     page = _page({"role": "", "label": ""})
-    result = asyncio.run(page.press("Enter"))
+    blocked = asyncio.run(page.press("Enter"))
 
-    assert result.ok is True
+    assert blocked.ok is False
+    assert blocked.needs_confirmation is True
+    assert page.connection.keys_dispatched == 0
+    approved = asyncio.run(page.press("Enter", confirmed=True))
+    assert approved.ok is True
     assert page.connection.keys_dispatched == 2
 
 
-def test_enter_in_a_search_box_is_ordinary():
-    """The commonest Enter there is. If this asks, the feature is unusable."""
+def test_enter_in_a_search_box_requires_approval_for_custom_js():
+    """A search-labelled button can still have a send/delete keydown handler."""
     page = _page({"role": "button", "label": "Search"})
-    assert asyncio.run(page.press("Enter")).ok is True
+    blocked = asyncio.run(page.press("Enter"))
+    assert blocked.ok is False and blocked.needs_confirmation is True
+    assert page.connection.keys_dispatched == 0
 
 
-def test_enter_on_an_ordinary_link_is_ordinary():
+def test_enter_on_an_ordinary_link_requires_approval_for_custom_js():
     page = _page({"role": "link", "label": "About us"})
-    assert asyncio.run(page.press("Enter")).ok is True
+    blocked = asyncio.run(page.press("Enter"))
+    assert blocked.ok is False and blocked.needs_confirmation is True
+    assert page.connection.keys_dispatched == 0
 
 
 def test_an_unknown_key_is_still_refused_outright():
@@ -193,9 +204,8 @@ def test_an_unknown_key_is_still_refused_outright():
 # ── the same gate, not a second copy of it ──────────────────────────────────
 
 
-def test_enter_and_click_agree_about_what_needs_a_human():
-    """The actual fix. Not "press now also checks" — *press asks the same
-    function*, so these two can never disagree again."""
+def test_enter_and_click_share_gate_but_unknown_enter_is_stricter():
+    """Both use _clear_to_act, but custom Enter handlers are invisible to clicks."""
     for label in ("Send", "Delete", "Publish", "About us", "Search", "Next page"):
         click_page = _page()
         click_page._snapshot = Snapshot(
@@ -206,9 +216,12 @@ def test_enter_and_click_agree_about_what_needs_a_human():
         clicked = asyncio.run(click_page.click(1))
         pressed = asyncio.run(press_page.press("Enter"))
 
-        assert clicked.needs_confirmation == pressed.needs_confirmation, (
-            f"click and Enter disagree about {label!r}"
-        )
+        assert pressed.needs_confirmation is True
+        if label in {"Send", "Delete", "Publish"}:
+            assert clicked.needs_confirmation is True
+        else:
+            assert clicked.needs_confirmation is False
+        assert press_page.connection.keys_dispatched == 0
 
 
 def test_enter_can_be_cleared_by_a_countdown_like_a_click_can():
@@ -247,13 +260,9 @@ def test_an_unattended_run_cannot_countdown_its_way_past_enter_either():
 
 
 def test_enter_is_sent_with_the_character_it_produces():
-    """Found by the live check, which could not demonstrate the hole it was
-    closing. A key event dispatched without `text` is raised on the page and
-    then does **nothing** — Chrome performs no default action — so Enter had
-    never submitted a form. Measured key by key: Tab and Backspace work either
-    way, Enter only with this."""
+    """Explicitly owner-approved Enter still dispatches the proper character."""
     page = _page({"role": "", "label": ""})
-    asyncio.run(page.press("Enter"))
+    asyncio.run(page.press("Enter", confirmed=True))
 
     down = [e for e in page.connection.events if e["type"] == "keyDown"]
     assert len(down) == 1

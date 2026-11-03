@@ -41,6 +41,8 @@ RUN uv run pytest -q tests/test_crm_hosted.py::test_a_campaign_made_in_the_app_o
 RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 # F-06.01.02: targeted permission and browser action-gate tests run first.
 RUN uv run pytest -q tests/test_browser_agent.py -k A09_enter_unknown_focus
+# Legacy Enter tests must now enforce the fail-closed JS-handler contract.
+RUN uv run pytest -q tests/test_browser_enter_gate.py
 RUN uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py
 # A new app-state service must be in the storage inventory and close on restore.
 RUN uv run pytest -q tests/test_storage_inventory.py::test_every_service_the_app_opens_is_classified tests/test_audit_wp1.py::test_every_open_service_is_closed_for_a_restore

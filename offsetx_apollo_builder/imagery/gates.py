@@ -25,6 +25,7 @@ import binascii
 import hashlib
 import io
 import re
+import struct
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -138,10 +139,83 @@ def decode_data_uri(value: str) -> tuple[str, bytes]:
 
 
 def image_size(data: bytes) -> tuple[int, int, str]:
-    """Return dimensions only after the entire static image decodes.
+    """Lightweight media-header probe for video/timeline routing only.
 
-    A first open verifies the container/chunks, and a second open loads pixels.
-    Bounds are checked before either pixel allocation or animated frame walk.
+    A plausible header is not proof of a valid image. The image approval gate
+    must call _fully_decode_image, never this metadata-only routine.
+    """
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        if len(data) < 24 or data[12:16] != b"IHDR":
+            raise ImageDecodeError("PNG header is truncated or malformed.")
+        width, height = struct.unpack(">II", data[16:24])
+        return int(width), int(height), "image/png"
+
+    if data[:2] == b"\xff\xd8":
+        return (*_jpeg_size(data), "image/jpeg")
+
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        if len(data) < 10:
+            raise ImageDecodeError("GIF dimensions are truncated.")
+        width, height = struct.unpack("<HH", data[6:10])
+        return int(width), int(height), "image/gif"
+
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return (*_webp_size(data), "image/webp")
+
+    raise ImageDecodeError(
+        "Unrecognised image format. PNG, JPEG, GIF and WebP are understood; "
+        "anything else is refused rather than guessed at."
+    )
+
+
+def _jpeg_size(data: bytes) -> tuple[int, int]:
+    """Walk JPEG segments to the frame header.
+
+    JPEG has no fixed offset — the dimensions live in whichever start-of-frame
+    marker the encoder used, after any number of metadata segments, so the
+    segment chain has to be walked.
+    """
+    index = 2
+    length = len(data)
+    while index + 9 < length:
+        if data[index] != 0xFF:
+            index += 1
+            continue
+        marker = data[index + 1]
+        # Start-of-frame markers, excluding the four that are not frames.
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            height, width = struct.unpack(">HH", data[index + 5 : index + 9])
+            return int(width), int(height)
+        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+            index += 2
+            continue
+        segment = struct.unpack(">H", data[index + 2 : index + 4])[0]
+        index += 2 + segment
+    raise ImageDecodeError("JPEG has no start-of-frame segment.")
+
+
+def _webp_size(data: bytes) -> tuple[int, int]:
+    chunk = data[12:16]
+    if chunk == b"VP8X":
+        width = int.from_bytes(data[24:27], "little") + 1
+        height = int.from_bytes(data[27:30], "little") + 1
+        return width, height
+    if chunk == b"VP8 ":
+        width = struct.unpack("<H", data[26:28])[0] & 0x3FFF
+        height = struct.unpack("<H", data[28:30])[0] & 0x3FFF
+        return width, height
+    if chunk == b"VP8L":
+        bits = int.from_bytes(data[21:25], "little")
+        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+    raise ImageDecodeError("WebP variant not recognised.")
+
+
+def _fully_decode_image(data: bytes) -> tuple[int, int, str]:
+    """Full pixel validation for generated images; not a media-header probe.
+
+    Pillow verifies the container and loads the actual raster, with hard limits
+    checked before allocating pixel buffers. Invalid pictures cannot reach
+    the owner's review queue even if their dimension headers look plausible.
     """
     if len(data) > MAX_IMAGE_BYTES:
         raise ImageDecodeError("Image payload exceeds the 16 MiB limit.")
@@ -167,7 +241,7 @@ def image_size(data: bytes) -> tuple[int, int, str]:
         return int(width), int(height), kind
     except ImageDecodeError:
         raise
-    except Exception as exc:  # noqa: BLE001 - boundary around untrusted native decoder
+    except Exception as exc:  # noqa: BLE001 - untrusted native decoder boundary
         raise ImageDecodeError(
             "The image is corrupt, incomplete or cannot be fully decoded."
         ) from exc
@@ -208,7 +282,7 @@ def run_gates(
         report.results.append(GateResult("not_blank", True))
 
     try:
-        width, height, detected = image_size(payload)
+        width, height, detected = _fully_decode_image(payload)
         if claimed_type != detected:
             raise ImageDecodeError(
                 "The declared image type does not match the decoded image."

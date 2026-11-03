@@ -125,8 +125,8 @@ def engine(tmp_path: Path):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_dimensions_are_read_from_a_fully_decoded_image():
-    """Headers are not sufficient: both image formats must decode."""
+def test_image_header_size_remains_available_for_video_classification():
+    """Only run_gates performs the full decode; video probe reads headers."""
     assert image_size(decode_data_uri(png(1024, 576))[1]) == (1024, 576, "image/png")
 
     gif = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
@@ -153,7 +153,9 @@ def test_a_generator_rounding_to_its_own_size_still_passes():
 
 
 def test_a_placeholder_sized_response_is_caught():
-    report = run_gates(png(1024, 576, noise=0))
+    # A real small image still fails the size gate; the previous header-only
+    # fixture happened to be tiny even when claiming 1024x576 pixels.
+    report = run_gates(png(8, 8, noise=0))
     assert not report.passed
     assert any(item.name == "not_blank" for item in report.failures)
 
@@ -177,6 +179,21 @@ def test_A21_header_only_png_is_rejected_even_above_minimum_size():
     assert not report.passed
     assert report.bytes >= 1024
     assert any(gate.name == 'decodes' and not gate.passed for gate in report.results)
+
+
+def test_A21_header_only_probe_must_not_bypass_strict_image_approval():
+    # Video media classification intentionally needs headers before full import.
+    # The generated-image gate independently demands full decoded pixels.
+    forged = (
+        b"\x89PNG\r\n\x1a\n"
+        + struct.pack(">I", 13)
+        + b"IHDR"
+        + struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)
+        + b"\x00" * 4
+    )
+    assert image_size(forged) == (64, 64, "image/png")
+    uri = "data:image/png;base64," + base64.b64encode(forged).decode()
+    assert not run_gates(uri, min_bytes=1).passed
 
 
 def test_A21_truncated_formats_fail_without_raising():

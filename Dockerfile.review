@@ -22,6 +22,8 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run pytest -q tests/test_imagery.py -k A21
+# A21 must not break the video editor's lightweight media-header probe.
+RUN uv run pytest -q tests/test_imagery.py tests/test_video_gates.py tests/test_video_captions.py
 RUN uv run pytest -q -s tests/test_crm_duplicate_review.py
 # S-06.02.55 / A18: numeric evidence must fail fast before the full expensive QA suite.
 RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18

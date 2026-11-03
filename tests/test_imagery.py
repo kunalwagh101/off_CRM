@@ -47,26 +47,27 @@ CAMPAIGN = "campaign-1"
 
 
 def png(width: int, height: int, *, noise: int = 4096) -> str:
-    """A real PNG with a real IHDR, padded with incompressible bytes.
-
-    Random padding rather than zeros: zeros compress to nothing and the result
-    falls under the blank-image gate, which is correct behaviour and useless as
-    a fixture.
-    """
-
+    """Generate a CRC-valid PNG with real compressed RGB pixel rows."""
     def chunk(tag: bytes, data: bytes) -> bytes:
         return (
-            struct.pack(">I", len(data))
-            + tag
-            + data
+            struct.pack(">I", len(data)) + tag + data
             + struct.pack(">I", zlib.crc32(tag + data))
         )
 
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    row_bytes = width * 3
+    rows = bytearray()
+    for index in range(height):
+        if index == 0 and noise:
+            count = min(noise, row_bytes)
+            row = os.urandom(count) + b"\x00" * (row_bytes - count)
+        else:
+            row = b"\x00" * row_bytes
+        rows.extend(b"\x00" + row)
     body = (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", header)
-        + chunk(b"IDAT", os.urandom(noise))
+        + chunk(b"IDAT", zlib.compress(bytes(rows), level=1))
         + chunk(b"IEND", b"")
     )
     return "data:image/png;base64," + base64.b64encode(body).decode()
@@ -124,12 +125,12 @@ def engine(tmp_path: Path):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_dimensions_are_read_from_the_header_without_an_image_library():
-    """Reading two integers should not cost a large dependency."""
+def test_dimensions_are_read_from_a_fully_decoded_image():
+    """Headers are not sufficient: both image formats must decode."""
     assert image_size(decode_data_uri(png(1024, 576))[1]) == (1024, 576, "image/png")
 
-    gif = b"GIF89a" + struct.pack("<HH", 800, 600) + os.urandom(2000)
-    assert image_size(gif) == (800, 600, "image/gif")
+    gif = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
+    assert image_size(gif) == (1, 1, "image/gif")
 
 
 def test_an_unrecognised_format_raises_rather_than_returning_zero():
@@ -194,6 +195,42 @@ def test_A21_truncated_formats_fail_without_raising():
 def test_A21_mismatched_media_header_never_approved():
     uri = png(1024, 576).replace("data:image/png", "data:image/jpeg", 1)
     assert not run_gates(uri).passed
+
+
+def test_A21_valid_jpeg_gif_webp_are_decodable():
+    from io import BytesIO
+    from PIL import Image
+
+    for name, kind in (("jpeg", "JPEG"), ("gif", "GIF"), ("webp", "WEBP")):
+        out = BytesIO()
+        Image.new("RGB", (80, 45), "blue").save(out, format=kind)
+        uri = f"data:image/{name};base64," + base64.b64encode(out.getvalue()).decode()
+        report = run_gates(uri, min_bytes=1, want_width=16, want_height=9)
+        assert report.passed, (name, report.summary())
+        assert report.width == 80 and report.height == 45
+
+
+def test_A21_forged_enormous_dimensions_fail_closed():
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(payload)) + tag + payload
+            + struct.pack(">I", zlib.crc32(tag + payload))
+        )
+
+    header = struct.pack(">IIBBBBB", 400_000, 400_000, 8, 2, 0, 0, 0)
+    forged = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+    uri = "data:image/png;base64," + base64.b64encode(forged).decode()
+    assert not run_gates(uri, min_bytes=1).passed
+
+
+def test_A21_encoded_payload_has_a_hard_byte_limit():
+    from offsetx_apollo_builder.imagery.gates import MAX_IMAGE_BYTES
+
+    too_large = b"\x00" * (MAX_IMAGE_BYTES + 1)
+    uri = "data:image/png;base64," + base64.b64encode(too_large).decode()
+    report = run_gates(uri, min_bytes=1)
+    assert not report.passed
+    assert report.failures[-1].name == "decodes"
 
 
 def test_a_byte_identical_repeat_is_caught():

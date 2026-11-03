@@ -7,11 +7,9 @@ sees anything, so the owner's attention is spent on pictures that are at least
 reject that only says "this came back broken" is not a judgement about taste,
 and mixing the two would poison the signal the whole benchmark rests on.
 
-**No image library.** Reading a width and a height is a header parse, and every
-format that matters puts them in a fixed place. Adding Pillow to decode two
-integers would pull a large dependency into a project that has been careful
-about them, so the parsing is here: forty lines, exact, and it fails closed on
-anything it does not recognise.
+**Bounded full decoding.** A header is not proof of a usable image.
+Pillow verifies the file and decodes its pixels before it enters review.
+Encoded size, dimensions and total pixels are bounded before allocation.
 
 What is deliberately *not* a gate: whether the picture is any good. A model
 scoring its own output is unrepeatable and unauditable, and it is the same
@@ -25,10 +23,12 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import io
 import re
-import struct
 from dataclasses import dataclass, field
 from typing import Any
+
+from PIL import Image
 
 #: Smaller than this and the "image" is a placeholder, an error page, or the
 #: flat grey some models return when they give up. Not a quality judgement —
@@ -40,6 +40,18 @@ MIN_BYTES = 1024
 #: (1.7778) or 1152x648 — the same ratio — while a square is a different answer
 #: to the question.
 ASPECT_TOLERANCE = 0.05
+
+# Bound memory before base64 decoding and native pixel decoding.
+MAX_IMAGE_BYTES = 16 * 1024 * 1024
+MAX_IMAGE_PIXELS = 16_777_216
+MAX_IMAGE_SIDE = 8192
+_MAX_BASE64_CHARS = ((MAX_IMAGE_BYTES + 2) // 3) * 4
+_IMAGE_FORMATS = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "GIF": "image/gif",
+    "WEBP": "image/webp",
+}
 
 _DATA_URI = re.compile(r"^data:(?P<media>[\w./+-]+);base64,(?P<payload>.*)$", re.DOTALL)
 
@@ -97,90 +109,68 @@ class GateReport:
 
 
 def decode_data_uri(value: str) -> tuple[str, bytes]:
-    """Split a ``data:image/png;base64,...`` URI into its type and its bytes."""
-    match = _DATA_URI.match(str(value or "").strip())
+    """Decode only bounded inline images, never a remote URL."""
+    if not isinstance(value, str) or len(value) > _MAX_BASE64_CHARS + 100:
+        raise ImageDecodeError("Image payload exceeds the 16 MiB limit.")
+    match = _DATA_URI.fullmatch(value.strip())
     if not match:
         raise ImageDecodeError(
-            "Expected a data: URI. The image adapter returns pictures inline so "
-            "they never sit behind a provider URL that could expire or track."
+            "Expected an inline base64 image. Check that the generator "
+            "returned a complete data URI."
         )
+    media_type = match.group("media").lower()
+    if media_type == "image/jpg":
+        media_type = "image/jpeg"
+    if media_type not in _IMAGE_FORMATS.values():
+        raise ImageDecodeError("Unsupported image type; use PNG, JPEG, GIF or WebP.")
+    encoded = match.group("payload")
+    if len(encoded) > _MAX_BASE64_CHARS:
+        raise ImageDecodeError("Image payload exceeds the 16 MiB limit.")
     try:
-        payload = base64.b64decode(match.group("payload"), validate=True)
+        payload = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
-        raise ImageDecodeError(f"The base64 payload did not decode: {exc}") from exc
+        raise ImageDecodeError("The base64 image payload is invalid.") from exc
     if not payload:
         raise ImageDecodeError("The image was empty.")
-    return match.group("media"), payload
+    if len(payload) > MAX_IMAGE_BYTES:
+        raise ImageDecodeError("Image payload exceeds the 16 MiB limit.")
+    return media_type, payload
 
 
 def image_size(data: bytes) -> tuple[int, int, str]:
-    """Width, height and format, read from the header.
+    """Return dimensions only after the entire static image decodes.
 
-    Fails closed: a format this does not recognise raises rather than returning
-    zeros, because a zero would silently pass a dimension check.
+    A first open verifies the container/chunks, and a second open loads pixels.
+    Bounds are checked before either pixel allocation or animated frame walk.
     """
-    if data[:8] == b"\x89PNG\r\n\x1a\n":
-        if len(data) < 24 or data[12:16] != b"IHDR":
-            raise ImageDecodeError("PNG header is truncated or malformed.")
-        width, height = struct.unpack(">II", data[16:24])
-        return int(width), int(height), "image/png"
-
-    if data[:2] == b"\xff\xd8":
-        return (*_jpeg_size(data), "image/jpeg")
-
-    if data[:6] in (b"GIF87a", b"GIF89a"):
-        width, height = struct.unpack("<HH", data[6:10])
-        return int(width), int(height), "image/gif"
-
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return (*_webp_size(data), "image/webp")
-
-    raise ImageDecodeError(
-        "Unrecognised image format. PNG, JPEG, GIF and WebP are understood; "
-        "anything else is refused rather than guessed at."
-    )
-
-
-def _jpeg_size(data: bytes) -> tuple[int, int]:
-    """Walk JPEG segments to the frame header.
-
-    JPEG has no fixed offset — the dimensions live in whichever start-of-frame
-    marker the encoder used, after any number of metadata segments, so the
-    segment chain has to be walked.
-    """
-    index = 2
-    length = len(data)
-    while index + 9 < length:
-        if data[index] != 0xFF:
-            index += 1
-            continue
-        marker = data[index + 1]
-        # Start-of-frame markers, excluding the four that are not frames.
-        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-            height, width = struct.unpack(">HH", data[index + 5 : index + 9])
-            return int(width), int(height)
-        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
-            index += 2
-            continue
-        segment = struct.unpack(">H", data[index + 2 : index + 4])[0]
-        index += 2 + segment
-    raise ImageDecodeError("JPEG has no start-of-frame segment.")
-
-
-def _webp_size(data: bytes) -> tuple[int, int]:
-    chunk = data[12:16]
-    if chunk == b"VP8X":
-        width = int.from_bytes(data[24:27], "little") + 1
-        height = int.from_bytes(data[27:30], "little") + 1
-        return width, height
-    if chunk == b"VP8 ":
-        width = struct.unpack("<H", data[26:28])[0] & 0x3FFF
-        height = struct.unpack("<H", data[28:30])[0] & 0x3FFF
-        return width, height
-    if chunk == b"VP8L":
-        bits = int.from_bytes(data[21:25], "little")
-        return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
-    raise ImageDecodeError("WebP variant not recognised.")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ImageDecodeError("Image payload exceeds the 16 MiB limit.")
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            kind = _IMAGE_FORMATS.get(str(source.format or "").upper())
+            if kind is None:
+                raise ImageDecodeError("Unsupported image type.")
+            width, height = source.size
+            if (
+                width < 1
+                or height < 1
+                or width > MAX_IMAGE_SIDE
+                or height > MAX_IMAGE_SIDE
+                or width * height > MAX_IMAGE_PIXELS
+            ):
+                raise ImageDecodeError("Image dimensions exceed the safe pixel limit.")
+            if getattr(source, "n_frames", 1) != 1:
+                raise ImageDecodeError("Animated images are not supported.")
+            source.verify()
+        with Image.open(io.BytesIO(data)) as decoded:
+            decoded.load()
+        return int(width), int(height), kind
+    except ImageDecodeError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - boundary around untrusted native decoder
+        raise ImageDecodeError(
+            "The image is corrupt, incomplete or cannot be fully decoded."
+        ) from exc
 
 
 def run_gates(
@@ -198,16 +188,13 @@ def run_gates(
     """
     report = GateReport()
     try:
-        media_type, payload = decode_data_uri(image)
+        claimed_type, payload = decode_data_uri(image)
     except ImageDecodeError as exc:
         report.results.append(GateResult("decodes", False, str(exc)))
         return report
 
-    report.media_type = media_type
     report.bytes = len(payload)
     report.sha256 = hashlib.sha256(payload).hexdigest()
-    report.results.append(GateResult("decodes", True, f"{len(payload)} bytes"))
-
     if len(payload) < min_bytes:
         report.results.append(
             GateResult(
@@ -222,12 +209,18 @@ def run_gates(
 
     try:
         width, height, detected = image_size(payload)
-        report.width, report.height = width, height
-        report.media_type = detected
-        report.results.append(GateResult("readable_header", True, f"{width}x{height}"))
+        if claimed_type != detected:
+            raise ImageDecodeError(
+                "The declared image type does not match the decoded image."
+            )
     except ImageDecodeError as exc:
-        report.results.append(GateResult("readable_header", False, str(exc)))
+        report.results.append(GateResult("decodes", False, str(exc)))
         return report
+
+    report.width, report.height = width, height
+    report.media_type = detected
+    report.results.append(GateResult("decodes", True, f"{len(payload)} decoded bytes"))
+    report.results.append(GateResult("readable_header", True, f"{width}x{height}"))
 
     if want_width and want_height:
         wanted = want_width / want_height

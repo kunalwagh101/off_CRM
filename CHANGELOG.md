@@ -1,3 +1,9 @@
+## 2026-11-03 — A09 keyboard approval escape: TDD RED, guarded fix awaiting QA
+
+- Selected S-06.02.57 with owner build-ahead instruction, existing audit S-06.02.23 still in progress. Test-only develop dfe6b78 was genuinely RED on isolated Render dep-dbkpkiek1f9s73dllh50: 4 A09 cases failed because unapproved Enter reached CDP key dispatch.
+- Existing `Page.press` now treats unknown/non-English Enter focus as potentially consequential, through the same human approval gate. The model cannot self-confirm; benign keyboard controls still use the existing path. D-358 and DD-137 record defect and false-positive cost.
+- Final targeted/full SQLite/PostgreSQL/Chromium acceptance is **pending** on this revision; no independent live penetration or customer/main deployment. Do not mark A09 closed or S-06.02.57 DONE.
+
 ## 2026-11-03 — A21 isolated Render QA activated
 
 - Review deploy dep-dbkp0b7b9u1s738244k0 completed LIVE at 08:04:59 UTC on exact source e45469a. This certifies the QA runner stage, not customer or main rollout. A21 stays IN_REVIEW with independent pen, full-history board and real-provider acceptance pending.

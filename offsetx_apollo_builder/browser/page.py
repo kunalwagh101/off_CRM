@@ -621,9 +621,16 @@ class Page:
         # people switch off things that ask too often.
         if name in SUBMITTING_KEYS:
             target = await self._what_enter_would_do()
+            intent = _intent(*target)
+            # A page can attach an Enter handler to any focused control, even a
+            # textarea, form-less search field or button labelled in another
+            # language. A harmless-looking DOM label cannot prove the effect is
+            # harmless, so all unknown Enter actions must request human approval.
+            if intent == "click":
+                intent = "submit"
             refusal = await self._clear_to_act(
-                "press", _intent(*target), f"pressing {name} to activate "
-                f"{target[1] or target[0]!r}",
+                "press", intent, f"pressing {name} to activate "
+                f"{target[1] or target[0] or 'the focused control'!r}",
                 confirmed=confirmed, countdown=countdown, started=started,
             )
             if refusal is not None:

@@ -1106,3 +1106,12 @@ same vertical slice.
 permission to final persistence. Saying "we don't store audio" is not enough
 until failure paths prove capture stops and temporary chunks have an explicit
 lifecycle.
+
+
+## 2026-11-03 — A12/A13 response-cache integrity (IN_REVIEW)
+
+**What was cut.** Nothing from either cache-correctness story. Provider-specific live billing tests and an independent penetration review remain external release gates, not silent acceptance.
+
+**What the estimate got wrong.** A 92% text similarity looks conservative but can hide tiny, critical differences in long evidence. The cache key also omitted hidden generation inputs, so model identity and prompt version both mattered.
+
+**What to change next time.** Start with an adversarial real-store RED test, bind every input that can change output, and run the small exact-code Render test before the complete review matrix. Do not call the review image a customer release.

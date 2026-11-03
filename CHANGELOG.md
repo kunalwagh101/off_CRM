@@ -1,3 +1,11 @@
+## 2026-11-03 — A12/A13 AI response-cache correctness and model provenance (IN_REVIEW)
+
+- Started two traceable F-06.02 remediation stories: S-06.02.58 / D-360 (changed factual evidence reusing an old near-match answer) and S-06.02.59 / D-361 (one model's output shown as another model's cached result). Each has a work order, testable acceptance and the original audit finding retained.
+- Real test-first Render RED: exact source 3e06faa / dep-dbkrmik9v7es73f6gj1g **4 failed**: incorrect 42 -> 420 million and negated-approval near hits, plus missing `model_id` and `system_prompt` cache API contracts.
+- Source fix: factual results require exact canonical payload equality; cache partition now includes model ID, SHA-256 digest of system instructions, SHA-256 digest of request options and output format, plus the existing privacy/workspace boundaries. The broker passes the contract on both reads/writes. No raw system prompt is stored in indexed keys. No table migration or extra dependency.
+- Initial isolated GREEN on source 25f882c / dep-dbkrodt9fdbs73c5vik0: four focused A12/A13 tests passed. Legacy fuzzy-cache expectations were updated to the stronger exact-fact contract, not silently skipped. Added two end-to-end `EgressBroker.call` regressions for different prompts/models and an early Render gate; exact-source full regression remains pending.
+- Both stories stay **IN_REVIEW**. Independent penetration, real provider/customer acceptance, complete historical board verifier and production deployment remain open. No `main`, paid-model, customer data or live email changes.
+
 ## 2026-11-03 — A09 Enter approval bypass: exact-code isolated QA LIVE, IN_REVIEW
 
 - TDD RED dfe6b78 / Render dep-dbkpkiek1f9s73dllh50: 4 failed by dispatching unapproved Enter. Original first GREEN 0fef11d later exposed five unsafe legacy tests (D-359): 5 failed / 2949 passed SQLite. Corrected tests and explicit model self-approval rejection at 065c310.

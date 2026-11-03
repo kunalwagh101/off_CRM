@@ -165,18 +165,15 @@ def test_storing_the_same_key_twice_replaces_rather_than_duplicates(cache):
 # ── near matches, and their limits ─────────────────────────────────────────
 
 
-def test_whitespace_and_case_differences_still_hit(cache):
+def test_whitespace_and_case_differences_do_not_bypass_exact_factual_cache(cache):
+    """Small lexical changes cannot prove that a factual result stays true."""
     _put(cache)
-    # Same instruction, different case and spacing — derived from PAYLOAD so it
-    # cannot drift out of sync with it again.
     noisy = dict(
         PAYLOAD,
         instructions="  classify this REPLY as interested,  not now, or no.  ",
     )
-    hit = _get(cache, payload=noisy)
-    assert hit is not None
-    assert hit.kind == "near"
-    assert hit.similarity >= DEFAULT_SIMILARITY
+    assert _get(cache, payload=noisy) is None
+    assert _get(cache) is not None
 
 
 def test_a_genuinely_different_question_does_not_near_hit(cache):
@@ -309,13 +306,14 @@ def test_the_hit_rate_is_reported_rather_than_assumed(cache):
     assert stats["calls_avoided"] == 1
 
 
-def test_near_hits_are_counted_separately_from_exact_ones(cache):
-    """They carry different risk, so they are worth telling apart."""
+def test_factual_cache_does_not_count_unsafe_near_hits(cache):
+    """A near-looking factual query is a miss, never a cached answer."""
     _put(cache)
     _get(cache, payload=dict(PAYLOAD, instructions=PAYLOAD["instructions"].upper()))
     stats = cache.stats()
-    assert stats["near_hits"] == 1
+    assert stats["near_hits"] == 0
     assert stats["exact_hits"] == 0
+    assert stats["misses"] == 1
 
 
 def test_per_entry_hit_counts_are_kept(cache):

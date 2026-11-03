@@ -255,3 +255,12 @@ Tests are **authored**, not evidence of a passing run. Q-27 customer isolation r
 | R-185 | F-06.22a / F-06.22b / F-06.22c | 3 | `tests/test_crm_duplicate_review.py` (4 tests) | `outreach/crm_operations.py`, `api/app.py` |
 
 TDD RED and GREEN observed on isolated Render; independent release security, tenancy Q-27, full-history verifier and live operator acceptance remain open. No DONE claim.
+
+## 2026-11-03 — F-06.02 A12/A13 cache-integrity repair (IN_REVIEW)
+
+| Req | Story | Criteria | Tests | Code |
+|---|---|---|---|---|
+| R-186 | S-06.02.58 | 3 | `tests/test_ai_cache_integrity.py::test_A12_changed_numeric_evidence_cannot_reuse_near_cache`, `tests/test_ai_cache_integrity.py::test_A12_changed_negation_cannot_reuse_near_cache`, `tests/test_ai_cache.py` | `offsetx_apollo_builder/ai/cache.py` |
+| R-187 | S-06.02.59 | 3 | `tests/test_ai_cache_integrity.py::test_A13_model_id_partitions_identical_payload`, `tests/test_ai_cache_integrity.py::test_A13_system_instructions_partition_identical_payload`, `tests/test_ai_cache.py::test_A13_broker_reexecutes_when_model_changes`, `tests/test_ai_cache.py::test_A13_broker_reexecutes_when_system_instructions_change` | `offsetx_apollo_builder/ai/cache.py`, `offsetx_apollo_builder/ai/broker.py` |
+
+Both requirements are code-complete but IN_REVIEW. A12/A13 RED and initial targeted GREEN were executed on isolated Render. The final exact-source full regression, independent penetration and operator production acceptance are separate gates.

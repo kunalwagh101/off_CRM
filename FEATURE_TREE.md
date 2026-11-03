@@ -802,3 +802,10 @@ moves. Two rules:
 Line counts and test counts in this document were measured on 2026-09-03 against
 commit `7a1d584`. They will drift. The commands that produced them are in
 `DEMO.md §1`; re-run them rather than trusting these numbers a month from now.
+
+
+## 2026-11-03 — A12/A13 factual response-cache repair (IN_REVIEW)
+
+**Plain:** Off_CRM's AI should not return old figures when a document changes, and should never say one model wrote another model's cached answer.
+
+**Precise:** In existing F-06.02, S-06.02.58 makes all allowlisted factual `ResponseCache` lookups exact-match only; S-06.02.59 makes `EgressBroker.call` bind cache reads and writes to the actual provider model, hashed system instructions, generation options and output format. Existing workspace/privacy boundaries and single AI egress gate remain unchanged. Initial isolated Render TDD RED/targeted GREEN observed; full QA, independent penetration, real provider acceptance and production release remain outstanding. `BOARD.md` owns the current status.

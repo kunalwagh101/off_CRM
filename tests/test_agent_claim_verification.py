@@ -366,3 +366,80 @@ def test_real_chromium_page_refuses_a_plausible_but_unsupported_number(tmp_path)
     assert evidence is not None
     assert "Employees: 420" in run.trace.captured_text(evidence)
     assert any(step.kind == "result_field_unsupported" for step in run.trace.steps)
+
+
+# A18 / D-354: the quoted words really must prove the numeric claim.
+# These use AgentRun.run and the real source-binding verifier, not only a regex.
+@pytest.mark.parametrize(
+    ("claimed", "quote"),
+    [
+        ("42", "Revenue is -42."),
+        ("42", "Revenue is +42."),
+        ("42", "Revenue is 42.7."),
+        ("42", "Revenue is 42,000."),
+        ("42", "Revenue is 42%."),
+        ("42", "Revenue is $42."),
+        ("42", "Revenue is ₹42."),
+        ("42", "Revenue is 42kg."),
+        ("-42", "Revenue is --42."),
+        ("42.7", "Revenue is 42.70."),
+        ("42,000", "Revenue is 42,000.50."),
+        ("Revenue was 42", "Revenue was 42.7."),
+        ("42 employees", "There were -42 employees."),
+    ],
+)
+def test_A18_mismatched_numeric_evidence_cannot_be_verified(tmp_path, claimed, quote):
+    outcome, run, _ = _run(
+        tmp_path,
+        text=quote,
+        record={"measure": _finding(claimed, quote, confidence=1.0)},
+        fields=("measure",),
+    )
+    assert outcome.status == "incomplete"
+    assert outcome.record == {}
+    assert outcome.unsupported_fields == ("measure",)
+    assert any(step.kind == "result_field_unsupported" for step in run.trace.steps)
+
+
+@pytest.mark.parametrize(
+    ("claimed", "quote"),
+    [
+        ("42", "Employees: 42."),
+        ("-42", "Revenue: -42."),
+        ("+42", "Revenue: +42."),
+        ("42.7", "Revenue: 42.7."),
+        ("42,000", "Revenue: 42,000."),
+        ("42%", "Reply rate: 42%."),
+        ("$42", "Cost: $42."),
+        ("₹42", "Cost: ₹42."),
+        ("42kg", "Mass: 42kg."),
+        ("42", "Employees: 42, next year: 43."),
+        ("acme ltd", "Company: Acme Ltd."),
+    ],
+)
+def test_A18_matching_evidence_and_non_numeric_claims_still_work(tmp_path, claimed, quote):
+    outcome, _, _ = _run(
+        tmp_path,
+        text=quote,
+        record={"measure": _finding(claimed, quote)},
+        fields=("measure",),
+    )
+    assert outcome.status == "completed"
+    assert outcome.record == {"measure": claimed}
+
+
+@pytest.mark.parametrize(
+    ("claim", "quote"),
+    [
+        ("42", "The answer is 42.9."),
+        ("42", "The answer is -42."),
+        ("42", "The answer is 42,000."),
+        ("42", "The answer is 42%."),
+    ],
+)
+def test_A18_direct_numeric_evidence_guard_rejects_embedded_numbers(claim, quote):
+    from offsetx_apollo_builder.agent.verify import _contains_supported_value, normalize_claim_text
+
+    assert not _contains_supported_value(
+        normalize_claim_text(quote), normalize_claim_text(claim)
+    )

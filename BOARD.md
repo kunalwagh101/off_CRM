@@ -31,8 +31,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
-- S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
-  work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md
 - S-06.02.56 · Reject corrupt image payloads safely (A21)
   work_order: docs/work-orders/S-06.02.56-complete-image-decoding.md
 
@@ -141,6 +139,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
 ## IN_PROGRESS
+
+- S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
+  work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md
+  progress: Owner explicitly requested the next complete feature (2026-11-03). F-11.02 existing four sub-stories are DONE. TDD RED acceptance suite added; no GREEN claim yet. Existing S-06.02.23 remains in progress and WIP=2. Code changes will be gated on RED results.
 
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`

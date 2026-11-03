@@ -22,6 +22,8 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run pytest -q -s tests/test_crm_duplicate_review.py
+# S-06.02.55 / A18: numeric evidence must fail fast before the full expensive QA suite.
+RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18
 RUN uv run ruff check --select E9,F63,F7,F82 .
 RUN uv run pytest -q tests/test_public_demo.py tests/test_public_demo_ai.py tests/test_public_demo_entrypoint.py tests/test_api_auth.py
 # S-06.03.06: hosted automation settings, test-first gate before broad suites.

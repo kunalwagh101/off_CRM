@@ -133,3 +133,42 @@ def test_cache_partition_rejects_delimiter_collision():
         model_id="example-model",
     )
     assert left != right
+
+
+def test_A12_A13_restart_keeps_fact_and_model_provenance_isolated(tmp_path):
+    """A12/A13: closing and reopening storage cannot bypass cache boundaries."""
+    database = tmp_path / "restart-integrity.db"
+    original = _payload("42 tonnes in 2026")
+    changed = _payload("420 tonnes in 2026")
+    settings = {
+        **_arguments(original),
+        "model_id": "verified-model",
+        "system_prompt": "Report the exact value",
+        "generation_options": {"temperature": 0, "expect_json": True},
+    }
+    writer = ResponseCache(database, near_match=True)
+    try:
+        assert writer.put(**settings, response="42 tonnes")
+    finally:
+        writer.close()
+
+    reader = ResponseCache(database, near_match=True)
+    try:
+        hit = reader.get(**settings)
+        assert hit is not None
+        assert hit.response == "42 tonnes"
+        assert hit.model_id == "verified-model"
+        assert reader.get(**{**settings, "payload": changed}) is None
+        assert reader.get(**{**settings, "model_id": "different-model"}) is None
+        assert reader.get(**{**settings, "system_prompt": "Ignore the earlier value"}) is None
+        assert reader.get(**{
+            **settings,
+            "generation_options": {"temperature": 0, "expect_json": False},
+        }) is None
+        assert reader.get(**{**settings, "workspace_id": "other-workspace"}) is None
+        stats = reader.stats()
+        assert stats["exact_hits"] == 1
+        assert stats["misses"] == 4
+        assert stats["near_hits"] == 0
+    finally:
+        reader.close()

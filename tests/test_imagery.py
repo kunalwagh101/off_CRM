@@ -164,6 +164,38 @@ def test_a_broken_candidate_is_a_failed_gate_not_an_exception():
     assert report.failures[0].name == "decodes"
 
 
+def test_A21_header_only_png_is_rejected_even_above_minimum_size():
+    fake = (
+        b"\\x89PNG\\r\\n\\x1a\\n"
+        + b"\\x00\\x00\\x00\\x0dIHDR"
+        + struct.pack(">II", 32, 32)
+        + b"\\x00" * 2048
+    )
+    uri = "data:image/png;base64," + base64.b64encode(fake).decode()
+    report = run_gates(uri)
+    assert not report.passed
+    assert any(not gate.passed for gate in report.results)
+
+
+def test_A21_truncated_formats_fail_without_raising():
+    samples = (
+        ("gif", b"GIF89a"),
+        ("jpeg", b"\\xff\\xd8\\xff\\xc0"),
+        ("webp", b"RIFF\\x00\\x00\\x00\\x00WEBPVP8 "),
+        ("png", b"\\x89PNG\\r\\n\\x1a\\n"),
+    )
+    for name, data in samples:
+        uri = f"data:image/{name};base64," + base64.b64encode(data).decode()
+        report = run_gates(uri, min_bytes=1)
+        assert not report.passed, name
+        assert report.failures, name
+
+
+def test_A21_mismatched_media_header_never_approved():
+    uri = png(1024, 576).replace("data:image/png", "data:image/jpeg", 1)
+    assert not run_gates(uri).passed
+
+
 def test_a_byte_identical_repeat_is_caught():
     image = png(1024, 576)
     first = run_gates(image)
@@ -195,6 +227,22 @@ def test_a_candidate_that_fails_a_gate_never_reaches_the_queue(engine):
     result = engine.generate(brief, count=2)
     assert result.stored == 1
     assert result.gate_failed == 1
+    assert len(engine.review_queue(CAMPAIGN)) == 1
+
+
+def test_A21_corrupt_candidate_does_not_hide_good_candidate(engine):
+    brief = engine.add_brief(CAMPAIGN, brief="a warehouse", width=16, height=9)
+    fake = (
+        b"\\x89PNG\\r\\n\\x1a\\n"
+        + b"\\x00\\x00\\x00\\x0dIHDR"
+        + struct.pack(">II", 32, 32)
+        + b"\\x00" * 2048
+    )
+    invalid = "data:image/png;base64," + base64.b64encode(fake).decode()
+    engine.broker.script = [_Generated([invalid, png(1024, 576)])]
+    result = engine.generate(brief, count=1)
+    assert result.gate_failed == 1
+    assert result.stored == 1
     assert len(engine.review_queue(CAMPAIGN)) == 1
 
 

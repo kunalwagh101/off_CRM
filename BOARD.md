@@ -143,6 +143,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.58 · Factual AI cache only reuses exact evidence (A12)
+  work_order: docs/work-orders/S-06.02.58-exact-factual-cache.md
+  review: Test-first RED 3e06faa on isolated Render dep-dbkrmik9v7es73f6gj1g: numeric and negation cases failed by reusing wrong near-match facts; targeted 4-case cache-integrity gate now PASS on 25f882c / dep-dbkrodt9fdbs73c5vik0. Full exact-source regression and independent live penetration, customer/provider acceptance and full-history board verifier not yet verified. D-360 logged. No main/customer release.
+
+- S-06.02.59 · Cached AI outputs are scoped to the actual model and instructions (A13)
+  work_order: docs/work-orders/S-06.02.59-cache-model-provenance.md
+  review: Test-first RED 3e06faa on Render dep-dbkrmik9v7es73f6gj1g: model and system-prompt isolation not supported. Code binds model_id, hashed system instructions, generation options and expect_json; initial 4-case targeted cache-integrity gate PASS on 25f882c / dep-dbkrodt9fdbs73c5vik0. Additional real broker/model integration and full exact-source regression, independent penetration, provider acceptance and full-history verifier not yet verified. D-361 logged. No main/customer release.
+
 - S-06.02.57 · A09: Enter handlers cannot bypass human approval
   work_order: docs/work-orders/S-06.02.57-enter-approval.md
   review: Test-first RED at dfe6b78 / Render dep-dbkpkiek1f9s73dllh50: 4 failed because unapproved Enter reached key dispatch. First GREEN 0fef11d early gate 4 PASS but full SQLite 5 FAILED (legacy unsafe assertions), 2949 PASS/54 skip; corrected tests at 065c310 / Render dep-dbkps0m7bikc73fil3vg LIVE at 08:59:44 UTC: new A09 focused 4 PASS, legacy Enter 34 PASS, Chromium custom-handler 4 PASS, full SQLite 2954 PASS/54 skipped, disposable PostgreSQL full 2977 PASS/100 skipped, focused PostgreSQL 215 PASS, other existing Chromium desktop/mobile and A18 cases PASS, concurrency 12/12, Ruff/frontend build/audits and verifier unit checks PASS; structural board check at source 065c310 PASS with --skip-tests, not full-history command replay. Scope blocks unapproved Enter for arbitrary focused fields including JavaScript handlers; effect-bound approval, independent live penetration, customer acceptance and main production deployment not verified. Evidence docs/evidence/2026-11-03-a09-enter-approval.md; D-358 mitigated; D-359 stale contract corrected.

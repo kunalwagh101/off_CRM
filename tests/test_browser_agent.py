@@ -627,3 +627,72 @@ def test_a_handle_from_before_the_page_changed_is_refused():
     ok, before, after = asyncio.run(_drive(work))
     assert ok is True
     assert before != after, "the handles should have shifted, or this proves nothing"
+
+
+# S-06.02.57 / A09: page-defined Enter handlers must not evade human approval.
+@pytest.mark.parametrize("probe", [
+    {"role": "", "label": ""},
+    {"role": "textbox", "label": "Search"},
+    {"role": "button", "label": "Eliminar"},
+    {"role": "button", "label": ""},
+])
+def test_A09_enter_unknown_focus_requires_confirmation_without_key_dispatch(probe):
+    """Unknown and non-English Enter targets are not proof that an action is safe."""
+
+    class FakeConnection:
+        def __init__(self):
+            self.calls = []
+
+        async def send(self, method, params=None, *, session_id=None):
+            self.calls.append(method)
+            if method == "Runtime.evaluate":
+                return {"result": {"value": probe}}
+            if method.startswith("Input."):
+                raise AssertionError("An unapproved Enter event reached the page")
+            raise AssertionError("Unexpected CDP command " + method)
+
+    connection = FakeConnection()
+    page = Page(connection=connection, session_id="test", url="https://example.com/form")
+    response = asyncio.run(page.press("Enter"))
+    assert response.ok is False and response.needs_confirmation is True
+    assert "Runtime.evaluate" in connection.calls
+    assert not any(method.startswith("Input.") for method in connection.calls)
+
+
+@needs_browser
+@pytest.mark.parametrize("control", [
+    '<textarea id="target"></textarea>',
+    '<div id="target" contenteditable="true" tabindex="0"></div>',
+    '<input id="target" type="text">',
+    '<button id="target" type="button" aria-label="Eliminar">Eliminar</button>',
+])
+def test_A09_enter_js_handler_is_blocked_in_real_chromium(control):
+    """A controlled page's custom Enter handler must not submit without approval."""
+    from urllib.parse import quote
+
+    async def work(page: Page):
+        html = (
+            '<!doctype html><html><body>' + control +
+            '<span id="out">UNSENT</span><script>'
+            'document.addEventListener("keydown", function(event) {'
+            'if (event.key === "Enter" && document.activeElement.id === "target") {'
+            'document.getElementById("out").textContent = "SUBMITTED";'
+            '}});</script></body></html>'
+        )
+        await page.goto("data:text/html," + quote(html, safe=""))
+        await page.connection.send(
+            "Runtime.evaluate",
+            {"expression": 'document.getElementById("target").focus()',
+             "returnByValue": True},
+            session_id=page.session_id,
+        )
+        assert "UNSENT" in (await page.read()).text
+        blocked = await page.press("Enter")
+        assert blocked.ok is False and blocked.needs_confirmation is True
+        assert "SUBMITTED" not in (await page.read()).text
+        approved = await page.press("Enter", confirmed=True)
+        assert approved.ok is True
+        assert "SUBMITTED" in (await page.read()).text
+        return True
+
+    assert asyncio.run(_drive(work))

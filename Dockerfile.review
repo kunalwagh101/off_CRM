@@ -40,6 +40,7 @@ RUN uv run pytest -q tests/test_crm_hosted.py::test_a_campaign_made_in_the_app_o
 # F-06.03 storage readiness TDD: fail fast before the long regression stages.
 RUN uv run pytest -q tests/test_hosted_storage_readiness.py
 # F-06.01.02: targeted permission and browser action-gate tests run first.
+RUN uv run pytest -q tests/test_browser_agent.py -k A09_enter_unknown_focus
 RUN uv run pytest -q tests/test_agent_permissions.py tests/test_agent_run.py
 # A new app-state service must be in the storage inventory and close on restore.
 RUN uv run pytest -q tests/test_storage_inventory.py::test_every_service_the_app_opens_is_classified tests/test_audit_wp1.py::test_every_open_service_is_closed_for_a_restore
@@ -73,6 +74,7 @@ FROM backend-checks AS chromium-checks
 RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
 RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
 # A18: real Chrome page capture + model-supplied incorrect signed/decimal result.
+RUN uv run pytest -q tests/test_browser_agent.py -k A09_enter_js_handler
 RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18_real_chromium
 RUN uv run --no-sync python scripts/live/review_contacts_browser.py
 RUN uv run --no-sync python scripts/live/review_public_demo_browser.py

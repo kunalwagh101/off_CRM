@@ -31,6 +31,9 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
+- S-06.02.60 · AI request and spending caps reserve atomically across workers (A11)
+  work_order: docs/work-orders/S-06.02.60-atomic-ai-quota.md
+
 - S-06.02.40 · A durable email worker runs beside the deployed web app
   work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md
 

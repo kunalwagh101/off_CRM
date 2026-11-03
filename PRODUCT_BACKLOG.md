@@ -2209,6 +2209,13 @@ stories until opened.
 - **Given** an identical canonical payload and generation contract, **when** the result is cached, **then** the log identifies a cache hit, not a billable send, and the actual model is reported without any raw prompt in the index.
 - **Dependencies:** none. **Size:** M. **Audit:** A13 / D-361. **Work order:** `docs/work-orders/S-06.02.59-cache-model-provenance.md`.
 
+#### S-06.02.60 — Atomic provider quota and USD budget enforcement (A11)
+**As a** workspace owner, **I want** simultaneous AI calls to reserve their request and dollar budgets before transport, **so that** no worker can exceed the limits by racing another worker.
+- **Given** one remaining request and two independent workers, **when** they race, **then** no more than one provider call begins.
+- **Given** a daily USD cap, **when** priced concurrent requests, retries, crashes or uncertain outcomes occur, **then** reservations and reconciled totals prevent unaccounted spend.
+- **Given** a corrupt/unavailable quota ledger or a different workspace account, **when** a request starts, **then** the system fails closed as needed and never leaks or resets another workspace's count.
+- **Dependencies:** production egress, storage and traceable errors; Definition of Ready and current audit WIP gate still apply. **Size:** L. **Audit:** A11 / D-362. **Work order:** \`docs/work-orders/S-06.02.60-atomic-ai-quota.md\`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 #### S-06.03.08 — Owner storage readiness and data-loss risk

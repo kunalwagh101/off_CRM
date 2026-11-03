@@ -1,3 +1,7 @@
+## 2026-11-03 — A11 quota race filed for atomic repair
+
+- Current-source audit confirmed the separate pre-call quota check and post-call record still cannot reserve a budget across processes. Corrupt local usage can reset. Logged D-362 and S-06.02.60 in BACKLOG with a red-first real-process/PostgreSQL work order. No application code was modified and no new penetration result is claimed.
+
 ## 2026-11-03 — A12/A13 AI response-cache correctness and model provenance (IN_REVIEW)
 
 - Started two traceable F-06.02 remediation stories: S-06.02.58 / D-360 (changed factual evidence reusing an old near-match answer) and S-06.02.59 / D-361 (one model's output shown as another model's cached result). Each has a work order, testable acceptance and the original audit finding retained.

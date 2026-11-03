@@ -137,6 +137,9 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
+- S-06.02.57 · A09: Enter handlers cannot bypass human approval
+  work_order: docs/work-orders/S-06.02.57-enter-approval.md
+
 
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`

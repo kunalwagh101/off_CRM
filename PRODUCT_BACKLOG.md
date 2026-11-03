@@ -2479,6 +2479,14 @@ Backend-first, owner-requested next independent CRM feature. Three sub-stories (
 - **Given** a derived number, **when** its inputs exist, **then** unverified arithmetic cannot be reported as an observed fact merely because the model claims a total.
 - **Dependencies:** S-11.02.03 (existing verifier). **Size:** M. **Open audit:** A18 / D-354. **Work order:** docs/work-orders/S-06.02.55-numeric-claim-integrity.md. Not READY; test-first fix requires normal verification gates.
 
+#### S-06.02.57 — A09: Enter handlers cannot bypass human approval
+**As an** operator, **I want** Enter-key browser actions to stop before any page-defined side effect, **so that** a website cannot execute send, publish, submit or delete without my approval.
+- **Given** a focused textarea, rich-text editor, ordinary input without a form, non-English button or an event handler attached to the document, **when** the agent requests Enter without human approval, **then** no Enter key event is dispatched and the run needs confirmation.
+- **Given** a failed or ambiguous focused-element inspection, **when** Enter is requested, **then** it fails closed without sending the key; failure to identify a safe target is not permission.
+- **Given** an actual safe navigation key or an explicit trusted confirmation, **when** the action is invoked, **then** the original key behaviour is retained; the model cannot supply confirmed=true.
+- **Given** a controlled real Chromium form with JavaScript Enter handlers, **when** the agent tries unconfirmed Enter, **then** the page does not change to SUBMITTED; the same action with trusted owner confirmation is observable.
+- **Dependencies:** S-11.03.03 (previously implemented). **Size:** S. **Work order:** docs/work-orders/S-06.02.57-enter-approval.md. **Audit:** A09, partial remediation pending independent confirmation/DOM-change tests.
+
 #### S-06.02.56 — Full generated-image decoding fails safely (A21 / D-355)
 **As an** image reviewer, **I want** corrupt generator output rejected before entering approval, **so that** bad pixels and truncated payloads cannot pass or crash the whole batch.
 - **Given** a well-shaped PNG header but no image data, **when** the image-gate entry point processes it, **then** the candidate fails the decodes gate, even above the byte threshold.

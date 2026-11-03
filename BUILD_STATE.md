@@ -1,3 +1,7 @@
+## 2026-11-03 — A21 final isolated full QA green, IN_REVIEW
+
+On corrected source e45469a, isolated Render dep-dbkp0b7b9u1s738244k0 passed A21 10, image/video 113, full SQLite 2950/50 skipped, full PostgreSQL 2973/96 skipped, focused PG 215, verifier unit 67, repeated concurrency 12/12, Ruff, frontend/audits, desktop/mobile Chromium and structural board verifier. Review image built, activation pending at record time. No customer/main deployment. Independent penetration, memory limits under hostile decompression, full-history verifier and real image-provider acceptance open; no DONE claim. See docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 ## 2026-11-03 — A21 D-357 integration regression corrected; final QA open
 
 Full SQLite on source `db02e52` in Render `dep-dbkopnp5efls73f7u9j0` found 3 FAILED/2946 PASSED/50 skipped: video import and still-image probe needed old header classification; valid blank PNG test fixture was no longer below the byte floor. Code `e45469a` restores header-only `image_size` for video and isolates strict `_fully_decode_image` to `run_gates`. TDD focused on exact revision in Render `dep-dbkp0b7b9u1s738244k0`: **10 A21 PASS, 113 image/video PASS**. The full regression, Chromium and PostgreSQL results remain pending; no release. Logged D-357, DD-136. See docs/evidence/2026-11-03-corrupt-images-a21.md.

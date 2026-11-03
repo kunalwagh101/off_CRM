@@ -1,3 +1,8 @@
+## 2026-11-03 — A21 full decoding reviewed on isolated Render
+
+- Corrected e45469a tested in dep-dbkp0b7b9u1s738244k0: 10 A21 PASS, 113 image/video PASS, SQLite 2950 PASS, PostgreSQL 2973 PASS, focused PG 215 PASS, verifier 67 PASS, concurrency 12/12 PASS, frontend/build/audits and Chromium desktop/mobile PASS.
+- Full pixel checks remain in generated-image approval; lightweight video media classification preserved. S-06.02.56 moved IN_REVIEW, not DONE: independent penetration, resource stress, full-history verifier and real provider/customer acceptance outstanding. No main/customer deployment. See docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 ## 2026-11-03 — A21 correct shared video-media probing regression
 
 - First full isolated SQLite suite on `db02e52` failed 3/2946 pass/50 skip because header-only video classification was unintentionally changed, and the blank placeholder fixture became a larger valid image. Logged D-357.

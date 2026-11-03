@@ -137,14 +137,17 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.56 · Reject corrupt image payloads safely (A21)
-  work_order: docs/work-orders/S-06.02.56-complete-image-decoding.md
 
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.56 · Reject corrupt image payloads safely (A21)
+  work_order: docs/work-orders/S-06.02.56-complete-image-decoding.md
+  review: TDD RED 2 failed/2 passed on Render dep-dbkolbnb9u1s73819ns0. Corrected source e45469a isolated Render dep-dbkp0b7b9u1s738244k0: A21 10 PASS, image/video 113 PASS, full SQLite 2950 PASS/50 skip, real PostgreSQL 2973 PASS/96 skip, focused PG 215 PASS, verifier unit 67 PASS, concurrency 12/12, Ruff/frontend/audits/desktop-mobile Chromium PASS. Structural board verifier PASS with evidence commands skipped. Review image build passed; activation pending at checkpoint. Unverified independent penetration, image decoder resource peaks, live model output, full-history board replay and production acceptance. No main/customer deployment. Evidence docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 
 - S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
   work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md

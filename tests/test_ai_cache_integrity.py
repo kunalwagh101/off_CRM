@@ -116,3 +116,20 @@ def test_A12_changed_units_dates_and_entities_all_miss(tmp_path):
         edited = _payload(f"reference {n}: {after}")
         assert cache.put(**_arguments(original), response=before)
         assert cache.get(**_arguments(edited)) is None
+
+
+def test_cache_partition_rejects_delimiter_collision():
+    """A model or registry field containing a separator cannot alias another scope."""
+    from offsetx_apollo_builder.ai.cache import partition_key
+
+    base = {"workspace_id": "local", "data_class": DataClass.PUBLIC,
+            "policy": DataPolicy.STANDARD, "system_prompt": "instructions"}
+    left = partition_key(
+        **base, task_type="extract|summarise", provider_id="mistral",
+        model_id="example-model",
+    )
+    right = partition_key(
+        **base, task_type="extract", provider_id="summarise|mistral",
+        model_id="example-model",
+    )
+    assert left != right

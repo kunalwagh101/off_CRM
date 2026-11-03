@@ -214,13 +214,19 @@ def partition_key(
     policy: DataPolicy,
     task_type: str,
     provider_id: str,
+    model_id: str = "",
+    system_prompt: str = "",
+    generation_options: dict[str, Any] | None = None,
 ) -> str:
-    """The bucket a near-match may search.
+    """Separate results by data boundary, actual model and generation contract.
 
-    Near-matching is confined to entries that share every one of these, so a
-    fuzzy comparison can never reach across a policy or a workspace boundary
-    however similar two texts look.
+    Hash instructions and options instead of putting sensitive instruction text
+    in an indexed database key. Old partitions are intentionally not reused.
     """
+    prompt_hash = hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()
+    options_hash = hashlib.sha256(
+        canonical_payload(generation_options or {}).encode("utf-8")
+    ).hexdigest()
     return "|".join(
         [
             str(workspace_id),
@@ -228,6 +234,9 @@ def partition_key(
             policy.value,
             str(task_type),
             str(provider_id),
+            str(model_id),
+            prompt_hash,
+            options_hash,
         ]
     )
 
@@ -325,8 +334,11 @@ class ResponseCache:
         task_type: str = "",
         provider_id: str = "",
         workspace_id: str = "local",
+        model_id: str = "",
+        system_prompt: str = "",
+        generation_options: dict[str, Any] | None = None,
     ) -> CachedResponse | None:
-        """An earlier answer to exactly this payload, or a near-identical one."""
+        """An earlier answer to exactly this request and generation contract."""
         if not is_cacheable(task_type, data_class):
             return None
         partition = partition_key(
@@ -335,6 +347,9 @@ class ResponseCache:
             policy=policy,
             task_type=task_type,
             provider_id=provider_id,
+            model_id=model_id,
+            system_prompt=system_prompt,
+            generation_options=generation_options,
         )
         key = cache_key(partition=partition, payload=payload)
         now = time.time()
@@ -354,39 +369,10 @@ class ResponseCache:
                     similarity=1.0,
                 )
 
-            if not self.near_match:
-                self._record_miss(conn, workspace_id)
-                return None
-
-            wanted = _shingles(canonical_payload(payload))
-            if not wanted:
-                self._record_miss(conn, workspace_id)
-                return None
-
-            best_row, best_score = None, 0.0
-            candidates = conn.execute(
-                "SELECT * FROM ai_response_cache WHERE partition_key = ? "
-                "ORDER BY created_epoch DESC LIMIT 200",
-                (partition,),
-            ).fetchall()
-            for candidate in candidates:
-                if not self._fresh(candidate, now):
-                    continue
-                score = similarity(wanted, json.loads(candidate["shingles"]))
-                if score > best_score:
-                    best_row, best_score = candidate, score
-
-            if best_row is not None and best_score >= self.similarity_threshold:
-                self._record_hit(conn, best_row["id"], workspace_id, "near")
-                return CachedResponse(
-                    response=best_row["response"],
-                    provider_id=best_row["provider_id"],
-                    model_id=best_row["model_id"],
-                    created_at=best_row["created_at"],
-                    kind="near",
-                    similarity=best_score,
-                )
-
+            # A12: fuzzy text equality is not factual equality. A changed number,
+            # unit, entity, date or negation must always reach the real model.
+            # Keep near_match as a constructor compatibility option, but never
+            # serve a factual result on lexical overlap.
             self._record_miss(conn, workspace_id)
             return None
 
@@ -408,6 +394,8 @@ class ResponseCache:
         provider_id: str = "",
         model_id: str = "",
         workspace_id: str = "local",
+        system_prompt: str = "",
+        generation_options: dict[str, Any] | None = None,
     ) -> bool:
         """Store an answer.  Returns whether it was stored.
 
@@ -424,6 +412,9 @@ class ResponseCache:
             policy=policy,
             task_type=task_type,
             provider_id=provider_id,
+            model_id=model_id,
+            system_prompt=system_prompt,
+            generation_options=generation_options,
         )
         key = cache_key(partition=partition, payload=payload)
         canonical = canonical_payload(payload)

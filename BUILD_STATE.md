@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-03 — A18 final isolated Render QA (IN_REVIEW)
+
+Source c1eefe2 / Render dep-dbkni7fb9u1s73fubjl0 LIVE at 06:22:32Z. TDD RED 15 fail on 00b1657; corrected A18 48 PASS, real Chromium 2 PASS, full SQLite 2940 PASS/50 skipped, full PostgreSQL 2963 PASS/96 skipped, focused PG 215 PASS, verifier unit 67 PASS, 12/12 concurrency, frontend/build/security audit and Chromium desktop/mobile PASS. Structural board check passed; full-history verification and independent live penetration did not run. S-06.02.55 moved IN_REVIEW; A18 closed only for tested numeric reproduction cases. F-11.02 original 4 sub-stories remain DONE. No main/customer deployment, migration or provider call. See docs/evidence/2026-11-03-numeric-claim-integrity.md.
+
+
 ## 2026-11-03 — F-11.02 source-bound numeric verification, RED confirmed
 
 Working on owner-authorised A18 S-06.02.55 in existing F-11.02 (its original four sub-stories are marked DONE). New tests in `tests/test_agent_claim_verification.py` use the real `AgentRun` entry point, and `Dockerfile.review` makes them an early gate. Test-only commit `00b1657`, isolated Render `dep-dbkn8p59fdbs73bquspg`: **15 failed, 13 passed, 8 deselected**, expected RED. Fix to `agent/verify.py` guards numeric punctuation and separated signs, with further adversarial tests; final GREEN and full SQLite/PostgreSQL/Chromium/board verifier not yet observed at this checkpoint. Previous F-06.22 results apply to different source; do not reuse them as acceptance. The review image requires two real-Chromium signed/decimal A18 captures, structural board verification, and the expanded Unicode/locale cases. All results remain pending on this revision. S-06.02.23 audit remains IN_PROGRESS (WIP=2). No production deployment, external mail, provider usage, migration or schema change.

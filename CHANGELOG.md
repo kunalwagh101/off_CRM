@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — A18 numeric evidence isolation QA passed (IN_REVIEW)
+
+- Final Render review dep-dbkni7fb9u1s73fubjl0 at exact source c1eefe2 LIVE. TDD RED previously 15 fail/13 pass; corrected source A18 48 PASS/2 skipped, real Chromium A18 2 PASS, full SQLite 2940 PASS, full PostgreSQL 2963 PASS, focused PG 215 PASS, verifier unit 67 PASS, concurrency 12/12 PASS, frontend and browser gates PASS.
+- Moved S-06.02.55 to IN_REVIEW and updated A18 audit as closed for verified numeric cases. No independent penetration or full-history board replay yet; no main/customer release. See docs/evidence/2026-11-03-numeric-claim-integrity.md.
+
 ## 2026-11-03 — F-11.02 numerical evidence verification repair (S-06.02.55, QA pending)
 
 - Real Render TDD RED `dep-dbkn8p59fdbs73bquspg` at test-only source `00b1657`: **15 failed / 13 passed / 8 deselected** in the targeted numeric-claim suite. No production data or model calls.

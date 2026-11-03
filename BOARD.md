@@ -140,15 +140,14 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
-  work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md
-  progress: F-11.02 original four sub-stories already DONE; owner-authorised A18 hardening. Render TDD RED 00b1657 / dep-dbkn8p59fdbs73bquspg confirmed 15 failed, 13 passed, 8 deselected. Numeric/source-bound code fix and adversarial additions authored, awaiting final Render GREEN/full-suite evidence. Audit S-06.02.23 remains IN_PROGRESS; WIP=2.
-
-
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
+  work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md
+  review: TDD RED isolated Render dep-dbkn8p59fdbs73bquspg at 00b1657: 15 fail/13 pass/8 deselected. Corrected c1eefe2 isolated Render dep-dbkni7fb9u1s73fubjl0 LIVE: A18 focused 48 PASS/2 skipped/8 deselected, A18 real Chromium 2 PASS, full SQLite 2940 PASS/50 skipped, full PostgreSQL 2963 PASS/96 skipped, focused PostgreSQL 215 PASS, verifier unit 67 PASS, repeated concurrency 12/12 PASS, contacts/visitor Chromium PASS and frontend/audit/Ruff gates PASS. Structural `verify_board.py --skip-tests` PASS; full-history verifier/independent live penetration and production acceptance unverified. No main/customer release; evidence docs/evidence/2026-11-03-numeric-claim-integrity.md.
 
 - F-06.22 · Duplicate Contact Review (backend)
   work_order: docs/features/crm-duplicate-review.md

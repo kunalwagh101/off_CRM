@@ -31,6 +31,11 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
+- S-06.02.55 · Verify numeric claims without changing sign, precision or magnitude (A18)
+  work_order: docs/work-orders/S-06.02.55-numeric-claim-integrity.md
+- S-06.02.56 · Reject corrupt image payloads safely (A21)
+  work_order: docs/work-orders/S-06.02.56-complete-image-decoding.md
+
 - S-06.02.40 · A durable email worker runs beside the deployed web app
   work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md
 

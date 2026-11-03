@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-03 — Production-audit A18/A21 triage (S-06.02.23, IN_PROGRESS)
+
+- Source-rechecked the current numeric-claim verifier and generated-image gate on `develop`. A18 remains open as D-354 / S-06.02.55 (signed/decimal/grouped figures falsely matching a short claimed number). A21 remains open as D-355 / S-06.02.56 (header-only image accepted and truncated GIF raising uncaught `struct.error`).
+- Updated the September audit index, defect log, backlog, board and work orders. **No application change, passing regression, independent penetration or Render deployment is claimed** for these two findings. The audit still has other unchecked rows.
+
 ## 2026-11-02 — F-06.22 independent QA completion (IN_REVIEW)
 
 - Final implementation/test source `f6de8a1`, isolated Render review `dep-dbk9o0gn74is73brdodg` **LIVE at 2026-11-02T14:37:46Z**. Seven targeted tests PASS; full SQLite **2,892 passed/48 skipped**, full disposable PostgreSQL **2,915 passed/94 skipped**; focused PG **215 passed**, verifier unit **67 passed**, 12/12 concurrency and Chromium desktop/mobile PASS. Frontend tests/build/audits and Ruff passed as Docker build gates.

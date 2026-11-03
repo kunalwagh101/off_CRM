@@ -1,5 +1,10 @@
 # BUILD_STATE.md
 
+## 2026-11-03 — Continued S-06.02.23 production audit: two confirmed source gaps
+
+The latest verified `develop` head before this documentation slice was `4dc461fd8b387d2bbd221aaee565d414f0f4241a`. No READY item exists; S-06.02.23 is the sole IN_PROGRESS audit, so new feature code was not pulled. The September audit index now identifies A18 and A21 as OPEN and links D-354/S-06.02.55 and D-355/S-06.02.56. Verification consists of comparing current source control paths with the audit's original adversarial cases; **no new executable pytest, browser, real provider, full-history verifier or Render gate was run for these gaps**. No code or production deployment changed. Next authorised work: continue per-finding audit checks, run full-history evidence verification, and only pull a remediation after READY criteria are met.
+
+
 ## 2026-11-02 — F-06.22 full independent isolated Render gate completed
 
 Exact final tested source `f6de8a1b7b9fc1541489ec49e37654d5b5530f6a` on `develop`, isolated review `dep-dbk9o0gn74is73brdodg` **LIVE** at 14:37:46Z. RED a1c68e1 2 failed/4 passed for D-351 (legacy TAB/CR/LF) and D-352 (offset overflow risk); intermediate d931ba8 had 6 pass/1 failure solely due to D-353 test reading an integer EXPLAIN column. Final targeted **7 PASS**, full SQLite **2,892 PASS/48 skip**, full PostgreSQL **2,915 PASS/94 skip**, focused PostgreSQL **215 PASS**, verifier-unit **67 PASS**, concurrent API writes **12/12 PASS**, Chromium desktop/mobile Contacts and visitor demo PASS, frontend build/tests/audit and Ruff gates PASS. Synthetic 5,004-row SQLite duplicate scan **11.4ms**, planner SCAN+TEMP B-TREE; PostgreSQL 5,004-row EXPLAIN executed but actual time not logged. No new dependencies, schemas, provider calls, merges or production data change. F-06.22 remains IN_REVIEW, blocked by Q-27 tenant decision, independent live pen, full-history verifier, large-scale performance and manual production acceptance. See docs/evidence/2026-11-02-crm-duplicate-review.md.

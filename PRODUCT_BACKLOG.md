@@ -2470,3 +2470,18 @@ An actual CRM-data performance panel, independent from the experimental A/B stat
 ## F-06.22 — Duplicate Contact Review
 
 Backend-first, owner-requested next independent CRM feature. Three sub-stories (discovery, bounded inspection, API security) and acceptance are specified in `docs/features/crm-duplicate-review.md`. No automatic merge and no schema changes. Q-27 prevents production DONE until customer-data scope is resolved.
+
+
+#### S-06.02.55 — Numeric evidence preserves sign, precision, magnitude (A18 / D-354)
+**As an** operator verifying research, **I want** a numeric claim to match the exact number and unit supported by a captured quote, **so that** an incorrect figure is not presented as proven.
+- **Given** `value='42'`, **when** the host-captured quote says `-42`, `42.7`, `42,000` or `42%` as a different figure, **then** the claimed `42` must not be marked supported by the observed-finding verification path.
+- **Given** a matching signed, decimal or grouped figure, **when** a quote belongs to the captured page, **then** it may be supported with correct sign/unit/locale handling; conflicting or ambiguous representations fail closed.
+- **Given** a derived number, **when** its inputs exist, **then** unverified arithmetic cannot be reported as an observed fact merely because the model claims a total.
+- **Dependencies:** S-11.02.03 (existing verifier). **Size:** M. **Open audit:** A18 / D-354. **Work order:** docs/work-orders/S-06.02.55-numeric-claim-integrity.md. Not READY; test-first fix requires normal verification gates.
+
+#### S-06.02.56 — Full generated-image decoding fails safely (A21 / D-355)
+**As an** image reviewer, **I want** corrupt generator output rejected before entering approval, **so that** bad pixels and truncated payloads cannot pass or crash the whole batch.
+- **Given** a well-shaped PNG header but no image data, **when** the image-gate entry point processes it, **then** the candidate fails the decodes gate, even above the byte threshold.
+- **Given** truncated GIF/JPEG/WebP/PNG or hostile dimensions, **when** the gate checks it, **then** it returns a failed `GateReport`, not an uncaught parsing exception or an unsafe memory allocation.
+- **Given** a real valid image, **when** checked with supported format, dimensions and aspect ratio, **then** the result succeeds; rejecting bad images must not reject ordinary good ones.
+- **Dependencies:** existing image gate and image runner; bounded decoder choice and limits must be decided before READY. **Size:** M. **Open audit:** A21 / D-355. **Work order:** docs/work-orders/S-06.02.56-complete-image-decoding.md.

@@ -2216,6 +2216,13 @@ stories until opened.
 - **Given** a corrupt/unavailable quota ledger or a different workspace account, **when** a request starts, **then** the system fails closed as needed and never leaks or resets another workspace's count.
 - **Dependencies:** production egress, storage and traceable errors; Definition of Ready and current audit WIP gate still apply. **Size:** L. **Audit:** A11 / D-362. **Work order:** \`docs/work-orders/S-06.02.60-atomic-ai-quota.md\`.
 
+#### S-06.02.61 — Email provider setup failure is recorded before any send (A16)
+**As an** operator, **I want** provider-initialisation errors to fail or retry a claimed email job safely, **so that** the worker never leaves it stuck in sending.
+- **Given** a permanent factory error before transport, **when** a job is claimed, **then** it reaches a truthful terminal state with a traceable reason and no send.
+- **Given** temporary or unknown setup errors, **when** the worker continues, **then** it performs only bounded safe pre-send retry or an explicit failure and continues unrelated due jobs.
+- **Given** an actual ambiguous post-send outcome, **when** retries are considered, **then** existing do-not-resend quarantine is unchanged.
+- **Dependencies:** real durable email worker and traceable-errors contract before customer deployment; normal board readiness/WIP rules apply. **Size:** M. **Audit:** A16 / D-363. **Work order:** \`docs/work-orders/S-06.02.61-email-provider-setup.md\`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 #### S-06.03.08 — Owner storage readiness and data-loss risk

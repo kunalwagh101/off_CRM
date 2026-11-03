@@ -1,3 +1,7 @@
+## 2026-11-03 — A16 provider setup failure remains open
+
+- Source audit found \`EmailDeliveryService._send_job\` still acquires provider before its send exception boundary. Logged D-363 and BACKLOG story S-06.02.61 with failure-injection, restart and no-double-send test-first acceptance. No runtime code or live mail changed; source evidence only.
+
 ## 2026-11-03 — A11 quota race filed for atomic repair
 
 - Current-source audit confirmed the separate pre-call quota check and post-call record still cannot reserve a budget across processes. Corrupt local usage can reset. Logged D-362 and S-06.02.60 in BACKLOG with a red-first real-process/PostgreSQL work order. No application code was modified and no new penetration result is claimed.

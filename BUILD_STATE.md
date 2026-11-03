@@ -1,3 +1,7 @@
+## 2026-11-03 — A21 D-357 integration regression corrected; final QA open
+
+Full SQLite on source `db02e52` in Render `dep-dbkopnp5efls73f7u9j0` found 3 FAILED/2946 PASSED/50 skipped: video import and still-image probe needed old header classification; valid blank PNG test fixture was no longer below the byte floor. Code `e45469a` restores header-only `image_size` for video and isolates strict `_fully_decode_image` to `run_gates`. TDD focused on exact revision in Render `dep-dbkp0b7b9u1s738244k0`: **10 A21 PASS, 113 image/video PASS**. The full regression, Chromium and PostgreSQL results remain pending; no release. Logged D-357, DD-136. See docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 ## 2026-11-03 — A21 corrupt-image safety (IN_PROGRESS, full QA pending)
 
 Test-first RED `84add30` on isolated Render `dep-dbkolbnb9u1s73819ns0`: 2 failed, 2 passed. Full-image verification implementation `7748855` targeted first Render GREEN 7 A21 passed; corrected false-positive binary fixtures D-356 at `9ba6cea` and expanded corpus/animation tests at `db02e52`. Exact-source isolated Render QA `dep-dbkopnp5efls73f7u9j0` pending. New safe limits are 16 MiB encoded, 8192 side and 16,777,216 pixels. Explicit already-locked Pillow dependency, no schema, provider calls, main/customer deploy. S-06.02.23 audit and F-06.02 are not completed. Evidence: docs/evidence/2026-11-03-corrupt-images-a21.md.

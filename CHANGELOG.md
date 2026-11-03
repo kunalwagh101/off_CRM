@@ -1,3 +1,9 @@
+## 2026-11-03 — A21 correct shared video-media probing regression
+
+- First full isolated SQLite suite on `db02e52` failed 3/2946 pass/50 skip because header-only video classification was unintentionally changed, and the blank placeholder fixture became a larger valid image. Logged D-357.
+- Corrected `e45469a`: preserve video `image_size` header inspection, add private full-decoding gate for generated-image approval and use a genuinely small valid blank PNG in the byte-threshold test. No relaxation of corrupt-image rejection.
+- New Render `dep-dbkp0b7b9u1s738244k0` focused **10 A21** and **113 image/video** PASS. Full SQLite/Postgres/Chromium gates ongoing; no main/customer release. Evidence docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 ## 2026-11-03 — A21 generated image validation (final Render QA pending)
 
 - Source `7748855` adds full bounded decoding of PNG/JPEG/GIF/WebP and strict MIME agreement before image review; invalid input is recorded without aborting the batch. Pillow 12.3.0 promoted to direct dependency from already-present lock.

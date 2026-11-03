@@ -15,3 +15,11 @@ Date 2026-11-03. Branch develop only; code is not released to main/customer.
 ## Security and rollback
 
 Payload length and image bounds are checked before full pixel allocation; unexpected decoder exceptions fail as safe reports. Real user path is image-campaign generation and review. Tests include forged headers, MIME spoof, base64 limit, corrupted bytes, valid fixtures and mixed valid/invalid batch. Synthetic hostile bytes are not an independent penetration test. Peak native decoder memory/CPU, live provider data and production rollout remain unverified. No schema change or data migration. A simple rollback reopens D-355 and therefore needs approved replacement protection. The production audit S-06.02.23 and the full F-06.02 are not completed.
+
+## 2026-11-03 full-suite regression and correction
+
+- First full SQLite review `dep-dbkopnp5efls73f7u9j0` on `db02e52` **failed**: 3 failed, 2946 passed, 50 skipped. Cases: `tests/test_imagery.py::test_a_placeholder_sized_response_is_caught`, `tests/test_video_captions.py::test_a_picture_cannot_be_imported_through_the_media_path`, `tests/test_video_gates.py::test_a_still_goes_through_the_same_entry_point`. Do not erase this failure.
+- Root cause: `image_size` is a shared *header probe* for video/timeline classification; replacing it with full-image verification broke that existing contract. The old mock header-only fixture in the placeholder test gave way to a real valid compressed PNG larger than 1024 bytes.
+- Corrected implementation `e45469a7c8aaba03ffb1d892422ec43af50524a9`: keep lightweight `image_size` for video and add private `_fully_decode_image` called exclusively by `run_gates`; make the placeholder a genuine sub-1024-byte small PNG. Add `test_A21_header_only_probe_must_not_bypass_strict_image_approval`. Do not loosen the full image-approval check.
+- New isolated Render review `dep-dbkp0b7b9u1s738244k0`: **10 A21 passed**, **113 image/video integration passed** at focused early gates; full SQLite/PostgreSQL/Chromium QA is pending at this writing.
+- Early static Ruff, AI numerical checks, and CRM duplicate regression passed on this exact source.

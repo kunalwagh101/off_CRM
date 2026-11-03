@@ -39,6 +39,10 @@ _PUNCTUATION = str.maketrans(
         "\u2013": "-",
         "\u2014": "-",
         "\u2015": "-",
+        "\u2212": "-",  # Mathematical minus, not a decorative hyphen.
+        "\u066b": ".",  # Arabic decimal separator.
+        "\u066c": ",",  # Arabic thousands separator.
+        "\u066a": "%",  # Arabic percent sign.
         "\u00a0": " ",
     }
 )
@@ -137,6 +141,12 @@ def _contains_supported_value(context: str, value: str) -> bool:
             continue
         if ends_number and not value.endswith("%") and re.match(
             r"^\s+[%‰°]", context[match.end():]
+        ):
+            continue
+        # U+202F/NBSP grouping (42 000) is collapsed to a normal space by
+        # Unicode normalisation. Do not report a partial thousands value as 42.
+        if ends_number and not value.endswith("%") and re.match(
+            r"^\s+\d{3}(?!\d)", context[match.end():]
         ):
             continue
         return True

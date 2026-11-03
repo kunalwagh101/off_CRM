@@ -389,6 +389,14 @@ def test_real_chromium_page_refuses_a_plausible_but_unsupported_number(tmp_path)
         ("42", "Revenue is 1,42."),
         ("42", "Revenue is 0.42."),
         ("42", "Revenue is 42‰."),
+        ("42", "Revenue is −42."),
+        ("42", "Revenue is 42٫7."),
+        ("42", "Revenue is 42٬000."),
+        ("42", "Revenue is 42\u202f000."),
+        ("42", "Revenue is 42 000."),
+        ("42", "Revenue is 42٪."),
+        ("42", "Revenue is 42 °C."),
+
 
         ("-42", "Revenue is --42."),
         ("42.7", "Revenue is 42.70."),
@@ -423,6 +431,12 @@ def test_A18_mismatched_numeric_evidence_cannot_be_verified(tmp_path, claimed, q
         ("₹42", "Cost: ₹42."),
         ("42kg", "Mass: 42kg."),
         ("42", "Employees: 42, next year: 43."),
+        ("-42", "Revenue: −42."),
+        ("42٫7", "Revenue: 42٫7."),
+        ("42٬000", "Revenue: 42٬000."),
+        ("42 000", "Revenue: 42\u202f000."),
+        ("42%", "Reply rate: 42٪."),
+
         ("acme ltd", "Company: Acme Ltd."),
     ],
 )
@@ -452,3 +466,36 @@ def test_A18_direct_numeric_evidence_guard_rejects_embedded_numbers(claim, quote
     assert not _contains_supported_value(
         normalize_claim_text(quote), normalize_claim_text(claim)
     )
+
+
+# A18 end-to-end acceptance through a real Chromium page capture. The fake
+# broker supplies an adversarial value; the browser supplies the actual quote.
+@needs_browser
+@pytest.mark.parametrize("captured_quote", ["Revenue: -42", "Revenue: 42.7"])
+def test_A18_real_chromium_refuses_numeric_mismatch(tmp_path, captured_quote):
+    broker = _Broker(
+        [_read(), _done({"revenue": _finding("42", captured_quote)})]
+    )
+
+    async def work(page: Page):
+        await page.goto(
+            "data:text/html,<html><body><p>" + captured_quote + "</p></body></html>"
+        )
+        run = AgentRun(
+            broker=broker,
+            settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+            page=page,
+            trace=Trace.open(tmp_path),
+        )
+        outcome = await run.run(
+            "Return the revenue figure shown on the page",
+            step_budget=2,
+            result_schema=("revenue",),
+        )
+        return outcome, run
+
+    outcome, run = asyncio.run(_drive(work))
+    assert outcome.status == "incomplete"
+    assert outcome.record == {}
+    assert outcome.unsupported_fields == ("revenue",)
+    assert any(step.kind == "result_field_unsupported" for step in run.trace.steps)

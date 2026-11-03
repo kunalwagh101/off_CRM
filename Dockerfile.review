@@ -60,6 +60,8 @@ RUN for attempt in $(seq 1 12); do \
     done
 # Verify CI contracts and shallow/full clone behaviour with real git first.
 RUN uv run pytest -q tests/test_ci_verifier_environment.py tests/test_verify_board.py
+# Structural board check (Git ancestry not available in the Docker context).
+RUN uv run python scripts/verify_board.py --skip-tests
 # Run every installed Python test, not only a curated selection of review items.
 RUN uv run pytest -q
 # Chromium acceptance is isolated to the review image, never production.
@@ -67,6 +69,8 @@ RUN uv run pytest -q
 FROM backend-checks AS chromium-checks
 RUN apt-get update && apt-get install -y --no-install-recommends chromium && rm -rf /var/lib/apt/lists/*
 RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
+# A18: real Chrome page capture + model-supplied incorrect signed/decimal result.
+RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18_real_chromium
 RUN uv run --no-sync python scripts/live/review_contacts_browser.py
 RUN uv run --no-sync python scripts/live/review_public_demo_browser.py
 

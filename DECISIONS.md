@@ -807,3 +807,5 @@ per-install/shared-database decision in S-06.03.07 is agreed.
 **Cost.** More legitimate claims may require the model to quote the exact source representation; spaced units like `42 kg` are not semantically validated without a declared typed field, and derived arithmetic remains labelled derived rather than verified as a calculation. A separate typed-quantity contract would be required for stronger numeric proof. The previous S-11.02.01–04 source provenance and nonnumeric matching remain unchanged.
 
 **Revisit.** When typed locale, units, numeric tolerance and derived-calculation semantics are defined with their own adversarial tests and explicit owner approval.
+
+**DD-134 follow-on:** Exact presentation matching includes normalising mathematical minus, Arabic decimal/grouping and percent symbols and refusing ambiguous three-digit groups split by Unicode spaces. This still does not parse arbitrary locale or infer units/calculations. These are safe representation checks, not a broad unit-conversion policy.

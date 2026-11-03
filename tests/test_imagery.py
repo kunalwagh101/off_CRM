@@ -234,6 +234,34 @@ def test_A21_encoded_payload_has_a_hard_byte_limit():
     assert report.failures[-1].name == "decodes"
 
 
+def test_A21_corrupt_inputs_never_escape_the_batch_boundary():
+    """Adversarial byte corpus must produce reports, not parser exceptions."""
+    import random
+
+    rng = random.Random(21056)
+    headers = (b"GIF89a", b"\xff\xd8", b"\x89PNG\r\n\x1a\n", b"RIFF")
+    for prefix in headers:
+        for size in (0, 1, 2, 3, 8, 16, 48, 120):
+            raw = prefix + rng.randbytes(size)
+            uri = "data:image/png;base64," + base64.b64encode(raw).decode()
+            report = run_gates(uri, min_bytes=1)
+            assert not report.passed
+            assert report.failures
+
+
+def test_A21_animated_gif_is_not_accepted_as_a_static_review_image():
+    from io import BytesIO
+    from PIL import Image
+
+    out = BytesIO()
+    frames = [Image.new("RGB", (12, 12), color) for color in ("red", "blue")]
+    frames[0].save(out, format="GIF", save_all=True, append_images=frames[1:])
+    uri = "data:image/gif;base64," + base64.b64encode(out.getvalue()).decode()
+    report = run_gates(uri, min_bytes=1)
+    assert not report.passed
+    assert any(item.name == "decodes" for item in report.failures)
+
+
 def test_a_byte_identical_repeat_is_caught():
     image = png(1024, 576)
     first = run_gates(image)

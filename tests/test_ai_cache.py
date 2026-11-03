@@ -439,6 +439,33 @@ def test_a_second_identical_call_does_not_reach_the_provider(tmp_path):
     assert cache_obj.stats()["calls_avoided"] == 1
 
 
+def test_A13_broker_reexecutes_when_system_instructions_change(tmp_path):
+    """Real broker must not relabel output made with different instructions."""
+    calls: list[str] = []
+    broker = _broker(tmp_path, ResponseCache(tmp_path / "cache.db"), calls)
+    first = broker.call(_public_request(), _settings(), system_prompt="Answer in English.")
+    second = broker.call(_public_request(), _settings(), system_prompt="Answer in Marathi.")
+    assert len(calls) == 2
+    assert first.text != second.text
+    assert first.usage_source != "cache" and second.usage_source != "cache"
+
+
+def test_A13_broker_reexecutes_when_model_changes(tmp_path):
+    """The same provider key has two models; their answers cannot be shared."""
+    calls: list[str] = []
+    broker = _broker(tmp_path, ResponseCache(tmp_path / "cache.db"), calls)
+    large = _settings()
+    large.enabled_models = {"mistral": ("mistral-large-latest",)}
+    small = _settings()
+    small.enabled_models = {"mistral": ("mistral-small-latest",)}
+    first = broker.call(_public_request(), large, system_prompt="w")
+    second = broker.call(_public_request(), small, system_prompt="w")
+    assert first.model_id == "mistral-large-latest"
+    assert second.model_id == "mistral-small-latest"
+    assert len(calls) == 2
+    assert first.text != second.text
+
+
 def test_a_cache_hit_is_logged_as_a_hit_not_as_a_send(tmp_path):
     """Nothing left the machine. An audit trail showing this as a send would be
     a lie, and the egress log is the one thing that must never lie."""

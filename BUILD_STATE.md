@@ -1,3 +1,7 @@
+## 2026-11-03 — A21 corrupt-image safety (IN_PROGRESS, full QA pending)
+
+Test-first RED `84add30` on isolated Render `dep-dbkolbnb9u1s73819ns0`: 2 failed, 2 passed. Full-image verification implementation `7748855` targeted first Render GREEN 7 A21 passed; corrected false-positive binary fixtures D-356 at `9ba6cea` and expanded corpus/animation tests at `db02e52`. Exact-source isolated Render QA `dep-dbkopnp5efls73f7u9j0` pending. New safe limits are 16 MiB encoded, 8192 side and 16,777,216 pixels. Explicit already-locked Pillow dependency, no schema, provider calls, main/customer deploy. S-06.02.23 audit and F-06.02 are not completed. Evidence: docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 # BUILD_STATE.md
 
 ## 2026-11-03 — A18 final isolated Render QA (IN_REVIEW)

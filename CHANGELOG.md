@@ -1,3 +1,9 @@
+## 2026-11-03 — A21 generated image validation (final Render QA pending)
+
+- Source `7748855` adds full bounded decoding of PNG/JPEG/GIF/WebP and strict MIME agreement before image review; invalid input is recorded without aborting the batch. Pillow 12.3.0 promoted to direct dependency from already-present lock.
+- TDD RED 2 failed / 2 passed on Render `dep-dbkolbnb9u1s73819ns0` and early GREEN 7 passed on `dep-dbkonpnb9u1s7381fptg`. False-positive binary fixtures D-356 corrected and additional security tests committed `db02e52`. Final review `dep-dbkopnp5efls73f7u9j0` pending.
+- Independent penetration, memory peak, full-history board verification and customer/main release not claimed. Evidence docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 # Changelog
 
 ## 2026-11-03 — A18 numeric evidence isolation QA passed (IN_REVIEW)

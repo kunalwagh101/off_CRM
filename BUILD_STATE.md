@@ -1,3 +1,8 @@
+## 2026-11-03 — A12/A13 exact-source isolated Render QA LIVE
+
+- Test-first A12/A13 repairs from earlier commits now have full isolated QA on exact code/test source `6528060`: new persisted-cache restart regression 9 PASS, broker A13 2 PASS, full SQLite 2965 PASS/54 skipped, real PostgreSQL 2988 PASS/100 skipped, focused PG 215 PASS, browser/frontend/security and board structural gates PASS. Render deploy `dep-dbl0abqjnfac73a521g0` LIVE at 16:19:15 UTC.
+- Both stories remain IN_REVIEW until independent penetration, real-provider/customer acceptance and full-history board verification. No production/main deployment. See `docs/evidence/2026-11-03-a12-a13-cache-review.md`.
+
 ## 2026-11-03 — S-06.02.23 audit A16 source check
 
 Confirmed \`_send_job\` still creates its provider outside the catch that classifies failed and uncertain deliveries. Tracked D-363 and S-06.02.61 in BACKLOG with RED-first durable worker tests and explicit no-double-send controls. No execution/SES/penetration proof from this source review; audit IN_PROGRESS and no main/customer changes.

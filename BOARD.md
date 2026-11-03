@@ -151,11 +151,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.58 · Factual AI cache only reuses exact evidence (A12)
   work_order: docs/work-orders/S-06.02.58-exact-factual-cache.md
-  review: Test-first RED 3e06faa on isolated Render dep-dbkrmik9v7es73f6gj1g: numeric and negation cases failed by reusing wrong near-match facts; targeted 4-case cache-integrity gate now PASS on 25f882c / dep-dbkrodt9fdbs73c5vik0. Full exact-source regression and independent live penetration, customer/provider acceptance and full-history board verifier not yet verified. D-360 logged. No main/customer release.
+  review: TDD RED 3e06faa: factual near-match wrongly reused changed numbers and negation. Exact-source isolated Render QA dep-dbl0abqjnfac73a521g0 on 6528060 LIVE 2026-11-03 16:19:15 UTC: 9 cache-integrity PASS including reopen/restart regression, 2 broker-provenance PASS, full SQLite 2965 PASS/54 skipped, full real PG 2988 PASS/100 skipped, focused PG 215 PASS, frontend/build/Chromium/security and structural board gates PASS. D-360 mitigated; independent penetration, real-provider/customer acceptance and full-history verifier OPEN. S-06.02.58 IN_REVIEW. No main/customer release. Evidence docs/evidence/2026-11-03-a12-a13-cache-review.md.
 
 - S-06.02.59 · Cached AI outputs are scoped to the actual model and instructions (A13)
   work_order: docs/work-orders/S-06.02.59-cache-model-provenance.md
-  review: Test-first RED 3e06faa on Render dep-dbkrmik9v7es73f6gj1g: model and system-prompt isolation not supported. Code binds model_id, hashed system instructions, generation options and expect_json; initial 4-case targeted cache-integrity gate PASS on 25f882c / dep-dbkrodt9fdbs73c5vik0. Additional real broker/model integration and full exact-source regression, independent penetration, provider acceptance and full-history verifier not yet verified. D-361 logged. No main/customer release.
+  review: TDD RED 3e06faa: model and instruction partition absent. Exact-source isolated Render QA dep-dbl0abqjnfac73a521g0 on 6528060 LIVE 2026-11-03 16:19:15 UTC: direct partition and actual EgressBroker model/prompt tests PASS, reopen/restart gate 9 PASS, full SQLite 2965 PASS/54 skipped, full real PG 2988 PASS/100 skipped, focused PG 215 PASS, frontend/build/Chromium/security and structural board gates PASS. D-361 mitigated; real paid/multiple provider verification, independent penetration, customer acceptance and full-history board verifier OPEN. S-06.02.59 IN_REVIEW. No main/customer release. Evidence docs/evidence/2026-11-03-a12-a13-cache-review.md.
 
 - S-06.02.57 · A09: Enter handlers cannot bypass human approval
   work_order: docs/work-orders/S-06.02.57-enter-approval.md

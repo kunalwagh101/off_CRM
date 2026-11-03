@@ -1,3 +1,8 @@
+## 2026-11-03 — A12/A13 exact-source isolated Render QA LIVE
+
+- Test-first A12/A13 repairs from earlier commits now have full isolated QA on exact code/test source `6528060`: new persisted-cache restart regression 9 PASS, broker A13 2 PASS, full SQLite 2965 PASS/54 skipped, real PostgreSQL 2988 PASS/100 skipped, focused PG 215 PASS, browser/frontend/security and board structural gates PASS. Render deploy `dep-dbl0abqjnfac73a521g0` LIVE at 16:19:15 UTC.
+- Both stories remain IN_REVIEW until independent penetration, real-provider/customer acceptance and full-history board verification. No production/main deployment. See `docs/evidence/2026-11-03-a12-a13-cache-review.md`.
+
 ## 2026-11-03 — A16 provider setup failure remains open
 
 - Source audit found \`EmailDeliveryService._send_job\` still acquires provider before its send exception boundary. Logged D-363 and BACKLOG story S-06.02.61 with failure-injection, restart and no-double-send test-first acceptance. No runtime code or live mail changed; source evidence only.

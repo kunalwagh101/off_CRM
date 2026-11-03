@@ -934,6 +934,8 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-171 | The visitor demo preserves real AI orchestration with isolated visitor keys and chats | S-06.02.54 |
 | R-170 | Third-party visitors use a separate sample-only read-only installation with a visible public login | S-06.02.53 |
 | R-169 | A real low-bitrate WebM with encoded frames must not fail a byte-length-only export gate | S-06.02.39 |
+| R-186 | The AI response cache cannot reuse a factual answer when numeric evidence, units, entities or meaning changes | S-06.02.58 |
+| R-187 | A cached AI answer cannot be attributed to a different model, system prompt or generation setting | S-06.02.59 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

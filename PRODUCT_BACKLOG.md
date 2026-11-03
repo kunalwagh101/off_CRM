@@ -2193,6 +2193,20 @@ stories until opened.
 - **Given** an empty view, **when** opened, **then** the screen explains that this view has no members; switching views never approves or sends mail.
 - **Dependencies:** none. **Size:** S. **Work order:** `docs/work-orders/S-06.02.49-actionable-queue-views.md`.
 
+#### S-06.02.58 — Factual AI cache never answers from similar-but-changed evidence
+**As a** CRM operator, **I want** extracted facts and summaries to be reused only for the identical input, **so that** changed source values never silently receive an old answer.
+- **Given** a long factual document cached with 42 million or an approval statement, **when** the number or negation changes, **then** the broker must miss the old entry before any answer is returned.
+- **Given** the exact same canonical payload and same generation contract, **when** requested again, **then** the exact cached answer is returned without an additional provider call.
+- **Given** a private workspace or denied policy, **when** another workspace/policy or mailbox source requests the entry, **then** no cached data crosses that boundary or bypasses the scanner.
+- **Dependencies:** none. **Size:** M. **Audit:** A12 / D-360. **Work order:** `docs/work-orders/S-06.02.58-exact-factual-cache.md`.
+
+#### S-06.02.59 — Cached AI answers belong to the model that generated them
+**As a** model operator, **I want** each cached result linked to its original selected model, instructions and output options, **so that** comparing models never labels an older answer as a fresh result from another model.
+- **Given** identical content but a changed selected model on the same provider key, **when** the broker runs, **then** the new model is called instead of reusing another model's output.
+- **Given** changed system instructions or generation options, **when** the same model is selected, **then** the cache misses even when payload and provider stay the same.
+- **Given** an identical canonical payload and generation contract, **when** the result is cached, **then** the log identifies a cache hit, not a billable send, and the actual model is reported without any raw prompt in the index.
+- **Dependencies:** none. **Size:** M. **Audit:** A13 / D-361. **Work order:** `docs/work-orders/S-06.02.59-cache-model-provenance.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 #### S-06.03.08 — Owner storage readiness and data-loss risk

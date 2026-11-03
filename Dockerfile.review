@@ -21,6 +21,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
+# A12/A13: stale facts and model attribution must be tested before broad QA.
+RUN uv run pytest -q tests/test_ai_cache_integrity.py
 RUN uv run pytest -q tests/test_imagery.py -k A21
 # A21 must not break the video editor's lightweight media-header probe.
 RUN uv run pytest -q tests/test_imagery.py tests/test_video_gates.py tests/test_video_captions.py

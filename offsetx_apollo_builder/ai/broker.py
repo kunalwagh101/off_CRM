@@ -677,6 +677,12 @@ class EgressBroker:
                     task_type=request.task_type,
                     provider_id=candidate.id,
                     workspace_id=settings.workspace_id,
+                    model_id=candidate.model_id,
+                    system_prompt=system_prompt,
+                    generation_options={
+                        "request_options": candidate.model.request_options if candidate.model else {},
+                        "expect_json": expect_json,
+                    },
                 )
                 if cached is not None:
                     # Logged as its own status. Nothing left the machine, and an
@@ -774,6 +780,11 @@ class EgressBroker:
                     provider_id=candidate.id,
                     model_id=candidate.model_id,
                     workspace_id=settings.workspace_id,
+                    system_prompt=system_prompt,
+                    generation_options={
+                        "request_options": candidate.model.request_options if candidate.model else {},
+                        "expect_json": expect_json,
+                    },
                 )
 
             log_id = self._log(

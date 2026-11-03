@@ -1,3 +1,7 @@
+## 2026-11-03 — A21 QA review deployment LIVE
+
+Render dep-dbkp0b7b9u1s738244k0 completed LIVE at 08:04:59 UTC on tested code e45469a7; 2950 SQLite / 2973 PostgreSQL PASS and all Docker Chromium/frontend checks passed. QA marker only, not customer/main deployment. S-06.02.56 remains IN_REVIEW for independent penetration, real provider acceptance, resource peak and full-history verifier. Evidence docs/evidence/2026-11-03-corrupt-images-a21.md.
+
 ## 2026-11-03 — A21 final isolated full QA green, IN_REVIEW
 
 On corrected source e45469a, isolated Render dep-dbkp0b7b9u1s738244k0 passed A21 10, image/video 113, full SQLite 2950/50 skipped, full PostgreSQL 2973/96 skipped, focused PG 215, verifier unit 67, repeated concurrency 12/12, Ruff, frontend/audits, desktop/mobile Chromium and structural board verifier. Review image built, activation pending at record time. No customer/main deployment. Independent penetration, memory limits under hostile decompression, full-history verifier and real image-provider acceptance open; no DONE claim. See docs/evidence/2026-11-03-corrupt-images-a21.md.

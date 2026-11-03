@@ -1,3 +1,7 @@
+## 2026-11-03 — A21 isolated Render QA activated
+
+- Review deploy dep-dbkp0b7b9u1s738244k0 completed LIVE at 08:04:59 UTC on exact source e45469a. This certifies the QA runner stage, not customer or main rollout. A21 stays IN_REVIEW with independent pen, full-history board and real-provider acceptance pending.
+
 ## 2026-11-03 — A21 full decoding reviewed on isolated Render
 
 - Corrected e45469a tested in dep-dbkp0b7b9u1s738244k0: 10 A21 PASS, 113 image/video PASS, SQLite 2950 PASS, PostgreSQL 2973 PASS, focused PG 215 PASS, verifier 67 PASS, concurrency 12/12 PASS, frontend/build/audits and Chromium desktop/mobile PASS.

@@ -152,6 +152,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
+  checkpoint: 2026-11-05 A05 partial live-app API recheck added in ee14710 (3 cases), review gate 94fa650. Exact-source Render dep-dblr106i0phs7385jao0 step #27: 3 PASS/1 deprecation warning. Per-user roles, CRM tenancy Q-27, independent penetration, broader A05 and 35-finding audit remain open. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout.
 
 ## IN_REVIEW
 

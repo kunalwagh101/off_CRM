@@ -1,3 +1,9 @@
+## 2026-11-04 — A16 email-provider factory remediation (TDD, isolated QA ongoing)
+
+- Scope: `S-06.02.61 / D-363 / A16`. Test-first `61cc4fa` on isolated Render `dep-dbldu5bncjis73djca20` **failed 5/5** expected cases at the real `EmailDeliveryService.work_once` entry point. Old provider constructor exception escaped before send and left the claimed job unhandled.
+- GREEN source `144e1cb` on isolated Render `dep-dbldur942hec73fvgeq0`: focused A16 **5 passed** (permanent and unknown setup failures, transient retry and restart, five-attempt limit, unrelated job continuity). Code keeps pre-send exceptions separate from post-send delivery-unknown quarantine, returning one secret-safe failure reference. Existing schema and credentials unchanged.
+- Broader SQLite, real PostgreSQL, browser/frontend and board gates were still running at this checkpoint. Story remains BACKLOG under active S-06.02.23 audit and actual worker deployment dependency S-06.02.40. No customer/SES traffic or main deployment. Full evidence: `docs/evidence/2026-11-04-a16-email-provider-setup.md`.
+
 ## 2026-11-03 — A12/A13 exact-source isolated Render QA LIVE
 
 - Test-first A12/A13 repairs from earlier commits now have full isolated QA on exact code/test source `6528060`: new persisted-cache restart regression 9 PASS, broker A13 2 PASS, full SQLite 2965 PASS/54 skipped, real PostgreSQL 2988 PASS/100 skipped, focused PG 215 PASS, browser/frontend/security and board structural gates PASS. Render deploy `dep-dbl0abqjnfac73a521g0` LIVE at 16:19:15 UTC.

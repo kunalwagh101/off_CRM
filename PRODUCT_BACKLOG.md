@@ -936,6 +936,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-169 | A real low-bitrate WebM with encoded frames must not fail a byte-length-only export gate | S-06.02.39 |
 | R-186 | The AI response cache cannot reuse a factual answer when numeric evidence, units, entities or meaning changes | S-06.02.58 |
 | R-187 | A cached AI answer cannot be attributed to a different model, system prompt or generation setting | S-06.02.59 |
+| R-188 | An email provider setup failure cannot strand a claimed job or cause unsafe automatic duplicate sending | S-06.02.61 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

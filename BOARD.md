@@ -33,6 +33,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.61 · Email provider setup failures do not strand delivery jobs (A16)
   work_order: docs/work-orders/S-06.02.61-email-provider-setup.md
+  checkpoint: RED 61cc4fa / isolated Render dep-dbldu5bncjis73djca20 FAILED 5/5 expected A16 regressions; GREEN 144e1cb / dep-dbldur942hec73fvgeq0 passed focused 5/5; broad QA pending. Remediation code written under owner's build-ahead instruction, but BACKLOG retained under active S-06.02.23, unfinished S-06.02.40 and board readiness. No customer/main release. See docs/evidence/2026-11-04-a16-email-provider-setup.md.
 
 - S-06.02.60 · AI request and spending caps reserve atomically across workers (A11)
   work_order: docs/work-orders/S-06.02.60-atomic-ai-quota.md

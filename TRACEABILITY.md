@@ -264,3 +264,11 @@ TDD RED and GREEN observed on isolated Render; independent release security, ten
 | R-187 | S-06.02.59 | 3 | `tests/test_ai_cache_integrity.py::test_A13_model_id_partitions_identical_payload`, `tests/test_ai_cache_integrity.py::test_A13_system_instructions_partition_identical_payload`, `tests/test_ai_cache.py::test_A13_broker_reexecutes_when_model_changes`, `tests/test_ai_cache.py::test_A13_broker_reexecutes_when_system_instructions_change` | `offsetx_apollo_builder/ai/cache.py`, `offsetx_apollo_builder/ai/broker.py` |
 
 New restart test: `tests/test_ai_cache_integrity.py::test_A12_A13_restart_keeps_fact_and_model_provenance_isolated` covers R-186 and R-187 through persisted storage. Render dep-dbl0abqjnfac73a521g0 on 6528060 LIVE: 9 targeted, SQLite 2965, PostgreSQL 2988 PASS; independent penetration, real provider and full-history verifier open. Both requirements are code-complete but IN_REVIEW. A12/A13 RED and initial targeted GREEN were executed on isolated Render. The final exact-source full regression, independent penetration and operator production acceptance are separate gates.
+
+## 2026-11-04 — A16 claimed-email job factory failures (BACKLOG, remediation implemented)
+
+| Req | Story | Criteria | Tests | Code |
+|---|---|---|---|---|
+| R-188 | S-06.02.61 | 5 | `tests/test_email_delivery.py -k A16` (5 parameterised cases); `tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried` | `offsetx_apollo_builder/outreach/deliverability/service.py` |
+
+RED isolated Render on 61cc4fa 5 failures; GREEN focused 5 PASS on 144e1cb. Owner-approved build-ahead code is not DONE and story remains BACKLOG under active audit and worker deployment dependency. PostgreSQL/full suite, independent security and operational worker integration pending.

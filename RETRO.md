@@ -1115,3 +1115,11 @@ lifecycle.
 **What the estimate got wrong.** A 92% text similarity looks conservative but can hide tiny, critical differences in long evidence. The cache key also omitted hidden generation inputs, so model identity and prompt version both mattered.
 
 **What to change next time.** Start with an adversarial real-store RED test, bind every input that can change output, and run the small exact-code Render test before the complete review matrix. Do not call the review image a customer release.
+
+## 2026-11-04 — A16 pre-send provider error handling (BACKLOG implementation)
+
+**What was cut.** Nothing from the tested provider-factory failure paths. Actual SES/operator production rollout and full board audit are separate dependencies, not quietly marked complete.
+
+**What the estimate got wrong.** Provider acquisition was one line outside the try block, but a safe fix needed terminal vs retry classification, persistent recovery and secret-safe error references.
+
+**What to change next time.** Keep provider construction separate from transport and test both boundaries before allowing automated retries. Recheck real PostgreSQL before any release claim.

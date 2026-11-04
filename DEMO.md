@@ -843,3 +843,16 @@ were **not** the repository test suite. Manual acceptance still needs a real
 browser export of a short Colour scene and playback verification. The GitHub
 runner and full board tests remain unverified. See
 `docs/evidence/S-06.02.39-validation.md`.
+
+## A16 — Provider setup failures must not strand an email job
+
+Runs actual `EmailDeliveryService.work_once` and the persistent CRM store with controlled provider factories. No email leaves the machine.
+
+```bash
+uv run pytest -q tests/test_email_delivery.py -k A16
+uv run pytest -q tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried
+uv run pytest -q tests/test_email_delivery.py
+```
+
+Expected focused result on `144e1cb`: 5 A16 tests pass. Exercise SQLite and disposable PostgreSQL mode for the broad regression; run the full verifier before any DONE claim. See `docs/evidence/2026-11-04-a16-email-provider-setup.md`. Never use a live email recipient for this test.
+

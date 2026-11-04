@@ -110,8 +110,42 @@ class SandboxWorkspace:
         return self.root / "store"
 
     def prepare(self) -> "SandboxWorkspace":
-        self.inbox.mkdir(parents=True, exist_ok=True)
-        self.work.mkdir(parents=True, exist_ok=True)
+        # Docker bind-mounts the two children directly. The job root remains
+        # private to the host owner, while the fixed container UID 65534 needs
+        # to create files under /work. A sticky work directory lets it write
+        # without granting other host users traversal through the private root.
+        # Do not chown the root to the container or weaken --user isolation.
+        for path, mode in (
+            (self.root, 0o700),
+            (self.inbox, 0o755),
+            (self.work, 0o1777),
+        ):
+            if path.is_symlink():
+                raise SandboxUnavailable(
+                    "The sandbox workspace contains a symbolic link. "
+                    "Choose a real, private job directory before running code."
+                )
+            path.mkdir(parents=path == self.root, exist_ok=True)
+            if path.is_symlink():
+                raise SandboxUnavailable(
+                    "The sandbox workspace contains a symbolic link. "
+                    "Choose a real, private job directory before running code."
+                )
+            if os.name == "posix":
+                # fchmod operates on the opened directory, not a replacement
+                # symlink. This also repairs legacy 0755 work directories.
+                flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+                try:
+                    directory_fd = os.open(path, flags)
+                    try:
+                        os.fchmod(directory_fd, mode)
+                    finally:
+                        os.close(directory_fd)
+                except OSError as exc:
+                    raise SandboxUnavailable(
+                        "The sandbox workspace permissions could not be secured. "
+                        "Check directory ownership and try again."
+                    ) from exc
         return self
 
     #: Where the container starts. A separate attribute so a box with a

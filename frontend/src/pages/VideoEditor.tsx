@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
+import { ProtectedImage } from "../ProtectedImage";
 import { Badge, Button, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import type { Clip, ProjectDoc, ProjectState, RenderManifest } from "../video/document";
@@ -241,6 +242,8 @@ export default function VideoEditor() {
     const ids = assetKey ? assetKey.split(",") : [];
     loadAssets(ids, (id) => api.url(`/image-assets/${id}/file`)).then((loaded) => {
       if (live) setTable(loaded);
+    }).catch((error) => {
+      if (live) notify(error instanceof Error ? error.message : "Image access failed.", "error");
     });
     return () => {
       live = false;
@@ -281,6 +284,8 @@ export default function VideoEditor() {
       }
       // Frames exist now that did not a moment ago, so the canvas is stale.
       setRepaint((value) => value + 1);
+    }).catch((error) => {
+      if (live) notify(error instanceof Error ? error.message : "Video access failed.", "error");
     });
     return () => {
       live = false;
@@ -1170,7 +1175,7 @@ function Inspector({
                 onClick={() => onPlace(asset.id)}
                 aria-label={`Place image from ${asset.model_id || "approved generator"} on the timeline`}
               >
-                <img src={api.url(`/image-assets/${asset.id}/file`)} alt="" loading="lazy" />
+                <ProtectedImage src={api.url(`/image-assets/${asset.id}/file`)} alt="" loading="lazy" />
               </button>
             </li>
           ))}

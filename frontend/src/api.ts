@@ -51,7 +51,7 @@ function headers(extra?: HeadersInit): Headers {
  */
 export async function fetchMedia(url: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken();
-  if (token && (!url.startsWith(`${API_ROOT}/`) || /\\|(?:^|\\/)\\.\\.(?:\\/|$)|%2e/i.test(url))) {
+  if (token && (!url.startsWith(`${API_ROOT}/`) || url.includes("..") || url.toLowerCase().includes("%2e") || url.includes(String.fromCharCode(92)))) {
     throw new ApiError("Refused to send an API token outside the private media API.", 403);
   }
   const response = await fetch(url, {

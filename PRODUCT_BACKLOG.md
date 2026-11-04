@@ -2234,6 +2234,15 @@ stories until opened.
 - **Given** an email or AI provider action with uncertain outcome, **when** the client retries, **then** a durable in-progress claim refuses replay until reconciled, not a second send; completed calls replay the saved result.
 - **Dependencies:** production authentication, CRM durable transaction and active audit review. **Size:** L. **Audit:** A14 / D-364. **Work order:** `docs/work-orders/S-06.02.62-atomic-http-idempotency.md`.
 
+#### S-06.02.63 — Token-authenticated media works in review and video export (A20)
+**As a** signed-in local-token user, **I want** protected images, audio and footage to load with the same authentication as CRM requests, **so that** the editor and image review do not silently drop valid assets.
+- **Given** a local API token, **when** the user previews or exports image, audio or video content, **then** the same-origin binary request includes the bearer token, with no credential in a URL.
+- **Given** cookie-only login, **when** the user previews or exports media, **then** the same path uses cookies without needing a token.
+- **Given** a 401 or 403 response, **when** an asset is loaded, **then** a clear authentication or access message is shown instead of reporting a missing asset. A 404 may still report missing.
+- **Given** a token and an untrusted media URL, **when** the frontend attempts to load it, **then** the bearer token is never sent outside the application's same-origin API routes.
+- **Given** token-only mode, **when** an anonymous user checks /auth/session, **then** authenticated is false; a valid token reports authenticated and opens the dashboard.
+- **Dependencies:** existing API authentication and asset endpoints. **Audit:** A20. **Size:** M. **Work order:** `docs/work-orders/S-06.02.63-token-media-auth.md`.
+
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 
 #### S-06.03.08 — Owner storage readiness and data-loss risk

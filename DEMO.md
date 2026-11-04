@@ -1,3 +1,15 @@
+## A05 — verify workspace sessions cannot take another user's authority
+
+From the repo root on `develop`, run the real API regression against disposable test data:
+
+```bash
+uv run pytest -q tests/test_audit_a05_workspace_identity.py
+```
+
+Expected: three passing cases for spoofed-workspace refusal, owner-only user management and disabled-session revocation. This is not a live production penetration test or CRM tenancy certification (see S-06.02.23 and Q-27).
+
+---
+
 # Demo
 
 **Commands you paste yourself and watch work.** Nothing here is a screenshot or

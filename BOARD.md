@@ -33,7 +33,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.66 · Paid AI calls cannot silently count as free when usage receipts are invalid (A10)
   work_order: docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md
-  checkpoint: Test-first build-ahead authorised; S-06.02.23 production audit IN_PROGRESS. This is not a DONE release claim and no customer/model calls are authorised.
+  checkpoint: TDD RED source 1f4f9b9 / isolated Render dep-dblrg5h5efls73aj916g: 7 expected FAIL/2 PASS. Repair 763a862+48e271: malformed/all-zero provider receipts become labelled cost estimates before quota settlement. First GREEN A10 9 PASS on 48e271 / Render dep-dblrgs2jnfac73d9g7ug. Extended A10 multi-process USD, failed provider and disposable PG checks at 839fc67 await final source-bound QA. D-369, DD-146, R-193, evidence docs/evidence/2026-11-05-a10-paid-usage-integrity.md. S-06.02.23 audit IN_PROGRESS; external invoice, independent pen, full-history verifier and production acceptance OPEN; no main/customer release.
 
 
 - S-06.02.62 · HTTP idempotency safely prevents duplicate state-changing requests (A14)

@@ -20,3 +20,7 @@ Files: `offsetx_apollo_builder/outreach/providers.py::read_usage`, `offsetx_apol
 No schema migration, new dependency, paid API call, secrets access or customer deployment. A rollback must retain the quota ledger and stop live paid requests before reverting either validation path; reverting without mitigation reopens D-369. Existing reservation/reconcile code remains unchanged.
 
 Full SQLite and PostgreSQL regression, source-bound Render LIVE status, Chromium, independent penetration, real paid-provider invoices/unknown provider pricing, full-history board replay and customer account acceptance are separate gates. Keep A10 partially rechecked under S-06.02.23, and S-06.02.66 out of DONE.
+
+## Expanded-suite harness correction (D-370)
+
+Isolated Render `dep-dblrkc6417fc73bbo5fg` on `99f5169` ran the expanded A10 gate: 11 passed, 1 failed, 1 PostgreSQL-only skipped. The single failure was the test double's phrase `billing status uncertain`, which correctly matched the application's terminal PAYMENT classifier. Corrected test-only source `8871aa7` to raise a genuine network timeout message. Neither application logic nor payment failure rules were changed. A new exact-source Render review must verify this corrected case.

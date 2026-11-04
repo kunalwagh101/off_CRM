@@ -26,6 +26,8 @@ ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run pytest -q tests/test_email_delivery.py -k A16
 # A11 test-first: cross-process request gating and corrupt-ledger refusal.
 RUN uv run pytest -q tests/test_ai_quota_atomic.py
+# A14: HTTP idempotency must be atomic across app instances and crashes.
+RUN uv run pytest -q tests/test_api_idempotency_a14.py
 RUN uv run pytest -q tests/test_ai_cache_integrity.py
 # End-to-end broker checks: same provider, different models and instructions.
 RUN uv run pytest -q tests/test_ai_cache.py -k A13

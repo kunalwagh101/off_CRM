@@ -129,3 +129,94 @@ def test_A10_legitimate_zero_output_keeps_the_input_token_receipt():
     priced = ModelEntry(id="m", cost_per_1m_input_usd=2, cost_per_1m_output_usd=6)
     assert measure(priced, reported={"tokens_in": 100, "tokens_out": 0},
                    sent="request", received="")[3] == "provider"
+
+
+def test_A10_paid_provider_failure_keeps_measured_spend_and_does_not_resend(tmp_path):
+    """A10: a provider error after consumption cannot refund billed tokens."""
+    wire = []
+    settings = _settings(0.80)
+    broker = _broker(tmp_path, {"tokens_in": 10000, "tokens_out": 20000}, wire)
+
+    class _BilledFailure(_PaidProvider):
+        def generate(self, *, system_prompt, user_prompt):
+            self.calls.append("sent-and-failed")
+            raise TimeoutError("provider did not finish, billing status uncertain")
+
+    broker._instantiate = lambda _: _BilledFailure(
+        {"tokens_in": 10000, "tokens_out": 20000}, wire,
+    )
+    with pytest.raises(NoPermittedProvider):
+        broker.call(_request(), settings, system_prompt="plain public answer")
+    assert wire == ["sent-and-failed"]
+    assert _usage_on_reopen(broker, tmp_path, settings)["day_spend_usd"] == pytest.approx(0.14)
+
+    restarted = _broker(tmp_path, {"tokens_in": 10000, "tokens_out": 20000}, wire)
+    with pytest.raises(NoPermittedProvider):
+        restarted.call(_request(), settings, system_prompt="plain public answer")
+    assert wire == ["sent-and-failed"], "a restart must not repeat an unaffordable action"
+
+
+def _a10_spend_race_worker(root, hosted, key, start, wire, results):
+    """Separate processes use real broker reservations on a disposable ledger."""
+    import time
+    from cryptography.fernet import Fernet
+    from offsetx_apollo_builder.db.hosted import HostedStorage
+
+    class _Transport:
+        last_usage = {"tokens_in": 20000, "tokens_out": 20000}
+
+        def generate(self, *, system_prompt, user_prompt):
+            with wire.get_lock():
+                wire.value += 1
+            time.sleep(0.20)
+            return "charged"
+
+    folder = Path(root)
+    hosted_store = HostedStorage(str(folder / "hosted.db"), key) if hosted else None
+    broker = EgressBroker(
+        registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
+        credential_resolver=lambda _: "same-synthetic-paid-key",
+        quota=QuotaTracker(folder / "quota", hosted=hosted_store),
+        max_retries=0,
+    )
+    broker._instantiate = lambda _: _Transport()
+    try:
+        start.wait(timeout=25)
+        broker.call(_request(), _settings(0.90), system_prompt="plain public answer")
+        results.put("sent")
+    except Exception as exc:
+        results.put(type(exc).__name__)
+    finally:
+        if hosted_store:
+            hosted_store.close()
+
+
+@pytest.mark.parametrize("hosted", [False, True], ids=["local", "hosted-sqlite"])
+def test_A10_two_workers_cannot_cross_same_usd_spend_reservation(tmp_path, hosted):
+    """A10: two independent processes never start two calls against one USD cap."""
+    import multiprocessing
+    from cryptography.fernet import Fernet
+
+    ctx = multiprocessing.get_context("spawn")
+    start, wire, results = ctx.Event(), ctx.Value("i", 0), ctx.Queue()
+    key = Fernet.generate_key().decode()
+    workers = [
+        ctx.Process(
+            target=_a10_spend_race_worker,
+            args=(str(tmp_path), hosted, key, start, wire, results),
+        )
+        for _ in range(2)
+    ]
+    for worker in workers:
+        worker.start()
+    start.set()
+    for worker in workers:
+        worker.join(timeout=40)
+        if worker.is_alive():
+            worker.terminate()
+            worker.join(timeout=5)
+            pytest.fail("Spend reservation worker deadlocked")
+        assert worker.exitcode == 0
+    outcomes = [results.get(timeout=5) for _ in workers]
+    assert sorted(outcomes) == ["NoPermittedProvider", "sent"], outcomes
+    assert wire.value == 1, "two workers crossed the same daily spend ceiling"

@@ -21,7 +21,11 @@ from offsetx_apollo_builder.outreach.deliverability.events import (
     DeliveryEventProcessor,
     SnsVerifier,
 )
-from offsetx_apollo_builder.outreach.deliverability.models import AmbiguousDeliveryError
+from offsetx_apollo_builder.outreach.deliverability.models import (
+    AmbiguousDeliveryError,
+    PermanentDeliveryError,
+    RetryableDeliveryError,
+)
 from offsetx_apollo_builder.outreach.deliverability.service import EmailDeliveryService
 from offsetx_apollo_builder.outreach.deliverability.ses import SesMailProvider
 from offsetx_apollo_builder.outreach.deliverability.store import DeliverabilityStore
@@ -706,3 +710,132 @@ def test_live_ses_queue_requires_exact_operator_confirmation(tmp_path):
         assert rejected.status_code == 422
         assert accepted.status_code == 202
         assert accepted.json()["queued_count"] == 1
+
+
+# A16: provider creation is still before any transport, so even an unexpected
+# exception must leave a settled durable job and an attributable failure.
+@pytest.mark.parametrize("failure", [
+    PermanentDeliveryError("SECRET_PROVIDER_SETUP_TOKEN"),
+    RuntimeError("SECRET_PROVIDER_SETUP_TOKEN"),
+])
+def test_A16_provider_setup_failure_is_definite_not_delivery_unknown(tmp_path, capsys, failure):
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+
+    def fail_before_transport(_job, _identity):
+        raise failure
+
+    try:
+        campaign_id = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path, provider_factory=fail_before_transport)
+        job_id = service.enqueue_campaign(campaign_id, now=now)["queued"][0]["job_id"]
+        outcome = service.work_once(max_jobs=1, now=now)
+        assert outcome["processed"] == 1
+        assert outcome["failed"] == 1
+        assert outcome["items"][0]["status"] == "failed"
+        error = outcome["items"][0]["error"]
+        assert "Reference: E-" in error
+        assert "SECRET_PROVIDER_SETUP_TOKEN" not in error
+        job = service.store.get_job(job_id)
+        assert job["status"] == "failed"
+        assert job["attempt_count"] == 1
+        assert job["lease_expires_at"] is None
+        assert "Reference: E-" in job["last_error"]
+        logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()
+                if line.startswith('{"event":"failure"')]
+        assert len(logs) == 1
+        assert logs[0]["error_id"] in error
+        assert logs[0]["operation"] == "email.delivery.setup_failed"
+        assert "SECRET_PROVIDER_SETUP_TOKEN" not in json.dumps(logs)
+        assert not list((tmp_path / "mail").rglob("*.json"))
+    finally:
+        engine.close()
+
+    reopened = OutreachEngine(tmp_path / "outreach.db")
+    try:
+        after_restart = _service(reopened, tmp_path)
+        assert after_restart.store.get_job(job_id)["status"] == "failed"
+        assert after_restart.work_once(max_jobs=1, now=now + timedelta(days=1))["processed"] == 0
+        assert not list((tmp_path / "mail").rglob("*.json"))
+    finally:
+        reopened.close()
+
+
+def test_A16_retryable_provider_setup_retries_after_restart_without_duplicate(tmp_path):
+    now = utc_now() + timedelta(minutes=1)
+    engine = OutreachEngine(tmp_path / "outreach.db")
+
+    def temporarily_unavailable(_job, _identity):
+        raise RetryableDeliveryError("SECRET_TEMPORARY_PROVIDER_FAILURE", retry_after_seconds=5)
+
+    try:
+        campaign_id = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path, provider_factory=temporarily_unavailable)
+        job_id = service.enqueue_campaign(campaign_id, now=now)["queued"][0]["job_id"]
+        first = service.work_once(max_jobs=1, now=now)
+        assert first["retry_wait"] == 1
+        assert first["items"][0]["status"] == "retry_wait"
+        assert "SECRET_TEMPORARY_PROVIDER_FAILURE" not in first["items"][0]["error"]
+        assert service.store.get_job(job_id)["attempt_count"] == 1
+        assert not list((tmp_path / "mail").rglob("*.json"))
+    finally:
+        engine.close()
+
+    reopened = OutreachEngine(tmp_path / "outreach.db")
+    try:
+        service = _service(reopened, tmp_path)
+        later = now + timedelta(seconds=10)
+        result = service.work_once(max_jobs=1, now=later)
+        assert result["accepted"] == 1
+        assert service.store.get_job(job_id)["attempt_count"] == 2
+        assert service.store.get_job(job_id)["status"] == "accepted"
+        assert service.work_once(max_jobs=1, now=later + timedelta(days=1))["processed"] == 0
+        assert len(list((tmp_path / "mail" / "outbox").glob("*.json"))) == 1
+    finally:
+        reopened.close()
+
+
+def test_A16_repeated_setup_failures_stop_at_existing_retry_limit(tmp_path):
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+    try:
+        campaign_id = _campaign(engine, tmp_path)
+        def fails(_job, _identity):
+            raise RetryableDeliveryError("temporary setup refusal", retry_after_seconds=2)
+        service = _service(engine, tmp_path, provider_factory=fails)
+        job_id = service.enqueue_campaign(campaign_id, now=now)["queued"][0]["job_id"]
+        for attempt in range(1, 6):
+            outcome = service.work_once(max_jobs=1, now=now + timedelta(minutes=attempt - 1))
+            assert outcome["processed"] == 1
+            assert outcome["items"][0]["status"] == ("failed" if attempt == 5 else "retry_wait")
+            assert service.store.get_job(job_id)["attempt_count"] == attempt
+        assert service.store.get_job(job_id)["status"] == "failed"
+        assert service.work_once(max_jobs=1, now=now + timedelta(days=1))["processed"] == 0
+        assert not list((tmp_path / "mail").rglob("*.json"))
+    finally:
+        engine.close()
+
+
+def test_A16_unknown_setup_failure_does_not_stop_unrelated_jobs(tmp_path):
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+    try:
+        first_campaign = _campaign(engine, tmp_path)
+        second_campaign = _campaign(engine, tmp_path)
+        def per_campaign_factory(job, _identity):
+            if job["campaign_id"] == first_campaign:
+                raise RuntimeError("SECRET_FACTORY_CONFIG")
+            return LocalOutboxProvider(tmp_path / "mail")
+        service = _service(engine, tmp_path, provider_factory=per_campaign_factory)
+        first_id = service.enqueue_campaign(first_campaign, now=now)["queued"][0]["job_id"]
+        second_id = service.enqueue_campaign(second_campaign, now=now)["queued"][0]["job_id"]
+        outcome = service.work_once(max_jobs=2, now=now)
+        assert outcome["processed"] == 2
+        assert outcome["failed"] == 1
+        assert outcome["accepted"] == 1
+        assert service.store.get_job(first_id)["status"] == "failed"
+        assert service.store.get_job(second_id)["status"] == "accepted"
+        assert len(list((tmp_path / "mail" / "outbox").glob("*.json"))) == 1
+        assert all("SECRET_FACTORY_CONFIG" not in str(item) for item in outcome["items"])
+    finally:
+        engine.close()

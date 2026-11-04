@@ -1,3 +1,11 @@
+## 2026-11-04 — A14 exact-source isolated Render regression acceptance
+
+- Source **`1c1d3a2b1e0acf1262776b5c082adacce691d776`**, whose last executable/test change is `2e709a59479d374397d66abf242f9e4148d6c879`. The isolated review runner **`dep-dblg7k8u01pc73a4m7lg`** executed the current files, including the actual OS-process crash and adversarial race tests.
+- TDD RED initial five expected FAIL at `ac10fa0` / Render `dep-dblfslqjnfac73ft665g`. First GREEN five passed at `19682d5`. Final A14 targeted gate **12 passed, 1 skipped** (the PostgreSQL-only test is enabled in the full PG stage).
+- Full SQLite regression **2,996 passed, 56 skipped, 44 warnings**. Full disposable PostgreSQL regression **3,020 passed, 101 skipped, 44 warnings**, including PG two-live-app idempotency race. Focused PostgreSQL **215 passed**; frontend tests/build, npm security audit, Chromium desktop and mobile, Ruff, security and structural board verifier gates passed.
+- Docker review image built/exported successfully; final Render service LIVE status had not yet been observed when this checkpoint was recorded. Structural board verifier ran `--skip-tests` with zero full-history evidence command executions. This is **automated QA**, not independent penetration, a real provider send, customer production deployment, or proof the audit is complete.
+- S-06.02.62 stays BACKLOG while S-06.02.23 production audit remains IN_PROGRESS and production acceptance is incomplete. No `main` or customer service changes. Evidence: `docs/evidence/2026-11-04-a14-atomic-http-idempotency.md`.
+
 ## 2026-11-04 — A14 final-source extended adversarial and crash tests (QA pending)
 
 - After the first GREEN, `6dd3618` added an attacker racing a victim's key with changed payload and a SQL-metacharacter key; `2e709a5` added a true OS-process `os._exit(47)` after CRM insertion and before the enclosing idempotency transaction commits. After a restart, the campaign and key must both be absent, and exactly one retry may succeed. These are synthetic tests on disposable local data, not a customer server.

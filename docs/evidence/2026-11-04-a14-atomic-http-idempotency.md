@@ -38,3 +38,22 @@ Stop API workers before any downgrade to old non-atomic code. Preserve the CRM a
 - Added actual independent OS process crash test `2e709a59479d374397d66abf242f9e4148d6c879`: a worker performs an insert, dies with exit code 47 before idempotency transaction commit, and a fresh app checks the database is clean and the same key may safely retry once.
 - Code `c6d1192` moves send-provider construction after idempotency replay check, covered by `0b66f15`; a completed replay must succeed without another provider connection.
 - **The last executable source is 2e709a5; only its own isolated Render QA results count as final acceptance.** Prior Render `dep-dblg1uc9v7es739u8t10` used older 38371c and does not cover these subsequent tests/changes.
+
+## Completed exact-source full automated QA — 2026-11-04
+
+**GitHub reviewed source:** `1c1d3a2b1e0acf1262776b5c082adacce691d776`. **Last code/test modification:** `2e709a59479d374397d66abf242f9e4148d6c879`. **Isolated Render review deploy:** `dep-dblg7k8u01pc73a4m7lg`.
+
+| Gate | Observed result |
+|---|---|
+| Initial TDD RED | 5 failed as expected on `ac10fa0` |
+| Focused final A14 (SQLite-stage) | **12 passed, 1 skipped** (real PG test requires URL) |
+| Full SQLite | **2,996 passed**, 56 skipped, 44 warnings |
+| Focused PostgreSQL integrations | **215 passed** |
+| Full disposable PostgreSQL | **3,020 passed**, 101 skipped, 44 warnings; PG-specific A14 cross-instance race included |
+| Real Chromium Contacts and public demo | PASS at desktop/mobile breakpoints |
+| Frontend, npm audit, Ruff, security, verifier unit tests | Passed the configured review Docker gates |
+| Structural board verifier | PASS with `--skip-tests`; **0** historical evidence commands replayed |
+
+All review Docker test stages were built and the QA image exported. Render's final LIVE service state was **not yet confirmed** when writing this checkpoint. The automated suite uses synthetic identities, a disposable database and fake external sends. It **does not** constitute independent penetration certification, customer deployment, a real email-provider acceptance test or actual exactly-once delivery assurance beyond the modelled HTTP idempotency and stored claims. The last audit story remains in progress and this A14 story remains BACKLOG.
+
+**Rollback:** Stop competing application workers. Preserve idempotency and campaign data in one consistent database backup. Never delete `in_progress` records after an uncertain email send to force an automatic replay. The previous unguarded helper is unsafe for customer traffic.

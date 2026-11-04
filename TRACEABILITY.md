@@ -296,3 +296,7 @@ A11 review runner dep-dblffhijnfac73fs3770 **LIVE** 2026-11-04T09:35:47.896966Z 
 RED isolated Render `ac10fa0`: five failures; initial GREEN `19682d5`: five passes. Additional tests `7c47b34` and full review are pending. Source result is not an independent penetration certification; no main/customer release.
 
 A14 additional test coverage on executable source `2e709a5`: adversarial concurrently changed payload (409 and single effect), bound SQL-metacharacter key, and true OS-process crash before transaction commit. Real provider setup replay test added at `0b66f15`, code fixed at `c6d1192`. Final exact-source Docker/Render QA pending; no customer release.
+
+## A14 exact-source QA verification — 2026-11-04
+
+`S-06.02.62 / R-190`, source `1c1d3a2` (executable `2e709a5`), isolated Render `dep-dblg7k8u01pc73a4m7lg`: 12 focused A14 PASS/1 PG-only SKIP; full SQLite 2,996 PASS/56 skipped; real disposable PG 3,020 PASS/101 skipped with the PG-specific two-instance race included; focused PG 215 PASS; desktop/mobile Chromium and frontend/security gates PASS. Full-history Git evidence replay, independent security, real mail-provider acceptance and customer/main release remain OPEN; story still BACKLOG.

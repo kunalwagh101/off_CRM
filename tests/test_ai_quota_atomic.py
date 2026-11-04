@@ -291,3 +291,44 @@ def test_A11_storage_write_failure_refuses_transport_and_logs_once(tmp_path, mon
     assert "SECRET_LEDGER_WRITE_DATA" not in str(caught.value)
     assert "SECRET_LEDGER_WRITE_DATA" not in json.dumps(log_lines)
     hosted.close()
+
+
+
+def test_A11_key_rotation_cannot_reset_a_workspaces_daily_budget(tmp_path):
+    """A11: one workspace's cap outlives replacement of its provider credential."""
+    from offsetx_apollo_builder.ai.errors import NoPermittedProvider
+
+    sent = []
+    registry = ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml")
+    settings = WorkspaceEgressSettings(
+        workspace_id="workspace-stays",
+        enabled_provider_ids=("mistral",),
+        quota_limits={"mistral": QuotaLimits(requests_per_day=1)},
+    )
+
+    class Stub:
+        last_usage = {"tokens_in": 1, "tokens_out": 1}
+
+        def generate(self, **_):
+            sent.append("provider")
+            return "done"
+
+    for credential in ("key-before-rotation", "key-after-rotation"):
+        broker = EgressBroker(
+            registry=registry,
+            credential_resolver=lambda _, key=credential: key,
+            quota=QuotaTracker(tmp_path),
+        )
+        broker._instantiate = lambda _: Stub()
+        if credential == "key-before-rotation":
+            assert broker.call(
+                EgressRequest(task_type="t", data_class=DataClass.PUBLIC),
+                settings, system_prompt="test",
+            ).text == "done"
+        else:
+            with pytest.raises(NoPermittedProvider):
+                broker.call(
+                    EgressRequest(task_type="t", data_class=DataClass.PUBLIC),
+                    settings, system_prompt="test",
+                )
+    assert sent == ["provider"]

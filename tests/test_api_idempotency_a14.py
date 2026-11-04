@@ -139,3 +139,96 @@ def test_A14_key_cannot_be_blank_or_excessive(tmp_path):
             response = _post_campaign(client, key)
             assert response.status_code == 422, response.text[:300]
         assert client.get("/api/v1/campaigns").json()["total"] == 0
+
+
+
+def test_A14_real_postgres_two_app_instances_share_one_idempotency_effect(tmp_path, monkeypatch):
+    """A14: two real PostgreSQL connections serialize the operation plus result."""
+    import os
+    import uuid
+
+    import pytest
+    import psycopg
+    from cryptography.fernet import Fernet
+
+    url = os.environ.get("OFF_CRM_TEST_POSTGRES_URL", "").strip()
+    if not url:
+        pytest.skip("requires disposable PostgreSQL: OFF_CRM_TEST_POSTGRES_URL")
+    schema = "a14_" + uuid.uuid4().hex[:12]
+    with psycopg.connect(url, autocommit=True) as admin:
+        admin.execute(f'CREATE SCHEMA "{schema}"')
+    target = url + ("&" if "?" in url else "?") + f"options=-csearch_path%3D{schema}"
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", target)
+    master = Fernet.generate_key().decode()
+    try:
+        settings_a, settings_b = _settings(tmp_path, "pg-a"), _settings(tmp_path, "pg-b")
+        settings_a.secrets_key = master
+        settings_b.secrets_key = master
+        app_a, app_b = create_app(settings_a), create_app(settings_b)
+        started = threading.Event()
+        with TestClient(app_a) as client_a, TestClient(app_b) as client_b:
+            original = app_a.state.engine.create_campaign
+
+            def slow_create(*args, **kwargs):
+                started.set()
+                time.sleep(0.30)
+                return original(*args, **kwargs)
+
+            app_a.state.engine.create_campaign = slow_create
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(_post_campaign, client_a, "a14-pg-key")
+                assert started.wait(timeout=12)
+                second = pool.submit(_post_campaign, client_b, "a14-pg-key")
+                responses = [first.result(timeout=25), second.result(timeout=25)]
+            assert [response.status_code for response in responses] == [201, 201], [
+                (r.status_code, r.text[:200]) for r in responses
+            ]
+            assert responses[0].json()["id"] == responses[1].json()["id"]
+            assert client_a.get("/api/v1/campaigns").json()["total"] == 1
+            assert client_b.get("/api/v1/campaigns").json()["total"] == 1
+    finally:
+        with psycopg.connect(url, autocommit=True) as admin:
+            admin.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+
+
+def test_A14_successful_external_call_replays_without_resending(tmp_path):
+    """A14: a completed provider action can replay its result, not the send."""
+    app = create_app(_settings(tmp_path, "one"))
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/campaigns", json={"name": "A14 send replay", "daily_send_limit": 2},
+        )
+        assert created.status_code == 201
+        campaign_id = created.json()["id"]
+        calls = []
+
+        def simulated_send(*args, **kwargs):
+            calls.append("sent")
+            return {"sent_count": 1, "skipped": 0}
+
+        app.state.engine.run_due = simulated_send
+        body = {"mode": "local", "sync_replies_first": False, "max_messages": 1}
+        first = client.post(
+            f"/api/v1/campaigns/{campaign_id}/send",
+            json=body, headers={"Idempotency-Key": "send-once"},
+        )
+        assert first.status_code == 200, first.text[:300]
+        replay = client.post(
+            f"/api/v1/campaigns/{campaign_id}/send",
+            json=body, headers={"Idempotency-Key": "send-once"},
+        )
+        assert replay.status_code == 200, replay.text[:300]
+        assert replay.json() == {**first.json(), "idempotent_replay": True}
+        assert calls == ["sent"]
+
+
+def test_A14_unverified_legacy_key_does_not_replay_another_request(tmp_path):
+    """A14: old rows have no principal or payload binding: refuse them safely."""
+    app = create_app(_settings(tmp_path, "one"))
+    with TestClient(app) as client:
+        app.state.engine.store.save_idempotency(
+            "create_campaign", "legacy-key", {"id": "unsafe-old-result"},
+        )
+        refused = _post_campaign(client, "legacy-key")
+        assert refused.status_code == 409
+        assert client.get("/api/v1/campaigns").json()["total"] == 0

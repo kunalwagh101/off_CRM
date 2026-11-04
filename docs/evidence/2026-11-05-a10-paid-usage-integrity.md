@@ -35,3 +35,7 @@ Isolated Render `dep-dblrkc6417fc73bbo5fg` on `99f5169` ran the expanded A10 gat
 - The structural board verifier used `--skip-tests` and **did not** replay historical DONE evidence. No live paid-provider account/invoice test, independent third-party penetration engagement, customer-account end-to-end acceptance or `main` promotion was performed. A10 remains partially verified and S-06.02.66 remains BACKLOG pending audit/production gates.
 
 **The review image finished all QA build stages.** Its final service LIVE status must be verified separately against `dep-dblrlb6i0phs7387c37g`; a green image build is not proof of deployment completion.
+
+## Render LIVE verification — exact tested code
+
+Render isolated QA `dep-dblrlb6i0phs7387c37g` on commit `822ffa8401d0d8ad1498a84e487fcd5f747b90a7` reached **LIVE at 2026-11-04T23:28:47.303389Z** (2026-11-05 04:58:47 IST). Render logs explicitly say **Your service is live**. This is an automated QA marker, not the real customer application; all execution and tests above ran before that deployment marker. Subsequent changes are documentation only, not reruns of the executable source. No `main` or customer service promotion.

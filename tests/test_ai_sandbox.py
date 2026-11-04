@@ -21,6 +21,7 @@ import ast
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -147,6 +148,72 @@ def test_inbox_is_read_only_and_work_is_writable(workspace):
     assert any(m.endswith(":/inbox:ro") for m in mounts), mounts
     assert any(m.endswith(":/work:rw") for m in mounts), mounts
     assert not any(m.endswith(":/inbox:rw") for m in mounts)
+
+
+# ── A32: a restricted container user must write /work ─────────────────────
+
+def test_A32_workspace_mount_permissions_and_private_host_root(tmp_path):
+    """A32: the container runs as nobody, but its only writable mount must work."""
+    import stat
+
+    workspace = SandboxWorkspace(root=tmp_path / "job").prepare()
+    assert stat.S_IMODE(workspace.root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(workspace.work.stat().st_mode) == 0o1777
+    assert not workspace.root.is_symlink()
+    assert not workspace.work.is_symlink()
+    assert workspace.inbox.is_dir()
+    assert not workspace.store.exists()
+
+    # Preparing an existing job must repair its old mode, not just new folders.
+    workspace.root.chmod(0o755)
+    workspace.work.chmod(0o755)
+    workspace.prepare()
+    assert stat.S_IMODE(workspace.root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(workspace.work.stat().st_mode) == 0o1777
+
+
+def test_A32_restricted_uid_can_write_without_host_root_access(tmp_path):
+    """A32: fchdir simulates Docker mounting /work directly, bypassing host parent."""
+    if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+        pytest.skip("A real UID 65534 write probe needs a privileged POSIX test runner")
+    workspace = SandboxWorkspace(root=tmp_path / "job").prepare()
+    fd = os.open(workspace.work, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        code = (
+            f"import os; os.fchdir({fd}); "
+            "open('result.txt', 'w', encoding='utf-8').write('A32-ok')"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", code],
+            pass_fds=(fd,),
+            user=65534,
+            group=65534,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert (workspace.work / "result.txt").read_text() == "A32-ok"
+    finally:
+        os.close(fd)
+
+
+@pytest.mark.parametrize("link_name", ["root", "inbox", "work"])
+def test_A32_refuses_symlinked_workspace_paths(tmp_path, link_name):
+    """A32: refusing redirected paths prevents chmod touching another directory."""
+    external = tmp_path / "external"
+    external.mkdir()
+    before = external.stat().st_mode
+    root = tmp_path / "job"
+    if link_name == "root":
+        root.symlink_to(external, target_is_directory=True)
+    else:
+        root.mkdir()
+        (root / link_name).symlink_to(external, target_is_directory=True)
+    with pytest.raises(SandboxUnavailable, match="symlink|symbolic link"):
+        SandboxWorkspace(root=root).prepare()
+    assert external.stat().st_mode == before
 
 
 # ── image and command validation ───────────────────────────────────────────

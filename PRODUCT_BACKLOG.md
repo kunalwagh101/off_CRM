@@ -940,6 +940,14 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-189 | AI provider request and USD limits reserve atomically before egress across workers, accounts, key rotations, and crashes | S-06.02.60 |
 | R-190 | Idempotency-Key writes create at most one effect across API workers, bind caller and request, and retain unknown external-action state | S-06.02.62 |
 
+#### S-06.02.64 — A sandbox job writes useful output without exposing host directories (A32)
+**As a** workspace owner, **I want** the isolated code sandbox to write its approved output files, **so that** a successful job can return useful artifacts without weakening filesystem or network isolation.
+- **Given** a newly prepared workspace or one created with older modes, **when** a sandbox job runs as container UID/GID 65534, **then** it can create output under its sole writable mount `/work`.
+- **Given** another unprivileged host user, **when** the workspace exists, **then** the job root remains private to the host owner; `store` and host secrets are not mounted and `/inbox` stays read-only.
+- **Given** a symlink pretending to be the job root, inbox or work folder, **when** prepare runs, **then** it refuses without changing the linked target's permissions.
+- **Given** a real pinned Docker image, **when** the container starts, **then** writing `/work/result.txt` succeeds under the existing non-root, no-network, read-only-root flags.
+- **Dependencies:** S-03.01.02 is DONE; active production audit S-06.02.23 remains IN_PROGRESS. Size M. Audit A32 / defect D-121. Work order: `docs/work-orders/S-06.02.64-sandbox-writable-workspace.md`.
+
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
 #### S-07.01.01 — An MCP client

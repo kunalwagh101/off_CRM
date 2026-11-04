@@ -25,3 +25,9 @@ No original request bodies or provider keys are stored in the idempotency metada
 
 ## Rollback
 Stop API workers before any downgrade to old non-atomic code. Preserve the CRM and its idempotency ledger together. Do not delete an unresolved key without checking the last send/receipt in the provider and audit logs. Reverting the fix reopens A14.
+
+## Completed-send provider setup regression (added after first GREEN)
+
+- Test first `0b66f15914a295d0cf002f8479a739e7c4e9a183` added a replay case where the provider factory becomes unavailable after a successful send. First repaired source `19682d5` still built the provider before looking up the cached result.
+- Code fix `c6d11927449e151a7c11cb7cfb402fbf81c428c8` defers mail-provider construction until the guarded operation actually runs. Completed replays avoid provider setup, while first execution still stores the in-progress claim before setup/transport.
+- **No final exact-source GREEN assertion for this added case until the next isolated Render run.**

@@ -1,3 +1,9 @@
+## 2026-11-04 — A14 follow-up: completed sends must replay even without provider setup
+
+- A completed send's replay still constructed the mail provider first; rotated credentials or unavailable adapter setup could fail before a valid saved response was read. Added `tests/test_api_idempotency_a14.py::test_A14_completed_send_replays_even_if_provider_setup_is_now_unavailable` test at 0b66f15.
+- Moved the `_mail_provider` call inside the external `operation()` at code c6d1192. This leaves the durable pre-send claim around adapter setup, but skips adapter construction for a completed replay. Keeps all earlier A14 requirements and does not send a real email.
+- Full Render QA on final source is **not yet observed** at this checkpoint; do not treat earlier isolated QA code 19682d5 or 38371c as passing this later change. No customer/main deployment.
+
 ## 2026-11-04 — A14 atomic HTTP idempotency (test-first build-ahead, final QA pending)
 
 - On develop, the original helper looked up a key, performed the side effect, then saved the result. **TDD RED** at test-only `ac10fa0` / isolated Render `dep-dblfslqjnfac73ft665g`: **5 expected FAIL**, including two actual API app instances racing, payload/key conflicts, crash-after-mutation, replay after uncertain send and malformed headers.

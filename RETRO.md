@@ -1,3 +1,5 @@
+# Retro
+
 ## 2026-11-05 — A05 identity permission audit regression (S-06.02.23, IN_PROGRESS)
 
 **What was cut.** No feature behaviour or external acceptance was falsely closed; full per-user role checks, CRM tenancy, independent penetration and production checks remain open.
@@ -5,8 +7,6 @@
 **What the estimate missed.** Existing workspace login and admin boundaries were already present, so the useful work was a real two-user API regression and wiring that early into Render, not writing a second authorization layer.
 
 **What to change next time.** Require a source-pinned Render result, then distinguish targeted proof from a broader security/production assertion; keep board and work-order evidence current.
-
-# Retro
 
 ## 2026-09-18 — S-07.01.04 reports and artifacts (IN_REVIEW)
 

@@ -892,3 +892,16 @@ uv run pytest -q tests/test_outreach_api.py
 Set `OFF_CRM_TEST_POSTGRES_URL` to a disposable PostgreSQL URL to run the A14 real-PostgreSQL concurrent-app test; it creates and drops a random temporary schema. A 409 on mismatched payload or principal is correct. A 409 after a crashed external provider call means **inspect that attempt**; do not retry automatically. Full verification evidence is in `docs/evidence/2026-11-04-a14-atomic-http-idempotency.md`.
 
 Additional A14 checks: `test_A14_concurrent_conflicting_payload_is_refused_without_second_write`, `test_A14_sql_metacharacters_in_key_cannot_change_database`, and `test_A14_real_process_crash_rolls_back_uncommitted_effect_and_result`. The crash case deliberately terminates a **child test process**, never a customer app. Only run against a disposable database.
+
+
+## A10 — a paid AI call must never become a free call through a bad usage receipt
+
+From a locked checkout of `develop`:
+
+```bash
+uv run pytest -q tests/test_ai_billing_integrity_a10.py tests/test_ai_cost_ledger.py tests/test_ai_quota_atomic.py
+```
+
+The regression calls the real broker with controlled provider usage and a disposable quota ledger. It also starts independent processes to race the same USD cap and runs a real disposable PostgreSQL check when `OFF_CRM_TEST_POSTGRES_URL` is set. A skipped PostgreSQL test does not prove production database safety. No paid external provider or customer account is used.
+
+---

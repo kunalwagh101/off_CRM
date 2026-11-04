@@ -1,3 +1,9 @@
+## 2026-11-05 — A10 paid-model usage receipt integrity (isolated review underway)
+
+- F-06.02 / S-06.02.66: the outbound broker no longer interprets an all-zero or invalid provider token receipt as a confirmed free call. `read_usage` validates raw token counts, and `measure` uses a clearly labelled local estimate if a receipt is unusable; a malformed value cannot break post-transport accounting. Positive input with zero output is still a valid measured receipt.
+- TDD RED: 7 failed/2 passed on isolated Render `dep-dblrg5h5efls73aj916g`, source `1f4f9b9`. Initial GREEN on `48e271`, Render `dep-dblrgs2jnfac73d9g7ug`: 9 focused passed. Further tests cover paid failures, concurrent workers and real disposable PostgreSQL; final source-bound QA pending.
+- No schema migration, new dependency, production API, credentials, customer email or provider call. No `main` release. Price estimates are not provider-confirmed bills, and an independent penetration or invoice acceptance has not been performed.
+
 ## 2026-11-05 — A05 isolated Render review completed
 
 - The security verification-only A05 test addition (`ee14710`) and QA integration (`94fa650`) have full isolated source-pinned review acceptance: A05 targeted 3 passed, full SQLite 3,015 passed/56 skipped, full disposable real PostgreSQL 3,039 passed/101 skipped, focused PostgreSQL 215 passed, frontend/build, Chromium desktop/mobile and security/static gates passed. Render review `dep-dblr106i0phs7385jao0` confirmed LIVE 2026-11-04 22:44:20 UTC. Evidence `docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md`.

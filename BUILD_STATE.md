@@ -1,3 +1,9 @@
+## 2026-11-05 — A05 individual workspace permissions recheck (isolated API evidence)
+
+- On `develop`, added three real FastAPI session tests in `tests/test_audit_a05_workspace_identity.py` (`ee14710`) and made them an early gate in `Dockerfile.review` (`94fa650`). No runtime application code, customer service, `main` or production data changed.
+- Isolated Render review `dep-dblr106i0phs7385jao0` executed the exact source-bound command `uv run pytest -q tests/test_audit_a05_workspace_identity.py` with **3 PASS, 1 deprecation warning in 4.65s**. The tested paths are cross-workspace permission refusal against forged headers, owner-only user management, and disabled-session invalidation with an unaffected peer account.
+- This is a partial A05 audit recheck under active S-06.02.23, **not** closure of the whole feature or independent penetration. Other access, role, CRM tenancy (Q-27), full-history board verification, live provider/customer release and remaining audit criteria remain open. Broader review stages and final deployment status require their own observed results.
+
 ## 2026-11-04 — A20 authenticated media: isolated review LIVE, release gates open
 
 - Develop TDD RED `b4b2833` / review `dep-dblhbtu417fc738i5b5g`: 8 expected A20 failures/1 pass. First GREEN candidate `fdfee395` / `dep-dblhe1lg1s2s73ensrm0` failed on new URL-guard parser syntax. Corrected executable source `af434cfbc8c50bd7ba6a7c937595347b15b1761d` under review `dep-dblhej942hec73889ntg`.

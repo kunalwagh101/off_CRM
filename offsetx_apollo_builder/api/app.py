@@ -5421,10 +5421,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> dict[str, Any]:
         settings = _settings(request)
-        provider = _mail_provider(settings, body.mode, body.confirmation)
         engine = _engine(request)
 
         def operation() -> dict[str, Any]:
+            # The saved replay is checked *before* this function runs.
+            # Building an adapter may fail after credentials are rotated, and
+            # a completed send must not create a second provider instance.
+            provider = _mail_provider(settings, body.mode, body.confirmation)
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.run_due(
                     campaign_id,

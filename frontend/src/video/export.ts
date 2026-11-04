@@ -16,6 +16,7 @@
  * failure — so an old browser is told plainly what it needs instead.
  */
 
+import { fetchMedia } from "../api";
 import { AudioUnsupported, buildAudioTrack, type AudioTrackResult } from "./audio";
 import type { ProjectDoc } from "./document";
 import { TICKS_PER_SECOND, ticksPerFrame } from "./document";
@@ -396,7 +397,7 @@ export async function loadAssets(
   const table: AssetTable = new Map();
   await Promise.all(
     assetIds.map(async (id) => {
-      const response = await fetch(urlFor(id), { credentials: "same-origin" });
+      const response = await fetchMedia(urlFor(id));
       if (!response.ok) return;
       const blob = await response.blob();
       const bitmap = await createImageBitmap(blob);

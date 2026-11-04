@@ -1,3 +1,10 @@
+## 2026-11-04 — A11 dual-scope AI quota reservation (TDD and QA under review)
+
+- **RED:** b57c971 / isolated Render dep-dblf71ugekts7388c3g0: 8 expected A11 failures. Two independent broker workers both reached a fake provider despite a one-call daily or minute cap (local and hosted SQLite); corrupt counters were accepted and no durable reservation API existed. **Second RED:** e488c30 / dep-dblfdv8u01pc73a2of90: key rotation bypassed the same workspace's daily call limit (1 expected failure).
+- **Implementation source:** 8957a27 (quota.py and broker.py) after iteration 97191af, 59f29dc, 4abe3d9 and 1cc7dac. Before chat, image or transcript transport, the single broker books one ticket in both the physical account and workspace quota ledgers under the same existing PostgreSQL advisory transaction or cross-process local OS lock. The generated ticket and conservative USD hold persist before network I/O; actual usage reconciles once. Invalid local/hosted counters refuse transport with secret-safe error reference; a crash leaves its attempt and reserved dollars held. Key rotation no longer resets a workspace budget. A missing/undocumented token price with a USD cap refuses rather than inventing free usage.
+- **Initial GREEN, same source:** Render dep-dblffhijnfac73fs3770, A11 focused 14 PASS / 1 PG SKIP (the PG-only race test is activated in disposable PostgreSQL stage). Other configured Render gates still running at this checkpoint. Do not say full regression or deployment LIVE until observed.
+- **Safety boundaries:** No real paid provider, unreviewed external API, production database, customer service or `main` changed. PostgreSQL release gate and independent security acceptance remain open; preserve work in BACKLOG under active S-06.02.23 audit. `docs/evidence/2026-11-04-a11-ai-quota-reservations.md`.
+
 ## 2026-11-04 — A16 exact-source isolated Render QA completed LIVE
 
 - RED `61cc4fa` / `dep-dbldu5bncjis73djca20`: 5 expected failures at `EmailDeliveryService.work_once`, proving provider factory exceptions were unhandled after job claim. GREEN source `144e1cb` / isolated Render `dep-dbldur942hec73fvgeq0` **LIVE at 07:52:04 UTC**.

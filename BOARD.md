@@ -37,6 +37,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.60 · AI request and spending caps reserve atomically across workers (A11)
   work_order: docs/work-orders/S-06.02.60-atomic-ai-quota.md
+  checkpoint: TDD RED b57c971 / isolated Render dep-dblf71ugekts7388c3g0: 8 expected A11 FAIL (independent workers, corrupt local/hosted counters, absent reservations). Extra credential-rotation RED e488c30 / dep-dblfdv8u01pc73a2of90: 1 expected FAIL. Source 8957a27 implements transactional shared-account plus workspace reservation, conservative spend holds and idempotent reconciliation. Focused A11 gate on exact source 8957a27 / isolated Render dep-dblffhijnfac73fs3770: 14 PASS, 1 SKIP (real PG case scheduled with full PG stage); full QA pending. Remains BACKLOG while S-06.02.23 audit is IN_PROGRESS. No real-provider/independent penetration/full-history verification or customer/main release. Evidence docs/evidence/2026-11-04-a11-ai-quota-reservations.md.
 
 - S-06.02.40 · A durable email worker runs beside the deployed web app
   work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md

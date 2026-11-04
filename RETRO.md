@@ -1123,3 +1123,9 @@ lifecycle.
 **What the estimate got wrong.** Provider acquisition was one line outside the try block, but a safe fix needed terminal vs retry classification, persistent recovery and secret-safe error references.
 
 **What to change next time.** Keep provider construction separate from transport and test both boundaries before allowing automated retries. Recheck real PostgreSQL before any release claim.
+
+## 2026-11-04 — A11 atomic AI quota enforcement (BACKLOG build-ahead)
+
+**What was cut.** No test scope was cut; external paid-model/provider acceptance and independent penetration remain separate release gates, not declared passing.
+**What the estimate missed.** A per-key transaction alone still let users rotate credentials and reset their workspace cap. An independent TDD RED test caught it; both accounts and workspaces now reserve in one transaction.
+**What to do next.** Before any claim of completion, prove PostgreSQL multi-process race, real paid-model receipts, conservative USD price assumptions, ledger restart/recovery, external security and full board-history evidence.

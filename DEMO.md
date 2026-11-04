@@ -856,3 +856,14 @@ uv run pytest -q tests/test_email_delivery.py
 
 Expected focused result on `144e1cb`: 5 A16 tests pass. Exercise SQLite and disposable PostgreSQL mode for the broad regression; run the full verifier before any DONE claim. See `docs/evidence/2026-11-04-a16-email-provider-setup.md`. Never use a live email recipient for this test.
 
+
+## A11 — Atomic provider request and USD limits
+
+No real provider calls. Runs simulated egress through the **real** broker with two independent worker processes and a disposable quota ledger:
+
+```bash
+uv run pytest -q tests/test_ai_quota_atomic.py
+uv run pytest -q tests/test_ai_cost_ledger.py tests/test_ai_egress_wall.py tests/test_ai_failures.py
+```
+
+For PostgreSQL cross-worker contention use a disposable test database and set `OFF_CRM_TEST_POSTGRES_URL` as described in `tests/test_hosted_storage.py`; `tests/test_ai_quota_atomic.py::test_A11_postgres_two_processes_reserve_one_actual_provider_call` exercises two real independent Postgres clients. Never point this test at a customer database. The account ledger is authoritative, not a Python lock. See `docs/evidence/2026-11-04-a11-ai-quota-reservations.md` for actual isolated Render RED/GREEN evidence. No production claim from synthetic calls.

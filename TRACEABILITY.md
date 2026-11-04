@@ -274,3 +274,11 @@ New restart test: `tests/test_ai_cache_integrity.py::test_A12_A13_restart_keeps_
 RED isolated Render on 61cc4fa 5 failures; GREEN focused 5 PASS on 144e1cb. Owner-approved build-ahead code is not DONE and story remains BACKLOG under active audit and worker deployment dependency. PostgreSQL/full suite, independent security and operational worker integration pending.
 
 A16 final isolated QA: `dep-dbldur942hec73fvgeq0` on `144e1cb` LIVE 2026-11-04 07:52:04 UTC; A16 5 PASS, SQLite 2970 PASS, PostgreSQL 2993 PASS, browser and verifier-unit gates PASS. R-188 still BACKLOG pending actual worker + independent security/release certification.
+
+## 2026-11-04 — A11 atomic quota reservation (BACKLOG; build-ahead implementation)
+
+| Req | Story | Criteria | Tests | Code |
+|---|---|---|---|---|
+| R-189 | S-06.02.60 | Cross-worker atomic call/minute/day caps; capped priced calls; corrupt/read/write failure; crash and idempotent reconciliation; separate/shared accounts and key rotation | `tests/test_ai_quota_atomic.py` (15 cases including conditional PostgreSQL multi-process race); `tests/test_ai_cost_ledger.py`; `tests/test_ai_egress_wall.py` | `offsetx_apollo_builder/ai/quota.py`, `offsetx_apollo_builder/ai/broker.py` |
+
+RED 8 cases on b57c971 and key-rotation RED 1 case on e488c30, both isolated Render builds. Source 8957a27 focused 14 PASS/1 PostgreSQL-only skipped on early gate dep-dblffhijnfac73fs3770; final exact-source full PostgreSQL and security release evidence pending. Keep S-06.02.60 BACKLOG until audit and readiness gates.

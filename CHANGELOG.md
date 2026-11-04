@@ -1,3 +1,11 @@
+## 2026-11-04 — A20 private media works with API-token authentication (isolated review)
+
+- S-06.02.63 / F-06.02: selected the A20 media auth defect after checking the current develop board and open audit. The active S-06.02.23 audit remains separate and IN_PROGRESS.
+- **TDD RED:** test-first `b4b2833` / isolated review `dep-dblhbtu417fc738i5b5g`: 8 expected A20 failures, one cookie-mode test already passed. **Early GREEN regression:** faulty regex blocked module parsing in `fdfee395` / `dep-dblhe1lg1s2s73ensrm0`; fixed source `af434cfbc8c50bd7ba6a7c937595347b15b1761d`, isolated review `dep-dblhej942hec73889ntg`.
+- Shared `fetchMedia` now attaches bearer tokens only on same-origin API paths; cookie-only mode stays supported. Audio/footage/stills use authenticated binary requests; 401/403 are not silently treated as 404. Image review and video thumbnails create short-lived, size-bounded object URLs and revoke them on cleanup. No token appears in an image/video URL.
+- **Observed GREEN on exact executable source:** frontend 223 tests passed (including all 9 new), production TS/Vite build PASS, npm production audit 0 advisories; full SQLite 2,997 PASS/56 skipped/44 warnings; focused PostgreSQL 215 PASS, backend auth stage 35 PASS; desktop and mobile Chromium Contacts and Public Demo browser checks PASS. Docker structural board verifier passed with full-history replay disabled. Two moderate development-only npm advisories remain.
+- **Still open at this checkpoint:** full PostgreSQL regression and isolated Render final LIVE status. These results cannot be claimed until observed. Real token-only image/video browser acceptance, independent penetration and customer rollout are not performed. No main or customer deployment. Work order and detailed evidence: `docs/work-orders/S-06.02.63-token-media-auth.md` and `docs/evidence/2026-11-04-a20-token-auth-media.md`.
+
 ## 2026-11-04 — A14 isolated Render QA LIVE, exact source
 
 - `dep-dblg7k8u01pc73a4m7lg` reached **LIVE** at **2026-11-04T10:27:18.435081Z** on tested source `1c1d3a2b1e0acf1262776b5c082adacce691d776`. Last executable change is `2e709a5`. Render logs explicitly confirmed the QA marker service was live.

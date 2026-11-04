@@ -61,6 +61,27 @@ def test_demo_login_uses_secure_session_cookie_and_logout(tmp_path):
 
 
 
+def test_A20_token_only_session_status_matches_private_media_access(tmp_path):
+    """Token mode must never tell an anonymous browser it is signed in."""
+    settings = _demo_settings(tmp_path)
+    settings.demo_username = ""
+    settings.demo_password = ""
+    settings.api_token = "token-mode-" + "q" * 42
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        anonymous = client.get("/api/v1/auth/session")
+        assert anonymous.status_code == 200, anonymous.text
+        assert anonymous.json()["authenticated"] is False
+        assert client.get("/api/v1/dashboard").status_code == 401
+        # Permission check happens before a non-existent asset can be probed.
+        assert client.get("/api/v1/image-assets/non-existent/file").status_code == 401
+        headers = {"Authorization": f"Bearer {settings.api_token}"}
+        authenticated = client.get("/api/v1/auth/session", headers=headers)
+        assert authenticated.status_code == 200, authenticated.text
+        assert authenticated.json()["authenticated"] is True
+        assert client.get("/api/v1/dashboard", headers=headers).status_code == 200
+        assert client.get("/api/v1/image-assets/non-existent/file", headers=headers).status_code != 401
+
+
 def test_logout_revokes_copied_cookie_even_after_application_restart(tmp_path):
     """A06: clearing the browser cookie cannot leave a stolen replay valid."""
     settings = _demo_settings(tmp_path)

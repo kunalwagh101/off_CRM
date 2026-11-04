@@ -232,3 +232,30 @@ def test_A14_unverified_legacy_key_does_not_replay_another_request(tmp_path):
         refused = _post_campaign(client, "legacy-key")
         assert refused.status_code == 409
         assert client.get("/api/v1/campaigns").json()["total"] == 0
+
+
+
+def test_A14_same_key_from_another_authenticated_principal_is_refused(tmp_path):
+    """A14: a login cannot read an install token's earlier private result."""
+    settings = _settings(tmp_path, "authenticated")
+    settings.allow_unauthenticated = False
+    settings.api_token = "t" * 32
+    settings.demo_username = "a14-owner"
+    settings.demo_password = "a14-temporary-password-123"
+    settings.session_secret = "s" * 32
+    with TestClient(create_app(settings)) as client:
+        first = client.post(
+            "/api/v1/campaigns",
+            headers={"Idempotency-Key": "shared-key", "Authorization": "Bearer " + "t" * 32},
+            json={"name": "Private campaign", "daily_send_limit": 3},
+        )
+        assert first.status_code == 201, first.text[:300]
+        logged_in = client.post(
+            "/api/v1/auth/login",
+            json={"username": "a14-owner", "password": "a14-temporary-password-123"},
+        )
+        assert logged_in.status_code == 200, logged_in.text[:300]
+        other = _post_campaign(client, "shared-key", "Private campaign")
+        assert other.status_code == 409
+        assert "idempotency" in other.text.lower()
+        assert client.get("/api/v1/campaigns").json()["total"] == 1

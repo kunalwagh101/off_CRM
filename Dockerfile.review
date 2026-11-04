@@ -21,6 +21,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
+# A22: reject malformed nested video edit inputs before writing any version.
+RUN uv run pytest -q tests/test_video_edit_validation_a22.py
 # A32: fail early if the restricted sandbox user cannot write approved output.
 RUN uv run pytest -q tests/test_ai_sandbox.py -k A32
 # A12/A13: stale facts and model attribution must be tested before broad QA.

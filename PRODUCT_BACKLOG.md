@@ -940,6 +940,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-189 | AI provider request and USD limits reserve atomically before egress across workers, accounts, key rotations, and crashes | S-06.02.60 |
 | R-190 | Idempotency-Key writes create at most one effect across API workers, bind caller and request, and retain unknown external-action state | S-06.02.62 |
 | R-191 | Sandbox job output is writable to the fixed non-root user, with a private host root and symlink refusal | S-06.02.64 |
+| R-192 | A video-edit batch rejects malformed nested edits, ambiguity and oversized nested text before any project version is saved | S-06.02.65 |
 
 #### S-06.02.64 — A sandbox job writes useful output without exposing host directories (A32)
 **As a** workspace owner, **I want** the isolated code sandbox to write its approved output files, **so that** a successful job can return useful artifacts without weakening filesystem or network isolation.
@@ -948,6 +949,14 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** a symlink pretending to be the job root, inbox or work folder, **when** prepare runs, **then** it refuses without changing the linked target's permissions.
 - **Given** a real pinned Docker image, **when** the container starts, **then** writing `/work/result.txt` succeeds under the existing non-root, no-network, read-only-root flags.
 - **Dependencies:** S-03.01.02 is DONE; active production audit S-06.02.23 remains IN_PROGRESS. Size M. Audit A32 / defect D-121. Work order: `docs/work-orders/S-06.02.64-sandbox-writable-workspace.md`.
+
+#### S-06.02.65 — Video-edit API rejects malformed nested operations before a save (A22)
+**As a** video editor user, **I want** malformed batch requests to fail clearly, **so that** an unexpected request can never save an incomplete or incorrect timeline.
+- **Given** an authenticated permitted user, **when** a video-edit batch has non-object params, unexpected nested keys, conflicting op names or ambiguous single/batch fields, **then** the HTTP API returns a bounded 4xx without exposing internal errors or submitted text.
+- **Given** a batch containing an invalid later edit, **when** it is submitted, **then** the current project and version remain unchanged.
+- **Given** excessive per-edit text or a batch over 500 edits, **when** submitted, **then** the API rejects it before applying edits.
+- **Given** a valid single edit and a valid two-step batch, **when** submitted, **then** saved version, redo/undo and read-back still work.
+- **Dependencies:** existing video store and API, production audit S-06.02.23 still IN_PROGRESS. Scope is A22 nested video edit safety only; wider A22 write-API matrix requires separate audit. **Size:** M. Work order: `docs/work-orders/S-06.02.65-video-edit-input.md`.
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 

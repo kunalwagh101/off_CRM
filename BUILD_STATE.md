@@ -1,3 +1,9 @@
+## 2026-11-04 — A20 private media authentication: isolated review in progress
+
+- Develop TDD RED `b4b2833` / review `dep-dblhbtu417fc738i5b5g`: 8 expected A20 failures/1 pass. First GREEN candidate `fdfee395` / `dep-dblhe1lg1s2s73ensrm0` failed on new URL-guard parser syntax. Corrected executable source `af434cfbc8c50bd7ba6a7c937595347b15b1761d` under review `dep-dblhej942hec73889ntg`.
+- Confirmed on exact source: 19 frontend suites / 223 tests pass, production frontend build pass, npm production audit 0 vulnerabilities (2 moderate dev advisories), full SQLite 2,997 pass/56 skipped/44 warnings, focused PostgreSQL 215 pass, auth integration stage 35 pass, targeted security/board verifier pass, Chromium Contacts and Public Demo desktop/mobile pass. Board verifier skipped historical command execution.
+- Full PostgreSQL suite and final Render LIVE are **pending**; do not claim DONE. No customer service/main deploy, independent penetration, real token-only image/video browser acceptance or full-history verifier. Board S-06.02.63 IN_PROGRESS and audit S-06.02.23 IN_PROGRESS.
+
 ## 2026-11-04 — A14 isolated Render QA LIVE, exact source
 
 - `dep-dblg7k8u01pc73a4m7lg` reached **LIVE** at **2026-11-04T10:27:18.435081Z** on tested source `1c1d3a2b1e0acf1262776b5c082adacce691d776`. Last executable change is `2e709a5`. Render logs explicitly confirmed the QA marker service was live.

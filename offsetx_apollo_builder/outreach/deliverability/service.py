@@ -353,7 +353,42 @@ class EmailDeliveryService:
             reason = "Sending identity changed after the job was queued; enqueue a new job."
             self.store.mark_terminal(str(job["id"]), status="blocked", error=reason)
             return {"job_id": job["id"], "status": "blocked", "error": reason}
-        provider = self.provider_factory(job, identity)
+        # The provider has not sent anything yet. Handle setup failures here,
+        # apart from the send boundary below: an error during send may mean
+        # that the provider already accepted the message and must be quarantined.
+        try:
+            provider = self.provider_factory(job, identity)
+        except RetryableDeliveryError as exc:
+            message = failure_message(
+                exc, operation="email.delivery.setup_retry",
+                workspace=self.engine.workspace_id,
+            )
+            if int(job["attempt_count"]) >= 5:
+                self.store.mark_terminal(
+                    str(job["id"]), status="failed", error=f"Retry limit reached: {message}"
+                )
+                return {"job_id": job["id"], "status": "failed", "error": message}
+            delay = exc.retry_after_seconds or min(
+                3600, 5 * (2 ** max(0, int(job["attempt_count"]) - 1))
+            )
+            delay = max(1, min(3600, int(delay)))
+            self.store.mark_retry(
+                str(job["id"]), error=message, available_at=now + timedelta(seconds=delay)
+            )
+            return {
+                "job_id": job["id"], "status": "retry_wait",
+                "retry_after_seconds": delay, "error": message,
+            }
+        except Exception as exc:
+            # Even an unknown constructor failure is definitely pre-send.
+            # Do not give it the post-send "delivery_unknown" classification.
+            message = failure_message(
+                exc, operation="email.delivery.setup_failed",
+                workspace=self.engine.workspace_id,
+            )
+            self.store.mark_terminal(str(job["id"]), status="failed", error=message)
+            return {"job_id": job["id"], "status": "failed", "error": message}
+
         last = self.engine.store.last_outgoing(str(job["campaign_contact_id"])) or {}
         try:
             result = provider.send_message(

@@ -27,7 +27,8 @@ export class ApiError extends Error {
 }
 
 export function getToken(): string {
-  return sessionStorage.getItem(TOKEN_KEY) ?? "";
+  // Unit tests and server rendering have no browser session storage.
+  return typeof sessionStorage === "undefined" ? "" : sessionStorage.getItem(TOKEN_KEY) ?? "";
 }
 
 export function setToken(value: string): void {
@@ -40,6 +41,37 @@ function headers(extra?: HeadersInit): Headers {
   const token = getToken();
   if (token) result.set("Authorization", `Bearer ${token}`);
   return result;
+}
+
+/**
+ * Private binary media uses the exact same auth boundary as JSON APIs.
+ * Never send an install token to an external URL or an unrelated same-origin
+ * route. Native img/video elements cannot add this header; render their
+ * fetched bytes through short-lived object URLs instead.
+ */
+export async function fetchMedia(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  if (token && (!url.startsWith(`${API_ROOT}/`) || /\\|(?:^|\\/)\\.\\.(?:\\/|$)|%2e/i.test(url))) {
+    throw new ApiError("Refused to send an API token outside the private media API.", 403);
+  }
+  const response = await fetch(url, {
+    ...init,
+    // Even cookie-only installs must use browser session credentials.
+    credentials: "include",
+    headers: headers(init.headers)
+  });
+  if (response.status === 401) {
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+    throw new ApiError(
+      "Media access expired. Sign in or set the local API token again.", 401
+    );
+  }
+  if (response.status === 403) {
+    throw new ApiError(
+      "This account cannot access the media. Ask the workspace owner for access.", 403
+    );
+  }
+  return response;
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {

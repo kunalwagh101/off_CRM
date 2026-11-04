@@ -149,14 +149,15 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-- S-06.02.63 · Token-authenticated media works in review and video export (A20)
-  work_order: docs/work-orders/S-06.02.63-token-media-auth.md
-
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.63 · Token-authenticated media works in review and video export (A20)
+  work_order: docs/work-orders/S-06.02.63-token-media-auth.md
+  review: Test-first RED b4b2833 / isolated Render dep-dblhbtu417fc738i5b5g 8 expected failures / 1 pass; parser regression on initial GREEN fdfee395 / dep-dblhe1lg1s2s73ensrm0 fixed in af434cf. On tested source af434cf / isolated Render dep-dblhej942hec73889ntg: new A20 9 PASS, total frontend 223 PASS, TypeScript build PASS, production npm audit 0 advisories (2 moderate dev advisories); SQLite 2,997 PASS/56 skipped, real PostgreSQL 3,021 PASS/101 skipped plus focused PostgreSQL 215 PASS, backend auth 35 PASS, Chromium desktop/mobile Contacts and Public Demo PASS, configured static/security checks and structural board check PASS. QA image built; final LIVE status not yet observed at checkpoint. D-365/D-366 logged and evidence docs/evidence/2026-11-04-a20-token-auth-media.md. Real token-only browser image/video acceptance, independent penetration and full-history verifier remain OPEN. No main/customer deployment; A20 remains under S-06.02.23 active audit.
 
 - S-06.02.58 · Factual AI cache only reuses exact evidence (A12)
   work_order: docs/work-orders/S-06.02.58-exact-factual-cache.md

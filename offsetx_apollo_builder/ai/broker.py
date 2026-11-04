@@ -20,6 +20,7 @@ task carrying restricted data fails closed rather than dropping to a lower tier.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 import time
@@ -34,6 +35,7 @@ from ..outreach.providers import (
     normalize_generation_output,
 )
 from ..db.connection import DatabaseError
+from ..observability import failure_message, report_failure
 from ..outreach.models import ProviderConfig
 from .errors import (
     EgressBlocked,
@@ -44,7 +46,7 @@ from .errors import (
 )
 from .failures import Failure, FailureAction, FailureKind, classify
 from .payload import EgressRequest, build_payload, payload_summary
-from .quota import QuotaLimits, QuotaTracker
+from .quota import QuotaLimits, QuotaStorageError, QuotaTracker
 from .registry import (
     ProviderOverride,
     ProviderRegistry,
@@ -417,6 +419,73 @@ class EgressBroker:
         bound._open_until = self._open_until
         return bound
 
+    def _quota_scope_id(self, candidate: ResolvedProvider, workspace_id: str) -> str:
+        # Separate physical provider keys have separate budgets. Two workspaces
+        # sharing one physical key spend from the same ledger; no raw key is stored.
+        secret = self.credential_resolver(candidate.id)
+        identity = (
+            "credential:" + secret if secret
+            else "workspace:" + workspace_id
+        )
+        return hashlib.sha256((candidate.id + "\0" + identity).encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _worst_case_quota_cost(candidate: ResolvedProvider, limits: QuotaLimits) -> float:
+        if limits.max_spend_usd_per_day <= 0:
+            return 0.0
+        model = candidate.model
+        # A provider may charge per image, audio minute or an undocumented
+        # price. Passing a $0 estimate into a hard daily spend cap is unsafe.
+        if (
+            model is None or model.kind != "chat"
+            or model.context_window <= 0
+            or max(model.cost_per_1m_input_usd, model.cost_per_1m_output_usd) <= 0
+        ):
+            raise QuotaStorageError(
+                "This model has no verified token-price bound for the daily USD cap. "
+                "Choose a priced text model or configure a provider-side hard limit."
+            )
+        return (model.context_window / 1_000_000) * max(
+            model.cost_per_1m_input_usd, model.cost_per_1m_output_usd
+        )
+
+    def _reserve_attempt(
+        self, candidate: ResolvedProvider, settings: WorkspaceEgressSettings,
+    ) -> tuple[str, str, str]:
+        if self.quota is None:
+            return "", "", ""
+        try:
+            scope = self._quota_scope_id(candidate, settings.workspace_id)
+            limits = settings.quota_limits.get(candidate.id) or QuotaLimits()
+            maximum_cost = self._worst_case_quota_cost(candidate, limits)
+            ticket, reason = self.quota.try_reserve(
+                candidate.id, limits, worst_case_usd=maximum_cost, scope_id=scope,
+            )
+            return ticket or "", scope, reason
+        except Exception as exc:
+            # Safe to stop: no provider transport has begun. One logged
+            # reference joins the refusal to the operator's failure record.
+            message = failure_message(
+                exc, operation="ai.quota.reserve", workspace=settings.workspace_id,
+            )
+            raise NoPermittedProvider(message) from None
+
+    def _reconcile_attempt(
+        self, candidate: ResolvedProvider, settings: WorkspaceEgressSettings,
+        ticket: str, scope: str, *, spend_usd: float, rate_limited: bool,
+    ) -> None:
+        if self.quota is None or not ticket:
+            return
+        try:
+            self.quota.reconcile(
+                candidate.id, ticket, spend_usd=spend_usd,
+                rate_limited=rate_limited, scope_id=scope,
+            )
+        except Exception as exc:
+            # Transport has happened. A durable reservation remains in the
+            # ledger; never retry the external action to repair its receipt.
+            report_failure(exc, operation="ai.quota.reconcile", workspace=settings.workspace_id)
+
     # ── candidate selection ─────────────────────────────────────────────────
 
     def plan(
@@ -718,7 +787,15 @@ class EgressBroker:
                         usage_source="cache",
                     )
 
-            # 5. Call.
+            # 5. Commit a durable reservation BEFORE any provider transport.
+            # The earlier plan() check is only a preview, never the spending gate.
+            ticket, scope, quota_reason = self._reserve_attempt(candidate, settings)
+            if self.quota is not None and not ticket:
+                attempts.append({
+                    "provider_id": candidate.id, "model_id": candidate.model_id,
+                    "status": "quota_exhausted", "detail": quota_reason,
+                })
+                continue
             started = time.monotonic()
             status = "succeeded"
             error = ""
@@ -755,20 +832,10 @@ class EgressBroker:
                 received=text,
             )
 
-            if self.quota is not None:
-                self.quota.record(
-                    candidate.id,
-                    # Was a hardcoded 0.0, which made `max_spend_usd_per_day` a
-                    # cap that could never be reached: 5,000 calls counted as
-                    # $0.00 and nothing was refused.  `D-35`
-                    spend_usd=cost_usd,
-                    # Was a substring search for "429" over the message, which
-                    # also fired on a body that merely contained those digits.
-                    rate_limited=(
-                        failure is not None
-                        and failure.kind is FailureKind.RATE_LIMITED
-                    ),
-                )
+            self._reconcile_attempt(
+                candidate, settings, ticket, scope, spend_usd=cost_usd,
+                rate_limited=(failure is not None and failure.kind is FailureKind.RATE_LIMITED),
+            )
 
             if self.cache is not None and status == "succeeded":
                 self.cache.put(
@@ -931,6 +998,13 @@ class EgressBroker:
                     findings=[item.to_dict() for item in report.findings],
                 )
 
+            ticket, scope, quota_reason = self._reserve_attempt(candidate, settings)
+            if self.quota is not None and not ticket:
+                attempts.append({
+                    "provider_id": candidate.id, "model_id": candidate.model_id,
+                    "status": "quota_exhausted", "detail": quota_reason,
+                })
+                continue
             prompt = str(payload.get("instructions") or request.instructions or "").strip()
             started = time.monotonic()
             status = "succeeded"
@@ -946,8 +1020,10 @@ class EgressBroker:
                 error = str(exc)[:500]
             duration_ms = int((time.monotonic() - started) * 1000)
 
-            if self.quota is not None:
-                self.quota.record(candidate.id, rate_limited="429" in error)
+            self._reconcile_attempt(
+                candidate, settings, ticket, scope,
+                spend_usd=0.0, rate_limited=("429" in error),
+            )
 
             # The picture itself is not written to the log: a base64 image is
             # megabytes, and the log exists to show what *left*, which is the
@@ -1089,6 +1165,13 @@ class EgressBroker:
                     findings=[item.to_dict() for item in report.findings],
                 )
 
+            ticket, scope, quota_reason = self._reserve_attempt(candidate, settings)
+            if self.quota is not None and not ticket:
+                attempts.append({
+                    "provider_id": candidate.id, "model_id": candidate.model_id,
+                    "status": "quota_exhausted", "detail": quota_reason,
+                })
+                continue
             hint = str(payload.get("instructions") or "").strip()
             started = time.monotonic()
             status = "succeeded"
@@ -1110,8 +1193,10 @@ class EgressBroker:
                 error = str(exc)[:500]
             duration_ms = int((time.monotonic() - started) * 1000)
 
-            if self.quota is not None:
-                self.quota.record(candidate.id, rate_limited="429" in error)
+            self._reconcile_attempt(
+                candidate, settings, ticket, scope,
+                spend_usd=0.0, rate_limited=("429" in error),
+            )
 
             words = read_transcript_words(answer)
             text = str(answer.get("text") or "").strip()

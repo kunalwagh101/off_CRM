@@ -293,3 +293,47 @@ def test_A14_completed_send_replays_even_if_provider_setup_is_now_unavailable(tm
         assert replay.status_code == 200, replay.text[:300]
         assert replay.json() == {**first.json(), "idempotent_replay": True}
         assert calls == ["sent"]
+
+
+
+def test_A14_concurrent_conflicting_payload_is_refused_without_second_write(tmp_path):
+    """A14: an attacker racing a victim's key cannot replace its payload."""
+    app_a = create_app(_settings(tmp_path, "race-a"))
+    app_b = create_app(_settings(tmp_path, "race-b"))
+    entered = threading.Event()
+    with TestClient(app_a) as a, TestClient(app_b) as b:
+        original = app_a.state.engine.create_campaign
+
+        def slow(*args, **kwargs):
+            entered.set()
+            time.sleep(0.25)
+            return original(*args, **kwargs)
+
+        app_a.state.engine.create_campaign = slow
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(_post_campaign, a, "same-attacker-key", "Original")
+            assert entered.wait(timeout=8)
+            second = pool.submit(_post_campaign, b, "same-attacker-key", "Changed")
+            original_response = first.result(timeout=20)
+            conflict = second.result(timeout=20)
+        assert original_response.status_code == 201, original_response.text[:250]
+        assert conflict.status_code == 409, conflict.text[:250]
+        campaigns = a.get("/api/v1/campaigns").json()
+        assert campaigns["total"] == 1
+        assert campaigns["items"][0]["name"] == "Original"
+
+
+def test_A14_sql_metacharacters_in_key_cannot_change_database(tmp_path):
+    """A14: the key is always a bound SQL parameter, never a statement."""
+    app = create_app(_settings(tmp_path, "sql-probe"))
+    with TestClient(app) as client:
+        injection = "'; DROP TABLE campaigns;--"
+        first = _post_campaign(client, injection, "Still here")
+        assert first.status_code == 201
+        replay = _post_campaign(client, injection, "Still here")
+        assert replay.status_code == 201
+        assert replay.json()["id"] == first.json()["id"]
+        assert replay.json()["idempotent_replay"] is True
+        next_campaign = _post_campaign(client, "safe-next-key", "Another")
+        assert next_campaign.status_code == 201
+        assert client.get("/api/v1/campaigns").json()["total"] == 2

@@ -322,3 +322,7 @@ R-191 / S-06.02.64: source c63fe5c, isolated Render dep-dbliqluc6qcc73bht1hg LIV
 | R-192 | S-06.02.65 | Malformed nested edits return bounded 4xx, do not save a project version; valid single/batch persist and undo | `tests/test_video_edit_validation_a22.py` (8 HTTP tests: 6 invalid inputs and two valid/size cases) | `offsetx_apollo_builder/api/schemas.py`, `offsetx_apollo_builder/api/app.py` |
 
 RED 86da047 / Render dep-dbln67d6e07s739droo0: 6 fail, 2 pass. Fixed source 384070d / Render dep-dbln72ff3r2c73e4r2q0: 8 pass focused. Final full QA and independent pen/customer acceptance separate. A22 whole API surface remains open.
+
+## 2026-11-04 — R-192 malformed Unicode hardening
+
+Follow-up source 1201495 expands R-192 from 8 to 10 named HTTP tests, adding invalid Unicode escape in a nested parameter value and a nested parameter key. The new `_check_video_edit_parameters` rejects surrogate code points before UTF-8 serialization; the size check uses `ensure_ascii=True`. Final exact-source isolated Render dep-dblnc3tg1s2s73cvcvn0 and all broader gates are pending, not yet claimed passed. Defect D-368, design DD-145.

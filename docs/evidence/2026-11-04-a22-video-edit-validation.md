@@ -12,3 +12,7 @@ On `POST /api/v1/video-projects/{project_id}/edit`, old batch input `list[dict[s
 No schema or credentials changes. If a rollback is required, revert the request schema and handler together; do not delete projects or edit history. Reverting reopens malformed batch input acceptance. Browser editor E2E, independent penetration, complete A22 write-API matrix, full-history verifier, and customer release remain separate gates; S-06.02.23 production audit is still IN_PROGRESS. `main` and customer services untouched.
 
 Requirement R-192; defect D-367; design DD-144. Work order: `docs/work-orders/S-06.02.65-video-edit-input.md`.
+
+## Escaped Unicode attack surface (D-368)
+
+A minimal real FastAPI/Pydantic HTTP handler returned HTTP 500 when `json.dumps(ensure_ascii=False)` of a decoded lone Unicode surrogate was UTF-8 encoded. The full application was not exercised at that exact minimal reproduction. Regression source 1201495 adds two actual off_CRM HTTP tests with raw JSON escapes for parameter values/keys, expects 422 without mutation, and rejects those characters before any project access. It also escapes JSON for bounded size measurement. The latest isolated Render dep-dblnc3tg1s2s73cvcvn0 must pass 10 A22 tests plus the full gates before this is certified; earlier green 8 belongs only to 384070d. No main/customer rollout.

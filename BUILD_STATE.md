@@ -3433,3 +3433,8 @@ Only `develop`. Production audit S-06.02.23 remains the sole IN_PROGRESS item. T
 ## 2026-11-04 — S-06.02.65 / A22 nested video edit input
 
 Branch develop from fd976d2. Owner requested the next feature; production audit S-06.02.23 remained sole IN_PROGRESS, no READY. Selected one partial A22 API write validation story under build-ahead, not DONE. Test-only 86da047 / isolated Render dep-dbln67d6e07s739droo0: 6 expected FAILED/2 passed. Corrected schema/app source 384070d / isolated Render dep-dbln72ff3r2c73e4r2q0: 8 focused PASS; full QA and final LIVE pending at checkpoint. Existing edit engine, save/undo and login unchanged; no schema migrations, real sends or customer data. Requirement R-192, defect D-367, decision DD-144, work order and evidence recorded. Full A22 write-route audit and independent penetration remain OPEN. See docs/evidence/2026-11-04-a22-video-edit-validation.md.
+
+
+## 2026-11-04 — A22 Unicode validator follow-up (final QA pending)
+
+After the first eight A22 tests passed on 384070d, an independent adversarial reasoning check reproduced a UnicodeEncodeError / HTTP 500 in a minimal FastAPI/Pydantic handler for JSON \uD800 when a validator used ensure_ascii=False and UTF-8 encoding. Follow-up source 1201495 now rejects surrogate characters in video edit parameter names/text and uses escaped ASCII for request byte bounds. Two real off_CRM HTTP regression tests were committed. Final isolated Render run dep-dblnc3tg1s2s73cvcvn0 is underway, targeting 10 A22 tests and full SQLite/PG/browser gates. Previous dep-dbln72ff3r2c73e4r2q0 was superseded and canceled before its full PostgreSQL stage. Do not credit it as LIVE or final code QA. D-368/DD-145. No main/customer deployment.

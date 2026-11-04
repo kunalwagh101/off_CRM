@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import math
 import os
 import re
 import subprocess
@@ -361,10 +362,22 @@ def read_usage(data: dict[str, Any]) -> dict[str, int]:
     for name, candidates in _USAGE_KEYS:
         for key in candidates:
             value = block.get(key)
-            if isinstance(value, (int, float)) and value >= 0:
+            # A boolean is not a token count. Neither are NaN, infinity or
+            # fractional tokens; these can otherwise become a falsely free
+            # receipt or raise after the provider has already billed us.
+            if type(value) is int and value >= 0:
+                found[name] = value
+                break
+            if (
+                type(value) is float and math.isfinite(value)
+                and value >= 0 and value.is_integer()
+            ):
                 found[name] = int(value)
                 break
-    return found if len(found) == len(_USAGE_KEYS) else {}
+    # No model call with a real nonempty request should be certified as
+    # costing zero solely because the provider returned an all-zero block.
+    # Return nothing so the broker estimates and labels the uncertainty.
+    return found if len(found) == len(_USAGE_KEYS) and any(found.values()) else {}
 
 
 class _HttpProvider:

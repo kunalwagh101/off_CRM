@@ -1,3 +1,8 @@
+## 2026-11-05 — A05 isolated Render review completed
+
+- The security verification-only A05 test addition (`ee14710`) and QA integration (`94fa650`) have full isolated source-pinned review acceptance: A05 targeted 3 passed, full SQLite 3,015 passed/56 skipped, full disposable real PostgreSQL 3,039 passed/101 skipped, focused PostgreSQL 215 passed, frontend/build, Chromium desktop/mobile and security/static gates passed. Render review `dep-dblr106i0phs7385jao0` confirmed LIVE 2026-11-04 22:44:20 UTC. Evidence `docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md`.
+- This does not close A05's wider authorization/CRM tenancy concerns, historical board replay, independent penetration or customer production acceptance. S-06.02.23 remains IN_PROGRESS. No customer/main deployment or schema change.
+
 ## 2026-11-05 — A05 workspace identity audit regression (develop only)
 
 - F-06.02 / active S-06.02.23: added `tests/test_audit_a05_workspace_identity.py` with 3 real-API permission tests. They cover cross-workspace agent-policy access refusal under spoofed headers, restriction of account management to the install administrator, and immediate session revocation after disabling a user without affecting unrelated sessions.

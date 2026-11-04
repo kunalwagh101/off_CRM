@@ -26,6 +26,7 @@
  * involved.
  */
 
+import { ApiError, fetchMedia } from "../api";
 import { TICKS_PER_SECOND } from "./document";
 import type { MixClip, MixPlan } from "./mixdown";
 
@@ -151,10 +152,12 @@ export async function loadAudioAssets(
   await Promise.all(
     assetIds.map(async (id) => {
       try {
-        const response = await fetch(urlFor(id), { credentials: "same-origin" });
+        const response = await fetchMedia(urlFor(id));
         if (!response.ok) throw new Error(`${response.status}`);
         buffers.set(id, await decoder.decodeAudioData(await response.arrayBuffer()));
-      } catch {
+      } catch (error) {
+        // Auth failures are not broken audio assets: stop export and ask for access.
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) throw error;
         missing.push(id);
       }
     })

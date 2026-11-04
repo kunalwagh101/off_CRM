@@ -310,3 +310,7 @@ A14 source 1c1d3a2 / Render dep-dblg7k8u01pc73a4m7lg confirmed LIVE 2026-11-04T1
 | R-191 | S-06.02.64 | Private root, restricted UID write, legacy mode repair, symlink refusal, unchanged mount/network boundary | `tests/test_ai_sandbox.py -k A32`; existing sandbox isolation and egress suite | `offsetx_apollo_builder/ai/sandbox.py` |
 
 A32 RED isolated review `dep-dblipuff3r2c73a96th0` at test-only `64af3c5`: 5 expected failures. Corrected source `c63fe5c`, isolated Render `dep-dbliqluc6qcc73bht1hg`: focused A32 5 passed (43 deselected); broad gates in progress. Real pinned Docker writing under /work and independent penetration remain open. No customer/main rollout.
+
+## 2026-11-04 — A32 final exact-source regression evidence
+
+R-191 / S-06.02.64: source c63fe5c, isolated Render dep-dbliqluc6qcc73bht1hg LIVE at 2026-11-04 13:24:37 UTC. Focused A32 5 PASS; full SQLite 3,002 PASS/56 skipped; full disposable PostgreSQL 3,026 PASS/101 skipped; PG focused 215 PASS; Chrome desktop/mobile, frontend, static/security gates PASS. This does **not** close native Docker output, independent penetration, failure logging, complete Git-history verifier, customer rollout or the active S-06.02.23 audit. The board state is IN_REVIEW, not DONE.

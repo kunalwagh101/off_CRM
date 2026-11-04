@@ -430,6 +430,12 @@ class EgressBroker:
         return hashlib.sha256((candidate.id + "\0" + identity).encode("utf-8")).hexdigest()
 
     @staticmethod
+    def _quota_workspace_scope(provider_id: str, workspace_id: str) -> str:
+        return hashlib.sha256(
+            ("workspace:" + workspace_id + "\0" + provider_id).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
     def _worst_case_quota_cost(candidate: ResolvedProvider, limits: QuotaLimits) -> float:
         if limits.max_spend_usd_per_day <= 0:
             return 0.0
@@ -460,6 +466,7 @@ class EgressBroker:
             maximum_cost = self._worst_case_quota_cost(candidate, limits)
             ticket, reason = self.quota.try_reserve(
                 candidate.id, limits, worst_case_usd=maximum_cost, scope_id=scope,
+                workspace_scope_id=self._quota_workspace_scope(candidate.id, settings.workspace_id),
             )
             return ticket or "", scope, reason
         except Exception as exc:
@@ -480,6 +487,7 @@ class EgressBroker:
             self.quota.reconcile(
                 candidate.id, ticket, spend_usd=spend_usd,
                 rate_limited=rate_limited, scope_id=scope,
+                workspace_scope_id=self._quota_workspace_scope(candidate.id, settings.workspace_id),
             )
         except Exception as exc:
             # Transport has happened. A durable reservation remains in the
@@ -556,6 +564,7 @@ class EgressBroker:
             allowed, reason = self.quota.check(
                 candidate.id, limits,
                 scope_id=self._quota_scope_id(candidate, settings.workspace_id),
+                workspace_scope_id=self._quota_workspace_scope(candidate.id, settings.workspace_id),
             )
             if allowed:
                 with_budget.append(candidate)
@@ -1362,5 +1371,8 @@ class EgressBroker:
             secret = self.credential_resolver(provider_id)
             identity = "credential:" + secret if secret else "workspace:" + settings.workspace_id
             scope = hashlib.sha256((provider_id + "\0" + identity).encode("utf-8")).hexdigest()
-            rows.append(self.quota.usage(provider_id, limits or QuotaLimits(), scope_id=scope))
+            rows.append(self.quota.usage(
+                provider_id, limits or QuotaLimits(), scope_id=scope,
+                workspace_scope_id=self._quota_workspace_scope(provider_id, settings.workspace_id),
+            ))
         return rows

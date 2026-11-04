@@ -293,56 +293,71 @@ class QuotaTracker:
         # The scope ID is the credential fingerprint, never the credential.
         return f"account:{provider_id}:{scope_id}"
 
+    @classmethod
+    def _keys(
+        cls, provider_id: str, scope_id: str, workspace_scope_id: str,
+    ) -> list[str]:
+        keys = [cls._scope(provider_id, scope_id)]
+        if workspace_scope_id:
+            workspace = cls._scope(provider_id, workspace_scope_id)
+            if workspace not in keys:
+                keys.append(workspace)
+        return keys
+
     def try_reserve(
         self, provider_id: str, limits: QuotaLimits, *,
         worst_case_usd: float = 0.0, scope_id: str = "",
+        workspace_scope_id: str = "",
     ) -> tuple[str | None, str]:
-        """Atomically book one provider attempt before transport.
-
-        A crashed/unknown attempt keeps its count and max spend held. A later
-        measured receipt may refund unused spend, but never the attempt count.
-        """
+        """Book the provider key and the workspace in one durable transaction."""
         if not math.isfinite(worst_case_usd) or worst_case_usd < 0:
             raise QuotaStorageError("Quota reservation requires a valid non-negative cost bound.")
-        key = self._scope(provider_id, scope_id)
+        keys = self._keys(provider_id, scope_id, workspace_scope_id)
         ticket = uuid.uuid4().hex
         denied = ""
         with self._exclusive_state():
-            state = self._state(key)
-            # The old provider-only ledger is retained as a conservative
-            # baseline for accounts migrated while a day's window is active.
-            old = self._states.get(provider_id) if key != provider_id else None
-            minute = state.minute_count + (
-                old.minute_count if old and old.minute_window == state.minute_window else 0
-            )
-            count = state.day_count + (old.day_count if old and old.day == state.day else 0)
-            spend = state.day_spend_usd + (
-                old.day_spend_usd if old and old.day == state.day else 0
-            )
-            if limits.requests_per_minute > 0 and minute >= limits.requests_per_minute:
-                denied = "per-minute limit reached; resets within a minute"
-            elif limits.requests_per_day > 0 and count >= limits.requests_per_day:
-                denied = "daily limit reached; resets at 00:00 UTC"
-            elif limits.max_spend_usd_per_day > 0 and (
-                spend + worst_case_usd > limits.max_spend_usd_per_day + 1e-12
-            ):
-                denied = "daily spend cap reached or the conservative cost bound is too high"
+            states = [self._state(key) for key in keys]
+            legacy = self._states.get(provider_id)
+            for key, state in zip(keys, states):
+                old = legacy if key != provider_id else None
+                minute = state.minute_count + (
+                    old.minute_count if old and old.minute_window == state.minute_window else 0
+                )
+                count = state.day_count + (
+                    old.day_count if old and old.day == state.day else 0
+                )
+                spend = state.day_spend_usd + (
+                    old.day_spend_usd if old and old.day == state.day else 0
+                )
+                if limits.requests_per_minute > 0 and minute >= limits.requests_per_minute:
+                    denied = "per-minute limit reached; resets within a minute"
+                elif limits.requests_per_day > 0 and count >= limits.requests_per_day:
+                    denied = "daily limit reached; resets at 00:00 UTC"
+                elif limits.max_spend_usd_per_day > 0 and (
+                    spend + worst_case_usd > limits.max_spend_usd_per_day + 1e-12
+                ):
+                    denied = "daily spend cap reached or the conservative cost bound is too high"
+                if denied:
+                    break
             if not denied:
-                state.minute_count += 1
-                state.day_count += 1
-                state.day_spend_usd += worst_case_usd
-                state.last_call_at = time.time()
-                state.pending[ticket] = {
-                    "day": state.day, "amount": worst_case_usd,
-                }
+                for state in states:
+                    state.minute_count += 1
+                    state.day_count += 1
+                    state.day_spend_usd += worst_case_usd
+                    state.last_call_at = time.time()
+                    state.pending[ticket] = {
+                        "day": state.day, "amount": worst_case_usd,
+                    }
         return (None, denied) if denied else (ticket, "")
 
     def reserve(
         self, provider_id: str, limits: QuotaLimits, *,
         worst_case_usd: float = 0.0, scope_id: str = "",
+        workspace_scope_id: str = "",
     ) -> str:
         ticket, reason = self.try_reserve(
-            provider_id, limits, worst_case_usd=worst_case_usd, scope_id=scope_id,
+            provider_id, limits, worst_case_usd=worst_case_usd,
+            scope_id=scope_id, workspace_scope_id=workspace_scope_id,
         )
         if ticket is None:
             raise QuotaLimitError(reason)
@@ -351,31 +366,37 @@ class QuotaTracker:
     def reconcile(
         self, provider_id: str, ticket: str, *,
         spend_usd: float, rate_limited: bool = False, scope_id: str = "",
+        workspace_scope_id: str = "",
     ) -> bool:
-        """Settle one ticket once. Never retry an uncertain provider action."""
+        """Settle once in both ledgers, or neither; never retry provider I/O."""
         if not math.isfinite(spend_usd) or spend_usd < 0:
             raise QuotaStorageError("Provider usage cannot be reconciled with an invalid cost.")
-        key = self._scope(provider_id, scope_id)
-        changed = False
+        keys = self._keys(provider_id, scope_id, workspace_scope_id)
         with self._exclusive_state():
-            state = self._states.get(key)
-            if state is None:
-                raise QuotaStorageError("Quota reservation not found; check the ledger before retrying.")
-            if ticket in state.settled:
+            states = [self._states.get(key) for key in keys]
+            if any(state is None for state in states):
+                raise QuotaStorageError(
+                    "Quota reservation not found; do not repeat provider transport."
+                )
+            completed = [ticket in state.settled for state in states]
+            if all(completed):
                 return False
-            entry = state.pending.get(ticket)
-            if entry is None:
-                raise QuotaStorageError("Quota reservation not found; do not repeat provider transport.")
-            if entry["day"] == state.day:
-                state.day_spend_usd += spend_usd - float(entry["amount"])
-                state.day_spend_usd = max(0.0, state.day_spend_usd)
-            state.consecutive_rate_limits = (
-                state.consecutive_rate_limits + 1 if rate_limited else 0
-            )
-            del state.pending[ticket]
-            state.settled[ticket] = _today()
-            changed = True
-        return changed
+            if any(completed) or any(ticket not in state.pending for state in states):
+                raise QuotaStorageError(
+                    "Quota reservation is incomplete; do not repeat provider transport."
+                )
+            for state in states:
+                entry = state.pending[ticket]
+                if entry["day"] == state.day:
+                    state.day_spend_usd = max(
+                        0.0, state.day_spend_usd + spend_usd - float(entry["amount"])
+                    )
+                state.consecutive_rate_limits = (
+                    state.consecutive_rate_limits + 1 if rate_limited else 0
+                )
+                del state.pending[ticket]
+                state.settled[ticket] = _today()
+        return True
 
     def _state(self, provider_id: str) -> QuotaState:
         self._load()
@@ -394,28 +415,31 @@ class QuotaTracker:
             state.day_spend_usd = 0.0
         return state
 
-    def check(self, provider_id: str, limits: QuotaLimits, *, scope_id: str = "") -> tuple[bool, str]:
-        """Return ``(allowed, reason)`` without consuming quota."""
+    def check(
+        self, provider_id: str, limits: QuotaLimits, *,
+        scope_id: str = "", workspace_scope_id: str = "",
+    ) -> tuple[bool, str]:
+        """Preview both budgets; try_reserve rechecks them atomically."""
         with self._lock:
-            state = self._state(self._scope(provider_id, scope_id))
-            if limits.requests_per_minute > 0 and state.minute_count >= limits.requests_per_minute:
-                return False, (
-                    f"per-minute limit reached ({state.minute_count}/"
-                    f"{limits.requests_per_minute}); resets within a minute"
+            legacy = self._states.get(provider_id)
+            for key in self._keys(provider_id, scope_id, workspace_scope_id):
+                state = self._state(key)
+                old = legacy if key != provider_id else None
+                minute = state.minute_count + (
+                    old.minute_count if old and old.minute_window == state.minute_window else 0
                 )
-            if limits.requests_per_day > 0 and state.day_count >= limits.requests_per_day:
-                return False, (
-                    f"daily limit reached ({state.day_count}/{limits.requests_per_day}); "
-                    "resets at 00:00 UTC"
+                count = state.day_count + (
+                    old.day_count if old and old.day == state.day else 0
                 )
-            if (
-                limits.max_spend_usd_per_day > 0
-                and state.day_spend_usd >= limits.max_spend_usd_per_day
-            ):
-                return False, (
-                    f"daily spend cap reached (${state.day_spend_usd:.2f}/"
-                    f"${limits.max_spend_usd_per_day:.2f})"
+                spend = state.day_spend_usd + (
+                    old.day_spend_usd if old and old.day == state.day else 0
                 )
+                if limits.requests_per_minute > 0 and minute >= limits.requests_per_minute:
+                    return False, f"per-minute limit reached ({minute}/{limits.requests_per_minute})"
+                if limits.requests_per_day > 0 and count >= limits.requests_per_day:
+                    return False, f"daily limit reached ({count}/{limits.requests_per_day})"
+                if limits.max_spend_usd_per_day > 0 and spend >= limits.max_spend_usd_per_day:
+                    return False, f"daily spend cap reached (USD {spend:.2f}/{limits.max_spend_usd_per_day:.2f})"
             return True, ""
 
     def record(self, provider_id: str, *, spend_usd: float = 0.0, rate_limited: bool = False) -> None:
@@ -442,20 +466,39 @@ class QuotaTracker:
             state.consecutive_rate_limits + 1 if rate_limited else 0
         )
 
-    def usage(self, provider_id: str, limits: QuotaLimits, *, scope_id: str = "") -> dict[str, Any]:
-        """Shape the Connectors screen renders as a usage bar."""
+    def usage(
+        self, provider_id: str, limits: QuotaLimits, *,
+        scope_id: str = "", workspace_scope_id: str = "",
+    ) -> dict[str, Any]:
+        """The workspace budget in Connectors, plus its pending reservations."""
         with self._lock:
-            state = self._state(self._scope(provider_id, scope_id))
+            keys = self._keys(provider_id, scope_id, workspace_scope_id)
+            state = self._state(keys[-1])
+            old = self._states.get(provider_id) if keys[-1] != provider_id else None
+            minute_old = old.minute_count if old and old.minute_window == state.minute_window else 0
+            day_old = old.day_count if old and old.day == state.day else 0
+            spend_old = old.day_spend_usd if old and old.day == state.day else 0.0
+            reserved = sum(
+                float(hold["amount"])
+                for hold in state.pending.values() if hold["day"] == state.day
+            )
             return {
                 "provider_id": provider_id,
-                "minute_used": state.minute_count,
+                "minute_used": state.minute_count + minute_old,
                 "minute_limit": limits.requests_per_minute,
-                "day_used": state.day_count,
+                "day_used": state.day_count + day_old,
                 "day_limit": limits.requests_per_day,
-                "day_spend_usd": round(state.day_spend_usd, 4),
+                "day_spend_usd": round(state.day_spend_usd + spend_old, 4),
+                "day_reserved_usd": round(reserved, 4),
+                "day_measured_usd": round(
+                    max(0.0, state.day_spend_usd + spend_old - reserved), 4
+                ),
                 "day_spend_cap_usd": limits.max_spend_usd_per_day,
                 "source": "counted_locally",
-                "exhausted": not self.check(provider_id, limits, scope_id=scope_id)[0],
+                "exhausted": not self.check(
+                    provider_id, limits, scope_id=scope_id,
+                    workspace_scope_id=workspace_scope_id,
+                )[0],
             }
 
     def reset(self, provider_id: str = "") -> None:

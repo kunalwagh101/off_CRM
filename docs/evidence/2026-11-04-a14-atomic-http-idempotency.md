@@ -31,3 +31,10 @@ Stop API workers before any downgrade to old non-atomic code. Preserve the CRM a
 - Test first `0b66f15914a295d0cf002f8479a739e7c4e9a183` added a replay case where the provider factory becomes unavailable after a successful send. First repaired source `19682d5` still built the provider before looking up the cached result.
 - Code fix `c6d11927449e151a7c11cb7cfb402fbf81c428c8` defers mail-provider construction until the guarded operation actually runs. Completed replays avoid provider setup, while first execution still stores the in-progress claim before setup/transport.
 - **No final exact-source GREEN assertion for this added case until the next isolated Render run.**
+
+## Final-source adversarial and crash coverage, pending exact-source QA
+
+- Additional tests `6dd36182ac05b2c1dc9a9670267c7d26887b28f7`: concurrently altered payload must return 409 rather than steal another caller's key, and SQL metacharacters must never be executed from the key.
+- Added actual independent OS process crash test `2e709a59479d374397d66abf242f9e4148d6c879`: a worker performs an insert, dies with exit code 47 before idempotency transaction commit, and a fresh app checks the database is clean and the same key may safely retry once.
+- Code `c6d1192` moves send-provider construction after idempotency replay check, covered by `0b66f15`; a completed replay must succeed without another provider connection.
+- **The last executable source is 2e709a5; only its own isolated Render QA results count as final acceptance.** Prior Render `dep-dblg1uc9v7es739u8t10` used older 38371c and does not cover these subsequent tests/changes.

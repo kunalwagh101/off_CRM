@@ -1,3 +1,10 @@
+## 2026-11-04 — A14 final-source extended adversarial and crash tests (QA pending)
+
+- After the first GREEN, `6dd3618` added an attacker racing a victim's key with changed payload and a SQL-metacharacter key; `2e709a5` added a true OS-process `os._exit(47)` after CRM insertion and before the enclosing idempotency transaction commits. After a restart, the campaign and key must both be absent, and exactly one retry may succeed. These are synthetic tests on disposable local data, not a customer server.
+- `0b66f15` added replay after provider construction fails; the code fix `c6d1192` moves provider creation into the external operation callback so a known completed replay does not re-contact the provider.
+- Exact final executable/test source: `2e709a59479d374397d66abf242f9e4148d6c879`. Full real PostgreSQL, SQLite, frontend, Chromium, security gates and final Render LIVE status are **not yet observed on that source**. An earlier review runner `dep-dblg1uc9v7es739u8t10` ran code only through `38371c`, so its results cannot certify these later changes.
+- No customer or `main` deployment. S-06.02.62 remains BACKLOG under active S-06.02.23 audit and external acceptance gates.
+
 ## 2026-11-04 — A14 follow-up: completed sends must replay even without provider setup
 
 - A completed send's replay still constructed the mail provider first; rotated credentials or unavailable adapter setup could fail before a valid saved response was read. Added `tests/test_api_idempotency_a14.py::test_A14_completed_send_replays_even_if_provider_setup_is_now_unavailable` test at 0b66f15.

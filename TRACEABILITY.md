@@ -294,3 +294,5 @@ A11 review runner dep-dblffhijnfac73fs3770 **LIVE** 2026-11-04T09:35:47.896966Z 
 | R-190 | S-06.02.62 | Cross-process database effect exactly once, canonical request and authenticated caller binding, rollback on crash, pre-send in-progress hold, no external auto-retry, legacy/corrupt key denial | `tests/test_api_idempotency_a14.py` (SQLite and real PostgreSQL API instances, principal replay, external send, crash); `tests/test_outreach_api.py` replay/409 | `offsetx_apollo_builder/api/app.py` and existing `OutreachStore.transaction(immediate=True)` |
 
 RED isolated Render `ac10fa0`: five failures; initial GREEN `19682d5`: five passes. Additional tests `7c47b34` and full review are pending. Source result is not an independent penetration certification; no main/customer release.
+
+A14 additional test coverage on executable source `2e709a5`: adversarial concurrently changed payload (409 and single effect), bound SQL-metacharacter key, and true OS-process crash before transaction commit. Real provider setup replay test added at `0b66f15`, code fixed at `c6d1192`. Final exact-source Docker/Render QA pending; no customer release.

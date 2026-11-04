@@ -31,10 +31,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
-- S-06.02.64 · Restricted sandbox can write outputs without exposing host files (A32)
-  work_order: docs/work-orders/S-06.02.64-sandbox-writable-workspace.md
-  checkpoint: TDD RED test added under owner-authorised build-ahead; not READY while the production audit S-06.02.23 is IN_PROGRESS. Full Docker/independent sandbox acceptance remains open.
-
 - S-06.02.62 · HTTP idempotency safely prevents duplicate state-changing requests (A14)
   work_order: docs/work-orders/S-06.02.62-atomic-http-idempotency.md
   checkpoint: TDD RED ac10fa0 / isolated Render dep-dblfslqjnfac73ft665g: 5 expected FAIL (two live API instances, changed payload, crash, uncertain send, invalid header). First GREEN source 19682d5 / Render dep-dblfu1ugekts738a7780: same 5 PASS. Added PostgreSQL cross-instance, authenticated-principal, verified external replay and legacy-row tests at b53baec / 7c47b34; a further test 0b66f15 proves replay must not rebuild the mail provider, fixed in c6d1192. Added adversarial conflicting-payload race and SQL metacharacter tests in 6dd3618, and real OS-process crash rollback test in 2e709a5. Exact-source Render review dep-dblg7k8u01pc73a4m7lg (source 1c1d3a2, executable changes last 2e709a5) passed focused A14 12/12 with one PG-only skip in initial gate, complete SQLite 2,996 PASS/56 skipped, full disposable PostgreSQL 3,020 PASS/101 skipped (A14 PG test enabled), focused PG 215 PASS, frontend/npm audits, Chromium desktop/mobile, structural board verifier and security/static gates PASS. Confirmed LIVE 2026-11-04 10:27:18 UTC on exact source 1c1d3a2; code and tests only on develop. Source app.py uses a single transaction for CRM-only mutations and a durable in-progress claim before provider/email actions. Code was built ahead under owner instruction but remains BACKLOG while S-06.02.23 audit is IN_PROGRESS and production/independent acceptance is open. No main/customer deployment.
@@ -158,6 +154,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.64 · Restricted sandbox can write outputs without exposing host files (A32)
+  work_order: docs/work-orders/S-06.02.64-sandbox-writable-workspace.md
+  review: TDD RED at 64af3c5 / Render dep-dblipuff3r2c73a96th0: 5 expected A32 failed. Corrected source c63fe5c / isolated Render dep-dbliqluc6qcc73bht1hg: 5 A32 passed with real POSIX UID 65534 subprocess, all 12 repeated concurrency tests passed, full SQLite 3,002 passed/56 skipped, focused PostgreSQL 215 passed, Chromium desktop/mobile Contacts and Public Demo passed, Ruff and structural board gates passed. Full PostgreSQL and final LIVE status still in progress at documentation checkpoint. Native Docker /work write, independent penetration, full-history verifier, error-reference checks and customer acceptance OPEN. No main/customer deployment; S-06.02.23 audit remains IN_PROGRESS. Evidence docs/evidence/2026-11-04-a32-sandbox-workspace.md.
+
 
 - S-06.02.63 · Token-authenticated media works in review and video export (A20)
   work_order: docs/work-orders/S-06.02.63-token-media-auth.md

@@ -144,7 +144,7 @@ The historical 23 main-suite skips comprised **19 browser cases, 3 PostgreSQL ca
 | A29 | P1 | Release evidence omits important live integrations and operational failure checks | Test execution and configuration confirmed | Open; S-06.02.27 / S-06.02.18 (live CI and release evidence) |
 | A30 | P2 | The source-of-truth documents and login copy still contradict the production direction | Source and board comparison confirmed | Not rechecked on develop; S-06.02.23 |
 | A31 | P2 | Two frontend build dependencies have published advisories | npm audit and installed dependency tree confirmed | Open; D-47 / S-06.02.16 |
-| A32 | P1 | The sandbox's advertised writable output directory rejects writes | Reproduced in real Docker | Open; D-121 (sandbox output) |
+| A32 | P1 | The sandbox's advertised writable output directory rejects writes | Reproduced in real Docker | Mitigated on develop S-06.02.64 / D-121: RED 5 failures, GREEN 5 PASS using actual UID 65534 POSIX process with private-root/sticky-work repair; full SQLite 3002 PASS, focused PG 215 PASS in isolated Render. Original native Docker EACCES has not yet been re-tested in a running Docker job; independent penetration and customer acceptance OPEN. |
 | A33 | P1 | Creating a campaign can silently select an older campaign | Reproduced in real Chrome | Pending regression re-run; earlier remediation: S-06.02.22 |
 | A34 | P2 | The editor's default Colour clip fails its own export acceptance gate | Reproduced through real browser export | Open pending full tests; code in review S-06.02.39 / D-122 |
 | A35 | P2 | Connectors loads Gmail status from a nonexistent API route | Reproduced in live HTTP and Chrome | Pending regression re-run; earlier remediation: D-120 / tests/test_frontend_routes_exist.py |

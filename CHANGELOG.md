@@ -1,3 +1,10 @@
+## 2026-11-04 — A32 restricted sandbox work directory (test-first isolated review)
+
+- S-06.02.64 / F-06.02: corrected a high-priority audit bug in `SandboxWorkspace.prepare()`: host-owned 0755 work directories could not be written by the container's UID/GID 65534. Keep per-job root 0700, inbox 0755 (mounted read-only), and only /work sticky-writable 01777 (mounted rw). Refuse symlinked directories, and use no-follow file-descriptor-based fchmod to avoid changing a redirected target. Docker user, capabilities, egress, storage and network controls are unchanged.
+- **TDD RED**: test-only 64af3c5 / Render dep-dblipuff3r2c73a96th0: all five new A32 tests failed as expected. **Focused GREEN**: corrected executable source c63fe5c / Render dep-dbliqluc6qcc73bht1hg: all five passed (43 deselected), including a real Linux UID 65534 subprocess writing through a directory descriptor; not an actual Docker execution.
+- **Observed broader gates on exact executable source**: full SQLite 3,002 PASS/56 skipped/44 warnings; focused PostgreSQL 215 PASS; 12/12 repeated concurrency checks; real Chromium desktop/mobile Contacts and Public Demo, A09 and A18 Chromium, front-end build and security/static and structural board checks PASS. Full disposable PostgreSQL and Render LIVE state are still pending; do not claim those as finished. Docker-review structural verifier used `--skip-tests` and did not replay Git evidence history.
+- Remaining release gates: real Docker sandbox output integration on native Linux with pinned image, independent penetration, full-history verifier, error-reference/failure log acceptance and production owner signoff. S-06.02.23 audit remains IN_PROGRESS; S-06.02.64 stays IN_REVIEW. No main/customer service deploy or data changes. Details: `docs/work-orders/S-06.02.64-sandbox-writable-workspace.md` and `docs/evidence/2026-11-04-a32-sandbox-workspace.md`.
+
 ## 2026-11-04 — A20 private media works with API-token authentication (isolated review)
 
 - S-06.02.63 / F-06.02: selected the A20 media auth defect after checking the current develop board and open audit. The active S-06.02.23 audit remains separate and IN_PROGRESS.

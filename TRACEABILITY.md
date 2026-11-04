@@ -319,10 +319,16 @@ R-191 / S-06.02.64: source c63fe5c, isolated Render dep-dbliqluc6qcc73bht1hg LIV
 
 | Req | Story | Acceptance | Tests | Code |
 |---|---|---|---|---|
-| R-192 | S-06.02.65 | Malformed nested edits return bounded 4xx, do not save a project version; valid single/batch persist and undo | `tests/test_video_edit_validation_a22.py` (8 HTTP tests: 6 invalid inputs and two valid/size cases) | `offsetx_apollo_builder/api/schemas.py`, `offsetx_apollo_builder/api/app.py` |
+| R-192 | S-06.02.65 | Malformed nested edits return bounded 4xx, do not save a project version; valid single/batch persist and undo | `tests/test_video_edit_validation_a22.py` (10 HTTP tests: 6 invalid-shape cases, 2 Unicode cases, and 2 valid/boundary cases) | `offsetx_apollo_builder/api/schemas.py`, `offsetx_apollo_builder/api/app.py` |
 
 RED 86da047 / Render dep-dbln67d6e07s739droo0: 6 fail, 2 pass. Fixed source 384070d / Render dep-dbln72ff3r2c73e4r2q0: 8 pass focused. Final full QA and independent pen/customer acceptance separate. A22 whole API surface remains open.
 
 ## 2026-11-04 — R-192 malformed Unicode hardening
 
 Follow-up source 1201495 expands R-192 from 8 to 10 named HTTP tests, adding invalid Unicode escape in a nested parameter value and a nested parameter key. The new `_check_video_edit_parameters` rejects surrogate code points before UTF-8 serialization; the size check uses `ensure_ascii=True`. Final exact-source isolated Render dep-dblnc3tg1s2s73cvcvn0 and all broader gates are pending, not yet claimed passed. Defect D-368, design DD-145.
+
+## R-192 — Final exact-source automated review (2026-11-04)
+
+Final review evidence: executable/test source `12014959e82b27c4fce65cc4f5c983c65c28174b`, isolated Render `dep-dblnc3tg1s2s73cvcvn0` **LIVE** on 2026-11-04 at 18:34:14 UTC. A22 focused **10 passed**; full SQLite **3,012 passed, 56 skipped, 44 warnings**; full real disposable PostgreSQL **3,036 passed, 101 skipped, 44 warnings**; focused PG **215 passed**; 12 real repeated concurrency probes PASS. Frontend tests/build/npm audits, Chromium desktop/mobile Contacts/Public Demo, A09 and A18 browser security checks, Ruff, API auth and structural board verifier PASS. Docker board verifier used `--skip-tests`: no historical evidence replay. No independent penetration, actual customer video browser acceptance, full A22 write-API matrix, customer deployment or `main` promotion.
+
+A22 across **all** write routes remains open; independent penetration and full-history evidence replay are not certified. No customer/main release.

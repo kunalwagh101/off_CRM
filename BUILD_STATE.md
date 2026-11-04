@@ -3438,3 +3438,10 @@ Branch develop from fd976d2. Owner requested the next feature; production audit 
 ## 2026-11-04 — A22 Unicode validator follow-up (final QA pending)
 
 After the first eight A22 tests passed on 384070d, an independent adversarial reasoning check reproduced a UnicodeEncodeError / HTTP 500 in a minimal FastAPI/Pydantic handler for JSON \uD800 when a validator used ensure_ascii=False and UTF-8 encoding. Follow-up source 1201495 now rejects surrogate characters in video edit parameter names/text and uses escaped ASCII for request byte bounds. Two real off_CRM HTTP regression tests were committed. Final isolated Render run dep-dblnc3tg1s2s73cvcvn0 is underway, targeting 10 A22 tests and full SQLite/PG/browser gates. Previous dep-dbln72ff3r2c73e4r2q0 was superseded and canceled before its full PostgreSQL stage. Do not credit it as LIVE or final code QA. D-368/DD-145. No main/customer deployment.
+
+
+## 2026-11-04 — S-06.02.65 final isolated Render result
+
+Final review evidence: executable/test source `12014959e82b27c4fce65cc4f5c983c65c28174b`, isolated Render `dep-dblnc3tg1s2s73cvcvn0` **LIVE** on 2026-11-04 at 18:34:14 UTC. A22 focused **10 passed**; full SQLite **3,012 passed, 56 skipped, 44 warnings**; full real disposable PostgreSQL **3,036 passed, 101 skipped, 44 warnings**; focused PG **215 passed**; 12 real repeated concurrency probes PASS. Frontend tests/build/npm audits, Chromium desktop/mobile Contacts/Public Demo, A09 and A18 browser security checks, Ruff, API auth and structural board verifier PASS. Docker board verifier used `--skip-tests`: no historical evidence replay. No independent penetration, actual customer video browser acceptance, full A22 write-API matrix, customer deployment or `main` promotion.
+
+Source `1201495` is the final code/test revision; documentation followed on `develop`. Only isolated review marker was deployed, not the customer/public/demo service. The existing audit S-06.02.23 remains IN_PROGRESS, S-06.02.65 IN_REVIEW, and no additional work is authorised on main. Complete A22 route fuzzing, independent penetration, full-history verifier and customer video browser acceptance remain open.

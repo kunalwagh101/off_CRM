@@ -787,6 +787,8 @@ def _check_video_edit_parameters(params: dict[str, Any]) -> None:
             for key, child in value.items():
                 if not isinstance(key, str) or len(key) > 128:
                     raise ValueError("Video edit parameter names are too long.")
+                if any(0xD800 <= ord(character) <= 0xDFFF for character in key):
+                    raise ValueError("Video edit parameter names contain invalid Unicode.")
                 pending.append((child, depth + 1))
         elif isinstance(value, list):
             if len(value) > 2000:
@@ -795,6 +797,8 @@ def _check_video_edit_parameters(params: dict[str, Any]) -> None:
         elif isinstance(value, str):
             if len(value) > 20000:
                 raise ValueError("Video edit text exceeds the allowed length.")
+            if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+                raise ValueError("Video edit text contains invalid Unicode.")
         elif isinstance(value, float) and not math.isfinite(value):
             raise ValueError("Video edit numbers must be finite.")
 
@@ -830,7 +834,7 @@ class VideoEditBody(StrictModel):
         elif self.op or self.operation or self.params:
             raise ValueError("Send either a video edit batch or one edit, not both.")
         # A valid 500-step drag remains supported, but not an unbounded body.
-        if len(json.dumps(self.model_dump(), separators=(",", ":"), ensure_ascii=False).encode("utf-8")) > 512 * 1024:
+        if len(json.dumps(self.model_dump(), separators=(",", ":"), ensure_ascii=True).encode("utf-8")) > 512 * 1024:
             raise ValueError("Video edit request exceeds the allowed size.")
         return self
 

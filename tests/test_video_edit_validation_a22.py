@@ -104,3 +104,28 @@ def test_A22_oversized_batch_is_refused_before_write(video_client):
     assert response.status_code == 422
     current = client.get(endpoint).json()
     assert current["version"] == 0
+
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        b'{"operations":[{"op":"rename","params":{"name":"\\ud800"}}]}',
+        b'{"operations":[{"op":"rename","params":{"\\ud800":"invalid key"}}]}',
+    ],
+)
+def test_A22_invalid_unicode_escape_is_422_with_no_write(video_client, raw_json):
+    """A22: malformed JSON Unicode escapes cannot turn size checks into HTTP 500."""
+    client, project_id = video_client
+    endpoint = f"/api/v1/video-projects/{project_id}"
+    before = client.get(endpoint).json()
+    response = client.post(
+        f"{endpoint}/edit",
+        content=raw_json,
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 422, response.text[:250]
+    assert "traceback" not in response.text.lower()
+    after = client.get(endpoint).json()
+    assert after["version"] == before["version"]
+    assert after["document"] == before["document"]
+
+

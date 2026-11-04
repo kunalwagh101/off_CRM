@@ -302,3 +302,11 @@ A14 additional test coverage on executable source `2e709a5`: adversarial concurr
 `S-06.02.62 / R-190`, source `1c1d3a2` (executable `2e709a5`), isolated Render `dep-dblg7k8u01pc73a4m7lg`: 12 focused A14 PASS/1 PG-only SKIP; full SQLite 2,996 PASS/56 skipped; real disposable PG 3,020 PASS/101 skipped with the PG-specific two-instance race included; focused PG 215 PASS; desktop/mobile Chromium and frontend/security gates PASS. Full-history Git evidence replay, independent security, real mail-provider acceptance and customer/main release remain OPEN; story still BACKLOG.
 
 A14 source 1c1d3a2 / Render dep-dblg7k8u01pc73a4m7lg confirmed LIVE 2026-11-04T10:27:18.435081Z with the above complete SQLite/PG/browser QA. This is isolated QA, not provider acceptance or customer release.
+
+## 2026-11-04 — A32 restricted sandbox output (R-191, S-06.02.64)
+
+| Req | Story | Acceptance | Tests | Code |
+|---|---|---|---|---|
+| R-191 | S-06.02.64 | Private root, restricted UID write, legacy mode repair, symlink refusal, unchanged mount/network boundary | `tests/test_ai_sandbox.py -k A32`; existing sandbox isolation and egress suite | `offsetx_apollo_builder/ai/sandbox.py` |
+
+A32 RED isolated review `dep-dblipuff3r2c73a96th0` at test-only `64af3c5`: 5 expected failures. Corrected source `c63fe5c`, isolated Render `dep-dbliqluc6qcc73bht1hg`: focused A32 5 passed (43 deselected); broad gates in progress. Real pinned Docker writing under /work and independent penetration remain open. No customer/main rollout.

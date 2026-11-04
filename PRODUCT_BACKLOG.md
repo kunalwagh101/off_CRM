@@ -939,6 +939,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-188 | An email provider setup failure cannot strand a claimed job or cause unsafe automatic duplicate sending | S-06.02.61 |
 | R-189 | AI provider request and USD limits reserve atomically before egress across workers, accounts, key rotations, and crashes | S-06.02.60 |
 | R-190 | Idempotency-Key writes create at most one effect across API workers, bind caller and request, and retain unknown external-action state | S-06.02.62 |
+| R-191 | Sandbox job output is writable to the fixed non-root user, with a private host root and symlink refusal | S-06.02.64 |
 
 #### S-06.02.64 — A sandbox job writes useful output without exposing host directories (A32)
 **As a** workspace owner, **I want** the isolated code sandbox to write its approved output files, **so that** a successful job can return useful artifacts without weakening filesystem or network isolation.

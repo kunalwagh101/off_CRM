@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
+import { ProtectedImage } from "../ProtectedImage";
 import { Badge, Button, PageHeader, Panel, StatePanel } from "../components";
 import { useApp } from "../context";
 import type { ImageAsset, ImageSummary } from "../types";
@@ -133,7 +134,7 @@ export default function ImageReview() {
             <Badge tone="neutral">{current.model_id || current.provider_id}</Badge>
             <Badge tone="neutral">{current.width}×{current.height}</Badge>
           </div>
-          <img
+          <ProtectedImage
             className="image-review-canvas"
             src={api.url(`/image-assets/${current.id}/file`)}
             alt="Generated candidate awaiting review"

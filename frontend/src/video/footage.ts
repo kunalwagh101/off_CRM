@@ -26,6 +26,7 @@
  * is what makes one place enough.
  */
 
+import { fetchMedia } from "../api";
 import { TICKS_PER_SECOND } from "./document";
 import { canDecode, demuxVideo, type FrameRef, type VideoTrack } from "./demux";
 import type { AssetTable, LoadedAsset } from "./render";
@@ -398,7 +399,7 @@ export class FootageLibrary {
       opened.set(
         assetId,
         (async () => {
-          const response = await fetch(urlFor(assetId), { credentials: "same-origin" });
+          const response = await fetchMedia(urlFor(assetId));
           if (!response.ok) throw new FootageError(`The server returned ${response.status}.`);
           return Footage.open(assetId, new Uint8Array(await response.arrayBuffer()));
         })()

@@ -938,6 +938,7 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 | R-187 | A cached AI answer cannot be attributed to a different model, system prompt or generation setting | S-06.02.59 |
 | R-188 | An email provider setup failure cannot strand a claimed job or cause unsafe automatic duplicate sending | S-06.02.61 |
 | R-189 | AI provider request and USD limits reserve atomically before egress across workers, accounts, key rotations, and crashes | S-06.02.60 |
+| R-190 | Idempotency-Key writes create at most one effect across API workers, bind caller and request, and retain unknown external-action state | S-06.02.62 |
 
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
@@ -2224,6 +2225,14 @@ stories until opened.
 - **Given** temporary or unknown setup errors, **when** the worker continues, **then** it performs only bounded safe pre-send retry or an explicit failure and continues unrelated due jobs.
 - **Given** an actual ambiguous post-send outcome, **when** retries are considered, **then** existing do-not-resend quarantine is unchanged.
 - **Dependencies:** real durable email worker and traceable-errors contract before customer deployment; normal board readiness/WIP rules apply. **Size:** M. **Audit:** A16 / D-363. **Work order:** \`docs/work-orders/S-06.02.61-email-provider-setup.md\`.
+
+#### S-06.02.62 — HTTP idempotency is atomic, bound to the caller and safe after failure (A14)
+**As a** user retrying a save or send, **I want** the Idempotency-Key to prevent duplicate effects even when two API workers handle the request together, **so that** a network retry cannot create a second campaign or repeat a consequential action.
+- **Given** two app instances sharing SQLite or real PostgreSQL, **when** they receive the same key and request together, **then** exactly one database effect commits and both receive the original operation ID.
+- **Given** a different payload or authenticated principal, **when** an old key is reused, **then** return 409 without leaking the original result; malformed or excessive keys return 422.
+- **Given** a database-only operation that fails after mutation but before response, **when** the client retries, **then** the operation and reply roll back together and exactly one effect can complete.
+- **Given** an email or AI provider action with uncertain outcome, **when** the client retries, **then** a durable in-progress claim refuses replay until reconciled, not a second send; completed calls replay the saved result.
+- **Dependencies:** production authentication, CRM durable transaction and active audit review. **Size:** L. **Audit:** A14 / D-364. **Work order:** `docs/work-orders/S-06.02.62-atomic-http-idempotency.md`.
 
 ### F-06.03 — Data that survives a deploy on the free plan  *(E-06)*
 

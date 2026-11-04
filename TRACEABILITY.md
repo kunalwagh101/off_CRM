@@ -286,3 +286,11 @@ RED 8 cases on b57c971 and key-rotation RED 1 case on e488c30, both isolated Ren
 A11 exact-source full review: code `8957a27`, Render `dep-dblffhijnfac73fs3770`, 14 focused A11 PASS/1 conditional PG skip, SQLite 2,984 PASS, PostgreSQL 3,008 PASS with A11 PG-specific test enabled, focused PG 215 PASS, real Chromium desktop/mobile PASS. Structural board verification only (`--skip-tests`); independent penetration and customer acceptance remain OPEN. Story BACKLOG pending audit.
 
 A11 review runner dep-dblffhijnfac73fs3770 **LIVE** 2026-11-04T09:35:47.896966Z on exact code 8957a27. This is not independent penetration, full-history evidence replay, real paid-provider acceptance or customer release.
+
+## 2026-11-04 — A14 HTTP idempotency (R-190, S-06.02.62)
+
+| Req | Story | Criteria | Tests | Code |
+|---|---|---|---|---|
+| R-190 | S-06.02.62 | Cross-process database effect exactly once, canonical request and authenticated caller binding, rollback on crash, pre-send in-progress hold, no external auto-retry, legacy/corrupt key denial | `tests/test_api_idempotency_a14.py` (SQLite and real PostgreSQL API instances, principal replay, external send, crash); `tests/test_outreach_api.py` replay/409 | `offsetx_apollo_builder/api/app.py` and existing `OutreachStore.transaction(immediate=True)` |
+
+RED isolated Render `ac10fa0`: five failures; initial GREEN `19682d5`: five passes. Additional tests `7c47b34` and full review are pending. Source result is not an independent penetration certification; no main/customer release.

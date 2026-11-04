@@ -1,0 +1,27 @@
+# A14 — Atomic HTTP idempotency: source, RED/GREEN, and release boundaries
+
+**Date:** 2026-11-04 UTC. **Repo:** `kunalwagh101/off_CRM`. **Branch:** `develop`. **Work:** S-06.02.62 / D-364 / R-190.
+
+The September A14 finding said read->effect->upsert was unsafe under concurrent API workers. The current `_idempotent` matched that structure.
+
+## Test-first reproduction
+- **RED source:** `ac10fa0c324ec02a4cbc9ad8a2923b402114ff14`.
+- **Isolated Render deploy:** `dep-dblfslqjnfac73ft665g` build_failed.
+- **Test command:** `uv run pytest -q tests/test_api_idempotency_a14.py`.
+- **Observed:** **5 FAILED** (two independent TestClients sharing the CRM created duplicate campaigns, changed payload replayed an old campaign, failure after mutation left a campaign, uncertain send repeated, and invalid key was accepted). The controlled fake send made no customer email request.
+
+## Initial repaired source
+- **GREEN executable source:** `19682d5e0eb8d7827f604dd297020768410d5ef4`.
+- **Isolated Render:** `dep-dblfu1ugekts738a7780`, early A14 gate **5 PASSED**.
+- `offsetx_apollo_builder/api/app.py` uses a versioned response envelope with hashed request/principal identity in existing `idempotency_records`; SQLite/PG transaction serializes pure CRM operation and saved result. Provider/email operations first persist `in_progress`, so ambiguous or crashed sends cannot be repeated blindly. Saved completion replays; same key with changed caller/payload is 409. Unbounded/malformed headers 422.
+
+## Extended coverage and final review
+- Updated historical replay test in `tests/test_outreach_api.py`: exact same request replays, changed request returns 409. Extended A14 tests include real disposable PG two-app race, authenticated caller boundary, completed external replay and legacy-row refusal. Latest test-only commit `7c47b34`.
+- **Pending at this checkpoint:** isolated Render full SQLite and PostgreSQL suite for the extended tests, actual provider integration, independent penetration, full-history board verifier, and customer release.
+- A failed external operation leaves an in-progress claim for manual reconciliation. This is safer than repeating a possibly delivered message, but may require operator action to recover.
+
+## Security boundaries
+No original request bodies or provider keys are stored in the idempotency metadata; it keeps a SHA-256 fingerprint. No production credentials, customer database, live SES sends or main changes were made. Synthetic tests do not certify real provider exactly-once delivery.
+
+## Rollback
+Stop API workers before any downgrade to old non-atomic code. Preserve the CRM and its idempotency ledger together. Do not delete an unresolved key without checking the last send/receipt in the provider and audit logs. Reverting the fix reopens A14.

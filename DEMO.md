@@ -867,3 +867,14 @@ uv run pytest -q tests/test_ai_cost_ledger.py tests/test_ai_egress_wall.py tests
 ```
 
 For PostgreSQL cross-worker contention use a disposable test database and set `OFF_CRM_TEST_POSTGRES_URL` as described in `tests/test_hosted_storage.py`; `tests/test_ai_quota_atomic.py::test_A11_postgres_two_processes_reserve_one_actual_provider_call` exercises two real independent Postgres clients. Never point this test at a customer database. The account ledger is authoritative, not a Python lock. See `docs/evidence/2026-11-04-a11-ai-quota-reservations.md` for actual isolated Render RED/GREEN evidence. No production claim from synthetic calls.
+
+## A14 — Concurrent HTTP Idempotency-Key safety
+
+The tests use disposable CRM databases, controlled API instances and fake transports, not customer campaigns or real sends.
+
+```bash
+uv run pytest -q tests/test_api_idempotency_a14.py
+uv run pytest -q tests/test_outreach_api.py
+```
+
+Set `OFF_CRM_TEST_POSTGRES_URL` to a disposable PostgreSQL URL to run the A14 real-PostgreSQL concurrent-app test; it creates and drops a random temporary schema. A 409 on mismatched payload or principal is correct. A 409 after a crashed external provider call means **inspect that attempt**; do not retry automatically. Full verification evidence is in `docs/evidence/2026-11-04-a14-atomic-http-idempotency.md`.

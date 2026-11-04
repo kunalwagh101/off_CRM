@@ -1,3 +1,10 @@
+## 2026-11-04 — A14 atomic HTTP idempotency (test-first build-ahead, final QA pending)
+
+- On develop, the original helper looked up a key, performed the side effect, then saved the result. **TDD RED** at test-only `ac10fa0` / isolated Render `dep-dblfslqjnfac73ft665g`: **5 expected FAIL**, including two actual API app instances racing, payload/key conflicts, crash-after-mutation, replay after uncertain send and malformed headers.
+- **First GREEN** app source `19682d5` / isolated Render `dep-dblfu1ugekts738a7780`: the same five A14 tests **PASS**. CRM-only keyed effects and saved responses commit in one `OutreachStore.transaction(immediate=True)` across SQLite processes and PostgreSQL connections. Provider and email actions save a durable in-progress key **before** transport; an ambiguous outcome blocks same-key resend. Completed responses replay unchanged.
+- Every keyed route now hashes caller and canonical Pydantic request fields; conflicting caller/payload reuse returns 409 and invalid/unverified legacy keys refuse rather than leak. Old tests updated to use identical replay and assert changed-payload conflict. Additional real-PG, authenticated caller, legacy record and completed external-replay tests are in `tests/test_api_idempotency_a14.py`, source `7c47b34`; full exact-source QA still pending.
+- **Release restrictions:** live SES/provider exactly-once delivery is not proven by synthetic calls; unresolved external keys need reconciliation. Full-history board verification, production auth/tenant acceptance and independent penetration remain open. Audit S-06.02.23 stays IN_PROGRESS and S-06.02.62 stays BACKLOG; no customer/main deployment. See `docs/evidence/2026-11-04-a14-atomic-http-idempotency.md`.
+
 ## 2026-11-04 — A11 QA runner deployed LIVE, exact-source verification
 
 - Render deployed the isolated review runner `dep-dblffhijnfac73fs3770` **LIVE** at 2026-11-04T09:35:47.896966Z on executable source `8957a27b9d1d7d646757bf86d51f8059b21a0781`. Render logs also confirmed "Your service is live" at 09:35:48 UTC.

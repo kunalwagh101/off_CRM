@@ -31,6 +31,10 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
+- S-06.02.62 · HTTP idempotency safely prevents duplicate state-changing requests (A14)
+  work_order: docs/work-orders/S-06.02.62-atomic-http-idempotency.md
+  checkpoint: TDD RED ac10fa0 / isolated Render dep-dblfslqjnfac73ft665g: 5 expected FAIL (two live API instances, changed payload, crash, uncertain send, invalid header). First GREEN source 19682d5 / Render dep-dblfu1ugekts738a7780: same 5 PASS. Added PostgreSQL cross-instance, authenticated-principal, verified external replay and legacy-row tests at b53baec / 7c47b34; final full QA pending. Source app.py uses a single transaction for CRM-only mutations and a durable in-progress claim before provider/email actions. Code was built ahead under owner instruction but remains BACKLOG while S-06.02.23 audit is IN_PROGRESS and production/independent acceptance is open. No main/customer deployment.
+
 - S-06.02.61 · Email provider setup failures do not strand delivery jobs (A16)
   work_order: docs/work-orders/S-06.02.61-email-provider-setup.md
   checkpoint: RED 61cc4fa / Render dep-dbldu5bncjis73djca20: 5 expected A16 FAIL. GREEN 144e1cb / Render dep-dbldur942hec73fvgeq0 LIVE 2026-11-04 07:52:04 UTC: A16 5 PASS, full SQLite 2970 PASS/54 skipped, full disposable PG 2993 PASS/100 skipped, focused PG 215 PASS, concurrency 12/12, frontend/Chromium/security/structural verifier gates PASS. D-363 mitigated. Remediation code under owner build-ahead; BACKLOG retained until S-06.02.23 audit, S-06.02.40 supervised worker integration, independent penetration and full-history verifier/production acceptance. No customer/main release. Evidence docs/evidence/2026-11-04-a16-email-provider-setup.md.

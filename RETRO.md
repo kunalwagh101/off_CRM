@@ -1129,3 +1129,9 @@ lifecycle.
 **What was cut.** No test scope was cut; external paid-model/provider acceptance and independent penetration remain separate release gates, not declared passing.
 **What the estimate missed.** A per-key transaction alone still let users rotate credentials and reset their workspace cap. An independent TDD RED test caught it; both accounts and workspaces now reserve in one transaction.
 **What to do next.** Before any claim of completion, prove PostgreSQL multi-process race, real paid-model receipts, conservative USD price assumptions, ledger restart/recovery, external security and full board-history evidence.
+
+## 2026-11-04 — A14 HTTP idempotency (BACKLOG build-ahead)
+
+**What we learned.** A cache lookup before mutation is not a lock, and `INSERT ... ON CONFLICT UPDATE` after the mutation can only overwrite the evidence of duplication. Existing replay tests approved reusing one key with a changed payload; that assumption was unsafe.
+**Decision.** Save CRM effects and replies together in one database transaction. For email/AI, reserve a claim before transport and return 409 when completion cannot be proved, instead of pretending a distributed transaction exists.
+**Still open.** Real provider acceptance, operator reconciliation of in-progress rows, independent penetration, complete PostgreSQL and UI regression, and audit/board release gates.

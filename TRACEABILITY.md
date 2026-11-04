@@ -340,3 +340,12 @@ A22 across **all** write routes remains open; independent penetration and full-h
 | A05 | S-06.02.23 | Another user's permission policy is refused; ordinary sessions cannot administer accounts; disabling a user invalidates their cookie without invalidating a peer | `tests/test_audit_a05_workspace_identity.py` (3 PASS on source `94fa650`; isolated Render `dep-dblr106i0phs7385jao0`) | `offsetx_apollo_builder/api/app.py`, `offsetx_apollo_builder/api/auth.py` | Wider per-user role checks, CRM tenancy Q-27, independent penetration, full-history verifier, and customer production acceptance |
 
 This is a verification mapping, not a new backlog requirement or a DONE claim. S-06.02.23 stays IN_PROGRESS.
+
+
+## R-193 — A10 paid AI receipt integrity (build-ahead; not released)
+
+| Requirement | Story | Accepted contract | Regression | Code | Missing gate |
+|---|---|---|---|---|---|
+| R-193 | S-06.02.66 | Valid paid receipts persist cost and refuse unaffordable follow-up; unusable/zero provider counts become positive labelled estimates rather than free calls/post-send exceptions; provider errors retain counted usage; two workers compete against one durable USD cap | `tests/test_ai_billing_integrity_a10.py` (initial RED 7 failed/2 passed, first GREEN 9 PASS on Render; extended concurrency pending) | `offsetx_apollo_builder/ai/broker.py`, `offsetx_apollo_builder/outreach/providers.py`, `offsetx_apollo_builder/ai/quota.py` (unchanged reservation) | Full exact-source PostgreSQL + SQLite + security/browser review, historical verifier, external provider invoices, independent penetration and customer acceptance |
+
+Audit A10 and S-06.02.23 remain open. This row must not be mistaken for a production DONE claim.

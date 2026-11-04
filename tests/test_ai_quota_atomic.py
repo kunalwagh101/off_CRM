@@ -31,11 +31,11 @@ class _WireProvider:
         return "done"
 
 
-def _attempt_from_process(path, use_hosted, key, limits_name, start, wire, results):
+def _attempt_from_process(path, use_hosted, key, limits_name, start, wire, results, hosted_target=""):
     data_dir = Path(path)
     quota = QuotaTracker(
         data_dir / "quota",
-        hosted=HostedStorage(str(data_dir / "hosted.db"), key) if use_hosted else None,
+        hosted=HostedStorage(hosted_target or str(data_dir / "hosted.db"), key) if use_hosted else None,
     )
     broker = EgressBroker(
         registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
@@ -206,3 +206,88 @@ def test_A11_legacy_provider_usage_is_not_ignored_during_account_migration(tmp_p
     assert account.try_reserve("mistral", limits, scope_id="new-account")[0] is None
     assert account.try_reserve("mistral", QuotaLimits(max_spend_usd_per_day=0.25),
                                worst_case_usd=0.10, scope_id="new-account")[0] is None
+
+
+
+def test_A11_postgres_two_processes_reserve_one_actual_provider_call(tmp_path):
+    """A11: real PostgreSQL advisory transaction, not just SQLite or a Python lock."""
+    url = os.getenv("OFF_CRM_TEST_POSTGRES_URL", "").strip()
+    if not url:
+        pytest.skip("set OFF_CRM_TEST_POSTGRES_URL for disposable PostgreSQL")
+    import uuid
+    import psycopg
+
+    schema = "a11_" + uuid.uuid4().hex[:12]
+    with psycopg.connect(url, autocommit=True) as admin:
+        admin.execute(f'CREATE SCHEMA "{schema}"')
+    target = url + ("&" if "?" in url else "?") + f"options=-csearch_path%3D{schema}"
+    key = Fernet.generate_key().decode()
+    try:
+        hosted = HostedStorage(target, key)
+        hosted.probe()  # Initialise the schema once, before the race.
+        hosted.close()
+        ctx = multiprocessing.get_context("spawn")
+        start, wire, results = ctx.Event(), ctx.Value("i", 0), ctx.Queue()
+        workers = [
+            ctx.Process(
+                target=_attempt_from_process,
+                args=(str(tmp_path), True, key, "requests_per_day", start,
+                      wire, results, target),
+            ) for _ in range(2)
+        ]
+        for worker in workers:
+            worker.start()
+        start.set()
+        for worker in workers:
+            worker.join(timeout=40)
+            if worker.is_alive():
+                worker.terminate()
+                worker.join()
+                pytest.fail("The PostgreSQL quota reservation deadlocked.")
+            assert worker.exitcode == 0
+        outcomes = [results.get(timeout=5) for _ in workers]
+        assert wire.value == 1, f"A11 sent twice on real PostgreSQL: {outcomes}"
+        assert outcomes.count("sent") == 1
+        assert "NoPermittedProvider" in outcomes
+        # The reservation survives both workers closing and an independent reader.
+        new_hosted = HostedStorage(target, key)
+        assert QuotaTracker(tmp_path / "second", hosted=new_hosted).prepare() is None
+        new_hosted.close()
+    finally:
+        with psycopg.connect(url, autocommit=True) as admin:
+            admin.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+
+
+def test_A11_storage_write_failure_refuses_transport_and_logs_once(tmp_path, monkeypatch, capsys):
+    import json
+    from offsetx_apollo_builder.ai.errors import NoPermittedProvider
+
+    hosted = HostedStorage(str(tmp_path / "hosted.db"), Fernet.generate_key().decode())
+    hosted.probe()
+
+    def deny_write(_name, _body):
+        raise OSError("SECRET_LEDGER_WRITE_DATA")
+
+    monkeypatch.setattr(hosted, "write", deny_write)
+    broker = EgressBroker(
+        registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
+        credential_resolver=lambda _: "secret-account",
+        quota=QuotaTracker(tmp_path / "quota", hosted=hosted),
+    )
+    reached_provider = []
+    broker._instantiate = lambda _: reached_provider.append("sent")
+    settings = WorkspaceEgressSettings(
+        workspace_id="test-workspace", enabled_provider_ids=("mistral",),
+        quota_limits={"mistral": QuotaLimits(requests_per_day=1)},
+    )
+    with pytest.raises(NoPermittedProvider, match="Reference: E-") as caught:
+        broker.call(EgressRequest(task_type="t", data_class=DataClass.PUBLIC),
+                    settings, system_prompt="test")
+    assert not reached_provider
+    log_lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()
+                 if line.startswith('{"event":"failure"')]
+    assert len(log_lines) == 1
+    assert log_lines[0]["error_id"] in str(caught.value)
+    assert "SECRET_LEDGER_WRITE_DATA" not in str(caught.value)
+    assert "SECRET_LEDGER_WRITE_DATA" not in json.dumps(log_lines)
+    hosted.close()

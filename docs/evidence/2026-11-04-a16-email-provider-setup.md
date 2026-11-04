@@ -21,3 +21,22 @@
 - No production keys, customers, migrations or customer deployments were touched. No change to `main`.
 - The board remains BACKLOG under S-06.02.23 audit and S-06.02.40 durable worker dependencies, despite build-ahead code.
 - Rollback: never revert without stopping the worker and reconciling outstanding claimed jobs; the old code is unsafe on the same state. Keep historical evidence and existing jobs.
+
+## Final observed Render review verdict — 2026-11-04
+
+The early GREEN report above was followed by the **completed full build** on the same exact source `144e1cbb1bb604fdf93f82fe08f4ea4ae899dae8`. Render `dep-dbldur942hec73fvgeq0` became **LIVE at 2026-11-04 07:52:04 UTC**. The review image is a QA success marker only, not the customer app.
+
+| Gate | Observed result |
+|---|---|
+| RED pre-fix | 5 failed on 61cc4fa, deploy dep-dbldu5bncjis73djca20 build_failed |
+| A16 TDD GREEN | 5 passed, 16 deselected |
+| Full SQLite Pytest | 2,970 passed, 54 skipped, 44 warnings |
+| Full real PostgreSQL Pytest | 2,993 passed, 100 skipped, 44 warnings |
+| Focused real PostgreSQL | 215 passed |
+| Verifier-unit suite | 67 passed |
+| Concurrency | 12/12 repeated tests passed |
+| Structural board check | PASS using `--skip-tests`; no full-history evidence replay |
+| Frontend, static and npm security audits | Completed mandatory Docker review stages |
+| Chromium browser | Desktop/mobile Contacts and public demo PASS, keyboard and numeric browser gates PASS |
+
+**Limits:** No independent penetration certification, no real SES/provider account acceptance, no externally supervised email worker and no customer/main deployment. Worker deploy story S-06.02.40 and audit S-06.02.23 remain unfinished. Design constraint DD-140: provider factory construction must never itself send messages. Source 144e1cb is the tested code; later changes in this history are documentation, not new app changes.

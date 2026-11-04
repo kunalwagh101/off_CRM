@@ -272,3 +272,5 @@ New restart test: `tests/test_ai_cache_integrity.py::test_A12_A13_restart_keeps_
 | R-188 | S-06.02.61 | 5 | `tests/test_email_delivery.py -k A16` (5 parameterised cases); `tests/test_email_delivery.py::test_ambiguous_delivery_is_quarantined_and_never_retried` | `offsetx_apollo_builder/outreach/deliverability/service.py` |
 
 RED isolated Render on 61cc4fa 5 failures; GREEN focused 5 PASS on 144e1cb. Owner-approved build-ahead code is not DONE and story remains BACKLOG under active audit and worker deployment dependency. PostgreSQL/full suite, independent security and operational worker integration pending.
+
+A16 final isolated QA: `dep-dbldur942hec73fvgeq0` on `144e1cb` LIVE 2026-11-04 07:52:04 UTC; A16 5 PASS, SQLite 2970 PASS, PostgreSQL 2993 PASS, browser and verifier-unit gates PASS. R-188 still BACKLOG pending actual worker + independent security/release certification.

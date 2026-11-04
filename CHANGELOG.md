@@ -1,3 +1,9 @@
+## 2026-11-04 — A16 exact-source isolated Render QA completed LIVE
+
+- RED `61cc4fa` / `dep-dbldu5bncjis73djca20`: 5 expected failures at `EmailDeliveryService.work_once`, proving provider factory exceptions were unhandled after job claim. GREEN source `144e1cb` / isolated Render `dep-dbldur942hec73fvgeq0` **LIVE at 07:52:04 UTC**.
+- Green QA: A16 focused **5 PASS / 16 deselected**; full SQLite **2,970 PASS / 54 skipped / 44 warnings**; full disposable PostgreSQL **2,993 PASS / 100 skipped / 44 warnings**; focused real PG **215 PASS**; verifier unit **67 PASS**; concurrency repeated **12/12 PASS**; frontend build/tests/npm audit, Ruff and real desktop/mobile Chromium gates PASS. Structural board verifier `--skip-tests` PASS (0 evidence commands replayed; source was 144e1cb).
+- Pre-send failures settle as failed or bounded retry_wait with one secret-safe reference; unknown post-send outcomes remain quarantined. No production/main or customer SES traffic. Actual worker deployment S-06.02.40, ongoing audit S-06.02.23, independent penetration, real provider acceptance and full-history verifier block DONE. Source+test commit is 144e1cb; following documentation commits do not change executable code. See `docs/evidence/2026-11-04-a16-email-provider-setup.md`.
+
 ## 2026-11-04 — A16 email-provider factory remediation (TDD, isolated QA ongoing)
 
 - Scope: `S-06.02.61 / D-363 / A16`. Test-first `61cc4fa` on isolated Render `dep-dbldu5bncjis73djca20` **failed 5/5** expected cases at the real `EmailDeliveryService.work_once` entry point. Old provider constructor exception escaped before send and left the claimed job unhandled.

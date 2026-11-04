@@ -1,3 +1,9 @@
+## 2026-11-05 — A05 workspace identity audit regression (develop only)
+
+- F-06.02 / active S-06.02.23: added `tests/test_audit_a05_workspace_identity.py` with 3 real-API permission tests. They cover cross-workspace agent-policy access refusal under spoofed headers, restriction of account management to the install administrator, and immediate session revocation after disabling a user without affecting unrelated sessions.
+- Early `Dockerfile.review` gate runs these checks on the isolated Render review runner. Observed exact-source focused result: `uv run pytest -q tests/test_audit_a05_workspace_identity.py`, **3 passed, 1 warning in 4.65s**, review `dep-dblr106i0phs7385jao0` (source `94fa650`).
+- Verification-only change, with no application schema or runtime modification; rollback removes the test and early QA command but would remove useful security coverage. Wider A05 authorization, CRM tenancy Q-27, live customer acceptance, independent penetration and full-history board verification remain open. No main/customer deployment.
+
 ## 2026-11-04 — A22 nested video-edit API validation (review underway)
 
 - S-06.02.65 / F-06.02 replaces arbitrary nested video-edit batch dictionaries with strict typed operation requests. Invalid params, extra nested keys, conflicting op aliases, ambiguous single/batch commands and excessive nested data return 422 before the project is opened or saved. Existing batch atomicity, valid single edits and undo remain intact.

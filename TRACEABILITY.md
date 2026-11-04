@@ -300,3 +300,5 @@ A14 additional test coverage on executable source `2e709a5`: adversarial concurr
 ## A14 exact-source QA verification — 2026-11-04
 
 `S-06.02.62 / R-190`, source `1c1d3a2` (executable `2e709a5`), isolated Render `dep-dblg7k8u01pc73a4m7lg`: 12 focused A14 PASS/1 PG-only SKIP; full SQLite 2,996 PASS/56 skipped; real disposable PG 3,020 PASS/101 skipped with the PG-specific two-instance race included; focused PG 215 PASS; desktop/mobile Chromium and frontend/security gates PASS. Full-history Git evidence replay, independent security, real mail-provider acceptance and customer/main release remain OPEN; story still BACKLOG.
+
+A14 source 1c1d3a2 / Render dep-dblg7k8u01pc73a4m7lg confirmed LIVE 2026-11-04T10:27:18.435081Z with the above complete SQLite/PG/browser QA. This is isolated QA, not provider acceptance or customer release.

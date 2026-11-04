@@ -1,3 +1,9 @@
+## 2026-11-04 — A14 isolated Render QA LIVE, exact source
+
+- `dep-dblg7k8u01pc73a4m7lg` reached **LIVE** at **2026-11-04T10:27:18.435081Z** on tested source `1c1d3a2b1e0acf1262776b5c082adacce691d776`. Last executable change is `2e709a5`. Render logs explicitly confirmed the QA marker service was live.
+- Source-bound focused A14 12 passed/1 early-stage PG skipped; SQLite 2,996 passed/56 skipped; real PostgreSQL 3,020 passed/101 skipped, focused PostgreSQL 215 passed; Chromium desktop/mobile and configured frontend/security gates passed.
+- Isolated test doubles and disposable DB do **not** prove actual customer email delivery or constitute independent penetration testing. The full-history verifier, external provider acceptance, supervised rollout and audit remain open. No `main` or customer service deployment; S-06.02.62 stays BACKLOG.
+
 ## 2026-11-04 — A14 exact-source isolated Render regression acceptance
 
 - Source **`1c1d3a2b1e0acf1262776b5c082adacce691d776`**, whose last executable/test change is `2e709a59479d374397d66abf242f9e4148d6c879`. The isolated review runner **`dep-dblg7k8u01pc73a4m7lg`** executed the current files, including the actual OS-process crash and adversarial race tests.

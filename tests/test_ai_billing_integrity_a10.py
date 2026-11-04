@@ -156,10 +156,9 @@ def test_A10_paid_provider_failure_keeps_measured_spend_and_does_not_resend(tmp_
     assert wire == ["sent-and-failed"], "a restart must not repeat an unaffordable action"
 
 
-def _a10_spend_race_worker(root, hosted, key, start, wire, results):
+def _a10_spend_race_worker(root, hosted, key, start, wire, results, hosted_target=""):
     """Separate processes use real broker reservations on a disposable ledger."""
     import time
-    from cryptography.fernet import Fernet
     from offsetx_apollo_builder.db.hosted import HostedStorage
 
     class _Transport:
@@ -172,7 +171,7 @@ def _a10_spend_race_worker(root, hosted, key, start, wire, results):
             return "charged"
 
     folder = Path(root)
-    hosted_store = HostedStorage(str(folder / "hosted.db"), key) if hosted else None
+    hosted_store = HostedStorage(hosted_target or str(folder / "hosted.db"), key) if hosted else None
     broker = EgressBroker(
         registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
         credential_resolver=lambda _: "same-synthetic-paid-key",
@@ -220,3 +219,52 @@ def test_A10_two_workers_cannot_cross_same_usd_spend_reservation(tmp_path, hoste
     outcomes = [results.get(timeout=5) for _ in workers]
     assert sorted(outcomes) == ["NoPermittedProvider", "sent"], outcomes
     assert wire.value == 1, "two workers crossed the same daily spend ceiling"
+
+
+def test_A10_real_postgres_two_workers_share_atomic_usd_budget(tmp_path):
+    """A10: priced spend uses PostgreSQL locks, not a process-local mutex."""
+    import multiprocessing
+    import os
+    import uuid
+
+    import psycopg
+    from cryptography.fernet import Fernet
+    from offsetx_apollo_builder.db.hosted import HostedStorage
+
+    url = os.getenv("OFF_CRM_TEST_POSTGRES_URL", "").strip()
+    if not url:
+        pytest.skip("requires disposable OFF_CRM_TEST_POSTGRES_URL")
+    schema = "a10_" + uuid.uuid4().hex[:12]
+    with psycopg.connect(url, autocommit=True) as connection:
+        connection.execute(f'CREATE SCHEMA "{schema}"')
+    target = url + ("&" if "?" in url else "?") + f"options=-csearch_path%3D{schema}"
+    key = Fernet.generate_key().decode()
+    try:
+        provider_store = HostedStorage(target, key)
+        provider_store.probe()
+        provider_store.close()
+        ctx = multiprocessing.get_context("spawn")
+        start, wire, results = ctx.Event(), ctx.Value("i", 0), ctx.Queue()
+        workers = [
+            ctx.Process(
+                target=_a10_spend_race_worker,
+                args=(str(tmp_path), True, key, start, wire, results, target),
+            )
+            for _ in range(2)
+        ]
+        for worker in workers:
+            worker.start()
+        start.set()
+        for worker in workers:
+            worker.join(timeout=45)
+            if worker.is_alive():
+                worker.terminate()
+                worker.join(timeout=5)
+                pytest.fail("PostgreSQL USD reservation workers deadlocked")
+            assert worker.exitcode == 0
+        outcomes = [results.get(timeout=5) for _ in workers]
+        assert sorted(outcomes) == ["NoPermittedProvider", "sent"], outcomes
+        assert wire.value == 1
+    finally:
+        with psycopg.connect(url, autocommit=True) as connection:
+            connection.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')

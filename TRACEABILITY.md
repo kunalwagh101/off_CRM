@@ -332,3 +332,11 @@ Follow-up source 1201495 expands R-192 from 8 to 10 named HTTP tests, adding inv
 Final review evidence: executable/test source `12014959e82b27c4fce65cc4f5c983c65c28174b`, isolated Render `dep-dblnc3tg1s2s73cvcvn0` **LIVE** on 2026-11-04 at 18:34:14 UTC. A22 focused **10 passed**; full SQLite **3,012 passed, 56 skipped, 44 warnings**; full real disposable PostgreSQL **3,036 passed, 101 skipped, 44 warnings**; focused PG **215 passed**; 12 real repeated concurrency probes PASS. Frontend tests/build/npm audits, Chromium desktop/mobile Contacts/Public Demo, A09 and A18 browser security checks, Ruff, API auth and structural board verifier PASS. Docker board verifier used `--skip-tests`: no historical evidence replay. No independent penetration, actual customer video browser acceptance, full A22 write-API matrix, customer deployment or `main` promotion.
 
 A22 across **all** write routes remains open; independent penetration and full-history evidence replay are not certified. No customer/main release.
+
+## Active audit recheck — A05 identity and workspace administration (2026-11-05)
+
+| Finding | Active story | Verified criteria | Test | Existing code boundary | Remaining gate |
+|---|---|---|---|---|---|
+| A05 | S-06.02.23 | Another user's permission policy is refused; ordinary sessions cannot administer accounts; disabling a user invalidates their cookie without invalidating a peer | `tests/test_audit_a05_workspace_identity.py` (3 PASS on source `94fa650`; isolated Render `dep-dblr106i0phs7385jao0`) | `offsetx_apollo_builder/api/app.py`, `offsetx_apollo_builder/api/auth.py` | Wider per-user role checks, CRM tenancy Q-27, independent penetration, full-history verifier, and customer production acceptance |
+
+This is a verification mapping, not a new backlog requirement or a DONE claim. S-06.02.23 stays IN_PROGRESS.

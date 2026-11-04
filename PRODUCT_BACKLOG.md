@@ -958,6 +958,15 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** a valid single edit and a valid two-step batch, **when** submitted, **then** saved version, redo/undo and read-back still work.
 - **Dependencies:** existing video store and API, production audit S-06.02.23 still IN_PROGRESS. Scope is A22 nested video edit safety only; wider A22 write-API matrix requires separate audit. **Size:** M. Work order: `docs/work-orders/S-06.02.65-video-edit-input.md`.
 
+
+#### S-06.02.66 — Paid AI calls do not look free when usage receipts are missing (A10)
+**As an** owner with an AI daily spend cap, **I want** uncertain provider token accounting to be conservatively estimated and labelled, **so that** a priced request never silently counts as free and later calls respect the configured USD ceiling.
+- **Given** a priced valid provider receipt, **when** generation succeeds, **then** the single broker cost is reconciled into a durable account/workspace ledger and the next unaffordable request is refused before provider I/O.
+- **Given** a zero, missing, nonfinite or malformed token receipt after nonempty paid generation, **when** the broker accounts for it, **then** it estimates a positive cost and reports `usage_source=estimated`; it does not credit USD 0 as a confirmed invoice or raise a post-transport conversion error.
+- **Given** concurrent workers or a process restart, **when** a spend ceiling is almost reached, **then** the atomic quota reserve is honoured across requests and provider credentials. Corrupt storage refuses the call instead of resetting usage.
+- **Given** a failed or uncertain provider call, **when** the broker reconciles, **then** it never resends automatically only to repair the ledger; owner sees recorded limitations and an actionable error.
+- **Dependencies:** existing broker, provider adapter and quota implementation; audit S-06.02.23 remains IN_PROGRESS. This is A10 receipt integrity only; broader spending/provider billing verification remains outstanding. **Size:** M. Work order: `docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md`.
+
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
 #### S-07.01.01 — An MCP client

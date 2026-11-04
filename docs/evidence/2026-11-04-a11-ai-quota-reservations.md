@@ -26,3 +26,22 @@
 ## Rollback
 
 Stop all old AI egress workers, preserve both the database and pending-ticket ledger, identify outstanding provider actions from the egress log, and reconcile unknown results manually before re-enabling AI. Rolling back to the old check-then-record code reopens A11 and is unsafe without an explicit controlled incident decision. Never clear the ledger as a workaround.
+
+## Full exact-source isolated QA results — 2026-11-04
+
+Render isolated QA `dep-dblffhijnfac73fs3770` ran on pinned source `8957a27b9d1d7d646757bf86d51f8059b21a0781`.
+
+| Gate | Observed |
+|---|---|
+| RED first reproduction | 8 FAILED intentionally at `b57c971` |
+| RED credential-rotation regression | 1 FAILED intentionally at `e488c30` |
+| A11 focused GREEN | 14 passed, 1 skipped (PG test only) |
+| Full SQLite Pytest | **2,984 passed**, 55 skipped, 44 warnings |
+| Real disposable PostgreSQL Pytest | **3,008 passed**, 100 skipped, 44 warnings; PG A11 independent-worker race test activated |
+| Focused real PostgreSQL regression | 215 passed |
+| Structural board verifier | PASS using `--skip-tests`, evidence commands replayed 0 |
+| Chromium contacts | PASS at 1280px and 390px |
+| Chromium public demo | PASS at 1440px and 390px |
+| Frontend, static/security and review Docker gates | All configured build stages passed; image exported |
+
+**Deployment status at evidence time:** image built and pushed, but Render had not yet reported LIVE. This is isolated QA, not production acceptance. **Remaining:** independent penetration testing, actual paid-provider receipt/billing verification, full-history board verifier with real Git work tree, operator review of pending crashed reservations, actual customer rollout and production storage/backup. None is claimed complete.

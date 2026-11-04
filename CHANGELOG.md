@@ -1,3 +1,11 @@
+## 2026-11-04 — A11 full isolated Render QA evidence (source 8957a27)
+
+- Exact **executable source**: `8957a27b9d1d7d646757bf86d51f8059b21a0781`, review service `srv-db86p4u89jmc73cehns0`, deploy `dep-dblffhijnfac73fs3770`.
+- RED source `b57c971` (8 expected failures) and separate key-rotation RED `e488c30` (1 expected failure), observed via failed isolated Render builds.
+- GREEN focused A11 gate: **14 passed, 1 skipped** because no PG URL in early build stage. Full SQLite **2,984 passed, 55 skipped, 44 warnings**. Full disposable PostgreSQL (environment sets `OFF_CRM_TEST_POSTGRES_URL`): **3,008 passed, 100 skipped, 44 warnings**; includes the A11 spawned independent-worker PostgreSQL contention test. Focused PostgreSQL regression: **215 passed**.
+- Browser: Chromium Contacts, and Public Demo, both desktop and mobile PASS. Configured frontend checks, egress wall, security, static checks, concurrency and structural board verifier completed; board verifier `--skip-tests` ran **zero** historical evidence commands and cannot substitute for full-history replay. All configured Docker review build stages succeeded and the image was exported; final deployment LIVE status was still pending when recorded.
+- External penetration test, paid-provider invoice/receipt validation, supervised production service and full-history evidence replay are **not performed/certified**; keep story BACKLOG and never promote `main` automatically. `docs/evidence/2026-11-04-a11-ai-quota-reservations.md` provides rollback details.
+
 ## 2026-11-04 — A11 dual-scope AI quota reservation (TDD and QA under review)
 
 - **RED:** b57c971 / isolated Render dep-dblf71ugekts7388c3g0: 8 expected A11 failures. Two independent broker workers both reached a fake provider despite a one-call daily or minute cap (local and hosted SQLite); corrupt counters were accepted and no durable reservation API existed. **Second RED:** e488c30 / dep-dblfdv8u01pc73a2of90: key rotation bypassed the same workspace's daily call limit (1 expected failure).

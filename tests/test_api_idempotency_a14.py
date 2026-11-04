@@ -259,3 +259,37 @@ def test_A14_same_key_from_another_authenticated_principal_is_refused(tmp_path):
         assert other.status_code == 409
         assert "idempotency" in other.text.lower()
         assert client.get("/api/v1/campaigns").json()["total"] == 1
+
+
+
+def test_A14_completed_send_replays_even_if_provider_setup_is_now_unavailable(tmp_path):
+    """A14: a replay must not reconstruct a provider or reread its credentials."""
+    from unittest.mock import patch
+
+    app = create_app(_settings(tmp_path, "one"))
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/campaigns",
+            json={"name": "A14 provider independent replay", "daily_send_limit": 2},
+        )
+        campaign_id = created.json()["id"]
+        calls = []
+
+        def send_once(*args, **kwargs):
+            calls.append("sent")
+            return {"sent_count": 1}
+
+        app.state.engine.run_due = send_once
+        uri = f"/api/v1/campaigns/{campaign_id}/send"
+        headers = {"Idempotency-Key": "provider-replay"}
+        payload = {"mode": "local", "sync_replies_first": False, "max_messages": 1}
+        first = client.post(uri, headers=headers, json=payload)
+        assert first.status_code == 200, first.text[:300]
+        with patch(
+            "offsetx_apollo_builder.api.app._mail_provider",
+            side_effect=RuntimeError("provider is unavailable after original send"),
+        ):
+            replay = client.post(uri, headers=headers, json=payload)
+        assert replay.status_code == 200, replay.text[:300]
+        assert replay.json() == {**first.json(), "idempotent_replay": True}
+        assert calls == ["sent"]

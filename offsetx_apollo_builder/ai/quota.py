@@ -12,10 +12,14 @@ gives the owner a usage display even for providers with no usage endpoint.
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
-from dataclasses import dataclass
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Iterator
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -50,6 +54,10 @@ class QuotaState:
     day_spend_usd: float = 0.0
     last_call_at: float = 0.0
     consecutive_rate_limits: int = 0
+    # A reservation is committed BEFORE network I/O. An in-flight or crashed
+    # call is charged conservatively until its actual receipt is reconciled.
+    pending: dict[str, dict[str, Any]] = field(default_factory=dict)
+    settled: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,20 +69,95 @@ class QuotaState:
             "day_spend_usd": round(self.day_spend_usd, 6),
             "last_call_at": self.last_call_at,
             "consecutive_rate_limits": self.consecutive_rate_limits,
+            "pending": self.pending,
+            "settled": self.settled,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "QuotaState":
-        return cls(
-            provider_id=str(payload.get("provider_id", "")),
-            minute_window=int(payload.get("minute_window", 0) or 0),
-            minute_count=int(payload.get("minute_count", 0) or 0),
-            day=str(payload.get("day", "")),
-            day_count=int(payload.get("day_count", 0) or 0),
-            day_spend_usd=float(payload.get("day_spend_usd", 0.0) or 0.0),
-            last_call_at=float(payload.get("last_call_at", 0.0) or 0.0),
-            consecutive_rate_limits=int(payload.get("consecutive_rate_limits", 0) or 0),
-        )
+        if not isinstance(payload, dict):
+            raise QuotaStorageError("The quota ledger is invalid; restore a verified backup.")
+        try:
+            state = cls(
+                provider_id=str(payload.get("provider_id", "")),
+                minute_window=int(payload.get("minute_window", 0) or 0),
+                minute_count=int(payload.get("minute_count", 0) or 0),
+                day=str(payload.get("day", "")),
+                day_count=int(payload.get("day_count", 0) or 0),
+                day_spend_usd=float(payload.get("day_spend_usd", 0.0) or 0.0),
+                last_call_at=float(payload.get("last_call_at", 0.0) or 0.0),
+                consecutive_rate_limits=int(payload.get("consecutive_rate_limits", 0) or 0),
+                pending=payload.get("pending", {}),
+                settled=payload.get("settled", {}),
+            )
+            if (
+                min(state.minute_window, state.minute_count, state.day_count,
+                    state.consecutive_rate_limits) < 0
+                or state.day_spend_usd < 0
+                or not math.isfinite(state.day_spend_usd)
+                or not math.isfinite(state.last_call_at)
+                or not isinstance(state.pending, dict)
+                or not isinstance(state.settled, dict)
+            ):
+                raise ValueError("Invalid quota value")
+            for ticket, hold in state.pending.items():
+                if (
+                    not isinstance(ticket, str)
+                    or not isinstance(hold, dict)
+                    or not isinstance(hold.get("day"), str)
+                    or not isinstance(hold.get("amount"), (int, float))
+                    or not math.isfinite(float(hold["amount"]))
+                    or float(hold["amount"]) < 0
+                ):
+                    raise ValueError("Invalid reservation")
+            if not all(isinstance(k, str) and isinstance(v, str)
+                       for k, v in state.settled.items()):
+                raise ValueError("Invalid reconciled IDs")
+            return state
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise QuotaStorageError(
+                "The quota ledger is invalid; no AI call was sent. Restore a verified backup."
+            ) from None
+
+
+class QuotaStorageError(RuntimeError):
+    """Unreadable or unwritable usage must block provider transport."""
+
+
+class QuotaLimitError(RuntimeError):
+    """A reservation was refused before a paid provider attempt."""
+
+
+@contextmanager
+def _local_quota_lock(path: Path) -> Iterator[None]:
+    """Cross-process lock kept *beside* the replaceable quota JSON file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("a+b") as handle:
+            if os.name == "nt":
+                import msvcrt
+                # Windows byte-range locks need the locked byte to exist.
+                if handle.tell() == 0:
+                    handle.write(b"1")
+                    handle.flush()
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle, fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+    except OSError:
+        raise QuotaStorageError(
+            "The quota ledger is unavailable; no AI call was sent. Check its storage."
+        ) from None
 
 
 def _today() -> str:
@@ -121,63 +204,178 @@ class QuotaTracker:
     def _load(self) -> None:
         if self._loaded:
             return
-        if self._hosted is not None:
-            # Not caught: counting from zero after a failed read, then saving,
-            # would overwrite the day's real counts. `prepare` reads before a
-            # call, so the call is refused instead, and the next one reads again.
-            body = self._hosted.read(QUOTA)
-            try:
-                payload = json.loads(body) if body is not None else {}
-            except json.JSONDecodeError:
-                payload = {}
-            self._states = {
-                str(key): QuotaState.from_dict(value)
-                for key, value in (payload.items() if isinstance(payload, dict) else ())
-                if isinstance(value, dict)
-            }
-            self._loaded = True
-            pending, self._pending = self._pending, []
-            today = _today()
-            for provider_id, spend_usd, rate_limited, day in pending:
-                if day == today:
-                    self._count(self._state(provider_id), spend_usd, rate_limited)
-            if pending:
-                self._save()
-            return
-        if self.path.exists():
-            try:
-                payload = json.loads(self.path.read_text(encoding="utf-8"))
-                if isinstance(payload, dict):
-                    self._states = {
-                        str(key): QuotaState.from_dict(value)
-                        for key, value in payload.items()
-                        if isinstance(value, dict)
-                    }
-            except (OSError, json.JSONDecodeError):
-                # Corrupt counters must not stop the app; worst case we
-                # under-count for the rest of the day.
-                self._states = {}
-        self._loaded = True
-
-    def _save(self) -> None:
-        payload = {key: value.to_dict() for key, value in self._states.items()}
-        if self._hosted is not None:
-            try:
-                self._hosted.write(QUOTA, json.dumps(payload, ensure_ascii=False))
-            except Exception as exc:  # noqa: BLE001 - the count stays right in memory
-                # As with the file: a counter that could not be written must not
-                # fail the call that was already made. This process keeps the
-                # right count and the next save writes it.
-                report_failure(exc, operation="ai.usage.save", data_dir=self.path.parent)
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            with NamedTemporaryFile("w", encoding="utf-8", dir=self.path.parent, delete=False) as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-                temporary = Path(handle.name)
-            os.replace(temporary, self.path)
-        except OSError as exc:
+            if self._hosted is not None:
+                body = self._hosted.read(QUOTA)
+            else:
+                if self.path.is_symlink():
+                    raise QuotaStorageError("The quota ledger is not a regular file; check its storage.")
+                body = self.path.read_text(encoding="utf-8") if self.path.exists() else None
+            payload = json.loads(
+                body, parse_constant=lambda _: (_ for _ in ()).throw(ValueError())
+            ) if body is not None else {}
+            if not isinstance(payload, dict) or not all(
+                isinstance(k, str) and isinstance(v, dict)
+                for k, v in payload.items()
+            ):
+                raise ValueError("Invalid quota document")
+            self._states = {
+                key: QuotaState.from_dict(value) for key, value in payload.items()
+            }
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+            raise QuotaStorageError(
+                "The quota ledger is corrupt or unavailable; no AI call was sent. "
+                "Restore verified counters before retrying."
+            ) from None
+        self._loaded = True
+        pending, self._pending = self._pending, []
+        today = _today()
+        for provider_id, spend_usd, rate_limited, day in pending:
+            if day == today:
+                self._count(self._state(provider_id), spend_usd, rate_limited)
+        if pending:
+            self._save()
+
+    def _save(self, *, strict: bool = False) -> None:
+        payload = {key: value.to_dict() for key, value in self._states.items()}
+        try:
+            if self._hosted is not None:
+                self._hosted.write(QUOTA, json.dumps(payload, ensure_ascii=False, allow_nan=False))
+                return
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = None
+            try:
+                with NamedTemporaryFile(
+                    "w", encoding="utf-8", dir=self.path.parent, delete=False
+                ) as handle:
+                    temporary = Path(handle.name)
+                    json.dump(payload, handle, ensure_ascii=False, allow_nan=False)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, self.path)
+            finally:
+                if temporary is not None and temporary.exists():
+                    temporary.unlink()
+        except Exception as exc:
+            if strict:
+                raise QuotaStorageError(
+                    "The quota reservation could not be saved; no AI call was sent. "
+                    "Check durable quota storage before retrying."
+                ) from None
             report_failure(exc, operation="ai.usage.save", data_dir=self.path.parent)
+
+    @contextmanager
+    def _exclusive_state(self) -> Iterator[None]:
+        """Reload, check, reserve and commit under ONE interprocess transaction.
+
+        SQLite/PG use the existing HostedStorage transaction and advisory lock.
+        The local ledger uses a separate OS lock file (the JSON is replaced).
+        No network I/O is done while holding either lock.
+        """
+        with self._lock:
+            context = (
+                self._hosted.exclusive() if self._hosted is not None
+                else _local_quota_lock(self.path.with_suffix(".lock"))
+            )
+            with context:
+                self._loaded = False
+                try:
+                    self._load()
+                    yield
+                    self._save(strict=True)
+                finally:
+                    self._loaded = False
+
+    @staticmethod
+    def _scope(provider_id: str, scope_id: str) -> str:
+        if not scope_id:
+            return provider_id
+        # The scope ID is the credential fingerprint, never the credential.
+        return f"account:{provider_id}:{scope_id}"
+
+    def try_reserve(
+        self, provider_id: str, limits: QuotaLimits, *,
+        worst_case_usd: float = 0.0, scope_id: str = "",
+    ) -> tuple[str | None, str]:
+        """Atomically book one provider attempt before transport.
+
+        A crashed/unknown attempt keeps its count and max spend held. A later
+        measured receipt may refund unused spend, but never the attempt count.
+        """
+        if not math.isfinite(worst_case_usd) or worst_case_usd < 0:
+            raise QuotaStorageError("Quota reservation requires a valid non-negative cost bound.")
+        key = self._scope(provider_id, scope_id)
+        ticket = uuid.uuid4().hex
+        denied = ""
+        with self._exclusive_state():
+            state = self._state(key)
+            # The old provider-only ledger is retained as a conservative
+            # baseline for accounts migrated while a day's window is active.
+            old = self._states.get(provider_id) if key != provider_id else None
+            minute = state.minute_count + (
+                old.minute_count if old and old.minute_window == state.minute_window else 0
+            )
+            count = state.day_count + (old.day_count if old and old.day == state.day else 0)
+            spend = state.day_spend_usd + (
+                old.day_spend_usd if old and old.day == state.day else 0
+            )
+            if limits.requests_per_minute > 0 and minute >= limits.requests_per_minute:
+                denied = "per-minute limit reached; resets within a minute"
+            elif limits.requests_per_day > 0 and count >= limits.requests_per_day:
+                denied = "daily limit reached; resets at 00:00 UTC"
+            elif limits.max_spend_usd_per_day > 0 and (
+                spend + worst_case_usd > limits.max_spend_usd_per_day + 1e-12
+            ):
+                denied = "daily spend cap reached or the conservative cost bound is too high"
+            if not denied:
+                state.minute_count += 1
+                state.day_count += 1
+                state.day_spend_usd += worst_case_usd
+                state.last_call_at = time.time()
+                state.pending[ticket] = {
+                    "day": state.day, "amount": worst_case_usd,
+                }
+        return (None, denied) if denied else (ticket, "")
+
+    def reserve(
+        self, provider_id: str, limits: QuotaLimits, *,
+        worst_case_usd: float = 0.0, scope_id: str = "",
+    ) -> str:
+        ticket, reason = self.try_reserve(
+            provider_id, limits, worst_case_usd=worst_case_usd, scope_id=scope_id,
+        )
+        if ticket is None:
+            raise QuotaLimitError(reason)
+        return ticket
+
+    def reconcile(
+        self, provider_id: str, ticket: str, *,
+        spend_usd: float, rate_limited: bool = False, scope_id: str = "",
+    ) -> bool:
+        """Settle one ticket once. Never retry an uncertain provider action."""
+        if not math.isfinite(spend_usd) or spend_usd < 0:
+            raise QuotaStorageError("Provider usage cannot be reconciled with an invalid cost.")
+        key = self._scope(provider_id, scope_id)
+        changed = False
+        with self._exclusive_state():
+            state = self._states.get(key)
+            if state is None:
+                raise QuotaStorageError("Quota reservation not found; check the ledger before retrying.")
+            if ticket in state.settled:
+                return False
+            entry = state.pending.get(ticket)
+            if entry is None:
+                raise QuotaStorageError("Quota reservation not found; do not repeat provider transport.")
+            if entry["day"] == state.day:
+                state.day_spend_usd += spend_usd - float(entry["amount"])
+                state.day_spend_usd = max(0.0, state.day_spend_usd)
+            state.consecutive_rate_limits = (
+                state.consecutive_rate_limits + 1 if rate_limited else 0
+            )
+            del state.pending[ticket]
+            state.settled[ticket] = _today()
+            changed = True
+        return changed
 
     def _state(self, provider_id: str) -> QuotaState:
         self._load()

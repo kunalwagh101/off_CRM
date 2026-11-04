@@ -1,3 +1,9 @@
+## 2026-11-05 — A10 receipt integrity exact-source review LIVE
+
+- F-06.02 / S-06.02.66: all-zero, malformed, boolean and nonfinite provider token usage no longer looks like provider-confirmed free usage or raises during post-transport billing. Real broker now records a labelled local estimate while retaining atomic quota reservation and valid input-only token receipts. No new dependency, schema change or app API.
+- TDD RED 7 expected failures/2 existing passes; final source `822ffa8` isolated Render **`dep-dblrlb6i0phs7387c37g` LIVE at 2026-11-04 23:28:47 UTC**: focused A10 **12 PASS / 1 early PG-only skip**; full SQLite **3,027 PASS/57 skipped**; real disposable PG **3,052 PASS/101 skipped** (including new A10 real PG race), focused PG **215 PASS**. Chromium desktop/mobile, frontend/tests/build, static/security and structural board gates PASS.
+- External paid invoices, multimodal cost bounds, independent penetration, historical verifier and customer production acceptance remain unverified; A10 audit is partial, S-06.02.66 stays BACKLOG pending S-06.02.23 audit. No `main` or customer deployment. Evidence in `docs/evidence/2026-11-05-a10-paid-usage-integrity.md`.
+
 ## 2026-11-05 — A10 paid-model usage receipt integrity (isolated review underway)
 
 - F-06.02 / S-06.02.66: the outbound broker no longer interprets an all-zero or invalid provider token receipt as a confirmed free call. `read_usage` validates raw token counts, and `measure` uses a clearly labelled local estimate if a receipt is unusable; a malformed value cannot break post-transport accounting. Positive input with zero output is still a valid measured receipt.

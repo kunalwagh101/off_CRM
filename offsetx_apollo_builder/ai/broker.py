@@ -151,9 +151,20 @@ def measure(
     anything else is an opinion. Falls back to counting characters and **says
     so**, rather than reporting a guess as a measurement.
     """
-    if reported:
-        tokens_in = max(0, int(reported.get("tokens_in", 0)))
-        tokens_out = max(0, int(reported.get("tokens_out", 0)))
+    # The transport is an external trust boundary. Zero, negative, missing
+    # and malformed counts are not proof that a paid request was free. A bad
+    # receipt must not throw after provider I/O and strand the response/ledger.
+    valid_receipt = (
+        isinstance(reported, dict)
+        and all(
+            type(reported.get(key)) is int and reported[key] >= 0
+            for key in ("tokens_in", "tokens_out")
+        )
+        and (reported["tokens_in"] > 0 or reported["tokens_out"] > 0)
+    )
+    if valid_receipt:
+        tokens_in = reported["tokens_in"]
+        tokens_out = reported["tokens_out"]
         source = "provider"
     else:
         tokens_in = max(1, len(sent) // CHARS_PER_TOKEN)

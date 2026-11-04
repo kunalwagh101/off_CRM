@@ -66,7 +66,7 @@ class QuotaState:
             "minute_count": self.minute_count,
             "day": self.day,
             "day_count": self.day_count,
-            "day_spend_usd": round(self.day_spend_usd, 6),
+            "day_spend_usd": round(self.day_spend_usd, 12),
             "last_call_at": self.last_call_at,
             "consecutive_rate_limits": self.consecutive_rate_limits,
             "pending": self.pending,
@@ -394,10 +394,10 @@ class QuotaTracker:
             state.day_spend_usd = 0.0
         return state
 
-    def check(self, provider_id: str, limits: QuotaLimits) -> tuple[bool, str]:
+    def check(self, provider_id: str, limits: QuotaLimits, *, scope_id: str = "") -> tuple[bool, str]:
         """Return ``(allowed, reason)`` without consuming quota."""
         with self._lock:
-            state = self._state(provider_id)
+            state = self._state(self._scope(provider_id, scope_id))
             if limits.requests_per_minute > 0 and state.minute_count >= limits.requests_per_minute:
                 return False, (
                     f"per-minute limit reached ({state.minute_count}/"
@@ -442,10 +442,10 @@ class QuotaTracker:
             state.consecutive_rate_limits + 1 if rate_limited else 0
         )
 
-    def usage(self, provider_id: str, limits: QuotaLimits) -> dict[str, Any]:
+    def usage(self, provider_id: str, limits: QuotaLimits, *, scope_id: str = "") -> dict[str, Any]:
         """Shape the Connectors screen renders as a usage bar."""
         with self._lock:
-            state = self._state(provider_id)
+            state = self._state(self._scope(provider_id, scope_id))
             return {
                 "provider_id": provider_id,
                 "minute_used": state.minute_count,
@@ -455,7 +455,7 @@ class QuotaTracker:
                 "day_spend_usd": round(state.day_spend_usd, 4),
                 "day_spend_cap_usd": limits.max_spend_usd_per_day,
                 "source": "counted_locally",
-                "exhausted": not self.check(provider_id, limits)[0],
+                "exhausted": not self.check(provider_id, limits, scope_id=scope_id)[0],
             }
 
     def reset(self, provider_id: str = "") -> None:

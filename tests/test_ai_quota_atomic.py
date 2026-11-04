@@ -129,5 +129,80 @@ def test_A11_reserved_attempt_survives_crash_without_replay(tmp_path):
     limits = QuotaLimits(requests_per_day=1)
     assert tracker.reserve("mistral", limits)
     restarted = QuotaTracker(tmp_path)
-    assert restarted.try_reserve("mistral", limits)[0] is False
+    assert restarted.try_reserve("mistral", limits)[0] is None
     assert restarted.usage("mistral", limits)["day_used"] == 1
+
+
+def test_A11_two_separate_accounts_keep_independent_spend_and_request_ledgers(tmp_path):
+    tracker = QuotaTracker(tmp_path)
+    limits = QuotaLimits(requests_per_day=1, max_spend_usd_per_day=0.80)
+    ticket_a = tracker.reserve("mistral", limits, worst_case_usd=0.60, scope_id="account-a")
+    assert ticket_a
+    assert tracker.try_reserve("mistral", limits, scope_id="account-a")[0] is None
+    ticket_b = tracker.reserve("mistral", limits, worst_case_usd=0.60, scope_id="account-b")
+    assert ticket_b != ticket_a
+    assert tracker.usage("mistral", limits, scope_id="account-a")["day_used"] == 1
+    assert tracker.usage("mistral", limits, scope_id="account-b")["day_used"] == 1
+    assert tracker.reconcile("mistral", ticket_a, spend_usd=0.15, scope_id="account-a")
+    assert tracker.usage("mistral", limits, scope_id="account-a")["day_spend_usd"] == pytest.approx(0.15)
+    assert tracker.usage("mistral", limits, scope_id="account-b")["day_spend_usd"] == pytest.approx(0.60)
+
+
+def test_A11_corrupt_ledger_refuses_broker_with_one_safe_reference(tmp_path, capsys):
+    import json
+    from offsetx_apollo_builder.ai.errors import NoPermittedProvider
+
+    counter = []
+    (tmp_path / "ai_quota.json").write_text('{"x":{"day_spend_usd":-7}}', encoding="utf-8")
+    broker = EgressBroker(
+        registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
+        credential_resolver=lambda _: "super-sensitive-provider-key",
+        quota=QuotaTracker(tmp_path),
+    )
+    broker._instantiate = lambda _: counter.append("sent")
+    settings = WorkspaceEgressSettings(
+        workspace_id="test-workspace", enabled_provider_ids=("mistral",),
+        quota_limits={"mistral": QuotaLimits(requests_per_day=1)},
+    )
+    with pytest.raises(NoPermittedProvider, match="Reference: E-") as caught:
+        broker.call(EgressRequest(task_type="t", data_class=DataClass.PUBLIC),
+                    settings, system_prompt="test")
+    assert not counter
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()
+             if line.startswith('{"event":"failure"')]
+    assert len(lines) == 1
+    assert lines[0]["error_id"] in str(caught.value)
+    assert "super-sensitive-provider-key" not in json.dumps(lines)
+    assert "super-sensitive-provider-key" not in str(caught.value)
+
+
+def test_A11_spend_cap_requires_bounded_priced_model_before_transport(tmp_path):
+    from offsetx_apollo_builder.ai.errors import NoPermittedProvider
+
+    called = []
+    broker = EgressBroker(
+        registry=ProviderRegistry(Path(__file__).resolve().parents[1] / "config" / "providers.yaml"),
+        credential_resolver=lambda _: "key",
+        quota=QuotaTracker(tmp_path),
+    )
+    broker._instantiate = lambda _: called.append("sent")
+    settings = WorkspaceEgressSettings(
+        workspace_id="x", enabled_provider_ids=("mistral",),
+        quota_limits={"mistral": QuotaLimits(max_spend_usd_per_day=0.001)},
+    )
+    with pytest.raises(NoPermittedProvider):
+        broker.call(EgressRequest(task_type="t", data_class=DataClass.PUBLIC),
+                    settings, system_prompt="test")
+    # The model's full context costs more than $0.001, so it cannot fit an
+    # enforceable cap unless output is bounded more tightly.
+    assert not called
+
+
+def test_A11_legacy_provider_usage_is_not_ignored_during_account_migration(tmp_path):
+    tracker = QuotaTracker(tmp_path)
+    tracker.record("mistral", spend_usd=0.20)
+    account = QuotaTracker(tmp_path)
+    limits = QuotaLimits(requests_per_day=1, max_spend_usd_per_day=0.30)
+    assert account.try_reserve("mistral", limits, scope_id="new-account")[0] is None
+    assert account.try_reserve("mistral", QuotaLimits(max_spend_usd_per_day=0.25),
+                               worst_case_usd=0.10, scope_id="new-account")[0] is None

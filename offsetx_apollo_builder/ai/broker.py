@@ -541,14 +541,22 @@ class EgressBroker:
         # candidate has limits: read only after a call, a database that could
         # not answer threw away an answer already billed (D-207).
         if self.quota is not None:
-            self.quota.prepare()
+            try:
+                self.quota.prepare()
+            except Exception as exc:
+                raise NoPermittedProvider(failure_message(
+                    exc, operation="ai.quota.prepare", workspace=settings.workspace_id,
+                )) from None
         with_budget: list[ResolvedProvider] = []
         for candidate in adjusted:
             limits = settings.quota_limits.get(candidate.id)
             if self.quota is None or limits is None or limits.unlimited:
                 with_budget.append(candidate)
                 continue
-            allowed, reason = self.quota.check(candidate.id, limits)
+            allowed, reason = self.quota.check(
+                candidate.id, limits,
+                scope_id=self._quota_scope_id(candidate, settings.workspace_id),
+            )
             if allowed:
                 with_budget.append(candidate)
             else:
@@ -1348,5 +1356,11 @@ class EgressBroker:
                     requests_per_minute=entry.free_tier.requests_per_minute,
                     requests_per_day=entry.free_tier.requests_per_day,
                 )
-            rows.append(self.quota.usage(provider_id, limits or QuotaLimits()))
+            # The same physical provider credential shares its quota even
+            # when two workspaces use it. Display the true account ledger.
+            candidate = self.registry.get(provider_id)
+            secret = self.credential_resolver(provider_id)
+            identity = "credential:" + secret if secret else "workspace:" + settings.workspace_id
+            scope = hashlib.sha256((provider_id + "\0" + identity).encode("utf-8")).hexdigest()
+            rows.append(self.quota.usage(provider_id, limits or QuotaLimits(), scope_id=scope))
         return rows

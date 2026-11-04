@@ -1143,3 +1143,12 @@ lifecycle.
 **What we learned.** A cache lookup before mutation is not a lock, and `INSERT ... ON CONFLICT UPDATE` after the mutation can only overwrite the evidence of duplication. Existing replay tests approved reusing one key with a changed payload; that assumption was unsafe.
 **Decision.** Save CRM effects and replies together in one database transaction. For email/AI, reserve a claim before transport and return 409 when completion cannot be proved, instead of pretending a distributed transaction exists.
 **Still open.** Real provider acceptance, operator reconciliation of in-progress rows, independent penetration, complete PostgreSQL and UI regression, and audit/board release gates.
+
+
+## 2026-11-05 — A10 receipt-integrity guard (S-06.02.66 build-ahead)
+
+**What was cut.** No feature criterion was silently discarded. Actual paid-provider invoice reconciliation, customer-hosted usage acceptance and independent penetration remain explicit release gates.
+
+**What the estimate missed.** Atomic preflight reservation already existed, but trusting an all-zero provider receipt after the call could silently refund it; malformed counts could raise after transport and lose the response.
+
+**What to change next time.** Verify not only the reservation before egress but also the untrusted provider response used to settle it. Test real broker retries and process/database races before making a spending-safety claim.

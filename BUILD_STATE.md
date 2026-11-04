@@ -1,3 +1,10 @@
+## 2026-11-05 — A10 priced AI receipt integrity, TDD repair (full review pending)
+
+- Active production audit S-06.02.23 next finding: A10. New build-ahead remediation S-06.02.66 with work order and acceptance. No other branch, customer/main deployment or schema change.
+- RED test source `1f4f9b9`, isolated Render `dep-dblrg5h5efls73aj916g`: 7 expected failures, 2 passes. Confirmed all-zero token receipt was accepted as provider-confirmed free use and nonfinite token parsing could raise after provider I/O.
+- GREEN implementation `763a862` and `48e271`: shared adapter/parser rejects invalid, all-zero, nonfinite or boolean receipts; broker cost measurement falls back to a positive labelled estimate without re-calling a provider or resetting quota. Focused A10 test `uv run pytest -q tests/test_ai_billing_integrity_a10.py` **9 passed** on source `48e271` / isolated Render `dep-dblrgs2jnfac73d9g7ug` (step #27). Subsequent source `839fc67` adds failure and real process/database concurrency cases; its review results are pending.
+- This is A10 receipt handling, not a complete provider invoice reconciliation or independent penetration. Full PostgreSQL, SQLite, web/browser/security gates, full-history verifier and customer acceptance must be observed on final source before asserting review pass. No live provider used.
+
 ## 2026-11-05 — A05 isolated full Render review completed, LIVE
 
 - Review `dep-dblr106i0phs7385jao0` on exact executable/test source `94fa650586ea0ca40178d47b473354dabb1abc67` reached LIVE 2026-11-04 22:44:20 UTC. New A05 real-API regressions: 3 PASS; full SQLite 3,015 PASS/56 skipped/44 warnings; full real disposable PostgreSQL 3,039 PASS/101 skipped/44 warnings, plus focused 215 PASS. Frontend tests/build, npm audits, Chromium desktop/mobile Contacts and Public Demo, A09/A18 browser security, Ruff, concurrent SQLite probes and structural board verifier PASS.

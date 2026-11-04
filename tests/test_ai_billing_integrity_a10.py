@@ -140,7 +140,7 @@ def test_A10_paid_provider_failure_keeps_measured_spend_and_does_not_resend(tmp_
     class _BilledFailure(_PaidProvider):
         def generate(self, *, system_prompt, user_prompt):
             self.calls.append("sent-and-failed")
-            raise TimeoutError("provider did not finish, billing status uncertain")
+            raise TimeoutError("synthetic upstream network timeout")
 
     broker._instantiate = lambda _: _BilledFailure(
         {"tokens_in": 10000, "tokens_out": 20000}, wire,

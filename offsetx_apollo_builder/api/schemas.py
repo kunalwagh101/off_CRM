@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import json
+import math
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from ..outreach.models import MESSAGE_STAGES
@@ -770,11 +772,67 @@ class CompetitorTeardownBody(StrictModel):
     fps: str = Field(default="30", max_length=20)
     seed: int = Field(default=0, strict=True)
 
+def _check_video_edit_parameters(params: dict[str, Any]) -> None:
+    """Bound nested client-supplied edit data before it reaches the timeline."""
+    remaining = 4096
+    pending: list[tuple[Any, int]] = [(params, 0)]
+    while pending:
+        value, depth = pending.pop()
+        remaining -= 1
+        if remaining < 0 or depth > 12:
+            raise ValueError("Video edit parameters are too complex.")
+        if isinstance(value, dict):
+            if len(value) > 200:
+                raise ValueError("Video edit parameters have too many fields.")
+            for key, child in value.items():
+                if not isinstance(key, str) or len(key) > 128:
+                    raise ValueError("Video edit parameter names are too long.")
+                pending.append((child, depth + 1))
+        elif isinstance(value, list):
+            if len(value) > 2000:
+                raise ValueError("Video edit parameters contain too many items.")
+            pending.extend((child, depth + 1) for child in value)
+        elif isinstance(value, str):
+            if len(value) > 20000:
+                raise ValueError("Video edit text exceeds the allowed length.")
+        elif isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("Video edit numbers must be finite.")
+
+
+class VideoEditOperationBody(StrictModel):
+    """One unambiguous edit inside a batch. Its params must be an object."""
+    op: str = Field(default="", max_length=80, strict=True)
+    operation: str = Field(default="", max_length=80, strict=True)
+    params: dict[str, Any] = Field(default_factory=dict, max_length=200)
+
+    @model_validator(mode="after")
+    def check_operation(self) -> "VideoEditOperationBody":
+        if bool(self.op) == bool(self.operation):
+            raise ValueError("Specify exactly one video edit operation name.")
+        _check_video_edit_parameters(self.params)
+        return self
+
+
 class VideoEditBody(StrictModel):
-    operations: list[dict[str, Any]] | None = Field(default=None, max_length=500)
-    op: str = Field(default="", max_length=80)
-    operation: str = Field(default="", max_length=80)
-    params: dict[str, Any] = Field(default_factory=dict)
+    operations: list[VideoEditOperationBody] | None = Field(
+        default=None, min_length=1, max_length=500
+    )
+    op: str = Field(default="", max_length=80, strict=True)
+    operation: str = Field(default="", max_length=80, strict=True)
+    params: dict[str, Any] = Field(default_factory=dict, max_length=200)
+
+    @model_validator(mode="after")
+    def check_shape(self) -> "VideoEditBody":
+        if self.operations is None:
+            if bool(self.op) == bool(self.operation):
+                raise ValueError("Specify exactly one video edit operation name.")
+            _check_video_edit_parameters(self.params)
+        elif self.op or self.operation or self.params:
+            raise ValueError("Send either a video edit batch or one edit, not both.")
+        # A valid 500-step drag remains supported, but not an unbounded body.
+        if len(json.dumps(self.model_dump(), separators=(",", ":"), ensure_ascii=False).encode("utf-8")) > 512 * 1024:
+            raise ValueError("Video edit request exceeds the allowed size.")
+        return self
 
 class VideoPlaceAssetBody(StrictModel):
     asset_id: str | None = Field(default=None, max_length=120)

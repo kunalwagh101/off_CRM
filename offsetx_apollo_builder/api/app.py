@@ -2508,8 +2508,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         engine = _video(request)
         operations = body.get("operations")
-        if isinstance(operations, list) and operations:
-            return engine.batch(project_id, operations).to_dict()
+        if operations is not None:
+            # Schema validation happens before loading any project. Convert
+            # the nested models to the mapping contract used by the engine.
+            checked = [item.model_dump(exclude_unset=True) for item in operations]
+            return engine.batch(project_id, checked).to_dict()
         return engine.edit(
             project_id,
             str(body.get("op") or body.get("operation") or ""),

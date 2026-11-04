@@ -284,3 +284,5 @@ A16 final isolated QA: `dep-dbldur942hec73fvgeq0` on `144e1cb` LIVE 2026-11-04 0
 RED 8 cases on b57c971 and key-rotation RED 1 case on e488c30, both isolated Render builds. Source 8957a27 focused 14 PASS/1 PostgreSQL-only skipped on early gate dep-dblffhijnfac73fs3770; final exact-source full PostgreSQL and security release evidence pending. Keep S-06.02.60 BACKLOG until audit and readiness gates.
 
 A11 exact-source full review: code `8957a27`, Render `dep-dblffhijnfac73fs3770`, 14 focused A11 PASS/1 conditional PG skip, SQLite 2,984 PASS, PostgreSQL 3,008 PASS with A11 PG-specific test enabled, focused PG 215 PASS, real Chromium desktop/mobile PASS. Structural board verification only (`--skip-tests`); independent penetration and customer acceptance remain OPEN. Story BACKLOG pending audit.
+
+A11 review runner dep-dblffhijnfac73fs3770 **LIVE** 2026-11-04T09:35:47.896966Z on exact code 8957a27. This is not independent penetration, full-history evidence replay, real paid-provider acceptance or customer release.

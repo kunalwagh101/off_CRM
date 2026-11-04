@@ -1,3 +1,9 @@
+## 2026-11-04 — A11 QA runner deployed LIVE, exact-source verification
+
+- Render deployed the isolated review runner `dep-dblffhijnfac73fs3770` **LIVE** at 2026-11-04T09:35:47.896966Z on executable source `8957a27b9d1d7d646757bf86d51f8059b21a0781`. Render logs also confirmed "Your service is live" at 09:35:48 UTC.
+- Isolated tests passed: A11 targeted 14/14 (PG-only 1 skipped at early stage), SQLite 2,984/2,984 executed, real PostgreSQL 3,008/3,008 executed including PG multi-worker A11, focused PG 215/215, real Chromium desktop/mobile, configured frontend/security gates. Source did not change during documentation updates.
+- This is a QA runner, **not** paid-provider/customer production deployment. Independent third-party penetration, live provider billing/receipts and full-history verifier are still not accepted. Story remains BACKLOG under active audit; no `main` push.
+
 ## 2026-11-04 — A11 full isolated Render QA evidence (source 8957a27)
 
 - Exact **executable source**: `8957a27b9d1d7d646757bf86d51f8059b21a0781`, review service `srv-db86p4u89jmc73cehns0`, deploy `dep-dblffhijnfac73fs3770`.

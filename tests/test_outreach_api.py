@@ -54,10 +54,16 @@ def test_complete_api_workflow_uses_local_outbox_by_default(tmp_path):
         replay = client.post(
             "/api/v1/campaigns",
             headers={"Idempotency-Key": "campaign-key"},
-            json={"name": "Ignored on replay", "daily_send_limit": 2},
+            json={"name": "API Pilot", "daily_send_limit": 2},
         )
         assert replay.json()["id"] == campaign_id
         assert replay.json()["idempotent_replay"] is True
+        conflict = client.post(
+            "/api/v1/campaigns",
+            headers={"Idempotency-Key": "campaign-key"},
+            json={"name": "Different request", "daily_send_limit": 2},
+        )
+        assert conflict.status_code == 409
 
         imported = client.post(
             f"/api/v1/campaigns/{campaign_id}/contacts/import",

@@ -31,10 +31,6 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
-- S-06.02.65 · Reject malformed nested video edits without partial writes (A22)
-  work_order: docs/work-orders/S-06.02.65-video-edit-input.md
-  checkpoint: Test-first build-ahead under owner direction; S-06.02.23 remains IN_PROGRESS. Full audit A22 and production acceptance remain open.
-
 - S-06.02.62 · HTTP idempotency safely prevents duplicate state-changing requests (A14)
   work_order: docs/work-orders/S-06.02.62-atomic-http-idempotency.md
   checkpoint: TDD RED ac10fa0 / isolated Render dep-dblfslqjnfac73ft665g: 5 expected FAIL (two live API instances, changed payload, crash, uncertain send, invalid header). First GREEN source 19682d5 / Render dep-dblfu1ugekts738a7780: same 5 PASS. Added PostgreSQL cross-instance, authenticated-principal, verified external replay and legacy-row tests at b53baec / 7c47b34; a further test 0b66f15 proves replay must not rebuild the mail provider, fixed in c6d1192. Added adversarial conflicting-payload race and SQL metacharacter tests in 6dd3618, and real OS-process crash rollback test in 2e709a5. Exact-source Render review dep-dblg7k8u01pc73a4m7lg (source 1c1d3a2, executable changes last 2e709a5) passed focused A14 12/12 with one PG-only skip in initial gate, complete SQLite 2,996 PASS/56 skipped, full disposable PostgreSQL 3,020 PASS/101 skipped (A14 PG test enabled), focused PG 215 PASS, frontend/npm audits, Chromium desktop/mobile, structural board verifier and security/static gates PASS. Confirmed LIVE 2026-11-04 10:27:18 UTC on exact source 1c1d3a2; code and tests only on develop. Source app.py uses a single transaction for CRM-only mutations and a durable in-progress claim before provider/email actions. Code was built ahead under owner instruction but remains BACKLOG while S-06.02.23 audit is IN_PROGRESS and production/independent acceptance is open. No main/customer deployment.
@@ -158,6 +154,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
 
 ## IN_REVIEW
+
+- S-06.02.65 · Reject malformed nested video edits without partial writes (A22)
+  work_order: docs/work-orders/S-06.02.65-video-edit-input.md
+  review: TDD RED 86da047 / isolated Render dep-dbln67d6e07s739droo0: 6 expected failures/2 pass. GREEN source 384070d / isolated Render dep-dbln72ff3r2c73e4r2q0: A22 8 PASS, including invalid nested params, extra fields, conflicting operations, late-invalid no-write, oversized text, valid single/batch and undo. Full SQLite/PG/frontend/Chromium and LIVE still pending. Defect D-367 mitigated for video edits, but full A22 write-API matrix, independent penetration, full-history verifier and customer acceptance remain OPEN. No main/customer release; audit S-06.02.23 still IN_PROGRESS. Evidence docs/evidence/2026-11-04-a22-video-edit-validation.md.
+
 
 - S-06.02.64 · Restricted sandbox can write outputs without exposing host files (A32)
   work_order: docs/work-orders/S-06.02.64-sandbox-writable-workspace.md

@@ -1,3 +1,9 @@
+## 2026-11-04 — A22 nested video-edit API validation (review underway)
+
+- S-06.02.65 / F-06.02 replaces arbitrary nested video-edit batch dictionaries with strict typed operation requests. Invalid params, extra nested keys, conflicting op aliases, ambiguous single/batch commands and excessive nested data return 422 before the project is opened or saved. Existing batch atomicity, valid single edits and undo remain intact.
+- RED source 86da047 / Render dep-dbln67d6e07s739droo0: six expected failures, two passes. GREEN executable source 384070d / Render dep-dbln72ff3r2c73e4r2q0: eight focused A22 HTTP tests PASS. Full SQLite/PostgreSQL and Render LIVE result pending.
+- This is one part of A22, not full write-API audit closure. Independent penetration, full-history verifier and production acceptance remain open. S-06.02.65 is IN_REVIEW; S-06.02.23 remains IN_PROGRESS. No main/customer deployment. Evidence docs/evidence/2026-11-04-a22-video-edit-validation.md.
+
 ## 2026-11-04 — A32 restricted sandbox work directory (test-first isolated review)
 
 - S-06.02.64 / F-06.02: corrected a high-priority audit bug in `SandboxWorkspace.prepare()`: host-owned 0755 work directories could not be written by the container's UID/GID 65534. Keep per-job root 0700, inbox 0755 (mounted read-only), and only /work sticky-writable 01777 (mounted rw). Refuse symlinked directories, and use no-follow file-descriptor-based fchmod to avoid changing a redirected target. Docker user, capabilities, egress, storage and network controls are unchanged.

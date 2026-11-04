@@ -4,7 +4,9 @@ import re
 import asyncio
 import time
 
+import hashlib
 import hmac
+import json
 import os
 import threading
 import uuid
@@ -498,15 +500,90 @@ def _temporary_upload(filename: str, content: bytes) -> Path:
 
 
 def _idempotent(
-    engine: OutreachEngine, scope: str, key: str | None, operation: Any
+    engine: OutreachEngine, scope: str, key: str | None, operation: Any,
+    *, principal: str, payload: Any, external: bool = False,
 ) -> dict[str, Any]:
-    if key:
-        cached = engine.store.get_idempotency(scope, key)
-        if cached is not None:
-            return {**cached, "idempotent_replay": True}
+    """A14: replay a keyed mutation without ever executing the effect twice.
+
+    CRM-only mutations and replay results commit in one database transaction.
+    For a provider/email call, save an in-progress claim before network I/O.
+    An uncertain external outcome may require reconciliation; never re-send.
+    """
+    if key is None:
+        return operation()
+    if not key or len(key) > 128 or key != key.strip() or not key.isascii() or not key.isprintable():
+        raise HTTPException(
+            status_code=422,
+            detail="Idempotency-Key must be 1–128 printable ASCII characters without outer spaces.",
+        )
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {"scope": scope, "principal": principal, "payload": payload},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    marker = "_offcrm_idempotency_v2"
+    store = engine.store
+
+    def replay() -> dict[str, Any] | None:
+        row = store.connection.execute(
+            "SELECT response_json FROM idempotency_records WHERE scope = ? AND request_key = ?",
+            (scope, key),
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            state = json.loads(row["response_json"])
+        except (TypeError, ValueError):
+            state = None
+        if not isinstance(state, dict) or not state.get(marker):
+            raise HTTPException(
+                status_code=409,
+                detail="This idempotency key predates request verification. Use a new key.",
+            )
+        if state.get("fingerprint") != fingerprint:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key was already used for another request or caller.",
+            )
+        if state.get("status") != "complete":
+            raise HTTPException(
+                status_code=409,
+                detail="The previous operation is in progress or its outcome is uncertain. "
+                "Check its result before sending another request.",
+            )
+        if not isinstance(state.get("result"), dict):
+            raise HTTPException(status_code=409, detail="Saved operation result is invalid.")
+        return {**state["result"], "idempotent_replay": True}
+
+    def save(status: str, result: dict[str, Any] | None = None) -> None:
+        store.save_idempotency(
+            scope, key,
+            {marker: True, "fingerprint": fingerprint, "status": status, "result": result},
+        )
+
+    if not external:
+        # SQLite BEGIN IMMEDIATE and PostgreSQL's advisory transaction lock
+        # serialize separate connections/processes. Saving the effect and its
+        # result together prevents the crash-after-mutation replay hole.
+        with store.transaction(immediate=True):
+            previous = replay()
+            if previous is not None:
+                return previous
+            result = operation()
+            save("complete", result)
+            return result
+
+    with store.transaction(immediate=True):
+        previous = replay()
+        if previous is not None:
+            return previous
+        save("in_progress")
+    # Provider and mail operations cannot hold a database-wide transaction
+    # across network I/O. A crash leaves this claim, so retries are blocked.
     result = operation()
-    if key:
-        engine.store.save_idempotency(scope, key, result)
+    with store.transaction(immediate=True):
+        save("complete", result)
     return result
 
 
@@ -1408,6 +1485,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "sales-lead:create",
             idempotency_key,
             lambda: _sales(request).create_lead(body.model_dump(exclude_none=True)),
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
         )
 
     @app.get(f"{API_PREFIX}/sales/leads/{{lead_id}}")
@@ -3230,7 +3308,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
             return engine.store.get_campaign(campaign_id)
 
-        return _idempotent(engine, "create_campaign", idempotency_key, operation)
+        return _idempotent(
+            engine, "create_campaign", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
+        )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}")
     def campaign(campaign_id: str, request: Request) -> dict[str, Any]:
@@ -3257,7 +3338,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.store.clone_campaign_settings(campaign_id, name=body.name)
 
-        return _idempotent(engine, f"clone_campaign:{campaign_id}", idempotency_key, operation)
+        return _idempotent(
+            engine, f"clone_campaign:{campaign_id}", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
+        )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/performance")
     def campaign_performance_endpoint(campaign_id: str, request: Request) -> dict[str, Any]:
@@ -3401,6 +3485,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return _idempotent(
             engine, f"sales_promote:{campaign_id}:{campaign_contact_id}",
             idempotency_key, operation,
+            principal=_decided_by(request), payload={},
         )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/replies/inbox")
@@ -3465,7 +3550,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 )
 
         return _idempotent(
-            engine, f"followup_create:{campaign_id}", idempotency_key, operation
+            engine, f"followup_create:{campaign_id}", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
         )
 
     @app.patch(f"{API_PREFIX}/campaigns/{{campaign_id}}/followups/{{task_id}}")
@@ -3513,7 +3599,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     ),
                 )
 
-        return _idempotent(engine, f"manual_contact:{campaign_id}", idempotency_key, operation)
+        return _idempotent(
+            engine, f"manual_contact:{campaign_id}", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
+        )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/contacts/bulk")
     def bulk_contacts(
@@ -5239,7 +5328,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     provider=provider,
                 )
 
-        return _idempotent(engine, f"generate:{campaign_id}", idempotency_key, operation)
+        return _idempotent(
+            engine, f"generate:{campaign_id}", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
+            external=True,
+        )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts")
     def drafts(
@@ -5341,7 +5434,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     max_messages=body.max_messages,
                 )
 
-        return _idempotent(engine, f"send:{campaign_id}", idempotency_key, operation)
+        return _idempotent(
+            engine, f"send:{campaign_id}", idempotency_key, operation,
+            principal=_decided_by(request), payload=body.model_dump(mode="json"),
+            external=True,
+        )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/replies/sync")
     def sync_replies_endpoint(

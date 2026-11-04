@@ -1,9 +1,13 @@
 """A14: real HTTP idempotency must survive races, crashes and hostile key reuse."""
 from __future__ import annotations
 
+import multiprocessing
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+
+import pytest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -337,3 +341,43 @@ def test_A14_sql_metacharacters_in_key_cannot_change_database(tmp_path):
         next_campaign = _post_campaign(client, "safe-next-key", "Another")
         assert next_campaign.status_code == 201
         assert client.get("/api/v1/campaigns").json()["total"] == 2
+
+
+
+def _A14_crash_inside_transaction(root: str) -> None:
+    """Separate process: kill the OS process after a DB effect, before commit."""
+    app = create_app(_settings(Path(root), "crash-child"))
+    with TestClient(app) as client:
+        original = app.state.engine.create_campaign
+
+        def kill_after_mutation(*args, **kwargs):
+            original(*args, **kwargs)
+            os._exit(47)  # abrupt process loss: no Python exception/cleanup
+
+        app.state.engine.create_campaign = kill_after_mutation
+        _post_campaign(client, "killed-mid-mutation", "Must roll back")
+    os._exit(48)  # never reached if the test actually covered the crash
+
+
+@pytest.mark.crm_sqlite_only("This test kills a process with a SQLite file transaction.")
+def test_A14_real_process_crash_rolls_back_uncommitted_effect_and_result(tmp_path):
+    """A14: OS process death before COMMIT cannot strand half a keyed mutation."""
+    ctx = multiprocessing.get_context("spawn")
+    worker = ctx.Process(target=_A14_crash_inside_transaction, args=(str(tmp_path),))
+    worker.start()
+    worker.join(timeout=30)
+    if worker.is_alive():
+        worker.terminate()
+        worker.join()
+        pytest.fail("A14 crash worker blocked while holding a CRM transaction")
+    assert worker.exitcode == 47, f"Mutation did not reach the crash point: {worker.exitcode}"
+
+    with TestClient(create_app(_settings(tmp_path, "crash-recovered"))) as client:
+        assert client.get("/api/v1/campaigns").json()["total"] == 0
+        accepted = _post_campaign(client, "killed-mid-mutation", "Must roll back")
+        assert accepted.status_code == 201, accepted.text[:300]
+        replay = _post_campaign(client, "killed-mid-mutation", "Must roll back")
+        assert replay.status_code == 201
+        assert replay.json()["id"] == accepted.json()["id"]
+        assert replay.json()["idempotent_replay"] is True
+        assert client.get("/api/v1/campaigns").json()["total"] == 1

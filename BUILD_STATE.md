@@ -1,3 +1,8 @@
+## 2026-11-05 — A05 video workspace isolation: full isolated automated QA green
+
+- Code/test source `246741b8663d56991d169af246dab77681f63648`, isolated Render `dep-dbm4lgrbc2fs738acn6g` completed all configured test stages (LIVE status to be separately confirmed). Focused A05 4 PASS; complete SQLite **3,036 PASS / 57 skipped / 44 warnings**, complete real disposable PostgreSQL **3,061 PASS / 101 skipped / 44 warnings**, focused PostgreSQL 215 PASS. Real Chromium desktop/mobile, frontend build/tests/audits, Ruff/security, 12× concurrency, structural board verifier PASS (`--skip-tests`, not historical evidence replay).
+- This hardens the A05 cross-workspace video ownership boundary, not full CRM tenancy Q-27 or independent penetration/customer acceptance. Retain S-06.02.68 BACKLOG and S-06.02.23 IN_PROGRESS. No main/customer or real media deployment. Source `docs/evidence/2026-11-05-a05-video-workspace-isolation.md`.
+
 ## 2026-11-05 — A05 video workspace ownership: TDD and isolated QA in progress
 
 - Working branch `develop`. During live audit S-06.02.23, new build-ahead S-06.02.68 found global video ID/list access ignoring already-stored workspace_id. TDD RED source d22d3a8 / isolated Render `dep-dbm4isu1egvs73bau35g`: **4 expected FAIL** (real cookie sessions, two workspaces, private project, render and audio).

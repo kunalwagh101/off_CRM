@@ -2523,6 +2523,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def undo_video_project(project_id: str, request: Request) -> dict[str, Any]:
         try:
             return _video(request).undo(project_id).to_dict()
+        except KeyError:
+            # An unknown or foreign project is a 404, not an undo conflict.
+            raise
         except LookupError as exc:
             raise HTTPException(409, detail={"error": "nothing_to_undo", "message": str(exc)})
 
@@ -2530,6 +2533,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def redo_video_project(project_id: str, request: Request) -> dict[str, Any]:
         try:
             return _video(request).redo(project_id).to_dict()
+        except KeyError:
+            raise
         except LookupError as exc:
             raise HTTPException(409, detail={"error": "nothing_to_redo", "message": str(exc)})
 

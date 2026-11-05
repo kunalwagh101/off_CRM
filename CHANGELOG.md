@@ -1,3 +1,10 @@
+## 2026-11-05 — Companion migration and Poster preflight, partial isolated QA
+
+- Added explicit archive-first local companion/profile cutover into hosted SQL, preserving executable tool registrations; refuses conflicts, unsafe grants and unverified archives.
+- Fixed D-377 transaction loss caused by running sqlite3.executescript inside HostedStorage.exclusive. The exact imported migration module passed 11 isolated SQLite tests using narrow dependency stubs; real app/postgres test suite is still blocked.
+- Fixed D-378 so mixed, duplicate or disabled posting account batches cannot create partial drafts. Added focused regression source, not yet run in full product QA.
+- No Render build, customer deploy, offsite restore or DONE promotion.
+
 ## 2026-11-05 — Five agent roles, hosted profiles and workspace isolation (source only)
 
 - Added owner-created Scout, Maker, Poster, Analyst and Director role bindings to existing review-gated engines, with strict API requests and tests.

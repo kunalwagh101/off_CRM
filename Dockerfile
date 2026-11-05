@@ -15,6 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OFFSETX_WEB_PORT=8766 \
     OFFSETX_DATA_DIR=/var/lib/offcrm/local_data \
     OFFSETX_OUTREACH_DB=/var/lib/offcrm/local_data/offsetx_outreach.db
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 COPY --from=frontend-build /build/frontend/dist ./frontend/dist

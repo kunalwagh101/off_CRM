@@ -62,6 +62,23 @@ class RoleEngines:
     gtm: Any = None
 
 
+def release_role_resources(role: str, engines: RoleEngines) -> None:
+    """Release request-owned watcher connections after Scout or Poster actions.
+
+    Video, posting, analytics and GTM stores are app-owned shared services.
+    They must not be closed by one HTTP request. The trends watcher returned
+    by _trends() is per request; otherwise its SQL connection leaks.
+    """
+    watcher = (
+        engines.trends if role == "Scout" else
+        getattr(engines.pipeline, "trends", None) if role == "Poster" else
+        None
+    )
+    close = getattr(watcher, "close", None)
+    if callable(close):
+        close()
+
+
 def execute_role(
     role: str, payload: Mapping[str, Any], *,
     engines: RoleEngines,

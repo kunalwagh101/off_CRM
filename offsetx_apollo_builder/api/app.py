@@ -235,6 +235,8 @@ from .schemas import (
     CompanionContextBody,
     CompanionCreateBody,
     CompanionMemoryBody,
+    CompanionSkillCreateBody,
+    CompanionSkillUpdateBody,
     CompanionUpdateBody,
     CompetitorTeardownBody,
     ContentAutomationBody,
@@ -1837,6 +1839,54 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Companion not found")
         return {"status": "deleted"}
 
+    @app.get(f"{API_PREFIX}/companion-skills")
+    def list_companion_skills(request: Request) -> dict[str, Any]:
+        return {
+            "items": [
+                skill.to_dict() for skill in request.app.state.companions.list_skills(
+                    workspace_id=_workspace_id(request)
+                )
+            ]
+        }
+
+    @app.post(f"{API_PREFIX}/companion-skills", status_code=201)
+    def create_companion_skill(
+        body: CompanionSkillCreateBody, request: Request,
+    ) -> dict[str, Any]:
+        require_install_owner(request)
+        try:
+            return request.app.state.companions.create_skill(
+                workspace_id=_workspace_id(request), name=body.name,
+                content=body.content,
+            ).to_dict()
+        except CompanionError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.patch(f"{API_PREFIX}/companion-skills/{{skill_id}}")
+    def update_companion_skill(
+        skill_id: str, body: CompanionSkillUpdateBody, request: Request,
+    ) -> dict[str, Any]:
+        require_install_owner(request)
+        try:
+            return request.app.state.companions.update_skill(
+                skill_id, workspace_id=_workspace_id(request),
+                name=body.name if "name" in body.model_fields_set else None,
+                content=body.content if "content" in body.model_fields_set else None,
+                enabled=body.enabled if "enabled" in body.model_fields_set else None,
+            ).to_dict()
+        except CompanionError as exc:
+            status = 404 if "not found" in str(exc) else 400
+            raise HTTPException(status, str(exc)) from exc
+
+    @app.delete(f"{API_PREFIX}/companion-skills/{{skill_id}}")
+    def delete_companion_skill(skill_id: str, request: Request) -> dict[str, str]:
+        require_install_owner(request)
+        if not request.app.state.companions.delete_skill(
+            skill_id, workspace_id=_workspace_id(request)
+        ):
+            raise HTTPException(404, "Procedure not found in this workspace")
+        return {"status": "deleted"}
+
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/context")
     def companion_context(
         companion_id: str, body: CompanionContextBody, request: Request
@@ -1852,6 +1902,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 workspace_id=_workspace_id(request),
                 memory_query=str(body.get("memory_query") or ""),
                 memory_limit=limit,
+                skill_ids=body.skill_ids,
             ).to_dict()
         except CompanionError as exc:
             status = 404 if "does not exist" in str(exc) else 400
@@ -4433,6 +4484,26 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 },
             )
         data_class = DataClass(requested_class)
+        companion_instructions = ""
+        selected_companion = str(body.get("companion_id") or "").strip()
+        selected_skills = body.get("skill_ids") or []
+        if selected_skills and not selected_companion:
+            raise HTTPException(400, "Select a companion before selecting its procedures")
+        if selected_companion:
+            # Procedures are owner-approved input, never page/model-selected.
+            # Keep them in the broker's scanned data payload, not privileged system text.
+            require_install_owner(request)
+            if data_class is not DataClass.CAMPAIGN:
+                raise HTTPException(400, "Companion instructions require campaign data policy")
+            try:
+                context = request.app.state.companions.start(
+                    selected_companion, workspace_id=workspace_id,
+                    skill_ids=selected_skills, memory_limit=0,
+                )
+                companion_instructions = context.model_instructions()
+            except CompanionError as exc:
+                raise HTTPException(404 if "not found" in str(exc)
+                                    or "does not exist" in str(exc) else 400, str(exc)) from exc
         provider_id = str(body.get("provider_id", "")).strip()
         model_id = str(body.get("model_id", "")).strip()
         if model_id and provider_id:
@@ -4445,6 +4516,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             egress = EgressRequest(
                 task_type="ai_chat",
                 data_class=data_class,
+                instructions=companion_instructions,
                 conversation=turns,
                 positioning_line=settings.positioning_line,
                 task_tags=("writing", "reasoning"),

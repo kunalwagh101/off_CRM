@@ -160,9 +160,14 @@ class ImageStore:
             raise KeyError(f"Brief not found: {brief_id}")
         return dict(row)
 
-    def list_briefs(self, campaign_id: str, *, status: str = "") -> list[dict[str, Any]]:
+    def list_briefs(
+        self, campaign_id: str, *, status: str = "", workspace_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         sql = "SELECT * FROM image_briefs WHERE campaign_id = ?"
         params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
         if status:
             sql += " AND status = ?"
             params.append(status)
@@ -259,9 +264,13 @@ class ImageStore:
         status: str = "",
         brief_id: str = "",
         limit: int = 100,
+        workspace_id: str | None = None,
     ) -> list[dict[str, Any]]:
         sql = "SELECT * FROM image_assets WHERE campaign_id = ?"
         params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
         if status:
             sql += " AND status = ?"
             params.append(status)

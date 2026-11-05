@@ -78,6 +78,8 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
   work_order: docs/work-orders/S-04.01.03-bounded-child-reasoning.md
   checkpoint: 2026-11-05 owner-scoped bounded one-level child reasoning source c733f7a/8c7b00c; tests/test_companion_delegation.py written, NOT RUN. No recursive tool/spawn access, live acceptance or complete five-role workflow. Upstream S-04.01.01 IN_REVIEW; remains BACKLOG.
 - S-04.01.04 · The five roles, wired to what already exists
+  checkpoint: 2026-11-05 D-381 Scout/Poster request-owned TrendWatcher connections now closed on return/error (5eae113/9897916), shared engines remain open. Focused tests/test_agent_role_team.py source written but NOT RUN; remains BACKLOG.
+
   checkpoint: 2026-11-05 D-378 Poster/TrendPipeline.draft now checks all workspace-owned enabled accounts and rejects duplicates before any model caption or draft write (f6bf8525); source tests/test_pipeline.py added for invalid second account, disabled and duplicate destination, early Dockerfile.review gate. These exact regressions NOT EXECUTED in full repo; remains BACKLOG.
 
   work_order: docs/work-orders/S-04.01.04-five-role-integration.md
@@ -124,6 +126,8 @@ workspace `local` acts as the install owner with nothing asking for that.)*
 next day, `AGENTS.md` "Logging".)*
 
 - S-06.03.04 · The hosted database is backed up outside itself
+  checkpoint: 2026-11-05 D-380 restore safety: no pg_restore --clean/--if-exists, refuse even a no-table destination with views, functions, sequences, types, extra schemas or extensions via pg_catalog. Fake preflight and real disposable PG test source in tests/test_hosted_backup.py (75b4ce2, ff00a0d). New tests NOT RUN. No owner-approved S3 bucket/recovery drill; remains BACKLOG, not DONE.
+
   design: docs/architecture/HOSTED_STORAGE.md
   work_order: docs/work-orders/S-06.03.04-hosted-backup-and-restore.md
   checkpoint: 2026-11-05 owner approved private S3 architecture and separate AES-256-GCM key, Q-29 policy answered. Encrypted PostgreSQL export/verify/download/guarded restore CLI, runtime PG client and tests/test_hosted_backup.py committed on develop (8bb5604 onward); QA Docker gate written. No executed focused/full SQLite/PG tests, actual bucket, IAM, nightly schedule, offsite recovery demonstration or production evidence: BACKLOG, not DONE.
@@ -133,6 +137,8 @@ next day, `AGENTS.md` "Logging".)*
 *(Filed 2026-10-02 from the inventory, `S-06.03.01`: stores with no phase.)*
 
 - S-06.03.06 · Every other store has a decided home
+  checkpoint: 2026-11-05 D-379 full ToolRegistry logical SHA-256 in archive reconciliation (15ca74f5) and new tests/test_companion_import.py cases; exact-module isolated SQLite 13 PASS using hosted/lock stubs, source Git blob 3e4b942. Evidence docs/evidence/2026-11-05-companion-cutover-isolated-red-green.md. Full application/PG tests NOT RUN; remains BACKLOG.
+
   checkpoint: 2026-11-05 additional operator import of older local companion profiles/procedures (db/companion_import.py, offsetx-db import-companions); private full SQLite archive, exact source/hosted row checks, explicit --yes, refuses non-durable tool grants and preserves tool rows. D-377 SQLite executescript transaction bug discovered by isolated RED (3 failed/5 passed), fixed e601f34/4b98b63, 11 isolated SQLite tests PASS on exact module blob (stubs for hosted/writer); evidence docs/evidence/2026-11-05-companion-cutover-isolated-red-green.md. Added tests/test_companion_import.py and disposable PG Dockerfile.review gate. THIS IS NOT FULL REAL TEST EXECUTION. All unhosted stores and actual Render/PG/penetration/recovery still block this story; remains BACKLOG, not DONE.
 
   work_order: docs/work-orders/S-06.03.06-store-homes.md

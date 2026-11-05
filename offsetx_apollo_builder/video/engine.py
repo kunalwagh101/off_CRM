@@ -140,8 +140,27 @@ class VideoEditorEngine:
     def _require_own_kind(self, campaign_id: str, action: str) -> None:
         assert_kind(self.campaign_reader(campaign_id), "image", action=action)
 
+    def _owned_project(self, project_id: str) -> dict[str, Any]:
+        """Refuse a foreign workspace's timeline before any read or mutation.
+
+        CRM campaigns remain globally shared until Q-27 is decided. The video's
+        own immutable workspace_id is already stored, so a campaign-kind check
+        is not an ownership check.
+        """
+        record = self.store.get_project(project_id)
+        if str(record.get("workspace_id") or "local") != self.workspace_id:
+            raise KeyError(f"Video project not found: {project_id}")
+        return record
+
+    def _owned_media(self, media_id: str) -> dict[str, Any]:
+        """A known recording ID does not grant permission to use its bytes."""
+        record = self.store.get_media(media_id)
+        if str(record.get("workspace_id") or "local") != self.workspace_id:
+            raise KeyError(f"Media not found: {media_id}")
+        return record
+
     def _campaign_of(self, project_id: str) -> str:
-        return str(self.store.get_project(project_id).get("campaign_id") or "")
+        return str(self._owned_project(project_id).get("campaign_id") or "")
 
     # ── projects ────────────────────────────────────────────────────────────
 
@@ -369,7 +388,7 @@ class VideoEditorEngine:
                     )
                 )
 
-        rows = self.store.list_media(campaign_id, limit=200)
+        rows = self.store.list_media(campaign_id, limit=200, workspace_id=self.workspace_id)
         chosen = set(media_ids) if media_ids is not None else None
         for row in rows:
             if str(row.get("kind")) != "video":
@@ -390,17 +409,17 @@ class VideoEditorEngine:
     def _sound(self, media_id: str) -> assembly.Sound | None:
         if not media_id:
             return None
-        row = self.store.get_media(media_id)
+        row = self._owned_media(media_id)
         return assembly.Sound(
             asset_id=str(row["id"]), source_ticks=int(row.get("duration_ticks") or 0)
         )
 
     def list_projects(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         self._require_own_kind(campaign_id, "listing video projects")
-        return self.store.list_projects(campaign_id, limit=limit)
+        return self.store.list_projects(campaign_id, limit=limit, workspace_id=self.workspace_id)
 
     def open_project(self, project_id: str) -> ProjectState:
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         self._require_own_kind(str(record.get("campaign_id") or ""), "opening a video project")
         project = Project.from_dict(record["document"])
         low, high = self.store.version_bounds(project_id)
@@ -413,7 +432,7 @@ class VideoEditorEngine:
         )
 
     def delete_project(self, project_id: str) -> None:
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         self._require_own_kind(str(record.get("campaign_id") or ""), "deleting a video project")
         self.store.delete_project(project_id)
 
@@ -474,16 +493,17 @@ class VideoEditorEngine:
         )
 
     def undo(self, project_id: str) -> ProjectState:
-        self.store.get_project(project_id)
+        self._owned_project(project_id)
         self.store.move_version(project_id=project_id, delta=-1)
         return self.open_project(project_id)
 
     def redo(self, project_id: str) -> ProjectState:
-        self.store.get_project(project_id)
+        self._owned_project(project_id)
         self.store.move_version(project_id=project_id, delta=+1)
         return self.open_project(project_id)
 
     def history(self, project_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        self._owned_project(project_id)
         return self.store.history(project_id, limit=limit)
 
     # ── putting generated material on the timeline ──────────────────────────
@@ -585,7 +605,7 @@ class VideoEditorEngine:
             probe=found,
             workspace_id=self.workspace_id,
         )
-        return self.store.get_media(media_id)
+        return self._owned_media(media_id)
 
     def place_media(
         self,
@@ -597,7 +617,7 @@ class VideoEditorEngine:
         duration: int = 0,
     ) -> ProjectState:
         """Put imported material on the timeline, on a track that suits it."""
-        media = self.store.get_media(media_id)
+        media = self._owned_media(media_id)
         state = self.open_project(project_id)
         kind = "audio" if str(media.get("kind")) == "audio" else "video"
         if track_id:
@@ -627,7 +647,7 @@ class VideoEditorEngine:
 
     def media(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         self._require_own_kind(campaign_id, "listing media")
-        return self.store.list_media(campaign_id, limit=limit)
+        return self.store.list_media(campaign_id, limit=limit, workspace_id=self.workspace_id)
 
     # ── captions ────────────────────────────────────────────────────────────
 
@@ -646,7 +666,7 @@ class VideoEditorEngine:
         that cannot change unless the file does, and paying twice for it would
         be paying twice for the same answer.
         """
-        media = self.store.get_media(media_id)
+        media = self._owned_media(media_id)
         if not media.get("has_audio"):
             raise TimelineError(
                 f"{media.get('name') or media_id} has no sound track, so there is "
@@ -796,7 +816,7 @@ class VideoEditorEngine:
         touches this function alone.
         """
         try:
-            media = self.store.get_media(asset_id)
+            media = self._owned_media(asset_id)
         except KeyError:
             pass
         else:
@@ -1015,7 +1035,8 @@ class VideoEditorEngine:
         }
 
     def renders(self, project_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
-        return self.store.list_renders(project_id, limit=limit)
+        self._owned_project(project_id)
+        return self.store.list_renders(project_id, limit=limit, workspace_id=self.workspace_id)
 
     # ── the review queue: push, ignore, edit ────────────────────────────────
 
@@ -1027,7 +1048,7 @@ class VideoEditorEngine:
         piece that must not go anywhere until somebody says so. Available on its
         own for a project built by hand that the owner decides is finished.
         """
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         self._require_own_kind(str(record.get("campaign_id") or ""), "queueing a video")
         return self.store.open_review(
             project_id=project_id,
@@ -1043,7 +1064,7 @@ class VideoEditorEngine:
         self._require_own_kind(campaign_id, "reading the video queue")
         return [
             self._queue_item(review)
-            for review in self.store.list_reviews(campaign_id, verdict="waiting", limit=limit)
+            for review in self.store.list_reviews(campaign_id, verdict="waiting", limit=limit, workspace_id=self.workspace_id)
         ]
 
     def _queue_item(self, review: Mapping[str, Any]) -> dict[str, Any]:
@@ -1055,7 +1076,7 @@ class VideoEditorEngine:
         page actually shows.
         """
         project_id = str(review["project_id"])
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         version = int(record["version"])
         render = self._render_for_version(project_id, version)
         baseline = Project.from_dict(review["baseline"])
@@ -1091,14 +1112,14 @@ class VideoEditorEngine:
         is a different video from the one on the screen, and pushing it would
         publish something the owner never looked at.
         """
-        for render in self.store.list_renders(project_id, limit=50):
+        for render in self.store.list_renders(project_id, limit=50, workspace_id=self.workspace_id):
             if render["status"] == "ready" and int(render["project_version"]) == version:
                 return render
         return None
 
     def _push_blocker(self, project_id: str, version: int) -> str:
         """Why push is greyed out, in words an owner can act on."""
-        renders = self.store.list_renders(project_id, limit=50)
+        renders = self.store.list_renders(project_id, limit=50, workspace_id=self.workspace_id)
         if not renders:
             return "Nothing has been exported yet. Export it, then push."
         if any(int(item["project_version"]) == version for item in renders):
@@ -1126,7 +1147,7 @@ class VideoEditorEngine:
         half of it before pushing said something much more specific.
         """
         review = self._open_review(project_id, "pushing")
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         version = int(record["version"])
         render = self._render_for_version(project_id, version)
         if render is None:
@@ -1157,7 +1178,7 @@ class VideoEditorEngine:
         binned it", and only the diff can tell them apart.
         """
         review = self._open_review(project_id, "ignoring")
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         diff = assembly.difference(
             Project.from_dict(review["baseline"]), Project.from_dict(record["document"])
         )
@@ -1170,7 +1191,7 @@ class VideoEditorEngine:
         )
 
     def _open_review(self, project_id: str, action: str) -> dict[str, Any]:
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         self._require_own_kind(str(record.get("campaign_id") or ""), f"{action} a video")
         review = self.store.open_review_for(project_id)
         if review is None:
@@ -1182,7 +1203,7 @@ class VideoEditorEngine:
 
     def reviews(self, project_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
         """Every verdict this project has collected, newest first."""
-        record = self.store.get_project(project_id)
+        record = self._owned_project(project_id)
         self._require_own_kind(str(record.get("campaign_id") or ""), "reading verdicts")
         return [
             {key: value for key, value in review.items() if key != "baseline"}
@@ -1192,13 +1213,13 @@ class VideoEditorEngine:
     def pushed(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         """Finished files the owner approved — the distribution handoff."""
         self._require_own_kind(campaign_id, "listing pushed videos")
-        return self.store.pushed_renders(campaign_id, limit=limit)
+        return self.store.pushed_renders(campaign_id, limit=limit, workspace_id=self.workspace_id)
 
     def summary(self, campaign_id: str) -> dict[str, Any]:
         """The campaign's editing work at a glance."""
         self._require_own_kind(campaign_id, "reading the video summary")
-        projects = self.store.list_projects(campaign_id, limit=200)
-        renders = [render for project in projects for render in self.store.list_renders(project["id"])]
+        projects = self.store.list_projects(campaign_id, limit=200, workspace_id=self.workspace_id)
+        renders = [render for project in projects for render in self.store.list_renders(project["id"], workspace_id=self.workspace_id)]
         ready = [render for render in renders if render["status"] == "ready"]
         return {
             "campaign_id": campaign_id,
@@ -1221,7 +1242,7 @@ class VideoEditorEngine:
         often it is wrong altogether", and those are two different questions
         with two different fixes.
         """
-        reviews = self.store.list_reviews(campaign_id, limit=10000)
+        reviews = self.store.list_reviews(campaign_id, limit=10000, workspace_id=self.workspace_id)
         counts = {verdict: 0 for verdict in ("waiting", "pushed", "ignored")}
         for review in reviews:
             counts[str(review["verdict"])] = counts.get(str(review["verdict"]), 0) + 1

@@ -975,6 +975,14 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** a valid owner preview ID, **when** a nonowner knows both ID and deletion phrase, **then** deletion cannot occur. Spoofed workspace input and restart do not bypass the guard.
 - **Dependencies:** existing privacy service S-06.02.04 and owner identity; production audit S-06.02.23 remains active. **Size:** S. Work order: `docs/work-orders/S-06.02.67-privacy-owner-authorization.md`. This security boundary does not certify full A24 deletion/retention and backups.
 
+
+#### S-06.02.68 — Video projects and files respect the authenticated workspace (A05)
+**As a** workspace user, **I want** my video timeline, imported recordings, renders and verdicts hidden from other workspaces, **so that** anyone with another login and a known ID cannot read or change my work.
+- **Given** two workspaces share a campaign ID, **when** either lists projects, media, reviews or approved exports, **then** SQL queries return only that workspace's rows before limits apply.
+- **Given** a foreign project, media or render ID, **when** a workspace uses direct HTTP read, download, edit, delete, transcript, assembly or publish surface, **then** it receives a bounded 404 without access to bytes or a state change.
+- **Given** the owning workspace, **when** it reads and edits its own records, **then** existing video functions work unchanged.
+- **Dependencies:** existing workspace login and video stores. No CRM tenancy migration (Q-27). Audit S-06.02.23 IN_PROGRESS, **Size M**. Work order `docs/work-orders/S-06.02.68-video-workspace-ownership.md`. Production penetration and customer acceptance remain open.
+
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
 #### S-07.01.01 — An MCP client

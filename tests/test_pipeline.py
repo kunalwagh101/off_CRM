@@ -270,6 +270,48 @@ def test_draft_pipeline_rejects_other_workspaces_images_topic_history_and_cooldo
     assert distribution.store.list_posts(DIST, workspace_id="other") == []
 
 
+def test_batch_rejects_foreign_account_before_any_post_is_written(parts):
+    """D-378: no partial draft batch when a later account is foreign."""
+    pipeline, images, distribution, broker = parts
+    _plan_and_keep(pipeline, images, broker, keep=1)
+    good = _account(distribution)
+    other = DistributionEngine(
+        store=distribution.store,
+        publisher=distribution.publisher,
+        campaign_reader=lambda cid: {"id": cid, "kind": "distribution"},
+        workspace_id="foreign",
+    )
+    foreign = other.connect_account(platform="local_outbox", handle="@not-ours")["id"]
+
+    with pytest.raises(ValueError, match="account"):
+        pipeline.draft(
+            distribution_campaign_id=DIST, image_campaign_id=IMAGES,
+            account_ids=[good, foreign],
+        )
+    assert distribution.store.list_posts(DIST) == []
+
+
+def test_batch_rejects_duplicate_or_disabled_accounts_before_drafting(parts):
+    pipeline, images, distribution, broker = parts
+    _plan_and_keep(pipeline, images, broker, keep=1)
+    good = _account(distribution)
+
+    with pytest.raises(ValueError, match="duplicate"):
+        pipeline.draft(
+            distribution_campaign_id=DIST, image_campaign_id=IMAGES,
+            account_ids=[good, good],
+        )
+    assert distribution.store.list_posts(DIST) == []
+
+    distribution.set_account(good, enabled=False)
+    with pytest.raises(ValueError, match="account"):
+        pipeline.draft(
+            distribution_campaign_id=DIST, image_campaign_id=IMAGES,
+            account_ids=[good],
+        )
+    assert distribution.store.list_posts(DIST) == []
+
+
 def test_only_pictures_the_owner_kept_become_posts(parts):
     pipeline, images, distribution, broker = parts
     _plan_and_keep(pipeline, images, broker, keep=1)

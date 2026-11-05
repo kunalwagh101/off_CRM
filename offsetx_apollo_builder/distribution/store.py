@@ -438,10 +438,15 @@ class DistributionStore:
         ).fetchone()
         return dict(row) if row else None
 
-    def topic_action_for_brief(self, brief_id: str) -> dict[str, Any] | None:
-        row = self.connection.execute(
-            "SELECT * FROM dist_topic_actions WHERE brief_id = ? LIMIT 1", (brief_id,)
-        ).fetchone()
+    def topic_action_for_brief(
+        self, brief_id: str, *, workspace_id: str | None = None
+    ) -> dict[str, Any] | None:
+        sql = "SELECT * FROM dist_topic_actions WHERE brief_id = ?"
+        params: list[Any] = [brief_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        row = self.connection.execute(sql + " LIMIT 1", params).fetchone()
         return dict(row) if row else None
 
     def latest_metrics(self, campaign_id: str) -> list[dict[str, Any]]:

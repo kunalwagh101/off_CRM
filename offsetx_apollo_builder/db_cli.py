@@ -417,6 +417,79 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_new_backup_key(args: argparse.Namespace) -> int:
+    from .db.hosted_backup import BACKUP_KEY_ENV, new_backup_key
+
+    print(f"Set {BACKUP_KEY_ENV} on the backup/recovery operator only:")
+    print()
+    print(new_backup_key())
+    print()
+    print("Save this in an independent password manager or KMS. Losing it means losing")
+    print("access to backups; never use OFFSETX_SECRETS_KEY as the backup key.")
+    return 0
+
+
+def _cmd_backup_hosted(args: argparse.Namespace) -> int:
+    """Encrypt a consistent PostgreSQL snapshot before an S3 transfer."""
+    from .db.hosted_backup import HostedBackupError, export_to_s3
+
+    database_url = os.getenv(DATABASE_URL_ENV, "")
+    if not is_postgres_url(database_url):
+        print(f"Set {DATABASE_URL_ENV} to the source PostgreSQL URL first.", file=sys.stderr)
+        return 2
+    try:
+        output = export_to_s3(database_url, bucket=args.bucket or None,
+                              prefix=args.prefix or None)
+    except Exception as exc:  # noqa: BLE001 - operator command needs a trace reference
+        report_failure(exc, operation="offsetx-db.backup-hosted")
+        print(failure_message(exc, operation="offsetx-db.backup-hosted"), file=sys.stderr)
+        return 2
+    print(f"Encrypted backup verified outside the database: s3://{output['bucket']}/{output['key']}")
+    print(f"SHA-256: {output['sha256']}; tables: {output['tables']}")
+    return 0
+
+
+def _cmd_download_hosted(args: argparse.Namespace) -> int:
+    from .db.hosted_backup import HostedBackupError, download_ciphertext
+
+    try:
+        saved = download_ciphertext(args.object_key, Path(args.output),
+                                   bucket=args.bucket or None)
+    except Exception as exc:  # noqa: BLE001 - no customer data changed
+        report_failure(exc, operation="offsetx-db.download-hosted")
+        print(failure_message(exc, operation="offsetx-db.download-hosted"), file=sys.stderr)
+        return 2
+    print(f"Verified encrypted backup saved to: {saved}")
+    print("This file is ciphertext. Keep its separate decryption key safe.")
+    return 0
+
+
+def _cmd_restore_hosted(args: argparse.Namespace) -> int:
+    from .db.hosted_backup import HostedBackupError, restore_to_empty_postgres
+
+    target = os.getenv("OFFSETX_RESTORE_DATABASE_URL", "")
+    if not args.yes_empty_target or not is_postgres_url(target):
+        print(
+            "Set OFFSETX_RESTORE_DATABASE_URL to a NEW EMPTY PostgreSQL database, "
+            "stop its application and pass --yes-empty-target. "
+            "Never restore over the live source.",
+            file=sys.stderr,
+        )
+        return 2
+    if target == os.getenv(DATABASE_URL_ENV, ""):
+        print("Restore refused: source and destination are the same database.", file=sys.stderr)
+        return 2
+    try:
+        counts = restore_to_empty_postgres(Path(args.file), target)
+    except Exception as exc:  # noqa: BLE001 - no customer data changed
+        report_failure(exc, operation="offsetx-db.restore-hosted")
+        print(failure_message(exc, operation="offsetx-db.restore-hosted"), file=sys.stderr)
+        return 2
+    print(f"Restored into a new database; all {len(counts)} table counts reconciled.")
+    print("Run service-specific health and auth checks before any cutover.")
+    return 0
+
+
 @traced_command("offsetx-db")
 def main(argv: list[str] | None = None) -> int:
     load_project_env()
@@ -510,6 +583,31 @@ def main(argv: list[str] | None = None) -> int:
     crm_choice.add_argument("--yes", action="store_true", help="copy it in")
     crm_choice.add_argument("--skip", action="store_true", help="start on the database's CRM as it is")
     crm.set_defaults(func=_cmd_import_crm)
+
+    new_backup = sub.add_parser("new-backup-key", help="generate an independent 256-bit backup key")
+    new_backup.set_defaults(func=_cmd_new_backup_key)
+
+    export = sub.add_parser(
+        "backup-hosted", help="encrypt a consistent hosted PostgreSQL snapshot into private S3"
+    )
+    export.add_argument("--bucket", default="", help="private S3 bucket; else OFFSETX_BACKUP_S3_BUCKET")
+    export.add_argument("--prefix", default="", help="S3 key prefix; else OFFSETX_BACKUP_S3_PREFIX")
+    export.set_defaults(func=_cmd_backup_hosted)
+
+    download = sub.add_parser(
+        "download-hosted", help="download and verify ciphertext without decrypting it"
+    )
+    download.add_argument("--object-key", required=True, help="object key from backup-hosted")
+    download.add_argument("--bucket", default="", help="private bucket; else OFFSETX_BACKUP_S3_BUCKET")
+    download.add_argument("--output", required=True, help="new private file, never an existing path")
+    download.set_defaults(func=_cmd_download_hosted)
+
+    restore = sub.add_parser(
+        "restore-hosted", help="restore a downloaded ciphertext backup into a NEW empty PostgreSQL DB"
+    )
+    restore.add_argument("--file", required=True, help="verified encrypted backup file")
+    restore.add_argument("--yes-empty-target", action="store_true", help="confirm empty disposable target")
+    restore.set_defaults(func=_cmd_restore_hosted)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

@@ -1,3 +1,10 @@
+## 2026-11-05 — Five agent roles, hosted profiles and workspace isolation (source only)
+
+- Added owner-created Scout, Maker, Poster, Analyst and Director role bindings to existing review-gated engines, with strict API requests and tests.
+- Added hosted SQL persistence for companion profiles/skills and refusal to silently discard older local profile state on cutover. Other tool registrations and local customer stores are not migrated.
+- Fixed source-level missing workspace filters for image-to-post drafting and topic history.
+- Added SQLite/PG/API/security test source and Render build gates. No new test execution or release, because the isolated Render workspace has exhausted its build-minute quota.
+
 ## 2026-11-05 — F-06.03 encrypted hosted backups and F-04.01 companion procedures (source only)
 
 - Added operator CLI for authenticated-encrypted PostgreSQL snapshots, independent private S3 upload/download verification and guarded restore into a new empty database.

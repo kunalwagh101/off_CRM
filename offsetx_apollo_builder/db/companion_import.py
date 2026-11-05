@@ -187,7 +187,9 @@ def import_companions(
     if archive == source or archive.is_relative_to(root):
         raise CompanionImportError("Choose a private durable archive outside the old data directory")
     # It is not safe to treat the live local SQLite file as the hosted target.
-    if hosted.target == str(source):
+    from ..db.connection import is_postgres_url
+    if (not is_postgres_url(hosted.target)
+            and Path(hosted.target).expanduser().resolve() == source):
         raise CompanionImportError("The source and hosted database must be different")
     try:
         with WorkspaceLock(root, exclusive=True):

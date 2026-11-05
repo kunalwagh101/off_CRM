@@ -1,3 +1,10 @@
+## 2026-11-05 — A24 owner-only privacy API security regression (full review pending)
+
+- Source at start `c8f9bf7790c1731a0a985e34253443a830238f8f`, working branch `develop`. Existing `privacy.py` already implements a 12-store inventory, access, confirmed resumable deletion and nonpersonal receipts; do not misreport A24 as absent. Identified missing install-owner authorisation at all three destructive/read API routes and the confirmation phrase route.
+- TDD RED test source `f808156` / review gate `4c97f56`, isolated Render `dep-dbm3nv9srm7s73f07bs0`: **4 expected failures, 1 passed**, using real FastAPI session logins with synthetic users and contacts.
+- Fixed existing `api/app.py` routes via existing `require_install_owner` at `411770421133ea292153e68d9d0642cd1e198fc5`; no new role model, migration or provider call. GREEN A24 `uv run pytest -q tests/test_audit_a24_privacy_owner_authorization.py`: **5 passed / 1 warning** on isolated Render `dep-dbm3oj8ae00c7389h7d0` (step #27).
+- Build-ahead story S-06.02.67 stays BACKLOG under active S-06.02.23 audit. Full-source SQLite/PostgreSQL/Chromium QA, end-to-end backup/retention/restoration deletion proof, Q-27 CRM tenancy, full-history verifier, independent penetration and customer release are still open. No main/customer deployment. Evidence: `docs/evidence/2026-11-05-a24-privacy-owner-authorization.md`.
+
 ## 2026-11-05 — A10 paid receipt safety: final exact-source isolated QA LIVE
 
 - Repo `kunalwagh101/off_CRM` branch `develop`. Final executable/test source `822ffa8401d0d8ad1498a84e487fcd5f747b90a7`; isolated Render review `dep-dblrlb6i0phs7387c37g` confirmed **LIVE 2026-11-04 23:28:47 UTC**. Subsequent documentation commits did not change the executable/test source.

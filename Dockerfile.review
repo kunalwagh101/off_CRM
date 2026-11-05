@@ -21,6 +21,10 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
+# F-06.03: encryption, tamper detection, offsite transport and guard-only local checks.
+RUN uv run pytest -q tests/test_hosted_backup.py
+# F-04.01: owner-picked procedures and bounded child context isolation.
+RUN uv run pytest -q tests/test_companion_skills.py tests/test_companion_delegation.py
 # A05: image briefs, pictures, review decisions and video handoff must respect workspace ownership.
 RUN uv run pytest -q tests/test_audit_a05_image_workspace_isolation.py
 # A05: video projects, recordings and exports are owned by the authenticated workspace.
@@ -115,6 +119,7 @@ RUN set -eu; \
     su postgres -c "psql -v ON_ERROR_STOP=1 -c \"CREATE ROLE offcrmqa LOGIN PASSWORD 'qa-only-local' CREATEDB\""; \
     su postgres -c "createdb -O offcrmqa offcrmqa"; \
     export OFF_CRM_TEST_POSTGRES_URL="postgresql://offcrmqa:qa-only-local@127.0.0.1:5432/offcrmqa"; \
+    uv run pytest -q tests/test_hosted_backup.py::test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts; \
     uv run pytest -q tests/test_context_import.py::test_postgresql_context_import_survives_reconnect; \
     uv run pytest -q tests/test_hosted_ai_context.py::test_hosted_context_on_disposable_postgres_after_reconnect; \
     uv run pytest -q tests/test_hosted_storage.py::test_postgres_logout_revocation_reaches_another_live_app_and_survives_restart; \

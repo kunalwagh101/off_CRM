@@ -308,7 +308,7 @@ def restore_to_empty_postgres(ciphertext: Path, destination_url: str, *,
             snapshot.seek(4 + length)
             proc = subprocess.Popen(
                 ["pg_restore", "--exit-on-error", "--no-owner", "--no-privileges",
-                 "--single-transaction",
+                 "--clean", "--if-exists", "--single-transaction",
                  "--dbname=" + unquote(urlsplit(destination_url).path.lstrip("/"))],
                 stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 env=_pg_environment(destination_url),

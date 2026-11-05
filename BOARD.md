@@ -78,6 +78,8 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
   work_order: docs/work-orders/S-04.01.03-bounded-child-reasoning.md
   checkpoint: 2026-11-05 owner-scoped bounded one-level child reasoning source c733f7a/8c7b00c; tests/test_companion_delegation.py written, NOT RUN. No recursive tool/spawn access, live acceptance or complete five-role workflow. Upstream S-04.01.01 IN_REVIEW; remains BACKLOG.
 - S-04.01.04 · The five roles, wired to what already exists
+  checkpoint: 2026-11-05 D-378 Poster/TrendPipeline.draft now checks all workspace-owned enabled accounts and rejects duplicates before any model caption or draft write (f6bf8525); source tests/test_pipeline.py added for invalid second account, disabled and duplicate destination, early Dockerfile.review gate. These exact regressions NOT EXECUTED in full repo; remains BACKLOG.
+
   work_order: docs/work-orders/S-04.01.04-five-role-integration.md
   checkpoint: 2026-11-05 build-ahead role adapters (7026605 and 46ac35b): Scout->workspace trends, Maker->existing video director/assembler review queue, Poster->approved-image draft pipeline only, Analyst->distribution metrics, Director->GTM draft plan. Owner-only provision/execute API, tests/test_agent_role_team.py and Dockerfile.review gate written. Source review found workspace-scoping defect in existing Poster pipeline, fixed d65384b/d7f4bee with two-workspace test in tests/test_pipeline.py. All new tests UNEXECUTED because Render pipeline minutes exhausted. Analyst cross-workspace metric aggregation issue D-376 fixed in SQL/engine source 0514cb8/f0248fb with test 340fed7; test not run. Handoff docs/evidence/2026-11-05-f0603-f0401-continued-source-unverified.md. Full live role, browser, provider, security and production QA open. Remains BACKLOG, not DONE.
 - S-06.01.05 · Deployment, monitoring and rollback
@@ -131,6 +133,8 @@ next day, `AGENTS.md` "Logging".)*
 *(Filed 2026-10-02 from the inventory, `S-06.03.01`: stores with no phase.)*
 
 - S-06.03.06 · Every other store has a decided home
+  checkpoint: 2026-11-05 additional operator import of older local companion profiles/procedures (db/companion_import.py, offsetx-db import-companions); private full SQLite archive, exact source/hosted row checks, explicit --yes, refuses non-durable tool grants and preserves tool rows. D-377 SQLite executescript transaction bug discovered by isolated RED (3 failed/5 passed), fixed e601f34/4b98b63, 11 isolated SQLite tests PASS on exact module blob (stubs for hosted/writer); evidence docs/evidence/2026-11-05-companion-cutover-isolated-red-green.md. Added tests/test_companion_import.py and disposable PG Dockerfile.review gate. THIS IS NOT FULL REAL TEST EXECUTION. All unhosted stores and actual Render/PG/penetration/recovery still block this story; remains BACKLOG, not DONE.
+
   work_order: docs/work-orders/S-06.03.06-store-homes.md
   design: docs/architecture/HOSTED_STORAGE.md
   checkpoint: 2026-11-05 build-ahead: app now binds companion profiles and on-demand skills to hosted SQL through HostedStorage.exclusive, preserving local tool registry semantics (e254aa6/6500874/377653f); old local profile differences trigger a fail-closed cutover check f6d3ed4. Restart/dual-instance/disposable PostgreSQL test source tests/test_hosted_companion_profiles.py, Dockerfile.review gate updated. NO TEST EXECUTION OR POSTGRES QA observed. Other tools, agent traces, recall, imagery, outboxes, meetings and file persistence still unresolved; remains BACKLOG, no DONE.

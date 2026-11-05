@@ -467,8 +467,9 @@ class CompanionRegistry:
         procedure = self._skill_content(content)
         identifier = uuid.uuid4().hex
         now = to_utc_iso()
+        conn = self._connection()
         try:
-            with self._write_transaction() as conn:
+            with self._write_transaction():
                 conn.execute(
                     "INSERT INTO agent_companion_skills "
                     "(id, workspace_id, name, content, enabled, created_at, updated_at) "
@@ -508,8 +509,9 @@ class CompanionRegistry:
         current = self.require_skill(skill_id, workspace_id=workspace_id)
         if enabled is not None and not isinstance(enabled, bool):
             raise CompanionError("enabled must be a Boolean")
+        conn = self._connection()
         try:
-            with self._write_transaction() as conn:
+            with self._write_transaction():
                 conn.execute(
                     "UPDATE agent_companion_skills SET name=?, content=?, enabled=?, updated_at=? "
                     "WHERE id=? AND workspace_id=?",
@@ -525,7 +527,8 @@ class CompanionRegistry:
         return self.require_skill(skill_id, workspace_id=workspace_id)
 
     def delete_skill(self, skill_id: str, *, workspace_id: str) -> bool:
-        with self._write_transaction() as conn:
+        conn = self._connection()
+        with self._write_transaction():
             result = conn.execute(
                 "DELETE FROM agent_companion_skills WHERE id=? AND workspace_id=?",
                 (str(skill_id), self._workspace(workspace_id)),

@@ -13,6 +13,9 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Sequence
+from contextlib import AbstractContextManager
+
+from ..db.hosted import HostedStorage
 
 from ..ai.errors import PolicyViolation
 from ..ai.sandbox import SandboxPolicy, SandboxWorkspace
@@ -181,17 +184,46 @@ class CompanionRegistry:
         *,
         tools: ToolRegistry,
         memory_backend: Any,
+        hosted_storage: HostedStorage | None = None,
     ) -> None:
         self.data_dir = Path(data_dir)
         self.tools = tools
         self.memory = memory_backend
-        conn = self.tools.connection()
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.executescript(SCHEMA)
-        try:
-            self.tools.path.chmod(0o600)
-        except OSError:
-            pass
+        self.hosted_storage = hosted_storage
+        conn = self._connection()
+        if self.hosted_storage is None:
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.executescript(SCHEMA)
+            try:
+                self.tools.path.chmod(0o600)
+            except OSError:
+                pass
+        else:
+            # Use the app's one hosted document database. The same lock as
+            # provider settings serialises concurrent first-time schema setup.
+            with self.hosted_storage.exclusive():
+                conn.executescript(SCHEMA)
+
+    def _connection(self) -> Any:
+        return (
+            self.hosted_storage.connection if self.hosted_storage is not None
+            else self.tools.connection()
+        )
+
+    def _write_transaction(self) -> AbstractContextManager[Any]:
+        return (
+            self.hosted_storage.exclusive() if self.hosted_storage is not None
+            else self.tools.connection()
+        )
+
+    @staticmethod
+    def _unique_violation(exc: Exception) -> bool:
+        return isinstance(exc, sqlite3.IntegrityError) or getattr(exc, "sqlstate", "") == "23505"
+
+    def close(self) -> None:
+        # HostedStorage owns its shared connection and is closed by app runtime
+        # after the companions. The local connection belongs to ToolRegistry.
+        pass
 
     def rebind_memory(self, memory_backend: Any) -> None:
         """Rebind after a CRM database restore without changing profile storage."""
@@ -275,9 +307,9 @@ class CompanionRegistry:
         tool_ids = self._tool_ids(granted_tool_ids)
         self._validate_tools(workspace, tool_ids)
         now = to_utc_iso()
-        conn = self.tools.connection()
+        conn = self._connection()
         try:
-            with conn:
+            with self._write_transaction():
                 conn.execute(
                     """
                     INSERT INTO agent_companions(
@@ -296,7 +328,9 @@ class CompanionRegistry:
                         now,
                     ),
                 )
-        except sqlite3.IntegrityError as exc:
+        except Exception as exc:  # noqa: BLE001 - discriminate the SQLSTATE below
+            if not self._unique_violation(exc):
+                raise
             message = str(exc).lower()
             if "memory_scope" in message:
                 raise CompanionError(
@@ -309,7 +343,7 @@ class CompanionRegistry:
 
     def get(self, companion_id: str, *, workspace_id: str) -> Companion | None:
         workspace = self._workspace(workspace_id)
-        row = self.tools.connection().execute(
+        row = self._connection().execute(
             """
             SELECT * FROM agent_companions
             WHERE id = ? AND workspace_id = ?
@@ -328,7 +362,7 @@ class CompanionRegistry:
 
     def list(self, *, workspace_id: str) -> list[Companion]:
         workspace = self._workspace(workspace_id)
-        rows = self.tools.connection().execute(
+        rows = self._connection().execute(
             """
             SELECT * FROM agent_companions
             WHERE workspace_id = ?
@@ -370,9 +404,9 @@ class CompanionRegistry:
         self._validate_tools(workspace, next_tools)
         if enabled is not None and not isinstance(enabled, bool):
             raise CompanionError("enabled must be true or false")
-        conn = self.tools.connection()
+        conn = self._connection()
         try:
-            with conn:
+            with self._write_transaction():
                 cursor = conn.execute(
                     """
                     UPDATE agent_companions
@@ -393,7 +427,9 @@ class CompanionRegistry:
                 )
                 if cursor.rowcount != 1:
                     raise CompanionError(f"Companion {companion_id!r} does not exist")
-        except sqlite3.IntegrityError as exc:
+        except Exception as exc:  # noqa: BLE001 - discriminate the SQLSTATE below
+            if not self._unique_violation(exc):
+                raise
             message = str(exc).lower()
             if "memory_scope" in message:
                 raise CompanionError(
@@ -406,8 +442,8 @@ class CompanionRegistry:
 
     def delete(self, companion_id: str, *, workspace_id: str) -> bool:
         workspace = self._workspace(workspace_id)
-        conn = self.tools.connection()
-        with conn:
+        conn = self._connection()
+        with self._write_transaction():
             cursor = conn.execute(
                 "DELETE FROM agent_companions WHERE id = ? AND workspace_id = ?",
                 (str(companion_id), workspace),
@@ -432,20 +468,22 @@ class CompanionRegistry:
         identifier = uuid.uuid4().hex
         now = to_utc_iso()
         try:
-            with self.tools.connection() as conn:
+            with self._write_transaction() as conn:
                 conn.execute(
                     "INSERT INTO agent_companion_skills "
                     "(id, workspace_id, name, content, enabled, created_at, updated_at) "
                     "VALUES (?,?,?,?,1,?,?)",
                     (identifier, workspace, label, procedure, now, now),
                 )
-        except sqlite3.IntegrityError as exc:
+        except Exception as exc:  # noqa: BLE001 - discriminate the SQLSTATE below
+            if not self._unique_violation(exc):
+                raise
             raise CompanionError("A procedure with this name already exists") from exc
         return self.require_skill(identifier, workspace_id=workspace)
 
     def get_skill(self, skill_id: str, *, workspace_id: str) -> CompanionSkill | None:
         workspace = self._workspace(workspace_id)
-        row = self.tools.connection().execute(
+        row = self._connection().execute(
             "SELECT * FROM agent_companion_skills WHERE id = ? AND workspace_id = ?",
             (str(skill_id), workspace),
         ).fetchone()
@@ -458,7 +496,7 @@ class CompanionRegistry:
         return item
 
     def list_skills(self, *, workspace_id: str) -> list[CompanionSkill]:
-        rows = self.tools.connection().execute(
+        rows = self._connection().execute(
             "SELECT * FROM agent_companion_skills WHERE workspace_id = ? "
             "ORDER BY lower(name), id", (self._workspace(workspace_id),)
         ).fetchall()
@@ -471,7 +509,7 @@ class CompanionRegistry:
         if enabled is not None and not isinstance(enabled, bool):
             raise CompanionError("enabled must be a Boolean")
         try:
-            with self.tools.connection() as conn:
+            with self._write_transaction() as conn:
                 conn.execute(
                     "UPDATE agent_companion_skills SET name=?, content=?, enabled=?, updated_at=? "
                     "WHERE id=? AND workspace_id=?",
@@ -480,12 +518,14 @@ class CompanionRegistry:
                      int(current.enabled if enabled is None else enabled),
                      to_utc_iso(), current.id, current.workspace_id),
                 )
-        except sqlite3.IntegrityError as exc:
+        except Exception as exc:  # noqa: BLE001 - discriminate the SQLSTATE below
+            if not self._unique_violation(exc):
+                raise
             raise CompanionError("A procedure with this name already exists") from exc
         return self.require_skill(skill_id, workspace_id=workspace_id)
 
     def delete_skill(self, skill_id: str, *, workspace_id: str) -> bool:
-        with self.tools.connection() as conn:
+        with self._write_transaction() as conn:
             result = conn.execute(
                 "DELETE FROM agent_companion_skills WHERE id=? AND workspace_id=?",
                 (str(skill_id), self._workspace(workspace_id)),

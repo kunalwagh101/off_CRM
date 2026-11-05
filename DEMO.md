@@ -905,3 +905,15 @@ uv run pytest -q tests/test_ai_billing_integrity_a10.py tests/test_ai_cost_ledge
 The regression calls the real broker with controlled provider usage and a disposable quota ledger. It also starts independent processes to race the same USD cap and runs a real disposable PostgreSQL check when `OFF_CRM_TEST_POSTGRES_URL` is set. A skipped PostgreSQL test does not prove production database safety. No paid external provider or customer account is used.
 
 ---
+
+## A24 — Real API permission check for privacy subject access and erasure
+
+From a checked-out `develop` branch with locked dependencies:
+
+```bash
+uv run pytest -q tests/test_audit_a24_privacy_owner_authorization.py tests/test_privacy.py tests/test_workspace_isolation.py
+```
+
+Uses synthetic contact records and real FastAPI owner/non-owner login sessions. An ordinary session must receive 403 before subject inventory or deletion; a deliberate install-owner login can preview and delete, leaving other contacts unchanged. The existing privacy service still needs a full multi-store deletion, backup-restore and retention drill before A24 is closed.
+
+---

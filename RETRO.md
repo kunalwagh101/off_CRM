@@ -1160,3 +1160,13 @@ lifecycle.
 **Security decision:** Reuse the existing install-owner guard for all four privacy API routes. Until Q-27 ownership rules are decided, authentication as any workspace is not proof of authority over the globally shared CRM. Cost: ordinary workspace operators must ask the install owner to handle subject requests.
 
 **Follow-up:** Run full SQLite/PostgreSQL/Chromium QA. A24 still requires realistic cross-store backup/restore/reindex and retention acceptance, independent penetration and actual customer deployment evidence.
+
+## 2026-11-05 — A05 cross-workspace video assets
+
+**Why it happened:** The video store already persisted workspace_id in project, media, render and review rows, but API endpoints read by global ID and list by campaign. A linked or shared CRM campaign was treated as enough authority, even though Q-27 CRM tenancy is unresolved.
+
+**Test that found it:** Two real workspace cookies, one shared image campaign and synthetic media/render rows. Initial four expected RED failures showed file disclosure, project access, list leakage and foreign audio reuse. First remediation left a single truthful HTTP defect: undo wrapped an ownership refusal in 409 instead of 404, fixed in API error classification.
+
+**Decision DD-148:** Use existing immutable video row ownership as the permission boundary. Make SQL pagination owner-filtered, keep internal store operations compatible where no owner is specified, and give a normal 404 for foreign object IDs. Do not change CRM campaign ownership under Q-27 without owner decision.
+
+**Outstanding:** Real production multi-tenant security, independent penetration, integration with authorised cross-workspace collaboration when specified, full-history verifier and deployment acceptance.

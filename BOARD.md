@@ -73,7 +73,10 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
   work_order: docs/work-orders/S-04.01.02-on-demand-agent-skills.md
+  checkpoint: 2026-11-05 owner-approved explicit selection; workspace-owned procedures and owner API, broker AI-chat loading implemented on develop (faeb93b, 7487ccf); test source tests/test_companion_skills.py and Dockerfile.review. NOT TESTED: Render minutes exhausted and no runnable checkout. S-04.01.01 upstream IN_REVIEW, hosted registry durability S-06.03.06 and actual provider/browser acceptance open. BACKLOG, not DONE.
 - S-04.01.03 · Sub-agents for context isolation
+  work_order: docs/work-orders/S-04.01.03-bounded-child-reasoning.md
+  checkpoint: 2026-11-05 owner-scoped bounded one-level child reasoning source c733f7a/8c7b00c; tests/test_companion_delegation.py written, NOT RUN. No recursive tool/spawn access, live acceptance or complete five-role workflow. Upstream S-04.01.01 IN_REVIEW; remains BACKLOG.
 - S-04.01.04 · The five roles, wired to what already exists
 - S-06.01.05 · Deployment, monitoring and rollback
 - S-07.01.01 · An MCP client
@@ -119,6 +122,7 @@ next day, `AGENTS.md` "Logging".)*
 - S-06.03.04 · The hosted database is backed up outside itself
   design: docs/architecture/HOSTED_STORAGE.md
   work_order: docs/work-orders/S-06.03.04-hosted-backup-and-restore.md
+  checkpoint: 2026-11-05 owner approved private S3 architecture and separate AES-256-GCM key, Q-29 policy answered. Encrypted PostgreSQL export/verify/download/guarded restore CLI, runtime PG client and tests/test_hosted_backup.py committed on develop (8bb5604 onward); QA Docker gate written. No executed focused/full SQLite/PG tests, actual bucket, IAM, nightly schedule, offsite recovery demonstration or production evidence: BACKLOG, not DONE.
 - S-06.03.05 · Production refuses a half-hosted install
   design: docs/architecture/HOSTED_STORAGE.md
 

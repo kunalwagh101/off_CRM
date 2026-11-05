@@ -21,6 +21,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
+# A05: image briefs, pictures, review decisions and video handoff must respect workspace ownership.
+RUN uv run pytest -q tests/test_audit_a05_image_workspace_isolation.py
 # A05: video projects, recordings and exports are owned by the authenticated workspace.
 RUN uv run pytest -q tests/test_audit_a05_video_workspace_isolation.py
 # A24: owner-only personal-data inventory and confirmed erasure, real API sessions.

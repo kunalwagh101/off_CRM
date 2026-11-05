@@ -1,3 +1,10 @@
+## 2026-11-05 — Further F-06.03/F-04.01 source hardening; NOT RELEASED
+
+- D-379: the archive-first companion importer now fingerprints the entire SQLite registry, not just companion tables. Complete logical SHA-256 must match private archive at source snapshot and before local cleanup. Exact GitHub blob 3e4b9428e77d9e04c8943fe09be3fd264d8268df was run in an isolated Python+SQLite fixture with narrow HostedStorage/lock stubs: 13 PASS/0 FAIL in 0.35s. This is not full application QA.
+- D-380: hosted PostgreSQL restore checks all non-system user objects (views, functions, sequences, custom types/schemas/extensions) and refuses any nonempty target, replacing the weaker tables-only guard. Removed pg_restore --clean/--if-exists. Updated docs/architecture/HOSTED_BACKUP.md; fake preflight and disposable real-PostgreSQL regression tests added, but real PG tests NOT RUN.
+- D-381: agent-team Scout and Poster now close only request-created trend watcher connections via a finally block. Shared app services remain open. Focused test source added but not executed on full checkout.
+- All source edits pushed to develop only; no main or customer deploy. Render review pipeline_minutes_exhausted has not cleared. Missing external private S3 bucket/IAM, offsite recovery drill, complete hosted-state migrations, isolated PG/Render/browser QA and independent penetration still prevent DONE.
+
 ## 2026-11-05 — New companion SQL cutover and first actual isolated red-green verification
 
 - Added archive-first `offsetx-db import-companions --archive <private SQLite path> --yes` for legacy companion profiles/procedures. This copies to HostedStorage SQL, validates exact rows, leaves a complete private ToolRegistry backup, removes only migrated local profile/procedure rows, and refuses executable tool grants until that registry has a durable home. New module db/companion_import.py and source tests/test_companion_import.py, Dockerfile.review PG/SQLite gates.

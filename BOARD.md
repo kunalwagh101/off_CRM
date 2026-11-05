@@ -30,6 +30,10 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 ---
 
 ## BACKLOG
+- S-06.02.68 · Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05)
+  work_order: docs/work-orders/S-06.02.68-video-workspace-ownership.md
+  checkpoint: Security test-first build-ahead; existing workspace_id columns are not enforced on direct reads, lists and edits. Isolated source-bound Render QA, whole-audit release and independent penetration remain OPEN.
+
 
 - S-06.02.67 · Only install owners may access personal-data inventory and erasure (A24/A05)
   work_order: docs/work-orders/S-06.02.67-privacy-owner-authorization.md

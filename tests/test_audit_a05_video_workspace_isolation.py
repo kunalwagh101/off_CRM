@@ -114,7 +114,10 @@ def test_A05_foreign_video_project_cannot_be_read_edited_deleted_or_reviewed(two
         ("get", f"/api/v1/video-projects/{project_id}/history", None),
         ("get", f"/api/v1/video-projects/{project_id}/renders", None),
         ("get", f"/api/v1/video-projects/{project_id}/manifest", None),
+        ("get", f"/api/v1/video-projects/{project_id}/frame", None),
+        ("get", f"/api/v1/video-projects/{project_id}/reviews", None),
         ("post", f"/api/v1/video-projects/{project_id}/undo", {}),
+        ("post", f"/api/v1/video-projects/{project_id}/redo", {}),
         ("post", f"/api/v1/video-projects/{project_id}/queue", {"origin": "manual"}),
         ("delete", f"/api/v1/video-projects/{project_id}", None),
     ]

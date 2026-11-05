@@ -26,3 +26,13 @@ Rollback: revert only the four route guards (do not delete privacy requests or C
 - DD-147: `DECISIONS.md`
 - Requirement: R-194, story S-06.02.67, active audit S-06.02.23
 - Audit finding: A24 in `docs/audits/2026-09-07-production-audit.md`
+
+## Final exact-source automated review — 2026-11-05 IST
+
+- Exact executable/test source `411770421133ea292153e68d9d0642cd1e198fc5`, isolated Render review `dep-dbm3oj8ae00c7389h7d0`, review service `off-crm-review-runner-20261015`. Last app code change is the four owner guards in `api/app.py`; later commits only update documentation.
+- TDD RED at source `4c97f56`, review `dep-dbm3nv9srm7s73f07bs0`: **4 expected failed, 1 passed**. GREEN at source `4117704`, review `dep-dbm3oj8ae00c7389h7d0`: `uv run pytest -q tests/test_audit_a24_privacy_owner_authorization.py` **5 passed, 1 warning** (Docker step #27).
+- Full SQLite `uv run pytest -q`: **3,032 passed, 57 skipped, 44 warnings** (step #61).
+- Full real disposable PostgreSQL `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q`: **3,057 passed, 101 skipped, 44 warnings** (step #64); focused PostgreSQL integration suite **215 passed**.
+- Review also ran and passed A05 identity, A09 real Chromium Enter approval, A10 priced AI receipts, A11 atomic quota, A14 idempotency, A16 email recovery, A18 browser numeric claims, A22 nested video edit and other focused security gates, 12 repeated SQLite concurrent writes, Ruff, frontend tests/build/npm audits, structural board verifier and Chrome desktop/mobile Contacts/Public Demo checks. Structural verifier ran with `--skip-tests`; it does **not** certify historical DONE evidence replay.
+- The full QA image completed build stages successfully. Render LIVE deploy confirmation is separately checked on the named review deployment; the QA marker is not a customer application.
+- A24 is **not completely certified**. User-controlled retention policy, backup expiry/restore/reindex cross-store deletion, Q-27 CRM tenancy, independent penetration and real customer acceptance remain open. No `main` or production customer deployment, and no real contacts were deleted.

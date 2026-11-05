@@ -33,7 +33,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.67 · Only install owners may access personal-data inventory and erasure (A24/A05)
   work_order: docs/work-orders/S-06.02.67-privacy-owner-authorization.md
-  checkpoint: TDD RED source 4c97f56 / isolated Render dep-dbm3nv9srm7s73f07bs0: 4 expected FAIL/1 PASS. Reused install owner authorisation on four privacy API routes at 4117704; initial GREEN source 4117704 / isolated Render dep-dbm3oj8ae00c7389h7d0: 5 A24 PASS/1 warning. Full SQLite/PostgreSQL/Chromium QA pending. D-371 / DD-147 / R-194. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md. Still BACKLOG under active S-06.02.23; complete data erasure, backups/retention, Q-27 CRM tenancy, independent penetration, history verifier and customer/main release remain OPEN.
+  checkpoint: TDD RED source 4c97f56 / isolated Render dep-dbm3nv9srm7s73f07bs0: 4 expected FAIL/1 owner-path PASS. Fix 4117704 reused install-owner guard on four privacy API routes. Final exact source 411770421133ea292153e68d9d0642cd1e198fc5 / isolated Render dep-dbm3oj8ae00c7389h7d0 LIVE 2026-11-05 08:41:29 UTC: A24 5 PASS, full SQLite 3,032 PASS/57 skipped, full real disposable PostgreSQL 3,057 PASS/101 skipped, focused PG 215 PASS, frontend/npm audits, Ruff, browser desktop/mobile, security and 12 repeated concurrency gates PASS, structural board verifier PASS (historical tests skipped). D-371 / DD-147 / R-194. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md. Still BACKLOG under S-06.02.23 IN_PROGRESS: full A24 backup/retention/reindex erasure, Q-27 tenancy, independent penetration, full-history verifier and customer/main release OPEN.
 
 
 - S-06.02.66 · Paid AI calls cannot silently count as free when usage receipts are invalid (A10)
@@ -162,7 +162,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.23 · Re-check the 7 September production audit on `develop`
   work_order: docs/work-orders/S-06.02.23-audit-recheck.md
-  checkpoint: 2026-11-05 A05 audit API recheck 3 PASS on source 94fa650. Exact-source isolated Render dep-dblr106i0phs7385jao0 LIVE 2026-11-04 22:44:20 UTC: full SQLite 3,015 PASS/56 skipped; full real PostgreSQL 3,039 PASS/101 skipped, focused PG 215 PASS; frontend, Chromium and static/security gates PASS. Full Git-history verifier, per-user roles, CRM tenancy Q-27, independent penetration, wider audit and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout.
+  checkpoint: 2026-11-05 A05 audit API recheck 3 PASS on source 94fa650. Exact-source isolated Render dep-dblr106i0phs7385jao0 LIVE 2026-11-04 22:44:20 UTC: full SQLite 3,015 PASS/56 skipped; full real PostgreSQL 3,039 PASS/101 skipped, focused PG 215 PASS; frontend, Chromium and static/security gates PASS. Full Git-history verifier, per-user roles, CRM tenancy Q-27, independent penetration, wider audit and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout. 2026-11-05 A24 owner-authority recheck: TDD RED 4 expected fail, GREEN 5 PASS; exact-source isolated Render dep-dbm3oj8ae00c7389h7d0 LIVE on 4117704 with SQLite 3,032/57 skipped, full PG 3,057/101 skipped, Chromium/static/security PASS. Entire A24 cross-store retention/restore still OPEN. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md. 
 
 ## IN_REVIEW
 

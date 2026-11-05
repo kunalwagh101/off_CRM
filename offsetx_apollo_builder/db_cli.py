@@ -476,9 +476,13 @@ def _cmd_restore_hosted(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-    if target == os.getenv(DATABASE_URL_ENV, ""):
-        print("Restore refused: source and destination are the same database.", file=sys.stderr)
-        return 2
+    from urllib.parse import urlsplit
+    source_url = os.getenv(DATABASE_URL_ENV, "")
+    if is_postgres_url(source_url):
+        src, dst = urlsplit(source_url), urlsplit(target)
+        if (src.hostname, src.port or 5432, src.path) == (dst.hostname, dst.port or 5432, dst.path):
+            print("Restore refused: target resolves to the active source database.", file=sys.stderr)
+            return 2
     try:
         counts = restore_to_empty_postgres(Path(args.file), target)
     except Exception as exc:  # noqa: BLE001 - no customer data changed

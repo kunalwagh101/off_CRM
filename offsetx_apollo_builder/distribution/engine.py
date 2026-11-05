@@ -397,7 +397,7 @@ class DistributionEngine:
     def progress(self, campaign_id: str) -> dict[str, Any]:
         """Where the campaign stands against its goal."""
         self._require_own_kind(campaign_id, "reading progress")
-        latest = self.store.latest_metrics(campaign_id)
+        latest = self.store.latest_metrics(campaign_id, workspace_id=self.workspace_id)
         totals = {
             "views": sum(int(row["views"]) for row in latest),
             "likes": sum(int(row["likes"]) for row in latest),
@@ -405,7 +405,7 @@ class DistributionEngine:
             "shares": sum(int(row["shares"]) for row in latest),
         }
         goals = []
-        for goal in self.store.list_goals(campaign_id):
+        for goal in self.store.list_goals(campaign_id, workspace_id=self.workspace_id):
             achieved = totals.get(str(goal["metric"]), 0)
             target = int(goal["target"])
             goals.append(
@@ -417,7 +417,7 @@ class DistributionEngine:
                     "met": bool(target) and achieved >= target,
                 }
             )
-        posts = self.store.list_posts(campaign_id, limit=10000)
+        posts = self.store.list_posts(campaign_id, limit=10000, workspace_id=self.workspace_id)
         return {
             "campaign_id": campaign_id,
             "totals": totals,
@@ -443,9 +443,9 @@ class DistributionEngine:
         if self.asset_reader is None:
             return []
 
-        by_post = {str(row["post_id"]): row for row in self.store.latest_metrics(campaign_id)}
+        by_post = {str(row["post_id"]): row for row in self.store.latest_metrics(campaign_id, workspace_id=self.workspace_id)}
         grouped: dict[str, dict[str, Any]] = {}
-        for post in self.store.list_posts(campaign_id, status="published", limit=10000):
+        for post in self.store.list_posts(campaign_id, status="published", limit=10000, workspace_id=self.workspace_id):
             if not post["asset_id"]:
                 continue
             try:

@@ -31,6 +31,11 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 ## BACKLOG
 
+- S-06.02.67 · Only install owners may access personal-data inventory and erasure (A24/A05)
+  work_order: docs/work-orders/S-06.02.67-privacy-owner-authorization.md
+  checkpoint: Test-first build-ahead while production audit S-06.02.23 remains IN_PROGRESS; owner-only authority test and Render QA pending. Broader A24 retention, backups, Q-27 tenancy, independent penetration and customer release OPEN.
+
+
 - S-06.02.66 · Paid AI calls cannot silently count as free when usage receipts are invalid (A10)
   work_order: docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md
   checkpoint: TDD RED at 1f4f9b9 / Render dep-dblrg5h5efls73aj916g: 7 expected FAIL/2 PASS. Fixed D-369 via provider parser 763a862 and broker measurement 48e271. Extended test-only fixture D-370 corrected at 8871aa7. Exact executable/test source 822ffa8 / isolated Render dep-dblrlb6i0phs7387c37g LIVE 2026-11-04 23:28:47 UTC: A10 early 12 PASS/1 PG-only skip; full SQLite 3,027 PASS/57 skipped; real disposable PG 3,052 PASS/101 skipped (includes A10 two-process USD race); focused PG 215 PASS, frontend/build/npm audits, Ruff, Chromium desktop/mobile, 12× SQLite concurrency and structural board verifier PASS. Evidence docs/evidence/2026-11-05-a10-paid-usage-integrity.md; R-193 / DD-146. Still BACKLOG: audit S-06.02.23 IN_PROGRESS, full-history verifier, paid-provider receipts, independent penetration and customer/main release OPEN.

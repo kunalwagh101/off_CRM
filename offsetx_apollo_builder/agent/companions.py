@@ -203,6 +203,40 @@ class CompanionRegistry:
             # provider settings serialises concurrent first-time schema setup.
             with self.hosted_storage.exclusive():
                 conn.executescript(SCHEMA)
+            self._refuse_silent_local_cutover()
+
+    def _refuse_silent_local_cutover(self) -> None:
+        """A hosted restart must not quietly replace real local profiles."""
+        if self.hosted_storage is None:
+            return
+        local = self.tools.connection()
+        for table in ("agent_companions", "agent_companion_skills"):
+            found = local.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()
+            if found is None:
+                continue
+            old = local.execute(
+                f"SELECT * FROM {table} ORDER BY id"
+            ).fetchall()
+            if not old:
+                continue
+            columns = [col[1] for col in local.execute(f"PRAGMA table_info({table})")]
+            for record in old:
+                row = self._connection().execute(
+                    f"SELECT * FROM {table} WHERE id = ?",
+                    (record["id"],),
+                ).fetchone()
+                if row is None or any(
+                    str(row[column]) != str(record[column]) for column in columns
+                    if column in row.keys()
+                ):
+                    raise CompanionError(
+                        "Local companion profiles or procedures differ from hosted data. "
+                        "Stop the app, preserve ai_tools.db on durable private storage, "
+                        "and explicitly reconcile or migrate before switching storage. "
+                        "No local records were deleted or overwritten."
+                    )
 
     def _connection(self) -> Any:
         return (

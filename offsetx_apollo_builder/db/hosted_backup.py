@@ -311,6 +311,47 @@ def download_ciphertext(object_key: str, destination: Path, *, bucket: str | Non
         raise
 
 
+def _ensure_empty_restore_target(connection) -> None:
+    """Refuse every non-system object, not only tables, in a restore destination.
+
+    A view, function, custom schema, type, sequence or installed extension is
+    customer state even when pg_tables reports zero rows. Never use --clean as
+    a shortcut: recovery must not run DROP on existing customer objects.
+    """
+    row = connection.execute(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM pg_catalog.pg_namespace n
+                WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'public')
+                  AND n.nspname NOT LIKE 'pg_toast%'
+                  AND n.nspname NOT LIKE 'pg_temp_%'
+            UNION ALL
+            SELECT 1 FROM pg_catalog.pg_class c
+                JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')
+            UNION ALL
+            SELECT 1 FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+                WHERE n.nspname = 'public'
+            UNION ALL
+            SELECT 1 FROM pg_catalog.pg_type t
+                JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = 'public'
+                  AND t.typtype IN ('d', 'e', 'c', 'r', 'm')
+            UNION ALL
+            SELECT 1 FROM pg_catalog.pg_extension e
+                WHERE e.extname <> 'plpgsql'
+        )
+        """
+    ).fetchone()
+    if row is None or bool(row[0]):
+        raise HostedBackupError(
+            "Restore refused: the destination is not empty; choose a NEW database "
+            "without user tables, views, functions, types, schemas or extensions"
+        )
+
+
 def restore_to_empty_postgres(ciphertext: Path, destination_url: str, *,
                               key: bytes | None = None) -> dict[str, int]:
     """Restore only into a newly empty database; never touch a live install."""
@@ -319,9 +360,7 @@ def restore_to_empty_postgres(ciphertext: Path, destination_url: str, *,
     import psycopg
 
     with psycopg.connect(destination_url) as conn:
-        existing = _row_counts(conn)
-        if existing:
-            raise HostedBackupError("Restore refused: the destination already has application tables")
+        _ensure_empty_restore_target(conn)
     plain = _new_temp_path()
     try:
         expected = _decrypt_snapshot(Path(ciphertext), plain, key or _backup_key())
@@ -330,7 +369,7 @@ def restore_to_empty_postgres(ciphertext: Path, destination_url: str, *,
             snapshot.seek(4 + length)
             proc = subprocess.Popen(
                 ["pg_restore", "--exit-on-error", "--no-owner", "--no-privileges",
-                 "--clean", "--if-exists", "--single-transaction",
+                 "--single-transaction",
                  "--dbname=" + unquote(urlsplit(destination_url).path.lstrip("/"))],
                 stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 env=_pg_environment(destination_url),

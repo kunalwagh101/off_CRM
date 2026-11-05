@@ -296,11 +296,27 @@ class TrendPipeline:
         """
         self._require_kind(distribution_campaign_id, "distribution", "drafting posts")
         self._require_kind(image_campaign_id, "image", "reading approved images")
-        if not account_ids:
+        if not isinstance(account_ids, (list, tuple)) or not account_ids:
             raise ValueError(
                 "Give at least one account to post to. Connect one first — a "
                 "draft with no destination is not a plan."
             )
+        if len(account_ids) > 20 or any(
+            not isinstance(account, str) or not 1 <= len(account.strip()) <= 80
+            for account in account_ids
+        ):
+            raise ValueError("Select between 1 and 20 valid posting accounts")
+        if len(set(account_ids)) != len(account_ids):
+            raise ValueError("A draft batch cannot contain duplicate posting accounts")
+        # Check *every* account before generating the first caption or post.
+        # An invalid second destination must never leave a partial draft batch.
+        owned = {
+            str(account["id"])
+            for account in self.distribution.accounts()
+            if bool(account.get("enabled"))
+        }
+        if any(account not in owned for account in account_ids):
+            raise ValueError("An account is missing, disabled or outside this workspace")
 
         approved = self.images.store.list_assets(
             image_campaign_id, status="approved", limit=limit, workspace_id=self.workspace_id

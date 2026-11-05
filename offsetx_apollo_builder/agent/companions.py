@@ -24,6 +24,9 @@ _NAME = re.compile(r"^[^\x00\r\n]{1,100}$")
 _SCOPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$")
 MAX_INSTRUCTIONS = 12_000
 MAX_TOOLS = 100
+MAX_SKILL_TEXT = 2000
+MAX_SELECTED_SKILLS = 3
+MAX_MODEL_INSTRUCTIONS = 6000
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agent_companions (
@@ -43,6 +46,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_companions_memory_scope
     ON agent_companions(workspace_id, memory_scope);
 CREATE INDEX IF NOT EXISTS ix_agent_companions_workspace
     ON agent_companions(workspace_id, enabled, name);
+
+CREATE TABLE IF NOT EXISTS agent_companion_skills (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_companion_skills_name
+    ON agent_companion_skills(workspace_id, lower(name));
 """
 
 
@@ -103,16 +118,57 @@ class Companion:
 
 
 @dataclass(frozen=True, slots=True)
+class CompanionSkill:
+    id: str
+    workspace_id: str
+    name: str
+    content: str
+    enabled: bool
+    created_at: str
+    updated_at: str
+
+    @classmethod
+    def from_row(cls, row: Any) -> "CompanionSkill":
+        return cls(
+            id=str(row["id"]), workspace_id=str(row["workspace_id"]),
+            name=str(row["name"]), content=str(row["content"]),
+            enabled=bool(row["enabled"]), created_at=str(row["created_at"]),
+            updated_at=str(row["updated_at"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id, "workspace_id": self.workspace_id, "name": self.name,
+            "content": self.content, "enabled": self.enabled,
+            "created_at": self.created_at, "updated_at": self.updated_at,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class CompanionContext:
     profile: Companion
     tools: tuple[dict[str, Any], ...]
     memory: tuple[dict[str, Any], ...]
+    skills: tuple[CompanionSkill, ...] = ()
+
+    def model_instructions(self) -> str:
+        """Only explicitly selected procedures become broker-visible instructions."""
+        sections = [self.profile.instructions]
+        sections.extend(f"Procedure ({skill.name}):\n{skill.content}" for skill in self.skills)
+        text = "\n\n".join(sections)
+        if len(text) > MAX_MODEL_INSTRUCTIONS:
+            raise CompanionError(
+                "Selected companion instructions exceed the model limit; shorten "
+                "the profile or select fewer procedures"
+            )
+        return text
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "companion": self.profile.to_dict(),
             "tools": list(self.tools),
             "memory": list(self.memory),
+            "skills": [item.to_dict() for item in self.skills],
         }
 
 
@@ -358,6 +414,84 @@ class CompanionRegistry:
             )
         return cursor.rowcount > 0
 
+    @staticmethod
+    def _skill_content(value: str) -> str:
+        content = str(value or "").strip()
+        if not content or len(content) > MAX_SKILL_TEXT:
+            raise CompanionError(
+                f"A procedure must have 1-{MAX_SKILL_TEXT} characters"
+            )
+        if any(ord(char) < 32 and char not in "\n\t" for char in content):
+            raise CompanionError("A procedure cannot contain control characters")
+        return content
+
+    def create_skill(self, *, workspace_id: str, name: str, content: str) -> CompanionSkill:
+        workspace = self._workspace(workspace_id)
+        label = self._name(name)
+        procedure = self._skill_content(content)
+        identifier = uuid.uuid4().hex
+        now = to_utc_iso()
+        try:
+            with self.tools.connection() as conn:
+                conn.execute(
+                    "INSERT INTO agent_companion_skills "
+                    "(id, workspace_id, name, content, enabled, created_at, updated_at) "
+                    "VALUES (?,?,?,?,1,?,?)",
+                    (identifier, workspace, label, procedure, now, now),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise CompanionError("A procedure with this name already exists") from exc
+        return self.require_skill(identifier, workspace_id=workspace)
+
+    def get_skill(self, skill_id: str, *, workspace_id: str) -> CompanionSkill | None:
+        workspace = self._workspace(workspace_id)
+        row = self.tools.connection().execute(
+            "SELECT * FROM agent_companion_skills WHERE id = ? AND workspace_id = ?",
+            (str(skill_id), workspace),
+        ).fetchone()
+        return CompanionSkill.from_row(row) if row is not None else None
+
+    def require_skill(self, skill_id: str, *, workspace_id: str) -> CompanionSkill:
+        item = self.get_skill(skill_id, workspace_id=workspace_id)
+        if item is None:
+            raise CompanionError("Procedure not found in this workspace")
+        return item
+
+    def list_skills(self, *, workspace_id: str) -> list[CompanionSkill]:
+        rows = self.tools.connection().execute(
+            "SELECT * FROM agent_companion_skills WHERE workspace_id = ? "
+            "ORDER BY lower(name), id", (self._workspace(workspace_id),)
+        ).fetchall()
+        return [CompanionSkill.from_row(row) for row in rows]
+
+    def update_skill(self, skill_id: str, *, workspace_id: str,
+                     name: str | None = None, content: str | None = None,
+                     enabled: bool | None = None) -> CompanionSkill:
+        current = self.require_skill(skill_id, workspace_id=workspace_id)
+        if enabled is not None and not isinstance(enabled, bool):
+            raise CompanionError("enabled must be a Boolean")
+        try:
+            with self.tools.connection() as conn:
+                conn.execute(
+                    "UPDATE agent_companion_skills SET name=?, content=?, enabled=?, updated_at=? "
+                    "WHERE id=? AND workspace_id=?",
+                    (current.name if name is None else self._name(name),
+                     current.content if content is None else self._skill_content(content),
+                     int(current.enabled if enabled is None else enabled),
+                     to_utc_iso(), current.id, current.workspace_id),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise CompanionError("A procedure with this name already exists") from exc
+        return self.require_skill(skill_id, workspace_id=workspace_id)
+
+    def delete_skill(self, skill_id: str, *, workspace_id: str) -> bool:
+        with self.tools.connection() as conn:
+            result = conn.execute(
+                "DELETE FROM agent_companion_skills WHERE id=? AND workspace_id=?",
+                (str(skill_id), self._workspace(workspace_id)),
+            )
+        return result.rowcount > 0
+
     def start(
         self,
         companion_id: str,
@@ -365,6 +499,7 @@ class CompanionRegistry:
         workspace_id: str,
         memory_query: str = "",
         memory_limit: int = 8,
+        skill_ids: Sequence[str] = (),
     ) -> CompanionContext:
         """Resolve exactly what one run under this companion is allowed to see."""
         profile = self.require(companion_id, workspace_id=workspace_id)
@@ -374,6 +509,22 @@ class CompanionRegistry:
             raise CompanionError("memory_limit must be an integer between 0 and 50")
         if memory_limit < 0 or memory_limit > 50:
             raise CompanionError("memory_limit must be between 0 and 50")
+
+        if not isinstance(skill_ids, (list, tuple)):
+            raise CompanionError("Procedure selection must be a list of ids")
+        unique_skill_ids = list(dict.fromkeys(skill_ids))
+        if len(unique_skill_ids) != len(skill_ids):
+            raise CompanionError("A procedure may be selected only once")
+        if len(unique_skill_ids) > MAX_SELECTED_SKILLS:
+            raise CompanionError(f"Select at most {MAX_SELECTED_SKILLS} procedures")
+        selected_skills = []
+        for skill_id in unique_skill_ids:
+            if not isinstance(skill_id, str) or not skill_id.strip():
+                raise CompanionError("Procedure IDs must be non-empty strings")
+            skill = self.require_skill(skill_id, workspace_id=workspace_id)
+            if not skill.enabled:
+                raise CompanionError("Selected procedure is disabled; ask the owner to enable it")
+            selected_skills.append(skill)
 
         tool_rows: list[dict[str, Any]] = []
         for tool_id in profile.granted_tool_ids:
@@ -396,6 +547,7 @@ class CompanionRegistry:
             profile=profile,
             tools=tuple(tool_rows),
             memory=tuple(memory_rows),
+            skills=tuple(selected_skills),
         )
 
     def remember(

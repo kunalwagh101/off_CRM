@@ -1170,3 +1170,11 @@ lifecycle.
 **Decision DD-148:** Use existing immutable video row ownership as the permission boundary. Make SQL pagination owner-filtered, keep internal store operations compatible where no owner is specified, and give a normal 404 for foreign object IDs. Do not change CRM campaign ownership under Q-27 without owner decision.
 
 **Outstanding:** Real production multi-tenant security, independent penetration, integration with authorised cross-workspace collaboration when specified, full-history verifier and deployment acceptance.
+
+## 2026-11-05 — A05 image owner scoping; QA blocked
+
+The image store had workspace_id on its briefs and assets, but consumers used global IDs or campaign-only list queries. With Q-27 CRM tenancy undecided, a shared campaign ID cannot grant access to every workspace's generated content. The video editor's image bridge must enforce the image's own owner too.
+
+Implemented guard methods before provider calls, decisions or file deletion; SQL-filtered lists before LIMIT; guarded image file downloads and the video image reader. Nine synthetic real-cookie test cases were authored before code, including a no-network broker double.
+
+The early Render review did not execute: build pipeline minutes were exhausted. We have no valid RED/GREEN, regression or deployment proof for this source. Leave A05 and this story open until focused/full QA, independent penetration, and customer acceptance are observed. Never buy a pipeline upgrade automatically to bypass a user budget.

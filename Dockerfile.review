@@ -22,7 +22,7 @@ COPY --from=frontend-checks /review/frontend/dist /review/frontend/dist
 RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 # A05: keep post drafts and Analyst campaign results scoped at SQL boundary.
-RUN uv run pytest -q tests/test_pipeline.py::test_draft_pipeline_rejects_other_workspaces_images_topic_history_and_cooldown tests/test_distribution.py::test_analyst_metrics_and_goals_never_mix_workspaces_with_shared_campaign_ids
+RUN uv run pytest -q tests/test_pipeline.py::test_draft_pipeline_rejects_other_workspaces_images_topic_history_and_cooldown tests/test_distribution.py::test_analyst_metrics_and_goals_never_mix_workspaces_with_shared_campaign_ids tests/test_pipeline.py::test_batch_rejects_foreign_account_before_any_post_is_written tests/test_pipeline.py::test_batch_rejects_duplicate_or_disabled_accounts_before_drafting
 # F-06.03: encryption, tamper detection, offsite transport and guard-only local checks.
 RUN uv run pytest -q tests/test_hosted_backup.py
 # F-04.01: owner-picked procedures and bounded child context isolation.

@@ -349,3 +349,11 @@ This is a verification mapping, not a new backlog requirement or a DONE claim. S
 | R-193 | S-06.02.66 | Valid paid receipts persist cost and refuse unaffordable follow-up; unusable/zero provider counts become positive labelled estimates rather than free calls/post-send exceptions; provider errors retain counted usage; two workers compete against one durable USD cap | `tests/test_ai_billing_integrity_a10.py` (RED 7 expected failures/2 passed; exact-source Render 822ffa8 A10 12 PASS/1 early PG-only skip, full SQLite 3,027 PASS, full PG 3,052 PASS including real two-process A10 PG race; QA marker LIVE 2026-11-04 23:28 UTC) | `offsetx_apollo_builder/ai/broker.py`, `offsetx_apollo_builder/outreach/providers.py`, `offsetx_apollo_builder/ai/quota.py` (unchanged reservation) | Automated SQLite/PostgreSQL/browser/security QA verified; still missing full Git-history evidence replay, actual paid-provider invoices/unknown multimodal pricing, independent penetration and customer production acceptance |
 
 Audit A10 and S-06.02.23 remain open. This row must not be mistaken for a production DONE claim.
+
+## R-194 — A24 API owner-only personal-data safety (build-ahead; not production-released)
+
+| Requirement | Story | Current proven criteria | Test | Code | Remaining gates |
+|---|---|---|---|---|---|
+| R-194 | S-06.02.67 | Normal workspace login cannot access private inventory, preview erasure, run even a known owner request ID, or obtain the deletion phrase; install token and deliberately provisioned local owner login retain confirmed deletion; unaffected contacts preserved | `tests/test_audit_a24_privacy_owner_authorization.py`, RED isolated 4 FAIL/1 PASS, GREEN 5 PASS `dep-dbm3oj8ae00c7389h7d0` | `offsetx_apollo_builder/api/app.py` (`require_install_owner` reused), `offsetx_apollo_builder/privacy.py` (unchanged existing 12-store workflow) | Full PostgreSQL/SQLite review, backup/restore/retention and reindex A24 acceptance, Q-27, independent penetration, full-history board verifier and production acceptance |
+
+The broader A24 finding remains OPEN in production audit S-06.02.23.

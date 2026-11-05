@@ -983,6 +983,14 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** the owning workspace, **when** it reads and edits its own records, **then** existing video functions work unchanged.
 - **Dependencies:** existing workspace login and video stores. No CRM tenancy migration (Q-27). Audit S-06.02.23 IN_PROGRESS, **Size M**. Work order `docs/work-orders/S-06.02.68-video-workspace-ownership.md`. Production penetration and customer acceptance remain open.
 
+
+#### S-06.02.69 — Generated image briefs and assets cannot cross workspace accounts (A05)
+**As a** signed-in workspace user, **I want** my image briefs, candidate pictures, swipe decisions and video attachments visible and changeable only within my workspace, **so that** another account with an ID cannot download or delete my content.
+- **Given** two workspaces use the same CRM campaign, **when** they view image briefs/assets/queue/summary, **then** SQL returns only the caller's rows before limits apply.
+- **Given** another workspace's image or brief ID, **when** a user downloads, generates, approves, rejects, refreshes or places it in a video, **then** the app refuses with 404 before any media or usage change.
+- **Given** own assets and briefs, **when** used normally, **then** the image and video operations work unchanged.
+- **Dependencies:** existing workspace sessions, image/video stores; wider CRM tenancy Q-27 is not changed. Feature F-06.02, **Size M**. Work order `docs/work-orders/S-06.02.69-image-workspace-ownership.md`, BACKLOG during audit S-06.02.23 IN_PROGRESS.
+
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
 #### S-07.01.01 — An MCP client

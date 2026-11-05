@@ -174,6 +174,9 @@ def _decrypt_snapshot(source: Path, output: Path, key: bytes) -> dict[str, int]:
             try:
                 plain.write(decryptor.finalize())
             except InvalidTag as exc:
+                plain.truncate(0)
+                plain.close()
+                output.unlink(missing_ok=True)
                 raise HostedBackupError("Backup authentication failed: wrong key or altered bytes") from exc
 
     with output.open("rb") as plain:
@@ -208,7 +211,26 @@ def _s3_client():
         import boto3
     except ImportError as exc:
         raise HostedBackupError("S3 support requires the existing 'email' dependency extra") from exc
-    return boto3.client("s3")
+    from ipaddress import ip_address
+    from urllib.parse import urlsplit
+
+    endpoint = os.getenv("OFFSETX_BACKUP_S3_ENDPOINT", "").strip()
+    if not endpoint:
+        return boto3.client("s3")
+    try:
+        parsed = urlsplit(endpoint)
+        host = parsed.hostname
+        if parsed.scheme != "https" or not host or parsed.username or parsed.password:
+            raise ValueError("invalid endpoint")
+        try:
+            address = ip_address(host)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("endpoint is not public")
+    except ValueError as exc:
+        raise HostedBackupError("Backup S3 endpoint must be public HTTPS without credentials") from exc
+    return boto3.client("s3", endpoint_url=endpoint)
 
 
 def _bucket(value: str | None) -> str:

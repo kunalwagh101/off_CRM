@@ -1,3 +1,12 @@
+## 2026-11-05 — Continued F-06.03 and F-04.01 source work; QA still blocked
+
+- S-04.01.04: Owner-invoked five named roles now call the existing TrendStore, VideoEditorEngine, post-draft TrendPipeline, DistributionEngine metrics and GtmService draft planner. Owner API and focused tests/tests_agent_role_team.py equivalent tests/test_agent_role_team.py written; no auto-posting. Source 7026605, 46ac35b, 9caf527.
+- S-06.03.06: Companion profile and selected procedures now use HostedStorage SQL on hosted installs, not disposable local ai_tools.db. Added transactional writes, a refusal of silent legacy local-data loss and SQL reconnect tests/test_hosted_companion_profiles.py (SQLite/PG). Executable ToolRegistry and many other stores remain local and unresolved.
+- A05: Source review discovered TrendPipeline.draft read approved images/posts and topic actions without workspace predicates; fixed at d65384b/d7f4bee and added two-workspace test in tests/test_pipeline.py.
+- Dockerfile.review has focused role, hosted-companion, encrypted-backup, PG and wider regression QA commands. A read-only connector audit checked main symbols, owner auth and QA gate wiring; this was STATIC only, not Python test execution.
+- Render review runner shows pipeline_minutes_exhausted at 2026-11-05 10:06 UTC. No new code was built/tested there. No customer deploy, no DONE status, and no actual backup/restore proved. A six-hour automation was enabled to revisit these open tasks and run QA when possible without upgrading paid plans.
+- Until isolated Render + disposable PG tests run and independent recovery/penetration pass, both F-06.03 and F-04.01 remain unfinished.
+
 ## 2026-11-05 — Owner-approved F-06.03 backup and F-04.01 skills/delegation build-ahead (not verified)
 
 - Owner authorised continued development on develop only, private S3-compatible encrypted backups and explicit owner-selected agent procedures. Q-29/Q-30 architecture decisions recorded; external bucket/IAM/retention and hosted durable-store gaps remain.

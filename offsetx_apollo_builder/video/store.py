@@ -250,18 +250,24 @@ class VideoStore:
         item["document"] = _safe_json(item.get("document"))
         return item
 
-    def list_projects(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def list_projects(self, campaign_id: str, *, limit: int = 100, workspace_id: str | None = None) -> list[dict[str, Any]]:
         """The list view, deliberately without the documents.
 
         A project list that carried every timeline would be megabytes to render
         a page of names.
         """
-        rows = self.connection.execute(
+        sql = (
             "SELECT id, campaign_id, workspace_id, name, width, height, fps,"
             " duration_ticks, version, created_at, updated_at FROM video_projects"
-            " WHERE campaign_id = ? ORDER BY updated_at DESC LIMIT ?",
-            (campaign_id, max(1, int(limit))),
-        ).fetchall()
+            " WHERE campaign_id = ?"
+        )
+        params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(max(1, int(limit)))
+        rows = self.connection.execute(sql, tuple(params)).fetchall()
         return [dict(row) for row in rows]
 
     def save_version(
@@ -458,12 +464,15 @@ class VideoStore:
         item["gates"] = _safe_json(item.pop("gate_json", "{}"))
         return item
 
-    def list_renders(self, project_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
-            "SELECT * FROM video_renders WHERE project_id = ?"
-            " ORDER BY created_at DESC LIMIT ?",
-            (project_id, max(1, int(limit))),
-        ).fetchall()
+    def list_renders(self, project_id: str, *, limit: int = 50, workspace_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM video_renders WHERE project_id = ?"
+        params: list[Any] = [project_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(max(1, int(limit)))
+        rows = self.connection.execute(sql, tuple(params)).fetchall()
         items = []
         for row in rows:
             item = dict(row)
@@ -550,7 +559,8 @@ class VideoStore:
         return [_review_row(row) for row in rows]
 
     def list_reviews(
-        self, campaign_id: str, *, verdict: str = "", limit: int = 100
+        self, campaign_id: str, *, verdict: str = "", limit: int = 100,
+        workspace_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Reviews for a campaign, oldest first.
 
@@ -560,6 +570,9 @@ class VideoStore:
         """
         sql = "SELECT * FROM video_reviews WHERE campaign_id = ?"
         params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
         if verdict:
             if verdict not in REVIEW_VERDICTS:
                 raise ValueError(f"Unknown verdict: {verdict}")
@@ -611,7 +624,7 @@ class VideoStore:
         )
         return self.get_review(review_id)
 
-    def pushed_renders(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def pushed_renders(self, campaign_id: str, *, limit: int = 100, workspace_id: str | None = None) -> list[dict[str, Any]]:
         """Every file an owner said yes to, newest first.
 
         This is the handoff. A distribution campaign asks this question and gets
@@ -619,15 +632,20 @@ class VideoStore:
         type — so the thing that already knows how to publish an asset has
         nothing to learn about timelines.
         """
-        rows = self.connection.execute(
+        sql = (
             "SELECT r.*, v.id AS review_id, v.decided_at AS pushed_at,"
             " p.name AS project_name FROM video_reviews v"
             " JOIN video_renders r ON r.id = v.render_id"
             " JOIN video_projects p ON p.id = v.project_id"
             " WHERE v.campaign_id = ? AND v.verdict = 'pushed' AND v.render_id != ''"
-            " ORDER BY v.decided_at DESC LIMIT ?",
-            (campaign_id, max(1, int(limit))),
-        ).fetchall()
+        )
+        params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND v.workspace_id = ? AND r.workspace_id = ? AND p.workspace_id = ?"
+            params.extend((workspace_id, workspace_id, workspace_id))
+        sql += " ORDER BY v.decided_at DESC LIMIT ?"
+        params.append(max(1, int(limit)))
+        rows = self.connection.execute(sql, tuple(params)).fetchall()
         items = []
         for row in rows:
             item = dict(row)
@@ -716,12 +734,15 @@ class VideoStore:
         item["has_audio"] = bool(item.get("has_audio"))
         return item
 
-    def list_media(self, campaign_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
-            "SELECT * FROM video_media WHERE campaign_id = ?"
-            " ORDER BY created_at DESC LIMIT ?",
-            (campaign_id, max(1, int(limit))),
-        ).fetchall()
+    def list_media(self, campaign_id: str, *, limit: int = 100, workspace_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM video_media WHERE campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(max(1, int(limit)))
+        rows = self.connection.execute(sql, tuple(params)).fetchall()
         items = []
         for row in rows:
             item = dict(row)

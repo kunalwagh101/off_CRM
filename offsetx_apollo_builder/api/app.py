@@ -310,6 +310,7 @@ RUNTIME_CLOSE_ORDER: tuple[str, ...] = (
     "chat_browser_runs",
     "chat_permission_grants",
     "privacy",
+    "companions",
     "ai_tools",
     "engine",
     "ai_cache",
@@ -766,6 +767,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             resolved.data_dir,
             tools=app.state.ai_tools,
             memory_backend=app.state.engine.store,
+            hosted_storage=hosted,
         )
         app.state.ai_chat = AIChatService(app.state.engine.store)
         # Reopening a restored runtime must revoke grants held by any old runs.

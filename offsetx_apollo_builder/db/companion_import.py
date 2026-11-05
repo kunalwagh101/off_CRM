@@ -7,6 +7,7 @@ Never silently import tool grants whose registry has no durable hosted home.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -85,8 +86,26 @@ def _snapshot_rows(con: sqlite3.Connection) -> dict[str, list[tuple]]:
             "The local tool registry is damaged or unreadable; preserve the original"
         ) from None
 
+    
+def _database_digest(connection: sqlite3.Connection) -> str:
+    """Fingerprint the whole logical SQLite database, including executable tools.
 
-def _private_archive(source: Path, archive: Path, expected: dict[str, list[tuple]]) -> None:
+    A matching companion table does not prove that the archived tool registry
+    or its permissions/trust history can be restored. The backup is a full
+    SQLite file, so its integrity must cover all records and schema objects.
+    """
+    digest = hashlib.sha256()
+    try:
+        for statement in connection.iterdump():
+            digest.update(statement.encode("utf-8"))
+            digest.update(b"\n")
+    except sqlite3.DatabaseError:
+        raise CompanionImportError("The complete SQLite registry cannot be checked") from None
+    return digest.hexdigest()
+
+
+def _private_archive(source: Path, archive: Path, expected: dict[str, list[tuple]],
+                     source_digest: str) -> None:
     """Retain a complete ToolRegistry database, not only the companion tables."""
     parent = archive.parent
     if archive.is_symlink() or parent.is_symlink():
@@ -98,9 +117,11 @@ def _private_archive(source: Path, archive: Path, expected: dict[str, list[tuple
         if not archive.is_file() or stat.S_IMODE(archive.stat().st_mode) & 0o077:
             raise CompanionImportError("An existing archive must be a private regular file (0600)")
         with closing(_reader(archive)) as previous:
-            if _snapshot_rows(previous) != expected:
+            if (_snapshot_rows(previous) != expected
+                    or _database_digest(previous) != source_digest):
                 raise CompanionImportError(
-                    "Existing archive differs from the original. Use a new private archive."
+                    "Existing archive differs from the complete local tool registry. "
+                    "Use a new private archive."
                 )
         return
 
@@ -115,8 +136,9 @@ def _private_archive(source: Path, archive: Path, expected: dict[str, list[tuple
         with closing(_reader(source)) as original, closing(sqlite3.connect(archive)) as backup:
             original.backup(backup)
         with closing(_reader(archive)) as check:
-            if _snapshot_rows(check) != expected:
-                raise CompanionImportError("The private SQLite archive did not reconcile")
+            if (_snapshot_rows(check) != expected
+                    or _database_digest(check) != source_digest):
+                raise CompanionImportError("The full private SQLite archive did not reconcile")
         file_fd = os.open(archive, os.O_RDONLY)
         try:
             os.fsync(file_fd)
@@ -146,13 +168,14 @@ def _target_rows(database) -> dict[str, list[tuple]]:
     return result
 
 
-def _clear_local_rows(source: Path, expected: dict[str, list[tuple]]) -> None:
+def _clear_local_rows(source: Path, expected: dict[str, list[tuple]], source_digest: str) -> None:
     """Remove ONLY migrated companion rows, transactionally, never tools."""
     with closing(sqlite3.connect(source, isolation_level=None, timeout=5)) as con:
         con.row_factory = sqlite3.Row
         con.execute("BEGIN IMMEDIATE")
         try:
-            if _snapshot_rows(con) != expected:
+            if (_snapshot_rows(con) != expected
+                    or _database_digest(con) != source_digest):
                 raise CompanionImportError(
                     "The source changed during the import. Stop other processes and retry."
                 )
@@ -196,10 +219,18 @@ def import_companions(
             if restore_pending(root):
                 raise CompanionImportError("Resolve a pending workspace restore before migrating companions")
             with closing(_reader(source)) as old:
-                expected = _snapshot_rows(old)
+                # Read the complete state under one source transaction. A
+                # concurrent uncooperative tool writer must not sneak records
+                # past archive verification or local cleanup.
+                old.execute("BEGIN")
+                try:
+                    expected = _snapshot_rows(old)
+                    source_digest = _database_digest(old)
+                finally:
+                    old.execute("ROLLBACK")
             if not any(expected.values()):
                 raise CompanionImportError("The local registry has no companion rows to migrate")
-            _private_archive(source, archive, expected)
+            _private_archive(source, archive, expected, source_digest)
             hosted.check_secrets_key()
             with hosted.exclusive():
                 database = hosted.connection
@@ -225,7 +256,7 @@ def import_companions(
                         )
             # Keep executable tool registry and history; only clear the rows
             # moved above so subsequent hosted edits don't conflict at startup.
-            _clear_local_rows(source, expected)
+            _clear_local_rows(source, expected, source_digest)
             return {name: len(rows) for name, rows in expected.items()}
     except WorkspaceBusy:
         raise CompanionImportError(

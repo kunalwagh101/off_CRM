@@ -155,10 +155,7 @@ def test_operator_cli_requires_explicit_yes_and_private_archive(tmp_path, monkey
     tools.close()
     archive = _archive(tmp_path)
     monkeypatch.setenv("OFFSETX_DATABASE_URL", str(tmp_path / "hosted.db"))
-    monkeypatch.setenv("OFFSETX_SECRETS_KEY", hosted.fernet._signing_key.hex() if False else Fernet.generate_key().decode())
-    # Use the real known key used by HostedStorage in this test, not a freshly
-    # generated key: HostedStorage.check_secrets_key must refuse wrong keys.
-    # This test only checks CLI's missing explicit approval, before any connection.
+    # Approval validation runs before reading any hosted credentials.
     assert main(["import-companions", "--archive", str(archive)]) == 2
     hosted.close()
 
@@ -177,12 +174,13 @@ def test_real_postgres_import_reconciles_and_survives_restart(tmp_path):
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute(f'CREATE SCHEMA "{schema}"')
     scoped = url + ("&" if "?" in url else "?") + "options=-csearch_path%3D" + schema
-    hosted = HostedStorage(scoped, Fernet.generate_key().decode())
+    key = Fernet.generate_key().decode()
+    hosted = HostedStorage(scoped, key)
     try:
         imported = import_companions(local / "ai_tools.db", hosted, _archive(tmp_path))
         assert imported["agent_companions"] == 1
         hosted.close()
-        hosted2 = HostedStorage(scoped, Fernet.generate_key().decode())
+        hosted2 = HostedStorage(scoped, key)
         tools2 = ToolRegistry(local / "ai_tools.db")
         try:
             assert CompanionRegistry(local, tools=tools2, memory_backend=Memory(), hosted_storage=hosted2).require(

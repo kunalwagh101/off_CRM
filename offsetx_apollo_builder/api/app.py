@@ -1935,7 +1935,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: AgentRoleActionBody, request: Request,
     ) -> dict[str, Any]:
         """Dispatch to the exact existing role engine; no tool/publish bypass."""
-        from ..agent.role_team import RoleEngines, execute_role
+        from ..agent.role_team import RoleEngines, execute_role, release_role_resources
 
         require_install_owner(request)
         workspace_id = _workspace_id(request)
@@ -1967,6 +1967,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(404, "Campaign, asset or account not found in this workspace") from exc
         except ValueError as exc:
             raise HTTPException(409, "The existing engine refused this action; review its prerequisites") from exc
+        finally:
+            release_role_resources(body.role, engines)
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/delegate")
     def delegate_companion(

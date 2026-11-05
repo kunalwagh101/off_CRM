@@ -696,6 +696,15 @@ class CompanionSkillUpdateBody(StrictModel):
     enabled: bool | None = Field(default=None, strict=True)
 
 
+class CompanionChildGoal(StrictModel):
+    companion_id: str = Field(min_length=1, max_length=64)
+    goal: str = Field(min_length=1, max_length=2000)
+
+
+class CompanionDelegateBody(StrictModel):
+    assignments: list[CompanionChildGoal] = Field(min_length=1, max_length=3)
+
+
 class CompanionMemoryBody(StrictModel):
     content: str = Field(min_length=1, max_length=30000)
     kind: str = Field(default="companion_fact", min_length=1, max_length=80)

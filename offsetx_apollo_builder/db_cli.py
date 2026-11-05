@@ -373,6 +373,46 @@ def _cmd_import_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_companions(args: argparse.Namespace) -> int:
+    """Move old local profiles and skills into hosted SQL, preserving tool rows."""
+    from .db.companion_import import CompanionImportError, import_companions
+    from .db.hosted import HostedStorageError
+
+    if not args.yes:
+        print(
+            "Explicit approval required: --yes. Stop all app/worker processes, "
+            "use a private durable archive outside the old data directory and "
+            "make an independent database backup before importing.",
+            file=sys.stderr,
+        )
+        return 2
+    source = Path(args.source) if args.source else data_dir(Path.cwd()) / "ai_tools.db"
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+        if hosted is None:
+            print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first.", file=sys.stderr)
+            return 2
+        try:
+            counts = import_companions(source, hosted, Path(args.archive))
+        finally:
+            hosted.close()
+    except (CompanionImportError, HostedStorageError, DatabaseError, OSError, ValueError) as exc:
+        report_failure(exc, operation="offsetx-db.import-companions")
+        print(failure_message(exc, operation="offsetx-db.import-companions"), file=sys.stderr)
+        return 2
+
+    print(
+        f"Hosted profiles: {counts['agent_companions']}; hosted procedures: "
+        f"{counts['agent_companion_skills']}. Every migrated row reconciled."
+    )
+    print(
+        "Only local companion rows were cleared. Executable tool registrations "
+        "remain in the original SQLite registry."
+    )
+    print("Keep the full private archive on a genuinely durable disk.")
+    return 0
+
+
 def _cmd_import_crm(args: argparse.Namespace) -> int:
     """Say once what happens to a local CRM file (S-06.03.03), as `import-local`
     does for keys and logins: copied into the database's CRM, or left unread."""
@@ -578,6 +618,22 @@ def main(argv: list[str] | None = None) -> int:
     context_choice.add_argument("--yes", action="store_true", help="import into an empty hosted context")
     context_choice.add_argument("--skip", action="store_true", help="keep the hosted context untouched")
     context.set_defaults(func=_cmd_import_context)
+
+    companion_import = sub.add_parser(
+        "import-companions",
+        help="archive local companion profiles and procedures, then copy rows to hosted SQL",
+    )
+    companion_import.add_argument(
+        "--source", default="", help="old ai_tools.db; defaults to data folder"
+    )
+    companion_import.add_argument(
+        "--archive", required=True,
+        help="full private SQLite archive on durable storage, outside old data directory",
+    )
+    companion_import.add_argument(
+        "--yes", action="store_true", help="confirm archive-first migration and local row clear"
+    )
+    companion_import.set_defaults(func=_cmd_import_companions)
 
     crm = sub.add_parser(
         "import-crm", help="copy a local CRM file into the database's CRM, or start without it"

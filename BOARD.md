@@ -33,7 +33,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.67 · Only install owners may access personal-data inventory and erasure (A24/A05)
   work_order: docs/work-orders/S-06.02.67-privacy-owner-authorization.md
-  checkpoint: Test-first build-ahead while production audit S-06.02.23 remains IN_PROGRESS; owner-only authority test and Render QA pending. Broader A24 retention, backups, Q-27 tenancy, independent penetration and customer release OPEN.
+  checkpoint: TDD RED source 4c97f56 / isolated Render dep-dbm3nv9srm7s73f07bs0: 4 expected FAIL/1 PASS. Reused install owner authorisation on four privacy API routes at 4117704; initial GREEN source 4117704 / isolated Render dep-dbm3oj8ae00c7389h7d0: 5 A24 PASS/1 warning. Full SQLite/PostgreSQL/Chromium QA pending. D-371 / DD-147 / R-194. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md. Still BACKLOG under active S-06.02.23; complete data erasure, backups/retention, Q-27 CRM tenancy, independent penetration, history verifier and customer/main release remain OPEN.
 
 
 - S-06.02.66 · Paid AI calls cannot silently count as free when usage receipts are invalid (A10)

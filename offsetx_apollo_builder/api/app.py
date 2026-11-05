@@ -233,6 +233,7 @@ from .schemas import (
     AITemplateRewriteBody,
     AIWorkspaceUpdateBody,
     CompanionContextBody,
+    CompanionDelegateBody,
     CompanionCreateBody,
     CompanionMemoryBody,
     CompanionSkillCreateBody,
@@ -1907,6 +1908,36 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         except CompanionError as exc:
             status = 404 if "does not exist" in str(exc) else 400
             raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/companions/{{companion_id}}/delegate")
+    def delegate_companion(
+        companion_id: str, body: CompanionDelegateBody, request: Request,
+    ) -> dict[str, Any]:
+        """One owner-authorised delegation; no tools, grandchild spawn or auto-send."""
+        from ..agent.delegation import ChildAssignment, delegate_once
+
+        require_install_owner(request)
+        workspace = _workspace_id(request)
+        broker, workspaces, _ = _ai(request)
+        settings = workspaces.egress_settings(workspace)
+        broker = broker.with_credential_resolver(
+            workspaces.credential_resolver(workspace)
+        )
+        try:
+            return delegate_once(
+                request.app.state.companions,
+                parent_id=companion_id,
+                assignments=[
+                    ChildAssignment(companion_id=row.companion_id, goal=row.goal)
+                    for row in body.assignments
+                ],
+                workspace_id=workspace,
+                broker=broker, settings=settings,
+            )
+        except CompanionError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+            raise _ai_error(exc) from exc
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/memory", status_code=201)
     def companion_memory(

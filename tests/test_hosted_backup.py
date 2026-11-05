@@ -132,6 +132,35 @@ def test_s3_keys_refuse_traversal_or_unapproved_destination():
         backup._bucket("")
 
 
+def test_restore_rejects_views_functions_types_schemas_and_extensions_without_dropping():
+    """D-380: no table rows does not mean a PostgreSQL database is empty."""
+    class FakeConnection:
+        def __init__(self, existing):
+            self.existing = existing
+            self.sql = []
+
+        def execute(self, query):
+            self.sql.append(query)
+            return self
+
+        def fetchone(self):
+            return (self.existing,)
+
+    for existing in (True, False):
+        conn = FakeConnection(existing)
+        if existing:
+            with pytest.raises(backup.HostedBackupError, match="not empty"):
+                backup._ensure_empty_restore_target(conn)
+        else:
+            backup._ensure_empty_restore_target(conn)
+        sql = " ".join(conn.sql)
+        assert "pg_catalog.pg_class" in sql
+        assert "pg_catalog.pg_proc" in sql
+        assert "pg_catalog.pg_type" in sql
+        assert "pg_catalog.pg_namespace" in sql
+        assert "pg_catalog.pg_extension" in sql
+
+
 @pytest.mark.skipif(
     not os.getenv("OFF_CRM_TEST_POSTGRES_URL"),
     reason="requires disposable PostgreSQL with CREATEDB and pg_dump/pg_restore",
@@ -174,7 +203,7 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             assert conn.execute("SELECT workspace, n FROM test_customer ORDER BY n").fetchall() == [
                 ("alpha", 1), ("beta", 2),
             ]
-        with pytest.raises(backup.HostedBackupError, match="already has application tables"):
+        with pytest.raises(backup.HostedBackupError, match="not empty"):
             backup.restore_to_empty_postgres(encrypted, named(destination_name), key=backup_key)
     finally:
         with psycopg.connect(url, autocommit=True) as admin:

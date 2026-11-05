@@ -250,6 +250,42 @@ def _publish(engine, caption="x", asset_id=""):
     return post["id"]
 
 
+def test_analyst_metrics_and_goals_never_mix_workspaces_with_shared_campaign_ids(engine):
+    """A05: an overlapping global CRM ID is not permission to read another workspace."""
+    own_post = engine.store.create_post(
+        campaign_id=CAMPAIGN, account_id="ours", platform="local_outbox",
+        caption="Own draft", asset_id="own-asset", workspace_id="local",
+    )
+    foreign_post = engine.store.create_post(
+        campaign_id=CAMPAIGN, account_id="foreign", platform="local_outbox",
+        caption="Private draft", asset_id="private-asset", workspace_id="other",
+    )
+    engine.store.set_goal(campaign_id=CAMPAIGN, target=100, workspace_id="local")
+    engine.store.set_goal(campaign_id=CAMPAIGN, target=999, workspace_id="other")
+    engine.store.record_metrics(
+        post_id=own_post, campaign_id=CAMPAIGN, views=20, workspace_id="local",
+    )
+    engine.store.record_metrics(
+        post_id=foreign_post, campaign_id=CAMPAIGN, views=900, workspace_id="other",
+    )
+
+    result = engine.progress(CAMPAIGN)
+    assert result["totals"]["views"] == 20
+    assert len(result["goals"]) == 1
+    assert result["goals"][0]["target"] == 100
+    assert result["posts"]["draft"] == 1
+
+    # Generator performance is also scoped BEFORE aggregating or sorting.
+    engine.store.connection.execute(
+        "UPDATE dist_posts SET status='published' WHERE id IN (?,?)",
+        (own_post, foreign_post),
+    )
+    ranked = engine.generator_performance(CAMPAIGN)
+    assert len(ranked) == 1
+    assert ranked[0]["posts"] == 1
+    assert ranked[0]["views"] == 20
+
+
 def test_a_campaign_is_goal_shaped(engine):
     """"A million views", not "publish these posts"."""
     post_id = _publish(engine)

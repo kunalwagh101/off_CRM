@@ -70,8 +70,10 @@ Then run:
     uv run offsetx-db restore-hosted --file /private/backup.offcrm.enc --yes-empty-target
 
 The restore decrypts and verifies the whole ciphertext before invoking
-pg_restore. It refuses a database with application tables, executes the restore
-in one transaction, and reconciles exact row counts from the export snapshot.
+pg_restore. It refuses any non-empty destination, including user tables, views, functions,
+sequences, custom types, custom schemas and extra extensions. The restore never
+uses DROP/clean flags. It runs in one transaction and compares exact table row
+counts with the export snapshot.
 It never switches production connection settings. The plaintext restore spool
 is deleted on exit.
 

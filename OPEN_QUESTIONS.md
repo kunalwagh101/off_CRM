@@ -427,7 +427,7 @@ and parallel strategies — need a Connectors equivalent or are dropped. Choosin
 
 ### Q-29 — Which owner-controlled destination and key policy protect hosted CRM backups? *(blocks S-06.03.04)*
 
-**Status:** open. Raised 2026-10-13 for the selected hosted recovery feature. The choice in Q-20 to use encrypted Google Drive for demo *video* does not grant access or storage permission for CRM/customer database exports.
+**Status:** answered for architecture · **Decision:** owner approved Option 1 on 2026-11-05: independent private S3-compatible object storage with restricted backup credentials and a separately managed AES-256-GCM backup key. The physical bucket, credentials, retention policy, scheduler and restore proof are still unprovided release dependencies. Raised 2026-10-13. The choice in Q-20 to use encrypted Google Drive for demo *video* does not grant access or storage permission for CRM/customer database exports.
 
 **Ambiguity.** A real nightly backup must survive deletion of the hosted database and Render's ephemeral filesystem. Neither the location, its credentials nor custody of the separate decryption key is authorised yet.
 
@@ -439,7 +439,7 @@ and parallel strategies — need a Connectors equivalent or are dropped. Choosin
 
 ### Q-30 — Who chooses which companion procedure enters a run? *(blocks S-04.01.02)*
 
-**Status:** open. Raised 2026-10-13 for the selected on-demand skills feature.
+**Status:** answered · **Decision:** owner approved Option 1 on 2026-11-05: only explicit owner-authorised procedure IDs select bounded text for a run; no page or model auto-selection. Dependency S-04.01.01 and live end-to-end evidence remain open. Raised 2026-10-13.
 
 **Ambiguity.** A procedure can be selected explicitly by an owner/workflow or inferred by a model from the goal/page. The distinction changes prompt content, permissions and prompt-injection exposure.
 

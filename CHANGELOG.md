@@ -1,3 +1,10 @@
+## 2026-11-05 — Archive digest, non-destructive restore, role watcher cleanup (unreleased)
+
+- Refused companion migration if full SQLite tool registry changes or its private archive differs, even when companion rows match; isolated real-SQLite tests 13 PASS on exact imported module.
+- Restore now refuses non-table user PostgreSQL objects and no longer requests destructive pg_restore clean/drop flags. Real PostgreSQL acceptance pending.
+- Agent-team API releases request-owned trend watchers on success and error without closing shared stores. Full API regression pending.
+- Updated defect log, board, backup runbook and QA source. No production deployment or verified F-06.03/F-04.01 release.
+
 ## 2026-11-05 — Companion migration and Poster preflight, partial isolated QA
 
 - Added explicit archive-first local companion/profile cutover into hosted SQL, preserving executable tool registrations; refuses conflicts, unsafe grants and unverified archives.

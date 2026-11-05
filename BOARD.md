@@ -78,6 +78,8 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
   work_order: docs/work-orders/S-04.01.03-bounded-child-reasoning.md
   checkpoint: 2026-11-05 owner-scoped bounded one-level child reasoning source c733f7a/8c7b00c; tests/test_companion_delegation.py written, NOT RUN. No recursive tool/spawn access, live acceptance or complete five-role workflow. Upstream S-04.01.01 IN_REVIEW; remains BACKLOG.
 - S-04.01.04 · The five roles, wired to what already exists
+  work_order: docs/work-orders/S-04.01.04-five-role-integration.md
+  checkpoint: 2026-11-05 build-ahead role adapters (7026605 and 46ac35b): Scout->workspace trends, Maker->existing video director/assembler review queue, Poster->approved-image draft pipeline only, Analyst->distribution metrics, Director->GTM draft plan. Owner-only provision/execute API, tests/test_agent_role_team.py and Dockerfile.review gate written. Source review found workspace-scoping defect in existing Poster pipeline, fixed d65384b/d7f4bee with two-workspace test in tests/test_pipeline.py. All new tests UNEXECUTED because Render pipeline minutes exhausted. Full live role, browser, provider, security and production QA open. Remains BACKLOG, not DONE.
 - S-06.01.05 · Deployment, monitoring and rollback
 - S-07.01.01 · An MCP client
 - S-07.01.02 · Native OAuth integrations
@@ -131,6 +133,7 @@ next day, `AGENTS.md` "Logging".)*
 - S-06.03.06 · Every other store has a decided home
   work_order: docs/work-orders/S-06.03.06-store-homes.md
   design: docs/architecture/HOSTED_STORAGE.md
+  checkpoint: 2026-11-05 build-ahead: app now binds companion profiles and on-demand skills to hosted SQL through HostedStorage.exclusive, preserving local tool registry semantics (e254aa6/6500874/377653f); old local profile differences trigger a fail-closed cutover check f6d3ed4. Restart/dual-instance/disposable PostgreSQL test source tests/test_hosted_companion_profiles.py, Dockerfile.review gate updated. NO TEST EXECUTION OR POSTGRES QA observed. Other tools, agent traces, recall, imagery, outboxes, meetings and file persistence still unresolved; remains BACKLOG, no DONE.
 
 *(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*
 

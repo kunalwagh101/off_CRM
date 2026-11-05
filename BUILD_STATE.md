@@ -1,3 +1,9 @@
+## 2026-11-05 — A05 image workspace isolation implemented; Render pipeline-minute blockade
+
+- Branch `develop`; new build-ahead S-06.02.69 under active production audit S-06.02.23. Existing image brief/asset workspace_id was not enforced on global reads/decisions or video image handoff, while CRM campaign ownership Q-27 remains open. New synthetic two-workspace security tests `tests/test_audit_a05_image_workspace_isolation.py` written before code at `b023f25` and extended at `ce160cf`, 9 cases in all.
+- Attempted test-first isolated Render `dep-dbm5af95efls73chr69g` on `80173d6273df7836efddd32a4ac27dc9da63ea56` **failed before any test execution**: free build pipeline minutes exhausted. This is not test RED. No new pytest, SQLite, real PostgreSQL, Chromium, penetration or customer acceptance result is available.
+- Implemented SQL owner-filtered image lists `8024b4f`, engine guards before generation/swipe `cc1eb56`, file-download and video-attachment guards `7ee0031` on develop; no schema migration or provider/customer/main deploy. Next action after build capacity restored: run focused tests and the full isolated Render suite and record real results. Explicitly **not verified / not DONE**; evidence `docs/evidence/2026-11-05-a05-image-workspace-isolation.md`. Defect D-373, decision DD-149, requirement R-196.
+
 ## 2026-11-05 — A05 video workspace isolation: full isolated automated QA green
 
 - Code/test source `246741b8663d56991d169af246dab77681f63648`, isolated Render `dep-dbm4lgrbc2fs738acn6g` completed all configured test stages and confirmed LIVE 2026-11-05 09:43:42 UTC. Focused A05 4 PASS; complete SQLite **3,036 PASS / 57 skipped / 44 warnings**, complete real disposable PostgreSQL **3,061 PASS / 101 skipped / 44 warnings**, focused PostgreSQL 215 PASS. Real Chromium desktop/mobile, frontend build/tests/audits, Ruff/security, 12× concurrency, structural board verifier PASS (`--skip-tests`, not historical evidence replay).

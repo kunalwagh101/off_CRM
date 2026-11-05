@@ -197,6 +197,30 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
         encrypted = backup.download_ciphertext(
             result["key"], tmp_path / "encrypted.enc", bucket="backups-private", client=store
         )
+        # A database with no tables can still contain customer objects.
+        # Reject those before pg_restore can create/drop anything.
+        for create, drop in (
+            ("CREATE VIEW protected_view AS SELECT 42 AS confidential",
+             "DROP VIEW protected_view"),
+            ("CREATE FUNCTION protected_function() RETURNS integer "
+             "LANGUAGE SQL AS $SELECT 42$",
+             "DROP FUNCTION protected_function()"),
+            ("CREATE TYPE protected_status AS ENUM (\'active\')",
+             "DROP TYPE protected_status"),
+            ("CREATE SCHEMA protected_schema",
+             "DROP SCHEMA protected_schema"),
+        ):
+            with psycopg.connect(named(destination_name)) as conn:
+                conn.execute(create)
+                conn.commit()
+            with pytest.raises(backup.HostedBackupError, match="not empty"):
+                backup.restore_to_empty_postgres(
+                    encrypted, named(destination_name), key=backup_key
+                )
+            with psycopg.connect(named(destination_name)) as conn:
+                conn.execute(drop)
+                conn.commit()
+
         restored = backup.restore_to_empty_postgres(encrypted, named(destination_name), key=backup_key)
         assert restored[json.dumps(["public", "test_customer"], separators=(",", ":"))] == 2
         with psycopg.connect(named(destination_name)) as conn:

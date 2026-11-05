@@ -64,6 +64,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_companion_skills_name
 """
 
 
+def ensure_companion_schema(database: Any) -> None:
+    """Run idempotent DDL inside the caller's transaction on both backends.
+
+    SQLite's executescript() *commits before running* its statements, even
+    when a surrounding HostedStorage.exclusive() transaction is active. Use
+    one execute() per trusted static statement instead (D-377).
+    """
+    for raw in SCHEMA.split(";"):
+        statement = raw.strip()
+        if statement:
+            database.execute(statement)
+
+
 class CompanionError(ValueError):
     """A companion profile is missing, invalid or crosses a security boundary."""
 
@@ -202,7 +215,7 @@ class CompanionRegistry:
             # Use the app's one hosted document database. The same lock as
             # provider settings serialises concurrent first-time schema setup.
             with self.hosted_storage.exclusive():
-                conn.executescript(SCHEMA)
+                ensure_companion_schema(conn)
             self._refuse_silent_local_cutover()
 
     def _refuse_silent_local_cutover(self) -> None:

@@ -211,3 +211,35 @@ def test_A05_video_cannot_place_foreign_image_but_can_place_own_approved_image(
     )
     assert own.status_code == 200, own.text
     assert assets["alpha"]["approved"] != assets["beta"]["approved"]
+
+
+def test_A05_video_assembly_cannot_reuse_foreign_image_even_with_explicit_id(
+    two_image_workspaces,
+):
+    _, beta, _, campaign, _, assets, _, calls = two_image_workspaces
+    foreign_id = assets["alpha"]["approved"]
+    denied = beta.post(
+        f"/api/v1/campaigns/{campaign}/video-projects/assemble",
+        json={
+            "recipe": "hook_hold_payoff",
+            "target_ticks": 15 * 90_000,
+            "asset_ids": [foreign_id],
+        },
+    )
+    assert denied.status_code == 404, denied.text
+    assert calls == []
+
+
+def test_A05_video_automatic_assembly_cannot_pick_foreign_approved_images(
+    two_image_workspaces,
+):
+    _, beta, _, campaign, _, assets, _, calls = two_image_workspaces
+    result = beta.post(
+        f"/api/v1/campaigns/{campaign}/video-projects/assemble",
+        json={"recipe": "hook_hold_payoff", "target_ticks": 15 * 90_000},
+    )
+    assert result.status_code == 201, result.text
+    # The generated document, beats and notes must not mention or include
+    # another workspace's approved asset ID, even on a shared campaign.
+    assert assets["alpha"]["approved"] not in result.text
+    assert calls == []

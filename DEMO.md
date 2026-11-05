@@ -917,3 +917,16 @@ uv run pytest -q tests/test_audit_a24_privacy_owner_authorization.py tests/test_
 Uses synthetic contact records and real FastAPI owner/non-owner login sessions. An ordinary session must receive 403 before subject inventory or deletion; a deliberate install-owner login can preview and delete, leaving other contacts unchanged. The existing privacy service still needs a full multi-store deletion, backup-restore and retention drill before A24 is closed.
 
 ---
+
+## A05 — Two authenticated workspaces cannot read each other's video assets
+
+```bash
+uv run pytest -q tests/test_audit_a05_video_workspace_isolation.py
+uv run pytest -q tests/test_video_editor.py tests/test_video_workflow.py
+```
+
+The A05 regression creates two real FastAPI cookie sessions. Both use the same synthetic CRM campaign, but each has separate video_project workspace ownership. An account cannot access foreign project reads, history, queue, undo/redo, media/transcript/reuse, render bytes, or list results. The owning workspace retains access. It uses synthetic file bytes and no live provider.
+
+Render isolated QA gate: `dep-dbm4lgrbc2fs738acn6g` on code/test `246741b`. Historical evidence replay, broad CRM Q-27 and independent penetration remain separately open.
+
+---

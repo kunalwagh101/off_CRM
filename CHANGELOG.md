@@ -1,3 +1,9 @@
+## 2026-11-05 — Restrict privacy inventory and erasure to install owners (A24)
+
+- F-06.02 / S-06.02.67: subject access, deletion preview, confirmed execution and destructive confirmation phrase now require the existing install-owner permission check. Ordinary signed-in workspaces cannot read or erase unowned shared CRM records. The local owner login and install API token continue to work.
+- Test-first isolated Render source `4c97f56`: **4 expected RED failures / 1 PASS**. Corrected app source `4117704` / Render `dep-dbm3oj8ae00c7389h7d0`: **5 focused A24 PASS**. Complete review and customer acceptance are separate.
+- No schema, external service, credential, dependency or provider call changes. Broader A24 erasure retention, backup restore and Q-27 tenancy remain unresolved. Only develop modified, main untouched. Evidence `docs/evidence/2026-11-05-a24-privacy-owner-authorization.md`.
+
 ## 2026-11-05 — A10 receipt integrity exact-source review LIVE
 
 - F-06.02 / S-06.02.66: all-zero, malformed, boolean and nonfinite provider token usage no longer looks like provider-confirmed free usage or raises during post-transport billing. Real broker now records a labelled local estimate while retaining atomic quota reservation and valid input-only token receipts. No new dependency, schema change or app API.

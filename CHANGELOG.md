@@ -1,3 +1,9 @@
+## 2026-11-05 — A05 private generated images across workspaces (implemented, QA blocked)
+
+- Image briefs, candidate assets, file downloads, image review decisions, summary/list queries and video image attachment resolution now use stored workspace ownership. Added 9 real-cookie synthetic cross-workspace security cases. No schema migration or external model calls.
+- Test-first isolated Render `dep-dbm5af95efls73chr69g` was canceled **before tests** because the workspace ran out of build pipeline minutes. Code has **not** passed RED/GREEN or regression acceptance. Re-run focused/full SQLite/PostgreSQL/Chromium checks when build capacity is available. A05 whole audit and Q-27 remain open.
+- Source and explicit blockers: `docs/evidence/2026-11-05-a05-image-workspace-isolation.md`. Develop only; no main/customer deployment.
+
 ## 2026-11-05 — A05 video ownership: complete isolated QA passed
 
 - Exact executable/test source `246741b8663d56991d169af246dab77681f63648`, Render review `dep-dbm4lgrbc2fs738acn6g`: focused A05 4 PASS, full SQLite 3,036 PASS/57 skipped, full real disposable PostgreSQL 3,061 PASS/101 skipped, focused PG 215 PASS. Chromium/browser, frontend/static/security, 12× concurrency and structural board checks passed.

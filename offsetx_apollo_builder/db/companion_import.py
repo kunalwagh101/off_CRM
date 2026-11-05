@@ -14,7 +14,7 @@ import stat
 from contextlib import closing
 from pathlib import Path
 
-from ..agent.companions import SCHEMA
+from ..agent.companions import ensure_companion_schema
 from ..db.hosted import HostedStorage
 from ..outreach.backup import restore_pending
 from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
@@ -203,7 +203,7 @@ def import_companions(
             hosted.check_secrets_key()
             with hosted.exclusive():
                 database = hosted.connection
-                database.executescript(SCHEMA)
+                ensure_companion_schema(database)
                 current = _target_rows(database)
                 if any(current.values()):
                     if current != expected:

@@ -1,4 +1,10 @@
-## 2026-11-05 — A24 owner-only privacy API security regression (full review pending)
+## 2026-11-05 — A24 final source-bound isolated QA LIVE
+
+- Executable/test source `411770421133ea292153e68d9d0642cd1e198fc5`, isolated Render review `dep-dbm3oj8ae00c7389h7d0` **LIVE 2026-11-05 08:41:29 UTC** (14:11 IST). TDD RED (review `dep-dbm3nv9srm7s73f07bs0`) 4 expected fail/1 owner-path pass; GREEN A24 5 PASS on full app/session TestClient.
+- Full SQLite `uv run pytest -q`: **3,032 PASS / 57 skipped / 44 warnings**. Full real disposable PostgreSQL `OFF_CRM_TEST_CRM_ON_POSTGRES=1 uv run pytest -q`: **3,057 PASS / 101 skipped / 44 warnings**. Focused real PG **215 PASS**. Chromium desktop/mobile Contacts/Public Demo, A09/A18 browser checks, frontend npm tests/build/audits, Ruff, security gates, 12× SQLite concurrency and structural board verifier PASS (`--skip-tests` historical replay).
+- Build-ahead S-06.02.67 stays BACKLOG and active S-06.02.23 IN_PROGRESS. Wider A24 retention, cross-store deletion after backup restoration/reindex, Q-27 tenancy, independent penetration, full-history verifier and customer/main release remain OPEN. No paid provider calls, real customer deletion, production or main service changes. Evidence `docs/evidence/2026-11-05-a24-privacy-owner-authorization.md`. Later commits since 4117704 change documentation only.
+
+## 2026-11-05 — A24 owner-only privacy API security regression (initial RED/GREEN checkpoint)
 
 - Source at start `c8f9bf7790c1731a0a985e34253443a830238f8f`, working branch `develop`. Existing `privacy.py` already implements a 12-store inventory, access, confirmed resumable deletion and nonpersonal receipts; do not misreport A24 as absent. Identified missing install-owner authorisation at all three destructive/read API routes and the confirmation phrase route.
 - TDD RED test source `f808156` / review gate `4c97f56`, isolated Render `dep-dbm3nv9srm7s73f07bs0`: **4 expected failures, 1 passed**, using real FastAPI session logins with synthetic users and contacts.

@@ -222,6 +222,69 @@ def test_existing_different_private_archive_never_gets_overwritten(tmp_path):
         hosted.close()
 
 
+def test_existing_archive_with_same_companions_but_other_tool_registration_is_refused(tmp_path):
+    """D-379: a profile-only checksum cannot protect a full tool backup."""
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Keep.")
+    tool = tools.register(
+        name="audit-check", repository_url="https://github.com/kunalwagh101/off_CRM",
+        commit_sha="a" * 40, image="python:3.12-slim",
+        command=["pytest", "-q"], workspace_id="w",
+    )
+    source, archive = local / "ai_tools.db", _archive(tmp_path)
+    tools.close()
+    with sqlite3.connect(source) as original, sqlite3.connect(archive) as snapshot:
+        original.backup(snapshot)
+    archive.chmod(0o600)
+    # The archived companion rows still exactly match the source, but the
+    # executable tool catalogue differs. Migration MUST NOT trust this backup.
+    with sqlite3.connect(archive) as old:
+        old.execute("DELETE FROM ai_tools WHERE id=?", (tool.id,))
+    try:
+        with pytest.raises(CompanionImportError, match="archive differs|Existing archive differs"):
+            import_companions(source, hosted, archive)
+        with sqlite3.connect(source) as db:
+            assert db.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+            assert db.execute("SELECT count(*) FROM ai_tools").fetchone()[0] == 1
+    finally:
+        hosted.close()
+
+
+def test_uncooperative_tool_writer_after_remote_commit_refuses_local_cleanup(tmp_path, monkeypatch):
+    """A new pinned tool cannot be absent from a preserved rollback archive."""
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Keep.")
+    tools.close()
+    source, archive = local / "ai_tools.db", _archive(tmp_path)
+
+    import offsetx_apollo_builder.db.companion_import as module
+    original = module._clear_local_rows
+
+    def add_tool_after_copy(path, expected, source_digest):
+        with sqlite3.connect(path) as db:
+            db.execute(
+                "INSERT INTO ai_tools "
+                "(id, workspace_id, name, description, repository_url, commit_sha, "
+                "image, command, allows_arguments, enabled, registered_at, registered_by) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                ("late", "w", "late-tool", "", "https://github.com/kunalwagh101/off_CRM",
+                 "a" * 40, "python:3.12-slim", '["pytest"]', 0, 1, "now", "owner"),
+            )
+        return original(path, expected, source_digest)
+
+    monkeypatch.setattr(module, "_clear_local_rows", add_tool_after_copy)
+    try:
+        with pytest.raises(CompanionImportError, match="changed"):
+            import_companions(source, hosted, archive)
+        with sqlite3.connect(source) as db:
+            assert db.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+            assert db.execute("SELECT count(*) FROM ai_tools").fetchone()[0] == 1
+        with sqlite3.connect(archive) as db:
+            assert db.execute("SELECT count(*) FROM ai_tools").fetchone()[0] == 0
+    finally:
+        hosted.close()
+
+
 def test_uncooperative_writer_prevents_cleanup_of_changed_source(tmp_path, monkeypatch):
     local, tools, registry, hosted = _start(tmp_path)
     registry.create(workspace_id="w", name="Scout", instructions="Original.")
@@ -230,12 +293,12 @@ def test_uncooperative_writer_prevents_cleanup_of_changed_source(tmp_path, monke
     import offsetx_apollo_builder.db.companion_import as module
     actual = module._clear_local_rows
 
-    def change_after_copy(path, expected):
+    def change_after_copy(path, expected, source_digest):
         with sqlite3.connect(path) as con:
             con.execute(
                 "UPDATE agent_companions SET instructions='Changed after copy'"
             )
-        return actual(path, expected)
+        return actual(path, expected, source_digest)
 
     monkeypatch.setattr(module, "_clear_local_rows", change_after_copy)
     try:

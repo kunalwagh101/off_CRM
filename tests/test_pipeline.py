@@ -220,6 +220,56 @@ def _plan_and_keep(pipeline, images, broker, *, keep=1):
     return queue
 
 
+def test_draft_pipeline_rejects_other_workspaces_images_topic_history_and_cooldown(parts):
+    """A05: shared campaign IDs never imply shared image or topic ownership."""
+    pipeline, images, distribution, broker = parts
+    _plan_and_keep(pipeline, images, broker, keep=1)
+    own_account = _account(distribution)
+    own_draft = pipeline.draft(
+        distribution_campaign_id=DIST, image_campaign_id=IMAGES,
+        account_ids=[own_account],
+    )
+    assert own_draft.posts_created == 1
+
+    # Both workspaces name the same old globally-shared CRM campaign, but image
+    # rows and topic actions belong to their originating workspace.
+    other_distributor = DistributionEngine(
+        store=distribution.store,
+        publisher=distribution.publisher,
+        campaign_reader=lambda cid: {"id": cid, "kind": "distribution"},
+        asset_reader=images.store.get_asset,
+        workspace_id="other",
+    )
+    other_account = other_distributor.connect_account(
+        platform="local_outbox", handle="@other",
+    )["id"]
+    other_images = ImageCampaignEngine(
+        store=images.store,
+        broker=broker,
+        settings_resolver=lambda workspace: object(),
+        campaign_reader=lambda cid: {"id": cid, "kind": "image"},
+        workspace_id="other",
+    )
+    other_pipeline = TrendPipeline(
+        trends=FakeTrends(), images=other_images,
+        distribution=other_distributor,
+        campaign_reader=lambda cid: {
+            "id": cid, "kind": "distribution" if cid == DIST else "image",
+        },
+        workspace_id="other",
+    )
+    hidden_brief = images.store.list_assets(IMAGES, status="approved")[0]["brief_id"]
+    assert other_pipeline._topic_for_brief(hidden_brief) == {}
+    assert not other_pipeline._recently_actioned(topic_key(TOPIC["terms"]), 168)
+    other = other_pipeline.draft(
+        distribution_campaign_id=DIST, image_campaign_id=IMAGES,
+        account_ids=[other_account],
+    )
+    assert other.assets_considered == 0
+    assert other.posts_created == 0
+    assert distribution.store.list_posts(DIST, workspace_id="other") == []
+
+
 def test_only_pictures_the_owner_kept_become_posts(parts):
     pipeline, images, distribution, broker = parts
     _plan_and_keep(pipeline, images, broker, keep=1)

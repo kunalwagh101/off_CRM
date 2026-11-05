@@ -681,8 +681,20 @@ class CompanionUpdateBody(StrictModel):
     enabled: bool | None = Field(default=None, strict=True)
 
 class CompanionContextBody(StrictModel):
+    skill_ids: list[str] = Field(default_factory=list, max_length=3)
     memory_limit: int = Field(default=8, ge=0, le=50, strict=True)
     memory_query: str = Field(default="", max_length=2000)
+
+class CompanionSkillCreateBody(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class CompanionSkillUpdateBody(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    content: str | None = Field(default=None, min_length=1, max_length=2000)
+    enabled: bool | None = Field(default=None, strict=True)
+
 
 class CompanionMemoryBody(StrictModel):
     content: str = Field(min_length=1, max_length=30000)
@@ -932,6 +944,8 @@ class AIChatRenameBody(StrictModel):
     title: str = Field(default="", max_length=500)
 
 class AIChatMessageBody(StrictModel):
+    companion_id: str = Field(default="", max_length=64)
+    skill_ids: list[str] = Field(default_factory=list, max_length=3)
     data_class: str = Field(default="campaign", max_length=40)
     provider_id: str = Field(default="", max_length=80)
     model_id: str = Field(default="", max_length=240)

@@ -2174,7 +2174,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def list_image_briefs(campaign_id: str, request: Request) -> dict[str, Any]:
         engine = _imagery(request)
         engine._require_own_kind(campaign_id, "listing briefs")
-        return {"items": engine.store.list_briefs(campaign_id)}
+        return {"items": engine.store.list_briefs(
+            campaign_id, workspace_id=_workspace_id(request),
+        )}
 
     @app.post(f"{API_PREFIX}/image-briefs/{{brief_id}}/generate")
     def generate_images(brief_id: str, body: ImageGenerateBody, request: Request) -> dict[str, Any]:
@@ -2205,7 +2207,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         engine = _imagery(request)
         engine._require_own_kind(campaign_id, "listing pictures")
-        return {"items": engine.store.list_assets(campaign_id, status=status, limit=limit)}
+        return {"items": engine.store.list_assets(
+            campaign_id, status=status, limit=limit,
+            workspace_id=_workspace_id(request),
+        )}
 
     @app.get(f"{API_PREFIX}/image-assets/{{asset_id}}/file")
     def image_asset_file(asset_id: str, request: Request):
@@ -2215,6 +2220,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         base64 blobs is a response nobody wants, and the browser caches a file.
         """
         asset = request.app.state.image_store.get_asset(asset_id)
+        # A known global UUID is not permission to download a peer's picture.
+        # Image rows already carry immutable workspace IDs; Q-27 CRM campaign
+        # tenancy is still undecided.
+        if str(asset.get("workspace_id") or "local") != _workspace_id(request):
+            raise HTTPException(404, detail="Image asset not found")
         path = Path(str(asset.get("path") or ""))
         if not path.exists():
             raise HTTPException(404, detail={"error": "gone", "message": "This picture was discarded."})
@@ -2312,15 +2322,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 expect_json=True,
             )
 
+        def owned_video_image(asset_id: str) -> dict[str, Any]:
+            asset = state.image_store.get_asset(asset_id)
+            if str(asset.get("workspace_id") or "local") != workspace_id:
+                raise KeyError(f"Image asset not found: {asset_id}")
+            return asset
+
         return VideoEditorEngine(
             store=state.video_store,
             campaign_reader=lambda cid: _engine(request).store.get_campaign(cid),
-            asset_reader=state.image_store.get_asset,
-            # Approved only. An assembly drawing on pictures nobody reviewed
-            # would put unseen output on a timeline, which is the one thing the
-            # swipe queue exists to stop.
+            asset_reader=owned_video_image,
+            # Approved only, with owner filtering before LIMIT. A shared CRM
+            # campaign must not expose another workspace's reviewed pictures.
             campaign_asset_reader=lambda cid: state.image_store.list_assets(
-                cid, status="approved", limit=200
+                cid, status="approved", limit=200, workspace_id=workspace_id
             ),
             transcriber=transcriber,
             director=video_director,

@@ -77,7 +77,7 @@ def execute_role(
         raise CompanionError("Role parameters must be a mapping")
 
     campaign_id = str(payload.get("campaign_id") or "").strip()
-    if role != "Director" and not campaign_id:
+    if role not in {"Scout", "Director"} and not campaign_id:
         raise CompanionError("Choose a campaign for this role")
     if role == "Scout":
         # Read-only observation, not crawl or image generation.

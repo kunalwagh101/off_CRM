@@ -114,6 +114,24 @@ def test_archive_cannot_be_inside_old_data_directory(tmp_path):
     hosted.close()
 
 
+def test_target_that_resolves_to_the_same_sqlite_file_is_refused(tmp_path):
+    local, tools, registry, unused = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Keep.")
+    unused.close()
+    tools.close()
+    source = local / "ai_tools.db"
+    # The database target is deliberately relative to cwd, to catch aliasing.
+    alias = os.path.relpath(source, Path.cwd())
+    bad = HostedStorage(alias, Fernet.generate_key().decode())
+    try:
+        with pytest.raises(CompanionImportError, match="different"):
+            import_companions(source, bad, _archive(tmp_path))
+        with sqlite3.connect(source) as con:
+            assert con.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+    finally:
+        bad.close()
+
+
 def test_missing_legacy_source_fails_closed(tmp_path):
     local, tools, registry, hosted = _start(tmp_path)
     tools.close()

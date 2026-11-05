@@ -1,3 +1,9 @@
+## 2026-11-05 — F-06.03 encrypted hosted backups and F-04.01 companion procedures (source only)
+
+- Added operator CLI for authenticated-encrypted PostgreSQL snapshots, independent private S3 upload/download verification and guarded restore into a new empty database.
+- Added strict owner-selected per-workspace companion procedures and broker-backed, bounded child reasoning without autonomous external actions.
+- Added focused unit/security/real-PG test source and Render QA commands. No tests executed in this work session because a runnable checkout was unavailable and the Render build quota was exhausted; not deployed or released. See BUILD_STATE.md for open gates.
+
 ## 2026-11-05 — A05 private generated images across workspaces (implemented, QA blocked)
 
 - Image briefs, candidate assets, file downloads, image review decisions, summary/list queries and video image attachment resolution now use stored workspace ownership. Added 9 real-cookie synthetic cross-workspace security cases. No schema migration or external model calls.

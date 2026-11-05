@@ -60,3 +60,29 @@ other Dockerfile.review QA including security, frontend and Chromium.
 External backups, cross-install safety, real Render build and independent
 penetration remain open. These isolated checks support a bug fix; they do
 NOT meet DEFINITION_OF_DONE.md and cannot be called full QA.
+
+
+## 2026-11-05 — D-379 full-registry archive integrity extension
+
+D-379 source review found the archive verification compared companion rows
+only, despite archiving executable tools too. Added SHA-256 of the whole
+logical SQLite database (schema, indexes, tools and other rows), read under
+one source transaction, compared with the private archive and rechecked
+in the exclusive local cleanup transaction. Source 15ca74f5.
+
+Local copy of exact source checked against GitHub blob with git hash-object:
+3e4b9428e77d9e04c8943fe09be3fd264d8268df.
+
+Actual command: PYTHONPATH=. pytest -q tests/test_isolated_companion_import.py
+Final isolated test result: 13 passed in 0.35s on real SQLite.
+
+The added cases changed the archived executable tools while profiles still
+matched, and inserted a new unarchived tool before local cleanup. Both
+operations failed closed; local companion records remained intact.
+
+The local tests used stand-in HostedStorage, lock and application settings.
+This is NOT the complete committed product test suite, PostgreSQL QA,
+customer migration, external security test or production release evidence.
+A previous one-case failed harness run used a world-readable test archive;
+after correcting its private 0600 mode, all 13 isolated tests passed.
+Repository regression tests are committed but still unexecuted.

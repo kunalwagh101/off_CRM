@@ -1,3 +1,9 @@
+## 2026-11-05 — A05 video workspace ownership: TDD and isolated QA in progress
+
+- Working branch `develop`. During live audit S-06.02.23, new build-ahead S-06.02.68 found global video ID/list access ignoring already-stored workspace_id. TDD RED source d22d3a8 / isolated Render `dep-dbm4isu1egvs73bau35g`: **4 expected FAIL** (real cookie sessions, two workspaces, private project, render and audio).
+- Fixed existing schema-free ownership boundary through VideoStore SQL workspace filtering, VideoEditorEngine own-record guards and protected direct downloads at `77307a8`, `9300330`, `de92a5a`; intermediate GREEN `dep-dbm4khbm8hqs73encvo0`: **3 PASS / 1 FAIL** because undo caught the owner refusal as a 409. Fixed error mapping at `a94aedb`, test extended at `246741b8663d56991d169af246dab77681f63648`; final isolated Render `dep-dbm4lgrbc2fs738acn6g` QA in progress.
+- Source evidence `docs/evidence/2026-11-05-a05-video-workspace-isolation.md`, defect D-372, decision DD-148, requirement R-195. This does not migrate CRM Q-27, close A05, certify live penetration, or deploy main/customer application. Keep S-06.02.68 BACKLOG.
+
 ## 2026-11-05 — A24 final source-bound isolated QA LIVE
 
 - Executable/test source `411770421133ea292153e68d9d0642cd1e198fc5`, isolated Render review `dep-dbm3oj8ae00c7389h7d0` **LIVE 2026-11-05 08:41:29 UTC** (14:11 IST). TDD RED (review `dep-dbm3nv9srm7s73f07bs0`) 4 expected fail/1 owner-path pass; GREEN A24 5 PASS on full app/session TestClient.

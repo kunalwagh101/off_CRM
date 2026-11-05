@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from offsetx_apollo_builder.ai.tools import ToolRegistry
 from offsetx_apollo_builder.agent.companions import CompanionError, CompanionRegistry
 from offsetx_apollo_builder.agent.role_team import (
-    ROLE_INSTRUCTIONS, RoleEngines, execute_role, provision_roles,
+    ROLE_INSTRUCTIONS, RoleEngines, execute_role, provision_roles, release_role_resources,
 )
 from offsetx_apollo_builder.api.app import create_app
 from offsetx_apollo_builder.api.config import AppSettings
@@ -50,6 +50,19 @@ def test_scout_only_reads_existing_workspace_trends():
     result = execute_role("Scout", {}, engines=RoleEngines(trends=trends))
     assert result == {"role": "Scout", "status": "observed", "topics": [{"topic": "public"}]}
     assert called == [{"window_hours": 72, "min_channels": 3, "limit": 5}]
+
+
+def test_role_resources_close_workspace_watchers_only():
+    closed = []
+    watcher = SimpleNamespace(close=lambda: closed.append("scout"))
+    poster_watcher = SimpleNamespace(close=lambda: closed.append("poster"))
+    release_role_resources("Scout", RoleEngines(trends=watcher))
+    release_role_resources(
+        "Poster",
+        RoleEngines(pipeline=SimpleNamespace(trends=poster_watcher)),
+    )
+    release_role_resources("Director", RoleEngines(gtm=SimpleNamespace(close=lambda: closed.append("bad"))))
+    assert closed == ["scout", "poster"]
 
 
 def test_maker_reuses_existing_video_director_and_review_gated_assembler():

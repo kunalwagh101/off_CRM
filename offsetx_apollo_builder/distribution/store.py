@@ -352,11 +352,15 @@ class DistributionStore:
         )
         return goal_id
 
-    def list_goals(self, campaign_id: str) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
-            "SELECT * FROM dist_goals WHERE campaign_id = ? ORDER BY created_at",
-            (campaign_id,),
-        ).fetchall()
+    def list_goals(
+        self, campaign_id: str, *, workspace_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM dist_goals WHERE campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        rows = self.connection.execute(sql + " ORDER BY created_at", params).fetchall()
         return [dict(row) for row in rows]
 
     # ── measurements ────────────────────────────────────────────────────────
@@ -449,7 +453,9 @@ class DistributionStore:
         row = self.connection.execute(sql + " LIMIT 1", params).fetchone()
         return dict(row) if row else None
 
-    def latest_metrics(self, campaign_id: str) -> list[dict[str, Any]]:
+    def latest_metrics(
+        self, campaign_id: str, *, workspace_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """The most recent snapshot per post.
 
         Snapshots accumulate — views on Tuesday are not views on Friday — so a
@@ -457,9 +463,12 @@ class DistributionStore:
         summing every row. Summing them would count the same view many times and
         report a goal as met when it is not.
         """
-        rows = self.connection.execute(
-            "SELECT * FROM dist_metrics WHERE campaign_id = ?", (campaign_id,)
-        ).fetchall()
+        sql = "SELECT * FROM dist_metrics WHERE campaign_id = ?"
+        params: list[Any] = [campaign_id]
+        if workspace_id is not None:
+            sql += " AND workspace_id = ?"
+            params.append(workspace_id)
+        rows = self.connection.execute(sql, params).fetchall()
         newest: dict[str, dict[str, Any]] = {}
         for row in rows:
             item = dict(row)

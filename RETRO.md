@@ -1152,3 +1152,11 @@ lifecycle.
 **What the estimate missed.** Atomic preflight reservation already existed, but trusting an all-zero provider receipt after the call could silently refund it; malformed counts could raise after transport and lose the response.
 
 **What to change next time.** Verify not only the reservation before egress but also the untrusted provider response used to settle it. Test real broker retries and process/database races before making a spending-safety claim.
+
+## 2026-11-05 — A24 owner-only privacy API (S-06.02.67)
+
+**Existing capability:** A 12-store subject-data deletion service and tests were already present. The gap was exposed by testing an ordinary authenticated workspace cookie against a shared CRM contact, not by searching for a missing DELETE endpoint.
+
+**Security decision:** Reuse the existing install-owner guard for all four privacy API routes. Until Q-27 ownership rules are decided, authentication as any workspace is not proof of authority over the globally shared CRM. Cost: ordinary workspace operators must ask the install owner to handle subject requests.
+
+**Follow-up:** Run full SQLite/PostgreSQL/Chromium QA. A24 still requires realistic cross-store backup/restore/reindex and retention acceptance, independent penetration and actual customer deployment evidence.

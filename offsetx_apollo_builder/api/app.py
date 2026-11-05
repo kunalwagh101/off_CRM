@@ -2687,6 +2687,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.get(f"{API_PREFIX}/video-media/{{media_id}}/file")
     def video_media_file(media_id: str, request: Request):
         media = request.app.state.video_store.get_media(media_id)
+        # Global record IDs are not authorisation. The video's own workspace
+        # controls byte access even while CRM campaign tenancy Q-27 is open.
+        if str(media.get("workspace_id") or "local") != _workspace_id(request):
+            raise HTTPException(404, detail="Media not found")
         path = Path(str(media.get("path") or ""))
         if not path.exists():
             raise HTTPException(
@@ -2748,6 +2752,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def video_render_file(render_id: str, request: Request):
         """The exported video itself, served from disk."""
         render = request.app.state.video_store.get_render(render_id)
+        if str(render.get("workspace_id") or "local") != _workspace_id(request):
+            raise HTTPException(404, detail="Render not found")
         path = Path(str(render.get("path") or ""))
         if not path.exists():
             raise HTTPException(

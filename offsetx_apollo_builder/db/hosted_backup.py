@@ -109,7 +109,7 @@ def _write_encrypted_snapshot(output: Path, database_url: str, key: bytes,
     env = _pg_environment(database_url)
     proc = None
     try:
-        with psycopg.connect(database_url) as conn:
+        with psycopg.connect(database_url, autocommit=True) as conn:
             conn.execute("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY")
             snapshot = str(conn.execute("SELECT pg_export_snapshot()").fetchone()[0])
             counts = _row_counts(conn)
@@ -139,7 +139,7 @@ def _write_encrypted_snapshot(output: Path, database_url: str, key: bytes,
                     raise HostedBackupError("PostgreSQL export failed; no backup was published")
                 encrypted.write(encryptor.finalize())
                 encrypted.write(encryptor.tag)
-            conn.rollback()
+            conn.execute("ROLLBACK")
             return counts
     finally:
         if proc is not None:
@@ -308,7 +308,8 @@ def restore_to_empty_postgres(ciphertext: Path, destination_url: str, *,
             snapshot.seek(4 + length)
             proc = subprocess.Popen(
                 ["pg_restore", "--exit-on-error", "--no-owner", "--no-privileges",
-                 "--single-transaction", "--dbname=" + "postgres"],
+                 "--single-transaction",
+                 "--dbname=" + unquote(urlsplit(destination_url).path.lstrip("/"))],
                 stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 env=_pg_environment(destination_url),
             )

@@ -43,6 +43,11 @@ def test_import_preserves_profiles_and_skills_while_retaining_tool_database(tmp_
     own = registry.create(workspace_id="one", name="Scout", instructions="Owner text.")
     skill = registry.create_skill(workspace_id="one", name="Sourcing", content="Check sources.")
     registry.create_skill(workspace_id="two", name="Private", content="Another workspace.")
+    tool = tools.register(
+        name="read-only-check", repository_url="https://github.com/kunalwagh101/off_CRM",
+        commit_sha="a" * 40, image="python:3.12-slim",
+        command=["pytest", "-q"], workspace_id="one",
+    )
     source, archive = local / "ai_tools.db", _archive(tmp_path)
     tools.close()
 
@@ -52,13 +57,14 @@ def test_import_preserves_profiles_and_skills_while_retaining_tool_database(tmp_
     with sqlite3.connect(source) as conn:
         assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 0
         assert conn.execute("SELECT count(*) FROM agent_companion_skills").fetchone()[0] == 0
-        assert conn.execute("SELECT name FROM sqlite_master WHERE name='registered_tools'").fetchall() or source.is_file()
+        assert conn.execute("SELECT count(*) FROM ai_tools").fetchone()[0] == 1
     with sqlite3.connect(archive) as conn:
         assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
         assert conn.execute("SELECT count(*) FROM agent_companion_skills").fetchone()[0] == 2
 
     tools2 = ToolRegistry(source)
     fresh = CompanionRegistry(local, tools=tools2, memory_backend=Memory(), hosted_storage=hosted)
+    assert tools2.get(tool.id, workspace_id="one") is not None
     assert fresh.require(own.id, workspace_id="one").name == "Scout"
     assert fresh.start(own.id, workspace_id="one", skill_ids=[skill.id]).skills[0].content == "Check sources."
     assert fresh.list_skills(workspace_id="two")[0].name == "Private"

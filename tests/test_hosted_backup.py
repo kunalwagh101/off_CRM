@@ -203,7 +203,7 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             ("CREATE VIEW protected_view AS SELECT 42 AS confidential",
              "DROP VIEW protected_view"),
             ("CREATE FUNCTION protected_function() RETURNS integer "
-             "LANGUAGE SQL AS $SELECT 42$",
+             "LANGUAGE SQL AS 'SELECT 42'",
              "DROP FUNCTION protected_function()"),
             ("CREATE TYPE protected_status AS ENUM (\'active\')",
              "DROP TYPE protected_status"),

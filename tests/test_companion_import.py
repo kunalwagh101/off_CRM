@@ -93,11 +93,18 @@ def test_conflicting_hosted_data_does_not_destroy_original(tmp_path):
 def test_source_with_executable_tool_grants_is_refused_until_tool_home_is_durable(tmp_path):
     local, tools, registry, hosted = _start(tmp_path)
     profile = registry.create(workspace_id="w", name="Scout", instructions="No tool.")
-    tools.connection().execute(
-        "UPDATE agent_companions SET granted_tool_ids='[\"external-runner\"]' WHERE id=?",
-        (profile.id,),
-    )
+    # Persist the hostile legacy row: closing an uncommitted SQLite connection
+    # rolls it back and would leave the importer nothing unsafe to refuse.
+    with tools.connection() as conn:
+        conn.execute(
+            "UPDATE agent_companions SET granted_tool_ids='[\"external-runner\"]' WHERE id=?",
+            (profile.id,),
+        )
     tools.close()
+    with sqlite3.connect(local / "ai_tools.db") as check:
+        assert check.execute(
+            "SELECT granted_tool_ids FROM agent_companions WHERE id=?", (profile.id,),
+        ).fetchone()[0] == '["external-runner"]'
     with pytest.raises(CompanionImportError, match="tool grants"):
         import_companions(local / "ai_tools.db", hosted, _archive(tmp_path))
     with sqlite3.connect(local / "ai_tools.db") as conn:

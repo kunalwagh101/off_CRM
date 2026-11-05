@@ -234,6 +234,7 @@ from .schemas import (
     AIWorkspaceUpdateBody,
     CompanionContextBody,
     CompanionDelegateBody,
+    AgentRoleActionBody,
     CompanionCreateBody,
     CompanionMemoryBody,
     CompanionSkillCreateBody,
@@ -1911,6 +1912,59 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         except CompanionError as exc:
             status = 404 if "does not exist" in str(exc) else 400
             raise HTTPException(status_code=status, detail=str(exc)) from exc
+
+    @app.post(f"{API_PREFIX}/agent-team/provision")
+    def provision_agent_team(request: Request) -> dict[str, Any]:
+        """Create five named workspace companions only after explicit owner action."""
+        from ..agent.role_team import provision_roles
+
+        require_install_owner(request)
+        try:
+            items = provision_roles(
+                request.app.state.companions,
+                workspace_id=_workspace_id(request),
+            )
+        except CompanionError as exc:
+            raise HTTPException(409, "Agent team setup could not be completed") from exc
+        return {"items": items}
+
+    @app.post(f"{API_PREFIX}/agent-team/execute")
+    def execute_agent_team_role(
+        body: AgentRoleActionBody, request: Request,
+    ) -> dict[str, Any]:
+        """Dispatch to the exact existing role engine; no tool/publish bypass."""
+        from ..agent.role_team import RoleEngines, execute_role
+
+        require_install_owner(request)
+        workspace_id = _workspace_id(request)
+        profiles = request.app.state.companions.list(workspace_id=workspace_id)
+        chosen = next(
+            (profile for profile in profiles if profile.name.casefold() == body.role.casefold()),
+            None,
+        )
+        if chosen is None or not chosen.enabled:
+            raise HTTPException(
+                409, "Create and enable this companion with agent-team/provision first"
+            )
+        # Only resolve the one role's existing engine. Nothing is given broad
+        # access to other workspaces or background publishing.
+        engines = RoleEngines(
+            trends=_trends(request) if body.role == "Scout" else None,
+            video=_video(request) if body.role == "Maker" else None,
+            pipeline=_pipeline(request) if body.role == "Poster" else None,
+            distribution=_distribution(request) if body.role == "Analyst" else None,
+            gtm=_gtm(request) if body.role == "Director" else None,
+        )
+        try:
+            return execute_role(
+                body.role, body.model_dump(exclude={"role"}), engines=engines,
+            )
+        except CompanionError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(404, "Campaign, asset or account not found in this workspace") from exc
+        except ValueError as exc:
+            raise HTTPException(409, "The existing engine refused this action; review its prerequisites") from exc
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/delegate")
     def delegate_companion(

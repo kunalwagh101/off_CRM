@@ -967,6 +967,14 @@ Every requirement extracted from the conversation. **Orphans must be zero.**
 - **Given** a failed or uncertain provider call, **when** the broker reconciles, **then** it never resends automatically only to repair the ledger; owner sees recorded limitations and an actionable error.
 - **Dependencies:** existing broker, provider adapter and quota implementation; audit S-06.02.23 remains IN_PROGRESS. This is A10 receipt integrity only; broader spending/provider billing verification remains outstanding. **Size:** M. Work order: `docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md`.
 
+
+#### S-06.02.67 — Only the install owner can inspect or erase personal data (A24/A05)
+**As an** install owner, **I want** the personal-data inventory and erasure API reserved for my authorised operator, **so that** an ordinary workspace login cannot read or destroy other people's records.
+- **Given** an ordinary workspace session, **when** it requests subject access, erasure preview, confirmation or deletion execution, **then** the API returns a safe 403 before any personal-data read/write.
+- **Given** the install API token or explicitly provisioned `local` owner login, **when** it runs subject access, previews and confirms erasure, **then** synthetic subject data is removed with a truthful result and unrelated records remain.
+- **Given** a valid owner preview ID, **when** a nonowner knows both ID and deletion phrase, **then** deletion cannot occur. Spoofed workspace input and restart do not bypass the guard.
+- **Dependencies:** existing privacy service S-06.02.04 and owner identity; production audit S-06.02.23 remains active. **Size:** S. Work order: `docs/work-orders/S-06.02.67-privacy-owner-authorization.md`. This security boundary does not certify full A24 deletion/retention and backups.
+
 ### F-07.01 — Integrations and artifacts  *(E-04)*
 
 #### S-07.01.01 — An MCP client

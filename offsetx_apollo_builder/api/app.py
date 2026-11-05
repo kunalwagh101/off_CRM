@@ -1842,6 +1842,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.get(f"{API_PREFIX}/companion-skills")
     def list_companion_skills(request: Request) -> dict[str, Any]:
+        require_install_owner(request)
         return {
             "items": [
                 skill.to_dict() for skill in request.app.state.companions.list_skills(
@@ -1892,6 +1893,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def companion_context(
         companion_id: str, body: CompanionContextBody, request: Request
     ) -> dict[str, Any]:
+        if body.skill_ids:
+            require_install_owner(request)
         limit = body.get("memory_limit", 8)
         if isinstance(limit, bool) or not isinstance(limit, int):
             raise HTTPException(

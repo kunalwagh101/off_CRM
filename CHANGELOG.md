@@ -1,3 +1,8 @@
+## 2026-11-05 — A05 video ownership: complete isolated QA passed
+
+- Exact executable/test source `246741b8663d56991d169af246dab77681f63648`, Render review `dep-dbm4lgrbc2fs738acn6g`: focused A05 4 PASS, full SQLite 3,036 PASS/57 skipped, full real disposable PostgreSQL 3,061 PASS/101 skipped, focused PG 215 PASS. Chromium/browser, frontend/static/security, 12× concurrency and structural board checks passed.
+- Work remains BACKLOG pending active production audit, full-history verification, independent penetration and customer acceptance. Full CRM tenancy Q-27 is not resolved. No main/customer deployment.
+
 ## 2026-11-05 — Video project and media workspace isolation (A05)
 
 - Backend S-06.02.68 now checks stored workspace ownership for video timeline operations, media reuse/transcription and direct recording/render downloads. Project, media, review and approved-render lists filter the authenticated workspace in SQL before limits. Foreign resource IDs return 404; CRM Q-27 tenancy remains unchanged.

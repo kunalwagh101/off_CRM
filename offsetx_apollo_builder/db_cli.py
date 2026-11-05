@@ -21,6 +21,7 @@ from __future__ import annotations
 from .observability import failure_message, report_failure, traced_command
 
 import argparse
+import sqlite3
 import os
 import sys
 from contextlib import AbstractContextManager, nullcontext
@@ -396,7 +397,8 @@ def _cmd_import_companions(args: argparse.Namespace) -> int:
             counts = import_companions(source, hosted, Path(args.archive))
         finally:
             hosted.close()
-    except (CompanionImportError, HostedStorageError, DatabaseError, OSError, ValueError) as exc:
+    except (CompanionImportError, HostedStorageError, DatabaseError,
+            sqlite3.DatabaseError, OSError, ValueError) as exc:
         report_failure(exc, operation="offsetx-db.import-companions")
         print(failure_message(exc, operation="offsetx-db.import-companions"), file=sys.stderr)
         return 2

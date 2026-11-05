@@ -5204,6 +5204,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: PrivacySubjectBody, request: Request
     ) -> dict[str, Any]:
         """Inventory one verified subject across every registered personal-data store."""
+        # This inventory can contain the whole install's shared CRM records.
+        # Until CRM ownership Q-27 is decided, no workspace login may read it.
+        require_install_owner(request)
         try:
             subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).access(subject)
@@ -5215,6 +5218,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         body: PrivacySubjectBody, request: Request
     ) -> dict[str, Any]:
         """Create the exact inventory that a later confirmed deletion will execute."""
+        require_install_owner(request)
         try:
             subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).preview(subject)
@@ -5228,6 +5232,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         request: Request,
     ) -> dict[str, Any]:
         """Execute/retry one previewed deletion. Never invent confirmation."""
+        # A known preview id and confirmation phrase are not authority to erase.
+        require_install_owner(request)
         try:
             subject = _privacy_subject(body, _workspace_id(request))
             return _privacy(request).delete(
@@ -5239,8 +5245,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get(f"{API_PREFIX}/privacy/deletion-confirmation")
-    def privacy_deletion_confirmation() -> dict[str, str]:
-        """Expose the destructive confirmation phrase without weakening the gate."""
+    def privacy_deletion_confirmation(request: Request) -> dict[str, str]:
+        """Show the destructive phrase to authorised owners only."""
+        require_install_owner(request)
         return {"confirmation": DELETE_CONFIRMATION}
 
     @app.get(f"{API_PREFIX}/research/graph")

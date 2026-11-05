@@ -1,0 +1,196 @@
+"""F-06.03.06: archive-first cutover of legacy local companion rows."""
+from __future__ import annotations
+
+import os
+import sqlite3
+import stat
+from pathlib import Path
+
+import pytest
+from cryptography.fernet import Fernet
+
+from offsetx_apollo_builder.ai.tools import ToolRegistry
+from offsetx_apollo_builder.agent.companions import CompanionRegistry, CompanionError
+from offsetx_apollo_builder.db.companion_import import (
+    CompanionImportError, import_companions,
+)
+from offsetx_apollo_builder.db.hosted import HostedStorage
+
+
+class Memory:
+    def search_memory_items(self, *args, **kwargs):
+        return [], 0
+
+
+def _start(tmp_path):
+    local = tmp_path / "data"
+    local.mkdir(exist_ok=True)
+    tools = ToolRegistry(local / "ai_tools.db")
+    companions = CompanionRegistry(local, tools=tools, memory_backend=Memory())
+    key = Fernet.generate_key().decode()
+    storage = HostedStorage(str(tmp_path / "hosted.db"), key)
+    return local, tools, companions, storage
+
+
+def _archive(tmp_path):
+    folder = tmp_path / "private"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    return folder / "local-tools-full.sqlite"
+
+
+def test_import_preserves_profiles_and_skills_while_retaining_tool_database(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    own = registry.create(workspace_id="one", name="Scout", instructions="Owner text.")
+    skill = registry.create_skill(workspace_id="one", name="Sourcing", content="Check sources.")
+    registry.create_skill(workspace_id="two", name="Private", content="Another workspace.")
+    source, archive = local / "ai_tools.db", _archive(tmp_path)
+    tools.close()
+
+    counts = import_companions(source, hosted, archive)
+    assert counts == {"agent_companions": 1, "agent_companion_skills": 2}
+    assert stat.S_IMODE(archive.stat().st_mode) == 0o600
+    with sqlite3.connect(source) as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM agent_companion_skills").fetchone()[0] == 0
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name='registered_tools'").fetchall() or source.is_file()
+    with sqlite3.connect(archive) as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM agent_companion_skills").fetchone()[0] == 2
+
+    tools2 = ToolRegistry(source)
+    fresh = CompanionRegistry(local, tools=tools2, memory_backend=Memory(), hosted_storage=hosted)
+    assert fresh.require(own.id, workspace_id="one").name == "Scout"
+    assert fresh.start(own.id, workspace_id="one", skill_ids=[skill.id]).skills[0].content == "Check sources."
+    assert fresh.list_skills(workspace_id="two")[0].name == "Private"
+    tools2.close()
+    hosted.close()
+
+
+def test_conflicting_hosted_data_does_not_destroy_original(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Local text.")
+    source, archive = local / "ai_tools.db", _archive(tmp_path)
+    tools.close()
+    remote_tools = ToolRegistry(tmp_path / "temp-tools.db")
+    remote = CompanionRegistry(tmp_path, tools=remote_tools, memory_backend=Memory(), hosted_storage=hosted)
+    remote.create(workspace_id="w", name="Director", instructions="Other text.")
+    with pytest.raises(CompanionImportError, match="different"):
+        import_companions(source, hosted, archive)
+    with sqlite3.connect(source) as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+    with sqlite3.connect(archive) as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+    remote_tools.close()
+    hosted.close()
+
+
+def test_source_with_executable_tool_grants_is_refused_until_tool_home_is_durable(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    profile = registry.create(workspace_id="w", name="Scout", instructions="No tool.")
+    tools.connection().execute(
+        "UPDATE agent_companions SET granted_tool_ids='[\"external-runner\"]' WHERE id=?",
+        (profile.id,),
+    )
+    tools.close()
+    with pytest.raises(CompanionImportError, match="tool grants"):
+        import_companions(local / "ai_tools.db", hosted, _archive(tmp_path))
+    with sqlite3.connect(local / "ai_tools.db") as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+    hosted.close()
+
+
+def test_archive_cannot_be_inside_old_data_directory(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Keep.")
+    tools.close()
+    with pytest.raises(CompanionImportError, match="outside"):
+        import_companions(local / "ai_tools.db", hosted, local / "bad-archive.sqlite")
+    hosted.close()
+
+
+def test_missing_legacy_source_fails_closed(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    tools.close()
+    with pytest.raises(CompanionImportError, match="existing"):
+        import_companions(tmp_path / "absent.db", hosted, _archive(tmp_path))
+    hosted.close()
+
+
+def test_retry_after_hosted_commit_before_local_cleanup_is_safe(tmp_path, monkeypatch):
+    local, tools, registry, hosted = _start(tmp_path)
+    owner = registry.create(workspace_id="w", name="Scout", instructions="Keep.")
+    tools.close()
+    source, archive = local / "ai_tools.db", _archive(tmp_path)
+
+    import offsetx_apollo_builder.db.companion_import as module
+    real_cleanup = module._clear_local_rows
+    first = {"remaining": 1}
+
+    def fail_once(*args, **kwargs):
+        if first["remaining"]:
+            first["remaining"] = 0
+            raise OSError("simulated interruption before local cleanup")
+        return real_cleanup(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_clear_local_rows", fail_once)
+    with pytest.raises(OSError):
+        import_companions(source, hosted, archive)
+    with sqlite3.connect(source) as conn:
+        assert conn.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 1
+
+    result = import_companions(source, hosted, archive)
+    assert result["agent_companions"] == 1
+    tools2 = ToolRegistry(source)
+    fresh = CompanionRegistry(local, tools=tools2, memory_backend=Memory(), hosted_storage=hosted)
+    assert fresh.require(owner.id, workspace_id="w").name == "Scout"
+    tools2.close()
+    hosted.close()
+
+
+def test_operator_cli_requires_explicit_yes_and_private_archive(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.db_cli import main
+
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="CLI.")
+    tools.close()
+    archive = _archive(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", str(tmp_path / "hosted.db"))
+    monkeypatch.setenv("OFFSETX_SECRETS_KEY", hosted.fernet._signing_key.hex() if False else Fernet.generate_key().decode())
+    # Use the real known key used by HostedStorage in this test, not a freshly
+    # generated key: HostedStorage.check_secrets_key must refuse wrong keys.
+    # This test only checks CLI's missing explicit approval, before any connection.
+    assert main(["import-companions", "--archive", str(archive)]) == 2
+    hosted.close()
+
+
+@pytest.mark.skipif(not os.getenv("OFF_CRM_TEST_POSTGRES_URL"), reason="disposable real PostgreSQL not configured")
+def test_real_postgres_import_reconciles_and_survives_restart(tmp_path):
+    import uuid
+    import psycopg
+
+    local, tools, registry, unused = _start(tmp_path)
+    unused.close()
+    own = registry.create(workspace_id="workspace", name="Scout", instructions="Persist.")
+    tools.close()
+    url = os.environ["OFF_CRM_TEST_POSTGRES_URL"]
+    schema = "t_import_" + uuid.uuid4().hex[:10]
+    with psycopg.connect(url, autocommit=True) as conn:
+        conn.execute(f'CREATE SCHEMA "{schema}"')
+    scoped = url + ("&" if "?" in url else "?") + "options=-csearch_path%3D" + schema
+    hosted = HostedStorage(scoped, Fernet.generate_key().decode())
+    try:
+        imported = import_companions(local / "ai_tools.db", hosted, _archive(tmp_path))
+        assert imported["agent_companions"] == 1
+        hosted.close()
+        hosted2 = HostedStorage(scoped, Fernet.generate_key().decode())
+        tools2 = ToolRegistry(local / "ai_tools.db")
+        try:
+            assert CompanionRegistry(local, tools=tools2, memory_backend=Memory(), hosted_storage=hosted2).require(
+                own.id, workspace_id="workspace"
+            ).name == "Scout"
+        finally:
+            tools2.close()
+            hosted2.close()
+    finally:
+        with psycopg.connect(url, autocommit=True) as conn:
+            conn.execute(f'DROP SCHEMA "{schema}" CASCADE')

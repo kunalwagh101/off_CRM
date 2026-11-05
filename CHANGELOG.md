@@ -1,3 +1,8 @@
+## 2026-11-05 — A24 privacy permission fix: full isolated QA LIVE
+
+- Exact executable/test source `411770421133ea292153e68d9d0642cd1e198fc5`, isolated Render `dep-dbm3oj8ae00c7389h7d0` LIVE 2026-11-05 08:41:29 UTC. Focused A24 real API 5 PASS; full SQLite 3,032 PASS/57 skipped; real disposable PostgreSQL 3,057 PASS/101 skipped; focused PG 215 PASS. Configured Chromium desktop/mobile, frontend/static/security, 12× concurrent write and structural board checks PASS.
+- A24 overall is not finished; backup/reindex/retention and CRM tenancy Q-27 are still open, as are independent pen/full-history QA and customer release. No main/customer deployment. Evidence in `docs/evidence/2026-11-05-a24-privacy-owner-authorization.md`.
+
 ## 2026-11-05 — Restrict privacy inventory and erasure to install owners (A24)
 
 - F-06.02 / S-06.02.67: subject access, deletion preview, confirmed execution and destructive confirmation phrase now require the existing install-owner permission check. Ordinary signed-in workspaces cannot read or erase unowned shared CRM records. The local owner login and install API token continue to work.

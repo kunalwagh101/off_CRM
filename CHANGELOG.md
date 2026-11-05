@@ -1,3 +1,9 @@
+## 2026-11-05 — Video project and media workspace isolation (A05)
+
+- Backend S-06.02.68 now checks stored workspace ownership for video timeline operations, media reuse/transcription and direct recording/render downloads. Project, media, review and approved-render lists filter the authenticated workspace in SQL before limits. Foreign resource IDs return 404; CRM Q-27 tenancy remains unchanged.
+- RED: 4 cross-workspace real API failures on `d22d3a8` / Render `dep-dbm4isu1egvs73bau35g`. Intermediate Render `dep-dbm4khbm8hqs73encvo0`: 3 PASS, 1 undo error-mapping failure; corrected and extended at test source `246741b`. Final complete isolated QA pending separately.
+- No schema migration, live sender or provider calls, main or customer deployment. Evidence `docs/evidence/2026-11-05-a05-video-workspace-isolation.md`.
+
 ## 2026-11-05 — A24 privacy permission fix: full isolated QA LIVE
 
 - Exact executable/test source `411770421133ea292153e68d9d0642cd1e198fc5`, isolated Render `dep-dbm3oj8ae00c7389h7d0` LIVE 2026-11-05 08:41:29 UTC. Focused A24 real API 5 PASS; full SQLite 3,032 PASS/57 skipped; real disposable PostgreSQL 3,057 PASS/101 skipped; focused PG 215 PASS. Configured Chromium desktop/mobile, frontend/static/security, 12× concurrent write and structural board checks PASS.

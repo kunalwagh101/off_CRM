@@ -127,6 +127,20 @@ class ImageCampaignEngine:
             return
         assert_kind(self.campaign_reader(campaign_id), self.CAMPAIGN_KIND, action=action)
 
+    def _owned_brief(self, brief_id: str) -> dict[str, Any]:
+        """A shared campaign does not grant another workspace's image brief."""
+        brief = self.store.get_brief(brief_id)
+        if str(brief.get("workspace_id") or "local") != self.workspace_id:
+            raise KeyError(f"Brief not found: {brief_id}")
+        return brief
+
+    def _owned_asset(self, asset_id: str) -> dict[str, Any]:
+        """Refuse foreign image IDs before swipes, deletion or regeneration."""
+        asset = self.store.get_asset(asset_id)
+        if str(asset.get("workspace_id") or "local") != self.workspace_id:
+            raise KeyError(f"Asset not found: {asset_id}")
+        return asset
+
     # ── briefs ──────────────────────────────────────────────────────────────
 
     def add_brief(
@@ -163,7 +177,7 @@ class ImageCampaignEngine:
         allocator picks a generator per candidate, so a round can be split
         across models and the comparison stays honest.
         """
-        brief = self.store.get_brief(brief_id)
+        brief = self._owned_brief(brief_id)
         self._require_own_kind(str(brief["campaign_id"]), "generating images")
 
         settings = self.settings_resolver(self.workspace_id)
@@ -267,7 +281,9 @@ class ImageCampaignEngine:
     def review_queue(self, campaign_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
         """Candidates waiting for a decision, oldest first."""
         self._require_own_kind(campaign_id, "reviewing images")
-        return self.store.list_assets(campaign_id, status="pending", limit=limit)
+        return self.store.list_assets(
+            campaign_id, status="pending", limit=limit, workspace_id=self.workspace_id
+        )
 
     def approve(self, asset_id: str) -> dict[str, Any]:
         """Swipe right. Keep the picture, and credit the generator."""
@@ -285,7 +301,7 @@ class ImageCampaignEngine:
         return asset
 
     def _decide(self, asset_id: str, *, approved: bool) -> dict[str, Any]:
-        asset = self.store.get_asset(asset_id)
+        asset = self._owned_asset(asset_id)
         if asset["status"] != "pending":
             raise ValueError(
                 f"This picture was already {asset['status']}. A decision is made "
@@ -312,14 +328,14 @@ class ImageCampaignEngine:
         benchmark as any other — dropping it would quietly bias the scores
         towards whichever generator happened to be refreshed most.
         """
-        asset = self.store.get_asset(asset_id)
+        asset = self._owned_asset(asset_id)
         self.reject(asset_id)
         return self.generate(
             str(asset["brief_id"]), count=1, provider_id=provider_id
         )
 
     def _close_brief_if_fulfilled(self, brief_id: str) -> None:
-        brief = self.store.get_brief(brief_id)
+        brief = self._owned_brief(brief_id)
         if brief["status"] != "open":
             return
         approved = len(
@@ -328,6 +344,7 @@ class ImageCampaignEngine:
                 status="approved",
                 brief_id=brief_id,
                 limit=10000,
+                workspace_id=self.workspace_id,
             )
         )
         if approved >= int(brief["wanted"]):
@@ -381,9 +398,12 @@ class ImageCampaignEngine:
         counts: dict[str, int] = {}
         for status in ("pending", "approved", "rejected", "gate_failed"):
             counts[status] = len(
-                self.store.list_assets(campaign_id, status=status, limit=100000)
+                self.store.list_assets(
+                    campaign_id, status=status, limit=100000,
+                    workspace_id=self.workspace_id,
+                )
             )
-        briefs = self.store.list_briefs(campaign_id)
+        briefs = self.store.list_briefs(campaign_id, workspace_id=self.workspace_id)
         return {
             "campaign_id": campaign_id,
             "briefs": len(briefs),

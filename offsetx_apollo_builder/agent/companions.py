@@ -512,6 +512,9 @@ class CompanionRegistry:
 
         if not isinstance(skill_ids, (list, tuple)):
             raise CompanionError("Procedure selection must be a list of ids")
+        if any(not isinstance(value, str) or not value.strip() or len(value) > 64
+               for value in skill_ids):
+            raise CompanionError("Procedure IDs must be non-empty bounded strings")
         unique_skill_ids = list(dict.fromkeys(skill_ids))
         if len(unique_skill_ids) != len(skill_ids):
             raise CompanionError("A procedure may be selected only once")

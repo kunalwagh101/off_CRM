@@ -930,3 +930,16 @@ The A05 regression creates two real FastAPI cookie sessions. Both use the same s
 Render isolated QA gate: `dep-dbm4lgrbc2fs738acn6g` on code/test `246741b`. Historical evidence replay, broad CRM Q-27 and independent penetration remain separately open.
 
 ---
+
+## A05 — Image privacy across authenticated workspaces (not yet executed)
+
+The new regression creates two real FastAPI cookie sessions sharing one synthetic image campaign. It verifies image download, private brief and asset lists, image decisions, provider-free foreign-brief generation refusal, and image placement/assembly into video:
+
+```bash
+uv run pytest -q tests/test_audit_a05_image_workspace_isolation.py
+uv run pytest -q tests/test_imagery.py tests/test_video_assembly.py tests/test_audit_a05_video_workspace_isolation.py
+```
+
+**Do not present this as a passing demonstration:** The isolated Render build was canceled before tests because the workspace exhausted build pipeline minutes. Once capacity is restored, run the isolated review gate and record observed results for exact tested source. Evidence `docs/evidence/2026-11-05-a05-image-workspace-isolation.md`. No live providers or customer files.
+
+---

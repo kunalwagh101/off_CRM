@@ -10,7 +10,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from offsetx_apollo_builder.ai.tools import ToolRegistry
-from offsetx_apollo_builder.agent.companions import CompanionRegistry, CompanionError
+from offsetx_apollo_builder.agent.companions import SCHEMA, CompanionRegistry, CompanionError
 from offsetx_apollo_builder.db.companion_import import (
     CompanionImportError, import_companions,
 )
@@ -182,6 +182,72 @@ def test_operator_cli_requires_explicit_yes_and_private_archive(tmp_path, monkey
     # Approval validation runs before reading any hosted credentials.
     assert main(["import-companions", "--archive", str(archive)]) == 2
     hosted.close()
+
+
+def test_old_companion_schema_without_procedures_imports_without_data_loss(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Historic.")
+    tools.close()
+    source = local / "ai_tools.db"
+    with sqlite3.connect(source) as db:
+        db.execute("DROP TABLE agent_companion_skills")
+    try:
+        result = import_companions(source, hosted, _archive(tmp_path))
+        assert result == {"agent_companions": 1, "agent_companion_skills": 0}
+        with sqlite3.connect(source) as db:
+            assert db.execute("SELECT count(*) FROM agent_companions").fetchone()[0] == 0
+            assert db.execute("SELECT count(*) FROM ai_tools").fetchone()[0] == 0
+    finally:
+        hosted.close()
+
+
+def test_existing_different_private_archive_never_gets_overwritten(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="New.")
+    tools.close()
+    archive = _archive(tmp_path)
+    with sqlite3.connect(archive) as db:
+        db.executescript(SCHEMA)
+        db.execute(
+            "INSERT INTO agent_companions VALUES (?,?,?,?,?,?,?,?,?)",
+            ("old", "w", "Scout", "Old.", "companion:old", "[]", 1, "then", "then"),
+        )
+    archive.chmod(0o600)
+    try:
+        with pytest.raises(CompanionImportError, match="differs"):
+            import_companions(local / "ai_tools.db", hosted, archive)
+        with sqlite3.connect(archive) as db:
+            assert db.execute("SELECT instructions FROM agent_companions").fetchone()[0] == "Old."
+    finally:
+        hosted.close()
+
+
+def test_uncooperative_writer_prevents_cleanup_of_changed_source(tmp_path, monkeypatch):
+    local, tools, registry, hosted = _start(tmp_path)
+    registry.create(workspace_id="w", name="Scout", instructions="Original.")
+    tools.close()
+    source = local / "ai_tools.db"
+    import offsetx_apollo_builder.db.companion_import as module
+    actual = module._clear_local_rows
+
+    def change_after_copy(path, expected):
+        with sqlite3.connect(path) as con:
+            con.execute(
+                "UPDATE agent_companions SET instructions='Changed after copy'"
+            )
+        return actual(path, expected)
+
+    monkeypatch.setattr(module, "_clear_local_rows", change_after_copy)
+    try:
+        with pytest.raises(CompanionImportError, match="source changed|source changed during|The source changed"):
+            import_companions(source, hosted, _archive(tmp_path))
+        with sqlite3.connect(source) as con:
+            assert con.execute("SELECT instructions FROM agent_companions").fetchone()[0] == "Changed after copy"
+        assert hosted.connection.execute(
+            "SELECT instructions FROM agent_companions"
+        ).fetchone()["instructions"] == "Original."
+    finally:
+        hosted.close()
 
 
 @pytest.mark.skipif(not os.getenv("OFF_CRM_TEST_POSTGRES_URL"), reason="disposable real PostgreSQL not configured")

@@ -303,12 +303,12 @@ class TrendPipeline:
             )
 
         approved = self.images.store.list_assets(
-            image_campaign_id, status="approved", limit=limit
+            image_campaign_id, status="approved", limit=limit, workspace_id=self.workspace_id
         )
         already = {
             str(post.get("asset_id"))
             for post in self.distribution.store.list_posts(
-                distribution_campaign_id, limit=10000
+                distribution_campaign_id, limit=10000, workspace_id=self.workspace_id
             )
             if post.get("asset_id")
         }
@@ -386,7 +386,7 @@ class TrendPipeline:
         assert_kind(self.campaign_reader(campaign_id), kind, action=action)
 
     def _recently_actioned(self, key: str, cooldown_hours: int) -> bool:
-        row = self.distribution.store.last_topic_action(key)
+        row = self.distribution.store.last_topic_action(key, workspace_id=self.workspace_id)
         if not row:
             return False
         seen = str(row.get("created_at") or "")
@@ -417,7 +417,7 @@ class TrendPipeline:
         """
         if not brief_id:
             return {}
-        row = self.distribution.store.topic_action_for_brief(brief_id)
+        row = self.distribution.store.topic_action_for_brief(brief_id, workspace_id=self.workspace_id)
         if not row:
             return {}
         return {"label": row.get("label", ""), "terms": str(row.get("label", "")).split(" + ")}

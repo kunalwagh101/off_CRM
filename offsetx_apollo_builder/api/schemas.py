@@ -705,6 +705,27 @@ class CompanionDelegateBody(StrictModel):
     assignments: list[CompanionChildGoal] = Field(min_length=1, max_length=3)
 
 
+class AgentRoleActionBody(StrictModel):
+    role: Literal["Scout", "Maker", "Poster", "Analyst", "Director"]
+    campaign_id: str = Field(default="", max_length=80)
+    topic: str = Field(default="", max_length=500)
+    image_campaign_id: str = Field(default="", max_length=80)
+    account_ids: list[Annotated[str, Field(min_length=1, max_length=80)]] = Field(
+        default_factory=list, max_length=20
+    )
+    gtm_request: dict[str, Any] = Field(default_factory=dict, max_length=25)
+
+    @model_validator(mode="after")
+    def validate_payload_size(self):
+        try:
+            body = json.dumps(self.gtm_request, allow_nan=False, ensure_ascii=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid GTM request") from exc
+        if len(body) > 8000:
+            raise ValueError("GTM request exceeds the maximum size")
+        return self
+
+
 class CompanionMemoryBody(StrictModel):
     content: str = Field(min_length=1, max_length=30000)
     kind: str = Field(default="companion_fact", min_length=1, max_length=80)

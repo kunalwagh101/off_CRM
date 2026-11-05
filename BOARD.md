@@ -30,6 +30,10 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 ---
 
 ## BACKLOG
+- S-06.02.69 · Image briefs, generated files and video handoff remain private to their workspace (A05)
+  work_order: docs/work-orders/S-06.02.69-image-workspace-ownership.md
+  checkpoint: A05 follow-up build-ahead. Existing workspace_id persisted but global image resource IDs and campaign-only lists lack ownership checks. Test-first Render review pending; broader audit S-06.02.23 active, Q-27 tenancy and independent penetration open.
+
 - S-06.02.68 · Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05)
   work_order: docs/work-orders/S-06.02.68-video-workspace-ownership.md
   checkpoint: A05 TDD RED source d22d3a8 / isolated Render dep-dbm4isu1egvs73bau35g: 4 expected FAIL. First fix source de92a5a / dep-dbm4khbm8hqs73encvo0: 3 PASS / 1 improper undo 409; corrected at a94aedb. Exact executable/test source 246741b8663d56991d169af246dab77681f63648 / isolated Render dep-dbm4lgrbc2fs738acn6g LIVE 2026-11-05 09:43:42 UTC: focused A05 4 PASS, full SQLite 3,036 PASS/57 skipped, full real disposable PG 3,061 PASS/101 skipped, focused PG 215 PASS; Chromium desktop/mobile, frontend, Ruff/static/security, 12× SQLite concurrency and structural board verifier PASS. D-372 / DD-148 / R-195; evidence docs/evidence/2026-11-05-a05-video-workspace-isolation.md. Remains BACKLOG under S-06.02.23; complete A05 roles and Q-27 CRM tenancy, independent penetration, full-history verifier and customer/main release OPEN.

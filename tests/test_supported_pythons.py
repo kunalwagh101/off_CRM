@@ -40,3 +40,12 @@ def test_ci_executes_the_suite_on_each_declared_python_and_the_container_python(
         f"Declared/container Python versions {sorted(declared | docker_versions)} "
         f"are not all tested by CI: {sorted(covered)}"
     )
+
+
+def test_ci_pytest_gates_cannot_exit_after_printing_a_version():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    for job in workflow['jobs'].values():
+        for step in job['steps']:
+            for line in step.get('run', '').splitlines():
+                if 'uv run pytest' in line:
+                    assert '--version' not in line, 'A pytest gate must execute tests, not just print a version'

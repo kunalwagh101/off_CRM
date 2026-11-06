@@ -10,6 +10,7 @@ what a store is *given*, not a rewrite of what it does.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -299,7 +300,13 @@ class PostgresDatabase(Database):
     #: a check per statement, and a drop is only likely after a quiet spell.
     idle_check_seconds: float = 30.0
 
-    def __init__(self, target: str, *, connect_timeout: int = 10) -> None:
+    def __init__(self, target: str, *, connect_timeout: int = 10, namespace: str | None = None) -> None:
+        if namespace is not None and (
+            not isinstance(namespace, str) or not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", namespace)
+            or namespace in {"public", "information_schema"} or namespace.startswith("pg_")
+        ):
+            raise DatabaseError("The workspace storage namespace is invalid")
+        self.namespace = namespace
         super().__init__(target)
         try:
             import psycopg
@@ -336,13 +343,25 @@ class PostgresDatabase(Database):
             # pooler in transaction mode — PgBouncer, Neon's pooled URL, RDS
             # Proxy — hands each transaction a different server connection,
             # where a statement prepared on another does not exist.
-            return self._psycopg.connect(
+            connection = self._psycopg.connect(
                 self.target,
                 autocommit=True,
                 row_factory=self._dict_row,
                 prepare_threshold=None,
                 **defaults,
             )
+            if self.namespace is not None:
+                try:
+                    exists = connection.execute(
+                        "SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname=%s) AS present",
+                        [self.namespace],
+                    ).fetchone()["present"]
+                    if not exists:
+                        raise DatabaseError("The workspace storage namespace is unavailable; restore its verified generation")
+                except BaseException:
+                    connection.close()
+                    raise
+            return connection
         except self._psycopg.Error as exc:
             raise DatabaseUnavailable(
                 f"Could not connect to {describe_target(self.target)}: {redact(str(exc), self.target)}"
@@ -385,6 +404,9 @@ class PostgresDatabase(Database):
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Any:
         with self._lock:
+            if self.namespace is not None and not self._transaction_depth:
+                with self.transaction():
+                    return self.execute(sql, params)
             # Always pass a sequence, never None. psycopg only treats `%` as a
             # placeholder marker when parameters are present, so passing None
             # sometimes and a tuple other times would make the same translated
@@ -399,6 +421,10 @@ class PostgresDatabase(Database):
 
     def executescript(self, sql: str) -> None:
         with self._lock:
+            if self.namespace is not None and not self._transaction_depth:
+                with self.transaction():
+                    self.executescript(sql)
+                return
             # No parameters here, so `%` is not special and the SQL goes as
             # written. psycopg runs multiple statements in one call.
             raw = self._live()
@@ -426,6 +452,11 @@ class PostgresDatabase(Database):
             try:
                 with raw.transaction():
                     began = True
+                    if self.namespace is not None and self._transaction_depth == 1:
+                        # A transaction pooler may choose another server on every
+                        # BEGIN. SET LOCAL never leaves a tenant on that server.
+                        # The bounded identifier was validated before connecting.
+                        raw.execute(f'SET LOCAL search_path TO "{self.namespace}"')
                     yield self
             except self._psycopg.OperationalError as exc:
                 # BEGIN or COMMIT, on a connection the server dropped: the
@@ -449,10 +480,13 @@ class PostgresDatabase(Database):
 
 
 def open_database(
-    target: object = None, *, default: object = None, wal: bool = True
+    target: object = None, *, default: object = None, wal: bool = True,
+    namespace: str | None = None,
 ) -> Database:
     """Open whichever backend the target names."""
     resolved = resolve_target(target, default=default)
     if is_postgres_url(resolved):
-        return PostgresDatabase(resolved)
+        return PostgresDatabase(resolved, namespace=namespace)
+    if namespace is not None:
+        raise DatabaseError("A SQLite workspace uses its own file; a SQL namespace is invalid")
     return SQLiteDatabase(resolved, wal=wal)

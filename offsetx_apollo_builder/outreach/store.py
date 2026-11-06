@@ -182,7 +182,10 @@ class OutreachStore:
     outlives it (`S-06.03.03`). The SQL is the same for both; only opening,
     transactions and the schema's first creation know which one this is."""
 
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, *, namespace: str | None = None):
+        if namespace is not None and not is_postgres_url(path):
+            raise DatabaseError("A SQLite workspace uses its own file; a SQL namespace is invalid")
+        self.namespace = namespace
         self.database: Database | None = None
         # What was opened, as the other stores name it: readiness probes a
         # store by its `target` (`api/production_runtime.py`). It may carry a
@@ -197,7 +200,7 @@ class OutreachStore:
             # `execute` with `?`, rows read by name, `executescript`, `close` —
             # and holds its own lock across a whole transaction, so a bare
             # statement from another thread waits instead of joining one.
-            self.database = open_database(str(path))
+            self.database = open_database(str(path), namespace=namespace) if namespace is not None else open_database(str(path))
             self.connection = self.database
             self.integrity_error: type[BaseException] = self.database.integrity_error
             return
@@ -2193,15 +2196,15 @@ class OutreachStore:
         total = len(ranked)
         return [item for _, item in ranked[offset : offset + limit]], total
 
-    def set_memory_approval(self, memory_id: str, approved: bool) -> dict[str, Any]:
+    def set_memory_approval(self, memory_id: str, approved: bool, *, workspace_id: str = "local") -> dict[str, Any]:
         with self.transaction() as conn:
             cursor = conn.execute(
-                "UPDATE memory_items SET approved = ?, updated_at = ? WHERE id = ?",
-                (int(approved), to_utc_iso(), memory_id),
+                "UPDATE memory_items SET approved = ?, updated_at = ? WHERE id = ? AND workspace_id = ?",
+                (int(approved), to_utc_iso(), memory_id, workspace_id),
             )
             if cursor.rowcount != 1:
                 raise KeyError("Memory item not found")
-        row = self._row("SELECT * FROM memory_items WHERE id = ?", (memory_id,))
+        row = self._row("SELECT * FROM memory_items WHERE id = ? AND workspace_id = ?", (memory_id, workspace_id))
         return self._decode_memory(row or {})
 
     def memory_stats(self, *, workspace_id: str = "local") -> dict[str, Any]:
@@ -2213,7 +2216,7 @@ class OutreachStore:
             (workspace_id,),
         )
         return {
-            "backend": "sqlite_local",
+            "backend": "postgres" if self.backend == "postgres" else "sqlite_local",
             "workspace_id": workspace_id,
             "total": sum(int(row["count"]) for row in rows),
             "approved": sum(int(row.get("approved") or 0) for row in rows),

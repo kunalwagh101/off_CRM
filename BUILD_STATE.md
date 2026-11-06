@@ -1,3 +1,9 @@
+## 2026-11-06 — Complete memory entrypoints scoped; namespace/pooler proof prepared
+
+- D-406 memory routes/learning writes were still local-scoped after generation fix. Actual API RED1; local/alpha/beta list/stats/create/foreign-ID approval/body override/feedback/edit/bulk/reply tests now pass. Received mail body never becomes memory. Sending-triggered reply sync receives authenticated scope. D-407 actual PG backend-label RED1 fixed. Broad affected bundle153 PASS; latest all-CRM-on-PG23 PASS/4 unavailable-pooler skips.
+- Native PostgreSQL optional namespace adapter/realEngine direct proof5 PASS/4 pooler skips. Selection uses SET LOCAL per outer transaction with no public fallback, including single statements and reconnect; actual engine same-email/private campaign checks pass. Default app routing unchanged. DD-158 records costs/remaining proof. New genuine PgBouncer CI target uses one backend + forced reset; D-405 folded YAML --version false proof caught by independent review and semantic test RED1/GREEN. Actual pooler run pending after push.
+- Still no applied CRM ownership migration, namespace runtime factory, full shared controls/cutover recovery or completed first-three release. Keep build-ahead and blockers visible. Changelog updated; no customer/main deploy.
+
 ## 2026-11-06 — Drafts approved-memory boundary fixed
 
 - D-404: actual signed beta drafting request used beta broker but shared expert selected local owner's approved memory. Test capture RED1. Generation now uses authenticated workspace for request-local expert/memory without singleton mutation; engine constructor also propagates workspace. Customer broker receives beta facts and no owner-only marker. Affected actual-PG/DB/CRM/email bundle147 PASS. No actual customer data/provider call involved.

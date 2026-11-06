@@ -1,3 +1,11 @@
+## 2026-11-06 — Drafts, hosted meeting/routine state and ownership safeguards (unreleased)
+
+- Drafts uses workspace Connectors and the existing trust/scanner/quota/egress boundary. Local templates remain available; explicit legacy profile/strategy requests receive migration guidance. Historical profiles and drafts remain intact.
+- Fixed workspace ownership of approved memory across reads, approvals, generation, feedback, draft/bulk edits and reply learning. Failed generation remains visible with safe references.
+- Meeting/routine metadata now uses hosted SQL with exact archive-first cutover, actual install ownership checks and explicit opt-in before enabled routines resume. Trace files remain local and readiness reports that limitation.
+- Added read-only legacy ownership manifest validation and an optional transaction-local PostgreSQL namespace proof. CRM runtime tenant isolation and legacy cutover are still in progress; these foundations do not enable them.
+- Hosted upgrades require the stable OFFSETX_INSTALL_ID and existing master key. No customer migration, paid resource, main promotion or deployment was performed. Offsite recovery, remaining durable stores, live integrations and penetration/release gates remain open.
+
 ## 2026-11-06 — Hosted content cutover and owner agent-team screens (unreleased)
 
 - Added hosted content metadata with explicit private archive migration, hardlink/conflict guards, process-crash retry and PostgreSQL BIGINT upgrades.

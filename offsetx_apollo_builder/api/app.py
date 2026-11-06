@@ -2041,7 +2041,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.get(f"{API_PREFIX}/memory/stats")
     def memory_stats(request: Request) -> dict[str, Any]:
-        return _engine(request).store.memory_stats()
+        return _engine(request).store.memory_stats(workspace_id=_workspace_id(request))
 
     @app.get(f"{API_PREFIX}/memory")
     def memory_items(
@@ -2055,6 +2055,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         items, total = _engine(request).store.search_memory_items(
             query,
+            workspace_id=_workspace_id(request),
             scope=scope,
             kind=kind,
             approved_only=approved_only,
@@ -2065,20 +2066,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/memory", status_code=201)
     def create_memory(body: MemoryCreate, request: Request) -> dict[str, Any]:
-        memory_id = _engine(request).email_expert.memory.add_manual(
+        memory_id = _engine(request).expert_for_workspace(_workspace_id(request)).memory.add_manual(
             content=body.content,
             kind=body.kind,
             scope=body.scope,
             tags=body.tags,
         )
-        items, _ = _engine(request).store.search_memory_items("", limit=1000)
+        items, _ = _engine(request).store.search_memory_items("", limit=1000, workspace_id=_workspace_id(request))
         return next(item for item in items if item["id"] == memory_id)
 
     @app.patch(f"{API_PREFIX}/memory/{{memory_id}}")
     def approve_memory(
         memory_id: str, body: MemoryApproval, request: Request
     ) -> dict[str, Any]:
-        return _engine(request).store.set_memory_approval(memory_id, body.approved)
+        return _engine(request).store.set_memory_approval(memory_id, body.approved, workspace_id=_workspace_id(request))
 
     @app.get(f"{API_PREFIX}/agent-permissions")
     def get_agent_permissions(
@@ -3897,7 +3898,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             campaign_id, campaign_contact_id, body.model_dump(exclude_none=True)
         )
         if body.outcome_label:
-            _engine(request).email_expert.memory.remember_feedback(
+            _engine(request).expert_for_workspace(_workspace_id(request)).memory.remember_feedback(
                 campaign_id=campaign_id,
                 campaign_contact_id=campaign_contact_id,
                 outcome_label=body.outcome_label,
@@ -5571,7 +5572,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         campaign_id: str, draft_id: str, body: DraftEdit, request: Request
     ) -> dict[str, Any]:
         return _engine(request).edit_draft(
-            campaign_id, draft_id, subject=body.subject, body=body.body
+            campaign_id, draft_id, subject=body.subject, body=body.body, workspace_id=_workspace_id(request)
         )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts/approve")
@@ -5599,6 +5600,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 stages=body.stages,
                 fields=body.fields,
                 preview_only=body.preview_only,
+                workspace_id=_workspace_id(request),
             )
 
     @app.post(f"{API_PREFIX}/campaigns/{{campaign_id}}/drafts/schedule")
@@ -5645,6 +5647,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     own_email=settings.own_email,
                     sync_replies_first=body.sync_replies_first,
                     max_messages=body.max_messages,
+                    workspace_id=_workspace_id(request),
                 )
 
         return _idempotent(
@@ -5664,7 +5667,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             provider = _mail_provider(settings, body.mode)
         with request.app.state.campaign_locks.hold(campaign_id):
             return _engine(request).sync_replies(
-                campaign_id, mail_provider=provider, own_email=settings.own_email
+                campaign_id, mail_provider=provider, own_email=settings.own_email, workspace_id=_workspace_id(request)
             )
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/reports/ab")

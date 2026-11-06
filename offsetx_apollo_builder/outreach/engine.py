@@ -181,8 +181,10 @@ class OutreachEngine:
         template_counter: TemplateCounter | None = None,
         mail_archive: MailArchive | None = None,
         workspace_id: str = "local",
+        storage_namespace: str | None = None,
     ):
-        self.store = OutreachStore(database_path)
+        self.store = (OutreachStore(database_path, namespace=storage_namespace)
+                      if storage_namespace is not None else OutreachStore(database_path))
         self.store.initialize()
         self.email_expert = LocalEmailExpert(self.store, workspace_id=workspace_id)
         # Optional: counting reply rates is useful but never required to send.
@@ -206,6 +208,13 @@ class OutreachEngine:
                 source_type="owned_notes",
                 rights_basis="owned",
             )
+
+    def expert_for_workspace(self, workspace_id: str | None = None) -> LocalEmailExpert:
+        selected = self.workspace_id if workspace_id is None else workspace_id
+        if self.email_expert.memory.workspace_id == selected:
+            return self.email_expert
+        return LocalEmailExpert(self.store, product_reader=self.email_expert.product_reader,
+                                workspace_id=selected)
 
     def close(self) -> None:
         self.store.close()
@@ -443,13 +452,7 @@ class OutreachEngine:
         blocked = 0
         failures: list[dict[str, str]] = []
         with self._lock:
-            requested_workspace = self.workspace_id if workspace_id is None else workspace_id
-            expert = self.email_expert
-            if expert.memory.workspace_id != requested_workspace:
-                # Never mutate the singleton expert for a request. Its memory
-                # must follow the same authenticated workspace as the broker.
-                expert = LocalEmailExpert(self.store, product_reader=expert.product_reader,
-                                          workspace_id=requested_workspace)
+            expert = self.expert_for_workspace(workspace_id)
             contacts = self.store.campaign_contacts(campaign_id)
             contacts = [
                 item
@@ -492,15 +495,16 @@ class OutreachEngine:
             return result
 
     def edit_draft(
-        self, campaign_id: str, draft_id: str, *, subject: str, body: str
+        self, campaign_id: str, draft_id: str, *, subject: str, body: str, workspace_id: str | None = None
     ) -> dict[str, Any]:
         with self._lock:
+            expert = self.expert_for_workspace(workspace_id)
             self._require_own_kind(campaign_id, "editing a draft")
             current = self.store.get_draft_by_id(campaign_id, draft_id)
             contact = self.store.get_campaign_contact(
                 campaign_id, str(current["campaign_contact_id"])
             )
-            audited = self.email_expert.audit_edited_draft(
+            audited = expert.audit_edited_draft(
                 contact=contact,
                 stage=str(current["stage"]),
                 variant_id=str(current["variant_id"]),
@@ -511,7 +515,7 @@ class OutreachEngine:
                 generation_meta=current.get("generation_meta") or {},
             )
             self.store.update_draft_content(draft_id, audited)
-            self.email_expert.memory.remember_edit(
+            expert.memory.remember_edit(
                 contact=contact,
                 stage=str(current["stage"]),
                 variant_id=str(current["variant_id"]),
@@ -539,6 +543,7 @@ class OutreachEngine:
         stages: Iterable[str] = (),
         fields: Iterable[str] = ("subject", "body"),
         preview_only: bool = True,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         self._require_own_kind(campaign_id, "editing drafts in bulk")
         if not find:
@@ -582,11 +587,12 @@ class OutreachEngine:
                 str(current["id"]),
                 subject=subject,
                 body=body,
+                workspace_id=workspace_id,
             )
             changed += 1
             blocked += int(not updated["sendable"])
         if changed:
-            self.email_expert.memory.remember_bulk_rule(
+            self.expert_for_workspace(workspace_id).memory.remember_bulk_rule(
                 campaign_id=campaign_id,
                 find=find,
                 replace=replace,
@@ -638,6 +644,7 @@ class OutreachEngine:
         mail_provider: MailProvider,
         own_email: str,
         now: datetime | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, int]:
         now = now or utc_now()
         with self._lock:
@@ -652,7 +659,7 @@ class OutreachEngine:
                 matched += len(updated)
                 for campaign_contact_id in updated:
                     contact = self.store.get_campaign_contact(campaign_id, campaign_contact_id)
-                    self.email_expert.memory.remember_reply(
+                    self.expert_for_workspace(workspace_id).memory.remember_reply(
                         campaign_id=campaign_id,
                         campaign_contact_id=campaign_contact_id,
                         stage=str(contact.get("current_stage", "")),
@@ -685,6 +692,7 @@ class OutreachEngine:
         now: datetime | None = None,
         sync_replies_first: bool = True,
         max_messages: int | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         now = now or utc_now()
         with self._lock:
@@ -698,6 +706,7 @@ class OutreachEngine:
                     mail_provider=mail_provider,
                     own_email=own_email,
                     now=now,
+                    workspace_id=workspace_id,
                 )
             window = campaign_send_window(campaign, now)
             if not window["allowed"]:

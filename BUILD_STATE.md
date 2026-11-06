@@ -1,3 +1,14 @@
+## 2026-11-06 — Readiness regression fixed; explicit CRM ownership foundation
+
+- Full47efdad supported-Python suites each failed the existing mixed-routine durability assertion (3.12:3157 PASS/45 skipped/1 FAIL). D-402: metadata moved but trace files stayed local. Inventory now explicitly marks retained hosted files; readiness keeps Agent routines file durability unverified and meetings correctly hosted. Actual readiness/inventory12 PASS.
+- CRM tenancy read-only foundation: explicit versioned ownership manifest, current34-table graph, preservation of recorded owners, strict missing/duplicate/unknown/ambiguous choices, cross-workspace/template/membership checks and canonical source hash. Actual SQLite/PG consistent snapshots are read-only. Independent review D-403 RED2 fixed suppression scope/required reference validation. Combined ownership/readiness/inventory28 PASS. No applied migration, customer assignment, tenant isolation, queue reactivation or DONE claim.
+- Fresh Render connector review in owner-approved workspace: latest review failure remains Nov5 pipeline_minutes_exhausted; no later review build event. off_CRM/public/visitor/review services autoDeploy=no. Current remaining billing minutes not separately exposed/proven; no new Render build attempted and no infrastructure/customer/main change.
+
+## 2026-11-06 — Drafts full CI green; CRM tenancy readiness reviewed
+
+- Drafts/CLI ownership d06435a: complete CI42243010453 SUCCESS (all3 supported Python suites, PostgreSQL, quality), container42243010523 SUCCESS. Meeting/routine increment47efdad pushed; new full CI pending.
+- Cold CRM-tenancy design review identified obsolete automatic-local assignment (conflicts with owner),34 actual tables rather than31, raw SQL/shared-service bypasses, cross-root/uniqueness rules, queue/recall/privacy and inverse hazards. Revised architecture/work order before implementation. No tenancy migration or customer ownership assignment executed; global CRM isolation remains open and must not be claimed.
+
 ## 2026-11-06 — Meeting/routine hosted metadata increment verified locally
 
 - S-06.03.06: routine definitions/runs/notifications/leases and meeting transcripts/chunks now follow hosted SQL; local installations retain SQLite. Fresh scoped connection bridge preserves atomic claims/rollback/close; PostgreSQL locks bounded5s, epoch timestamps double precision and meeting counters64-bit. Raw audio remains absent; agent traces still files.

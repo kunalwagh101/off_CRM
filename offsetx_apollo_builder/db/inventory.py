@@ -29,6 +29,8 @@ class StoredThing:
     hosted: str
     #: The `app.state` attribute that opens it, if one does.
     service: str = ""
+    #: SQL metadata may move while this store still owns durable files.
+    retains_hosted_files: bool = False
 
     def claims(self, relative: str) -> bool:
         """Whether a path under the data folder belongs to this store."""
@@ -100,6 +102,7 @@ STORES: tuple[StoredThing, ...] = (
     StoredThing(
         "Agent routines", "routines and their runs", ("agent_routines.db*", "agent_traces/"),
         SQLITE + " and trace files", "hosted database — `S-06.03.06` (routines/runs/leases; trace files remain local)", "agent_routine_store",
+        retains_hosted_files=True,
     ),
     StoredThing(
         "Meeting transcripts", "uploaded meetings' transcripts", ("meeting_transcripts.db*",), SQLITE, "hosted database — `S-06.03.06`",

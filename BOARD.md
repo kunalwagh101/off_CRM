@@ -33,6 +33,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
   design: docs/architecture/CRM_TENANCY.md
+  work_order: docs/work-orders/S-06.01.06-crm-tenancy.md
   checkpoint: 2026-11-06 owner answered Q-27: isolate customers with workspace-owned CRM data. External decision blocker removed; implementation, explicit legacy ownership migration and complete route/worker/privacy isolation tests remain required. Do not assign existing records automatically.
 - S-06.02.69 · Image briefs, generated files and video handoff remain private to their workspace (A05)
   work_order: docs/work-orders/S-06.02.69-image-workspace-ownership.md

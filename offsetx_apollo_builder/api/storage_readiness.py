@@ -72,7 +72,7 @@ def describe_storage_readiness(settings: AppSettings) -> dict[str, Any]:
 
     stores = []
     for item in STORES:
-        if hosted and _hosted_database_store(item.hosted):
+        if hosted and _hosted_database_store(item.hosted) and not item.retains_hosted_files:
             durability = "hosted_database"
         elif item.name == "Operational logs":
             durability = "platform_retention_unverified"

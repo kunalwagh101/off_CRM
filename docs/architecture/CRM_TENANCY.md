@@ -1,8 +1,6 @@
 # CRM tenancy — campaigns, contacts and drafts that belong to a workspace
 
-**Status: design only, not built.** Build it only if the owner answers `Q-27`
-with option 2. Story: `S-06.01.06` (BLOCKED on `Q-27`). Defect it answers:
-`D-135`. Written 2026-09-23.
+**Status: owner authorised implementation; isolation not built yet.** Owner answered Q-27 on2026-11-06: workspace-owned CRM rows, isolate customers. Story S-06.01.06 is BACKLOG under the active production audit. No existing record may be assigned automatically. Defect D-135 remains open. This revision replaces the old auto-assignment rule before implementation.
 
 ## Why this exists
 
@@ -21,7 +19,7 @@ the missing tenancy; this design removes the need for it.
 migrates live rows. That class of decision is the owner's (`Q-27`), and nothing
 here is built before it is made.
 
-## The tables (`offsetx_apollo_builder/outreach/schema.py`, 31)
+## The tables (`offsetx_apollo_builder/outreach/schema.py`, 34)
 
 **Roots — each gets a `workspace_id`:**
 
@@ -55,8 +53,11 @@ second place to be wrong.
 ## The pieces
 
 1. **Schema and migration.** Each root gains
-   `workspace_id TEXT NOT NULL DEFAULT 'local'`: every existing row becomes the
-   install's own workspace, which is where the owner already works. Unique
+   an explicit workspace owner. Existing unowned rows stay quarantined until an
+   operator reviews a complete ownership manifest. Never default legacy rows to
+   `local`. Preserve ownership already recorded on sales, chat, memory, research
+   and audit rows. Refuse missing, invalid or ambiguous assignments before any
+   data change; retain a private archive and count/hash reconciliation. Unique
    constraints that mean "one per install" become "one per workspace" — for
    example a contact's email becomes unique per `(workspace_id, email)` —
    which in SQLite means rebuilding those tables inside the migration's
@@ -67,9 +68,7 @@ second place to be wrong.
    another workspace is "not found" (404), never "forbidden": existence is not
    leaked. The unscoped store stays for the owner's install-level jobs only
    (backup, migrations), and a test lists every call site that uses it.
-3. **The engine per request.** `_engine(request)` in `api/app.py` returns the
-   engine bound to `_workspace_id(request)`. Every CRM route already goes
-   through `_engine`; the scoping arrives with no route changing its shape.
+3. **All runtime consumers.** `_engine(request)` binds the authenticated workspace without mutating shared state. Scoping this factory alone is insufficient. AIChatService, SalesTracker, CRMInsights, CampaignRelationships, deliverability, privacy, idempotency and runtime callbacks also access raw SQL. Each must bind the same workspace and enforce root ownership; unscoped access needs an explicit install-operation allowlist. Preserve the existing caller marker until replacement tests pass.
 4. **Timers.** The email and content automations run for the install today.
    With tenancy they run per workspace: each workspace declares its own
    automation, and a cycle acts for each campaign's workspace, on that
@@ -98,7 +97,7 @@ second place to be wrong.
 
 ## Risks
 
-- **Breadth.** `OutreachStore` has about 90 methods. Missing one is a leak.
+- **Breadth.** `OutreachStore` has 101 methods including connection/transaction helpers. Missing one is a leak.
   The scoped view must be total: a test walks every public method and fails on
   one that does not scope — the same idea as `tests/test_api_boundary_contract.py`
   walking every route.
@@ -112,3 +111,14 @@ second place to be wrong.
 Per-workspace backups, billing, per-workspace sending limits beyond what an
 identity already has, and moving the CRM to PostgreSQL. `docs/architecture/POSTGRES.md`
 covers the store boundary that last one would use.
+
+
+## 2026-11-06 independent readiness review
+
+The current34-table inventory includes campaign_reply_triage, campaign_followup_tasks and campaign_sales_links; all inherit campaign ownership and must validate linked membership, draft and sales-lead roots. A contact linked to campaigns assigned to different workspaces is ambiguous: do not pick an owner or silently duplicate it. The explicit manifest must resolve the records and their dependent references. Owner `local` sees its own rows; an install-level all-customer browse is not implied.
+
+Contact identity_key and the partial case-insensitive email index must both permit the same prospect in distinct workspaces while refusing duplicates within one. Sending identity, consent, job/message/provider-event uniqueness and rate lanes require documented scope. Unsubscribes remain scoped to the relevant sender/workspace; reputation hard-bounce/complaint protections remain install-wide and cannot become readable customer records. Expert reference material must have an explicit private owner or a separately declared shared read-only library; no accidental global mutable library.
+
+Worker claims recover the campaign workspace before selecting identities, credentials, consent, templates or product context. Quarantined legacy jobs never execute. Timer configuration and scoped execution must agree. Recall rebuild must read only the target workspace; relabelling an unfiltered store's messages with the caller's workspace is prohibited. Privacy must find/export/delete only that workspace's root and derived records.
+
+Required matrix: fresh/legacy/mixed-owned SQLite and PostgreSQL; missing/ambiguous manifests; interrupted retry and exact archive restore; composite uniqueness and cross-root constraints; three sessions (alpha, beta, local) with list/search/count/export/guessed-ID/bulk/pagination; sales/relationships/analytics/discovery/chat/templates/memory/GTM/recall/audit; concurrent job claims/scoped unsubscribe/uncertain send; per-workspace timers and restart; same privacy identifier in two workspaces; complete backup/restore; raw-access allowlist and concurrent cross-workspace requests. An inverse must refuse after tenant data would conflict with the old global constraints. Recovery uses a verified snapshot, never merging or discarding customer rows.

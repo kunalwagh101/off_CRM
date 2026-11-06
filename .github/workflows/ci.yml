@@ -154,7 +154,7 @@ jobs:
       - name: Start isolated transaction-pooler acceptance target
         run: uv run python scripts/ci/start_test_pgbouncer.py
       - name: Prove PostgreSQL namespace isolation with direct and pooled connections
-        run: uv run pytest -q tests/test_postgres_namespaces.py
+        run: uv run pytest -q tests/test_postgres_namespaces.py tests/test_workspace_crm_registry_postgres.py
       - name: Storage tests against PostgreSQL
         run: >-
           uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py

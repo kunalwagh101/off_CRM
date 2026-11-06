@@ -9,6 +9,7 @@ from offsetx_apollo_builder.outreach.backup import (
 from offsetx_apollo_builder.outreach.engine import OutreachEngine
 from offsetx_apollo_builder.outreach.models import ContactInput
 from offsetx_apollo_builder.outreach.store import OutreachStore
+from offsetx_apollo_builder.outreach.workspace_registry import WorkspaceCrmRegistry
 
 
 @pytest.mark.crm_sqlite_only("Exercises full-root SQLite CRM files; PostgreSQL multi-schema recovery is covered separately")
@@ -56,4 +57,35 @@ def test_full_root_restores_two_private_crm_files_with_equal_emails(tmp_path):
             finally:
                 engine.close()
     finally:
+        discard_restore_safety(result)
+
+
+@pytest.mark.crm_sqlite_only('Actual routed SQLite root and books; PostgreSQL recovery has a separate gate')
+def test_routing_receipt_and_closed_legacy_views_survive_encrypted_restore(tmp_path):
+    def open_registry(data):
+        return WorkspaceCrmRegistry(root_target=str(data/'outreach.db'), data_dir=data,
+                                    known_workspaces=lambda: {'alpha', 'beta'})
+    data = tmp_path/'source'
+    registry = open_registry(data)
+    for workspace in ('alpha', 'beta'):
+        with registry.lease(workspace) as engine:
+            engine.create_campaign(name='Restored private '+workspace)
+    registry.close()
+    encrypted = create_encrypted_backup(database_path=data/'outreach.db', data_dir=data,
+                                        passphrase='disposable-registry-recovery')
+    assert validate_encrypted_backup(encrypted, passphrase='disposable-registry-recovery')
+    shutil.rmtree(data)
+    destination = tmp_path/'restored'
+    result = restore_encrypted_backup(encrypted, database_path=destination/'outreach.db',
+        data_dir=destination, passphrase='disposable-registry-recovery')
+    restored = None
+    try:
+        restored = open_registry(destination)
+        for workspace in ('alpha', 'beta'):
+            with restored.lease(workspace) as engine:
+                rows, count = engine.store.list_campaigns()
+                assert count == 1 and rows[0]['name'] == 'Restored private '+workspace
+    finally:
+        if restored:
+            restored.close()
         discard_restore_safety(result)

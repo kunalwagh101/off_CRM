@@ -1,3 +1,10 @@
+## 2026-11-07 — Leased native CRM registry verified; runtime activation still pending
+
+- b4ded78 full CI42302820197 and container42302820195 SUCCESS. No Render/main/customer deployment.
+- New outreach/workspace_registry.py binds authenticated known workspaces to complete native CRM books; transactional root routing, install/generation/owner markers, bounded idle-only eviction, active-operation close/restore refusal, concurrent first-access convergence and fail-closed legacy views. Empty installations only; nonempty legacy roots require the explicit manifest and are never assigned automatically.
+- Test-first D-411–D-415 and independent review closed lifecycle, split-search-path, missing control/book, cached ownership/file replacement, cleanup and incomplete backup-layout defects before runtime activation. SQLite roots must stay inside the data directory; newly created files0600/directories0700. Exact final command/evidence: docs/evidence/2026-11-07-workspace-crm-registry.md;33 PASS/6 local pooler skips (actual PostgreSQL, SQLite, encrypted restored registry, CI checks). Independent reviewer rerun18 registry PASS before final2 private/layout cases. CI now explicitly includes actual registry tests on the genuine transaction pooler; that new revision remains pending CI evidence.
+- This is not general CRM isolation: create_app/CLI/workers/service factories still use the legacy runtime. Full manifest archive/apply/quarantine, constructor/recovery lifecycle fencing, shared reputation/rate controls and restore draining remain required before activation. F-06.02/F-06.03/F-04.01 and S-06.01.06 remain open; tracker unchanged72 DONE/100 open.
+
 ## 2026-11-07 — Customer template persistence/race fixed; full72-story verifier green
 
 - Post-update22d2592 workflow42299365823 SUCCESS, including full board replay after S-06.02.18/S-06.02.26 evidence/status changes. Tracker remains72 DONE/open100; whole first-three areas remain open.

@@ -1,6 +1,6 @@
 # CRM tenancy — campaigns, contacts and drafts that belong to a workspace
 
-**Status: owner authorised implementation; isolation not built yet.** Owner answered Q-27 on2026-11-06: workspace-owned CRM rows, isolate customers. Story S-06.01.06 is BACKLOG under the active production audit. No existing record may be assigned automatically. Defect D-135 remains open. This revision replaces the old auto-assignment rule before implementation.
+**Status: owner authorised implementation; runtime isolation not activated.** Owner answered Q-27 on2026-11-06: workspace-owned CRM rows, isolate customers. Story S-06.01.06 remains open under the active production audit. No existing record may be assigned automatically. Defect D-135 remains open. The read-only ownership validator, optional PostgreSQL namespaces and leased native registry are implemented components. The registry is not yet connected to application requests. DD-160 selects native books after direct/pooler and encrypted recovery proofs; this revision replaces the earlier root-column/scoped-view implementation proposal.
 
 ## Why this exists
 
@@ -21,7 +21,7 @@ here is built before it is made.
 
 ## The tables (`offsetx_apollo_builder/outreach/schema.py`, 34)
 
-**Roots — each gets a `workspace_id`:**
+**Roots — each belongs to exactly one native workspace book:**
 
 | Root | Children that inherit it through their foreign key |
 |---|---|
@@ -38,73 +38,49 @@ here is built before it is made.
 | `idempotency_records` | — (the key becomes workspace + key) |
 | `provider_calls` | — (the audit becomes per workspace) |
 
-**Decide first — each a question for the owner once `Q-27` is option 2:**
+**Explicit migration classifications:**
 
 | Table | Why it is a decision |
 |---|---|
-| `email_suppressions` | An unsubscribe is from one sender, so per workspace. A hard bounce or a complaint protects the shared sending reputation, so install-wide. Likely answer: both kinds, scoped differently |
-| `expert_chunks` | Licensed reference notes may be the install's library, shared read-only, or each client's own |
+| `email_suppressions` | Unsubscribe stays sender/workspace scoped. Hard-bounce/complaint protection stays private and install-wide; neither a customer-readable global book nor a copied stale snapshot suffices. |
+| `expert_chunks` | Every mutable legacy reference row requires an explicit workspace owner. A separately declared shared read-only library is a future capability, not an automatic classification. |
 
-Children do **not** get their own column. They are reached through their root,
-and every store method that takes a child's id joins to the root and checks its
-workspace. One column per root is one place to be right. A child copy would be a
-second place to be wrong.
+Each book retains all34 tables, their native foreign keys and uniqueness constraints. Children and roots cannot refer to a different book through ordinary unqualified SQL. Existing workspace columns on memory, sales, research, chat and audits remain accurate and unchanged during migration. New operations must write the authenticated workspace there. Native partitioning supplements those existing checks. It does not authorize arbitrary SQL or cross-schema identifiers.
 
 ## The pieces
 
-1. **Schema and migration.** Each root gains
-   an explicit workspace owner. Existing unowned rows stay quarantined until an
-   operator reviews a complete ownership manifest. Never default legacy rows to
-   `local`. Preserve ownership already recorded on sales, chat, memory, research
-   and audit rows. Refuse missing, invalid or ambiguous assignments before any
-   data change; retain a private archive and count/hash reconciliation. Unique
-   constraints that mean "one per install" become "one per workspace" — for
-   example a contact's email becomes unique per `(workspace_id, email)` —
-   which in SQLite means rebuilding those tables inside the migration's
-   transaction. The migration has a written inverse, and the inverse is run
-   once on a copy of a real database before release (Definition of Done).
-2. **A scoped store.** `OutreachStore.scoped(workspace_id)` returns a view with
-   the same methods, each adding its root's `workspace_id = ?`. A row in
-   another workspace is "not found" (404), never "forbidden": existence is not
-   leaked. The unscoped store stays for the owner's install-level jobs only
-   (backup, migrations), and a test lists every call site that uses it.
+1. **Explicit migration and quarantine.** Existing unowned rows remain inaccessible to the new runtime until an operator supplies a complete ownership manifest. Never default legacy rows to `local`; preserve recorded owners. Reject missing, ambiguous or cross-root assignments before mutation. Archive the complete source privately, reconcile canonical source and destination counts/hashes and retain a guarded inverse. SQLite stages private book files durably before one root transaction publishes routing and closes legacy names. PostgreSQL can copy book schemas and publish routing in one database transaction. Uncertain or enabled external work requires explicit reconciliation/reactivation. Failed publication leaves the old source authoritative; leftover staging must be identified and safely retryable, never adopted by a normal request.
+2. **A leased native store.** `WorkspaceCrmRegistry.lease(workspace_id)` returns an actual `OutreachEngine` backed by that workspace's SQLite file or PostgreSQL schema. It does not rewrite SQL or expose an unscoped connection behind a facade. Targets derive from trusted workspace/install/generation identifiers. Native equal-email uniqueness remains per book. PostgreSQL uses `SET LOCAL search_path` inside every transaction with no public fallback; real transaction-pooler proof is required. Ready books never silently recreate missing storage. Missing/replaced control files and mismatched book identity fail closed. Only idle engines evict; active leases prevent close/restore. Foreign IDs return ordinary not-found results. Owner-only backup/migration interfaces have explicit unscoped access; no customer browsing is implied.
 3. **All runtime consumers.** `_engine(request)` binds the authenticated workspace without mutating shared state. Scoping this factory alone is insufficient. AIChatService, SalesTracker, CRMInsights, CampaignRelationships, deliverability, privacy, idempotency and runtime callbacks also access raw SQL. Each must bind the same workspace and enforce root ownership; unscoped access needs an explicit install-operation allowlist. Preserve the existing caller marker until replacement tests pass.
-4. **Timers.** The email and content automations run for the install today.
-   With tenancy they run per workspace: each workspace declares its own
-   automation, and a cycle acts for each campaign's workspace, on that
-   workspace's keys. *(Decide: are automation settings per workspace, or the
-   owner's for all?)*
+4. **Timers and shared controls.** The email and content automations currently run for the install. Scoped settings and cycles must resolve a workspace before selecting its campaigns, credentials or approval. Do not implicitly reactivate imported queues. Enumerating workspace IDs for an install worker does not authorize an unscoped CRM read. Private install-wide bounce/complaint and account-rate controls remain effective across books, with idempotency and conservative uncertain-action handling; customers cannot enumerate them. Cross-file writes require explicit failure/concurrency proof rather than an assumed shared transaction.
 5. **GTM.** A campaign link must be in the campaign's own workspace — enforced
    when linking. The draft writer then reads the campaign's own workspace's
-   product, and the caller marker (DD-60) can be deleted.
+   product. Keep the caller marker (DD-60) until the full replacement isolation matrix proves it redundant.
 6. **Privacy.** A subject-access or deletion request (`S-06.02.04`) comes from
    one client's customer, so the privacy inventory runs inside one workspace.
 7. **Backups stay whole-install and owner-only** (`D-124`). A per-workspace
    export is a separate story, not part of this one.
-8. **The owner's view.** The owner signs in as `local` and sees `local`'s
-   rows. *(Decide: does the owner need an all-workspaces view? If yes, it is
-   an admin screen of its own, not an unscoped store behind every route.)*
+8. **The owner's view.** The owner signs in as `local` and sees `local`'s rows. An all-workspaces browse is outside this authorisation. Install recovery/privacy operations require explicit target scope and existing admin authorization.
+9. **Recovery lifecycle.** Drain and close every registry/service before swapping data, then reopen from verified routing. Constructors must participate in startup/recovery fencing. SQLite books and control must stay inside `OFFSETX_DATA_DIR`; the current registry refuses an external root whose sibling book files would escape recursive backup. PostgreSQL dump/restore includes every native schema. A restored generation must not blindly repeat external actions or revive deleted data; demonstrate reconciliation/pause behavior before release.
 
 ## Build order — each phase a vertical slice, green before the next
 
 | Phase | Delivers | Proof |
 |---|---|---|
-| 1 | Schema, migration and its inverse; no behaviour change | migration forward and back on a copy of a real database; the full suite unchanged |
-| 2 | Campaigns, contacts, drafts and templates scoped per request | a two-workspace test per route, built like `tests/test_workspace_isolation.py::_two_workspaces_and_a_shared_campaign`; a row in the other workspace is 404 |
-| 3 | Deliverability, sales, AI chats, research, memory, provider audit | the same two-workspace pattern, per table |
-| 4 | Timers per workspace; the GTM link rule; the caller marker removed | a timer cycle touches only its own workspace; `D-125`'s tests still pass without the marker |
-| 5 | Privacy inventory per workspace | subject access in one workspace finds nothing of another's |
+| 1 | Read-only ownership, native transport, pooler and recovery proofs | consistent source hash; same-email/native-key isolation; real pooler reset; encrypted whole-root/multi-schema restore |
+| 2 | Leased registry component, not default runtime activation | missing/foreign/replaced storage, concurrent initialization, eviction/restart, active lease and recovery errors |
+| 3 | Manifest archive/apply/quarantine and guarded inverse | exact rows/hashes, failure before/after publish, retry and inverse on a real database copy |
+| 4 | All request/service/worker factories and shared controls | authenticated alpha/beta/local route/SQL/send/privacy matrix; cross-book reputation/rate and uncertain-action tests |
+| 5 | Complete supported runtime activation and recovery | full SQLite/PG/Python/frontend/real browser/security checks; drained restore; independent acceptance; no dependency bypass |
 
 ## Risks
 
-- **Breadth.** `OutreachStore` has 101 methods including connection/transaction helpers. Missing one is a leak.
-  The scoped view must be total: a test walks every public method and fails on
-  one that does not scope — the same idea as `tests/test_api_boundary_contract.py`
-  walking every route.
+- **Breadth.** The native book covers ordinary store queries and raw SQL together, but a single service using the old singleton can still leak. Audit every engine/store/service/worker factory and allowlist only explicit install operations. Do not activate a partial factory conversion.
 - **Uniqueness.** Two clients can share a prospect. Merging those rows would
   leak one client's notes to the other, so they stay two rows by design.
 - **Migration on live data.** The migration's inverse must be run on a real
   copy before release, not only written down.
+- **Database roles.** Native PostgreSQL schemas isolate supported application operations, not malicious arbitrary SQL under one shared role. Customer inputs cannot select targets, schemas or qualified relations. Database-per-customer credentials would be a separate deployment model.
 
 ## Not in scope
 

@@ -189,7 +189,30 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
         with psycopg.connect(named(source_name)) as conn:
             conn.execute("CREATE TABLE test_customer (workspace TEXT NOT NULL, n INTEGER NOT NULL)")
             conn.execute("INSERT INTO test_customer VALUES ('alpha', 1), ('beta', 2)")
+            for namespace in ("crm_ws_alpha", "crm_ws_beta"):
+                conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(namespace)))
             conn.commit()
+
+        from cryptography.fernet import Fernet
+        from offsetx_apollo_builder.db.hosted import HostedStorage
+        from offsetx_apollo_builder.outreach.engine import OutreachEngine
+        from offsetx_apollo_builder.outreach.models import ContactInput
+        master_key = Fernet.generate_key().decode()
+        with_owner = HostedStorage(named(source_name), master_key)
+        try:
+            with_owner.claim_install(os.environ["OFFSETX_INSTALL_ID"])
+            with_owner.write("test.shared-control", "reputation-protection")
+        finally:
+            with_owner.close()
+        for workspace in ("alpha", "beta"):
+            engine = OutreachEngine(named(source_name), workspace_id=workspace,
+                                    storage_namespace="crm_ws_" + workspace)
+            try:
+                campaign = engine.create_campaign(name="PRIVATE " + workspace)
+                engine.store.create_manual_campaign_contact(campaign, ContactInput(
+                    full_name="Anita Rao", email="same@example.com", company="Example Exports", category="CBAM"))
+            finally:
+                engine.close()
 
         store = FakeS3()
         result = backup.export_to_s3(named(source_name), bucket="backups-private",
@@ -227,6 +250,22 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             assert conn.execute("SELECT workspace, n FROM test_customer ORDER BY n").fetchall() == [
                 ("alpha", 1), ("beta", 2),
             ]
+        for workspace in ("alpha", "beta"):
+            assert restored[json.dumps(["crm_ws_" + workspace, "campaigns"], separators=(",", ":"))] == 1
+            engine = OutreachEngine(named(destination_name), workspace_id=workspace,
+                                    storage_namespace="crm_ws_" + workspace)
+            try:
+                campaigns, total = engine.store.list_campaigns()
+                assert total == 1 and campaigns[0]["name"] == "PRIVATE " + workspace
+                assert engine.store.campaign_contacts(campaigns[0]["id"])[0]["email"] == "same@example.com"
+            finally:
+                engine.close()
+        restored_owner = HostedStorage(named(destination_name), master_key)
+        try:
+            restored_owner.claim_install(os.environ["OFFSETX_INSTALL_ID"])
+            assert restored_owner.read("test.shared-control") == "reputation-protection"
+        finally:
+            restored_owner.close()
         with pytest.raises(backup.HostedBackupError, match="not empty"):
             backup.restore_to_empty_postgres(encrypted, named(destination_name), key=backup_key)
     finally:

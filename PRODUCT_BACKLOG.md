@@ -1622,6 +1622,8 @@ verifier can execute before any story is certified DONE.
   making the private production repository public to obtain free hosted
   minutes, or silently switching to an untrusted runner.
 
+**2026-11-07 evidence qualification:** the private-repository premise is historical. The connector reported the repository already public before this work, and visibility was not changed here. Complete actual hosted runs establish capacity in that current state; no private-repository billing recovery or account-wide capacity guarantee is claimed. See docs/evidence/2026-11-07-ci-capacity-python-matrix.md.
+
 #### S-06.02.19 — One working branch holds everything built, and it is green
 **As an** owner, **I want** one branch that carries every piece of work that was
 built — and nothing that was not — with its whole suite passing, **so that**

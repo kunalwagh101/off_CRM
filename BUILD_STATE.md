@@ -1,3 +1,10 @@
+## 2026-11-07 — Full CI/pooler green; two CI stories closed with bounded claims
+
+- Exact450165b workflow42250598322 SUCCESS: Python3.10/3.11/3.12 each3176 PASS/54 skipped; PG focused215 PASS, full3225 PASS/74 skipped; real PgBouncer1.22 transaction/one-backend/reset namespace9 PASS; quality prior70 board commands/frontend234/build PASS. Container42250598201 SUCCESS. All logs retrieved; no skips claimed as actual pooler evidence.
+- S-06.02.18 and S-06.02.26 moved DONE after independent readiness review, actual external execution, local static/verifier64 PASS and complete evidence blocks. Current repository was already public; no visibility change or private-repository billing recovery claimed. Full post-update board verifier still must execute in CI. Detailed evidence docs/evidence/2026-11-07-ci-capacity-python-matrix.md.
+- Extended recovery verification: actual PG16.15 pg_dump/pg_restore from our disposable container via test-only wrappers restricted to loopback55432, encrypted full dump/object-copy/empty-target restore includes alpha/beta actual CRM schemas, equal-email contacts and install/shared documents:8 PASS. Complete-root SQLite encrypted restore of two customer files/memory:1 PASS. Combined ownership/namespace/recovery30 PASS/4 pooler skips locally. Real private S3 identity/offsite drill still absent; test object store is not live S3 proof.
+- Tracker now72 DONE/73 IN_REVIEW/1 IN_PROGRESS/22 BACKLOG/4 BLOCKED, open100 (=81 stories+19 direct features). First priority reliability open stories49; hosted5; agent-team4. Whole features remain open; no customer/main/paid-resource change.
+
 ## 2026-11-06 — Complete memory entrypoints scoped; namespace/pooler proof prepared
 
 - D-406 memory routes/learning writes were still local-scoped after generation fix. Actual API RED1; local/alpha/beta list/stats/create/foreign-ID approval/body override/feedback/edit/bulk/reply tests now pass. Received mail body never becomes memory. Sending-triggered reply sync receives authenticated scope. D-407 actual PG backend-label RED1 fixed. Broad affected bundle153 PASS; latest all-CRM-on-PG23 PASS/4 unavailable-pooler skips.

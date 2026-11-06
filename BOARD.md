@@ -162,9 +162,6 @@ next day, `AGENTS.md` "Logging".)*
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
-- S-06.02.26 · CI runs the suite on every Python the package supports
-  work_order: docs/work-orders/S-06.02.26-python-matrix.md
-
 ## READY
 
 
@@ -199,9 +196,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   checkpoint: 2026-11-05 A05 audit API recheck 3 PASS on source 94fa650. Exact-source isolated Render dep-dblr106i0phs7385jao0 LIVE 2026-11-04 22:44:20 UTC: full SQLite 3,015 PASS/56 skipped; full real PostgreSQL 3,039 PASS/101 skipped, focused PG 215 PASS; frontend, Chromium and static/security gates PASS. Full Git-history verifier, per-user roles, CRM tenancy Q-27, independent penetration, wider audit and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout. 2026-11-05 A24 owner-authority recheck: TDD RED 4 expected fail, GREEN 5 PASS; exact-source isolated Render dep-dbm3oj8ae00c7389h7d0 LIVE on 4117704 with SQLite 3,032/57 skipped, full PG 3,057/101 skipped, Chromium/static/security PASS. Entire A24 cross-store retention/restore still OPEN. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md.  2026-11-05 A05 video workspace ID/asset isolation TDD RED 4 expected fail, final source 246741b isolated Render dep-dbm4lgrbc2fs738acn6g LIVE 2026-11-05 09:43:42 UTC: A05 4 PASS, SQLite 3,036 PASS, real PG 3,061 PASS, Chromium/static/security PASS. A05 full per-user roles, Q-27 CRM tenancy, independent penetration and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-video-workspace-isolation.md. 2026-11-05 A05 image ownership mitigation built ahead as S-06.02.69: source SQL/engine/API code committed and 9 synthetic cookie-session tests written. Isolated Render dep-dbm5af95efls73chr69g canceled before tests, no RED/GREEN, due exhausted build pipeline minutes. Full A05 and Q-27 remain OPEN; docs/evidence/2026-11-05-a05-image-workspace-isolation.md.
 
 ## IN_REVIEW
-
-- S-06.02.18 · Restore executable CI runner capacity
-  review: 2026-11-06 fresh GitHub run 42120555626 allocated ubuntu-latest runners and executed both jobs: quality 3,114 Python tests PASS; PostgreSQL focused 215 PASS, full 3,141 PASS/1 restore FAIL. Prior zero-step capacity blocker is no longer current. Pipeline corrected at 62f60da/4eaca8f: run 42185594224 both jobs SUCCESS, whole SQLite 3,114 PASS, whole PG 3,142 PASS, all 70 evidence commands PASS, frontend 223 PASS/build PASS. Production container run 42187777222 SUCCESS on e6105bd. Audit S-06.02.23 still IN_PROGRESS. Evidence docs/audits/2026-11-06-backlog-render-ci-local.md.
 
 - S-06.02.65 · Reject malformed nested video edits without partial writes (A22)
   work_order: docs/work-orders/S-06.02.65-video-edit-input.md
@@ -486,6 +480,24 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.18 · Restore executable CI runner capacity
+  work_order: docs/work-orders/S-06.02.18-ci-runner-capacity.md
+  tests: tests/test_supported_pythons.py, tests/test_verify_board.py
+  command: uv run pytest tests/test_supported_pythons.py tests/test_verify_board.py -q
+  result: Local64 PASS; exact-source GitHub42250598322 all5 hosted jobs SUCCESS, Python3.10/3.11/3.12 each3176 PASS, PostgreSQL3225 PASS, all70 prior board commands/frontend234/build PASS. Independent CI-only readiness review passed. Current public-repository capacity only; private billing recovery not certified.
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/42250598322 ; container42250598201 SUCCESS. Repository was already public; no visibility/billing/self-hosted/customer/main change made. Render cancellation is not evidence. docs/evidence/2026-11-07-ci-capacity-python-matrix.md.
+  code: .github/workflows/ci.yml, tests/test_supported_pythons.py
+  commit: 450165b020225d5409356f63f3f42cee252dab62
+
+- S-06.02.26 · CI runs the suite on every Python the package supports
+  work_order: docs/work-orders/S-06.02.26-python-matrix.md
+  tests: tests/test_supported_pythons.py
+  command: uv run pytest tests/test_supported_pythons.py -q
+  result: Static version/gate tests2 PASS; exact-source42250598322 Python3.10/3.11/3.12 each3176 PASS/54 skipped. Locked explicit interpreters, fail-fast false and no allowed failures. Dependency S-06.02.18 DONE; independent review passed. Wider product audit remains open.
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/42250598322 ; job logs128004335497/128004335376/128004335602 retrieved. docs/evidence/2026-11-07-ci-capacity-python-matrix.md.
+  code: .github/workflows/ci.yml, tests/test_supported_pythons.py, offsetx_apollo_builder/api/video_upload_guard.py
+  commit: 450165b020225d5409356f63f3f42cee252dab62
 
 - S-06.03.03 · The CRM lives in the hosted database
   work_order: docs/work-orders/S-06.03.03-crm-hosted.md

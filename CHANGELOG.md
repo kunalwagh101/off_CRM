@@ -1,3 +1,9 @@
+## 2026-11-07 — CI capabilities verified; namespace recovery checks extended (unreleased)
+
+- Closed current-state runner capacity and the supported-Python matrix with actual complete hosted execution and independent review. Current repository was already public; private billing recovery is not claimed and visibility was not changed.
+- Verified encrypted local PostgreSQL16 dump/restore containing two real CRM namespaces, same-email customer records, shared controls and install identity. Verified complete-root SQLite restore containing two private CRM files and memory. Object transport in these checks is a test store; real private S3/offsite recovery remains open.
+- Whole first-three feature areas, runtime customer cutover, remaining storage and live-provider/penetration release gates remain open. No customer/main deployment.
+
 ## 2026-11-06 — Drafts, hosted meeting/routine state and ownership safeguards (unreleased)
 
 - Drafts uses workspace Connectors and the existing trust/scanner/quota/egress boundary. Local templates remain available; explicit legacy profile/strategy requests receive migration guidance. Historical profiles and drafts remain intact.

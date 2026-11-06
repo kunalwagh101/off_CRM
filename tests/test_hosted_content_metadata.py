@@ -40,6 +40,9 @@ def test_image_posting_and_trend_metadata_survive_removal_of_ephemeral_disk(
     settings = configure(tmp_path, monkeypatch)
     first = create_app(settings)
     with TestClient(first):
+        routine = first.state.agent_routine_store.create(workspace_id="alpha", name="Evidence",
+            goal="Read public evidence", target_url="https://example.com", trigger_type="event", event_name="evidence.ready")
+        meeting = first.state.meeting_store.create(workspace_id="alpha", title="Supplier evidence")
         brief = first.state.image_store.create_brief(
             campaign_id="campaign",
             brief="A private illustration",
@@ -69,6 +72,8 @@ def test_image_posting_and_trend_metadata_survive_removal_of_ephemeral_disk(
     shutil.rmtree(settings.data_dir)
     second = create_app(settings)
     with TestClient(second):
+        assert second.state.agent_routine_store.require(routine.id, workspace_id="alpha").name == "Evidence"
+        assert second.state.meeting_store.require(meeting["id"], workspace_id="alpha")["title"] == "Supplier evidence"
         assert (
             second.state.image_store.get_brief(brief)["brief"]
             == "A private illustration"
@@ -88,11 +93,11 @@ def test_image_posting_and_trend_metadata_survive_removal_of_ephemeral_disk(
             assert watcher.watched()[0]["channel_id"] == "source-a"
         finally:
             watcher.close()
-        for filename in ("imagery.db", "distribution.db", "trends.db"):
+        for filename in ("imagery.db", "distribution.db", "trends.db", "agent_routines.db", "meeting_transcripts.db"):
             assert not (settings.data_dir / filename).exists()
 
 
-@pytest.mark.parametrize("filename", ["imagery.db", "distribution.db", "trends.db"])
+@pytest.mark.parametrize("filename", ["imagery.db", "distribution.db", "trends.db", "agent_routines.db", "meeting_transcripts.db"])
 def test_hosted_boot_refuses_to_hide_existing_local_content_files(
     tmp_path, monkeypatch, filename
 ):

@@ -227,8 +227,8 @@ are wiped — so the owner's numbers are still to be taken.
 | Template results | what each template sent and how it did | SQLite file | hosted database — `S-06.03.06` (AI context) |
 | Sent-mail recall | the index of sent mail drafts learn from | SQLite file | not decided — `S-06.03.06` |
 | Tools and companions | registered tools and companion profiles | SQLite file | partial: companion profiles and procedures on hosted SQL; tool pins and runs still local — `S-06.03.06` |
-| Agent routines | routines and their runs | SQLite file and trace files | not decided — `S-06.03.06` |
-| Meeting transcripts | uploaded meetings' transcripts | SQLite file | not decided — `S-06.03.06` |
+| Agent routines | routines and their runs | SQLite file and trace files | hosted database — `S-06.03.06` (routines/runs/leases; trace files remain local) |
+| Meeting transcripts | uploaded meetings' transcripts | SQLite file | hosted database — `S-06.03.06` |
 | Imagery | generated pictures' records | SQLite file | hosted database — `S-06.03.06` (metadata; picture bytes remain files) |
 | Posts | scheduled and sent posts' records | SQLite file | hosted database — `S-06.03.06` (post metadata; outbox bytes remain files) |
 | Trends | trend snapshots the content engine reads | SQLite file | hosted database — `S-06.03.06` (trend metadata) |
@@ -370,3 +370,9 @@ Image/post/trend metadata now follows the hosted database. Existing local metada
 
 
 Workers and CRM command-line tools enforce the same install claim against the database they actually select. A worker using an explicit PostgreSQL `--database` still requires the stable `OFFSETX_INSTALL_ID` and `OFFSETX_SECRETS_KEY`; an environment database does not authorise a different override target. Unsupported hosted production topology remains refused until all state and recovery gates pass.
+
+
+Meeting transcripts/chunks and routine definitions/runs/notifications/leases now follow hosted SQL. Existing local databases require the same private archive-first migration with `offsetx-db import-content --kind meetings` or `--kind routines`, explicit `--source`, `--archive` and `--yes`. Startup refuses nonempty local state until cutover. Exact-row reconciliation and source cleanup apply as for content metadata. Routine epoch values use double precision; byte counters use 64-bit integers. Privacy inventory/deletion receives each store's actual target. Agent trace files, privacy request/artifact files and media/outboxes still need durable homes; this is not full hosted-production acceptance.
+
+
+Content metadata imports enforce the target's install UUID as well as its master key. Stop app/workers before cutover. Enabled routine imports are refused unless the operator first disables them locally or separately passes `--reactivate-routines`; that flag explicitly authorises overdue scheduled work to resume after hosted startup. A mismatched install or missing reactivation decision leaves source rows intact. Archives remain private and exact.

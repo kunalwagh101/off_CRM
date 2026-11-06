@@ -24,6 +24,8 @@ from .ai.context import ContextLayer
 from .ai.log import EgressLog
 from .ai.recall import SentMailIndex
 from .outreach.store import OutreachStore
+from .db import is_postgres_url
+from .db.store_connection import StoreConnection
 
 DELETE_CONFIRMATION = "DELETE SUBJECT DATA"
 MAX_TRACE_BYTES = 10 * 1024 * 1024
@@ -688,17 +690,15 @@ class AgentRoutinePrivacyAdapter:
     name = "agent_routines"
 
     def __init__(self, path: Path | str) -> None:
-        self.path = Path(path)
+        self.target = str(path)
+        self.path = None if is_postgres_url(self.target) else Path(path)
 
-    def _connection(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=5)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout=5000")
-        return connection
+    def _connection(self) -> StoreConnection:
+        return StoreConnection(self.target)
 
     def _matches(self, subject: SubjectIdentity) -> dict[str, list[dict[str, Any]]]:
         empty = {"routines": [], "runs": [], "notifications": []}
-        if not self.path.exists():
+        if self.path is not None and not self.path.exists():
             return empty
         clauses = {
             "routines": _token_clause(("name", "goal", "target_url", "event_name"), subject),
@@ -761,7 +761,6 @@ class AgentRoutinePrivacyAdapter:
         notification_ids = {str(row["id"]) for row in matches["notifications"]}
 
         connection = self._connection()
-        connection.isolation_level = None
         try:
             connection.execute("BEGIN IMMEDIATE")
             # A matching routine owns its history/notifications; remove the
@@ -900,18 +899,17 @@ class MeetingTranscriptPrivacyAdapter:
     name = "meeting_transcripts"
 
     def __init__(self, path: Path | str) -> None:
-        self.path = Path(path)
+        self.target = str(path)
+        self.path = None if is_postgres_url(self.target) else Path(path)
 
     def _meeting_ids(self, subject: SubjectIdentity) -> set[str]:
-        if not self.path.exists():
+        if self.path is not None and not self.path.exists():
             return set()
         meeting_clause, meeting_params = _token_clause(("title", "transcript"), subject)
         chunk_clause, chunk_params = _token_clause(("transcript", "error"), subject)
         if not meeting_clause and not chunk_clause:
             return set()
-        connection = sqlite3.connect(self.path, timeout=5)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA busy_timeout=5000")
+        connection = StoreConnection(self.target)
         try:
             ids: set[str] = set()
             try:
@@ -958,9 +956,8 @@ class MeetingTranscriptPrivacyAdapter:
         ids = sorted(self._meeting_ids(subject))
         if not ids:
             return {"meeting_transcripts": 0}
-        connection = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+        connection = StoreConnection(self.target)
         try:
-            connection.execute("PRAGMA busy_timeout=5000")
             connection.execute("BEGIN IMMEDIATE")
             placeholders = _placeholders(ids)
             connection.execute(
@@ -1658,6 +1655,8 @@ class PrivacyService:
         ai_egress: EgressLog | None = None,
         export_dir: Path | str | None = None,
         workspace_accounts: Any = None,
+        routine_target: Path | str | None = None,
+        meeting_target: Path | str | None = None,
     ) -> "PrivacyService":
         root = Path(data_dir)
         owned: list[Any] = []
@@ -1683,9 +1682,9 @@ class PrivacyService:
                 (root, Path(export_dir)) if export_dir is not None else (root,)
             ),
             CompanionProfilePrivacyAdapter(root / "ai_tools.db"),
-            AgentRoutinePrivacyAdapter(root / "agent_routines.db"),
+            AgentRoutinePrivacyAdapter(routine_target if routine_target is not None else root / "agent_routines.db"),
             WorkspaceAccountPrivacyAdapter(root / "workspace_auth.db", workspace_accounts),
-            MeetingTranscriptPrivacyAdapter(root / "meeting_transcripts.db"),
+            MeetingTranscriptPrivacyAdapter(meeting_target if meeting_target is not None else root / "meeting_transcripts.db"),
             CrawlerPrivacyAdapter(root / "crawler_frontier.sqlite3"),
             TracePrivacyAdapter(root),
             # Deliberately last. Once CRM ids are gone, redacted recall rows

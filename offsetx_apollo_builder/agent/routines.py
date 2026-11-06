@@ -15,7 +15,6 @@ import asyncio
 import json
 import os
 import re
-import sqlite3
 import subprocess
 import tempfile
 import time
@@ -27,6 +26,9 @@ from urllib.parse import urlsplit
 
 from ..ai import DataClass, EgressBroker
 from ..observability import failure_boundary, failure_message, failure_scope
+from ..db import open_database, is_postgres_url
+from ..db.schema import ensure_initial_sql_schema
+from ..db.store_connection import StoreConnection
 from ..ai.workspace import WorkspaceAISettingsStore
 from ..browser.box import BrowserBox
 from ..browser.page import Page
@@ -56,9 +58,9 @@ CREATE TABLE IF NOT EXISTS agent_routines (
     event_name TEXT NOT NULL DEFAULT '',
     step_budget INTEGER NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
-    next_due_at REAL NOT NULL DEFAULT 0,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL
+    next_due_at DOUBLE PRECISION NOT NULL DEFAULT 0,
+    created_at DOUBLE PRECISION NOT NULL,
+    updated_at DOUBLE PRECISION NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_routines_name
     ON agent_routines(workspace_id, lower(name));
@@ -74,8 +76,8 @@ CREATE TABLE IF NOT EXISTS agent_routine_runs (
     agent_run_id TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
-    started_at REAL NOT NULL,
-    finished_at REAL,
+    started_at DOUBLE PRECISION NOT NULL,
+    finished_at DOUBLE PRECISION,
     UNIQUE(routine_id, trigger_key)
 );
 CREATE INDEX IF NOT EXISTS ix_agent_routine_runs_workspace
@@ -87,8 +89,8 @@ CREATE TABLE IF NOT EXISTS agent_routine_notifications (
     routine_run_id TEXT NOT NULL UNIQUE,
     workspace_id TEXT NOT NULL,
     summary TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    read_at REAL
+    created_at DOUBLE PRECISION NOT NULL,
+    read_at DOUBLE PRECISION
 );
 CREATE INDEX IF NOT EXISTS ix_agent_routine_notifications_workspace
     ON agent_routine_notifications(workspace_id, created_at DESC);
@@ -96,7 +98,7 @@ CREATE INDEX IF NOT EXISTS ix_agent_routine_notifications_workspace
 CREATE TABLE IF NOT EXISTS agent_routine_workspace_leases (
     workspace_id TEXT PRIMARY KEY,
     owner TEXT NOT NULL,
-    expires_at REAL NOT NULL
+    expires_at DOUBLE PRECISION NOT NULL
 );
 """
 
@@ -194,20 +196,21 @@ Notifier = Callable[[Routine, RoutineExecution], Awaitable[None] | None]
 
 class RoutineStore:
     def __init__(self, path: Path | str) -> None:
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.connection() as conn:
-            conn.executescript(SCHEMA)
-        try:
-            self.path.chmod(0o600)
-        except OSError:
-            pass
+        self.target = str(path)
+        self.path = None if is_postgres_url(self.target) else Path(path)
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open_database(self.target) as database:
+            self.integrity_error = database.integrity_error
+            ensure_initial_sql_schema(database, "routines", SCHEMA)
+        if self.path is not None:
+            try:
+                self.path.chmod(0o600)
+            except OSError:
+                pass
 
-    def connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=5)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
+    def connection(self) -> StoreConnection:
+        return StoreConnection(self.target)
 
     @staticmethod
     def _workspace(value: str) -> str:
@@ -328,7 +331,7 @@ class RoutineStore:
                         next_due, timestamp, timestamp,
                     ),
                 )
-        except sqlite3.IntegrityError as exc:
+        except self.integrity_error as exc:
             raise RoutineError(
                 f"A routine named {routine_name!r} already exists in this workspace"
             ) from exc
@@ -481,7 +484,7 @@ class RoutineStore:
                         str(trigger_key), str(trigger_type), timestamp,
                     ),
                 )
-        except sqlite3.IntegrityError:
+        except self.integrity_error:
             # Replayed event delivery / duplicate scheduler claim: already owned.
             return None
         return identifier

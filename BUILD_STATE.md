@@ -1,3 +1,10 @@
+## 2026-11-06 — Meeting/routine hosted metadata increment verified locally
+
+- S-06.03.06: routine definitions/runs/notifications/leases and meeting transcripts/chunks now follow hosted SQL; local installations retain SQLite. Fresh scoped connection bridge preserves atomic claims/rollback/close; PostgreSQL locks bounded5s, epoch timestamps double precision and meeting counters64-bit. Raw audio remains absent; agent traces still files.
+- Actual PostgreSQL table checks RED2, app restart/legacy guard RED3, hosted privacy inventory RED1. Privacy adapters now receive actual targets and preserve workspace deletion boundaries. Archive-first import-content adds routines/meetings. Independent review found foreign-install cutover and stale enabled routine activation; actual CLI RED2 fixed with target install claim and explicit --reactivate-routines choice (or disable locally). No customer migration/reactivation executed.
+- Final affected actual-PG/SQLite/privacy/lifecycle/import/inventory86 PASS; independent importer fix review14 PASS; static checks/structural board verifier PASS. Full source CI still required. Drafts commitd06435a remote run42243010453: all3 supported-Python suites and PostgreSQL SUCCESS; quality still running at this checkpoint. Container42243010523 SUCCESS. Earlier local whole-suite run:3134 PASS/38 skipped/20 failures =13 known managed Chromium policy failures plus7 historical profile expectations subsequently corrected (28 isolation tests PASS). Do not describe that local run as green.
+- Whole first-three feature areas remain open: CRM customer tenancy, remaining durable homes, configured offsite recovery, live-provider/platform verification and penetration acceptance. No board DONE promotion/main/customer deployment.
+
 ## 2026-11-06 — Drafts Connectors and CLI ownership follow-up underway
 
 - Committed content/Agent Team increment9c7963d passed complete workflow42216714917 and container42216715038. No customer deployment or main promotion.

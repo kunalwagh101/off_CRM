@@ -99,10 +99,10 @@ STORES: tuple[StoredThing, ...] = (
     ),
     StoredThing(
         "Agent routines", "routines and their runs", ("agent_routines.db*", "agent_traces/"),
-        SQLITE + " and trace files", LATER, "agent_routine_store",
+        SQLITE + " and trace files", "hosted database — `S-06.03.06` (routines/runs/leases; trace files remain local)", "agent_routine_store",
     ),
     StoredThing(
-        "Meeting transcripts", "uploaded meetings' transcripts", ("meeting_transcripts.db*",), SQLITE, LATER,
+        "Meeting transcripts", "uploaded meetings' transcripts", ("meeting_transcripts.db*",), SQLITE, "hosted database — `S-06.03.06`",
         "meeting_store",
     ),
     StoredThing(

@@ -385,7 +385,8 @@ def _cmd_import_content(args: argparse.Namespace) -> int:
         hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
         if hosted is None:
             raise ValueError("Configure the hosted database and install secrets key first")
-        counts = import_content(Path(args.source), hosted, Path(args.archive), kind=args.kind)
+        counts = import_content(Path(args.source), hosted, Path(args.archive), kind=args.kind,
+                                reactivate_routines=args.reactivate_routines)
         print("Content rows reconciled: " + str(sum(counts.values())) + "; private archive retained.")
         return 0
     except ContentImportError as exc:
@@ -648,10 +649,12 @@ def main(argv: list[str] | None = None) -> int:
     context.set_defaults(func=_cmd_import_context)
 
     content_import = sub.add_parser("import-content", help="archive and migrate local content metadata")
-    content_import.add_argument("--kind", choices=("imagery", "distribution", "trends"), required=True)
+    content_import.add_argument("--kind", choices=("imagery", "distribution", "trends", "routines", "meetings"), required=True)
     content_import.add_argument("--source", required=True)
     content_import.add_argument("--archive", required=True)
     content_import.add_argument("--yes", action="store_true")
+    content_import.add_argument("--reactivate-routines", action="store_true",
+                                help="explicitly authorise imported enabled routines to run when hosted workers start")
     content_import.set_defaults(func=_cmd_import_content)
 
     companion_import = sub.add_parser(

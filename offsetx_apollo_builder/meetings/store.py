@@ -4,11 +4,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
+from ..db import open_database, is_postgres_url
+from ..db.schema import ensure_initial_sql_schema
+from ..db.store_connection import StoreConnection
 from ..outreach.models import to_utc_iso
 
 
@@ -26,8 +28,8 @@ CREATE TABLE IF NOT EXISTS meetings (
     model_id TEXT NOT NULL DEFAULT '',
     language TEXT NOT NULL DEFAULT '',
     transcript TEXT NOT NULL DEFAULT '',
-    chunk_count INTEGER NOT NULL DEFAULT 0,
-    audio_bytes INTEGER NOT NULL DEFAULT 0,
+    chunk_count BIGINT NOT NULL DEFAULT 0,
+    audio_bytes BIGINT NOT NULL DEFAULT 0,
     started_at TEXT NOT NULL,
     ended_at TEXT,
     created_at TEXT NOT NULL,
@@ -40,7 +42,7 @@ CREATE TABLE IF NOT EXISTS meeting_chunks (
     id TEXT PRIMARY KEY,
     meeting_id TEXT NOT NULL,
     workspace_id TEXT NOT NULL,
-    sequence INTEGER NOT NULL,
+    sequence BIGINT NOT NULL,
     sha256 TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('processing','completed','failed')),
     transcript TEXT NOT NULL DEFAULT '',
@@ -48,7 +50,7 @@ CREATE TABLE IF NOT EXISTS meeting_chunks (
     provider_id TEXT NOT NULL DEFAULT '',
     model_id TEXT NOT NULL DEFAULT '',
     language TEXT NOT NULL DEFAULT '',
-    audio_bytes INTEGER NOT NULL DEFAULT 0,
+    audio_bytes BIGINT NOT NULL DEFAULT 0,
     log_id TEXT NOT NULL DEFAULT '',
     error TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
@@ -66,20 +68,21 @@ def audio_digest(audio: bytes) -> str:
 
 class MeetingStore:
     def __init__(self, path: Path | str) -> None:
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.connection() as conn:
-            conn.executescript(SCHEMA)
-        try:
-            self.path.chmod(0o600)
-        except OSError:
-            pass
+        self.target = str(path)
+        self.path = None if is_postgres_url(self.target) else Path(path)
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        with open_database(self.target) as database:
+            self.integrity_error = database.integrity_error
+            ensure_initial_sql_schema(database, "meetings", SCHEMA)
+        if self.path is not None:
+            try:
+                self.path.chmod(0o600)
+            except OSError:
+                pass
 
-    def connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=5)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
+    def connection(self) -> StoreConnection:
+        return StoreConnection(self.target)
 
     @staticmethod
     def _workspace(value: str) -> str:

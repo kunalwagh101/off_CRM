@@ -13,6 +13,8 @@ import stat
 from contextlib import closing
 from pathlib import Path
 
+from ..agent.routines import SCHEMA as ROUTINES
+from ..meetings.store import SCHEMA as MEETINGS
 from ..distribution.store import SCHEMA as POSTS, LARGE_INTEGER_COLUMNS as POST_COUNTERS
 from ..distribution.trends import (
     SCHEMA as TRENDS,
@@ -26,12 +28,16 @@ from .connection import is_postgres_url
 from .schema import ensure_initial_sql_schema
 
 COUNTERS = {
+    "routines": {},
+    "meetings": {},
     "imagery": IMAGE_COUNTERS,
     "distribution": POST_COUNTERS,
     "trends": TREND_COUNTERS,
 }
 
 STORES = {
+    "routines": ("agent_routines.db", ROUTINES),
+    "meetings": ("meeting_transcripts.db", MEETINGS),
     "imagery": ("imagery.db", IMAGERY),
     "distribution": ("distribution.db", POSTS),
     "trends": ("trends.db", TRENDS),
@@ -46,7 +52,7 @@ def _layout(kind):
     try:
         schema = STORES[kind][1]
     except KeyError:
-        raise ContentImportError("Choose imagery, distribution or trends") from None
+        raise ContentImportError("Choose imagery, distribution, trends, routines or meetings") from None
     with closing(sqlite3.connect(":memory:")) as sample:
         sample.executescript(schema)
         tables = [
@@ -202,7 +208,7 @@ def _archive(source, archive, expected_digest):
             os.close(descriptor)
 
 
-def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: str):
+def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: str, reactivate_routines: bool = False):
     if source.is_symlink() or not source.is_file():
         raise ContentImportError(
             "Choose an existing local content database, not a symlink"
@@ -213,6 +219,8 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
     archive = archive.absolute()
     if not is_postgres_url(hosted.target) and _same_file(Path(hosted.target), archive):
         raise ContentImportError("The private archive cannot be the hosted target")
+    if _same_file(source, archive):
+        raise ContentImportError("The private archive must differ from the local source")
     layout = _layout(kind)
     with WorkspaceLock(source.parent, exclusive=True):
         if restore_pending(source.parent):
@@ -224,6 +232,16 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
             local.execute("BEGIN")
             expected = _source_rows(local, layout)
             digest = _digest(local)
+        if kind == "routines" and not reactivate_routines:
+            enabled_index = layout["agent_routines"].index("enabled")
+            if any(row[enabled_index] for row in expected["agent_routines"]):
+                raise ContentImportError(
+                    "Enabled routines may run immediately after hosted startup. Disable them locally first, "
+                    "or explicitly pass --reactivate-routines to authorise resuming scheduled work"
+                )
+        # Alias preflight must precede this first target mutation. The same
+        # key does not authorise a second installation to import/clear rows.
+        hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
         _archive(source, archive, digest)
         database = hosted.connection
         # Trusted repository schema only; execute statements individually so

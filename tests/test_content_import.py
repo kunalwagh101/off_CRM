@@ -236,3 +236,20 @@ def test_insert_failure_rolls_back_target_and_keeps_source(tmp_path, monkeypatch
             assert conn.execute("SELECT id FROM image_briefs").fetchall() == [(item,)]
     finally:
         storage.close()
+
+
+def test_import_refuses_database_owned_by_another_install_before_source_cleanup(tmp_path, monkeypatch):
+    import uuid
+    from offsetx_apollo_builder.db.hosted import HostedStorage
+    source, target, archive, item = setup_source(tmp_path, monkeypatch)
+    key = os.environ['OFFSETX_SECRETS_KEY']
+    hosted = HostedStorage(str(target), key)
+    try:
+        hosted.claim_install(str(uuid.UUID(int=1)))
+    finally:
+        hosted.close()
+    monkeypatch.setenv('OFFSETX_INSTALL_ID', str(uuid.UUID(int=2)))
+    assert db_cli.main(command(source, archive, '--yes')) == 2
+    assert not archive.exists()
+    with sqlite3.connect(source) as original:
+        assert original.execute('SELECT id FROM image_briefs').fetchone()[0] == item

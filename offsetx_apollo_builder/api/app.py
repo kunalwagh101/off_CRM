@@ -855,7 +855,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         app.state.agent_routine_store = RoutineStore(
-            resolved.data_dir / "agent_routines.db"
+            hosted.target if hosted is not None else resolved.data_dir / "agent_routines.db"
         )
         app.state.agent_routines = RoutineService(
             app.state.agent_routine_store,
@@ -867,7 +867,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
         app.state.meeting_store = MeetingStore(
-            resolved.data_dir / "meeting_transcripts.db"
+            hosted.target if hosted is not None else resolved.data_dir / "meeting_transcripts.db"
         )
         app.state.meeting_transcriber = MeetingTranscriber(
             store=app.state.meeting_store,
@@ -901,6 +901,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             export_dir=resolved.export_dir,
             # Hosted logins are not in the data folder a path would read.
             workspace_accounts=workspace_auth if hosted is not None else None,
+            routine_target=app.state.agent_routine_store.target,
+            meeting_target=app.state.meeting_store.target,
         )
         # The product and its plans are the owner's work, like a timeline, so
         # they follow OFFSETX_DATABASE_URL onto Postgres the same way.

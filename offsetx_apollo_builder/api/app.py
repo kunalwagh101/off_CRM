@@ -5535,6 +5535,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     campaign_contact_ids=body.campaign_contact_ids,
                     stages=body.stages,
                     provider=provider,
+                    workspace_id=_workspace_id(request),
                 )
 
         return _idempotent(

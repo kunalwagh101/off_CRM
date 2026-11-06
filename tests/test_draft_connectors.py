@@ -61,6 +61,19 @@ def test_actual_draft_generation_uses_workspace_broker_without_legacy_profiles(t
         assert request.person.full_name == 'Anita Rao' and not hasattr(request.person, 'email')
         assert 'anita@example.com' not in request.template_text + request.campaign_notes + request.instructions
         assert not request.conversation and not request.unrestricted
+        # A shared legacy CRM still has workspace-owned approved memory. A
+        # customer's provider must never receive the install owner's facts.
+        for workspace, marker in [('local', 'OWNER_ONLY_PRIVATE_MEMORY'), ('beta', 'BETA_APPROVED_MEMORY')]:
+            app.state.engine.store.add_memory_item(workspace_id=workspace, scope=f'campaign:{campaign}',
+                kind='playbook', content='Example Exports ' + marker, approved=True)
+        assert client.post('/api/v1/workspaces', json={'username': 'beta', 'workspace_id': 'beta',
+            'password': 'beta-password-123'}).status_code == 201
+        assert client.post('/api/v1/auth/login', json={'username': 'beta', 'password': 'beta-password-123'}).status_code == 200
+        beta = client.post(f'/api/v1/campaigns/{campaign}/drafts/generate', json={'use_connectors': True, 'stages': ['initial']})
+        assert beta.status_code == 200 and beta.json()['generated'] == 1, beta.text
+        assert requests[-1][1] == 'beta'
+        assert 'OWNER_ONLY_PRIVATE_MEMORY' not in requests[-1][0].campaign_notes
+        assert 'BETA_APPROVED_MEMORY' in requests[-1][0].campaign_notes
 
 
 def provider_for(result_text):

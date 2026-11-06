@@ -184,7 +184,7 @@ class OutreachEngine:
     ):
         self.store = OutreachStore(database_path)
         self.store.initialize()
-        self.email_expert = LocalEmailExpert(self.store)
+        self.email_expert = LocalEmailExpert(self.store, workspace_id=workspace_id)
         # Optional: counting reply rates is useful but never required to send.
         self.template_counter = template_counter
         self.mail_archive = mail_archive
@@ -431,6 +431,7 @@ class OutreachEngine:
         campaign_contact_ids: Iterable[str] = (),
         stages: Iterable[str] = MESSAGE_STAGES,
         provider: AIProvider | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         self._require_own_kind(campaign_id, "generating drafts")
         requested_ids = set(campaign_contact_ids)
@@ -442,6 +443,13 @@ class OutreachEngine:
         blocked = 0
         failures: list[dict[str, str]] = []
         with self._lock:
+            requested_workspace = self.workspace_id if workspace_id is None else workspace_id
+            expert = self.email_expert
+            if expert.memory.workspace_id != requested_workspace:
+                # Never mutate the singleton expert for a request. Its memory
+                # must follow the same authenticated workspace as the broker.
+                expert = LocalEmailExpert(self.store, product_reader=expert.product_reader,
+                                          workspace_id=requested_workspace)
             contacts = self.store.campaign_contacts(campaign_id)
             contacts = [
                 item
@@ -454,7 +462,7 @@ class OutreachEngine:
                 original_subject = ""
                 for stage in requested_stages:
                     try:
-                        draft = self.email_expert.create_draft(
+                        draft = expert.create_draft(
                             contact=contact,
                             stage=stage,
                             variant_id=str(contact["variant_id"]),

@@ -1,3 +1,8 @@
+## 2026-11-06 — Drafts approved-memory boundary fixed
+
+- D-404: actual signed beta drafting request used beta broker but shared expert selected local owner's approved memory. Test capture RED1. Generation now uses authenticated workspace for request-local expert/memory without singleton mutation; engine constructor also propagates workspace. Customer broker receives beta facts and no owner-only marker. Affected actual-PG/DB/CRM/email bundle147 PASS. No actual customer data/provider call involved.
+- Native PostgreSQL transaction-local namespace proof remains in working tree for review/CI; it is not enabled for runtime routing. Local direct tests pass; actual PgBouncer acceptance added but not yet executed. Full CRM migration, tenant routing, queues/shared controls and recovery still pending.
+
 ## 2026-11-06 — Readiness regression fixed; explicit CRM ownership foundation
 
 - Full47efdad supported-Python suites each failed the existing mixed-routine durability assertion (3.12:3157 PASS/45 skipped/1 FAIL). D-402: metadata moved but trace files stayed local. Inventory now explicitly marks retained hosted files; readiness keeps Agent routines file durability unverified and meetings correctly hosted. Actual readiness/inventory12 PASS.

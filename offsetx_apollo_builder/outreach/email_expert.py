@@ -269,9 +269,10 @@ class LocalEmailExpert:
         store: OutreachStore,
         *,
         product_reader: Callable[[str], dict[str, Any] | None] | None = None,
+        workspace_id: str = "local",
     ):
         self.store = store
-        self.memory = MemoryService(store)
+        self.memory = MemoryService(store, workspace_id=workspace_id)
         #: campaign id -> the product it speaks for, or None. Injected, so this
         #: module imports no product store: `api/app.py` attaches it to every
         #: engine it builds (`_attach_products`).

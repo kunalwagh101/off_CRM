@@ -5719,9 +5719,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/templates/import")
     def import_templates(body: TemplateImport, request: Request) -> dict[str, int]:
         engine = _engine(request)
-        for item in body.templates:
-            engine.store.upsert_template(item)
-        return {"imported": len(body.templates)}
+        return {"imported": engine.store.import_templates(body.templates)}
 
     @app.post(f"{API_PREFIX}/expert-sources/import")
     async def import_expert_source(

@@ -376,3 +376,6 @@ Meeting transcripts/chunks and routine definitions/runs/notifications/leases now
 
 
 Content metadata imports enforce the target's install UUID as well as its master key. Stop app/workers before cutover. Enabled routine imports are refused unless the operator first disables them locally or separately passes `--reactivate-routines`; that flag explicitly authorises overdue scheduled work to resume after hosted startup. A mismatched install or missing reactivation decision leaves source rows intact. Archives remain private and exact.
+
+
+2026-11-07 customer-template bootstrap: bundled defaults only fill missing IDs; customer wording and disabled state survive restarts and restoration. An explicitly chosen template file or HTTP import intentionally updates records, atomically across the batch. To adopt revised bundled wording in an existing installation, import it deliberately. Preservation uses a database conflict guard, so concurrent PostgreSQL customer edits cannot be overwritten by bootstrap.

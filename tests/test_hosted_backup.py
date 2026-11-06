@@ -204,6 +204,7 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             with_owner.write("test.shared-control", "reputation-protection")
         finally:
             with_owner.close()
+        template_ids = {}
         for workspace in ("alpha", "beta"):
             engine = OutreachEngine(named(source_name), workspace_id=workspace,
                                     storage_namespace="crm_ws_" + workspace)
@@ -211,6 +212,10 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
                 campaign = engine.create_campaign(name="PRIVATE " + workspace)
                 engine.store.create_manual_campaign_contact(campaign, ContactInput(
                     full_name="Anita Rao", email="same@example.com", company="Example Exports", category="CBAM"))
+                template = engine.store.list_templates()[0][0]
+                template.update(subject_template="PRIVATE " + workspace + " wording", active=False)
+                engine.store.upsert_template(template)
+                template_ids[workspace] = template["id"]
             finally:
                 engine.close()
 
@@ -258,6 +263,8 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
                 campaigns, total = engine.store.list_campaigns()
                 assert total == 1 and campaigns[0]["name"] == "PRIVATE " + workspace
                 assert engine.store.campaign_contacts(campaigns[0]["id"])[0]["email"] == "same@example.com"
+                template = next(row for row in engine.store.list_templates(active_only=False)[0] if row["id"] == template_ids[workspace])
+                assert template["subject_template"] == "PRIVATE " + workspace + " wording" and template["active"] is False
             finally:
                 engine.close()
         restored_owner = HostedStorage(named(destination_name), master_key)

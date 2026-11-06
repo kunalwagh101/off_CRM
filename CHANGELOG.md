@@ -1,3 +1,9 @@
+## 2026-11-07 — Preserve customer template decisions (unreleased)
+
+- Bundled defaults fill missing template IDs without overwriting customer wording or reactivating disabled records, including under a PostgreSQL insertion race.
+- Explicit template file/HTTP imports still update existing records; a late-invalid entry rolls back the whole batch.
+- Encrypted SQLite and multi-schema PostgreSQL recovery checks now verify exact template wording and disabled state after reopening. No customer migration or deployment.
+
 ## 2026-11-07 — CI capabilities verified; namespace recovery checks extended (unreleased)
 
 - Closed current-state runner capacity and the supported-Python matrix with actual complete hosted execution and independent review. Current repository was already public; private billing recovery is not claimed and visibility was not changed.

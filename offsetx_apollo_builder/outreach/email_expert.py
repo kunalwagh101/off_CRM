@@ -323,16 +323,12 @@ class LocalEmailExpert:
                     "Edit the draft or the template."
                 )
 
-    def seed_templates(self, path: Path | str) -> int:
+    def seed_templates(self, path: Path | str, *, preserve_existing: bool = False) -> int:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         templates = payload.get("templates", payload) if isinstance(payload, dict) else payload
         if not isinstance(templates, list):
             raise ValueError("Template file must contain a list or a templates list")
-        for item in templates:
-            if not isinstance(item, dict):
-                raise ValueError("Every template must be an object")
-            self.store.upsert_template(item)
-        return len(templates)
+        return self.store.import_templates(templates, preserve_existing=preserve_existing)
 
     def create_draft(
         self,

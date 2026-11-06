@@ -1,3 +1,9 @@
+## 2026-11-07 — Customer template persistence/race fixed; full72-story verifier green
+
+- Post-update22d2592 workflow42299365823 SUCCESS, including full board replay after S-06.02.18/S-06.02.26 evidence/status changes. Tracker remains72 DONE/open100; whole first-three areas remain open.
+- D-408 default bootstrap overwrote customer wording/reactivated disabled IDs; actual restart RED1. D-409 file/HTTP late-invalid imports partially wrote earlier rows; actual RED2. Central immediate-transaction importer now protects both paths, bundled defaults preserve existing IDs and explicit imports remain updates. HTTP expected status corrected400→actual422 before old-loop mutation replay.
+- D-410 cold review caught PostgreSQL absence-precheck/update race. Two real connections reproduced overwrite after uniqueness lock wait; fixed atomic ON CONFLICT DO NOTHING. Combined SQLite/API/realPG encrypted multi-schema recovery19 PASS; final actual-CRM-on-PG engine/API/namespace bundle16 PASS/4 local pooler skips. Independent fix review3 PASS. DD-159 records deliberate-update cost. No customer migration or runtime namespace routing enabled.
+
 ## 2026-11-07 — Full CI/pooler green; two CI stories closed with bounded claims
 
 - Exact450165b workflow42250598322 SUCCESS: Python3.10/3.11/3.12 each3176 PASS/54 skipped; PG focused215 PASS, full3225 PASS/74 skipped; real PgBouncer1.22 transaction/one-backend/reset namespace9 PASS; quality prior70 board commands/frontend234/build PASS. Container42250598201 SUCCESS. All logs retrieved; no skips claimed as actual pooler evidence.

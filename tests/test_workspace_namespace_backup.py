@@ -18,6 +18,7 @@ def test_full_root_restores_two_private_crm_files_with_equal_emails(tmp_path):
     with OutreachStore(database) as admin:
         admin.initialize()
     paths = {}
+    template_ids = {}
     for workspace in ('alpha', 'beta'):
         relative = 'crm_workspaces/' + hashlib.sha256(workspace.encode()).hexdigest()[:32] + '/crm.db'
         paths[workspace] = relative
@@ -27,6 +28,10 @@ def test_full_root_restores_two_private_crm_files_with_equal_emails(tmp_path):
             engine.store.create_manual_campaign_contact(campaign, ContactInput(
                 full_name='Anita Rao', email='same@example.com', company='Example Exports', category='CBAM'))
             engine.email_expert.memory.add_manual(content='PRIVATE '+workspace+' evidence')
+            template = engine.store.list_templates()[0][0]
+            template.update(subject_template='PRIVATE '+workspace+' wording', active=False)
+            engine.store.upsert_template(template)
+            template_ids[workspace] = template['id']
         finally:
             engine.close()
     encrypted = create_encrypted_backup(database_path=database, data_dir=data, passphrase='private-disposable-backup')
@@ -46,6 +51,8 @@ def test_full_root_restores_two_private_crm_files_with_equal_emails(tmp_path):
                 memories, count = engine.store.search_memory_items('', workspace_id=workspace)
                 assert count == 1 and memories[0]['content'] == 'PRIVATE '+workspace+' evidence'
                 assert engine.store.search_memory_items('', workspace_id='beta' if workspace == 'alpha' else 'alpha')[1] == 0
+                template = next(row for row in engine.store.list_templates(active_only=False)[0] if row['id'] == template_ids[workspace])
+                assert template['subject_template'] == 'PRIVATE '+workspace+' wording' and template['active'] is False
             finally:
                 engine.close()
     finally:

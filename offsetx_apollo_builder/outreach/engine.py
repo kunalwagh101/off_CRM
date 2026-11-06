@@ -197,7 +197,7 @@ class OutreachEngine:
         self.unsubscribe_service: Any | None = None
         seed_path = Path(template_file) if template_file else DEFAULT_TEMPLATE_FILE
         if seed_path.exists():
-            self.email_expert.seed_templates(seed_path)
+            self.email_expert.seed_templates(seed_path, preserve_existing=template_file is None)
         patterns = seed_path.parent / "transferable_patterns.md"
         if patterns.exists():
             import_expert_documents(

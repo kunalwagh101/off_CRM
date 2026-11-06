@@ -177,6 +177,13 @@ class GuardedConnection:
         setattr(object.__getattribute__(self, "_raw"), name, value)
 
 
+def validate_template_fields(item: dict[str, Any]) -> None:
+    required = {"id", "name", "stage", "variant_id", "subject_template", "body_template"}
+    missing = sorted(field for field in required if not clean_text(item.get(field)))
+    if missing:
+        raise ValueError("Template is missing: " + ", ".join(missing))
+
+
 class OutreachStore:
     """The CRM: a SQLite file on the machine, or a PostgreSQL database that
     outlives it (`S-06.03.03`). The SQL is the same for both; only opening,
@@ -2737,21 +2744,21 @@ class OutreachStore:
 
     # Template and expert library
 
-    def upsert_template(self, item: dict[str, Any]) -> None:
-        required = {"id", "name", "stage", "variant_id", "subject_template", "body_template"}
-        missing = sorted(field for field in required if not clean_text(item.get(field)))
-        if missing:
-            raise ValueError("Template is missing: " + ", ".join(missing))
+    def import_templates(self, items: list[dict[str, Any]], *, preserve_existing: bool = False) -> int:
+        imported = 0
+        with self.transaction(immediate=True):
+            for item in items:
+                if not isinstance(item, dict):
+                    raise ValueError("Every template must be an object")
+                written = self.upsert_template(item, preserve_existing=preserve_existing)
+                imported += int(written) if preserve_existing else 1
+        return imported
+
+    def upsert_template(self, item: dict[str, Any], *, preserve_existing: bool = False) -> bool:
+        validate_template_fields(item)
         now = to_utc_iso()
-        with self.transaction() as conn:
-            conn.execute(
-                """
-                INSERT INTO email_templates (
-                    id, name, category, route, stage, variant_id, subject_template,
-                    body_template, tags_json, source_ref, provenance_json, version_no,
-                    active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
+        conflict = "ON CONFLICT(id) DO NOTHING" if preserve_existing else """
+ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name, category = excluded.category, route = excluded.route,
                     stage = excluded.stage, variant_id = excluded.variant_id,
                     subject_template = excluded.subject_template,
@@ -2770,6 +2777,16 @@ class OutreachStore:
                    OR email_templates.source_ref <> excluded.source_ref
                    OR email_templates.provenance_json <> excluded.provenance_json
                    OR email_templates.active <> excluded.active
+        """
+        with self.transaction() as conn:
+            cursor = conn.execute(
+                f"""
+                INSERT INTO email_templates (
+                    id, name, category, route, stage, variant_id, subject_template,
+                    body_template, tags_json, source_ref, provenance_json, version_no,
+                    active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                {conflict}
                 """,
                 (
                     clean_text(item["id"]),
@@ -2789,6 +2806,7 @@ class OutreachStore:
                     now,
                 ),
             )
+        return cursor.rowcount == 1
 
     def matching_templates(
         self, *, stage: str, route: str, category: str, variant_id: str

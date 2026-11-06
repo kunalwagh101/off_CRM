@@ -42,6 +42,13 @@ def in_schema(url: str, schema: str) -> str:
     return f"{url}{joiner}options=-csearch_path%3D{schema}"
 
 
+@pytest.fixture(autouse=True)
+def _disposable_install_identity(monkeypatch, request):
+    # Each isolated test is one logical install, stable across its restarts.
+    # Tests for absent/different identities explicitly unset/override this.
+    monkeypatch.setenv("OFFSETX_INSTALL_ID", str(uuid.uuid5(uuid.NAMESPACE_URL, request.node.nodeid)))
+
+
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
@@ -112,3 +119,24 @@ def _crm_on_postgres(monkeypatch: pytest.MonkeyPatch):
             with psycopg.connect(POSTGRES_URL, autocommit=True) as admin:
                 for schema in schemas.values():
                     admin.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+
+
+@pytest.fixture
+def isolated_postgres_target():
+    from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+    base = os.getenv('OFF_CRM_TEST_POSTGRES_URL')
+    if not base:
+        pytest.skip('requires a disposable real PostgreSQL server')
+    import psycopg
+    from psycopg import sql
+    schema = 'content_' + uuid.uuid4().hex
+    with psycopg.connect(base, autocommit=True) as conn:
+        conn.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
+    parts = urlsplit(base)
+    options = dict(parse_qsl(parts.query))
+    options['options'] = (options.get('options', '') + ' -csearch_path=' + schema).strip()
+    try:
+        yield urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(options, quote_via=quote), ''))
+    finally:
+        with psycopg.connect(base, autocommit=True) as conn:
+            conn.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(schema)))

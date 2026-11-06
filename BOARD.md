@@ -30,6 +30,10 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 ---
 
 ## BACKLOG
+
+- S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
+  design: docs/architecture/CRM_TENANCY.md
+  checkpoint: 2026-11-06 owner answered Q-27: isolate customers with workspace-owned CRM data. External decision blocker removed; implementation, explicit legacy ownership migration and complete route/worker/privacy isolation tests remain required. Do not assign existing records automatically.
 - S-06.02.69 · Image briefs, generated files and video handoff remain private to their workspace (A05)
   work_order: docs/work-orders/S-06.02.69-image-workspace-ownership.md
   checkpoint: Test-first source b023f25273846b463bcebaf8ff60b0592e920d85 plus Docker review gate 80173d6; isolated Render dep-dbm5af95efls73chr69g canceled BEFORE tests because workspace build pipeline minutes were exhausted. Not TDD RED or GREEN. Image SQL owner predicate source 8024b4f, engine brief/asset guards cc1eb56, API downloads/lists/video handoff guards 7ee0031; 9 written real session cookie A05 cases expanded ce160cf. Evidence docs/evidence/2026-11-05-a05-image-workspace-isolation.md; D-373/DD-149/R-196. Remains BACKLOG and NOT VERIFIED: focused/full SQLite/PostgreSQL/Chromium, independent penetration, full-history board verifier and customer release blocked/unrun. Active S-06.02.23 and Q-27 CRM tenancy OPEN. 2026-11-06 checkpoint: all 9 image cases now PASS locally; combined image/egress 52 PASS and GitHub SQLite whole suite 3,114 PASS on 79fce1d. Original canceled Render attempt remains no RED. Remote full CI run 42185594224 now PASS including all 70 board commands; independent penetration and customer acceptance still open; see audit docs/audits/2026-11-06-backlog-render-ci-local.md.
@@ -148,6 +152,8 @@ next day, `AGENTS.md` "Logging".)*
 *(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*
 
 - S-06.03.07 · A local install's decision belongs to that install
+  work_order: docs/work-orders/S-06.03.07-single-install-database.md
+  checkpoint: 2026-11-06 owner chose separate database per independent install. Stable OFFSETX_INSTALL_ID claim and boot refusal implemented; local restart/race and actual PG reconnect tests pass. Full new-source regression and operator configuration/recovery evidence pending; remains BACKLOG under active audit.
   design: docs/architecture/HOSTED_STORAGE.md
 
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
@@ -468,10 +474,6 @@ write the code, then the evidence block.)*
 
 - S-06.02.19 · One working branch holds everything built, and it is green
   blocked: external — the old branches must be kept as `archive/<branch>` tags and then deleted, and GitHub refused both to this session (HTTP 403, 2026-09-23; it may push commits, not tags or deletions). The owner runs `bash scripts/archive_old_branches.sh --delete` from a clone with push rights (`docs/BRANCHING.md`). The rest of the story is met: `develop` holds everything and is green.
-
-- S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
-  blocked: Q-27 — built only if the owner chooses option 2, workspace-owned CRM rows (`D-135`).
-  design: docs/architecture/CRM_TENANCY.md
 
 - S-01.05.01 · Publish to YouTube through the official API
   blocked: external — a Google Cloud project with YouTube Data API v3 enabled, and OAuth consent for the channel. Only the owner can create it.

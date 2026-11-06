@@ -373,7 +373,7 @@ Choosing 2 early costs a monthly fee for a demo.
 
 ### Q-27 — Should campaigns, contacts and drafts belong to a workspace? *(affects every CRM table)*
 
-**Status:** open. Raised 2026-09-23 by the cold review of `develop` (`D-135`).
+**Status:** answered · **Decision:** owner chose Option 2 on 2026-11-06: workspace-owned CRM data, isolated customers. Existing-record ownership requires an explicit migration/assignment; do not guess or modify customer data automatically. Raised 2026-09-23 by the cold review of `develop` (`D-135`).
 
 **Ambiguity.** Workspaces have their own logins, provider keys, browser
 sessions, AI settings and products (`S-06.01.01`). The CRM itself does not:
@@ -400,7 +400,7 @@ everyone is one team adds a workspace filter to every screen for nothing.
 
 ### Q-28 — Should drafts personalise through Connectors, or get their provider-profile screen back? *(affects Drafts and the second model path)*
 
-**Status:** open. Raised 2026-09-25 while fixing the second review's findings (`D-173`).
+**Status:** answered · **Decision:** owner chose Option 1 on 2026-11-06: Drafts use Connectors with existing trust tiers, scanner and egress log. Preserve/migrate legacy profiles explicitly; no silent credential conversion. Raised 2026-09-25 while fixing the second review's findings (`D-173`).
 
 **Ambiguity.** The Drafts screen writes with a model only through *provider
 profiles* — a second, older path to a model with its own keys, priorities and
@@ -448,3 +448,8 @@ and parallel strategies — need a Connectors equivalent or are dropped. Choosin
 **Recommended default: 1.** It is deterministic, cheap in tokens, and cannot be tricked into loading extra instructions by untrusted page content.
 
 **Blast radius if wrong.** Implicit selection can leak another workspace's procedures or raise prompt/token costs unexpectedly. Explicit selection requires more UI/workflow setup but has a testable security boundary.
+
+
+### 2026-11-06 — S-06.03.07 install/database ownership decision
+
+Owner selected one hosted database per application install. A second independent install must be refused rather than sharing migration choices or customer state. Persistent install identity and explicit recovery/move procedure are required; losing an ephemeral local directory must not silently create a different owner or transfer a claim. No customer database has been changed by recording this decision.

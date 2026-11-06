@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 export function Button({
   tone = "primary",
@@ -221,11 +221,19 @@ export function Field({
   hint?: string;
   children: ReactNode;
 }) {
+  const labelId = useId();
+  const hintId = useId();
+  const control = isValidElement<Record<string, unknown>>(children) && typeof children.type === "string"
+    ? cloneElement(children, {
+        "aria-labelledby": children.props["aria-labelledby"] ?? (children.props["aria-label"] ? undefined : labelId),
+        "aria-describedby": [children.props["aria-describedby"], hint ? hintId : ""].filter(Boolean).join(" ") || undefined
+      })
+    : children;
   return (
     <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint ? <small>{hint}</small> : null}
+      <span id={labelId}>{label}</span>
+      {control}
+      {hint ? <small id={hintId}>{hint}</small> : null}
     </label>
   );
 }

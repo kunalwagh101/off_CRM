@@ -50,8 +50,11 @@ from pathlib import Path
 from typing import Any
 
 from ..db import Database, open_database
+from ..db.schema import ensure_initial_sql_schema
 from .topics import MIN_CHANNELS_FOR_TOPIC, Topic, find_topics
 from .youtube import YouTubeClient, YouTubeError
+
+LARGE_INTEGER_COLUMNS = {'yt_channels': ('subscribers',), 'yt_videos': ('views', 'likes', 'comments')}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS yt_channels (
@@ -150,7 +153,7 @@ class TrendWatcher:
     def connection(self) -> Database:
         if self._connection is None:
             database = open_database(self.target)
-            database.executescript(SCHEMA)
+            ensure_initial_sql_schema(database, "trends", SCHEMA, large_integer_columns=LARGE_INTEGER_COLUMNS)
             self._connection = database
         return self._connection
 

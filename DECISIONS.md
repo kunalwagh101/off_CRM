@@ -28,6 +28,8 @@ wastes a session when nobody can answer it.
 
 | ID | Date | The call | Cost |
 |---|---|---|
+| DD-157 | 2026-11-06 | Hosted content metadata uses versioned SQL and an explicit archive/reconcile/clear cutover. Compare source/archive/target file identity by inode as well as path; widen unbounded PostgreSQL counters to BIGINT. | Stop writers and supply a private durable archive; conflicts/future schemas require operator resolution. Only metadata moves; file/outbox durability remains separate. |
+| DD-156 | 2026-11-06 | Bind a hosted database atomically to a declared stable OFFSETX_INSTALL_ID UUID; a different independent install must use another database. | Existing deployments must configure the UUID before upgrading, preserve it for recovery and never transfer another install's claim automatically. |
 | DD-155 | 2026-11-05 | Keep the existing SQLite ToolRegistry file while importing only companion profiles/procedures into HostedStorage SQL. Require explicit owner approval, a complete private SQLite archive and exact row equality before clearing legacy companion rows. Refuse migration when any profile grants an executable tool because tool pins are not yet durable on the hosted server. | Operators must maintain two storage homes until the tool registry is migrated. Profiles with grants cannot cut over via this command yet, and a durable archive is required. It avoids silently losing executable grants and prevents future hosted profile edits from conflicting with stale local records. |
 | DD-154 | 2026-11-05 | On hosted installs, store companion profile/skill rows in the existing HostedStorage SQL connection with cross-instance write leases. Keep ToolRegistry local until its execution pinning and secret retention can be migrated safely. Refuse hosted cutover if old local profiles conflict with hosted rows. | Split storage means the registered executable tool catalogue can still disappear on a free-plan restart. Local-to-hosted profile import is not automated, and the privacy removal adapter needs a hosted counterpart; production remains blocked until both are complete and tested. |
 | DD-153 | 2026-11-05 | Map Scout, Maker, Poster, Analyst and Director to existing TrendStore, VideoEditorEngine, TrendPipeline draft, DistributionEngine and GtmService, respectively, with owner-only dispatch and existing human review before publishing. Never let a model invent a new action or send a post merely by choosing a role. | The first role API is owner-invoked and not a fully autonomous team; real provider, browser, workspace, durable storage and UI acceptance remain unverified. |
@@ -830,3 +832,16 @@ per-install/shared-database decision in S-06.03.07 is agreed.
 **Revisit.** When typed locale, units, numeric tolerance and derived-calculation semantics are defined with their own adversarial tests and explicit owner approval.
 
 **DD-134 follow-on:** Exact presentation matching includes normalising mathematical minus, Arabic decimal/grouping and percent symbols and refusing ambiguous three-digit groups split by Unicode spaces. This still does not parse arbitrary locale or infer units/calculations. These are safe representation checks, not a broad unit-conversion policy.
+
+
+### DD-156 — Hosted database identity is a declared installation UUID · 2026-11-06
+
+Owner chose one database per independent installation (S-06.03.07). Bind the existing hosted document store atomically to a stable OFFSETX_INSTALL_ID UUID. Replicas/restarts of the same logical app reuse it; another install needs a different database. Do not generate identity in an ephemeral folder, infer it from a hostname, or transfer an existing claim automatically.
+
+Cost: existing hosted deployments must add the non-secret UUID before upgrading. Recovery retains identity and verifies a new restored database; lost/incorrect settings fail startup. This is ownership validation, not a backup or CRM row-assignment migration. Actual owner data and infrastructure are unchanged.
+
+### DD-157 — Content cutover preserves a complete private SQLite archive · 2026-11-06
+
+Reuse existing SQL stores for hosted content metadata. An explicit operator command archives the complete local database, checks schema/identity/digest, copies/reconciles every row in one hosted transaction, then clears only verified source rows under an exclusive lease. Source file and archive remain; all three file identity pairs are checked by inode as well as path. Initial SQL schemas are versioned; metric counters widen to BIGINT in PostgreSQL while SQLite retains its 64-bit integers.
+
+Cost: stop all writers and supply a private durable archive outside the old data root. Conflicts or newer schemas require operator resolution; imports do not silently merge or overwrite. This moves metadata only: files, outboxes and other inventory homes still require complete durable/recovery paths. No customer migration was run.

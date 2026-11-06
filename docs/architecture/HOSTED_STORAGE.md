@@ -213,7 +213,6 @@ it is pointed at. No real install was available to measure — the two on Render
 are wiped — so the owner's numbers are still to be taken.
 
 <!-- inventory:start -->
-
 | Store | What is lost if it is wiped | Kept today | On the hosted topology |
 |---|---|---|---|
 | Operational logs | failure references and safe frame metadata; bounded access records | size-capped rotating JSON lines | standard output on Render; retention is the platform's log policy |
@@ -230,9 +229,9 @@ are wiped — so the owner's numbers are still to be taken.
 | Tools and companions | registered tools and companion profiles | SQLite file | partial: companion profiles and procedures on hosted SQL; tool pins and runs still local — `S-06.03.06` |
 | Agent routines | routines and their runs | SQLite file and trace files | not decided — `S-06.03.06` |
 | Meeting transcripts | uploaded meetings' transcripts | SQLite file | not decided — `S-06.03.06` |
-| Imagery | generated pictures' records | SQLite file | not decided — `S-06.03.06` |
-| Posts | scheduled and sent posts' records | SQLite file | not decided — `S-06.03.06` |
-| Trends | trend snapshots the content engine reads | SQLite file | not decided — `S-06.03.06` |
+| Imagery | generated pictures' records | SQLite file | hosted database — `S-06.03.06` (metadata; picture bytes remain files) |
+| Posts | scheduled and sent posts' records | SQLite file | hosted database — `S-06.03.06` (post metadata; outbox bytes remain files) |
+| Trends | trend snapshots the content engine reads | SQLite file | hosted database — `S-06.03.06` (trend metadata) |
 | Notion link | the Notion token, encrypted, and target pages | JSON and encrypted files | not decided — `S-06.03.06` |
 | Timers | the email and content timers' settings | JSON files | hosted database — `S-06.03.06` (timer settings) |
 | Privacy requests | data-subject requests and their artifacts | SQLite file | not decided — `S-06.03.06` |
@@ -245,7 +244,6 @@ are wiped — so the owner's numbers are still to be taken.
 | Media and outboxes | picture files, rendered video, post and mail outboxes, exports | files | files: lost on a free-plan deploy until object storage is decided |
 | Install secrets | the session-signing secret, the local API token, the unsubscribe-link key | files | a deployment setting on a hosted install, set once: `OFFSETX_SESSION_SECRET`, `OFFSETX_UNSUBSCRIBE_SECRET` |
 | Restore and lease files | an interrupted restore's journal and the workspace lease | files | local only: a hosted install refuses local backup |
-
 <!-- inventory:end -->
 
 ## What does not change
@@ -361,3 +359,11 @@ file**; preserve that file on durable storage until the importer is tested.
 The other non-hosted stores in S-06.03.06, including sent mail recall, agent
 routines, meetings, media and outboxes, remain open. This is not production
 backup/restore acceptance or a completed S-06.03.06 story.
+
+## 2026-11-06 — One database per installation
+
+Set `OFFSETX_INSTALL_ID` once to a stable UUID for this logical application installation, alongside its database URL and existing secrets key. Generate a non-secret UUID with `python -c 'import uuid; print(uuid.uuid4())'`. Reuse that exact setting across restarts, upgrades and replicas of the same installation. Another independent installation needs a different UUID and its own database.
+
+Hosted app startup now requires this setting. The first authenticated bootstrap atomically binds the database to the declared installation; later starts must match. A different, absent or invalid identity is refused before workspace bootstrap or local migration choices. A claim is never overwritten automatically. Existing hosted deployments must set the UUID before this release is deployed. To move/recover, verify a restore into a new database and preserve the original installation identity; do not edit the ownership record to take over another install. This does not assign legacy CRM records to customers.
+
+Image/post/trend metadata now follows the hosted database. Existing local metadata must be explicitly migrated with `offsetx-db import-content`; see the S-06.03.06 work order. This does not make media files or the remaining inventory durable, and the half-hosted production guard remains in place.

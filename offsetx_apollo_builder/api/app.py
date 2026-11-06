@@ -603,24 +603,31 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     # wipes (S-06.03.02). The key is checked against what is stored before
     # anything is served: a start with keys it cannot read is refused here.
     hosted = HostedStorage.configured(resolved.secrets_key)
-    if hosted is not None:
-        hosted.check_secrets_key()
-        # A data folder that still holds these stores is the owner's call,
-        # never hidden in silence (D-210).
-        hosted.check_local_folder(resolved.data_dir)
-        # S-06.03.06: an older AI history file cannot be silently hidden by
-        # a new hosted installation. Preserve and explicitly migrate it first.
-        if (resolved.data_dir / "ai_context.db").is_file():
-            raise ValueError(
-                "Existing local AI context (ai_context.db) cannot be ignored. "
-                "Stop this installation, preserve the local file, and complete "
-                "an explicit AI-context migration before starting hosted mode."
-            )
-    # The CRM follows the database too, by the rule every hosted store uses
-    # (S-06.03.03); a CRM file left from before is the owner's call, as above.
-    crm = resolve_database_target(default=resolved.database_path)
-    if hosted is not None:
-        check_local_crm(hosted, resolved.database_path, crm)
+    try:
+        if hosted is not None:
+            hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
+            # A data folder that still holds these stores is the owner's call,
+            # never hidden in silence (D-210).
+            hosted.check_local_folder(resolved.data_dir)
+            # S-06.03.06: an older AI history file cannot be silently hidden by
+            # a new hosted installation. Preserve and explicitly migrate it first.
+            if (resolved.data_dir / "ai_context.db").is_file():
+                raise ValueError(
+                    "Existing local AI context (ai_context.db) cannot be ignored. "
+                    "Stop this installation, preserve the local file, and complete "
+                    "an explicit AI-context migration before starting hosted mode."
+                )
+            from ..db.content_import import check_local_content
+            check_local_content(resolved.data_dir)
+        # The CRM follows the database too, by the rule every hosted store uses
+        # (S-06.03.03); a CRM file left from before is the owner's call, as above.
+        crm = resolve_database_target(default=resolved.database_path)
+        if hosted is not None:
+            check_local_crm(hosted, resolved.database_path, crm)
+    except BaseException:
+        if hosted is not None:
+            hosted.close()
+        raise
     workspace_auth = WorkspaceAuthStore(
         resolved.data_dir / "workspace_auth.db",
         session_secret=resolved.session_secret,
@@ -868,11 +875,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             broker_factory=routine_broker,
         )
         app.state.image_store = ImageStore(
-            resolved.data_dir / "imagery.db",
+            hosted.target if hosted is not None else resolved.data_dir / "imagery.db",
             assets_dir=resolved.data_dir / "image_assets",
         )
         app.state.distribution_store = DistributionStore(
-            resolved.data_dir / "distribution.db",
+            hosted.target if hosted is not None else resolved.data_dir / "distribution.db",
             outbox_dir=resolved.data_dir / "post_outbox",
         )
         # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
@@ -900,7 +907,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.gtm_store = GtmStore(
             resolve_database_target(default=resolved.data_dir / "gtm.db")
         )
-        app.state.trends_path = resolved.data_dir / "trends.db"
+        app.state.trends_path = hosted.target if hosted is not None else resolved.data_dir / "trends.db"
         app.state.notion = NotionSettingsStore(resolved.data_dir)
         app.state.discovery_fetcher_factory = None
         app.state.automation = AutomationService(
@@ -1773,6 +1780,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             workspace_id=_profile_scope(request),
         )
         return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    @app.get(f"{API_PREFIX}/companion-tools")
+    def companion_tool_catalogue(request: Request) -> dict[str, Any]:
+        return {"items": request.app.state.ai_tools.catalogue(workspace_id=_workspace_id(request))}
 
     @app.get(f"{API_PREFIX}/companions")
     def list_companions(request: Request) -> dict[str, Any]:

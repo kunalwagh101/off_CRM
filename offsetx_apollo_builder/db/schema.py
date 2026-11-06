@@ -71,3 +71,23 @@ def ensure_schema(database: Database, component: str, steps: Sequence[Step]) -> 
                 [component, version, datetime.now(timezone.utc).isoformat()],
             )
     return newest
+
+
+def ensure_initial_sql_schema(
+    database: Database, component: str, script: str, *,
+    large_integer_columns: dict[str, tuple[str, ...]] | None = None,
+) -> int:
+    """Version a trusted initial SQL schema without SQLite implicit commits."""
+    def create(target: Database) -> None:
+        for statement in script.split(";"):
+            if statement.strip():
+                target.execute(statement)
+    steps = [create]
+    if large_integer_columns:
+        def widen(target: Database) -> None:
+            if target.name == "postgres":
+                for table, columns in large_integer_columns.items():
+                    for column in columns:
+                        target.execute(f'ALTER TABLE "{table}" ALTER COLUMN "{column}" TYPE BIGINT')
+        steps.append(widen)
+    return ensure_schema(database, component, steps)

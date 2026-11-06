@@ -19,7 +19,10 @@ from pathlib import Path
 from typing import Any
 
 from ..db import Database, open_database
+from ..db.schema import ensure_initial_sql_schema
 from ..observability import failure_message
+
+LARGE_INTEGER_COLUMNS = {'dist_goals': ('target',), 'dist_metrics': ('views', 'likes', 'comments', 'shares')}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS dist_accounts (
@@ -117,7 +120,7 @@ class DistributionStore:
     def connection(self) -> Database:
         if self._connection is None:
             database = open_database(self.target)
-            database.executescript(SCHEMA)
+            ensure_initial_sql_schema(database, "distribution", SCHEMA, large_integer_columns=LARGE_INTEGER_COLUMNS)
             # `CREATE TABLE IF NOT EXISTS` does nothing to a table that already
             # exists, so a workspace created before caps existed needs the
             # column added rather than declared.

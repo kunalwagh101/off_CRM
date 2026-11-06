@@ -374,6 +374,32 @@ def _cmd_import_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_import_content(args: argparse.Namespace) -> int:
+    from .db.content_import import ContentImportError, import_content
+
+    if not args.yes:
+        print("Explicit --yes required. Stop app/workers and use a private durable archive.", file=sys.stderr)
+        return 2
+    hosted = None
+    try:
+        hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ""))
+        if hosted is None:
+            raise ValueError("Configure the hosted database and install secrets key first")
+        counts = import_content(Path(args.source), hosted, Path(args.archive), kind=args.kind)
+        print("Content rows reconciled: " + str(sum(counts.values())) + "; private archive retained.")
+        return 0
+    except ContentImportError as exc:
+        print(str(exc) + ". " + failure_message(exc, operation="offsetx-db.import-content"), file=sys.stderr)
+        return 2
+    except Exception as exc:
+        report_failure(exc, operation="offsetx-db.import-content")
+        print(failure_message(exc, operation="offsetx-db.import-content"), file=sys.stderr)
+        return 2
+    finally:
+        if hosted is not None:
+            hosted.close()
+
+
 def _cmd_import_companions(args: argparse.Namespace) -> int:
     """Move old local profiles and skills into hosted SQL, preserving tool rows."""
     from .db.companion_import import CompanionImportError, import_companions
@@ -620,6 +646,13 @@ def main(argv: list[str] | None = None) -> int:
     context_choice.add_argument("--yes", action="store_true", help="import into an empty hosted context")
     context_choice.add_argument("--skip", action="store_true", help="keep the hosted context untouched")
     context.set_defaults(func=_cmd_import_context)
+
+    content_import = sub.add_parser("import-content", help="archive and migrate local content metadata")
+    content_import.add_argument("--kind", choices=("imagery", "distribution", "trends"), required=True)
+    content_import.add_argument("--source", required=True)
+    content_import.add_argument("--archive", required=True)
+    content_import.add_argument("--yes", action="store_true")
+    content_import.set_defaults(func=_cmd_import_content)
 
     companion_import = sub.add_parser(
         "import-companions",

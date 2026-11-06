@@ -20,6 +20,7 @@ import json
 import os
 import sqlite3
 import threading
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -164,6 +165,30 @@ class HostedStorage:
         target = os.getenv(DATABASE_URL_ENV, "").strip()
         validate_pair(target, secrets_key)
         return cls(target, secrets_key) if target else None
+
+    def claim_install(self, identity: str) -> None:
+        """Bind this database to one explicitly configured logical install."""
+        try:
+            if not isinstance(identity, str) or not identity.strip() or len(identity) > 64:
+                raise ValueError
+            canonical = str(uuid.UUID(identity.strip()))
+            if uuid.UUID(canonical).int == 0:
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            raise HostedStorageError(
+                "Set OFFSETX_INSTALL_ID to this installation's stable UUID. "
+                "Reuse it across restarts; use a separate database for another install."
+            ) from None
+        self.check_secrets_key()
+        with self.exclusive():
+            previous = self.read("install.identity.v1")
+            if previous is not None and previous != canonical:
+                raise HostedStorageError(
+                    "This database belongs to another install. Use this installation's "
+                    "own database or restore into a new one; do not overwrite ownership."
+                )
+            if previous is None:
+                self.write("install.identity.v1", canonical)
 
     def describe(self) -> str:
         return describe_target(self.target)

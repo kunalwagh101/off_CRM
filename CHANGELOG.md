@@ -1,3 +1,10 @@
+## 2026-11-06 — Hosted content cutover and owner agent-team screens (unreleased)
+
+- Added hosted content metadata with explicit private archive migration, hardlink/conflict guards, process-crash retry and PostgreSQL BIGINT upgrades.
+- Added declared install/database ownership and safe refusal of a second independent install; upgrading hosted deployments requires OFFSETX_INSTALL_ID.
+- Added Agent team profile/procedure/memory screens, typed existing-role actions and bounded child reasoning; fixed stable populated-field accessible labels and readable result/review actions.
+- Recorded owner choices for CRM workspace isolation and Connectors-based Drafts. Those migrations/routes and the remaining storage/recovery/audit scope are still in progress. No customer/main deployment.
+
 ## 2026-11-06 — Backlog audit and CI/container verification (unreleased)
 
 - Corrected persisted hostile-grant and PostgreSQL function fixtures while retaining refusal/data-integrity assertions.

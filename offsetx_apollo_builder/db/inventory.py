@@ -106,13 +106,13 @@ STORES: tuple[StoredThing, ...] = (
         "meeting_store",
     ),
     StoredThing(
-        "Imagery", "generated pictures' records", ("imagery.db*",), SQLITE, LATER, "image_store",
+        "Imagery", "generated pictures' records", ("imagery.db*",), SQLITE, "hosted database — `S-06.03.06` (metadata; picture bytes remain files)", "image_store",
     ),
     StoredThing(
-        "Posts", "scheduled and sent posts' records", ("distribution.db*",), SQLITE, LATER, "distribution_store",
+        "Posts", "scheduled and sent posts' records", ("distribution.db*",), SQLITE, "hosted database — `S-06.03.06` (post metadata; outbox bytes remain files)", "distribution_store",
     ),
     StoredThing(
-        "Trends", "trend snapshots the content engine reads", ("trends.db*",), SQLITE, LATER, "trends_path",
+        "Trends", "trend snapshots the content engine reads", ("trends.db*",), SQLITE, "hosted database — `S-06.03.06` (trend metadata)", "trends_path",
     ),
     StoredThing(
         "Notion link", "the Notion token, encrypted, and target pages",

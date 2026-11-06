@@ -27,6 +27,7 @@ import Posting from "./pages/Posting";
 import Product from "./pages/Product";
 import Strategy from "./pages/Strategy";
 import AI from "./pages/AI";
+import AgentTeam from "./pages/AgentTeam";
 import Connectors from "./pages/Connectors";
 import Egress from "./pages/Egress";
 import Memory from "./pages/Memory";
@@ -69,6 +70,7 @@ const pages = {
   meetings: Meetings,
   recall: Recall,
   ai: AI,
+  agentteam: AgentTeam,
   settings: Settings
 };
 type Page = keyof typeof pages;
@@ -93,6 +95,7 @@ export const campaignListPages = new Set<Page>([
 const navigation: Array<{ page: Page; label: string; icon: string; group?: string }> = [
   { page: "ai", label: "AI", icon: "✦", group: "AI" },
   { page: "connectors", label: "Connectors", icon: "⚡" },
+  { page: "agentteam", label: "Agent team", icon: "♧" },
   { page: "egress", label: "What was sent", icon: "◉" },
   { page: "memory", label: "Memory", icon: "◈" },
   { page: "meetings", label: "Meetings", icon: "🎙" },

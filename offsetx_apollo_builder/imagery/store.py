@@ -28,6 +28,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..db import Database, open_database
+from ..db.schema import ensure_initial_sql_schema
+
+LARGE_INTEGER_COLUMNS = {'image_assets': ('bytes',), 'image_generator_stats': ('shown', 'approved', 'rejected', 'gate_failed')}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS image_briefs (
@@ -108,7 +111,7 @@ class ImageStore:
     def connection(self) -> Database:
         if self._connection is None:
             database = open_database(self.target)
-            database.executescript(SCHEMA)
+            ensure_initial_sql_schema(database, "imagery", SCHEMA, large_integer_columns=LARGE_INTEGER_COLUMNS)
             self._connection = database
         return self._connection
 

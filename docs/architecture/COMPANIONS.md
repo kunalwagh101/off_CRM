@@ -73,3 +73,11 @@ Removing the table is unnecessary and would make rollback destructive.
 ```bash
 uv run pytest tests/test_agent_companions.py tests/test_privacy.py -q
 ```
+
+## Owner screens (2026-11-06)
+
+Open Agent team from the AI navigation. Create/edit/enable/delete named profiles, choose existing enabled registered tool grants, add approved memory in the profile's scope and preview available context. The install owner also manages bounded procedures, selects up to three for a companion message, provisions five roles and requests bounded child reasoning. No procedure is selected on reload or when switching profiles. Disabled/removed procedures are invalidated before the next run.
+
+Companion messages use the existing chat broker and Connectors policies. Child reasoning uses profile instructions only, one to three distinct children and one parent synthesis; it receives no saved memory/procedures, tool capability or private transcripts. Paid actions require explicit submission and are never automatically retried. Scope, quota, scanner and review rules remain server-enforced.
+
+Role results show observed topics, saved drafts, campaign metrics or review actions. Maker/Poster require image/distribution campaign prerequisites respectively; no role approval or publication occurs automatically. Agent team is unavailable to public visitor sessions. Configured live provider/media acceptance is separate from the disposable browser checks.

@@ -11,6 +11,7 @@ on:
       - offsetx_apollo_builder/**
       - scripts/container_entrypoint.py
       - frontend/**
+      - config/**
       - tests/fixtures/timeline_conformance.json
       - .github/workflows/container.yml
   pull_request:
@@ -23,6 +24,7 @@ on:
       - offsetx_apollo_builder/**
       - scripts/container_entrypoint.py
       - frontend/**
+      - config/**
       - tests/fixtures/timeline_conformance.json
       - .github/workflows/container.yml
   workflow_dispatch:

@@ -10,7 +10,8 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Full regressions plus the 70 historical evidence commands exceed 15 minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,6 +120,15 @@ jobs:
           python-version: "3.12"
       - name: Install Python dependencies, PostgreSQL driver included
         run: uv sync --extra dev --extra email --extra postgres --locked
+      # The runner's default client can be newer than this job's server.
+      # Newer dump headers (for example transaction_timeout) cannot restore to 16.
+      - name: Select PostgreSQL 16 backup and recovery clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          /usr/lib/postgresql/16/bin/pg_restore --version
       - name: Storage tests against PostgreSQL
         run: >-
           uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py

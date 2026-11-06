@@ -1,3 +1,10 @@
+## 2026-11-06 — Backlog audit and CI/container verification (unreleased)
+
+- Corrected persisted hostile-grant and PostgreSQL function fixtures while retaining refusal/data-integrity assertions.
+- Fixed CI backup-client/server compatibility and allowed the full historical evidence replay to complete. Full SQLite/PostgreSQL, 70 board commands, frontend and configured audit gates pass in run 42185594224.
+- Added actual production-image build and disposable visitor-mode startup/readiness/UID/restart checks outside Render; fixed runtime-config path coverage after independent review.
+- Published all 102 open entries and the next five feature areas with stories, remaining work and QA gates. Reclassified stale runner-capacity blocker to IN_REVIEW; production audit remains active. No main/customer deploy or Render billing changes.
+
 ## 2026-11-05 — Archive digest, non-destructive restore, role watcher cleanup (unreleased)
 
 - Refused companion migration if full SQLite tool registry changes or its private archive differs, even when companion rows match; isolated real-SQLite tests 13 PASS on exact imported module.

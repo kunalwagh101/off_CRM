@@ -1,5 +1,13 @@
 # A05 / S-06.02.69 — Generated images belong to their authenticated workspace
 
+## 2026-11-06 local and GitHub verification checkpoint
+
+The historical “not run” statements below describe 5 November. On source `79fce1d`, the complete 9 image cases now PASS locally, alongside 43 model-egress cases (52 PASS combined). GitHub run [42120555626](https://github.com/kunalwagh101/off_CRM/actions/runs/42120555626) completed the SQLite suite: 3,114 PASS / 33 skipped, including these image tests. It did not complete the quality job: historical board evidence hit the 15-minute timeout. Its PostgreSQL suite had a separate backup-client restore failure; no complete green pipeline is claimed.
+
+Command: `UV_CACHE_DIR=/workspace/.uv-cache uv run pytest -q tests/test_audit_a05_image_workspace_isolation.py tests/test_ai_egress_wall.py`. Local output: `52 passed, 1 warning in 10.28s`. Synthetic sessions and data; no provider/customer actions. This establishes current regression GREEN but does not retroactively invent an observed pre-fix RED.
+
+Full audit, Q-27 CRM ownership, independent live penetration and customer release remain OPEN. S-06.02.69 stays BACKLOG. Latest CI corrections and run outcomes are recorded in [the backlog/Render/CI audit](../audits/2026-11-06-backlog-render-ci-local.md).
+
 ## 2026-11-05 state: implemented on develop, Render QA BLOCKED
 
 **Status is unverified.** Source changes and tests are committed, but no TDD RED, GREEN, complete SQLite, PostgreSQL, Chromium, independent penetration or customer deployment acceptance has been executed for this new A05 image slice. Do not mark S-06.02.69 DONE or imply this security finding is closed.

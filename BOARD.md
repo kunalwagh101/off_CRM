@@ -32,7 +32,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 ## BACKLOG
 - S-06.02.69 · Image briefs, generated files and video handoff remain private to their workspace (A05)
   work_order: docs/work-orders/S-06.02.69-image-workspace-ownership.md
-  checkpoint: Test-first source b023f25273846b463bcebaf8ff60b0592e920d85 plus Docker review gate 80173d6; isolated Render dep-dbm5af95efls73chr69g canceled BEFORE tests because workspace build pipeline minutes were exhausted. Not TDD RED or GREEN. Image SQL owner predicate source 8024b4f, engine brief/asset guards cc1eb56, API downloads/lists/video handoff guards 7ee0031; 9 written real session cookie A05 cases expanded ce160cf. Evidence docs/evidence/2026-11-05-a05-image-workspace-isolation.md; D-373/DD-149/R-196. Remains BACKLOG and NOT VERIFIED: focused/full SQLite/PostgreSQL/Chromium, independent penetration, full-history board verifier and customer release blocked/unrun. Active S-06.02.23 and Q-27 CRM tenancy OPEN.
+  checkpoint: Test-first source b023f25273846b463bcebaf8ff60b0592e920d85 plus Docker review gate 80173d6; isolated Render dep-dbm5af95efls73chr69g canceled BEFORE tests because workspace build pipeline minutes were exhausted. Not TDD RED or GREEN. Image SQL owner predicate source 8024b4f, engine brief/asset guards cc1eb56, API downloads/lists/video handoff guards 7ee0031; 9 written real session cookie A05 cases expanded ce160cf. Evidence docs/evidence/2026-11-05-a05-image-workspace-isolation.md; D-373/DD-149/R-196. Remains BACKLOG and NOT VERIFIED: focused/full SQLite/PostgreSQL/Chromium, independent penetration, full-history board verifier and customer release blocked/unrun. Active S-06.02.23 and Q-27 CRM tenancy OPEN. 2026-11-06 checkpoint: all 9 image cases now PASS locally; combined image/egress 52 PASS and GitHub SQLite whole suite 3,114 PASS on 79fce1d. Original canceled Render attempt remains no RED. Remote full CI run 42185594224 now PASS including all 70 board commands; independent penetration and customer acceptance still open; see audit docs/audits/2026-11-06-backlog-render-ci-local.md.
 
 - S-06.02.68 · Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05)
   work_order: docs/work-orders/S-06.02.68-video-workspace-ownership.md
@@ -190,6 +190,9 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   checkpoint: 2026-11-05 A05 audit API recheck 3 PASS on source 94fa650. Exact-source isolated Render dep-dblr106i0phs7385jao0 LIVE 2026-11-04 22:44:20 UTC: full SQLite 3,015 PASS/56 skipped; full real PostgreSQL 3,039 PASS/101 skipped, focused PG 215 PASS; frontend, Chromium and static/security gates PASS. Full Git-history verifier, per-user roles, CRM tenancy Q-27, independent penetration, wider audit and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout. 2026-11-05 A24 owner-authority recheck: TDD RED 4 expected fail, GREEN 5 PASS; exact-source isolated Render dep-dbm3oj8ae00c7389h7d0 LIVE on 4117704 with SQLite 3,032/57 skipped, full PG 3,057/101 skipped, Chromium/static/security PASS. Entire A24 cross-store retention/restore still OPEN. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md.  2026-11-05 A05 video workspace ID/asset isolation TDD RED 4 expected fail, final source 246741b isolated Render dep-dbm4lgrbc2fs738acn6g LIVE 2026-11-05 09:43:42 UTC: A05 4 PASS, SQLite 3,036 PASS, real PG 3,061 PASS, Chromium/static/security PASS. A05 full per-user roles, Q-27 CRM tenancy, independent penetration and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-video-workspace-isolation.md. 2026-11-05 A05 image ownership mitigation built ahead as S-06.02.69: source SQL/engine/API code committed and 9 synthetic cookie-session tests written. Isolated Render dep-dbm5af95efls73chr69g canceled before tests, no RED/GREEN, due exhausted build pipeline minutes. Full A05 and Q-27 remain OPEN; docs/evidence/2026-11-05-a05-image-workspace-isolation.md.
 
 ## IN_REVIEW
+
+- S-06.02.18 · Restore executable CI runner capacity
+  review: 2026-11-06 fresh GitHub run 42120555626 allocated ubuntu-latest runners and executed both jobs: quality 3,114 Python tests PASS; PostgreSQL focused 215 PASS, full 3,141 PASS/1 restore FAIL. Prior zero-step capacity blocker is no longer current. Pipeline corrected at 62f60da/4eaca8f: run 42185594224 both jobs SUCCESS, whole SQLite 3,114 PASS, whole PG 3,142 PASS, all 70 evidence commands PASS, frontend 223 PASS/build PASS. Production container run 42187777222 SUCCESS on e6105bd. Audit S-06.02.23 still IN_PROGRESS. Evidence docs/audits/2026-11-06-backlog-render-ci-local.md.
 
 - S-06.02.65 · Reject malformed nested video edits without partial writes (A22)
   work_order: docs/work-orders/S-06.02.65-video-edit-input.md
@@ -469,9 +472,6 @@ write the code, then the evidence block.)*
 - S-06.01.06 · Campaigns, contacts and drafts belong to a workspace
   blocked: Q-27 — built only if the owner chooses option 2, workspace-owned CRM rows (`D-135`).
   design: docs/architecture/CRM_TENANCY.md
-
-- S-06.02.18 · Restore executable CI runner capacity
-  blocked: external — GitHub-hosted `ubuntu-latest` jobs are created but fail before runner allocation with zero steps/no logs. Owner must inspect Actions billing/budgets/payment state and repository Actions policy; if those are clean, GitHub Support must resolve hosted-runner provisioning.
 
 - S-01.05.01 · Publish to YouTube through the official API
   blocked: external — a Google Cloud project with YouTube Data API v3 enabled, and OAuth consent for the channel. Only the owner can create it.

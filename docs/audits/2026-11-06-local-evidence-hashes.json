@@ -1,0 +1,53 @@
+{
+  "note": "Hashes identify local raw evidence retained under ignored work/current-audit; raw logs are not public deployment evidence. GitHub workflow URLs in the audit contain independently accessible remote evidence.",
+  "files": {
+    "sqlite-final.log": {
+      "bytes": 50647,
+      "sha256": "29739aa22db5ec2e2b43ef251c3c87246fa4c6847a41bc01ada9dc02c337fda8"
+    },
+    "postgres-backup-green.log": {
+      "bytes": 99,
+      "sha256": "3a74fd185c033bd896b83c24d7fb97a3ef13f8a64cf792957bafdc44293089d7"
+    },
+    "image-security.log": {
+      "bytes": 587,
+      "sha256": "6bc5b3cdd5e516ad5892a4c458d605ddec34d30f879c238ae39c9295dd9bf8c3"
+    },
+    "frontend-tests.log": {
+      "bytes": 255,
+      "sha256": "bd7f4a62202ac913b1a4a92ccfa82ce1ac8d33bbd5aa5bd8b5d1b28b47e2b5b7"
+    },
+    "frontend-build.log": {
+      "bytes": 763,
+      "sha256": "063c0a49a0ce11ba19f4d6720debb79ac4f0545cd595009acf883092ad4d9374"
+    },
+    "lint.log": {
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "contacts-browser.log": {
+      "bytes": 171,
+      "sha256": "2f1791bca1a09d5d8bebf57ed918cdfd5aec71da8c36b639ee826511b6368648"
+    },
+    "public-demo-browser.log": {
+      "bytes": 265,
+      "sha256": "7b785896be5409d77742997dc48df8e823ecac20355dac203e721cda9b6feb72"
+    },
+    "board-updated-structural.log": {
+      "bytes": 8837,
+      "sha256": "3452fbf327715e325c53cbf5476cf1a2aa39a502c13cc10bc51cfbee6f0d855d"
+    },
+    "docker-build-final.log": {
+      "bytes": 22135,
+      "sha256": "3fb38bfcf278e438359f05426773e7e67899fe918f2e93fd2322fedbd72d651e"
+    },
+    "board-complete.log": {
+      "bytes": 19527,
+      "sha256": "fa9862274cffe8f09ccda266a5bb08c9be43c81ed60c0907baecc40fcd6bca67"
+    },
+    "board-final-structural.log": {
+      "bytes": 8837,
+      "sha256": "3b4fe877350bbc1a8cd83fcf8778cbf67bf7da19f3dfad7c007843260f3d70b4"
+    }
+  }
+}

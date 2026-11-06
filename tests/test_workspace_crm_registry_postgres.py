@@ -158,3 +158,41 @@ def test_initialized_empty_postgres_legacy_schema_can_activate(registry_database
             assert engine.store.list_campaigns()[1] == 0
     finally:
         registry.close()
+
+
+def test_missing_postgres_customer_table_is_not_recreated_by_cached_or_new_engine(registry_database, tmp_path):
+    registry = make_registry(registry_database, tmp_path)
+    try:
+        with registry.lease('alpha') as engine:
+            namespace = engine.store.namespace
+        with open_database(registry_database, namespace=namespace) as damaged:
+            damaged.execute('DROP TABLE email_templates')
+        with pytest.raises(CrmRoutingError, match='restore'):
+            with registry.lease('alpha'):
+                pass
+    finally:
+        registry.close()
+    restarted = make_registry(registry_database, tmp_path)
+    try:
+        with pytest.raises(CrmRoutingError, match='restore'):
+            with restarted.lease('alpha'):
+                pass
+        with open_database(registry_database, namespace=namespace) as damaged:
+            assert not damaged.columns('email_templates')
+    finally:
+        restarted.close()
+
+
+def test_postgres_same_column_view_cannot_impersonate_a_ready_customer_table(registry_database, tmp_path):
+    registry = make_registry(registry_database, tmp_path)
+    try:
+        with registry.lease('alpha') as engine:
+            namespace = engine.store.namespace
+        with open_database(registry_database, namespace=namespace) as changed:
+            changed.execute('ALTER TABLE email_templates RENAME TO saved_templates')
+            changed.execute('CREATE VIEW email_templates AS SELECT * FROM saved_templates')
+        with pytest.raises(CrmRoutingError, match='schema'):
+            with registry.lease('alpha'):
+                pass
+    finally:
+        registry.close()

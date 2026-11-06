@@ -1,6 +1,8 @@
 """The full-root SQLite recovery image includes every customer CRM file."""
 import hashlib
 import shutil
+import json
+import sqlite3
 import pytest
 from offsetx_apollo_builder.outreach.backup import (
     create_encrypted_backup, restore_encrypted_backup, discard_restore_safety,
@@ -80,6 +82,18 @@ def test_routing_receipt_and_closed_legacy_views_survive_encrypted_restore(tmp_p
         data_dir=destination, passphrase='disposable-registry-recovery')
     restored = None
     try:
+        # A pending restore must not open the normal runtime. Validate the
+        # disposable candidate's authenticated snapshot/rows before accepting
+        # it, then prove normal registry reopening after acceptance.
+        with sqlite3.connect(destination/'outreach.db') as control:
+            receipt = json.loads(control.execute('SELECT document FROM crm_workspace_routing').fetchone()[0])
+        for workspace, binding in receipt['namespaces'].items():
+            book = destination/'outreach.db.workspaces'/receipt['generation']/(binding['key']+'.db')
+            with sqlite3.connect(book) as candidate:
+                assert candidate.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+                assert candidate.execute('SELECT workspace_id FROM crm_workspace_identity').fetchone()[0] == workspace
+                assert candidate.execute('SELECT name FROM campaigns').fetchone()[0] == 'Restored private '+workspace
+        discard_restore_safety(result)
         restored = open_registry(destination)
         for workspace in ('alpha', 'beta'):
             with restored.lease(workspace) as engine:

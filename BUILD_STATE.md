@@ -1,3 +1,9 @@
+## 2026-11-07 — Registry CI green; startup/recovery and ready-schema guards added
+
+- Exact02422ec full workflow42306456274 SUCCESS: Python3.10/3.11/3.12 each3202 PASS/67 skipped; actual PostgreSQL3241 PASS/97 skipped; genuine PgBouncer/direct registry+namespace gate20 PASS/1 intentional startup-option skip; board72/72 evidence commands, frontend234 and build PASS. Container42306456325 SUCCESS. Raw job summaries retrieved, not inferred from green badges.
+- Next local slice D-416/D-417: initialize only under a validated workspace fence; refuse pending restore journals and foreign/expired startup leases; protect absent restore targets before mkdir; require all34 ready canonical base-table column sets so missing customer tables cannot silently reseed defaults. Actual SQLite/PostgreSQL/view/cached/restart/concurrency/ownership/recovery bundle63 PASS/12 local pooler skips. Newer source still needs its own remote CI evidence. No default app routing is activated.
+- Full local72-command replay finished49 PASS/23 FAIL, all failed commands include the known managed Chromium browser fixtures. Do not call the local verifier green; exact02422ec remote replay passed72/72. Updated detailed counts/next-five story/task/QA report: docs/audits/2026-11-07-remaining-work-next-five.md.100 open entries (81 stories+19 direct features),72 DONE; first-three programme58 open stories, allfive65. No status change or grand task estimate.
+
 ## 2026-11-07 — Leased native CRM registry verified; runtime activation still pending
 
 - b4ded78 full CI42302820197 and container42302820195 SUCCESS. No Render/main/customer deployment.

@@ -23,6 +23,7 @@ from ..db import DatabaseError, is_postgres_url, open_database
 from ..db.hosted import HostedStorage
 from ..db.schema import ensure_schema
 from .engine import OutreachEngine
+from .backup import restore_pending
 from .schema import CRM_TABLES, SCHEMA_SQL, SCHEMA_VERSION
 from .store import names_a_url
 from .workspace_lock import WorkspaceLock
@@ -339,6 +340,22 @@ def _verify_identity(location: CrmLocation):
                 row = database.execute(f'SELECT * FROM {_IDENTITY} WHERE id=1').fetchone()
                 if row is None or row['schema_version'] != 1 or (row['workspace_id'], row['generation'], row['install_id']) != (location.workspace, location.generation, location.install):
                     raise CrmRoutingError('Workspace ownership does not match; restore its verified backup')
+                if location.ready:
+                    if database.name == 'sqlite':
+                        columns = database.execute(
+                            "SELECT m.name AS table_name,p.name AS column_name FROM sqlite_master m "
+                            "JOIN pragma_table_info(m.name) p WHERE m.type='table'").fetchall()
+                    else:
+                        columns = database.execute(
+                            'SELECT c.table_name,c.column_name FROM information_schema.columns c '
+                            'JOIN information_schema.tables t USING(table_catalog,table_schema,table_name) '
+                            "WHERE c.table_schema=current_schema() AND t.table_type='BASE TABLE'").fetchall()
+                    actual = {}
+                    for column in columns:
+                        actual.setdefault(column['table_name'], set()).add(column['column_name'])
+                    if any(actual.get(table) != {name for name, _ in expected}
+                           for table, expected in _columns().items()):
+                        raise CrmRoutingError('Workspace schema is incomplete or unsupported; restore verified storage')
     except CrmRoutingError:
         raise
     except (DatabaseError, sqlite3.DatabaseError, OSError, KeyError, TypeError, ValueError):
@@ -349,7 +366,8 @@ class WorkspaceCrmRegistry:
     def __init__(self, *, root_target: str, data_dir: Path | str,
                  known_workspaces: Callable[[], Any], max_cached: int = 8,
                  install_id: str | None = None, hosted_storage: HostedStorage | None = None,
-                 engine_factory: Callable[[CrmLocation], OutreachEngine] | None = None):
+                 engine_factory: Callable[[CrmLocation], OutreachEngine] | None = None,
+                 startup_lease: WorkspaceLock | None = None):
         if type(max_cached) is not int or not 1 <= max_cached <= 32:
             raise CrmRoutingError('Workspace connection cache must contain between1 and32 books')
         if not is_postgres_url(root_target) and names_a_url(root_target):
@@ -365,7 +383,6 @@ class WorkspaceCrmRegistry:
             if not path.is_relative_to(self.data_dir):
                 raise CrmRoutingError('Keep workspace CRM storage inside the data directory for complete recovery')
             root_target = str(path)
-        self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.known_workspaces = known_workspaces
         self.max_cached = max_cached
         self.factory = engine_factory
@@ -373,6 +390,34 @@ class WorkspaceCrmRegistry:
         self._cache: dict[str, _Cached] = {}
         self._closed = False
         expected = install_id or os.getenv('OFFSETX_INSTALL_ID', '') or None
+        with self._startup_fence(startup_lease):
+            self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self._open(root_target, expected, hosted_storage)
+
+    @contextmanager
+    def _startup_fence(self, existing: WorkspaceLock | None):
+        if existing is None:
+            with WorkspaceLock(self.data_dir):
+                if restore_pending(self.data_dir):
+                    raise CrmRoutingError('Finish pending workspace restore before opening CRM storage')
+                yield
+            return
+        try:
+            if not isinstance(existing, WorkspaceLock) or existing.fd is None:
+                raise ValueError
+            expected = WorkspaceLock(self.data_dir).path.resolve()
+            if existing.path.resolve() != expected:
+                raise ValueError
+            held, current = os.fstat(existing.fd), expected.stat()
+            if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
+                raise ValueError
+        except (ValueError, OSError):
+            raise CrmRoutingError('Pass an active startup lease for this exact data directory') from None
+        if restore_pending(self.data_dir):
+            raise CrmRoutingError('Finish pending workspace restore before opening CRM storage')
+        yield
+
+    def _open(self, root_target, expected, hosted_storage):
         self._owned_hosted = None
         if is_postgres_url(root_target) and hosted_storage is None:
             self._owned_hosted = hosted_storage = HostedStorage(root_target, os.getenv('OFFSETX_SECRETS_KEY', ''))
@@ -393,12 +438,16 @@ class WorkspaceCrmRegistry:
         with self._lock:
             if self._closed:
                 raise CrmRoutingError('This workspace registry is closed; reopen the runtime')
-            if not isinstance(workspace, str) or not _WORKSPACE.fullmatch(workspace) or workspace not in self.known_workspaces():
+            if not isinstance(workspace, str) or not _WORKSPACE.fullmatch(workspace):
                 raise CrmRoutingError('Select an authenticated workspace before opening CRM data')
         with WorkspaceLock(self.data_dir):
+            if restore_pending(self.data_dir):
+                raise CrmRoutingError('Finish pending workspace restore before opening CRM storage')
             with self._lock:
                 if self._closed:
                     raise CrmRoutingError('This workspace registry is closed; reopen the runtime')
+                if workspace not in self.known_workspaces():
+                    raise CrmRoutingError('Select an authenticated workspace before opening CRM data')
                 receipt = self.catalogue.read()
                 if receipt is None:
                     raise CrmRoutingError('Workspace routing is missing; restore its verified backup')

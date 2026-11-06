@@ -7,6 +7,7 @@ from offsetx_apollo_builder.outreach.engine import OutreachEngine
 from offsetx_apollo_builder.outreach.models import ContactInput
 from offsetx_apollo_builder.outreach.store import OutreachStore
 from offsetx_apollo_builder.outreach.workspace_registry import WorkspaceCrmRegistry, CrmRoutingError
+from offsetx_apollo_builder.outreach.workspace_lock import WorkspaceLock, WorkspaceBusy
 
 pytestmark = pytest.mark.crm_sqlite_only("Exercises local SQLite namespace topology; PostgreSQL registry coverage is separate")
 
@@ -275,3 +276,109 @@ def test_new_control_and_customer_files_are_private(tmp_path):
         assert (tmp_path/'data'/'outreach.db').stat().st_mode & 0o777 == 0o600
     finally:
         registry.close()
+
+
+def test_constructor_cannot_open_databases_during_exclusive_recovery(tmp_path):
+    data = tmp_path/'data'
+    constructed = None
+    try:
+        with WorkspaceLock(data, exclusive=True):
+            with pytest.raises(WorkspaceBusy):
+                constructed = registry_for(tmp_path)
+        assert not data.exists()
+        assert not (data/'outreach.db').exists()
+    finally:
+        if constructed:
+            constructed.close()
+
+
+def test_runtime_can_pass_its_existing_startup_lease_without_nested_locking(tmp_path):
+    data = tmp_path/'data'
+    with WorkspaceLock(data, exclusive=True) as startup:
+        registry = registry_for(tmp_path, startup_lease=startup)
+    try:
+        with registry.lease('alpha') as engine:
+            assert engine.create_campaign(name='Started under fenced recovery')
+    finally:
+        registry.close()
+
+
+def test_expired_or_foreign_startup_lease_cannot_bypass_recovery(tmp_path):
+    foreign = WorkspaceLock(tmp_path/'other', exclusive=True)
+    with foreign:
+        with pytest.raises(CrmRoutingError, match='lease'):
+            registry_for(tmp_path, startup_lease=foreign)
+    with pytest.raises(CrmRoutingError, match='lease'):
+        registry_for(tmp_path, startup_lease=foreign)
+    assert not (tmp_path/'data'/'outreach.db').exists()
+
+
+def test_pending_restore_journal_refuses_constructor_and_live_leases(tmp_path):
+    registry = registry_for(tmp_path)
+    try:
+        with registry.lease('alpha'):
+            pass
+        (tmp_path/'.data.restore-journal.json').write_text('{}')
+        with pytest.raises(CrmRoutingError, match='restore'):
+            with registry.lease('alpha'):
+                pass
+        with pytest.raises(CrmRoutingError, match='restore'):
+            registry_for(tmp_path)
+    finally:
+        registry.close()
+
+
+def test_constructor_holds_recovery_fence_through_database_initialization(tmp_path, monkeypatch):
+    import threading
+    entered, finish = threading.Event(), threading.Event()
+    original = WorkspaceCrmRegistry._open
+    def paused(self, *args):
+        entered.set()
+        assert finish.wait(10), 'test did not release initialization'
+        return original(self, *args)
+    monkeypatch.setattr(WorkspaceCrmRegistry, '_open', paused)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(registry_for, tmp_path)
+        try:
+            assert entered.wait(10)
+            with pytest.raises(WorkspaceBusy):
+                with WorkspaceLock(tmp_path/'data', exclusive=True):
+                    pass
+        finally:
+            finish.set()
+        future.result(timeout=10).close()
+
+
+def test_recovery_fence_precedes_known_workspace_database_access(tmp_path):
+    calls = []
+    registry = WorkspaceCrmRegistry(root_target=str(tmp_path/'outreach.db'), data_dir=tmp_path,
+        known_workspaces=lambda: calls.append('authentication') or {'alpha'})
+    try:
+        with WorkspaceLock(tmp_path, exclusive=True):
+            with pytest.raises(WorkspaceBusy):
+                with registry.lease('alpha'):
+                    pass
+        assert calls == []
+    finally:
+        registry.close()
+
+
+def test_ready_book_missing_a_customer_table_is_not_silently_reinitialized(tmp_path):
+    registry = registry_for(tmp_path)
+    with registry.lease('alpha') as engine:
+        target = engine.store.path
+        template = engine.store.list_templates()[0][0]
+        template.update(subject_template='Private customer wording')
+        engine.store.upsert_template(template)
+    registry.close()
+    with sqlite3.connect(target) as damaged:
+        damaged.execute('DROP TABLE email_templates')
+    restarted = registry_for(tmp_path)
+    try:
+        with pytest.raises(CrmRoutingError, match='restore'):
+            with restarted.lease('alpha'):
+                pass
+        with sqlite3.connect(target) as damaged:
+            assert not damaged.execute("SELECT 1 FROM sqlite_master WHERE name='email_templates'").fetchone()
+    finally:
+        restarted.close()

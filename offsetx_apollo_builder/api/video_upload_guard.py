@@ -63,7 +63,7 @@ class VideoUploadBodyGuard:
 
         try:
             await asyncio.wait_for(self._slots.acquire(), timeout=0.05)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             await self._refuse(scope, receive, send, 429, "Too many video uploads. Retry shortly.")
             return
 
@@ -76,7 +76,7 @@ class VideoUploadBodyGuard:
             while True:
                 try:
                     message = await asyncio.wait_for(receive(), timeout=self._idle_timeout)
-                except TimeoutError:
+                except asyncio.TimeoutError:
                     await self._refuse(
                         scope, receive, send, 408,
                         "Video upload stopped receiving data. Retry the upload.",

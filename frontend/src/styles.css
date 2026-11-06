@@ -1089,3 +1089,21 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--blue); }
 .agent-team-procedure { border-top: 1px solid var(--border); padding-block: 12px; }
 
 .agent-team-result .preserve-lines { white-space: pre-wrap; }
+
+/* Draft rows must fit the content column beside the desktop navigation. */
+.draft-card > *, .draft-person > div { min-width: 0; }
+@media (min-width: 641px) and (max-width: 1400px) {
+  .draft-card { grid-template-columns: 24px minmax(0, 1fr) 150px 120px; }
+  .draft-copy { grid-column: 2/4; grid-row: 2; }
+  .quality { grid-column: 4; grid-row: 2; }
+  .draft-actions { grid-column: 4; grid-row: 1; }
+}
+@media (max-width: 640px) {
+  .draft-card { grid-template-columns: 24px minmax(0, 1fr); }
+  .draft-person { grid-column: 2; }
+  .draft-person small { max-width: 100%; }
+  .draft-tags { grid-column: 2; grid-row: 2; }
+  .draft-copy { grid-column: 2; grid-row: 3; }
+  .quality { grid-column: 2; grid-row: 4; }
+  .draft-actions { grid-column: 2; grid-row: 5; justify-self: start; }
+}

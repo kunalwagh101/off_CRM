@@ -5513,24 +5513,20 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
         def operation() -> dict[str, Any]:
             provider = None
-            if body.use_provider_fallback:
-                if body.provider:
-                    raise ValueError(
-                        "Choose either a direct provider or the configured fallback chain"
-                    )
+            if body.provider_profile_ids or (body.use_provider_fallback and body.fallback_strategy != "priority"):
+                raise HTTPException(409, "Drafts now use Connectors. Remove legacy profile IDs/strategy overrides and choose Connectors; saved profiles were not deleted.")
+            if body.use_connectors or body.use_provider_fallback:
+                from ..ai.draft_provider import ConnectorDraftProvider
                 workspace_id = _workspace_id(request)
-                provider = request.app.state.provider_profiles.router(
-                    # The caller's own profiles, the install owner included:
-                    # "every workspace's" put a client's planted profile in
-                    # the owner's chain (D-155, D-165).
-                    owner=workspace_id,
-                    profile_ids=body.provider_profile_ids,
-                    strategy=body.fallback_strategy,
-                    audit_callback=partial(
-                        engine.store.record_provider_call, workspace_id=workspace_id
-                    ),
-                    may_confirm=not _profile_scope(request),
+                broker, workspaces, _ = _ai(request)
+                provider = ConnectorDraftProvider(
+                    broker.with_credential_resolver(workspaces.credential_resolver(workspace_id)),
+                    workspaces.egress_settings(workspace_id), data_dir=resolved.data_dir,
                 )
+                try:
+                    provider.preflight()
+                except (EgressBlocked, PolicyViolation, NoPermittedProvider, RegistryError) as exc:
+                    raise _ai_error(exc) from exc
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(
                     campaign_id,

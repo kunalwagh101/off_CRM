@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import re
 import sqlite3
 import tempfile
@@ -421,14 +422,15 @@ def refuse_a_hidden_local_crm(crm: str, database_path: Path, secrets_key: str) -
     `offsetx-notebook` — before they open the CRM, as `create_app` does. Only
     the web app refused: the worker opened the hosted CRM, seeded and worked it,
     the owner's file unread (review finding 1). Raises `HostedStorageError`."""
-    if not is_postgres_url(crm) and Path(crm).resolve() == Path(database_path).resolve():
+    if not is_postgres_url(crm) and not os.getenv("OFFSETX_DATABASE_URL", "").strip():
         return
-    if not local_crm_rows(database_path):
-        return  # nothing of the owner's there: no need to reach the database
-    hosted = HostedStorage.configured(secrets_key)
-    if hosted is None:
-        return
+    # Bind the resolved target, including an explicit CLI override. Checking
+    # the environment target would authorise a different database.
+    hosted = HostedStorage(crm, secrets_key)
     try:
+        # Empty local folders are normal after a hosted restart. They must
+        # not bypass the install identity before a worker opens foreign jobs.
+        hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
         check_local_crm(hosted, database_path, crm)
     finally:
         hosted.close()

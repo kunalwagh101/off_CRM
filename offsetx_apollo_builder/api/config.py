@@ -61,6 +61,9 @@ class AppSettings:
     #: database (`S-06.03.02`). Only with `OFFSETX_DATABASE_URL`, and never
     #: written anywhere — a local install has its own key file instead.
     secrets_key: str = ""
+    # A CLI's explicit hosted database must validate with its master key even
+    # when the web runtime's environment target is absent.
+    hosted_target_override: str | None = None
     #: Host header values this server answers to. Empty means "derive from
     #: `host` plus the loopback names", which is right for a local install and
     #: wrong for a public deployment — that one names its own domain.
@@ -72,7 +75,7 @@ class AppSettings:
     allow_unauthenticated: bool = False
 
     @classmethod
-    def from_env(cls, project_root: Path | str | None = None) -> "AppSettings":
+    def from_env(cls, project_root: Path | str | None = None, *, hosted_target: str | None = None) -> "AppSettings":
         root = Path(project_root or Path.cwd()).resolve()
         data_dir = _data_dir(root)
         gmail_secrets = os.getenv("OFFSETX_GMAIL_CLIENT_SECRETS", "").strip()
@@ -107,6 +110,7 @@ class AppSettings:
             public_base_url=os.getenv("OFFSETX_PUBLIC_BASE_URL", "").strip(),
             unsubscribe_secret=os.getenv("OFFSETX_UNSUBSCRIBE_SECRET", ""),
             secrets_key=os.getenv(SECRETS_KEY_ENV, ""),
+            hosted_target_override=hosted_target,
             # Render sets RENDER_EXTERNAL_HOSTNAME to the service's own public
             # name; without it an unconfigured service answered 421 to itself.
             allowed_hosts=tuple(
@@ -169,7 +173,7 @@ class AppSettings:
             raise ValueError("OFFSETX_UNSUBSCRIBE_SECRET must contain at least 32 bytes")
         if self.backup_max_bytes < 1024 * 1024:
             raise ValueError("OFFSETX_BACKUP_MAX_BYTES must be at least 1 MiB")
-        validate_pair(os.getenv(DATABASE_URL_ENV, "").strip(), self.secrets_key)
+        validate_pair(self.hosted_target_override if self.hosted_target_override is not None else os.getenv(DATABASE_URL_ENV, "").strip(), self.secrets_key)
         self.validate_storage()
 
     def validate_storage(self) -> None:
@@ -197,7 +201,7 @@ class AppSettings:
         for path in (self.export_dir, self.gmail_token, self.gmail_client_secrets):
             if path is not None and not _inside(path, self.data_dir):
                 raise ValueError("Production exports and Gmail files must live under OFFSETX_DATA_DIR")
-        if os.getenv("OFFSETX_DATABASE_URL", "").strip():
+        if self.hosted_target_override or os.getenv("OFFSETX_DATABASE_URL", "").strip():
             raise ValueError(
                 "This production topology requires all stores on the persistent local root; unset OFFSETX_DATABASE_URL"
             )

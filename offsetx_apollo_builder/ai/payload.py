@@ -130,6 +130,9 @@ class EgressRequest:
     conversation: list[dict[str, str]] = field(default_factory=list)
     unrestricted: dict[str, Any] = field(default_factory=dict)
     task_tags: tuple[str, ...] = ()
+    # Refuse providers whose policy would omit required task context. This
+    # never raises their policy or grants permission to send more data.
+    minimum_policy: DataPolicy | None = None
 
 
 def _clean(value: object, limit: int = 2000) -> str:

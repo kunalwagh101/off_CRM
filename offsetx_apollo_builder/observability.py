@@ -255,7 +255,11 @@ def failure_message(
                   "offsetx-db import-crm --yes to import the CRM or offsetx-db import-crm --skip "
                   "to leave it aside. For settings use offsetx-db import-local --yes or "
                   "offsetx-db import-local --skip.")
-        if str(exc).startswith("The database was already told"):
+        if str(exc).startswith("Set OFFSETX_INSTALL_ID"):
+            reason = "Set OFFSETX_INSTALL_ID to this installation's stable UUID before using hosted storage."
+        elif str(exc).startswith("This database belongs to another install"):
+            reason = "The database belongs to another installation. Use this install's own database; ownership was not changed."
+        elif str(exc).startswith("The database was already told"):
             reason = "The database was already told what to do with local data; nothing was changed."
     from .outreach.store_copy import CrmCopyError
     if isinstance(exc, CrmCopyError):

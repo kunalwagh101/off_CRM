@@ -271,6 +271,7 @@ class ProviderSpec(StrictModel):
 
 
 class DraftGenerate(StrictModel):
+    use_connectors: bool = Field(default=False, strict=True)
     campaign_contact_ids: list[str] = Field(default_factory=list, max_length=5000)
     stages: list[str] = Field(default_factory=lambda: list(MESSAGE_STAGES), min_length=1)
     # A request can no longer bring its own provider: it named a server

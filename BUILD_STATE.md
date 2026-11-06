@@ -1,3 +1,10 @@
+## 2026-11-06 — Drafts Connectors and CLI ownership follow-up underway
+
+- Committed content/Agent Team increment9c7963d passed complete workflow42216714917 and container42216715038. No customer deployment or main promotion.
+- S-06.02.35: Drafts now routes explicit Connectors/legacy default fallback through workspace-bound broker; explicit old profile/strategy choices return migration guidance. Local templates and historical credentials/drafts retained. Required campaign context is filtered before spend using minimum policy; fixed signature appended locally. Bounded JSON and safe error references, actual fallback provenance, persistent failed-batch UI and Connectors setup action implemented.
+- Independent review reproduced actual-broker argument/normalization gap, worker target-override claim bypass, overwritten guidance and lost fallback provenance. Fixed with regressions; D-394/D-395. Actual desktop/mobile Drafts also found grid overflow/overlapping action, fixed D-396; Chromium1280/390 actual local generation/provider setup gate PASS. Frontend234 PASS/build PASS. Affected real-PG/broker/CLI bundle195 PASS; historical profile-isolation28 PASS; independent fix review7 PASS. Whole local Python regression running, known managed Chromium policy failures preserved; complete remote CI still required.
+- Scope remains all three priority feature areas. CRM tenancy, remaining durable-state homes, offsite bucket/identity/recovery, live-provider/platform checks and independent penetration still open. No DONE promotions.
+
 ## 2026-11-06 — First-three-feature delivery underway; owner decisions answered
 
 - Scope remains all F-06.02/F-06.03/F-04.01 stories, not one selected subtask. Next five remain reliability, hosted recovery, agent team, permissions/operations, GTM strategy. Owner answered Q-27 workspace-owned CRM, Q-28 Drafts through Connectors, S-06.03.07 separate database per installation. No customer record assignment/migration was run. Q-27 story moved BLOCKED→BACKLOG; current counts 70 DONE/74 IN_REVIEW/1 IN_PROGRESS/23 BACKLOG/4 BLOCKED, open total102 unchanged.

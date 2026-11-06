@@ -121,6 +121,8 @@ profile form that no screen has had since the providers moved to Connectors.
 Waits on the owner's answer to `Q-28`.)*
 
 - S-06.02.35 · Drafts reach a model the owner set up on a screen
+  work_order: docs/work-orders/S-06.02.35-drafts-connectors.md
+  checkpoint: 2026-11-06 Q-28 owner selected Connectors. Workspace broker adapter and actual Drafts mode/failure UI implemented; real-broker transport/policy/audit tests pass, affected real-PG bundle195 PASS, historical profile isolation28 PASS, frontend234 PASS/build PASS, actual Chromium1280/390 local generation/provider setup gate PASS. Independent fix review7 PASS. Full regression/CI running; real configured provider and release acceptance remain open; no DONE claim.
 
 *(Filed 2026-09-28 for `D-196`, from the sixth check: a login made in
 workspace `local` acts as the install owner with nothing asking for that.)*

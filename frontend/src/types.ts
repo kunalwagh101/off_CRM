@@ -130,6 +130,11 @@ export type Draft = {
   generation_meta: {
     mode?: string;
     provider_profile_id?: string;
+    routing?: string;
+    provider_id?: string;
+    model_id?: string;
+    policy?: string;
+    log_id?: string;
     provider_attempts?: Array<Record<string, unknown>>;
     memory_refs?: string[];
   };

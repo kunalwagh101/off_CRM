@@ -468,6 +468,10 @@ class LocalEmailExpert:
                 }
             )
 
+            if provider_run.get("routing") == "connectors":
+                generation_meta.update({key: provider_run.get(key, "") for key in
+                                        ("routing", "provider_id", "model_id", "policy", "log_id")})
+
         audit = audit_draft(
             stage=stage,
             route=route,

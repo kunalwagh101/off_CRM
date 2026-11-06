@@ -162,8 +162,7 @@ def _run(args: argparse.Namespace) -> int:
         return 0
 
     crm = crm_target(args.db)
-    if not args.db:
-        _refuse_a_hidden_local_crm(crm)
+    _refuse_a_hidden_local_crm(crm)
     engine = OutreachEngine(crm)
     try:
         if args.command == "create-campaign":

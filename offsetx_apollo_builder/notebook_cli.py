@@ -66,16 +66,15 @@ def _cmd_targets(_: argparse.Namespace) -> int:
 
 def _exporter(args: argparse.Namespace) -> tuple[NotebookExport, OutreachStore, ContextLayer | None]:
     crm = crm_target(args.db)
-    if not args.db:
-        # As the web app does: not while a local CRM file holds the owner's rows.
-        from .db.hosted import SECRETS_KEY_ENV, HostedStorageError
-        from .outreach.store_copy import refuse_a_hidden_local_crm
+    # As the web app does: not while a local CRM file holds the owner's rows.
+    from .db.hosted import SECRETS_KEY_ENV, HostedStorageError
+    from .outreach.store_copy import refuse_a_hidden_local_crm
 
-        try:
-            refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
-        except HostedStorageError as exc:
-            report_failure(exc, operation="offsetx-notebook")
-            raise SystemExit(failure_message(exc, operation="offsetx-notebook")) from exc
+    try:
+        refuse_a_hidden_local_crm(crm, database_path(), os.getenv(SECRETS_KEY_ENV, ""))
+    except HostedStorageError as exc:
+        report_failure(exc, operation="offsetx-notebook")
+        raise SystemExit(failure_message(exc, operation="offsetx-notebook")) from exc
     store = OutreachStore(crm)
     store.initialize()
     context: ContextLayer | None = None

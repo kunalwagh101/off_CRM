@@ -10,7 +10,7 @@ from typing import Any
 
 from .data_paths import load_project_env
 from .api.config import AppSettings
-from .db import DatabaseBusy, DatabaseError, DatabaseUnavailable, resolve_target
+from .db import DatabaseBusy, DatabaseError, DatabaseUnavailable, resolve_target, is_postgres_url
 from .db.hosted import HostedStorageError
 from .outreach.store import names_a_url
 from .outreach.store_copy import refuse_a_hidden_local_crm
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--max-jobs must be between 1 and 500")
     if args.poll_seconds < 0.25:
         raise SystemExit("--poll-seconds must be at least 0.25")
-    settings = AppSettings.from_env()
+    settings = AppSettings.from_env(hosted_target=args.database if args.database and is_postgres_url(args.database) else None)
     if args.database and not names_a_url(args.database):
         args.database = settings.database_path = Path(args.database).resolve()
     if args.data_dir:
@@ -111,13 +111,10 @@ def main(argv: list[str] | None = None) -> int:
                         # OFFSETX_DATABASE_URL, then the file. Reopening only the
                         # file sent nothing once the CRM was in the database.
                         crm = resolve_target(args.database, default=settings.database_path)
-                        if not args.database:
-                            # Not while a local CRM file holds the owner's rows: it
-                            # would work the database's CRM and leave theirs unsent.
-                            try:
-                                refuse_a_hidden_local_crm(crm, settings.database_path, settings.secrets_key)
-                            except HostedStorageError as exc:
-                                raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
+                        try:
+                            refuse_a_hidden_local_crm(crm, settings.database_path, settings.secrets_key)
+                        except HostedStorageError as exc:
+                            raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
                         engine = OutreachEngine(crm)
                         try:
                             result = _service(settings, engine).work_once(max_jobs=args.max_jobs)

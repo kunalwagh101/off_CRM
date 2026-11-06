@@ -568,6 +568,10 @@ class EgressBroker:
                 )) from None
         with_budget: list[ResolvedProvider] = []
         for candidate in adjusted:
+            if request.minimum_policy is not None and candidate.policy.rank < request.minimum_policy.rank:
+                rejected.append({"provider_id": candidate.id, "model_id": candidate.model_id,
+                                 "reason": "policy_omits_required_task_context"})
+                continue
             limits = settings.quota_limits.get(candidate.id)
             if self.quota is None or limits is None or limits.unlimited:
                 with_budget.append(candidate)

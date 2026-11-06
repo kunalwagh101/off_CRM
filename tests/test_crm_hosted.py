@@ -1110,6 +1110,10 @@ def test_the_worker_opens_the_database_its_option_names(crm_target, tmp_path, mo
     # (found by task i's walk with the real commands).
     from offsetx_apollo_builder import email_worker_cli
 
+    # An explicit hosted target follows the same master-key/install contract
+    # as the web runtime, even when OFFSETX_DATABASE_URL is absent.
+    if str(crm_target).startswith("postgresql://"):
+        monkeypatch.setenv("OFFSETX_SECRETS_KEY", Fernet.generate_key().decode())
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.delenv("OFFSETX_OUTREACH_DB", raising=False)

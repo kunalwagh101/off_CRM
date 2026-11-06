@@ -196,7 +196,7 @@ def _campaign_with_contact(client, headers=None) -> str:
 
 
 def _generate(client, campaign, headers=None, **extra):
-    # Exactly what Drafts.tsx posts in fallback mode.
+    # Historical default fallback requests now use workspace Connectors (Q-28).
     return client.post(
         f"/api/v1/campaigns/{campaign}/drafts/generate", headers=headers,
         json={"campaign_contact_ids": [], "stages": ["initial"], "use_provider_fallback": True,
@@ -225,18 +225,18 @@ def test_the_owners_drafts_never_run_through_another_workspaces_profile(client, 
     _owner_profile(client)
     campaign = _campaign_with_contact(client, ADMIN)
     answer = _generate(client, campaign, ADMIN)
-    assert answer.status_code == 200, answer.text
-    assert _sent_to(seen, ATTACKER) == []
-    # The owner's own profile wrote it (at "minimal", so the name is redacted).
-    assert _sent_to(seen, OWNER_URL)
+    assert answer.status_code == 409, answer.text
+    assert "Connectors" in answer.json()["detail"]["message"]
+    # Neither an owner's nor a client's historical profile grants a Connector.
+    assert _sent_to(seen, ATTACKER) == [] and _sent_to(seen, OWNER_URL) == []
 
 
 def test_with_no_profile_of_its_own_the_owner_is_told_so(client, seen):
     _beta_plants_a_profile(client)
     campaign = _campaign_with_contact(client, ADMIN)
     answer = _generate(client, campaign, ADMIN)
-    assert answer.status_code == 503
-    assert "your workspace" in answer.json()["detail"]
+    assert answer.status_code == 409
+    assert "workspace" in answer.json()["detail"]["message"] and "Connectors" in answer.json()["detail"]["message"]
     assert _sent_to(seen, ATTACKER) == []
 
 
@@ -289,8 +289,8 @@ def test_a_profile_saved_before_ownership_is_in_no_chain_until_the_owner_confirm
     assert client.get("/api/v1/provider-profiles?mine=true", headers=ADMIN).json()["items"] == []
     campaign = _campaign_with_contact(client, ADMIN)
     refused = _generate(client, campaign, ADMIN)
-    assert refused.status_code == 503
-    assert "confirm" in refused.json()["detail"].lower()
+    assert refused.status_code == 409
+    assert "Connectors" in refused.json()["detail"]["message"]
     assert _sent_to(seen, ATTACKER) == []
 
     confirmed = client.post(f"/api/v1/provider-profiles/{pid}/confirm", headers=ADMIN,
@@ -299,8 +299,10 @@ def test_a_profile_saved_before_ownership_is_in_no_chain_until_the_owner_confirm
     assert confirmed.json()["owner"] == "local" and confirmed.json()["owner_confirmed"] is True
     assert [item["id"] for item in client.get(
         "/api/v1/provider-profiles?mine=true", headers=ADMIN).json()["items"]] == [pid]
-    assert _generate(client, campaign, ADMIN).status_code == 200
-    assert any("Anita Rao" in prompt for prompt in _sent_to(seen, ATTACKER))
+    # Confirmation preserves historical profile ownership, but does not opt
+    # that key/endpoint into the new Connectors egress boundary.
+    assert _generate(client, campaign, ADMIN).status_code == 409
+    assert _sent_to(seen, ATTACKER) == []
 
 
 def test_confirming_never_takes_another_workspaces_profile(client):
@@ -334,10 +336,17 @@ def test_the_provider_call_log_shows_a_client_only_its_own_calls(client, seen):
     owner_pid = client.post("/api/v1/provider-profiles", headers=ADMIN, json={
         "name": "Owner's", "provider_type": "openai_compatible", "model": "gpt-4o-mini",
         "api_key": OWNER_KEY, "base_url": OWNER_URL, "audit_payloads": True}).json()["id"]
-    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 200
+    # Historical audit rows remain readable with their original scope after
+    # Drafts moves to Connectors. Seed persisted calls instead of reactivating
+    # the retired profile routing path just to create this fixture.
+    client.app.state.engine.store.record_provider_call(profile_id=owner_pid,
+        provider_type="openai_compatible", model="old-owner-model", data_policy="minimal",
+        status="success", workspace_id="local")
     beta_pid = _beta_plants_a_profile(client)
+    client.app.state.engine.store.record_provider_call(profile_id=beta_pid,
+        provider_type="openai_compatible", model="old-beta-model", data_policy="minimal",
+        status="success", workspace_id="beta")
     _login(client, "beta")
-    assert _generate(client, _campaign_with_contact(client)).status_code == 200
     beta_rows = client.get("/api/v1/provider-calls").json()["items"]
     assert beta_rows and {row["profile_id"] for row in beta_rows} == {beta_pid}
     assert {row["workspace_id"] for row in beta_rows} == {"beta"}
@@ -378,10 +387,10 @@ def test_the_owner_is_never_told_a_clients_profile_is_theirs(client, seen):
     _legacy_rows(client, [("owner-old", "default", "Primary OpenAI", OWNER_URL),
                           ("beta-old", "beta", "Fast", ATTACKER)])
     refused = _generate(client, _campaign_with_contact(client, ADMIN), ADMIN)
-    assert refused.status_code == 503
-    message = refused.json()["detail"]
+    assert refused.status_code == 409
+    message = refused.json()["detail"]["message"]
     assert "Fast" not in message and "Your provider profiles" not in message
-    assert "Settings" in message
+    assert "Connectors" in message
     assert seen == []
 
 
@@ -393,7 +402,7 @@ def test_confirming_returns_a_profile_to_the_workspace_it_was_saved_for(client, 
                             json={"api_key": "sk-beta-old-" + "k" * 20, "confirm_to": "beta"})
     assert confirmed.status_code == 200, confirmed.text
     assert (confirmed.json()["owner"], confirmed.json()["owner_confirmed"]) == ("beta", True)
-    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
+    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 409
     assert _sent_to(seen, ATTACKER) == []
     _login(client, "beta")
     assert [item["id"] for item in client.get("/api/v1/provider-profiles").json()["items"]] == ["beta-old"]
@@ -462,7 +471,7 @@ def test_confirming_needs_the_key_the_profile_holds(client, seen):
         assert refused.status_code == 409, refused.text
         assert "key" in refused.json()["detail"].lower()
     assert client.app.state.provider_profiles.ownership("beta-api") == ("default", False)
-    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 503
+    assert _generate(client, _campaign_with_contact(client, ADMIN), ADMIN).status_code == 409
     assert _sent_to(seen, ATTACKER) == []
     proved = client.post("/api/v1/provider-profiles/beta-api/confirm", headers=ADMIN,
                          json={"api_key": "sk-beta-api-" + "k" * 20, "confirm_to": "local"})

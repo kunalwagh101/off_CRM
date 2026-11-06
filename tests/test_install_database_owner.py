@@ -136,3 +136,50 @@ def test_actual_hosted_app_requires_explicit_install_identity(tmp_path, monkeypa
                 allowed_hosts=("testserver",),
             )
         )
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_worker_cannot_bypass_install_claim_with_an_empty_local_folder(tmp_path, monkeypatch, override):
+    from offsetx_apollo_builder import email_worker_cli
+    key = Fernet.generate_key().decode()
+    target = str(tmp_path / 'hosted.db')
+    first = HostedStorage(target, key)
+    try:
+        first.claim_install(str(uuid.UUID(int=1)))
+    finally:
+        first.close()
+    monkeypatch.setenv('OFFSETX_DATABASE_URL', str(tmp_path / 'own-hosted.db') if override else target)
+    monkeypatch.setenv('OFFSETX_SECRETS_KEY', key)
+    monkeypatch.setenv('OFFSETX_INSTALL_ID', str(uuid.UUID(int=2)))
+    monkeypatch.setenv('OFFSETX_DATA_DIR', str(tmp_path / 'new-install'))
+    monkeypatch.setenv('OFFSETX_LOCAL_API_TOKEN', 'worker-owner-' + 'x' * 40)
+    def never_open(*args, **kwargs):
+        raise AssertionError('a foreign install must not open or send CRM jobs')
+    monkeypatch.setattr(email_worker_cli, 'OutreachEngine', never_open)
+    with pytest.raises(SystemExit):
+        email_worker_cli.main(["--database", target] if override else [])
+
+@pytest.mark.parametrize('reason, expected', [
+    ('Set OFFSETX_INSTALL_ID before using hosted storage', 'stable UUID'),
+    ('This database belongs to another install', 'own database'),
+])
+def test_identity_failure_message_preserves_the_actionable_reason(tmp_path, reason, expected):
+    from offsetx_apollo_builder.db.hosted import HostedStorageError
+    from offsetx_apollo_builder.observability import failure_message
+    message = failure_message(HostedStorageError(reason), operation='email-worker', data_dir=tmp_path)
+    assert expected in message
+    assert 'Reference: E-' in message
+
+
+def test_explicit_postgres_target_claims_without_an_environment_database(isolated_postgres_target, tmp_path, monkeypatch):
+    from offsetx_apollo_builder.outreach.store_copy import refuse_a_hidden_local_crm
+    key = Fernet.generate_key().decode()
+    store = HostedStorage(isolated_postgres_target, key)
+    try:
+        store.claim_install(str(uuid.UUID(int=1)))
+    finally:
+        store.close()
+    monkeypatch.delenv('OFFSETX_DATABASE_URL', raising=False)
+    monkeypatch.setenv('OFFSETX_INSTALL_ID', str(uuid.UUID(int=2)))
+    with pytest.raises(ValueError, match='another install'):
+        refuse_a_hidden_local_crm(isolated_postgres_target, tmp_path / 'missing.db', key)

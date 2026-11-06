@@ -3,8 +3,8 @@ import { api, idempotencyKey } from "../api";
 import { Badge, Button, Field, Modal, PageHeader, Panel, Progress, StatePanel } from "../components";
 import { useApp } from "../context";
 import { stageLabel, useResource } from "../hooks";
-import type { Draft, Paginated, ProviderProfileList } from "../types";
-import { draftsProfileNote } from "./LegacyProfiles";
+import type { AIProvidersPayload, Draft, Paginated } from "../types";
+import { DraftGenerationMode, generationOutcome, type GenerationResult } from "./DraftGeneration";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 export default function Drafts() {
@@ -15,7 +15,7 @@ export default function Drafts() {
   const [editing, setEditing] = useState<Draft | null>(null);
   const [generationOpen, setGenerationOpen] = useState(false);
   const [providerType, setProviderType] = useState("local");
-  const [fallbackStrategy, setFallbackStrategy] = useState("priority");
+  const [generationError, setGenerationError] = useState("");
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [findText, setFindText] = useState("");
@@ -32,33 +32,33 @@ export default function Drafts() {
         : Promise.resolve({ items: [], total: 0 }),
     [campaignId, stage, approval]
   );
-  // The caller's own chain, which is all a draft may use (D-165).
-  const profiles = useResource(() => api.get<ProviderProfileList>("/provider-profiles?mine=true"), []);
+  const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
+  const connected = providers.data?.providers.filter((provider) => provider.connected && provider.enabled).length ?? 0;
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
   if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /></>;
 
-  async function generate(provider: Record<string, unknown> | null = null, useFallback = false) {
+  async function generate(useConnectors = false) {
     setBusy("generate");
+    setGenerationError("");
     try {
-      const result = await api.post<{ generated: number; blocked: number; failures: unknown[] }>(
+      const result = await api.post<GenerationResult>(
         `/campaigns/${campaignId}/drafts/generate`,
         {
           campaign_contact_ids: [],
           stages: ["initial", "followup1", "followup2"],
-          provider,
-          use_provider_fallback: useFallback,
-          provider_profile_ids: [],
-          fallback_strategy: fallbackStrategy
+          use_connectors: useConnectors
         },
         idempotencyKey("drafts")
       );
-      notify(`${result.generated} drafts generated, ${result.blocked} blocked by audit`, result.blocked ? "info" : "success");
-      setGenerationOpen(false);
+      const outcome = generationOutcome(result);
+      notify(outcome.message, outcome.tone);
+      if (result.failures.length) setGenerationError(outcome.message);
+      else setGenerationOpen(false);
       drafts.reload();
       refreshCampaigns();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Draft generation failed", "error");
+      setGenerationError(error instanceof Error ? error.message : "Draft generation failed. Retry explicitly.");
     } finally {
       setBusy("");
     }
@@ -66,13 +66,7 @@ export default function Drafts() {
 
   function generateFromForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (providerType === "local") {
-      void generate(null);
-      return;
-    }
-    // A request can no longer bring its own provider (D-154): models are
-    // reached through saved profiles, whose keys are typed in the app.
-    void generate(null, true);
+    void generate(providerType === "connectors");
   }
 
   async function approveSelected() {
@@ -192,7 +186,7 @@ export default function Drafts() {
               <article className={`draft-card ${selected.has(draft.id) ? "draft-selected" : ""}`} key={draft.id}>
                 <div className="draft-select"><input type="checkbox" checked={selected.has(draft.id)} disabled={!draft.sendable || !["pending", "send_failed_review"].includes(draft.approval_status)} onChange={() => toggle(draft.id)} aria-label={`Select email for ${draft.full_name}`} /></div>
                 <div className="draft-person"><span className="avatar">{draft.full_name.slice(0, 2).toUpperCase()}</span><div><strong>{draft.full_name}</strong><small>{draft.company} · {draft.email}</small></div></div>
-                <div className="draft-tags"><Badge tone={draft.variant_id === "A" ? "blue" : "violet"}>Variant {draft.variant_id}</Badge><Badge>{stageLabel(draft.stage)}</Badge><Badge tone={statusTone(draft.approval_status)}>{draft.approval_status.replaceAll("_", " ")}</Badge>{draft.generation_meta?.mode === "ai_personalized" ? <Badge tone="blue">AI · {draft.generation_meta.provider_profile_id?.slice(0, 8) || "provider"}</Badge> : <Badge>Template</Badge>}{draft.scheduled_at ? <Badge tone="warning">Scheduled {new Date(draft.scheduled_at).toLocaleString()}</Badge> : null}</div>
+                <div className="draft-tags"><Badge tone={draft.variant_id === "A" ? "blue" : "violet"}>Variant {draft.variant_id}</Badge><Badge>{stageLabel(draft.stage)}</Badge><Badge tone={statusTone(draft.approval_status)}>{draft.approval_status.replaceAll("_", " ")}</Badge>{draft.generation_meta?.mode === "ai_personalized" ? <Badge tone="blue">AI · {draft.generation_meta.provider_id || draft.generation_meta.provider_profile_id?.slice(0, 8) || "provider"}</Badge> : <Badge>Template</Badge>}{draft.scheduled_at ? <Badge tone="warning">Scheduled {new Date(draft.scheduled_at).toLocaleString()}</Badge> : null}</div>
                 <div className="draft-copy"><strong>{draft.subject}</strong><p>{draft.body.split("\n").slice(0, 3).join(" ")}</p></div>
                 <div className="quality"><div><span>Quality</span><strong className={draft.sendable ? "quality-good" : "quality-bad"}>{draft.quality_score}</strong></div><Progress value={draft.quality_score} />{draft.audit.errors.length ? <small className="error-text">{draft.audit.errors[0]}</small> : draft.audit.warnings.length ? <small>{draft.audit.warnings[0]}</small> : <small>All hard checks passed</small>}</div>
                 <div className="draft-actions"><Button tone="ghost" onClick={() => setEditing(draft)}>Review and edit</Button></div>
@@ -207,7 +201,7 @@ export default function Drafts() {
         {editing ? (
           <form className="form-stack" onSubmit={saveDraft}>
             <div className="review-meta"><div><span>Recipient</span><strong>{editing.full_name}</strong></div><div><span>Stage</span><strong>{stageLabel(editing.stage)}</strong></div><div><span>Variant</span><strong>{editing.variant_id}</strong></div><div><span>Quality</span><strong>{editing.quality_score}/100</strong></div></div>
-            <div className="form-note"><strong>Generation trace</strong><span>{editing.generation_meta?.mode === "ai_personalized" ? `AI provider ${editing.generation_meta.provider_profile_id || "fallback chain"}` : "Local template only"} · {editing.retrieval_refs.length} context references</span></div>
+            <div className="form-note"><strong>Generation trace</strong><span>{editing.generation_meta?.mode === "ai_personalized" ? `AI provider ${editing.generation_meta.provider_id || editing.generation_meta.provider_profile_id || "provider"}` : "Local template only"} · {editing.retrieval_refs.length} context references</span></div>
             <Field label="Subject"><input name="subject" defaultValue={editing.subject} required maxLength={500} /></Field>
             <Field label="Body"><textarea name="body" defaultValue={editing.body} rows={18} required /></Field>
             {editing.audit.errors.length || editing.audit.warnings.length ? <div className="audit-box"><strong>Current audit</strong>{editing.audit.errors.map((item) => <p className="error-text" key={item}>Blocked: {item}</p>)}{editing.audit.warnings.map((item) => <p key={item}>Review: {item}</p>)}</div> : <div className="form-note success-note"><strong>All hard checks passed</strong><span>The draft still needs your approval before sending.</span></div>}
@@ -231,17 +225,9 @@ export default function Drafts() {
       </Modal>
       <Modal open={generationOpen} onClose={() => setGenerationOpen(false)} title="Generate three-stage sequence" description="The template rules stay constant. An AI provider is optional and can only personalise within those rules.">
         <form className="form-stack" onSubmit={generateFromForm}>
-          <Field label="Generation mode">
-            <select value={providerType} onChange={(event) => setProviderType(event.target.value)}>
-              <option value="local">Local templates only</option>
-              <option value="fallback" disabled={!profiles.data?.total}>Automatic fallback chain ({profiles.data?.total ?? 0})</option>
-            </select>
-          </Field>
-          {profiles.data && draftsProfileNote(profiles.data.total, profiles.data.waiting ?? 0) ? (
-            <p className="muted-copy">{draftsProfileNote(profiles.data.total, profiles.data.waiting ?? 0)}</p>
-          ) : null}
-          {providerType === "fallback" ? <div className="form-note success-note"><strong>Provider-independent mode</strong><span>The CRM tries configured providers in priority order and automatically skips outages, rate limits and malformed responses.</span></div> : null}
-          {providerType === "fallback" ? <Field label="Multi-provider strategy"><select value={fallbackStrategy} onChange={(event) => setFallbackStrategy(event.target.value)}><option value="priority">Priority failover</option><option value="round_robin">Round robin</option><option value="parallel">Parallel first-success</option></select></Field> : null}
+          <DraftGenerationMode mode={providerType} onChange={setProviderType} connected={connected} />
+          {providers.error ? <p role="alert">{providers.error} <Button type="button" onClick={providers.reload}>Reload Connectors</Button></p> : null}
+          {generationError ? <p role="alert" tabIndex={-1}>{generationError}</p> : null}
           <div className="form-note"><strong>Human review remains mandatory.</strong><span>Generated output is re-audited. Missing sources, invented fields and unsafe language stay blocked.</span></div>
           <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setGenerationOpen(false)}>Cancel</Button><Button type="submit" busy={busy === "generate"}>Generate drafts</Button></div>
         </form>

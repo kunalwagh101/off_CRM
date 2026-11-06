@@ -92,7 +92,9 @@ jobs:
   # (`tests/conftest.py`). The `postgres` extra installs the driver, which a
   # plain sync leaves out.
   postgres:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 provides PostgreSQL client 16 in its supported repositories.
+    # ubuntu-latest moved to 26.04, whose default client cannot restore to 16.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:

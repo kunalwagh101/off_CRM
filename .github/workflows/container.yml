@@ -1,0 +1,97 @@
+name: production container
+
+on:
+  push:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - uv.lock
+      - run_offsetx_web.py
+      - offsetx_apollo_builder/**
+      - scripts/container_entrypoint.py
+      - frontend/**
+      - tests/fixtures/timeline_conformance.json
+      - .github/workflows/container.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - pyproject.toml
+      - uv.lock
+      - run_offsetx_web.py
+      - offsetx_apollo_builder/**
+      - scripts/container_entrypoint.py
+      - frontend/**
+      - tests/fixtures/timeline_conformance.json
+      - .github/workflows/container.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-start:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production Dockerfile
+        run: docker build --tag offcrm-container-check .
+      # Disposable visitor state needs no customer credentials or external provider.
+      # This verifies the actual image entrypoint, served frontend and startup.
+      - name: Start the application container
+        run: |
+          docker run --detach --name offcrm-container-check \
+            --publish 127.0.0.1:8766:8766 \
+            --env OFFSETX_PUBLIC_DEMO=1 \
+            --env OFFSETX_PRODUCTION=0 \
+            --env OFFSETX_ALLOWED_HOSTS=127.0.0.1,localhost \
+            --env OFFSETX_DEMO_USERNAME=visitor \
+            --env OFFSETX_DEMO_PASSWORD=ci-disposable-visitor-password \
+            --env OFFSETX_SESSION_SECRET=ci-disposable-session-secret-012345678901234567890123456789 \
+            offcrm-container-check
+      - name: Verify readiness, frontend and unprivileged process
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.error
+          import urllib.request
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8766/health/ready', timeout=2) as response:
+                      assert response.status == 200
+                  break
+              except (OSError, urllib.error.URLError):
+                  time.sleep(2)
+          else:
+              raise SystemExit('Container did not become ready within 120 seconds')
+          with urllib.request.urlopen('http://127.0.0.1:8766/', timeout=5) as response:
+              assert response.status == 200
+              assert '<html' in response.read().decode().lower()
+          PY
+          docker exec offcrm-container-check python -c \
+            "from pathlib import Path; s=Path('/proc/1/status').read_text(); u=next(x for x in s.splitlines() if x.startswith('Uid:')); assert u.split()[1:] == ['10001'] * 4, u"
+      - name: Verify restart readiness with the same disposable volume
+        run: |
+          docker restart offcrm-container-check
+          python - <<'PY'
+          import time
+          import urllib.error
+          import urllib.request
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8766/health/ready', timeout=2) as response:
+                      assert response.status == 200
+                  break
+              except (OSError, urllib.error.URLError):
+                  time.sleep(2)
+          else:
+              raise SystemExit('Container did not become ready after restart')
+          PY
+      - name: Show application diagnostics after failure
+        if: failure()
+        run: docker logs --tail 100 offcrm-container-check
+      - name: Remove the disposable container and volume
+        if: always()
+        run: docker rm --force --volumes offcrm-container-check

@@ -33,3 +33,7 @@ For a lost master key, stop app/workers and retain a verified encrypted backup. 
 Restore into a new empty independently verified database with the same UUID and key; the actual encrypted restore reclaims that UUID and reopens records. Keep the claim during a code rollback and retain post-upgrade data. Never delete/edit ownership to admit another install or automatically revert a migrated customer source. New code changes no identity document format; prefer forward fixes over restoring known import bypasses. Explicit raw copy-crm/copy-log are trusted offline admin tools, separate from import decisions; they do not grant tenant access.
 
 Full exact-source CI, final board evidence and whole-feature release gates remain required. No real S3/provider/customer/Render deployment or main promotion occurred.
+
+## Final current-root preflight correction
+
+D-438: an unsupported current-root view could execute before the later catalog refusal. A transactional marker rolled back and gave a false negative; an actual PostgreSQL sequence probe (nextval survives rollback) then reproduced RED1. Normal claim and key reset now catalog-check before reading root rows. New regression raises the isolated-database matrix to100 cases; focused owner pair113 PASS after the final change. Earlier315/99 results precede this final two-line ordering change. Additional2f0 actual HTTP/auth/workspace/upload/privacy/egress security bundle171 PASS. No comprehensive penetration certification is claimed. New exact-source CI remains required.

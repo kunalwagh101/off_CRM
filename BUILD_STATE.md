@@ -1,3 +1,8 @@
+## 2026-11-07 — Ownership preflight before current-root reads
+
+- D-438 actual PostgreSQL sequence probe RED exposed evaluating an unsupported ownership view before refusing it. Normal claim and lost-key reset now perform catalog preflight before current-root reads. Initial transactional marker rolled back and was not counted as a behavioral RED; corrected sequence probe failed before fix.
+- Final100 ownership-boundary/13 prior installation checks113 PASS after this ordering change; independent review pending. Actual2f0 security bundle171 PASS; no comprehensive whole-application penetration certification. Whole2f0 CI and newer-source CI tracked separately. No tracker state/count change or customer deployment.
+
 ## 2026-11-07 — Complete import/recovery ownership boundary; physical database guard
 
 - S-06.03.07 moved BACKLOG to IN_REVIEW after D-432–D-437 fixes; no DONE yet. Old local/CRM/timer/context yes/skip helpers now claim before user state/archive changes. Content/profile guards run before source opening. Context hardlink preflight covers all three file pairs. Context helper requires declared UUID/master key; test fixtures explicitly provide disposable keys.

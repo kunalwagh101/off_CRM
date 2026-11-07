@@ -292,3 +292,19 @@ def test_row_security_on_claim_table_is_refused_even_for_existing_owner(isolated
             store.claim_install(OWNER)
     finally:
         store.close()
+
+
+def test_unsupported_current_claim_view_is_rejected_before_evaluating_it(isolated_install_database):
+    store = HostedStorage(isolated_install_database, Fernet.generate_key().decode())
+    try:
+        store.claim_install(OWNER)
+        db = store.connection
+        db.execute('CREATE SEQUENCE view_evaluations')
+        db.execute("CREATE FUNCTION mark_read(value TEXT) RETURNS TEXT LANGUAGE plpgsql VOLATILE AS $$ BEGIN PERFORM nextval('view_evaluations'); RETURN value; END $$")
+        db.execute('ALTER TABLE offcrm_documents RENAME TO saved_documents')
+        db.execute('CREATE VIEW offcrm_documents AS SELECT name,mark_read(body) AS body,updated_at FROM saved_documents')
+        with pytest.raises(HostedStorageError, match='non-table'):
+            store.claim_install(OWNER)
+        assert db.execute('SELECT is_called FROM view_evaluations').fetchone()['is_called'] is False
+    finally:
+        store.close()

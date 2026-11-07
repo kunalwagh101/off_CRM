@@ -241,8 +241,8 @@ class HostedStorage:
         """Bind one logical install, verifying owner before even key-check writes."""
         canonical = self._install_identity(identity)
         with self.exclusive():
-            self._require_owner(canonical)
             self._require_database_owner(canonical)
+            self._require_owner(canonical)
             self._check_secrets_key_locked()
             if self.read("install.identity.v1") is None:
                 self.write("install.identity.v1", canonical)
@@ -368,8 +368,8 @@ class HostedStorage:
         with self.exclusive():
             # The old master key is deliberately unavailable on this recovery
             # path. Require the existing logical owner; never claim or transfer.
-            self._require_owner(canonical, existing=True)
             self._require_database_owner(canonical)
+            self._require_owner(canonical, existing=True)
             self.delete(PROVIDER_KEYS)
             self.delete(KEY_CHECK)
 

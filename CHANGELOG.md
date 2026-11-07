@@ -2,7 +2,7 @@
 
 - All hosted import/skip helpers verify install UUID and master key before copying, archiving or clearing source records. Context migration rejects hardlinked source/target/archive files.
 - Ownership and key checks commit atomically. Lost-key clearing requires the existing install identity while allowing recovery without the lost key.
-- PostgreSQL claims span metadata schemas, preventing independent installs from sharing a database through different search paths. Unsupported or row-protected ownership metadata fails closed.
+- PostgreSQL claims span metadata schemas, preventing independent installs from sharing a database through different search paths. Unsupported or row-protected ownership metadata fails closed before ownership views are evaluated.
 - Actual SQLite/PostgreSQL import, race, restore and independent security checks pass; exact-revision full CI remains required. No customer migration or deployment.
 
 ## 2026-11-07 — Workspace-safe recall mutations (unreleased)

@@ -1,3 +1,10 @@
+## 2026-11-07 — Hosted tools and recoverable companion permissions (unreleased)
+
+- Tool pins, run receipts and companion grants use configured hosted SQL for app and CLI. Archive-first migration preserves history with explicit reactivation approval.
+- Real Docker timeout cleanup removes only the owned running container, retaining actionable uncertainty if removal cannot be confirmed. Imported diagnostics cannot become public secret text.
+- Companion profiles expose saved permissions for removed tools, supporting explicit clear/save and undo. Actual desktop/mobile browser QA covers restart and local-folder loss on SQLite/PostgreSQL.
+- Isolated browser QA runs in CI. Whole features, runtime customer isolation and external recovery/release gates remain open. No customer deployment.
+
 ## 2026-11-07 — Preserve customer template decisions (unreleased)
 
 - Bundled defaults fill missing template IDs without overwriting customer wording or reactivating disabled records, including under a PostgreSQL insertion race.

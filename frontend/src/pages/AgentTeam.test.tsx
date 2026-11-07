@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam from "./AgentTeam";
+import AgentTeam, { ToolGrantChoices } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -39,5 +39,32 @@ describe("agent-team access and prerequisites", () => {
     const html = screen();
     expect(html).toContain(state.error);
     expect(html).toContain("Retry loading");
+  });
+});
+
+describe('saved tool access', () => {
+  it('keeps unavailable saved grants visible and checked so the owner can clear them', () => {
+    const html = renderToStaticMarkup(<ToolGrantChoices tools={[]} savedGrants={['removed-123']}
+      grants={['removed-123']} catalogueReady onToggle={vi.fn()} />);
+    expect(html).toContain('Unavailable saved tool removed-');
+    expect(html).toContain('checked=""');
+    expect(html).toContain('Clear its saved access');
+    expect(html).not.toContain('No tool access is added by default');
+  });
+  it('keeps a cleared saved grant visible until saving so the pending choice can be undone', () => {
+    const html = renderToStaticMarkup(<ToolGrantChoices tools={[]} savedGrants={['removed-123']}
+      grants={[]} catalogueReady onToggle={vi.fn()} />);
+    expect(html).toContain('Unavailable saved tool removed-');
+    expect(html).not.toContain('checked=""');
+  });
+  it('preserves available choices and waits for a successful catalogue before declaring saved grants unavailable', () => {
+    const pending = renderToStaticMarkup(<ToolGrantChoices tools={[]} savedGrants={['saved-id']}
+      grants={['saved-id']} catalogueReady={false} onToggle={vi.fn()} />);
+    expect(pending).not.toContain('Unavailable saved tool');
+    const known = renderToStaticMarkup(<ToolGrantChoices tools={[{id:'saved-id', name:'known-tool', description:''}]}
+      savedGrants={['saved-id']} grants={['saved-id']} catalogueReady onToggle={vi.fn()} />);
+    expect(known).toContain('known-tool');
+    expect(known).not.toContain('Unavailable saved tool');
+    expect(known).toContain('checked=""');
   });
 });

@@ -17,6 +17,25 @@ type Role = typeof ROLES[number];
 const describeError = (error: unknown) => error instanceof Error ? error.message : "The action failed. Retry after checking the workspace.";
 const toggle = (items: string[], id: string) => items.includes(id) ? items.filter((v) => v !== id) : [...items, id];
 
+export function ToolGrantChoices({ tools, grants, savedGrants, catalogueReady, onToggle }: {
+  tools: Tool[]; grants: string[]; savedGrants: string[]; catalogueReady: boolean; onToggle: (id: string) => void;
+}) {
+  const available = new Set(tools.map((tool) => tool.id));
+  const unavailable = catalogueReady
+    ? [...new Set([...savedGrants, ...grants])].filter((id) => !available.has(id)) : [];
+  return <>
+    {tools.map((tool) => <label className="checkbox-row" key={tool.id}>
+      <input type="checkbox" checked={grants.includes(tool.id)} onChange={() => onToggle(tool.id)} />{tool.name}
+    </label>)}
+    {unavailable.map((id) => <label className="checkbox-row" key={id} title={id}>
+      <input type="checkbox" checked={grants.includes(id)} onChange={() => onToggle(id)} />
+      Unavailable saved tool {id.slice(0, 8)}
+    </label>)}
+    {unavailable.length > 0 && <p className="muted">This registration is disabled, removed or unavailable in this workspace. Clear its saved access to remove the grant, then save the profile.</p>}
+    {catalogueReady && tools.length === 0 && unavailable.length === 0 && <p>No enabled tools are registered in this workspace. No tool access is added by default.</p>}
+  </>;
+}
+
 export default function AgentTeam() {
   const { notify, campaigns, publicDemo, selectCampaign } = useApp();
   const session = useResource(() => api.get<{ workspace_id: string }>("/auth/session"), []);
@@ -125,8 +144,8 @@ export default function AgentTeam() {
           <Field label="Edit profile instructions"><textarea required maxLength={12000} rows={3} value={editInstructions} onChange={(e) => setEditInstructions(e.target.value)} /></Field>
           <Field label="Memory scope" hint="Only approved facts in this exact scope enter the companion's context."><input required maxLength={160} value={scope} onChange={(e) => setScope(e.target.value)} /></Field>
           <fieldset><legend>Granted registered tools</legend><Loadable loading={tools.loading} error={tools.error} />{tools.error && <Button type="button" tone="secondary" onClick={tools.reload}>Retry tools</Button>}
-            {(tools.data?.items ?? []).map((tool) => <label className="checkbox-row" key={tool.id}><input type="checkbox" checked={grants.includes(tool.id)} onChange={() => setGrants(toggle(grants, tool.id))} />{tool.name}</label>)}
-            {!tools.loading && !tools.data?.items.length && <p>No enabled tools are registered in this workspace. No tool access is added by default.</p>}
+            <ToolGrantChoices tools={tools.data?.items ?? []} grants={grants} savedGrants={profile.granted_tool_ids}
+              catalogueReady={Boolean(tools.data && !tools.loading && !tools.error)} onToggle={(id) => setGrants((current) => toggle(current, id))} />
           </fieldset>
           <div className="page-actions"><Button type="submit" busy={busy === "save"}>Save profile</Button><Button tone="secondary" type="button" onClick={() => void perform("enable", async () => { await api.patch(`/companions/${profile.id}`, { enabled: !profile.enabled }); profiles.reload(); })}>{profile.enabled ? "Disable companion" : "Enable companion"}</Button><Button tone="danger" type="button" onClick={() => setConfirm({ kind: "profile", id: profile.id, name: profile.name })}>Delete companion</Button></div>
         </form>}

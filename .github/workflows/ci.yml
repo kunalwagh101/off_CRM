@@ -103,6 +103,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+      - name: Prove hosted companion grants in the actual desktop and mobile browser
+        run: uv run python scripts/qa/hosted_tool_browser.py --backend sqlite
 
   # S-06.03.03's acceptance: the CRM's tests pass against SQLite and PostgreSQL
   # alike. Without this job every PostgreSQL case was skipped in CI, so a break

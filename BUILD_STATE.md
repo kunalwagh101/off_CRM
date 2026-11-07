@@ -1,3 +1,10 @@
+## 2026-11-07 — Hosted tool CI green; actual browser grant recovery fixed
+
+- Exact34ffb451 full workflow42359198333 and container42359198438 SUCCESS. Python3.10/3.11/3.12 each3229 PASS/97 skipped; PostgreSQL3288 PASS/107 skipped, focused215 PASS; actual one-backend transaction-pooler64 PASS/1 intentional startup-options skip; real Docker3 PASS; board72/72, frontend234/build PASS. Results precede this browser-fix revision.
+- D-427 actual server/browser RED exposed invisible stale grants blocking profile save. Editor now preserves clear/undo until explicit save. Frontend237 PASS/build PASS. New scripts/qa/hosted_tool_browser.py proves actual SQLite/PostgreSQL server/CLI/Chromium persistence across restart and disposable data-folder loss, desktop1280/mobile390, clear/undo/save and0 page errors.
+- D-428 cold review found QA operator-environment contamination. Harmless canary RED; allowlisted proxy/runtime env, disabled dotenv, explicit disposable factory and temporary cwd fix it. Isolation2 PASS; independently2 isolation/6 AgentTeam PASS, no blocker. Playwright1.61.0 now explicit dev metadata; all137 resolved versions unchanged. CI quality runs browser QA after frontend build. This new revision needs its own CI.
+- Evidence: docs/evidence/2026-11-07-hosted-tool-grant-browser.md. Tracker unchanged72 DONE/100 open (81 stories+19 direct features), first-three scope58 open stories. Native CRM registry not runtime activated. No customer/main/Render deploy.
+
 ## 2026-11-07 — Hosted tool metadata, grants and real sandbox/recovery acceptance
 
 - New develop slice routes ToolRegistry and offsetx-tools to the same configured SQL target, preserves cached transaction/close semantics, scopes recipe/grant reads and writes, and enforces CLI install/master-key checks. Profiles without a separate document store work on the native cached transport too. SQL version2 preserves64-bit duration history. Complete private archive, exact staged reconciliation, explicit enabled-tool/grant approval, foreign-grant refusal and disposable archive inverse are tested. Source/target/archive aliases and malformed URL/link inputs refuse before mutation.

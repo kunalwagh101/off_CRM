@@ -27,15 +27,19 @@ from ..observability import failure_message, report_failure, traced_command
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Sequence
 
 from ..data_paths import data_dir, resolved, load_project_env
 from ..outreach.workspace_lock import cli_workspace_lease
+from ..outreach.store import names_a_url
+from ..db.hosted import HostedStorage, SECRETS_KEY_ENV
+from ..db import is_postgres_url
 from .errors import AIModuleError
 from .sandbox import SandboxWorkspace, sandbox_available
-from .tools import ToolRegistry
+from .tools import ToolRegistry, ToolError
 
 
 def _data_dir(args: argparse.Namespace) -> Path:
@@ -46,7 +50,26 @@ def _data_dir(args: argparse.Namespace) -> Path:
 
 
 def _registry(args: argparse.Namespace) -> ToolRegistry:
-    return ToolRegistry(_data_dir(args) / "ai_tools.db")
+    cached = getattr(args, '_open_registry', None)
+    if cached is not None:
+        return cached
+    source = _data_dir(args)/'ai_tools.db'
+    hosted = HostedStorage.configured(os.getenv(SECRETS_KEY_ENV, ''))
+    try:
+        if hosted is not None:
+            if not is_postgres_url(hosted.target) and names_a_url(hosted.target):
+                raise ToolError('Use a SQLite tool file or a supported PostgreSQL URL')
+            if not is_postgres_url(hosted.target):
+                target = Path(hosted.target).expanduser().resolve()
+                if target == source.resolve() or (target.exists() and source.exists() and target.samefile(source)):
+                    raise ToolError('The hosted target must differ from the local tool source')
+            hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
+        registry = ToolRegistry(source, database_target=hosted.target if hosted is not None else None)
+    finally:
+        if hosted is not None:
+            hosted.close()
+    args._open_registry = registry
+    return registry
 
 
 def _resolve(registry: ToolRegistry, reference: str, workspace: str):
@@ -186,6 +209,8 @@ def cmd_runs(args: argparse.Namespace) -> int:
             f"{row['commit_sha'][:12]}  exit {row['exit_code']:<4} "
             f"{row['status']:<8} {row['duration_ms']}ms"
         )
+        if row.get('error'):
+            print('      '+str(row['error']))
     return 0
 
 
@@ -257,7 +282,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         # Every command opens the registry, which lives in the workspace.
         with cli_workspace_lease(_data_dir(args)):
-            return int(args.func(args))
+            try:
+                return int(args.func(args))
+            finally:
+                registry = getattr(args, '_open_registry', None)
+                if registry is not None:
+                    registry.close()
     except AIModuleError as exc:
         report_failure(exc, operation="offsetx-tools")
         print(failure_message(exc, operation="offsetx-tools"))
@@ -265,6 +295,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         report_failure(exc, operation="offsetx-tools")
         print(failure_message(exc, operation="offsetx-tools"))
+        return 2
+    except Exception as exc:
+        report_failure(exc, operation='offsetx-tools')
+        print(failure_message(exc, operation='offsetx-tools'))
         return 2
 
 

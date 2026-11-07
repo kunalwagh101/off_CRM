@@ -43,9 +43,14 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+from contextlib import closing
 from typing import Any, Iterable, Sequence
 
 from ..outreach.models import to_utc_iso
+from ..outreach.store import names_a_url
+from ..db import open_database, is_postgres_url
+from ..db.schema import ensure_initial_sql_schema
+from ..db.store_connection import CachedStoreConnection
 from .errors import AIModuleError, PolicyViolation
 from .sandbox import (
     SandboxPolicy,
@@ -105,9 +110,48 @@ CREATE INDEX IF NOT EXISTS ix_ai_tool_runs_lookup
     ON ai_tool_runs(workspace_id, tool_id, started_at DESC);
 """
 
+LARGE_INTEGER_COLUMNS = {'ai_tool_runs': ('duration_ms',)}
+
 
 class ToolError(AIModuleError):
     """A tool could not be registered, found, or prepared."""
+
+
+def _stop_run_container(name: str) -> bool:
+    """Stop only the trusted random name assigned to this invocation.
+
+    Killing an attached Docker client does not stop its container. No name or
+    cleanup target comes from a model, registration, output or writable mount.
+    """
+    try:
+        removed = subprocess.run(['docker', 'rm', '--force', '--volumes', name],
+            capture_output=True, text=True, check=False, timeout=10)
+        if removed.returncode == 0:
+            return True
+        # The daemon may already have removed an exited --rm container. A
+        # successful empty query distinguishes absence from a daemon failure.
+        remaining = subprocess.run(['docker', 'ps', '--all', '--quiet', '--filter', 'name=^/'+name+'$'],
+            capture_output=True, text=True, check=False, timeout=10)
+        return remaining.returncode == 0 and not remaining.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+_CLEANUP_ERROR = re.compile(
+    r'The tool exceeded [0-9]+s; container cleanup could not be confirmed\. '
+    r'Container: (offsetx-tool-[a-f0-9]{32})\. '
+    r'Inspect this container on the sandbox host before rerunning this tool\.')
+
+
+def _safe_cleanup_diagnostic(stderr: str) -> str:
+    # Imported history is untrusted. A status value cannot make arbitrary
+    # old stderr safe to expose as operational metadata.
+    matched = _CLEANUP_ERROR.fullmatch(str(stderr))
+    if matched is None:
+        return ('Container cleanup is unconfirmed and its identity is unavailable. '
+                'Inspect the sandbox host before rerunning this tool.')
+    return ('Container cleanup is unconfirmed for '+matched.group(1)+'. '
+            'Inspect this container on the sandbox host before rerunning this tool.')
 
 
 @dataclass(slots=True)
@@ -275,9 +319,28 @@ class ToolRegistry:
     property, and ``tests/test_ai_tools.py`` asserts it structurally.
     """
 
-    def __init__(self, database_path: Path | str) -> None:
-        self.path = Path(database_path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, database_path: Path | str, *, database_target: str | None = None) -> None:
+        if any(value is not None and not is_postgres_url(value) and names_a_url(value)
+               for value in (database_path, database_target)):
+            raise ToolError('Use a SQLite tool file or a supported PostgreSQL URL; do not fold a database URL into a Path')
+        self.path = None if is_postgres_url(database_path) else Path(database_path)
+        self.target = str(database_target or database_path)
+        self._hosted = database_target is not None or is_postgres_url(database_path)
+        if self._hosted and self.path is not None:
+            if self.path.is_symlink():
+                raise ToolError('Preserve and review the symbolic link at the local tool source before hosted startup')
+            if not is_postgres_url(self.target):
+                target = Path(self.target).expanduser().resolve()
+                if target == self.path.resolve() or (target.exists() and self.path.exists() and target.samefile(self.path)):
+                    raise ToolError('Hosted tool target and legacy local source must be different files')
+        if self.path is not None and not self._hosted:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self._hosted and self.path is not None and self.path.exists():
+            with closing(sqlite3.connect(self.path.resolve().as_uri()+'?mode=ro', uri=True)) as local:
+                for table in ('ai_tools', 'ai_tool_runs'):
+                    present = local.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", [table]).fetchone()
+                    if present and local.execute(f'SELECT count(*) FROM {table}').fetchone()[0]:
+                        raise ToolError('Local tool pins or run history require an explicit offsetx-db import-content --kind tools migration')
         self._lock = threading.Lock()
         self._local = threading.local()
         # Every thread's connection, so `close` reaches all of them: a restore
@@ -285,18 +348,26 @@ class ToolRegistry:
         # routes and the readiness probe opened on others stayed on the old
         # workspace until garbage collection (D-131). As `ai/cache.py` does.
         self._connection_lock = threading.RLock()
-        self._connections: set[sqlite3.Connection] = set()
+        self._connections: set[Any] = set()
         self._generation = 0
-        with self.connection() as conn:
-            conn.executescript(SCHEMA)
+        if self._hosted:
+            with open_database(self.target) as database:
+                ensure_initial_sql_schema(database, 'tools', SCHEMA,
+                    large_integer_columns=LARGE_INTEGER_COLUMNS)
+        else:
+            with self.connection() as conn:
+                conn.executescript(SCHEMA)
 
-    def connection(self) -> sqlite3.Connection:
+    def connection(self) -> Any:
         with self._connection_lock:
             conn = getattr(self._local, "conn", None)
             if conn is None or getattr(self._local, "generation", -1) != self._generation:
-                conn = sqlite3.connect(self.path, check_same_thread=False)
-                conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA journal_mode=WAL")
+                if self._hosted:
+                    conn = CachedStoreConnection(self.target)
+                else:
+                    conn = sqlite3.connect(self.path, check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    conn.execute("PRAGMA journal_mode=WAL")
                 self._local.conn = conn
                 self._local.generation = self._generation
                 self._connections.add(conn)
@@ -509,6 +580,7 @@ class ToolRegistry:
         from .sandbox import assert_public
 
         assert_public(data_class)
+        timeout_seconds = max(1, int(timeout_seconds))
         tool = self.get(tool_id, workspace_id=workspace_id)
         if tool is None:
             raise ToolError(
@@ -533,6 +605,8 @@ class ToolRegistry:
             command=[*tool.command, *arguments],
             workspace=workspace,
         )
+        container_name = 'offsetx-tool-'+uuid.uuid4().hex
+        argv[2:2] = ['--name', container_name]
 
         started = time.monotonic()
         status = "ran"
@@ -544,9 +618,16 @@ class ToolRegistry:
             exit_code = completed.returncode
             stdout, stderr = completed.stdout, completed.stderr
         except subprocess.TimeoutExpired:
-            status = "timeout"
+            stopped = _stop_run_container(container_name)
+            status = 'timeout' if stopped else 'timeout_cleanup_unknown'
             exit_code = -1
-            stdout, stderr = "", f"The tool exceeded {timeout_seconds}s and was stopped."
+            stdout = ''
+            stderr = (f'The tool exceeded {timeout_seconds}s and its container was stopped.' if stopped else
+                f'The tool exceeded {timeout_seconds}s; container cleanup could not be confirmed. '
+                f'Container: {container_name}. Inspect this container on the sandbox host before rerunning this tool.')
+        except BaseException:
+            _stop_run_container(container_name)
+            raise
         duration_ms = int((time.monotonic() - started) * 1000)
 
         run = ToolRun(
@@ -607,6 +688,7 @@ class ToolRegistry:
                 "duration_ms": row["duration_ms"],
                 "status": row["status"],
                 "started_at": row["started_at"],
+                "error": _safe_cleanup_diagnostic(row['stderr']) if row['status'] == 'timeout_cleanup_unknown' else '',
             }
             for row in rows
         ]

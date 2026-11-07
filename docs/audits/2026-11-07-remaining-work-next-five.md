@@ -100,7 +100,7 @@ The first three areas below are the owner-authorized delivery scope; the next tw
 
 1. .04: finish real private offsite bucket/IAM, independent recovery-key custody, retention, scheduling and a separate empty-database recovery drill. Encrypted pg_dump/restore is implemented/tested; FakeS3 is not a live offsite proof.
 2. .05: retain startup refusal for partial hosted layouts; prove every supported SQL/file home and recovery path before permitting production.
-3. .06: finish durable ToolRegistry grants/runs, recall, privacy artifacts and remaining crawler/integration/media/outbox/trace files. Existing metadata cutovers must retain archive/reconcile/rollback and explicit stale-work reactivation.
+3. .06: tool pins/run receipts and companion grants now have tested hosted SQL wiring, staged archive migration/inverse and real sandbox/recovery checks. Finish recall, privacy artifacts and remaining crawler/integration/media/outbox/trace files, plus active-run crash/cancellation reconciliation. Existing metadata cutovers retain archive/reconcile/rollback and explicit stale-work reactivation.
 4. .07: preserve one independent install per database; stable install UUID enforcement exists. Complete all CLI/runtime decision and recovery paths; never transfer a foreign install claim automatically.
 5. .08: owner diagnostics must reflect actual homes and file limitations; preserve the mixed-routine trace-file readiness fix.
 6. QA: real SQL clients, tamper/wrong-key/partial failures, source/target/archive identity refusal, concurrency, reconnect, exact counts/data/template state, cross-install denial and full-root/multi-schema restore.

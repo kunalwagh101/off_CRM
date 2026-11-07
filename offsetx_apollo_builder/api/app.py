@@ -769,7 +769,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             ),
             app,
         )
-        app.state.ai_tools = ToolRegistry(resolved.data_dir / "ai_tools.db")
+        app.state.ai_tools = ToolRegistry(resolved.data_dir / "ai_tools.db",
+            database_target=hosted.target if hosted is not None else None)
         app.state.companions = CompanionRegistry(
             resolved.data_dir,
             tools=app.state.ai_tools,

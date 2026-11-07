@@ -19,6 +19,7 @@ from ..agent.companions import ensure_companion_schema
 from ..db.hosted import HostedStorage
 from ..outreach.backup import restore_pending
 from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
+from .store_connection import STORE_CLAIM_LOCK
 
 
 TABLES: dict[str, tuple[str, ...]] = {
@@ -41,6 +42,11 @@ def _reader(path: Path) -> sqlite3.Connection:
     con = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)
     con.row_factory = sqlite3.Row
     return con
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    return first.resolve() == second.resolve() or (
+        first.exists() and second.exists() and first.samefile(second))
 
 
 def _snapshot_rows(con: sqlite3.Connection) -> dict[str, list[tuple]]:
@@ -74,11 +80,11 @@ def _snapshot_rows(con: sqlite3.Connection) -> dict[str, list[tuple]]:
                 raise CompanionImportError(
                     "An old companion has invalid executable tool grants"
                 ) from None
-            if grants != []:
+            if (not isinstance(grants, list) or len(grants) > 100
+                    or any(not isinstance(grant, str) or not grant or len(grant) > 160 for grant in grants)
+                    or len(set(grants)) != len(grants)):
                 raise CompanionImportError(
-                    "Local companion tool grants cannot be migrated yet: "
-                    "the executable tool registry still has no durable hosted home. "
-                    "Preserve the source file and migrate tool registration first."
+                    'Local companion tool grants are malformed; preserve and review the source'
                 )
         return result
     except sqlite3.DatabaseError:
@@ -193,6 +199,7 @@ def _clear_local_rows(source: Path, expected: dict[str, list[tuple]], source_dig
 
 def import_companions(
     source_path: Path, hosted: HostedStorage, archive_path: Path,
+    *, accept_tool_grants: bool = False,
 ) -> dict[str, int]:
     """Import rows exactly once into hosted DB; retain a complete local archive.
 
@@ -207,13 +214,16 @@ def import_companions(
         raise CompanionImportError("The archive path cannot be a symlink")
     source, archive = source_arg.resolve(), archive_arg.resolve()
     root = source.parent
-    if archive == source or archive.is_relative_to(root):
+    if _same_file(archive, source):
+        raise CompanionImportError('The private archive and source must be different files')
+    if archive.is_relative_to(root):
         raise CompanionImportError("Choose a private durable archive outside the old data directory")
     # It is not safe to treat the live local SQLite file as the hosted target.
     from ..db.connection import is_postgres_url
-    if (not is_postgres_url(hosted.target)
-            and Path(hosted.target).expanduser().resolve() == source):
-        raise CompanionImportError("The source and hosted database must be different")
+    if not is_postgres_url(hosted.target):
+        target = Path(hosted.target).expanduser().resolve()
+        if _same_file(target, source) or _same_file(target, archive):
+            raise CompanionImportError('Source, archive and hosted database must be different files')
     try:
         with WorkspaceLock(root, exclusive=True):
             if restore_pending(root):
@@ -230,10 +240,24 @@ def import_companions(
                     old.execute("ROLLBACK")
             if not any(expected.values()):
                 raise CompanionImportError("The local registry has no companion rows to migrate")
+            grants_present = any(json.loads(row[5]) for row in expected['agent_companions'])
+            if grants_present and not accept_tool_grants:
+                raise CompanionImportError('Retaining executable tool grants requires explicit --accept-tool-grants approval after migrating tool registrations')
             _private_archive(source, archive, expected, source_digest)
             hosted.check_secrets_key()
+            hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
             with hosted.exclusive():
                 database = hosted.connection
+                if grants_present:
+                    if database.name == 'postgres':
+                        database.execute("SET LOCAL lock_timeout='5s'")
+                        database.execute('SELECT pg_advisory_xact_lock(?)', [STORE_CLAIM_LOCK])
+                    if not database.columns('ai_tools'):
+                        raise CompanionImportError('Migrate the durable tool registry before accepting tool grants')
+                    for row in expected['agent_companions']:
+                        for grant in json.loads(row[5]):
+                            if database.execute('SELECT 1 FROM ai_tools WHERE id=? AND workspace_id=?', [grant, row[1]]).fetchone() is None:
+                                raise CompanionImportError('A companion has missing or foreign tool grants; preserve the source')
                 ensure_companion_schema(database)
                 current = _target_rows(database)
                 if any(current.values()):

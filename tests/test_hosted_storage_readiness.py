@@ -86,6 +86,7 @@ def test_hosted_database_does_not_make_undeclared_stores_durable(tmp_path, isola
         assert by_name["CRM"]["durability"] == "hosted_database"
         assert by_name["AI settings and trust"]["durability"] == "hosted_database"
         assert by_name["Provider keys"]["durability"] == "hosted_database"
+        assert by_name['Tools and companions']['durability'] == 'hosted_database'
         assert by_name["Media and outboxes"]["durability"] == "unverified_file"
         # Routines retain trace files even after SQL metadata moves. Meetings
         # store no raw audio and their whole declared store is hosted SQL.

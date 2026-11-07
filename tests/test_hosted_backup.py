@@ -197,6 +197,8 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
         from offsetx_apollo_builder.db.hosted import HostedStorage
         from offsetx_apollo_builder.outreach.engine import OutreachEngine
         from offsetx_apollo_builder.outreach.models import ContactInput
+        from offsetx_apollo_builder.ai.tools import ToolRegistry, ToolRun
+        from offsetx_apollo_builder.agent.companions import CompanionRegistry
         master_key = Fernet.generate_key().decode()
         with_owner = HostedStorage(named(source_name), master_key)
         try:
@@ -204,6 +206,23 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             with_owner.write("test.shared-control", "reputation-protection")
         finally:
             with_owner.close()
+        tool_ids, profile_ids = {}, {}
+        tools = ToolRegistry(tmp_path/'source-runtime'/'ai_tools.db', database_target=named(source_name))
+        profiles = CompanionRegistry(tmp_path/'source-runtime', tools=tools, memory_backend=None)
+        try:
+            for workspace in ('alpha', 'beta'):
+                tool = tools.register(name='fixture-tool', repository_url='https://github.com/kunalwagh101/off_CRM',
+                    commit_sha='a'*40, image='python:3.12-slim', command=['python', '--version'], workspace_id=workspace)
+                tools.set_enabled(tool.id, False, workspace_id=workspace)
+                tools._record_run(ToolRun(id='fixture-'+workspace, tool_id=tool.id, tool_name=tool.name,
+                    argv=['python', '--version'], exit_code=0, stdout='public fixture '+workspace,
+                    stderr='', duration_ms=1), tool, workspace_id=workspace)
+                profile = profiles.create(workspace_id=workspace, name='Fixture reviewer',
+                    instructions='Review public facts.', granted_tool_ids=[tool.id])
+                tool_ids[workspace], profile_ids[workspace] = tool.id, profile.id
+        finally:
+            profiles.close()
+            tools.close()
         template_ids = {}
         for workspace in ("alpha", "beta"):
             engine = OutreachEngine(named(source_name), workspace_id=workspace,
@@ -251,6 +270,9 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
 
         restored = backup.restore_to_empty_postgres(encrypted, named(destination_name), key=backup_key)
         assert restored[json.dumps(["public", "test_customer"], separators=(",", ":"))] == 2
+        assert restored[json.dumps(['public', 'ai_tools'], separators=(',', ':'))] == 2
+        assert restored[json.dumps(['public', 'ai_tool_runs'], separators=(',', ':'))] == 2
+        assert restored[json.dumps(['public', 'agent_companions'], separators=(',', ':'))] == 2
         with psycopg.connect(named(destination_name)) as conn:
             assert conn.execute("SELECT workspace, n FROM test_customer ORDER BY n").fetchall() == [
                 ("alpha", 1), ("beta", 2),
@@ -273,6 +295,20 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
             assert restored_owner.read("test.shared-control") == "reputation-protection"
         finally:
             restored_owner.close()
+        tools = ToolRegistry(tmp_path/'restored-runtime'/'ai_tools.db', database_target=named(destination_name))
+        profiles = CompanionRegistry(tmp_path/'restored-runtime', tools=tools, memory_backend=None)
+        try:
+            for workspace in ('alpha', 'beta'):
+                assert tools.get(tool_ids[workspace], workspace_id=workspace).enabled is False
+                assert tools.get(tool_ids[workspace], workspace_id='beta' if workspace == 'alpha' else 'alpha') is None
+                assert tools.runs(workspace_id=workspace)[0]['id'] == 'fixture-'+workspace
+                assert profiles.require(profile_ids[workspace], workspace_id=workspace).granted_tool_ids == (tool_ids[workspace],)
+                with tools.connection() as database:
+                    assert database.execute('SELECT stdout FROM ai_tool_runs WHERE id=?',
+                        ['fixture-'+workspace]).fetchone()['stdout'] == 'public fixture '+workspace
+        finally:
+            profiles.close()
+            tools.close()
         with pytest.raises(backup.HostedBackupError, match="not empty"):
             backup.restore_to_empty_postgres(encrypted, named(destination_name), key=backup_key)
     finally:

@@ -97,7 +97,7 @@ STORES: tuple[StoredThing, ...] = (
         "Sent-mail recall", "the index of sent mail drafts learn from", ("ai_recall.db*",), SQLITE, LATER, "ai_recall",
     ),
     StoredThing(
-        "Tools and companions", "registered tools and companion profiles", ("ai_tools.db*",), SQLITE, "partial: companion profiles and procedures on hosted SQL; tool pins and runs still local — `S-06.03.06`", "ai_tools",
+        "Tools and companions", "registered tools, run receipts and companion profiles", ("ai_tools.db*",), SQLITE, "hosted database — `S-06.03.06` (pins, runs, profiles and procedures)", "ai_tools",
     ),
     StoredThing(
         "Agent routines", "routines and their runs", ("agent_routines.db*", "agent_traces/"),

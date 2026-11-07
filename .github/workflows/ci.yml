@@ -153,8 +153,14 @@ jobs:
           /usr/lib/postgresql/16/bin/pg_restore --version
       - name: Start isolated transaction-pooler acceptance target
         run: uv run python scripts/ci/start_test_pgbouncer.py
-      - name: Prove PostgreSQL namespace isolation with direct and pooled connections
-        run: uv run pytest -q tests/test_postgres_namespaces.py tests/test_workspace_crm_registry_postgres.py
+      - name: Prove PostgreSQL namespace and hosted tool isolation with direct and pooled connections
+        run: uv run pytest -q tests/test_postgres_namespaces.py tests/test_workspace_crm_registry_postgres.py tests/test_hosted_tool_registry.py
+      - name: Provision explicit image for real tool sandbox acceptance
+        run: docker pull python:3.12-slim
+      - name: Prove real pinned tool isolation and durable SQL receipts
+        env:
+          OFF_CRM_TEST_REAL_TOOLS: "1"
+        run: uv run pytest -q tests/test_tool_registry_real_sandbox.py
       - name: Storage tests against PostgreSQL
         run: >-
           uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py

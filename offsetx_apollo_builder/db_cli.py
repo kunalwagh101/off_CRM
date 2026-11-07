@@ -386,7 +386,8 @@ def _cmd_import_content(args: argparse.Namespace) -> int:
         if hosted is None:
             raise ValueError("Configure the hosted database and install secrets key first")
         counts = import_content(Path(args.source), hosted, Path(args.archive), kind=args.kind,
-                                reactivate_routines=args.reactivate_routines)
+                                reactivate_routines=args.reactivate_routines,
+                                reactivate_tools=args.reactivate_tools)
         print("Content rows reconciled: " + str(sum(counts.values())) + "; private archive retained.")
         return 0
     except ContentImportError as exc:
@@ -421,7 +422,7 @@ def _cmd_import_companions(args: argparse.Namespace) -> int:
             print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first.", file=sys.stderr)
             return 2
         try:
-            counts = import_companions(source, hosted, Path(args.archive))
+            counts = import_companions(source, hosted, Path(args.archive), accept_tool_grants=args.accept_tool_grants)
         finally:
             hosted.close()
     except (CompanionImportError, HostedStorageError, DatabaseError,
@@ -649,12 +650,14 @@ def main(argv: list[str] | None = None) -> int:
     context.set_defaults(func=_cmd_import_context)
 
     content_import = sub.add_parser("import-content", help="archive and migrate local content metadata")
-    content_import.add_argument("--kind", choices=("imagery", "distribution", "trends", "routines", "meetings"), required=True)
+    content_import.add_argument("--kind", choices=("imagery", "distribution", "trends", "routines", "meetings", "tools"), required=True)
     content_import.add_argument("--source", required=True)
     content_import.add_argument("--archive", required=True)
     content_import.add_argument("--yes", action="store_true")
     content_import.add_argument("--reactivate-routines", action="store_true",
                                 help="explicitly authorise imported enabled routines to run when hosted workers start")
+    content_import.add_argument('--reactivate-tools', action='store_true',
+                                help='explicitly retain enabled owner-pinned tool registrations in hosted storage')
     content_import.set_defaults(func=_cmd_import_content)
 
     companion_import = sub.add_parser(
@@ -671,6 +674,8 @@ def main(argv: list[str] | None = None) -> int:
     companion_import.add_argument(
         "--yes", action="store_true", help="confirm archive-first migration and local row clear"
     )
+    companion_import.add_argument('--accept-tool-grants', action='store_true',
+        help='explicitly retain legacy grants after verifying each tool in the same hosted workspace')
     companion_import.set_defaults(func=_cmd_import_companions)
 
     crm = sub.add_parser(

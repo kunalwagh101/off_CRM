@@ -5,7 +5,7 @@ from .connection import open_database
 
 # Serialize short read/modify/write claims across application processes. Each
 # connection has a five-second lock limit; no network action runs in this scope.
-_CLAIM_LOCK = 7_103_206_304
+STORE_CLAIM_LOCK = 7_103_206_304
 
 
 class StoreConnection:
@@ -22,7 +22,7 @@ class StoreConnection:
         try:
             if self.database.name == 'postgres':
                 self.database.execute("SET LOCAL lock_timeout = '5s'")
-                self.database.execute('SELECT pg_advisory_xact_lock(?)', [_CLAIM_LOCK])
+                self.database.execute('SELECT pg_advisory_xact_lock(?)', [STORE_CLAIM_LOCK])
         except BaseException:
             self.rollback()
             raise
@@ -71,3 +71,16 @@ class StoreConnection:
             return scope.__exit__(kind, value, traceback) if scope is not None else False
         finally:
             self.database.close()
+
+
+class CachedStoreConnection(StoreConnection):
+    """Thread-owned store transport whose contexts commit without closing it.
+
+    ToolRegistry owns every cached transport and closes them together during
+    runtime replacement. A context still owns an actual database transaction;
+    direct readiness reads use the database's normal standalone statement path.
+    """
+
+    def __exit__(self, kind, value, traceback):
+        scope, self._transaction = self._transaction, None
+        return scope.__exit__(kind, value, traceback) if scope is not None else False

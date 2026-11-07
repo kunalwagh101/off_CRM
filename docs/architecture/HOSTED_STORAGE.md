@@ -226,7 +226,7 @@ are wiped — so the owner's numbers are still to be taken.
 | CRM | campaigns, contacts, drafts, sends, replies, delivery jobs | SQLite file (`OFFSETX_OUTREACH_DB`) | hosted database — `S-06.03.03` |
 | Template results | what each template sent and how it did | SQLite file | hosted database — `S-06.03.06` (AI context) |
 | Sent-mail recall | the index of sent mail drafts learn from | SQLite file | not decided — `S-06.03.06` |
-| Tools and companions | registered tools and companion profiles | SQLite file | partial: companion profiles and procedures on hosted SQL; tool pins and runs still local — `S-06.03.06` |
+| Tools and companions | registered tools, run receipts and companion profiles | SQLite file | hosted database — `S-06.03.06` (pins, runs, profiles and procedures) |
 | Agent routines | routines and their runs | SQLite file and trace files | hosted database — `S-06.03.06` (routines/runs/leases; trace files remain local) |
 | Meeting transcripts | uploaded meetings' transcripts | SQLite file | hosted database — `S-06.03.06` |
 | Imagery | generated pictures' records | SQLite file | hosted database — `S-06.03.06` (metadata; picture bytes remain files) |

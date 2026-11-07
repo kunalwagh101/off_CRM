@@ -38,6 +38,22 @@ def _archive(tmp_path):
     return folder / "local-tools-full.sqlite"
 
 
+def test_private_archive_hardlink_to_source_is_refused_without_erasing_both(tmp_path):
+    local, tools, registry, hosted = _start(tmp_path)
+    profile = registry.create(workspace_id='w', name='Preserve', instructions='Keep private data.')
+    registry.close()
+    tools.close()
+    source, archive = local/'ai_tools.db', _archive(tmp_path)
+    os.link(source, archive)
+    try:
+        with pytest.raises(CompanionImportError, match='different'):
+            import_companions(source, hosted, archive)
+        with sqlite3.connect(archive) as original:
+            assert original.execute('SELECT id FROM agent_companions').fetchone()[0] == profile.id
+    finally:
+        hosted.close()
+
+
 def test_import_preserves_profiles_and_skills_while_retaining_tool_database(tmp_path):
     local, tools, registry, hosted = _start(tmp_path)
     own = registry.create(workspace_id="one", name="Scout", instructions="Owner text.")

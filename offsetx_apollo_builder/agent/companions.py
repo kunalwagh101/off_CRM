@@ -13,9 +13,9 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, closing
 
-from ..db.hosted import HostedStorage
+from ..db.hosted import HostedStorage, _WRITE_LOCK as HOSTED_WRITE_LOCK
 
 from ..ai.errors import PolicyViolation
 from ..ai.sandbox import SandboxPolicy, SandboxWorkspace
@@ -203,26 +203,48 @@ class CompanionRegistry:
         self.tools = tools
         self.memory = memory_backend
         self.hosted_storage = hosted_storage
+        self._hosted_tools = bool(getattr(tools, '_hosted', False))
         conn = self._connection()
-        if self.hosted_storage is None:
+        if self.hosted_storage is None and not self._hosted_tools:
             conn.execute("PRAGMA busy_timeout=5000")
             conn.executescript(SCHEMA)
             try:
                 self.tools.path.chmod(0o600)
             except OSError:
                 pass
-        else:
+        elif self.hosted_storage is not None:
             # Use the app's one hosted document database. The same lock as
             # provider settings serialises concurrent first-time schema setup.
             with self.hosted_storage.exclusive():
                 ensure_companion_schema(conn)
             self._refuse_silent_local_cutover()
+        else:
+            # Both construction styles serialize DDL on the document store's
+            # lock. Do not enter CachedStoreConnection here: that would take
+            # claim lock304 before302, reversing the importer's lock order.
+            if conn._transaction is not None:
+                raise CompanionError('Initialize companions outside an active tool transaction')
+            with conn.database.transaction():
+                if conn.database.name == 'postgres':
+                    conn.database.execute("SET LOCAL lock_timeout='5s'")
+                    conn.database.execute('SELECT pg_advisory_xact_lock(?)', [HOSTED_WRITE_LOCK])
+                ensure_companion_schema(conn.database)
+            self._refuse_silent_local_cutover()
 
     def _refuse_silent_local_cutover(self) -> None:
         """A hosted restart must not quietly replace real local profiles."""
-        if self.hosted_storage is None:
+        if self.hosted_storage is None and not self._hosted_tools:
             return
-        local = self.tools.connection()
+        source = self.tools.path
+        if source is None or not source.exists():
+            return
+        if source.is_symlink() or not source.is_file():
+            raise CompanionError('Preserve and review the invalid local companion source before hosted startup')
+        with closing(sqlite3.connect(source.resolve().as_uri()+'?mode=ro', uri=True)) as local:
+            local.row_factory = sqlite3.Row
+            self._check_local_profile_rows(local)
+
+    def _check_local_profile_rows(self, local) -> None:
         for table in ("agent_companions", "agent_companion_skills"):
             found = local.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)

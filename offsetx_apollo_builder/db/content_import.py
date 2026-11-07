@@ -7,6 +7,7 @@ never uploads media, merges conflicting customer rows, or deletes source files.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sqlite3
 import stat
@@ -21,13 +22,18 @@ from ..distribution.trends import (
     LARGE_INTEGER_COLUMNS as TREND_COUNTERS,
 )
 from ..imagery.store import SCHEMA as IMAGERY, LARGE_INTEGER_COLUMNS as IMAGE_COUNTERS
+from ..ai.tools import (SCHEMA as TOOLS, LARGE_INTEGER_COLUMNS as TOOL_COUNTERS, ToolError, validate_tool_name,
+    validate_repository_url, validate_commit_sha, validate_image, validate_command)
+from ..ai.errors import PolicyViolation
 from ..outreach.backup import restore_pending
 from ..outreach.workspace_lock import WorkspaceLock
 from .hosted import HostedStorage
 from .connection import is_postgres_url
 from .schema import ensure_initial_sql_schema
+from .store_connection import STORE_CLAIM_LOCK
 
 COUNTERS = {
+    "tools": TOOL_COUNTERS,
     "routines": {},
     "meetings": {},
     "imagery": IMAGE_COUNTERS,
@@ -36,6 +42,7 @@ COUNTERS = {
 }
 
 STORES = {
+    "tools": ("ai_tools.db", TOOLS),
     "routines": ("agent_routines.db", ROUTINES),
     "meetings": ("meeting_transcripts.db", MEETINGS),
     "imagery": ("imagery.db", IMAGERY),
@@ -52,7 +59,7 @@ def _layout(kind):
     try:
         schema = STORES[kind][1]
     except KeyError:
-        raise ContentImportError("Choose imagery, distribution, trends, routines or meetings") from None
+        raise ContentImportError("Choose imagery, distribution, trends, routines, meetings or tools") from None
     with closing(sqlite3.connect(":memory:")) as sample:
         sample.executescript(schema)
         tables = [
@@ -85,7 +92,15 @@ def _source_rows(connection, layout):
                 "Local content belongs to a newer release; preserve it"
             )
         found.remove("offcrm_schema")
-    if found != set(layout):
+    extra = set()
+    if 'ai_tools' in layout:
+        from .companion_import import TABLES as PROFILES
+        extra = found & set(PROFILES)
+        for table in extra:
+            actual = {r[1] for r in connection.execute(f'PRAGMA table_info("{table}")')}
+            if actual != set(PROFILES[table]):
+                raise ContentImportError('Local companion columns are unsupported; preserve the full tool source')
+    if found - extra != set(layout):
         raise ContentImportError("Local content schema is unsupported; preserve it")
     for table, columns in layout.items():
         if (
@@ -131,6 +146,23 @@ def _hosted_rows(database, layout):
         )
         for table, columns in layout.items()
     }
+
+
+def _validate_tool_recipes(records, columns):
+    """A data migration cannot bypass the registration boundary for code."""
+    try:
+        for record in records:
+            row = dict(zip(columns, record))
+            command = json.loads(row['command'])
+            if (validate_tool_name(row['name']) != row['name']
+                    or validate_repository_url(row['repository_url']) != row['repository_url']
+                    or validate_commit_sha(row['commit_sha']) != row['commit_sha']
+                    or validate_image(row['image']) != row['image']
+                    or not isinstance(command, list) or validate_command(command) != command
+                    or row['enabled'] not in (0, 1) or row['allows_arguments'] not in (0, 1)):
+                raise ValueError
+    except (ToolError, PolicyViolation, ValueError, TypeError, KeyError, AttributeError):
+        raise ContentImportError('A legacy executable tool recipe is invalid; preserve and review the source') from None
 
 
 def _digest(connection):
@@ -208,7 +240,8 @@ def _archive(source, archive, expected_digest):
             os.close(descriptor)
 
 
-def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: str, reactivate_routines: bool = False):
+def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: str,
+                   reactivate_routines: bool = False, reactivate_tools: bool = False):
     if source.is_symlink() or not source.is_file():
         raise ContentImportError(
             "Choose an existing local content database, not a symlink"
@@ -232,6 +265,8 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
             local.execute("BEGIN")
             expected = _source_rows(local, layout)
             digest = _digest(local)
+        if kind == 'tools':
+            _validate_tool_recipes(expected['ai_tools'], layout['ai_tools'])
         if kind == "routines" and not reactivate_routines:
             enabled_index = layout["agent_routines"].index("enabled")
             if any(row[enabled_index] for row in expected["agent_routines"]):
@@ -239,6 +274,12 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
                     "Enabled routines may run immediately after hosted startup. Disable them locally first, "
                     "or explicitly pass --reactivate-routines to authorise resuming scheduled work"
                 )
+        if kind == 'tools' and not reactivate_tools:
+            enabled_index = layout['ai_tools'].index('enabled')
+            if any(row[enabled_index] for row in expected['ai_tools']):
+                raise ContentImportError(
+                    'Enabled tool registrations require explicit --reactivate-tools approval; '
+                    'disable them locally first or authorize retaining their executable grants')
         # Alias preflight must precede this first target mutation. The same
         # key does not authorise a second installation to import/clear rows.
         hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
@@ -250,6 +291,9 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
             database, kind, STORES[kind][1], large_integer_columns=COUNTERS[kind]
         )
         with hosted.exclusive():
+            if kind == 'tools' and database.name == 'postgres':
+                database.execute("SET LOCAL lock_timeout='5s'")
+                database.execute('SELECT pg_advisory_xact_lock(?)', [STORE_CLAIM_LOCK])
             existing = _hosted_rows(database, layout)
             if any(expected.values()):
                 if any(existing.values()) and existing != expected:

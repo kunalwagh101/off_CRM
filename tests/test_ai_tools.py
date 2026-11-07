@@ -22,6 +22,7 @@ from offsetx_apollo_builder.ai.sandbox import SandboxPolicy, SandboxWorkspace
 from offsetx_apollo_builder.ai.tools import (
     MAX_EXTRA_ARGS,
     RegisteredTool,
+    ToolRun,
     ToolError,
     ToolRegistry,
     validate_commit_sha,
@@ -296,23 +297,58 @@ def test_a_run_is_recorded_with_the_commit_it_ran(registry, tmp_path, monkeypatc
     assert registry.stats()["runs"] == 1
 
 
-def test_a_timeout_is_recorded_rather_than_raised(registry, tmp_path, monkeypatch):
+def test_a_timeout_with_unavailable_cleanup_is_recorded_honestly(registry, tmp_path, monkeypatch):
     tool = _register(registry)
     workspace = SandboxWorkspace(root=tmp_path / "job")
     monkeypatch.setattr(
         "offsetx_apollo_builder.ai.tools.assert_sandbox_available", lambda: None
     )
 
+    commands = []
     def timeout(argv, **kwargs):
+        commands.append(argv)
         raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
 
     monkeypatch.setattr("offsetx_apollo_builder.ai.tools.subprocess.run", timeout)
     run = registry.run(
         tool.id, workspace=workspace, fetch_source=False, timeout_seconds=1
     )
-    assert run.status == "timeout"
+    assert run.status == 'timeout_cleanup_unknown'
     assert run.ok is False
-    assert registry.runs()[0]["status"] == "timeout"
+    assert 'could not be confirmed' in run.stderr
+    assert registry.runs()[0]['status'] == 'timeout_cleanup_unknown'
+    name = commands[0][commands[0].index('--name')+1]
+    assert name in run.stderr
+    assert name in registry.runs()[0]['error']
+
+
+def test_a_timeout_stops_only_its_own_named_container(registry, tmp_path, monkeypatch):
+    tool = _register(registry)
+    monkeypatch.setattr('offsetx_apollo_builder.ai.tools.assert_sandbox_available', lambda: None)
+    calls = []
+    def execute(argv, **kwargs):
+        calls.append(argv)
+        if argv[:2] == ['docker', 'rm']:
+            return subprocess.CompletedProcess(argv, 0, '', '')
+        raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
+    monkeypatch.setattr('offsetx_apollo_builder.ai.tools.subprocess.run', execute)
+    run = registry.run(tool.id, workspace=SandboxWorkspace(root=tmp_path/'job'), fetch_source=False, timeout_seconds=1)
+    assert run.status == 'timeout'
+    name = calls[0][calls[0].index('--name')+1]
+    assert name.startswith('offsetx-tool-') and len(name) == len('offsetx-tool-')+32
+    assert calls[1] == ['docker', 'rm', '--force', '--volumes', name]
+    assert registry.runs()[0]['status'] == 'timeout'
+
+
+def test_imported_cleanup_status_does_not_expose_arbitrary_stderr_in_history(registry):
+    tool = _register(registry)
+    run = ToolRun(id='imported-unknown', tool_id=tool.id, tool_name=tool.name,
+        argv=list(tool.command), exit_code=-1, stdout='', stderr='PRIVATE_STDERR_CANARY',
+        duration_ms=1, status='timeout_cleanup_unknown')
+    registry._record_run(run, tool, workspace_id='local')
+    history = registry.runs()[0]
+    assert 'PRIVATE_STDERR_CANARY' not in history['error']
+    assert 'identity is unavailable' in history['error']
 
 
 def test_the_disk_budget_is_checked_before_running(registry, tmp_path, monkeypatch):

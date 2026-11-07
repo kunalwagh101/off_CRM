@@ -37,6 +37,7 @@ import re
 import sqlite3
 import threading
 from dataclasses import dataclass, field
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -344,6 +345,20 @@ class SentMailIndex:
                 """
             )
 
+    @contextmanager
+    def _write(self):
+        # sqlite's autocommit context does not begin a transaction. Hold the
+        # ownership check, canonical row and FTS mutation under one writer fence.
+        with self._lock:
+            connection = self.connection
+            connection.execute('BEGIN IMMEDIATE')
+            try:
+                yield connection
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+
     def close(self) -> None:
         with self._connection_lock:
             for connection in self._connections:
@@ -393,7 +408,12 @@ class SentMailIndex:
             got_reply=False,
             sent_at=_clean(message.get("sent_at")),
         )
-        with self._lock, self.connection:
+        with self._write():
+            existing = self.connection.execute(
+                'SELECT workspace_id FROM sent_mail WHERE message_id = ?', (message_id,)
+            ).fetchone()
+            if existing is not None and existing['workspace_id'] != workspace_id:
+                raise ValueError('This indexed message belongs to another workspace')
             self.connection.execute(
                 "DELETE FROM sent_mail_fts WHERE message_id = ?", (message_id,)
             )
@@ -500,20 +520,23 @@ class SentMailIndex:
         self._redactor_cache[campaign_id] = (fingerprint, redactor)
         return redactor
 
-    def mark_replied(self, message_id: str) -> None:
+    def mark_replied(self, message_id: str, *, workspace_id: str = "local") -> None:
         """Record that this email earned a reply.
 
         Only the fact, never the reply.  It makes "show me emails like this that
         actually worked" possible, which is the search worth having.
         """
-        with self._lock, self.connection:
+        with self._write():
             self.connection.execute(
-                "UPDATE sent_mail SET got_reply = 1 WHERE message_id = ?", (str(message_id),)
+                "UPDATE sent_mail SET got_reply = 1 WHERE message_id = ? AND workspace_id = ?",
+                (str(message_id), workspace_id)
             )
 
     def rebuild(self, store: Any, *, workspace_id: str = "local") -> dict[str, int]:
-        """Index every sent message already in the CRM.
+        """Index a trusted source already restricted to the supplied workspace.
 
+        This offline primitive does not establish CRM ownership. Never expose
+        an unowned/shared source through a customer rebuild API.
         Reads the contact list once to build the redaction vocabulary, so a name
         belonging to one contact is removed from every other contact's email too.
         """
@@ -573,7 +596,7 @@ class SentMailIndex:
             FROM sent_mail_fts
             JOIN sent_mail s ON s.message_id = sent_mail_fts.message_id
             WHERE sent_mail_fts MATCH ?
-              AND sent_mail_fts.workspace_id = ?
+              AND s.workspace_id = ? AND sent_mail_fts.workspace_id = s.workspace_id
               AND (? = 0 OR s.got_reply = 1)
             ORDER BY rank
             LIMIT ?
@@ -636,47 +659,41 @@ class SentMailIndex:
 
     # ── deletion ───────────────────────────────────────────────────────────
 
-    def forget_message(self, message_id: str) -> None:
-        with self._lock, self.connection:
+    def forget_message(self, message_id: str, *, workspace_id: str = "local") -> int:
+        with self._write():
             self.connection.execute(
-                "DELETE FROM sent_mail WHERE message_id = ?", (str(message_id),)
+                "DELETE FROM sent_mail_fts WHERE message_id IN "
+                "(SELECT message_id FROM sent_mail WHERE message_id = ? AND workspace_id = ?)",
+                (str(message_id), workspace_id),
             )
-            self.connection.execute(
-                "DELETE FROM sent_mail_fts WHERE message_id = ?", (str(message_id),)
+            cursor = self.connection.execute(
+                "DELETE FROM sent_mail WHERE message_id = ? AND workspace_id = ?",
+                (str(message_id), workspace_id),
             )
+        return cursor.rowcount
 
-    def forget_contact(self, campaign_contact_id: str) -> int:
-        """Remove every indexed email to one person.
-
-        Needed even though the index is redacted: a person may ask to be
-        forgotten, and "we already took your name out" is not an answer to that.
-        """
-        with self._lock, self.connection:
-            rows = self.connection.execute(
-                "SELECT message_id FROM sent_mail WHERE campaign_contact_id = ?",
-                (str(campaign_contact_id),),
-            ).fetchall()
-            for row in rows:
-                self.connection.execute(
-                    "DELETE FROM sent_mail_fts WHERE message_id = ?", (row["message_id"],)
-                )
+    def forget_contact(self, campaign_contact_id: str, *, workspace_id: str = "local") -> int:
+        """Forget this workspace's indexed mail to a person, including FTS."""
+        with self._write():
             self.connection.execute(
-                "DELETE FROM sent_mail WHERE campaign_contact_id = ?",
-                (str(campaign_contact_id),),
+                "DELETE FROM sent_mail_fts WHERE message_id IN "
+                "(SELECT message_id FROM sent_mail WHERE campaign_contact_id = ? AND workspace_id = ?)",
+                (str(campaign_contact_id), workspace_id),
             )
-        return len(rows)
+            cursor = self.connection.execute(
+                "DELETE FROM sent_mail WHERE campaign_contact_id = ? AND workspace_id = ?",
+                (str(campaign_contact_id), workspace_id),
+            )
+        return cursor.rowcount
 
     def clear(self, *, workspace_id: str = "local") -> int:
-        with self._lock, self.connection:
-            rows = self.connection.execute(
-                "SELECT message_id FROM sent_mail WHERE workspace_id = ?", (workspace_id,)
-            ).fetchall()
-            for row in rows:
-                self.connection.execute(
-                    "DELETE FROM sent_mail_fts WHERE message_id = ?", (row["message_id"],)
-                )
-            self.connection.execute("DELETE FROM sent_mail WHERE workspace_id = ?", (workspace_id,))
-        return len(rows)
+        with self._write():
+            self.connection.execute(
+                "DELETE FROM sent_mail_fts WHERE message_id IN "
+                "(SELECT message_id FROM sent_mail WHERE workspace_id = ?)", (workspace_id,),
+            )
+            cursor = self.connection.execute("DELETE FROM sent_mail WHERE workspace_id = ?", (workspace_id,))
+        return cursor.rowcount
 
     # ── reporting ──────────────────────────────────────────────────────────
 

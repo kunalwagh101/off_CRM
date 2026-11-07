@@ -167,7 +167,7 @@ class MailArchive(Protocol):
         owner_addresses: Any = ...,
     ) -> Any: ...
 
-    def mark_replied(self, message_id: str) -> None: ...
+    def mark_replied(self, message_id: str, *, workspace_id: str = "local") -> None: ...
 
 
 class OutreachEngine:
@@ -238,7 +238,8 @@ class OutreachEngine:
             clean_text(row.get("variant_id")),
         )
 
-    def _count_send(self, draft: dict[str, Any]) -> str | None:
+    def _count_send(self, draft: dict[str, Any], *, workspace_id: str | None = None) -> str | None:
+        selected = self.workspace_id if workspace_id is None else workspace_id
         if self.template_counter is None:
             return
         template_id, variant_id = self._template_key(draft)
@@ -246,13 +247,14 @@ class OutreachEngine:
             return
         try:
             self.template_counter.record_send(
-                workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
+                workspace_id=selected, template_id=template_id, variant_id=variant_id
             )
         except Exception as exc:  # pragma: no cover - counting must never break sending
-            return failure_message(exc, operation="email.counter.send", workspace=self.workspace_id)
+            return failure_message(exc, operation="email.counter.send", workspace=selected)
 
     def _archive_send(
-        self, campaign_id: str, campaign_contact_id: str, own_email: str, contacts: list[dict[str, Any]]
+        self, campaign_id: str, campaign_contact_id: str, own_email: str, contacts: list[dict[str, Any]],
+        *, workspace_id: str | None = None
     ) -> str | None:
         """Add the message that just went out to the recall index.
 
@@ -261,6 +263,7 @@ class OutreachEngine:
         the email has already left, and losing a search entry is not worth
         reporting a successful send as failed.
         """
+        selected = self.workspace_id if workspace_id is None else workspace_id
         if self.mail_archive is None:
             return
         try:
@@ -270,26 +273,28 @@ class OutreachEngine:
             self.mail_archive.archive_send(
                 dict(message),
                 contacts=contacts,
-                workspace_id=self.workspace_id,
+                workspace_id=selected,
                 campaign_id=campaign_id,
                 owner_addresses=(own_email,) if own_email else (),
             )
         except Exception as exc:  # pragma: no cover - archiving must never break sending
-            return failure_message(exc, operation="email.archive.send", workspace=self.workspace_id)
+            return failure_message(exc, operation="email.archive.send", workspace=selected)
 
-    def _archive_reply(self, message: dict[str, Any]) -> str | None:
+    def _archive_reply(self, message: dict[str, Any], *, workspace_id: str | None = None) -> str | None:
         """Note that a sent email earned a reply. The reply itself is not stored."""
+        selected = self.workspace_id if workspace_id is None else workspace_id
         if self.mail_archive is None:
             return
         message_id = clean_text(message.get("id"))
         if not message_id:
             return
         try:
-            self.mail_archive.mark_replied(message_id)
+            self.mail_archive.mark_replied(message_id, workspace_id=selected)
         except Exception as exc:  # pragma: no cover
-            return failure_message(exc, operation="email.archive.reply", workspace=self.workspace_id)
+            return failure_message(exc, operation="email.archive.reply", workspace=selected)
 
-    def _count_reply(self, message: dict[str, Any]) -> str | None:
+    def _count_reply(self, message: dict[str, Any], *, workspace_id: str | None = None) -> str | None:
+        selected = self.workspace_id if workspace_id is None else workspace_id
         if self.template_counter is None:
             return
         template_id, variant_id = self._template_key(message)
@@ -297,10 +302,10 @@ class OutreachEngine:
             return
         try:
             self.template_counter.record_reply(
-                workspace_id=self.workspace_id, template_id=template_id, variant_id=variant_id
+                workspace_id=selected, template_id=template_id, variant_id=variant_id
             )
         except Exception as exc:  # pragma: no cover - counting must never break a sync
-            return failure_message(exc, operation="email.counter.reply", workspace=self.workspace_id)
+            return failure_message(exc, operation="email.counter.reply", workspace=selected)
 
     #: The one kind this engine runs. A constant so the check below reads as
     #: "this runner owns email" rather than as a bare string comparison.
@@ -668,12 +673,12 @@ class OutreachEngine:
                     # Credit the template that was actually sent, not the contact's
                     # current stage — by now the contact has usually moved on.
                     outgoing = self.store.last_outgoing(campaign_contact_id) or {}
-                    warning = self._count_reply(outgoing)
+                    warning = self._count_reply(outgoing, workspace_id=workspace_id)
                     if warning:
                         warnings.append(warning)
                     # Marks the sent email as one that worked. The reply itself
                     # is mailbox content and is not stored anywhere.
-                    warning = self._archive_reply(outgoing)
+                    warning = self._archive_reply(outgoing, workspace_id=workspace_id)
                     if warning:
                         warnings.append(warning)
             result = {"scanned": len(incoming), "matched": matched}
@@ -859,7 +864,7 @@ class OutreachEngine:
                         sent_body=sent_body,
                     )
                     sent.append({"draft_id": draft_id, "to": email, "stage": stage})
-                    warning = self._count_send(draft)
+                    warning = self._count_send(draft, workspace_id=workspace_id)
                     if warning:
                         warnings.append(warning)
                     if self.mail_archive is not None:
@@ -873,6 +878,7 @@ class OutreachEngine:
                             str(queued["campaign_contact_id"]),
                             own_email,
                             archive_contacts,
+                            workspace_id=workspace_id,
                         )
                         if warning:
                             warnings.append(warning)

@@ -1171,7 +1171,7 @@ class SentMailPrivacyAdapter:
 
     def delete(self, subject: SubjectIdentity) -> dict[str, int]:
         memberships = self._membership_ids(subject)
-        deleted = sum(self.recall.forget_contact(item) for item in memberships)
+        deleted = sum(self.recall.forget_contact(item, workspace_id=subject.workspace_id) for item in memberships)
         return {"redacted_sent_mail": deleted}
 
 

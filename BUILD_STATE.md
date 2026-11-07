@@ -1,3 +1,9 @@
+## 2026-11-07 — Recall mutation boundaries and actual-operation ownership
+
+- Actual RED3 reproduced foreign deletion/message collision; cold review/real send beta RED1 exposed shared engine default ownership; HTTP rebuild RED1 showed unowned source enumeration. D-429–D-431 fixed/scoped: recall mutations bind workspace, return real counts, enforce collision ownership inside BEGIN IMMEDIATE, and update canonical/FTS atomically. Search validates canonical owner too. Privacy passes subject workspace; actual send/reply archive/counters pass operation workspace without changing engine singleton.
+- Current legacy HTTP rebuild409 before enumeration, with matching safe failure reference and explicit ownership-migration guidance, including local owner. Generic offline rebuild remains trusted-source-only. This security gate does not implement native migration or claim full CRM isolation.
+- Affected recall/privacy/email/context bundle96 PASS locally and96 PASS with actual disposable PostgreSQL CRM; recall itself remains local SQLite. Independent reviewer37 PASS plus actual beta local-outbox send and no mutation blocker. Final reference test/lint/checks recorded in docs/evidence/2026-11-07-recall-workspace-mutations.md. Full new-revision CI pending; no customer/main/Render deployment or tracker status change.
+
 ## 2026-11-07 — Hosted tool CI green; actual browser grant recovery fixed
 
 - Exact34ffb451 full workflow42359198333 and container42359198438 SUCCESS. Python3.10/3.11/3.12 each3229 PASS/97 skipped; PostgreSQL3288 PASS/107 skipped, focused215 PASS; actual one-backend transaction-pooler64 PASS/1 intentional startup-options skip; real Docker3 PASS; board72/72, frontend234/build PASS. Results precede this browser-fix revision.

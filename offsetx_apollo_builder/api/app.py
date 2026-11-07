@@ -29,7 +29,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
-from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message
+from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message, report_failure
 from .video_upload_guard import VideoUploadBodyGuard
 from . import public_demo
 from ..agent.active_runs import ChatBrowserRuns
@@ -5244,10 +5244,19 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/ai/recall/rebuild")
     def ai_recall_rebuild(request: Request) -> dict[str, Any]:
-        """Index everything already sent. Local work; nothing leaves."""
-        index = _recall(request)
-        result = index.rebuild(request.app.state.engine.store, workspace_id=_workspace_id(request))
-        return {**result, "stats": index.stats(_workspace_id(request))}
+        """Legacy CRM ownership cannot be inferred from the signed caller."""
+        # The current runtime still opens the shared legacy book. Relabelling
+        # its rows as the caller leaks other customers' mail. Even the install
+        # owner cannot assign those rows implicitly under Q-27. Re-enable only
+        # with verified native-book routing and the complete ownership migration.
+        reference = report_failure(ValueError('Unowned legacy CRM cannot rebuild workspace recall'),
+                                   operation='recall.rebuild', workspace=_workspace_id(request))
+        raise HTTPException(409, detail={
+            "error": "crm_ownership_required", "error_id": reference,
+            "message": "Rebuilding recall requires the CRM ownership migration. "
+                       "Ask the install owner to finish that migration. Existing saved recall remains searchable. "
+                       f"Reference: {reference}",
+        })
 
     @app.post(f"{API_PREFIX}/ai/recall/preview")
     def ai_recall_preview(body: AIRecallPreviewBody, request: Request) -> dict[str, Any]:
@@ -5284,10 +5293,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         contact_id = str(body.get("campaign_contact_id", "")).strip()
         message_id = str(body.get("message_id", "")).strip()
         if contact_id:
-            return {"removed": index.forget_contact(contact_id)}
+            return {"removed": index.forget_contact(contact_id, workspace_id=_workspace_id(request))}
         if message_id:
-            index.forget_message(message_id)
-            return {"removed": 1}
+            return {"removed": index.forget_message(message_id, workspace_id=_workspace_id(request))}
         if body.get("everything"):
             return {"removed": index.clear(workspace_id=_workspace_id(request))}
         raise HTTPException(

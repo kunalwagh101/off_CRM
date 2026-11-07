@@ -451,7 +451,8 @@ def test_clearing_the_index_empties_the_search_too(index, redactor):
 # ── end to end, against the real CRM ────────────────────────────────────────
 
 
-def test_the_live_send_path_indexes_and_the_reply_only_sets_a_flag(tmp_path):
+@pytest.mark.parametrize("workspace_id", ["local", "beta"])
+def test_the_live_send_path_indexes_and_the_reply_only_sets_a_flag(tmp_path, workspace_id):
     """Wired into sending, not just available to a rebuild.
 
     After one send and one reply the index must hold exactly one row, that row
@@ -470,7 +471,9 @@ def test_the_live_send_path_indexes_and_the_reply_only_sets_a_flag(tmp_path):
         encoding="utf-8",
     )
     index = SentMailIndex(tmp_path / "recall.db")
-    engine = OutreachEngine(tmp_path / "outreach.db", mail_archive=index)
+    from offsetx_apollo_builder.ai.context import ContextLayer
+    context = ContextLayer(tmp_path / "context.db")
+    engine = OutreachEngine(tmp_path / "outreach.db", mail_archive=index, template_counter=context)
     campaign_id = engine.create_campaign(name="Pilot")
     engine.import_contacts(campaign_id, contacts)
     engine.generate_drafts(campaign_id)
@@ -478,10 +481,10 @@ def test_the_live_send_path_indexes_and_the_reply_only_sets_a_flag(tmp_path):
 
     mail = LocalOutboxProvider(tmp_path / "mail")
     now = datetime.now(timezone.utc) + timedelta(minutes=1)
-    engine.run_due(campaign_id, mail_provider=mail, own_email="kunal@offsetx.com", now=now)
+    engine.run_due(campaign_id, mail_provider=mail, own_email="kunal@offsetx.com", now=now, workspace_id=workspace_id)
 
-    assert index.stats()["indexed"] == 1, "sending must fill the index by itself"
-    stored = index.recent()[0]
+    assert index.stats(workspace_id)["indexed"] == 1, "sending must fill the index by itself"
+    stored = index.recent(workspace_id=workspace_id)[0]
     assert "Anita" not in stored.body and "anita@example.com" not in stored.body
     assert "Example Exports" not in stored.body
 
@@ -503,15 +506,24 @@ def test_the_live_send_path_indexes_and_the_reply_only_sets_a_flag(tmp_path):
         encoding="utf-8",
     )
     engine.sync_replies(
-        campaign_id, mail_provider=mail, own_email="kunal@offsetx.com", now=now + timedelta(hours=2)
+        campaign_id, mail_provider=mail, own_email="kunal@offsetx.com", now=now + timedelta(hours=2), workspace_id=workspace_id
     )
 
-    stats = index.stats()
+    stats = index.stats(workspace_id)
     assert stats["indexed"] == 1, "a reply must not add a row"
     assert stats["replied"] == 1, "it must mark the sent email as one that worked"
-    everything = " ".join(item.body + item.subject for item in index.recent())
+    everything = " ".join(item.body + item.subject for item in index.recent(workspace_id=workspace_id))
     assert "900999" not in everything and "Interested" not in everything
+    assert context.stats(workspace_id)['total_sends'] == 1
+    assert context.stats(workspace_id)['total_replies'] == 1
+    if workspace_id != 'local':
+        assert index.stats('local')['indexed'] == 0
+        assert context.stats('local')['total_sends'] == 0
+        assert context.stats('local')['total_replies'] == 0
+    assert engine.workspace_id == 'local'
     engine.close()
+    index.close()
+    context.close()
 
 
 def test_a_broken_archive_never_costs_a_send(tmp_path):
@@ -524,7 +536,7 @@ def test_a_broken_archive_never_costs_a_send(tmp_path):
         def archive_send(self, message, **_):
             raise RuntimeError("disk on fire")
 
-        def mark_replied(self, message_id):
+        def mark_replied(self, message_id, **_):
             raise RuntimeError("disk on fire")
 
     contacts = tmp_path / "contacts.csv"

@@ -1,3 +1,9 @@
+## 2026-11-07 — Workspace-safe recall mutations (unreleased)
+
+- Recall deletion and reply flags require the matching workspace; message collisions cannot overwrite another workspace. Canonical mail and search index writes commit or roll back together.
+- Send/reply recall and template counters follow the actual operation workspace, including requests using a shared runtime engine.
+- Bulk recall rebuild now refuses the unowned legacy CRM with migration guidance. Re-enabling requires verified native workspace routing; existing indexed search remains available. Full customer-isolation migration remains open.
+
 ## 2026-11-07 — Hosted tools and recoverable companion permissions (unreleased)
 
 - Tool pins, run receipts and companion grants use configured hosted SQL for app and CLI. Archive-first migration preserves history with explicit reactivation approval.

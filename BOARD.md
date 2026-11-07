@@ -154,11 +154,6 @@ next day, `AGENTS.md` "Logging".)*
 
 *(Filed 2026-10-03 from the fresh-context review of `S-06.03.03`, finding 10.)*
 
-- S-06.03.07 · A local install's decision belongs to that install
-  work_order: docs/work-orders/S-06.03.07-single-install-database.md
-  checkpoint: 2026-11-06 owner chose separate database per independent install. Stable OFFSETX_INSTALL_ID claim and boot refusal implemented; local restart/race and actual PG reconnect tests pass. Full new-source regression and operator configuration/recovery evidence pending; remains BACKLOG under active audit.
-  design: docs/architecture/HOSTED_STORAGE.md
-
 *(Filed 2026-09-23 for `D-128`: it needs CI runners first, `S-06.02.18`.
 Work order: `docs/work-orders/S-06.02.26-python-matrix.md`.)*
 
@@ -196,6 +191,11 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   checkpoint: 2026-11-05 A05 audit API recheck 3 PASS on source 94fa650. Exact-source isolated Render dep-dblr106i0phs7385jao0 LIVE 2026-11-04 22:44:20 UTC: full SQLite 3,015 PASS/56 skipped; full real PostgreSQL 3,039 PASS/101 skipped, focused PG 215 PASS; frontend, Chromium and static/security gates PASS. Full Git-history verifier, per-user roles, CRM tenancy Q-27, independent penetration, wider audit and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-workspace-permissions-recheck.md; no main/customer rollout. 2026-11-05 A24 owner-authority recheck: TDD RED 4 expected fail, GREEN 5 PASS; exact-source isolated Render dep-dbm3oj8ae00c7389h7d0 LIVE on 4117704 with SQLite 3,032/57 skipped, full PG 3,057/101 skipped, Chromium/static/security PASS. Entire A24 cross-store retention/restore still OPEN. Evidence docs/evidence/2026-11-05-a24-privacy-owner-authorization.md.  2026-11-05 A05 video workspace ID/asset isolation TDD RED 4 expected fail, final source 246741b isolated Render dep-dbm4lgrbc2fs738acn6g LIVE 2026-11-05 09:43:42 UTC: A05 4 PASS, SQLite 3,036 PASS, real PG 3,061 PASS, Chromium/static/security PASS. A05 full per-user roles, Q-27 CRM tenancy, independent penetration and customer release OPEN. Evidence docs/evidence/2026-11-05-a05-video-workspace-isolation.md. 2026-11-05 A05 image ownership mitigation built ahead as S-06.02.69: source SQL/engine/API code committed and 9 synthetic cookie-session tests written. Isolated Render dep-dbm5af95efls73chr69g canceled before tests, no RED/GREEN, due exhausted build pipeline minutes. Full A05 and Q-27 remain OPEN; docs/evidence/2026-11-05-a05-image-workspace-isolation.md.
 
 ## IN_REVIEW
+
+- S-06.03.07 · A local install's decision belongs to that install
+  work_order: docs/work-orders/S-06.03.07-single-install-database.md
+  design: docs/architecture/HOSTED_STORAGE.md
+  checkpoint: 2026-11-07 implementation/review complete including old import/skip helpers, key recovery, physical-PG cross-schema owner guard and RLS refusal. Affected315 PASS, dedicated-database99 PASS, real encrypted PG restore8 PASS, independent112 PASS and restricted-role RLS replay. Full exact-source CI/DoD evidence pending; no whole storage-feature DONE or customer deployment.
 
 - S-06.02.65 · Reject malformed nested video edits without partial writes (A22)
   work_order: docs/work-orders/S-06.02.65-video-edit-input.md

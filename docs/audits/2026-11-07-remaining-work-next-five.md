@@ -1,15 +1,15 @@
 # Remaining work and next five features — 2026-11-07
 
-Recomputed from BOARD.md on develop after registry commit02422ec. This updates the historical November6 audit; it does not rewrite that snapshot. Implemented, IN_REVIEW and DONE are distinct. Open entries include existing code awaiting acceptance, not only missing code.
+Recomputed from BOARD.md on develop after reviewed import/recall follow-through; exact executable CI is distinguished below. This updates the historical November6 audit; it does not rewrite that snapshot. Implemented, IN_REVIEW and DONE are distinct. Open entries include existing code awaiting acceptance, not only missing code.
 
 **172 tracked delivery entries: 72 DONE and 100 open.** Open: 81 stories plus 19 directly tracked feature entries. They span31 feature areas using story-ID prefixes plus direct feature entries. Do not add rollups and stories as separate work estimates.
 
 | State | Entries |
 |---|---:|
 | DONE | 72 |
-| IN_REVIEW | 73 |
+| IN_REVIEW | 74 |
 | IN_PROGRESS | 1 |
-| BACKLOG | 22 |
+| BACKLOG | 21 |
 | BLOCKED | 4 |
 | READY | 0 |
 | DEFERRED | 0 |
@@ -93,7 +93,7 @@ The first three areas below are the owner-authorized delivery scope; the next tw
 | S-06.03.04 | BACKLOG | The hosted database is backed up outside itself | [S-06.03.04-hosted-backup-and-restore.md](../../docs/work-orders/S-06.03.04-hosted-backup-and-restore.md) |
 | S-06.03.05 | BACKLOG | Production refuses a half-hosted install | Not linked on board; inspect backlog and complete decomposition before pulling |
 | S-06.03.06 | BACKLOG | Every other store has a decided home | [S-06.03.06-store-homes.md](../../docs/work-orders/S-06.03.06-store-homes.md) |
-| S-06.03.07 | BACKLOG | A local install's decision belongs to that install | [S-06.03.07-single-install-database.md](../../docs/work-orders/S-06.03.07-single-install-database.md) |
+| S-06.03.07 | IN_REVIEW | A local install's decision belongs to that install | [S-06.03.07-single-install-database.md](../../docs/work-orders/S-06.03.07-single-install-database.md) |
 | S-06.03.08 | IN_REVIEW | Install owner sees actual storage durability and production blockers | [S-06.03.08-storage-readiness-report.md](../../docs/work-orders/S-06.03.08-storage-readiness-report.md) |
 
 **Sub-features, tasks and QA to finish:**
@@ -206,9 +206,11 @@ These35 entries remain on the board; this turn does not silently expand the sele
 
 - Render: the latest inspected review build failed with pipeline_minutes_exhausted (November5,10:06:54 UTC). No later review build was visible in the approved Kunal Wagh workspace at the last connector refresh. That proves the failed attempt's cause; it does not prove today's remaining billing balance. Services have auto-deploy off. No paid upgrade or customer deploy was performed.
 - Local execution is available: actual app/browser flows, disposable PostgreSQL16, encrypted root/multi-schema recovery and tests have run. Managed Chromium blocks data-URL fixtures locally; the corresponding real remote CI runs pass. Do not describe those local blocked cases as passing.
-- b4ded78 full CI42302820197 and container42302820195 both passed. Registry02422ec full42306456274 and container42306456325 also passed: Python3versions each3202 PASS, PostgreSQL3241 PASS, genuine direct/pooler20 PASS/1 deliberate startup-options skip, board72/72, frontend234/build PASS. Subsequent fencing/schema changes await their own remote CI.
+- b4ded78 full CI42302820197 and container42302820195 both passed. Registry02422ec full42306456274 and container42306456325 also passed: Python3versions each3202 PASS, PostgreSQL3241 PASS, genuine direct/pooler20 PASS/1 deliberate startup-options skip, board72/72, frontend234/build PASS. Exact53a93a0 full42399243286/container42399243238 also SUCCESS: Python3versions each3231 PASS/97 skips, PostgreSQL3290 PASS/107 skips, pooler64 PASS/1 intentional skip, Docker3 PASS, board72/72, frontend237/build and actual desktop/mobile recovery browser PASS. Newer recall/import source needs its own CI.
 - Registry current local bundle33 PASS/6 local pooler skips; independent SQLite registry20 PASS across two runs. Details in [registry evidence](../evidence/2026-11-07-workspace-crm-registry.md). Default application routing remains unchanged until complete cutover/factory/shared-control/recovery acceptance.
 - Q-27 answered: workspace-owned customer CRM rows. Q-28 answered: Drafts use Connectors. Independent installs use separate databases. These are no longer unresolved owner decisions.
 - Still external: private offsite bucket/region/endpoint/retention and secure credentials, real configured AI/provider acceptance, and official social platform approvals where applicable. Existing test transports and local outboxes are not live account proofs.
 
 No whole-feature DONE or deployment claim is made by this report. Close individual stories only after their own criteria, dependencies, tests, independent review, documentation and verifier evidence pass.
+
+2026-11-07 follow-through: recall mutations/counter workspace and unowned rebuild refusal pass96 affected checks. Import/recovery boundaries pass315 actual SQLite/PostgreSQL checks plus99 isolated install-database cases and8 encrypted real-PG recovery checks. Independent112 owner/import PASS and restricted-role RLS replay. S-06.03.07 now IN_REVIEW; totals remain100 open. Render health probes returned ProxyError here, so HTTP availability remains unverified; no deploy attempted.

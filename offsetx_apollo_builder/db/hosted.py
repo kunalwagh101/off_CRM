@@ -166,28 +166,85 @@ class HostedStorage:
         validate_pair(target, secrets_key)
         return cls(target, secrets_key) if target else None
 
-    def claim_install(self, identity: str) -> None:
-        """Bind this database to one explicitly configured logical install."""
+    @staticmethod
+    def _install_identity(identity: str) -> str:
         try:
             if not isinstance(identity, str) or not identity.strip() or len(identity) > 64:
                 raise ValueError
             canonical = str(uuid.UUID(identity.strip()))
             if uuid.UUID(canonical).int == 0:
                 raise ValueError
+            return canonical
         except (ValueError, TypeError, AttributeError):
             raise HostedStorageError(
                 "Set OFFSETX_INSTALL_ID to this installation's stable UUID. "
                 "Reuse it across restarts; use a separate database for another install."
             ) from None
-        self.check_secrets_key()
-        with self.exclusive():
-            previous = self.read("install.identity.v1")
-            if previous is not None and previous != canonical:
+
+    def _require_owner(self, canonical: str, *, existing: bool = False) -> None:
+        previous = self.read("install.identity.v1")
+        if previous is None and existing:
+            raise HostedStorageError(
+                'This database has no verified installation claim. Recover a verified backup '
+                'and its original install identity before clearing provider keys.'
+            )
+        if previous is not None and previous != canonical:
+            raise HostedStorageError(
+                "This database belongs to another install. Use this installation's "
+                "own database or restore into a new one; do not overwrite ownership."
+            )
+
+    def _require_database_owner(self, canonical: str) -> None:
+        """The global advisory writer lock also fences claims across schemas.
+
+        Namespace isolation is for customers within one install. A different
+        search_path must not bypass the owner's one-database-per-install rule.
+        Inspect existing claim documents instead of introducing another durable
+        identity authority or assuming every deployment uses public.
+        """
+        database = self.connection
+        if database.name != 'postgres':
+            return
+        current = database.execute('SELECT current_schema() AS name').fetchone()['name']
+        relations = database.execute(
+            "SELECT n.nspname AS name,c.relkind AS kind, "
+            "(c.relrowsecurity OR c.relforcerowsecurity) AS row_security FROM pg_catalog.pg_class c "
+            "JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace "
+            "WHERE c.relname='offcrm_documents' AND c.relkind IN ('r','p','v','m','f') LIMIT 129"
+        ).fetchall()
+        if len(relations) > 128:
+            raise HostedStorageError('Review hosted storage schemas before claiming this database')
+        for relation in relations:
+            if relation['row_security']:
+                raise HostedStorageError('Review row security on hosted ownership metadata before using this database')
+            if relation['kind'] not in ('r', 'p'):
+                raise HostedStorageError('Review non-table hosted storage before claiming this database')
+            name = relation['name']
+            if name == current:
+                continue
+            qualified = '"'+name.replace('"', '""')+'"."offcrm_documents"'
+            owner = database.execute(
+                f'SELECT body FROM {qualified} WHERE name=?', ['install.identity.v1']
+            ).fetchone()
+            if owner is not None and owner['body'] != canonical:
                 raise HostedStorageError(
-                    "This database belongs to another install. Use this installation's "
-                    "own database or restore into a new one; do not overwrite ownership."
+                    'This database belongs to another install. Use a separate database; '
+                    'a different schema does not create an independent installation.'
                 )
-            if previous is None:
+            if owner is None and database.execute(f'SELECT 1 FROM {qualified} LIMIT 1').fetchone():
+                raise HostedStorageError(
+                    'Review unclaimed hosted state in another schema before using this database. '
+                    'Restore each independent install into its own database.'
+                )
+
+    def claim_install(self, identity: str) -> None:
+        """Bind one logical install, verifying owner before even key-check writes."""
+        canonical = self._install_identity(identity)
+        with self.exclusive():
+            self._require_owner(canonical)
+            self._require_database_owner(canonical)
+            self._check_secrets_key_locked()
+            if self.read("install.identity.v1") is None:
                 self.write("install.identity.v1", canonical)
 
     def describe(self) -> str:
@@ -258,17 +315,21 @@ class HostedStorage:
         be unreadable to the first.
         """
         with self.exclusive():
-            check = self.read(KEY_CHECK)
-            if check is not None:
-                if self.open(check) != _CHECK_PLAINTEXT:
-                    raise self._wrong_key()
-                return
-            stored = self.read(PROVIDER_KEYS)
-            if stored is not None:
-                self.open(stored)
-            if self.fernet is None:
+            self._check_secrets_key_locked()
+
+    def _check_secrets_key_locked(self) -> None:
+        """Caller holds exclusive; SQLite does not support nested BEGIN."""
+        check = self.read(KEY_CHECK)
+        if check is not None:
+            if self.open(check) != _CHECK_PLAINTEXT:
                 raise self._wrong_key()
-            self.write(KEY_CHECK, self.fernet.encrypt(_CHECK_PLAINTEXT).decode("ascii"))
+            return
+        stored = self.read(PROVIDER_KEYS)
+        if stored is not None:
+            self.open(stored)
+        if self.fernet is None:
+            raise self._wrong_key()
+        self.write(KEY_CHECK, self.fernet.encrypt(_CHECK_PLAINTEXT).decode("ascii"))
 
     def open(self, token: str) -> bytes:
         if self.fernet is None:
@@ -303,7 +364,12 @@ class HostedStorage:
     def forget_provider_keys(self) -> None:
         """Clear the stored keys and the check: the way back from a lost key.
         Every workspace pastes its keys again; settings, limits and trust stay."""
+        canonical = self._install_identity(os.getenv('OFFSETX_INSTALL_ID', ''))
         with self.exclusive():
+            # The old master key is deliberately unavailable on this recovery
+            # path. Require the existing logical owner; never claim or transfer.
+            self._require_owner(canonical, existing=True)
+            self._require_database_owner(canonical)
             self.delete(PROVIDER_KEYS)
             self.delete(KEY_CHECK)
 

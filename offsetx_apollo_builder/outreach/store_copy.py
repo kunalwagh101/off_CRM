@@ -438,6 +438,9 @@ def refuse_a_hidden_local_crm(crm: str, database_path: Path, secrets_key: str) -
 
 def import_crm(hosted: HostedStorage, database_path: Path, crm: str) -> CrmCopyReport:
     """Copy a local CRM file into the database's CRM, once."""
+    if str(crm) != str(hosted.target):
+        raise CrmCopyError('Import must use the installation database that owns the decision')
+    hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
     if _decided(hosted):
         raise HostedStorageError(
             "The database was already told what to do with a CRM file; nothing was changed."
@@ -467,6 +470,7 @@ def import_crm(hosted: HostedStorage, database_path: Path, crm: str) -> CrmCopyR
 
 def skip_crm(hosted: HostedStorage, database_path: Path) -> int:
     """Start on the database's CRM; the file stays, unread. Returns its rows."""
+    hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
     rows = local_crm_rows(database_path) or 0
     with hosted.exclusive():
         if _decided(hosted):

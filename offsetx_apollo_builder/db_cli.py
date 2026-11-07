@@ -215,7 +215,7 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
     """
     try:
         target = resolve_target(args.target or None, default="")
-    except DatabaseError as exc:  # pragma: no cover - a default is always given
+    except (DatabaseError, ValueError) as exc:  # pragma: no cover - a default is always given
         report_failure(exc, operation="offsetx-db")
         print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
@@ -234,7 +234,7 @@ def _cmd_forget_provider_keys(args: argparse.Namespace) -> int:
     try:
         with _lease(target):
             storage.forget_provider_keys()
-    except DatabaseError as exc:
+    except (DatabaseError, ValueError) as exc:
         report_failure(exc, operation="offsetx-db")
         print(failure_message(exc, operation="offsetx-db"), file=sys.stderr)
         return 2
@@ -319,7 +319,6 @@ def _cmd_import_local(args: argparse.Namespace) -> int:
         return 2
     try:
         with cli_workspace_lease(root):
-            hosted.check_secrets_key()
             names = import_local(hosted, root) if args.yes else skip_local(hosted, root)
     except (HostedStorageError, RegistryError, DatabaseError) as exc:
         report_failure(exc, operation="offsetx-db")
@@ -353,7 +352,6 @@ def _cmd_import_context(args: argparse.Namespace) -> int:
             print(f"Set {DATABASE_URL_ENV} and {SECRETS_KEY_ENV} first.", file=sys.stderr)
             return 2
         try:
-            hosted.check_secrets_key()
             counts = import_context(
                 source, hosted.target, Path(args.archive), skip=args.skip
             )
@@ -468,7 +466,6 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
         return 2
     try:
         with cli_workspace_leases(crm_file, workspace=data_dir(Path.cwd())):
-            hosted.check_secrets_key()
             if args.yes:
                 report = import_crm(hosted, crm_file, hosted.target)
             else:

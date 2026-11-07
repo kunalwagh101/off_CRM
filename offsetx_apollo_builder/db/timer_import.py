@@ -127,6 +127,7 @@ def migrate_timers(
     if archive in (root / filename for filename, _ in TIMERS):
         raise TimerMigrationError("Choose an archive outside the temporary data workspace.")
     with _exclusive_workspace_lock(root):
+        storage.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
         sources: dict[str, bytes] = {}
         for filename, _ in TIMERS:
             local = root / filename

@@ -1,11 +1,17 @@
 """S-06.03.06: manual migration of old AI context records without silent loss."""
 import sqlite3
+from cryptography.fernet import Fernet
 from pathlib import Path
 
 import pytest
 
 from offsetx_apollo_builder.ai.context import ContextLayer
 from offsetx_apollo_builder.db.context_import import ContextImportError, import_context
+
+
+@pytest.fixture(autouse=True)
+def declared_migration_master_key(monkeypatch):
+    monkeypatch.setenv('OFFSETX_SECRETS_KEY', Fernet.generate_key().decode())
 
 
 def _source(path):
@@ -211,3 +217,28 @@ def test_corrupt_source_refused_with_actionable_error(tmp_path):
         import_context(source, str(destination), archive)
     assert source.read_bytes() == b"not a valid SQLite database"
     assert not archive.exists()
+
+
+@pytest.mark.parametrize('pair', ['source-target', 'source-archive', 'target-archive'])
+def test_hardlinked_source_target_or_archive_refuses_before_claim_or_copy(tmp_path, pair):
+    import os
+    source = tmp_path/'source'/'context.db'
+    _source(source)
+    source.chmod(0o600)
+    target = tmp_path/'hosted.db'
+    archive = tmp_path/'archive'/'context.db'
+    archive.parent.mkdir(mode=0o700)
+    if pair == 'source-target':
+        os.link(source, target)
+    elif pair == 'source-archive':
+        os.link(source, archive)
+    else:
+        other = ContextLayer(tmp_path/'unused.db', database_target=str(target))
+        other.open_tasks('alpha')
+        other.close()
+        target.chmod(0o600)
+        os.link(target, archive)
+    before = {path:path.read_bytes() for path in (source,target,archive) if path.exists()}
+    with pytest.raises(ContextImportError, match='different files'):
+        import_context(source, str(target), archive)
+    assert all(path.exists() and path.read_bytes() == content for path,content in before.items())

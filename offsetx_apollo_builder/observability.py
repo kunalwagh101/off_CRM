@@ -261,6 +261,13 @@ def failure_message(
             reason = "The database belongs to another installation. Use this install's own database; ownership was not changed."
         elif str(exc).startswith("The database was already told"):
             reason = "The database was already told what to do with local data; nothing was changed."
+        elif str(exc).startswith('This database has no verified installation claim'):
+            reason = 'Recover a verified backup and its original install identity before clearing provider keys.'
+        elif str(exc).startswith('Review row security'):
+            reason = 'Ask the database owner to restore supported ownership metadata without row security before retrying.'
+        elif str(exc).startswith(('Review unclaimed hosted state', 'Review hosted storage schemas', 'Review non-table hosted storage')):
+            reason = 'Review unsupported or unclaimed hosted schemas with the database owner. Restore each independent install into its own database.'
+
     from .outreach.store_copy import CrmCopyError
     if isinstance(exc, CrmCopyError):
         if "do not reconcile" in str(exc):

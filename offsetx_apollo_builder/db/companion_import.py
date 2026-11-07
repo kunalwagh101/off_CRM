@@ -228,6 +228,7 @@ def import_companions(
         with WorkspaceLock(root, exclusive=True):
             if restore_pending(root):
                 raise CompanionImportError("Resolve a pending workspace restore before migrating companions")
+            hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
             with closing(_reader(source)) as old:
                 # Read the complete state under one source transaction. A
                 # concurrent uncooperative tool writer must not sneak records
@@ -244,8 +245,6 @@ def import_companions(
             if grants_present and not accept_tool_grants:
                 raise CompanionImportError('Retaining executable tool grants requires explicit --accept-tool-grants approval after migrating tool registrations')
             _private_archive(source, archive, expected, source_digest)
-            hosted.check_secrets_key()
-            hosted.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
             with hosted.exclusive():
                 database = hosted.connection
                 if grants_present:

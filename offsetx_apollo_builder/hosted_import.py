@@ -14,6 +14,7 @@ or two key stores would have to pick a winner, and that is the owner's call.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -85,6 +86,7 @@ def import_local(hosted: HostedStorage, data_dir: Path) -> list[str]:
     The keys are decrypted with the folder's own master key and stored again
     under `OFFSETX_SECRETS_KEY`; the folder's key never reaches the database.
     """
+    hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
     data_dir = Path(data_dir)
     found = local_leftovers(data_dir)
     document, keys = WorkspaceAISettingsStore(data_dir, ProviderRegistry()).snapshot()
@@ -114,6 +116,7 @@ def import_local(hosted: HostedStorage, data_dir: Path) -> list[str]:
 
 def skip_local(hosted: HostedStorage, data_dir: Path) -> list[str]:
     """Keep the database as it is; the folder's files stay, unread."""
+    hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
     found = local_leftovers(Path(data_dir))
     with hosted.exclusive():
         if hosted.read(LOCAL_IMPORT) is not None:

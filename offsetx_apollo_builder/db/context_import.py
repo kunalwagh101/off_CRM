@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ..ai.context import ContextLayer
 from ..db.connection import is_postgres_url
+from .hosted import HostedStorage, SECRETS_KEY_ENV
 from ..outreach.backup import restore_pending
 from ..outreach.workspace_lock import WorkspaceBusy, WorkspaceLock
 
@@ -161,12 +162,24 @@ def import_context(
         raise ContextImportError("Choose a durable archive outside the local data folder.")
     if not database_target:
         raise ContextImportError("Set a hosted database target before migrating AI context.")
+    def aliases(first, second):
+        return first == second or (first.exists() and second.exists() and first.samefile(second))
+
+    if aliases(source, archive):
+        raise ContextImportError("Source, archive and hosted database must be different files.")
     if not is_postgres_url(database_target):
         target = Path(database_target).expanduser().resolve()
-        if target in (source, archive):
+        if aliases(target, source) or aliases(target, archive):
             raise ContextImportError("Source, archive and hosted database must be different files.")
 
     with _exclusive(root):
+        # Guard the reusable helper too: CLI-only checks would still allow
+        # another caller to archive/delete local history into a foreign target.
+        ownership = HostedStorage(database_target, os.getenv(SECRETS_KEY_ENV, ''))
+        try:
+            ownership.claim_install(os.getenv('OFFSETX_INSTALL_ID', ''))
+        finally:
+            ownership.close()
         with closing(_reader(source)) as local:
             expected = _snapshot_rows(local)
         _private_archive(source, archive, expected)

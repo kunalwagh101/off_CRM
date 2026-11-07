@@ -260,7 +260,8 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
             raise ContentImportError(
                 "Resolve the pending restore before content migration"
             )
-        hosted.check_secrets_key()
+        # All file aliases were checked before opening or changing the target.
+        hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
         with closing(_reader(source)) as local:
             local.execute("BEGIN")
             expected = _source_rows(local, layout)
@@ -280,9 +281,6 @@ def import_content(source: Path, hosted: HostedStorage, archive: Path, *, kind: 
                 raise ContentImportError(
                     'Enabled tool registrations require explicit --reactivate-tools approval; '
                     'disable them locally first or authorize retaining their executable grants')
-        # Alias preflight must precede this first target mutation. The same
-        # key does not authorise a second installation to import/clear rows.
-        hosted.claim_install(os.getenv("OFFSETX_INSTALL_ID", ""))
         _archive(source, archive, digest)
         database = hosted.connection
         # Trusted repository schema only; execute statements individually so

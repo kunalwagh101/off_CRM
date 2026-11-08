@@ -1,3 +1,7 @@
+## 2026-11-08 — Recall API contract regression check (unreleased)
+
+- Aligned the older recall-rebuild API test with the ownership-migration refusal. It now checks409, actionable guidance, a matching error reference and no newly indexed mail. Runtime behavior is unchanged.
+
 ## 2026-11-07 — Installation ownership across import and recovery (unreleased)
 
 - All hosted import/skip helpers verify install UUID and master key before copying, archiving or clearing source records. Context migration rejects hardlinked source/target/archive files.

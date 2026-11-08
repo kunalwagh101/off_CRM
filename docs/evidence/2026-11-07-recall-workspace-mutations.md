@@ -16,3 +16,9 @@ OFF_CRM_TEST_CRM_ON_POSTGRES=1 OFF_CRM_TEST_POSTGRES_URL=<disposable-test-url> u
 ```
 
 Both affected bundles96 PASS. PostgreSQL maps actual CRM callers; recall remains SQLite, so this is not hosted-recall durability evidence. Eight new adversarial tests cover collision, scoped mutation/counts, actual signed requests, write rollback, damaged FTS ownership, two writers, privacy and rebuild refusal/logs. Independent reviewer37 recall/API PASS and a separate actual beta local-outbox check. Whole new-revision CI pending. No schema/file-format migration. Reverting would restore known security defects; prefer a forward fix. No customer data, paid/provider action, deployment or board DONE change.
+
+## 2026-11-08 — Older API test contract correction
+
+Exact5803951 full workflow42401984946 failed solely on tests/test_ai_api.py::test_recall_rebuild_runs_without_a_campaign expecting200. This also broke both historical board commands S-06.02.30/.31 that include the file. Python3versions each3290 PASS/149 skips/1 failure; PostgreSQL3401 PASS/107 skips/1 failure. Container42401984971 SUCCESS. No complete-CI pass is claimed for that source.
+
+The existing test now requires the intentional unowned-source409, crm_ownership_required, ownership-migration guidance, matching error reference and unchanged empty index. It preserves the guard tested before source enumeration; it does not skip the test or restore unsafe shared-source indexing. Runtime code unchanged. Local command `uv run pytest tests/test_ai_api.py tests/test_recall_workspace_mutations.py -q`:53 PASS. Focused follow-through command `uv run pytest tests/test_ai_api.py tests/test_api_boundary_contract.py tests/test_provider_profile_isolation.py tests/test_recall_workspace_mutations.py -q`:86 PASS. Ruff, diff checks and structural board verifier PASS. Corrected-source full CI remains pending at this checkpoint.

@@ -479,10 +479,14 @@ def test_recall_forget_everything_is_allowed(client):
     assert response.json()["removed"] == 0
 
 
-def test_recall_rebuild_runs_without_a_campaign(client):
+def test_recall_rebuild_requires_owned_source_even_without_a_campaign(client):
     response = client.post(f"{API}/ai/recall/rebuild", json={})
-    assert response.status_code == 200
-    assert response.json()["indexed"] == 0
+    assert response.status_code == 409
+    detail = response.json()['detail']
+    assert detail['error'] == 'crm_ownership_required'
+    assert 'ownership migration' in detail['message']
+    assert detail['error_id'] in detail['message']
+    assert client.get(f"{API}/ai/recall").json()['stats']['indexed'] == 0
 
 
 def test_the_connect_form_s_own_defaults_are_accepted(client):

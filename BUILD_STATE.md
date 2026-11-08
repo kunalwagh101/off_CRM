@@ -1,3 +1,8 @@
+## 2026-11-08 — Recall API acceptance contract aligned
+
+- Resumed only the requested recall test/CI follow-through. Exact5803951 workflow42401984946 failed on the older test_recall_rebuild_runs_without_a_campaign assertion200 vs intentional409. Python3versions each3290 PASS/149 skips plus that1 failure; PostgreSQL3401 PASS/107 skips plus same1 failure. Quality failed only S-06.02.30/.31 commands containing that test. Container42401984971 SUCCESS. These failed runs are not green evidence.
+- D-439 updates the existing test to require crm_ownership_required409, migration guidance, matching reference and unchanged empty index. No runtime behavior or security guard changed. Local AI API plus recall regression53 PASS; focused API/boundary/provider-isolation/recall consumer bundle86 PASS. Ruff/diff/structural board checks PASS. New exact-source CI pending; no extra agent or broad audit started. Tracker unchanged; no story/feature DONE, customer deployment or main promotion.
+
 ## 2026-11-07 — Ownership preflight before current-root reads
 
 - D-438 actual PostgreSQL sequence probe RED exposed evaluating an unsupported ownership view before refusing it. Normal claim and lost-key reset now perform catalog preflight before current-root reads. Initial transactional marker rolled back and was not counted as a behavioral RED; corrected sequence probe failed before fix.

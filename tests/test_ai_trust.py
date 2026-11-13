@@ -7,7 +7,7 @@ setting opens the mailbox. The owner's full-data grant reaches only models
 trusted at their provider's default or higher (DD-67).
 
 NVIDIA is the case throughout: tier B by default, hosting US-built models at B
-and Chinese-built ones (``deepseek-ai/deepseek-r1``) capped at C.
+and Chinese-built ones (``deepseek-ai/deepseek-v4.1-flash``) capped at C.
 """
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ from offsetx_apollo_builder.ai.tiers import DataClass
 from offsetx_apollo_builder.api.app import create_app
 from test_ai_api import API, _settings
 
-US_MODEL = "meta/llama-3.1-70b-instruct"
-CN_MODEL = "deepseek-ai/deepseek-r1"
+US_MODEL = "meta/llama-3.2-90b-vision-instruct"
+CN_MODEL = "deepseek-ai/deepseek-v4.1-flash"
 
 
 @pytest.fixture()
@@ -126,7 +126,7 @@ def test_a_full_access_grant_never_lifts_what_a_limited_model_sends(client):
     app = client.app
     override = app.state.ai_workspaces.egress_settings("local").overrides["nvidia"]
     resolve = app.state.ai_registry.resolve
-    assert resolve("nvidia", model_id="meta/llama-3.3-70b-instruct", override=override).policy.value == "full"
+    assert resolve("nvidia", model_id="nvidia/nemotron-3.5-lightning-30b-a3b", override=override).policy.value == "full"
     assert resolve("nvidia", model_id=US_MODEL, override=override).policy.value == "pseudonymous"
     assert resolve("nvidia", model_id=CN_MODEL, override=override).policy.value == "pseudonymous"
 
@@ -161,7 +161,7 @@ def test_saving_the_model_list_keeps_the_caps_and_what_is_sent(client):
     """The Models panel posts only the models; Connect reset the caps to none."""
     client.post(f"{API}/ai/providers/nvidia/connect", json={
         "api_key": "nvapi-test", "data_policy": "minimal", "requests_per_day": 200, "max_spend_usd_per_day": 5})
-    client.post(f"{API}/ai/providers/nvidia/connect", json={"model_ids": [US_MODEL, "meta/llama-3.3-70b-instruct"]})
+    client.post(f"{API}/ai/providers/nvidia/connect", json={"model_ids": [US_MODEL, "nvidia/nemotron-3.5-lightning-30b-a3b"]})
     row = _nvidia(client)
     assert (row["requests_per_day"], row["max_spend_usd_per_day"], row["data_policy"]) == (200, 5.0, "minimal")
 

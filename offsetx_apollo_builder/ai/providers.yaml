@@ -58,6 +58,23 @@ model_origin_rules:
   - prefix: "moonshot/"
     origin: CN
     tier_cap: C
+  # z-ai (Zhipu), MiniMax and StepFun are on NVIDIA's live catalogue under
+  # these names; unmatched they fell to unknown (tier D) instead of C (D-447).
+  - prefix: "z-ai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "minimaxai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "minimax/"
+    origin: CN
+    tier_cap: C
+  - prefix: "stepfun-ai/"
+    origin: CN
+    tier_cap: C
+  - prefix: "stepfun/"
+    origin: CN
+    tier_cap: C
   - prefix: "zhipuai/"
     origin: CN
     tier_cap: C
@@ -315,31 +332,28 @@ providers:
     flag: "🇺🇸"
     adapter: openai_compatible
     base_url: https://integrate.api.nvidia.com/v1
-    default_model: meta/llama-3.1-70b-instruct
+    default_model: nvidia/nemotron-3.5-lightning-30b-a3b
     # One NVIDIA key reaches 100+ models. This is a useful starting set; press
     # "Find models" in Connectors to pull the live catalogue. Origin and tier cap
     # come from model_origin_rules above, so a Chinese-built model hosted here
     # stays tier C no matter that NVIDIA itself is tier B.
+    #
+    # NVIDIA retires models on a date and then answers 410 Gone. On 2026-11-13
+    # ten of the eleven models listed here were dead for a valid key, the
+    # default among them, so every fresh connection failed (D-440). Every
+    # model below answered a real call that day. Re-check before trusting the
+    # list: `uv run python scripts/live/check_provider_models.py nvidia`.
     supports_model_discovery: true
     models:
       # ── Built in the US — inherit NVIDIA's tier B ──────────────────────────
-      - id: meta/llama-3.1-70b-instruct
+      # Fast general model; the default because a first call should answer in
+      # about a second. Context window not published on the card we checked,
+      # so the conservative common value is declared.
+      - id: nvidia/nemotron-3.5-lightning-30b-a3b
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
-        good_at: [writing, reasoning, code]
-        model_origin: US
-      - id: meta/llama-3.3-70b-instruct
-        context_window: 128000
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [writing, reasoning, bulk]
-        model_origin: US
-      - id: nvidia/llama-3.1-nemotron-70b-instruct
-        context_window: 128000
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [writing, reasoning, planning]
+        good_at: [writing, classification, bulk]
         model_origin: US
       # A reasoning model: it "thinks" before answering, and that thinking eats
       # tokens. Without an explicit max_tokens the provider's own default can cut
@@ -349,7 +363,7 @@ providers:
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
-        good_at: [reasoning, architecture, planning, code]
+        good_at: [reasoning, architecture, planning, code, writing]
         model_origin: US
         request_options:
           max_tokens: 16384
@@ -360,27 +374,17 @@ providers:
           # No reasoning_budget: NVIDIA forwards it as vLLM's
           # thinking_token_budget, which its V2 runner refuses with a 400 on
           # every call (D-147). max_tokens above already bounds the thinking.
-      - id: microsoft/phi-3-medium-128k-instruct
+      # Slower (about ten seconds for a short answer) but a second US vendor,
+      # so a Meta outage and an NVIDIA-model outage are not the same event.
+      - id: meta/llama-3.2-90b-vision-instruct
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
-        good_at: [classification, bulk, code]
-        model_origin: US
-      - id: google/gemma-2-27b-it
-        context_window: 8192
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [writing, classification]
-        model_origin: US
-      - id: ibm/granite-3.0-8b-instruct
-        context_window: 4096
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [classification, bulk]
+        good_at: [writing, reasoning]
         model_origin: US
 
       # ── Built in the EU ───────────────────────────────────────────────────
-      - id: mistralai/mistral-large-2-instruct
+      - id: mistralai/mistral-large-4-1t-a52b
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
@@ -389,58 +393,50 @@ providers:
 
       # ── Built in China — capped at tier C even though the host is tier B ──
       # Provenance caveat (§5.4): NVIDIA does not document whether inputs pass
-      # through to the model's original developer, so these cannot hold more
-      # than a tier C provider would.
-      - id: deepseek-ai/deepseek-r1
+      # through to the model's original developer, so this cannot hold more
+      # than a tier C provider would. Listed so the cap is visible before
+      # anyone ticks it. It answered a real call on 2026-11-13, but in 215
+      # seconds on NVIDIA's free shared endpoint, beyond the 60-second call
+      # timeout: expect a timeout and a fail-over there. Never the default.
+      - id: deepseek-ai/deepseek-v4.1-flash
         context_window: 128000
         cost_per_1m_input_usd: 0.0
         cost_per_1m_output_usd: 0.0
-        good_at: [reasoning, architecture, code, planning]
-        model_origin: CN
-        model_origin_tier_cap: C
-        request_options:
-          max_tokens: 8192
-      - id: qwen/qwen2.5-coder-32b-instruct
-        context_window: 32000
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [code]
-        model_origin: CN
-        model_origin_tier_cap: C
-      - id: qwen/qwen2.5-7b-instruct
-        context_window: 32000
-        cost_per_1m_input_usd: 0.0
-        cost_per_1m_output_usd: 0.0
-        good_at: [bulk, multilingual]
+        good_at: [code, reasoning]
         model_origin: CN
         model_origin_tier_cap: C
 
       # ── Image models on the same key ──────────────────────────────────────
-      # `kind: image` sends to /images/generations instead of /chat/completions
-      # and returns a picture rather than text. The trust rules are unchanged:
-      # the prompt is still text, and a prompt naming a real person is still
-      # person data.
+      # `kind: image` returns a picture rather than text. The trust rules are
+      # unchanged: the prompt is still text, and a prompt naming a real person
+      # is still person data. NVIDIA does not serve images on the OpenAI-shaped
+      # host (404 for /images/generations), so each model names its own genai
+      # URL (D-444). Step and guidance limits are NVIDIA's own, read from its
+      # 422 answers on 2026-11-13: schnell takes at most 4 steps and no
+      # guidance, dev at least 5. The image service itself returned 500s and
+      # timeouts all that day, so no picture was received end to end yet.
       - id: black-forest-labs/flux.1-dev
         kind: image
         good_at: [image, illustration, photoreal]
         model_origin: EU
         request_options:
-          size: "1024x1024"
-          n: 1
+          genai_url: https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev
+          width: 1024
+          height: 1024
+          steps: 30
+          mode: base
+          cfg_scale: 3.5
+          seed: 0
       - id: black-forest-labs/flux.1-schnell
         kind: image
         good_at: [image, fast]
         model_origin: EU
         request_options:
-          size: "1024x1024"
-          n: 1
-      - id: stabilityai/stable-diffusion-xl
-        kind: image
-        good_at: [image, illustration]
-        model_origin: GB
-        request_options:
-          size: "1024x1024"
-          n: 1
+          genai_url: https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell
+          width: 1024
+          height: 1024
+          steps: 4
+          seed: 0
     free_tier:
       requests_per_minute: 40
       notes: Phone verification required.

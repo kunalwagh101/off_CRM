@@ -117,6 +117,9 @@ def _body_word_count(body: str) -> int:
     return len(re.findall(r"\b[\w'-]+\b", content))
 
 
+_PRIVACY_TOKEN_RE = re.compile(r"<?\b(?:RECIPIENT_\d+|PERSON_\d+|COMPANY_\d+)\b>?|<PHONE>")
+
+
 def audit_draft(
     *,
     stage: str,
@@ -141,6 +144,11 @@ def audit_draft(
         errors.append("Exact off_CRM signature is missing")
     if "—" in body or "–" in body or "—" in subject or "–" in subject:
         errors.append("Em dash or en dash is not allowed")
+    # A model echoes what it was given: an address or number the payload
+    # tokenised comes back as the token, and nothing downstream swaps it out.
+    leftover = sorted(set(_PRIVACY_TOKEN_RE.findall(subject + "\n" + body)))
+    if leftover:
+        errors.append("Privacy token left in the email: " + ", ".join(leftover))
     unresolved = sorted(set(re.findall(r"\{[a-zA-Z0-9_]+\}", subject + "\n" + body)))
     if unresolved:
         errors.append("Unresolved template fields: " + ", ".join(unresolved))

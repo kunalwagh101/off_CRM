@@ -412,6 +412,17 @@ class _HttpProvider:
                     json=payload,
                     timeout=self.config.timeout_seconds,
                 )
+            except (requests.exceptions.ReadTimeout, requests.exceptions.ChunkedEncodingError) as exc:
+                # The request reached the provider and the answer did not come
+                # back. It may have run and been billed — an image can take
+                # minutes — so repeating it automatically could pay twice for
+                # one result. A connection failure, below, sent nothing and is
+                # safe to retry (D-450).
+                raise ProviderError(
+                    f"The provider timed out: no answer within {self.config.timeout_seconds} seconds. "
+                    "The request may already have run, so it was not repeated automatically; "
+                    "try again yourself if you still want it."
+                ) from exc
             except requests.RequestException as exc:
                 last_error = exc
                 if attempt < 2:
@@ -583,6 +594,10 @@ class OpenAIImageProvider(_HttpProvider):
         if not self.config.base_url:
             raise ProviderError("Image generation requires base_url")
         base_url = _validate_http_url(self.config.base_url, allow_local=False)
+        request = dict(self.config.extra.get("request", {}))
+        genai_url = str(request.pop("genai_url", "") or "")
+        if genai_url:
+            return self._generate_genai(prompt, base_url, genai_url, request)
 
         payload: dict[str, Any] = {
             "model": self.config.model,
@@ -591,7 +606,7 @@ class OpenAIImageProvider(_HttpProvider):
             # that could expire, be logged, or be fetched from elsewhere.
             "response_format": "b64_json",
         }
-        payload.update(self.config.extra.get("request", {}))
+        payload.update(request)
 
         data = self._post(
             f"{base_url}/images/generations",
@@ -626,6 +641,62 @@ class OpenAIImageProvider(_HttpProvider):
                 "Image provider returned a response with no usable image data"
             )
         return images
+
+
+    def _generate_genai(
+        self, prompt: str, base_url: str, genai_url: str, request: dict[str, Any]
+    ) -> list[str]:
+        """NVIDIA's own image API: one URL per model, `artifacts` back.
+
+        NVIDIA does not serve images on the OpenAI-compatible host at all — a
+        call to `/images/generations` there answers 404 — so its image models
+        name their genai URL in config (D-444). The URL must sit on the same
+        registrable domain as the provider's `base_url`: the key is sent with
+        it, and a config typo must not hand that key to another host.
+        """
+        url = _validate_http_url(genai_url, allow_local=False)
+        if _registrable(urlparse(url).hostname) != _registrable(urlparse(base_url).hostname):
+            raise ProviderError(
+                "The image URL is not on the provider's own domain, so the key was not sent. "
+                "Correct genai_url for this model in config/providers.yaml."
+            )
+        data = self._post(
+            url,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            payload={"prompt": prompt, **request},
+        )
+        artifacts = data.get("artifacts")
+        if not isinstance(artifacts, list) or not artifacts:
+            raise ProviderError("Image provider returned no images")
+        images: list[str] = []
+        for item in artifacts:
+            if not isinstance(item, dict):
+                continue
+            reason = str(item.get("finishReason") or "SUCCESS").upper()
+            if reason != "SUCCESS":
+                # A filtered artifact is a blank or blurred picture. Storing it
+                # as a result would be a fake success.
+                raise ProviderError(
+                    f"The image was stopped by the provider's content filter ({reason}). "
+                    "Reword the brief and try again."
+                )
+            encoded = item.get("base64")
+            if isinstance(encoded, str) and encoded.strip():
+                kind = "png" if encoded.lstrip().startswith("iVBOR") else "jpeg"
+                images.append(f"data:image/{kind};base64,{encoded.strip()}")
+        if not images:
+            raise ProviderError("Image provider returned a response with no usable image data")
+        return images
+
+
+def _registrable(hostname: str | None) -> str:
+    """The last two labels of a host: enough to keep a key on one vendor."""
+    labels = [label for label in str(hostname or "").lower().split(".") if label]
+    return ".".join(labels[-2:])
 
 
 class OpenAITranscriptionProvider(_HttpProvider):

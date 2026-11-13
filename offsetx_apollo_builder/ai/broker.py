@@ -640,8 +640,8 @@ class EgressBroker:
         if kind == "image" and not rejected:
             return (
                 "No image model is switched on. Open Connectors, press Models on a "
-                "provider that offers them, and tick one — NVIDIA has FLUX and "
-                "Stable Diffusion on the same key you already use for text."
+                "provider that offers them, and tick one — NVIDIA has FLUX on the same "
+                "key you already use for text."
             )
         if not rejected:
             return (

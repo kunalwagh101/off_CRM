@@ -23,7 +23,7 @@ type ImageRun = {
  * Draw pictures from a prompt.
  *
  * The same key that runs your text models also runs image models — NVIDIA hosts
- * FLUX and Stable Diffusion alongside Llama. The trust rules do not change here:
+ * FLUX alongside its text models. The trust rules do not change here:
  * the prompt is still text, so a prompt naming a real person is still person
  * data and only trusted models will take it.
  */
@@ -82,7 +82,7 @@ export default function ImageStudio({ providers }: { providers: AIProviderRow[] 
       {imageChoices.length === 0 ? (
         <StatePanel
           title="No image model switched on"
-          description="Image models live on the same key as your text models. Open Connectors, press Models on NVIDIA, and tick FLUX or Stable Diffusion."
+          description="Image models live on the same key as your text models. Open Connectors, press Models on NVIDIA, and tick a FLUX model."
           action={<Button onClick={() => (window.location.hash = "connectors")}>Open Connectors</Button>}
         />
       ) : null}

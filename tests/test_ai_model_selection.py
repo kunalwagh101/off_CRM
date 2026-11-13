@@ -89,7 +89,7 @@ def test_the_chosen_model_is_the_one_that_actually_runs(harness):
     """Regression guard.
 
     Before this was fixed, `candidates_for` resolved each provider without a
-    model id, so this call went to meta/llama-3.1-70b-instruct — NVIDIA's
+    model id, so this call went to meta/llama-3.2-90b-vision-instruct — NVIDIA's
     default — no matter what the owner picked.
     """
     broker, calls, _ = harness
@@ -111,7 +111,7 @@ def test_no_chosen_model_falls_back_to_the_provider_default(harness):
         _settings(enabled_provider_ids=("nvidia",)),
         system_prompt="w",
     )
-    assert calls[0]["model_id"] == "meta/llama-3.1-70b-instruct"
+    assert calls[0]["model_id"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 
 def test_one_key_can_run_several_models_at_once(harness):
@@ -123,7 +123,7 @@ def test_one_key_can_run_several_models_at_once(harness):
             enabled_provider_ids=("nvidia",),
             enabled_models={
                 "nvidia": (
-                    "meta/llama-3.3-70b-instruct",
+                    "nvidia/nemotron-3.5-lightning-30b-a3b",
                     "microsoft/phi-3-medium-128k-instruct",
                     "nvidia/llama-3.1-nemotron-70b-instruct",
                 )
@@ -141,8 +141,8 @@ def test_one_key_can_run_several_models_at_once(harness):
 def test_a_chinese_model_on_a_us_host_drops_to_tier_c(registry):
     """NVIDIA is tier B. DeepSeek built on NVIDIA's hardware is still DeepSeek's
     model, and NVIDIA does not document pass-through, so it caps at C."""
-    assert registry.resolve("nvidia", model_id="meta/llama-3.3-70b-instruct").tier is TrustTier.B
-    assert registry.resolve("nvidia", model_id="deepseek-ai/deepseek-r1").tier is TrustTier.C
+    assert registry.resolve("nvidia", model_id="nvidia/nemotron-3.5-lightning-30b-a3b").tier is TrustTier.B
+    assert registry.resolve("nvidia", model_id="deepseek-ai/deepseek-v4.1-flash").tier is TrustTier.C
     assert registry.resolve("nvidia", model_id="qwen/qwen2.5-7b-instruct").tier is TrustTier.C
 
 
@@ -159,13 +159,13 @@ def test_the_tier_cap_reaches_the_broker_through_the_settings_path(harness):
     )
     settings = _settings(
         enabled_provider_ids=("nvidia",),
-        enabled_models={"nvidia": ("deepseek-ai/deepseek-r1",)},
+        enabled_models={"nvidia": ("deepseek-ai/deepseek-v4.1-flash",)},
     )
     with pytest.raises(NoPermittedProvider) as excinfo:
         broker.plan(request, settings)
     detail = json.dumps(excinfo.value.considered)
     assert "tier_forbids_data_class" in detail
-    assert "deepseek-ai/deepseek-r1" in detail
+    assert "deepseek-ai/deepseek-v4.1-flash" in detail
 
 
 def test_two_models_on_one_key_get_different_payloads(harness):
@@ -179,7 +179,7 @@ def test_two_models_on_one_key_get_different_payloads(harness):
         template_text="Hi {{first_name}}, our customs work ...",
         instructions="write",
     )
-    for model_id in ("meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"):
+    for model_id in ("nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash"):
         broker.call(
             request,
             _settings(
@@ -188,12 +188,12 @@ def test_two_models_on_one_key_get_different_payloads(harness):
             system_prompt="w",
         )
     by_model = {call["model_id"]: call["payload"] for call in calls}
-    assert "template" in by_model["meta/llama-3.3-70b-instruct"]
-    assert by_model["meta/llama-3.3-70b-instruct"]["recipient"]["full_name"] == "Ana Silva"
+    assert "template" in by_model["nvidia/nemotron-3.5-lightning-30b-a3b"]
+    assert by_model["nvidia/nemotron-3.5-lightning-30b-a3b"]["recipient"]["full_name"] == "Ana Silva"
     # The tier C sibling on the same key gets neither the template nor the name.
-    assert "template" not in by_model["deepseek-ai/deepseek-r1"]
-    assert by_model["deepseek-ai/deepseek-r1"]["recipient"]["person_ref"] == "PERSON_1"
-    assert "Ana Silva" not in json.dumps(by_model["deepseek-ai/deepseek-r1"])
+    assert "template" not in by_model["deepseek-ai/deepseek-v4.1-flash"]
+    assert by_model["deepseek-ai/deepseek-v4.1-flash"]["recipient"]["person_ref"] == "PERSON_1"
+    assert "Ana Silva" not in json.dumps(by_model["deepseek-ai/deepseek-v4.1-flash"])
 
 
 def test_an_unknown_model_name_is_untrusted(registry):
@@ -206,7 +206,7 @@ def test_an_unknown_model_name_is_untrusted(registry):
 def test_longer_origin_prefixes_win(registry):
     """`meta-llama/` must not be swallowed by `meta/`."""
     assert registry.classify_model("meta-llama/Llama-3.3-70B")["origin"] == "US"
-    assert registry.classify_model("deepseek-ai/deepseek-r1")["matched_prefix"] == "deepseek-ai/"
+    assert registry.classify_model("deepseek-ai/deepseek-v4.1-flash")["matched_prefix"] == "deepseek-ai/"
 
 
 # ── discovery ──────────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@ def test_discovery_classifies_live_models_using_config_rules(registry):
         _Response(
             {
                 "data": [
-                    {"id": "meta/llama-3.3-70b-instruct"},
+                    {"id": "nvidia/nemotron-3.5-lightning-30b-a3b"},
                     {"id": "deepseek-ai/deepseek-v3"},
                     {"id": "mistralai/mixtral-8x22b"},
                     {"id": "unknown-lab/whatever-70b"},
@@ -251,7 +251,7 @@ def test_discovery_classifies_live_models_using_config_rules(registry):
     assert result.source == "provider"
     by_id = {model.id: model for model in result.models}
 
-    assert by_id["meta/llama-3.3-70b-instruct"].tier == "B"
+    assert by_id["nvidia/nemotron-3.5-lightning-30b-a3b"].tier == "B"
     # Discovered, not in config, still capped by the origin rule.
     assert by_id["deepseek-ai/deepseek-v3"].tier == "C"
     assert by_id["mistralai/mixtral-8x22b"].tier == "B"
@@ -262,7 +262,7 @@ def test_discovery_classifies_live_models_using_config_rules(registry):
 
 
 def test_discovery_sends_only_the_key_and_no_owner_data(registry):
-    session = _Session(_Response({"data": [{"id": "meta/llama-3.3-70b-instruct"}]}))
+    session = _Session(_Response({"data": [{"id": "nvidia/nemotron-3.5-lightning-30b-a3b"}]}))
     discover_models(registry, "nvidia", "nvapi-secret", session=session)
     call = session.calls[0]
     assert call["url"].endswith("/models")
@@ -270,10 +270,10 @@ def test_discovery_sends_only_the_key_and_no_owner_data(registry):
 
 
 def test_discovery_keeps_config_models_the_provider_did_not_mention(registry):
-    session = _Session(_Response({"data": [{"id": "meta/llama-3.3-70b-instruct"}]}))
+    session = _Session(_Response({"data": [{"id": "nvidia/nemotron-3.5-lightning-30b-a3b"}]}))
     result = discover_models(registry, "nvidia", "k", session=session)
     ids = {model.id for model in result.models}
-    assert "deepseek-ai/deepseek-r1" in ids  # from config, absent from the response
+    assert "deepseek-ai/deepseek-v4.1-flash" in ids  # from config, absent from the response
 
 
 def test_discovery_degrades_when_the_provider_cannot_be_reached(registry):
@@ -302,7 +302,7 @@ def test_discovery_without_a_key_explains_itself(registry):
 
 def test_discovery_is_written_to_the_egress_log(registry, tmp_path):
     log = EgressLog(tmp_path / "egress.sqlite3")
-    session = _Session(_Response({"data": [{"id": "meta/llama-3.3-70b-instruct"}]}))
+    session = _Session(_Response({"data": [{"id": "nvidia/nemotron-3.5-lightning-30b-a3b"}]}))
     discover_models(registry, "nvidia", "k", session=session, logger=log.record)
 
     items, total = log.list()
@@ -324,12 +324,12 @@ def test_connecting_stores_a_model_list_and_the_broker_receives_it(tmp_path, reg
         "local",
         "nvidia",
         api_key="k",
-        model_ids=["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"],
+        model_ids=["nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash"],
     )
     settings = store.egress_settings("local")
     assert settings.enabled_models["nvidia"] == (
-        "meta/llama-3.3-70b-instruct",
-        "deepseek-ai/deepseek-r1",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "deepseek-ai/deepseek-v4.1-flash",
     )
 
 
@@ -369,7 +369,7 @@ def test_compare_races_two_models_on_the_same_key(harness):
             enabled_provider_ids=("nvidia",),
             enabled_models={
                 "nvidia": (
-                    "meta/llama-3.3-70b-instruct",
+                    "nvidia/nemotron-3.5-lightning-30b-a3b",
                     "microsoft/phi-3-medium-128k-instruct",
                 )
             },
@@ -377,7 +377,7 @@ def test_compare_races_two_models_on_the_same_key(harness):
         system_prompt="w",
     )
     ran = {call["model_id"] for call in calls}
-    assert ran == {"meta/llama-3.3-70b-instruct", "microsoft/phi-3-medium-128k-instruct"}
+    assert ran == {"nvidia/nemotron-3.5-lightning-30b-a3b", "microsoft/phi-3-medium-128k-instruct"}
     assert {branch.model_id for branch in result.branches} == ran
 
 
@@ -392,12 +392,12 @@ def test_compare_lets_a_restricted_model_join_public_work(harness):
         _settings(
             enabled_provider_ids=("nvidia",),
             enabled_models={
-                "nvidia": ("meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1")
+                "nvidia": ("nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash")
             },
         ),
         system_prompt="w",
     )
-    assert "deepseek-ai/deepseek-r1" in {call["model_id"] for call in calls}
+    assert "deepseek-ai/deepseek-v4.1-flash" in {call["model_id"] for call in calls}
 
 
 def test_a_restricted_model_on_a_trusted_key_still_cannot_lead_a_plan(harness):
@@ -409,7 +409,7 @@ def test_a_restricted_model_on_a_trusted_key_still_cannot_lead_a_plan(harness):
     broker, _, _ = harness
     settings = _settings(
         enabled_provider_ids=("nvidia",),
-        enabled_models={"nvidia": ("deepseek-ai/deepseek-r1",)},
+        enabled_models={"nvidia": ("deepseek-ai/deepseek-v4.1-flash",)},
     )
     with pytest.raises((NoPermittedProvider, PV)):
         ModeRunner(broker).run_orchestrated(
@@ -492,7 +492,7 @@ def test_a_model_without_options_sends_a_plain_payload(registry, tmp_path):
         registry=registry, credential_resolver=lambda p: "k", quota=QuotaTracker(tmp_path)
     )
     provider = broker._instantiate(
-        registry.resolve("nvidia", model_id="meta/llama-3.3-70b-instruct")
+        registry.resolve("nvidia", model_id="nvidia/nemotron-3.5-lightning-30b-a3b")
     )
     assert isinstance(provider, OpenAICompatibleProvider)
     provider.session = _Session()
@@ -566,20 +566,20 @@ def test_image_models_are_kept_apart_from_chat_models(registry):
     entry = registry.require("nvidia")
     images = [m.id for m in entry.models if m.is_image]
     assert "black-forest-labs/flux.1-dev" in images
-    assert not entry.model("meta/llama-3.3-70b-instruct").is_image
+    assert not entry.model("nvidia/nemotron-3.5-lightning-30b-a3b").is_image
 
     chat, _ = registry.candidates_for(
         DataClass.PUBLIC,
         enabled_ids=("nvidia",),
-        enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct", "black-forest-labs/flux.1-dev")},
+        enabled_models={"nvidia": ("nvidia/nemotron-3.5-lightning-30b-a3b", "black-forest-labs/flux.1-dev")},
         kind="chat",
     )
-    assert [c.model_id for c in chat] == ["meta/llama-3.3-70b-instruct"]
+    assert [c.model_id for c in chat] == ["nvidia/nemotron-3.5-lightning-30b-a3b"]
 
     drawing, _ = registry.candidates_for(
         DataClass.PUBLIC,
         enabled_ids=("nvidia",),
-        enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct", "black-forest-labs/flux.1-dev")},
+        enabled_models={"nvidia": ("nvidia/nemotron-3.5-lightning-30b-a3b", "black-forest-labs/flux.1-dev")},
         kind="image",
     )
     assert [c.model_id for c in drawing] == ["black-forest-labs/flux.1-dev"]
@@ -675,7 +675,7 @@ def test_no_image_model_switched_on_says_where_to_go(registry, tmp_path):
             ),
             _settings(
                 enabled_provider_ids=("nvidia",),
-                enabled_models={"nvidia": ("meta/llama-3.3-70b-instruct",)},
+                enabled_models={"nvidia": ("nvidia/nemotron-3.5-lightning-30b-a3b",)},
             ),
         )
     assert "Connectors" in str(excinfo.value)

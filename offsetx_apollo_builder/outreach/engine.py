@@ -378,6 +378,7 @@ class OutreachEngine:
             "updated_or_existing": 0,
             "skipped": 0,
             "errors": [],
+            "warnings": [],
         }
 
         def value(raw: dict[str, Any], field: str) -> str:
@@ -435,6 +436,16 @@ class OutreachEngine:
                     result["added"] += 1
                 else:
                     result["updated_or_existing"] += 1
+                if "@" not in contact.email:
+                    # Kept on purpose (a LinkedIn-only row can be enriched
+                    # later), but the owner must hear it cannot be emailed:
+                    # the sender skips it as valid_email_required (D-445).
+                    result["warnings"].append(
+                        {
+                            "row": number,
+                            "warning": "No email address: kept, but it cannot be emailed until one is added.",
+                        }
+                    )
             self.store.add_event(campaign_id, "contacts_imported", result)
         return result
 

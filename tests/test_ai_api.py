@@ -366,25 +366,25 @@ def test_connect_accepts_a_model_list_and_reports_it_back(client):
         f"{API}/ai/providers/nvidia/connect",
         json={
             "api_key": "nvapi-test",
-            "model_ids": ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"],
+            "model_ids": ["nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash"],
         },
     )
     assert response.status_code == 200
     assert response.json()["provider"]["model_ids"] == [
-        "meta/llama-3.3-70b-instruct",
-        "deepseek-ai/deepseek-r1",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "deepseek-ai/deepseek-v4.1-flash",
     ]
 
     row = next(
         item for item in client.get(f"{API}/ai/providers").json()["providers"]
         if item["id"] == "nvidia"
     )
-    assert row["model_ids"] == ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"]
+    assert row["model_ids"] == ["nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash"]
     assert row["supports_model_discovery"] is True
     # Every model the key could run, each carrying its own tier.
     tiers = {m["id"]: m["tier"] for m in row["available_models"]}
-    assert tiers["meta/llama-3.3-70b-instruct"] == "B"
-    assert tiers["deepseek-ai/deepseek-r1"] == "C"
+    assert tiers["nvidia/nemotron-3.5-lightning-30b-a3b"] == "B"
+    assert tiers["deepseek-ai/deepseek-v4.1-flash"] == "C"
 
 
 def test_plan_separates_two_models_on_the_same_key_by_tier(client):
@@ -393,13 +393,13 @@ def test_plan_separates_two_models_on_the_same_key_by_tier(client):
         f"{API}/ai/providers/nvidia/connect",
         json={
             "api_key": "k",
-            "model_ids": ["meta/llama-3.3-70b-instruct", "deepseek-ai/deepseek-r1"],
+            "model_ids": ["nvidia/nemotron-3.5-lightning-30b-a3b", "deepseek-ai/deepseek-v4.1-flash"],
         },
     )
     payload = client.post(f"{API}/ai/plan", json={"data_class": "campaign"}).json()
-    assert payload["would_use"]["model_id"] == "meta/llama-3.3-70b-instruct"
+    assert payload["would_use"]["model_id"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
     excluded = {item.get("model_id"): item["reason"] for item in payload["excluded"]}
-    assert excluded["deepseek-ai/deepseek-r1"] == "tier_forbids_data_class"
+    assert excluded["deepseek-ai/deepseek-v4.1-flash"] == "tier_forbids_data_class"
 
 
 def test_connecting_an_unclassifiable_model_is_refused_with_a_reason(client):

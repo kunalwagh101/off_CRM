@@ -592,6 +592,23 @@ def _idempotent(
     return result
 
 
+
+def _refuse_credential_memory(content: str) -> None:
+    """A memory is fed to prompts; a pasted key must not become one (D-446)."""
+    from ..ai.scanner import credential_kinds
+
+    found = credential_kinds(content)
+    if found:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "This looks like a credential ("
+                + ", ".join(kind.replace("_", " ") for kind in found)
+                + "), so it was not saved: memories are sent to AI models. "
+                "Keep keys in Connectors instead, and remove the key from the text."
+            ),
+        )
+
 def create_app(settings: AppSettings | None = None) -> FastAPI:
     resolved = settings or AppSettings.from_env()
     resolved.validate()
@@ -1021,6 +1038,10 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         version=__version__,
         docs_url="/api/docs",
         redoc_url=None,
+        # FastAPI otherwise serves /docs/oauth2-redirect to anyone, outside
+        # the login gate that covers /api/docs. Nothing here uses OAuth in
+        # Swagger, so the page has no purpose (D-449).
+        swagger_ui_oauth2_redirect_url=None,
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
@@ -2024,6 +2045,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         tags = body.get("tags") or []
         if not isinstance(tags, list):
             raise HTTPException(status_code=400, detail="tags must be a list")
+        _refuse_credential_memory(str(body.get("content") or ""))
         try:
             memory_id = request.app.state.companions.remember(
                 companion_id,
@@ -2067,6 +2089,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     @app.post(f"{API_PREFIX}/memory", status_code=201)
     def create_memory(body: MemoryCreate, request: Request) -> dict[str, Any]:
+        _refuse_credential_memory(body.content)
         memory_id = _engine(request).expert_for_workspace(_workspace_id(request)).memory.add_manual(
             content=body.content,
             kind=body.kind,
@@ -4601,7 +4624,12 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # Keep them in the broker's scanned data payload, not privileged system text.
             require_install_owner(request)
             if data_class is not DataClass.CAMPAIGN:
-                raise HTTPException(400, "Companion instructions require campaign data policy")
+                raise HTTPException(
+                    400,
+                    "The companion instructions are campaign data, so this chat cannot use "
+                    "the Public data setting. Choose Campaign data for this message, or "
+                    "switch the companion off.",
+                )
             try:
                 context = request.app.state.companions.start(
                     selected_companion, workspace_id=workspace_id,

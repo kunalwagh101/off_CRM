@@ -450,6 +450,30 @@ and parallel strategies — need a Connectors equivalent or are dropped. Choosin
 **Blast radius if wrong.** Implicit selection can leak another workspace's procedures or raise prompt/token costs unexpectedly. Explicit selection requires more UI/workflow setup but has a testable security boundary.
 
 
+### Q-31 — After an erasure, may off_CRM keep a hashed "do not contact" marker? *(affects S-06.02.04, D-452)*
+
+**Status:** open · Raised 2026-11-13 by the live end-to-end sweep.
+
+**Ambiguity.** Erasure today deletes every row naming the person, including their unsubscribe. A later import of the same address is then accepted and emailable.
+
+**Options.** 1. Keep only a salted SHA-256 of the normalised address per workspace, used solely to refuse import and send, and say so in the erasure confirmation. 2. Keep nothing; warn the owner on erasure that a re-import can contact the person again. 3. Keep the plain suppression row and erase everything else.
+
+**Recommended default: 1.** It honours "do not contact me" without keeping readable personal data; regulators commonly accept a minimal suppression record for exactly this.
+
+**Blast radius if wrong.** Option 2 risks emailing someone who asked to be forgotten. Option 3 keeps a readable address after an erasure request.
+
+### Q-32 — Whose words do the default email templates speak in? *(affects S-06.01.01, D-453)*
+
+**Status:** open · Raised 2026-11-13 by the live end-to-end sweep.
+
+**Ambiguity.** The shipped templates say "I am building OffsetX in India" and the signature defaults to "off_CRM team". The workspace positioning line is collected but not given to the draft model.
+
+**Options.** 1. Neutral starter templates plus a per-workspace sender profile (name, role, one-line positioning), required before the first draft. 2. Keep OffsetX templates for the owner's own install and ship neutral ones only in the open-source build. 3. Leave as is.
+
+**Recommended default: 1.** A customer must never send another company's pitch; the quality gate cannot catch that because the text is fluent.
+
+**Blast radius if wrong.** Every customer's first campaign would describe the founder's company to real prospects.
+
 ### 2026-11-06 — S-06.03.07 install/database ownership decision
 
 Owner selected one hosted database per application install. A second independent install must be refused rather than sharing migration choices or customer state. Persistent install identity and explicit recovery/move procedure are required; losing an ephemeral local directory must not silently create a different owner or transfer a claim. No customer database has been changed by recording this decision.

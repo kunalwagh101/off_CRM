@@ -675,7 +675,7 @@ def test_registry_rejects_a_provider_with_no_jurisdiction_or_retention_note(tmp_
 def test_model_provenance_caps_the_tier_of_a_chinese_model_on_a_us_host(registry):
     """NVIDIA is tier B, but the Qwen model it hosts is capped at C because
     pass-through to the model's developer is undocumented."""
-    assert registry.resolve("nvidia", model_id="meta/llama-3.1-70b-instruct").tier is TrustTier.B
+    assert registry.resolve("nvidia", model_id="meta/llama-3.2-90b-vision-instruct").tier is TrustTier.B
     assert registry.resolve("nvidia", model_id="qwen/qwen2.5-coder-32b-instruct").tier is TrustTier.C
 
 

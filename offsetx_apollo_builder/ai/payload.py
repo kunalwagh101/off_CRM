@@ -140,14 +140,53 @@ def _clean(value: object, limit: int = 2000) -> str:
     return text[:limit]
 
 
-def tokenise_addresses(text: str) -> str:
-    """Replace any email address with the recipient token.
+#: Replaces a phone number in owner-typed text. Irreversible on purpose: no
+#: task needs a model to read a number, and nothing maps it back (D-442).
+PHONE_TOKEN = "<PHONE>"
 
-    Used on free text that the owner typed, where an address may appear inline.
-    The pre-flight scanner still runs afterwards — this reduces false alarms on
-    legitimate text, it does not replace the check.
+#: A run of digits with the separators people actually type. Validated by
+#: `_phone_or_none`, because the shape alone also matches dates and addresses.
+_PHONE_CANDIDATE_RE = re.compile(r"(?<![\w.+/-])\+?\(?\d[\d\s().-]{6,}\d(?![\w.-]?\d)")
+_DATE_IN_RE = re.compile(r"\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
+_IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
+
+
+def _phone_or_none(candidate: str) -> bool:
+    """Whether a digit run is a phone number rather than a date, year or id.
+
+    Precision over recall: a false positive costs the model one number it
+    never needed, a false negative sends a person's number to a provider.
+    Without a leading ``+`` it needs at least two separators, so an order id
+    or a bare year range is left alone.
     """
-    return _EMAIL_RE.sub(f"<{RECIPIENT_TOKEN}>", str(text or ""))
+    stripped = candidate.strip()
+    digits = sum(ch.isdigit() for ch in stripped)
+    if not 9 <= digits <= 15:
+        return False
+    if _IPV4_RE.match(stripped) or _DATE_IN_RE.search(stripped):
+        return False
+    if stripped.startswith("+"):
+        return True
+    return len(re.findall(r"[\s().-]+", stripped)) >= 2
+
+
+def _tokenise_phones(text: str) -> str:
+    def swap(match: re.Match[str]) -> str:
+        value = match.group(0)
+        trailing = value[len(value.rstrip()):]
+        return PHONE_TOKEN + trailing if _phone_or_none(value) else value
+
+    return _PHONE_CANDIDATE_RE.sub(swap, text)
+
+
+def tokenise_addresses(text: str) -> str:
+    """Replace email addresses and phone numbers with tokens.
+
+    Used on free text that the owner typed, where an address or a number may
+    appear inline. The pre-flight scanner still runs afterwards — this reduces
+    false alarms on legitimate text, it does not replace the check.
+    """
+    return _tokenise_phones(_EMAIL_RE.sub(f"<{RECIPIENT_TOKEN}>", str(text or "")))
 
 
 def _identity_terms(person: PersonPublic) -> list[tuple[str, str]]:

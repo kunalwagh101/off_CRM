@@ -181,6 +181,17 @@ def _walk(payload: Any, path: str = "$") -> Iterable[tuple[str, str, Any]]:
         yield (path, "value", str(payload))
 
 
+def credential_kinds(text: str) -> list[str]:
+    """Names of the credential shapes found in one piece of text, if any.
+
+    For storage paths that later feed prompts (memories): refusing a pasted key
+    when it is typed is kinder than blocking every call that retrieves it, and
+    the key should not sit in the CRM at all (D-446).
+    """
+    value = str(text or "")
+    return [kind for kind, pattern in _CREDENTIAL_PATTERNS if pattern.search(value)]
+
+
 def scan_payload(
     payload: dict[str, Any],
     *,

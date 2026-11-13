@@ -167,6 +167,10 @@ _PHRASE_RULES: tuple[tuple[re.Pattern[str], FailureKind], ...] = (
     (re.compile(r"insufficient|quota exceeded|billing|payment|credit", re.I), FailureKind.PAYMENT),
     (re.compile(r"\bapi[ _]?key\b|unauthor|forbidden|invalid.*token|authentication", re.I), FailureKind.AUTH),
     (re.compile(r"model.*(not found|does not exist|unknown)|unknown model", re.I), FailureKind.MODEL_NOT_FOUND),
+    # Hosts retire models on a date (NVIDIA answers 410 "has reached its end of
+    # life and is no longer available"). Without this it read as a malformed
+    # request and the owner was told it was an off_CRM bug (D-441).
+    (re.compile(r"end of life|no longer available|has been (?:retired|deprecated|decommissioned)", re.I), FailureKind.MODEL_NOT_FOUND),
     (re.compile(r"rate ?limit|too many requests", re.I), FailureKind.RATE_LIMITED),
     (re.compile(r"overloaded|capacity", re.I), FailureKind.OVERLOADED),
     (re.compile(r"timed? ?out|timeout", re.I), FailureKind.TIMEOUT),
@@ -179,6 +183,8 @@ _STATUS_KINDS: dict[int, FailureKind] = {
     403: FailureKind.AUTH,
     402: FailureKind.PAYMENT,
     404: FailureKind.MODEL_NOT_FOUND,
+    # Gone: the host knew the model and has retired it (D-441).
+    410: FailureKind.MODEL_NOT_FOUND,
     408: FailureKind.TIMEOUT,
     413: FailureKind.CONTEXT_LENGTH,
     422: FailureKind.BAD_REQUEST,
@@ -224,8 +230,9 @@ _OWNER_ACTIONS: dict[FailureKind, str] = {
         "a plan that does not cover this model."
     ),
     FailureKind.MODEL_NOT_FOUND: (
-        "The provider does not have the model named in config/providers.yaml. "
-        "Run 'Find models' in Connectors to see what this key actually reaches."
+        "The provider does not have this model, or has retired it and it is no "
+        "longer available. Open Connectors, press 'Find models' to see what this "
+        "key reaches today, and tick a current model."
     ),
     FailureKind.TRUNCATED: (
         "The model hit its output limit before finishing. Raise max_tokens for "

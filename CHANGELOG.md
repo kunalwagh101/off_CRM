@@ -1,3 +1,13 @@
+## 2026-11-13 — Live end-to-end sweep and NVIDIA repair (unreleased)
+
+- NVIDIA works again on a fresh connection: the default model and nine others had been retired by NVIDIA, so every AI feature failed. The list now holds only models that answered a real call; default `nvidia/nemotron-3.5-lightning-30b-a3b`.
+- A retired model now says so and points to Connectors, instead of calling itself an off_CRM bug.
+- Phone numbers are tokenised before any text reaches a model; a draft that still carries a privacy token cannot be marked sendable.
+- NVIDIA image models use NVIDIA's own image API (they were sent to an address NVIDIA does not serve). Not yet proven with a real picture: NVIDIA's image service failed all day.
+- A call that timed out after reaching the provider is no longer repeated automatically, so a slow paid call cannot run three times.
+- Pasted keys are refused as memories; CSV import warns about rows that cannot be emailed; Swagger's public OAuth page is gone; clearer companion refusal.
+- New: `scripts/live/check_provider_models.py` and `scripts/qa/live_e2e_sweep/`. Evidence: `docs/evidence/2026-11-13-live-e2e-sweep.md`. Cross-workspace CRM isolation (D-451) remains the top release blocker.
+
 ## 2026-11-08 — Recall API contract regression check (unreleased)
 
 - Aligned the older recall-rebuild API test with the ownership-migration refusal. It now checks409, actionable guidance, a matching error reference and no newly indexed mail. Runtime behavior is unchanged.

@@ -1,3 +1,10 @@
+## 2026-11-13 — Live end-to-end sweep with a real NVIDIA key; AI path repaired (not released)
+
+- First run of the real AI path with a valid key (D-341 had left it unverified). Local server on an empty data folder, key entered only through the app. 245-route sweep: 0 server errors, 0 auth bypasses. 234 live checks passed; 19 real defects D-440–D-458 logged; 11 raw FAILs were the harness's own wrong inputs.
+- Fixed test-first (27 new tests, `tests/test_e2e_findings_2026_11_13.py`): retired NVIDIA catalogue (D-440, critical), 410 advice (D-441), phone leak (D-442), sendable privacy tokens (D-443), NVIDIA image endpoint (D-444, implemented but not live-verified: NVIDIA FLUX 500/timeouts), import warning (D-445), credential memories (D-446), CN origin prefixes (D-447), companion message (D-448), Swagger OAuth page (D-449), repeated uncertain calls (D-450). 10/10 live retests pass on a fresh server.
+- Filed: D-451 cross-workspace CRM read/write reconfirmed live (critical, S-06.01.06); D-452 erasure removes suppression (Q-31); D-453 founder-specific templates and global signature (Q-32); D-454 any key shows connected; D-455 image 200 on total failure; D-456 no Origin check (not exploitable); D-457 no overall deadline (5+ min observed).
+- Decisions DD-165 (keep one slow CN model listed for the C cap), DD-166 (never auto-repeat an uncertain call). Evidence `docs/evidence/2026-11-13-live-e2e-sweep.md`. No tracker status change, no main/Render deployment.
+
 ## 2026-11-08 — Recall API acceptance contract aligned
 
 - Resumed only the requested recall test/CI follow-through. Exact5803951 workflow42401984946 failed on the older test_recall_rebuild_runs_without_a_campaign assertion200 vs intentional409. Python3versions each3290 PASS/149 skips plus that1 failure; PostgreSQL3401 PASS/107 skips plus same1 failure. Quality failed only S-06.02.30/.31 commands containing that test. Container42401984971 SUCCESS. These failed runs are not green evidence.

@@ -32,6 +32,8 @@ frontend/dist/
 
 # Local outreach state and credentials
 local_data/
+# Lock file the workspace guard creates beside local_data/ during test runs.
+.local_data.workspace.lock
 *.db
 *.db-wal
 *.db-shm

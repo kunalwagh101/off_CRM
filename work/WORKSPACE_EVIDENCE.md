@@ -46,6 +46,17 @@ implementer review, not an independent penetration assessment.
 
 ## CI
 
-Pending on draft PR #29. No merge or deployment. Board stays IN_REVIEW until
-standard Chromium and the full verifier pass. The previous four completed stories
-remain certified by run 2293; this source change needs its own run.
+GitHub Actions run 2295 passed on source commit
+`487f85dcfa6799e411d4ed6a1c511d9c8c20631c`:
+https://github.com/kunalwagh101/off_CRM/actions/runs/44573830141
+
+- 2091 Python passed, 4 skipped, 6 warnings; all 31 workspace cases included.
+- Real Chromium context isolation and explicit restart/restore passed.
+- 59/59 historical board evidence commands passed.
+- 116 frontend passed; production build, static checks and CLI smoke checks passed.
+- Raw log: work/workspace-ci-2295.log; manifest: work/WORKSPACE_CI_VERIFICATION.json.
+
+S-06.01.01 is promoted to DONE. The metadata update adds the workspace command to
+the verifier, bringing the board to 60 DONE stories; final CI will certify this
+updated evidence record. No merge, deployment, live provider call or independent
+penetration assessment is claimed.

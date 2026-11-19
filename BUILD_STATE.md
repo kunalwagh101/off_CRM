@@ -9,22 +9,20 @@ email is one campaign kind of several. Nothing built from here may assume email.
 
 Last updated: 2026-11-19
 Branch: `work`
-Current certified delivery (2026-11-19): S-03.02.05, S-02.02.02, S-04.01.01
-and S-05.01.01 are DONE. GitHub Actions run 2291 passed full Python (2060 passed,
-4 skipped), all 55 recorded historical evidence commands, frontend (116 passed)
-and the production build. The new stories' own evidence commands also pass.
-Raw CI evidence is in work/ci-run-2291.log and work/CI_VERIFICATION.json.
+Current certified delivery (2026-11-19): S-03.02.05, S-02.02.02, S-04.01.01,
+S-05.01.01 and S-06.01.01 are DONE. GitHub Actions run 2295 passed full Python
+(2091 passed, 4 skipped), all 59 historical evidence commands, frontend (116
+passed) and the production build. The workspace story's 31 cases, including real
+Chrome context isolation and restore, passed within that full suite. The updated
+60-DONE board is being reverified by CI.
 
-The persistent crawler, declarative platforms, editable plans and companion
-profiles are implemented and verified. Draft PR #29 contains the work; it is
-not merged and no application was deployed. Local Chromium still cannot run
-under the managed sandbox, so the complete browser proof came from standard
-GitHub CI without changing local browser policy. See work/REMOTE_VERIFICATION.md.
-S-06.01.01 (workspace keys and sessions) is claimed by Codex /root and implemented;
-verification is in progress. It binds one authenticated instance per workspace,
-separates keys/storage/authentication and provides isolated Chrome contexts with
-vault v2 identity binding. See work/WORKSPACE_WORK_ORDER.md and
-`docs/architecture/WORKSPACES.md`. Do not claim it while its CI gate runs.
+Draft PR #29 contains the complete five-story increment. It is not merged and no
+application was deployed. Local managed Chromium restrictions remain; standard
+GitHub CI supplied browser proof without changing local policy. Raw evidence:
+work/workspace-ci-2295.log and work/WORKSPACE_CI_VERIFICATION.json. Workspace
+setup, private key namespaces, verified legacy migration and rollback are in
+docs/architecture/WORKSPACES.md. All three requested stories and the additional
+tracked capabilities are complete; no other item is claimed automatically.
 
 Historical baseline follows:
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).

@@ -11,7 +11,9 @@ and chat-scoped grants remain S-06.01.02.
 
 Set `OFFSETX_WORKSPACE_ID=alice` before `uv run offsetx-web`. IDs contain 1–64
 lowercase letters, digits, dashes or underscores and start with a letter or digit.
-Default `local` keeps existing paths and environment names. Headers, query strings
+Default `local` keeps existing paths and environment names. Legacy IDs outside
+this canonical format need an owner-chosen valid identity and attended reconnect;
+IDs are never silently normalized into another workspace. Headers, query strings
 and request bodies cannot change the configured workspace. Authenticated
 `GET /api/v1/workspace` reports the binding without any credentials.
 

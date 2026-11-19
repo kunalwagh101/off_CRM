@@ -1,0 +1,60 @@
+{
+  "prior_failures": [
+    "tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number",
+    "tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop",
+    "tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped",
+    "tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence",
+    "tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop",
+    "tests/test_browser_agent.py::test_a_command_the_browser_does_not_know_raises_rather_than_hangs",
+    "tests/test_browser_agent.py::test_a_dropdown_is_chosen_by_its_visible_label",
+    "tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused",
+    "tests/test_browser_agent.py::test_a_real_browser_is_driven_end_to_end",
+    "tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too",
+    "tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain",
+    "tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking",
+    "tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything",
+    "tests/test_browser_budget.py::test_a_real_browser_stops_when_the_account_is_spent",
+    "tests/test_browser_budget.py::test_a_refused_action_does_not_spend_the_budget",
+    "tests/test_browser_budget.py::test_an_unattributed_tab_is_not_charged_to_anybody",
+    "tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect",
+    "tests/test_browser_signin.py::test_a_platform_already_signed_in_is_not_asked_to_sign_in_again",
+    "tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted",
+    "tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling",
+    "tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards"
+  ],
+  "current_failures": [
+    "tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number",
+    "tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop",
+    "tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped",
+    "tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence",
+    "tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop",
+    "tests/test_browser_agent.py::test_a_command_the_browser_does_not_know_raises_rather_than_hangs",
+    "tests/test_browser_agent.py::test_a_dropdown_is_chosen_by_its_visible_label",
+    "tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused",
+    "tests/test_browser_agent.py::test_a_real_browser_is_driven_end_to_end",
+    "tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too",
+    "tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain",
+    "tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking",
+    "tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything",
+    "tests/test_browser_budget.py::test_a_real_browser_stops_when_the_account_is_spent",
+    "tests/test_browser_budget.py::test_a_refused_action_does_not_spend_the_budget",
+    "tests/test_browser_budget.py::test_an_unattributed_tab_is_not_charged_to_anybody",
+    "tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect",
+    "tests/test_browser_signin.py::test_a_platform_already_signed_in_is_not_asked_to_sign_in_again",
+    "tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted",
+    "tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling",
+    "tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards",
+    "tests/test_workspace_browser.py::test_real_chrome_workspace_cookies_are_isolated_and_restore_after_context_restart"
+  ],
+  "added": [
+    "tests/test_workspace_browser.py::test_real_chrome_workspace_cookies_are_isolated_and_restore_after_context_restart"
+  ],
+  "removed": [],
+  "environment": "managed local Chromium restrictions",
+  "source_log": "work/workspace-full-python-final.log",
+  "result": {
+    "passed": 2067,
+    "failed": 22,
+    "skipped": 4
+  }
+}

@@ -220,6 +220,7 @@ Provider registry examples are under `config/`. Connected provider profiles and 
 | `offsetx-tools` | Manage the closed, sandboxed tool registry. |
 | `offsetx-notebook` | Export a privacy-controlled research notebook bundle. |
 | `offsetx-db` | Inspect and copy supported database boundaries. |
+| `offsetx-crawl` | Seed, inspect and run the persistent, robots-aware public crawl frontier. |
 | `offsetx-codegraph` | Build or verify the source-only code graph. |
 | `offsetx-email-worker` | Process durable local or Amazon SES email jobs. |
 
@@ -279,6 +280,7 @@ Start here:
 - [AI module](docs/AI_MODULE.md)
 - [Security](docs/SECURITY.md)
 - [Lead discovery](docs/LEAD_DISCOVERY.md)
+- [Persistent crawl frontier](docs/architecture/CRAWL_FRONTIER.md)
 - [Sales tracker](docs/SALES_TRACKER.md)
 - [Email delivery and deliverability controls](docs/architecture/EMAIL_DELIVERY.md)
 - [Image campaigns](docs/architecture/IMAGE_CAMPAIGNS.md)

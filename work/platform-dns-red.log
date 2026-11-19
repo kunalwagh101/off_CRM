@@ -1,0 +1,129 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_valid_dns_names_with_consecutive_hyphens_are_supported __________
+
+path = None
+
+    def load_registry(path: Path | str | None = None) -> dict[str, Any]:
+        source = Path(path or os.environ.get('OFFSETX_BROWSER_PLATFORMS') or DEFAULT_PATH)
+        try:
+            if source.stat().st_size > 262144:
+                raise ValueError('registry exceeds 256 KiB')
+            data = yaml.load(source.read_text(encoding='utf-8'), Loader=_UniqueLoader)
+            if not isinstance(data, dict) or set(data) - {'platforms', 'extra_rules', 'budget_aliases', 'extra_budgets'}:
+                raise ValueError('expected a registry with platforms')
+            if not isinstance(data.get('platforms'), list) or not data['platforms']:
+                raise ValueError('platforms must be a nonempty list')
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise RegistryError(f'Cannot load browser registry {source.name}: {exc}') from exc
+        seen_ids: set[str] = set()
+        seen_domains: set[str] = set()
+        for row in data['platforms']:
+            name = row.get('id', '<unnamed>') if isinstance(row, dict) else '<unnamed>'
+            try:
+                if not isinstance(row, dict) or REQUIRED - row.keys() or row.keys() - REQUIRED - OPTIONAL:
+                    raise ValueError('missing required fields or unknown fields')
+                if not isinstance(name, str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,39}', name) or name in seen_ids:
+                    raise ValueError('invalid or duplicate platform id')
+                if not isinstance(row['label'], str) or not row['label'].strip():
+                    raise ValueError('label must be nonempty')
+                if not isinstance(row.get('note', ''), str):
+                    raise ValueError('note must be text')
+                seen_ids.add(name)
+                for field in ('login_url', 'home_url'):
+>                   _url(row[field])
+
+offsetx_apollo_builder/browser/registry.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+offsetx_apollo_builder/browser/registry.py:70: in _url
+    _host(url.hostname)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = 'my--forum.example.test'
+
+    def _host(value: object) -> str:
+        if not isinstance(value, str) or value != value.lower() or len(value) > 253:
+            raise ValueError('domains must be lowercase host names')
+        if not re.fullmatch(r'[a-z0-9]+(?:[.-][a-z0-9]+)*', value) or '.' not in value:
+>           raise ValueError('domains must be explicit public host names')
+E           ValueError: domains must be explicit public host names
+
+offsetx_apollo_builder/browser/registry.py:50: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-119/test_valid_dns_names_with_cons0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2cd37fec90>
+
+    def test_valid_dns_names_with_consecutive_hyphens_are_supported(tmp_path, monkeypatch):
+        data = declaration()
+        row = data['platforms'][0]
+        row['domains'] = ['my--forum.example.test']
+        row['home_url'] = 'https://my--forum.example.test/home'
+        row['login_url'] = 'https://my--forum.example.test/login'
+        configure(tmp_path, monkeypatch, data)
+>       assert identity.platform('forum').home_url == row['home_url']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_platform_registry.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+offsetx_apollo_builder/browser/identity.py:122: in platform
+    declared = platforms()
+               ^^^^^^^^^^^
+offsetx_apollo_builder/browser/identity.py:107: in platforms
+    }) for row in load_registry()['platforms']
+                  ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = None
+
+    def load_registry(path: Path | str | None = None) -> dict[str, Any]:
+        source = Path(path or os.environ.get('OFFSETX_BROWSER_PLATFORMS') or DEFAULT_PATH)
+        try:
+            if source.stat().st_size > 262144:
+                raise ValueError('registry exceeds 256 KiB')
+            data = yaml.load(source.read_text(encoding='utf-8'), Loader=_UniqueLoader)
+            if not isinstance(data, dict) or set(data) - {'platforms', 'extra_rules', 'budget_aliases', 'extra_budgets'}:
+                raise ValueError('expected a registry with platforms')
+            if not isinstance(data.get('platforms'), list) or not data['platforms']:
+                raise ValueError('platforms must be a nonempty list')
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise RegistryError(f'Cannot load browser registry {source.name}: {exc}') from exc
+        seen_ids: set[str] = set()
+        seen_domains: set[str] = set()
+        for row in data['platforms']:
+            name = row.get('id', '<unnamed>') if isinstance(row, dict) else '<unnamed>'
+            try:
+                if not isinstance(row, dict) or REQUIRED - row.keys() or row.keys() - REQUIRED - OPTIONAL:
+                    raise ValueError('missing required fields or unknown fields')
+                if not isinstance(name, str) or not re.fullmatch(r'[a-z][a-z0-9_-]{0,39}', name) or name in seen_ids:
+                    raise ValueError('invalid or duplicate platform id')
+                if not isinstance(row['label'], str) or not row['label'].strip():
+                    raise ValueError('label must be nonempty')
+                if not isinstance(row.get('note', ''), str):
+                    raise ValueError('note must be text')
+                seen_ids.add(name)
+                for field in ('login_url', 'home_url'):
+                    _url(row[field])
+                for field in ('signed_in', 'signed_out'):
+                    row[field] = [s.lower() for s in _strings(row[field], nonempty=True)]
+                for domain in _strings(row['domains'], nonempty=True):
+                    _host(domain)
+                    if domain in seen_domains:
+                        raise ValueError('duplicate domain')
+                    seen_domains.add(domain)
+                home = urlsplit(row['home_url']).hostname
+                if not any(home == d or home.endswith('.' + d) for d in row['domains']):
+                    raise ValueError('home URL must belong to a declared domain')
+                _rule(row)
+                for field in ('actions_per_hour', 'actions_per_day'):
+                    if type(row[field]) is not int or row[field] <= 0:
+                        raise ValueError('budgets must be positive integers')
+            except (ValueError, TypeError, KeyError) as exc:
+>               raise RegistryError(f'Invalid browser platform {name!r}: {exc}') from exc
+E               offsetx_apollo_builder.browser.registry.RegistryError: Invalid browser platform 'forum': domains must be explicit public host names
+
+offsetx_apollo_builder/browser/registry.py:135: RegistryError
+=========================== short test summary info ============================
+FAILED tests/test_browser_platform_registry.py::test_valid_dns_names_with_consecutive_hyphens_are_supported
+1 failed in 0.63s

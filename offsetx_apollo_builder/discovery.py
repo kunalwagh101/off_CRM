@@ -14,6 +14,7 @@ import csv
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import re
 import socket
@@ -360,6 +361,27 @@ class ScraplingPageParser:
         )
 
 
+def parse_robots(content: bytes, url: str, user_agent: str) -> tuple[RobotFileParser, float]:
+    parser = RobotFileParser()
+    parser.set_url(url)
+    lines = []
+    for line in content.decode("utf-8", errors="replace").splitlines():
+        field, separator, raw = line.partition(":")
+        if separator and field.strip().lower() == "crawl-delay":
+            try:
+                seconds = float(raw.split("#", 1)[0].strip())
+                if not math.isfinite(seconds) or seconds < 0:
+                    raise ValueError("invalid delay")
+            except ValueError as exc:
+                raise DiscoveryFetchError("robots.txt declares an invalid crawl delay; crawl stopped safely") from exc
+            # RobotFileParser accepts only integer delays. Rounding up keeps a
+            # fractional declaration conservative rather than ignoring it.
+            line = f"{field}: {math.ceil(seconds)}"
+        lines.append(line)
+    parser.parse(lines)
+    return parser, float(parser.crawl_delay(user_agent) or 0)
+
+
 class SafePublicFetcher:
     """Fetch public HTML with SSRF, robots, size, redirect and rate-limit guards."""
 
@@ -370,12 +392,16 @@ class SafePublicFetcher:
         session: requests.Session | None = None,
         parser: ScraplingPageParser | None = None,
         resolver: Callable[..., Any] = socket.getaddrinfo,
+        before_request: Callable[[str, float], None] | None = None,
+        on_redirect: Callable[[str, str, bool], None] | None = None,
     ) -> None:
         self.policy = policy
         self.session = session or requests.Session()
         self.session.trust_env = False
         self.parser = parser or ScraplingPageParser()
         self.resolver = resolver
+        self.before_request = before_request
+        self.on_redirect = on_redirect
         self.robots: dict[str, tuple[RobotFileParser, float]] = {}
         self.last_request_at: dict[str, float] = {}
 
@@ -408,7 +434,7 @@ class SafePublicFetcher:
         self.last_request_at[host] = time.monotonic()
 
     def _request_bytes(
-        self, url: str, *, max_bytes: int, accepted_types: Sequence[str]
+        self, url: str, *, max_bytes: int, accepted_types: Sequence[str], check_robots: bool = False
     ) -> tuple[bytes, str, int]:
         current = url
         for _ in range(4):
@@ -418,8 +444,16 @@ class SafePublicFetcher:
                 blocked_domains=self.policy.blocked_domains,
             )
             self._assert_public_dns(current)
+            delay = 0.0
+            if check_robots:
+                allowed, delay = self._robots_allowed(current)
+                if not allowed:
+                    raise DiscoveryFetchError("robots.txt disallows this page")
             host = normalize_domain(urlsplit(current).hostname or "")
-            self._delay(host)
+            if self.before_request is not None:
+                self.before_request(current, max(self.policy.request_delay_seconds, delay))
+            else:
+                self._delay(host, delay)
             self.session.cookies.clear()
             response = self.session.get(
                 current,
@@ -436,7 +470,10 @@ class SafePublicFetcher:
                     location = response.headers.get("Location", "")
                     if not location:
                         raise DiscoveryFetchError("Redirect response did not include a location")
-                    current = urljoin(current, location)
+                    destination = urljoin(current, location)
+                    if self.on_redirect is not None:
+                        self.on_redirect(current, destination, check_robots)
+                    current = destination
                     continue
                 if response.status_code == 404:
                     return b"", current, 404
@@ -464,8 +501,9 @@ class SafePublicFetcher:
         raise DiscoveryFetchError("Too many redirects")
 
     def _robots_allowed(self, url: str) -> tuple[bool, float]:
-        host = normalize_domain(urlsplit(url).hostname or "")
-        cached = self.robots.get(host)
+        parsed = urlsplit(url)
+        origin = urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+        cached = self.robots.get(origin)
         if cached is None:
             parsed = urlsplit(url)
             robots_url = urlunsplit((parsed.scheme, parsed.netloc, "/robots.txt", "", ""))
@@ -477,12 +515,8 @@ class SafePublicFetcher:
                 )
             except DiscoveryFetchError as exc:
                 raise DiscoveryFetchError("robots.txt could not be verified; crawl stopped safely") from exc
-            parser = RobotFileParser()
-            parser.set_url(robots_url)
-            parser.parse(content.decode("utf-8", errors="replace").splitlines() if status == 200 else [])
-            delay = min(30.0, float(parser.crawl_delay(self.policy.user_agent) or 0))
-            cached = (parser, delay)
-            self.robots[host] = cached
+            cached = parse_robots(content if status == 200 else b"", robots_url, self.policy.user_agent)
+            self.robots[origin] = cached
         parser, delay = cached
         return parser.can_fetch(self.policy.user_agent, url), delay
 
@@ -492,16 +526,11 @@ class SafePublicFetcher:
             allowed_domains=self.policy.allowed_domains,
             blocked_domains=self.policy.blocked_domains,
         )
-        if self.policy.obey_robots:
-            allowed, robots_delay = self._robots_allowed(validated)
-            if not allowed:
-                raise DiscoveryFetchError("robots.txt disallows this page")
-            host = normalize_domain(urlsplit(validated).hostname or "")
-            self._delay(host, robots_delay)
         content, final_url, status = self._request_bytes(
             validated,
             max_bytes=self.policy.max_html_bytes,
             accepted_types=("text/html", "application/xhtml+xml"),
+            check_robots=self.policy.obey_robots,
         )
         if status != 200:
             raise DiscoveryFetchError("Public page was not found")

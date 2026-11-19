@@ -1,0 +1,554 @@
+FFFFFFFFFFFFFFFFFFFFFFFFF                                                [100%]
+=================================== FAILURES ===================================
+______ test_declared_platform_drives_signin_connections_policy_and_budget ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_declared_platform_drives_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4ebce0>
+
+    def test_declared_platform_drives_signin_connections_policy_and_budget(tmp_path, monkeypatch):
+        configure(tmp_path, monkeypatch, declaration())
+>       target = identity.platform('forum')
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_platform_registry.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+platform_id = 'forum'
+
+    def platform(platform_id: str) -> Platform:
+        key = str(platform_id or "").strip().lower()
+        if key not in PLATFORMS:
+>           raise UnknownPlatform(
+                f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(PLATFORMS))}."
+            )
+E           offsetx_apollo_builder.browser.identity.UnknownPlatform: Unknown platform 'forum'. Declared: facebook, instagram, linkedin, tiktok, x, youtube.
+
+offsetx_apollo_builder/browser/identity.py:171: UnknownPlatform
+__________ test_missing_field_is_refused_by_platform_name[login_url] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4dfdd0>
+field = 'login_url'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+__________ test_missing_field_is_refused_by_platform_name[signed_in] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f6390>
+field = 'signed_in'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+__________ test_missing_field_is_refused_by_platform_name[signed_out] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f6750>
+field = 'signed_out'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+___________ test_missing_field_is_refused_by_platform_name[domains] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f7740>
+field = 'domains'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+_______ test_missing_field_is_refused_by_platform_name[actions_per_hour] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f51c0>
+field = 'actions_per_hour'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+_______ test_missing_field_is_refused_by_platform_name[actions_per_day] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f5e80>
+field = 'actions_per_day'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+_ test_missing_field_is_refused_by_platform_name[min_seconds_between_actions] __
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f6fc0>
+field = 'min_seconds_between_actions'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+__________ test_missing_field_is_refused_by_platform_name[unattended] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_missing_field_is_refused_7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4e9370>
+field = 'unattended'
+
+    @pytest.mark.parametrize('field', ['login_url', 'signed_in', 'signed_out', 'domains',
+        'actions_per_hour', 'actions_per_day', 'min_seconds_between_actions', 'unattended'])
+    def test_missing_field_is_refused_by_platform_name(tmp_path, monkeypatch, field):
+        data = declaration()
+        del data['platforms'][0][field]
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError, match='forum'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:61: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[login_url-file:///etc/passwd] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f79b0>
+field = 'login_url', value = 'file:///etc/passwd'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://u:p@forum.example.test] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f4c50>
+field = 'home_url', value = 'https://u:p@forum.example.test'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://127.0.0.1/home] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f5dc0>
+field = 'home_url', value = 'https://127.0.0.1/home'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://forum.example.test:bad] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f5d60>
+field = 'home_url', value = 'https://forum.example.test:bad'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_____ test_unsafe_or_ambiguous_declaration_fails_closed[signed_in-profile] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f7cb0>
+field = 'signed_in', value = 'profile'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_____ test_unsafe_or_ambiguous_declaration_fails_closed[signed_out-value5] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5cdfa0>
+field = 'signed_out', value = []
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+______ test_unsafe_or_ambiguous_declaration_fails_closed[domains-value6] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5ce630>
+field = 'domains', value = ['*']
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+______ test_unsafe_or_ambiguous_declaration_fails_closed[domains-value7] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5ceea0>
+field = 'domains', value = ['localhost']
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[min_seconds_between_actions-nan] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5cfa40>
+field = 'min_seconds_between_actions', value = nan
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_ test_unsafe_or_ambiguous_declaration_fails_closed[min_seconds_between_actions--1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5cd4c0>
+field = 'min_seconds_between_actions', value = -1
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+___ test_unsafe_or_ambiguous_declaration_fails_closed[actions_per_hour-True] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5cef30>
+field = 'actions_per_hour', value = True
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_____ test_unsafe_or_ambiguous_declaration_fails_closed[actions_per_day-0] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4e94c0>
+field = 'actions_per_day', value = 0
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_____ test_unsafe_or_ambiguous_declaration_fails_closed[unattended-false] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f4f20>
+field = 'unattended', value = 'false'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+________ test_unsafe_or_ambiguous_declaration_fails_closed[id-../forum] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f5490>
+field = 'id', value = '../forum'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+_____ test_unsafe_or_ambiguous_declaration_fails_closed[surprise-ignored] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_unsafe_or_ambiguous_decla14')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac4f6210>
+field = 'surprise', value = 'ignored'
+
+    @pytest.mark.parametrize('field,value', [
+        ('login_url', 'file:///etc/passwd'), ('home_url', 'https://u:p@forum.example.test'),
+        ('home_url', 'https://127.0.0.1/home'), ('home_url', 'https://forum.example.test:bad'),
+        ('signed_in', 'profile'), ('signed_out', []), ('domains', ['*']),
+        ('domains', ['localhost']), ('min_seconds_between_actions', float('nan')),
+        ('min_seconds_between_actions', -1), ('actions_per_hour', True),
+        ('actions_per_day', 0), ('unattended', 'false'), ('id', '../forum'),
+        ('surprise', 'ignored')])
+    def test_unsafe_or_ambiguous_declaration_fails_closed(tmp_path, monkeypatch, field, value):
+        data = declaration()
+        data['platforms'][0][field] = value
+        configure(tmp_path, monkeypatch, data)
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:77: Failed
+___________________ test_duplicate_id_or_domain_is_rejected ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-56/test_duplicate_id_or_domain_is0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7efeac5ccda0>
+
+    def test_duplicate_id_or_domain_is_rejected(tmp_path, monkeypatch):
+        for field in ('id', 'domains'):
+            data = declaration()
+            other = deepcopy(data['platforms'][0])
+            other['id'] = 'other'
+            if field == 'id':
+                other['id'] = 'forum'
+                other['domains'] = ['other.example.test']
+            data['platforms'].append(other)
+            configure(tmp_path, monkeypatch, data)
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/test_browser_platform_registry.py:91: Failed
+=========================== short test summary info ============================
+FAILED tests/test_browser_platform_registry.py::test_declared_platform_drives_signin_connections_policy_and_budget
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[login_url]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[signed_in]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[signed_out]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[domains]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[actions_per_hour]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[actions_per_day]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[min_seconds_between_actions]
+FAILED tests/test_browser_platform_registry.py::test_missing_field_is_refused_by_platform_name[unattended]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[login_url-file:///etc/passwd]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://u:p@forum.example.test]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://127.0.0.1/home]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[home_url-https://forum.example.test:bad]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[signed_in-profile]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[signed_out-value5]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[domains-value6]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[domains-value7]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[min_seconds_between_actions-nan]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[min_seconds_between_actions--1]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[actions_per_hour-True]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[actions_per_day-0]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[unattended-false]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[id-../forum]
+FAILED tests/test_browser_platform_registry.py::test_unsafe_or_ambiguous_declaration_fails_closed[surprise-ignored]
+FAILED tests/test_browser_platform_registry.py::test_duplicate_id_or_domain_is_rejected
+25 failed in 0.62s

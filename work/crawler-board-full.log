@@ -1,0 +1,172 @@
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+
+BOARD
+------------------------------------------------------------
+  BACKLOG        12  ############
+  READY           7  #######
+  IN_PROGRESS     1  #  (limit 2)
+  IN_REVIEW       3  ###
+  BLOCKED         3  ###
+  DONE           55  ########################################
+  DEFERRED        0  
+  TOTAL          81
+
+COVERAGE
+------------------------------------------------------------
+  requirements mapped     102
+  backlog IDs defined     110
+  acceptance criteria     175
+  criteria behind a DONE  131  (75%)
+  evidence commands run   55, passed 27
+
+NOT BUILT YET (26)
+------------------------------------------------------------
+    S-06.02.16   BACKLOG      Resolve frontend development dependency audit findings
+    S-02.02.03   BACKLOG      Interrupt, steer, resume
+    S-04.01.02   BACKLOG      Skills: procedures fetched on demand
+    S-04.01.03   BACKLOG      Sub-agents for context isolation
+    S-04.01.04   BACKLOG      The five roles, wired to what already exists
+    S-05.01.02   BACKLOG      Extraction packs as declared data
+    S-05.01.03   BACKLOG      Take a competitor post apart and rebuild the shape
+    S-06.01.02   BACKLOG      Three-level permissions
+    S-06.01.05   BACKLOG      Deployment, monitoring and rollback
+    S-06.02.04   BACKLOG      Data deletion and subject access
+    S-07.01.01   BACKLOG      An MCP client
+    S-07.01.02   BACKLOG      Native OAuth integrations
+    S-06.01.01   READY        Workspaces with their own keys and their own logins
+    S-06.01.04   READY        Routines that fire agent runs on a schedule or an event
+    S-06.02.01   READY        No secret may enter a model prompt
+    S-06.02.02   READY        Every endpoint authorises and validates
+    S-06.02.05   READY        The UI is usable by keyboard and screen reader
+    S-07.01.03   READY        Meeting transcription with no bot in the call
+    S-07.01.04   READY        Reports and artifacts
+  > S-05.01.01   IN_PROGRESS  A crawler with a frontier, not a loop
+  ? S-04.01.01   IN_REVIEW    Companions: persisted agent profiles
+  ? S-02.02.02   IN_REVIEW    PLAN.md as the single source of truth
+  ? S-03.02.05   IN_REVIEW    A platform is a row, not a code change
+  ! S-01.05.01   BLOCKED      Publish to YouTube through the official API
+  ! S-01.05.02   BLOCKED      One adapter contract for the remaining platforms
+  ! S-01.05.03   BLOCKED      Read real engagement back from the platform
+  59 defect(s) logged, 25 design decision(s) recorded.
+  57 recorded commit(s), all on this branch.
+  1 story(s) could be pulled today: S-06.02.16
+
+FAILED — 28 problem(s)
+------------------------------------------------------------
+  x S-06.02.14's evidence command failed: uv run pytest tests/test_trace_ids.py tests/test_agent_provenance.py tests/test_agent_structured_result.py tests/test_agent_claim_verification.py tests/test_agent_report.py tests/test_agent_resume.py -q
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      FAILED tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number
+      3 failed, 55 passed in 2.24s
+  x S-11.05.01's evidence command failed: uv run pytest tests/test_browser_concurrency.py tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_countdown.py tests/test_browser_enter_gate.py tests/test_agent_run.py tests/test_browser_signin.py tests/test_browser_revoke.py -q
+      FAILED tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted
+      FAILED tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect
+      13 failed, 148 passed in 13.28s
+  x S-11.03.03's evidence command failed: uv run pytest tests/test_browser_enter_gate.py tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py tests/test_browser_signin.py -q
+      FAILED tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling
+      FAILED tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted
+      10 failed, 140 passed in 11.10s
+  x S-02.02.04's evidence command failed: uv run pytest tests/test_browser_countdown.py tests/test_browser_agent.py tests/test_agent_run.py tests/test_agent_wall.py tests/test_agent_no_duplicate_effects.py tests/test_browser_revoke.py -q
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      FAILED tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect
+      6 failed, 89 passed in 5.57s
+  x S-11.01.04's evidence command failed: uv run pytest tests/test_agent_money_ceiling.py tests/test_ai_cost_ledger.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_report.py tests/test_agent_wall.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_no_duplicate_effects.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+      1 failed, 154 passed in 12.53s
+  x S-06.01.03's evidence command failed: uv run pytest tests/test_ai_cost_ledger.py tests/test_ai_egress_wall.py tests/test_ai_model_selection.py tests/test_ai_registry_packaging.py tests/test_outreach_providers.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_watch.py tests/test_agent_wall.py tests/test_agent_provenance.py tests/test_agent_structured_result.py -q
+      FAILED tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      2 failed, 198 passed, 1 warning in 5.06s
+  x S-11.03.01's evidence command failed: uv run pytest tests/test_agent_wall.py tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_injection.py tests/test_agent_watch.py tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_structured_result.py tests/test_agent_no_duplicate_effects.py tests/test_agent_provenance.py tests/test_browser_agent.py tests/test_browser_signin.py -q
+      FAILED tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling
+      FAILED tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted
+      12 failed, 209 passed in 19.62s
+  x S-11.04.02's evidence command failed: uv run pytest tests/test_agent_watch.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py tests/test_agent_provenance.py tests/test_agent_recovery.py tests/test_agent_report.py tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      7 failed, 127 passed in 13.45s
+  x S-11.04.01's evidence command failed: uv run pytest tests/test_agent_report.py tests/test_agent_run.py tests/test_agent_injection.py tests/test_agent_resume.py tests/test_agent_structured_result.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      1 failed, 81 passed in 6.54s
+  x S-11.03.02's evidence command failed: uv run pytest tests/test_agent_injection.py tests/test_agent_run.py tests/test_agent_resume.py tests/test_agent_no_duplicate_effects.py tests/test_agent_progress.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+      1 failed, 80 passed in 1.26s
+  x S-11.05.02's evidence command failed: uv run pytest tests/test_agent_no_duplicate_effects.py tests/test_agent_resume.py tests/test_agent_run.py tests/test_agent_provenance.py tests/test_agent_progress.py tests/test_agent_recovery.py -q
+      FAILED tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence
+      FAILED tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+      2 failed, 57 passed in 12.52s
+  x S-11.01.03's evidence command failed: uv run pytest tests/test_agent_resume.py tests/test_agent_provenance.py tests/test_agent_run.py tests/test_agent_structured_result.py tests/test_agent_progress.py tests/test_agent_recovery.py -q
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      FAILED tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+      3 failed, 53 passed in 11.63s
+  x S-11.01.02's evidence command failed: uv run pytest tests/test_agent_progress.py tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
+      FAILED tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      3 failed, 48 passed in 17.18s
+  x S-11.01.01's evidence command failed: uv run pytest tests/test_agent_recovery.py tests/test_agent_run.py tests/test_agent_page_memo.py tests/test_agent_structured_result.py -q
+      FAILED tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      2 failed, 35 passed in 11.53s
+  x S-11.02.04's evidence command failed: uv run pytest tests/test_agent_page_memo.py tests/test_agent_run.py tests/test_agent_structured_result.py -q
+      FAILED tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      2 failed, 23 passed in 6.52s
+  x S-11.02.03's evidence command failed: uv run pytest tests/test_agent_claim_verification.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number
+      1 failed, 7 passed in 0.90s
+  x S-11.02.02's evidence command failed: uv run pytest tests/test_agent_provenance.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence
+      1 failed, 5 passed in 0.91s
+  x S-11.02.01's evidence command failed: uv run pytest tests/test_agent_structured_result.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+      1 failed, 6 passed in 0.91s
+  x S-03.02.03's evidence command failed: uv run pytest tests/test_browser_revoke.py -q
+      =========================== short test summary info ============================
+      FAILED tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect
+      1 failed, 5 passed in 6.61s
+  x S-02.01.01's evidence command failed: uv run pytest tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      5 failed, 32 passed in 2.10s
+  x S-02.01.02's evidence command failed: uv run pytest tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      5 failed, 32 passed in 6.99s
+  x S-02.01.03's evidence command failed: uv run pytest tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      5 failed, 32 passed in 2.11s
+  x S-02.01.04's evidence command failed: uv run pytest tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      5 failed, 32 passed in 1.94s
+  x S-02.01.05's evidence command failed: uv run pytest tests/test_browser_agent.py -q
+      FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+      FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+      5 failed, 32 passed in 2.04s
+  x S-03.01.01's evidence command failed: uv run pytest tests/test_browser_box.py -q
+      FAILED tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything
+      FAILED tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking
+      3 failed, 27 passed in 5.17s
+  x S-03.02.04's evidence command failed: uv run pytest tests/test_browser_budget.py tests/test_browser_agent.py tests/test_browser_signin.py -q
+      FAILED tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling
+      FAILED tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted
+      12 failed, 69 passed in 4.13s
+  x S-03.02.01's evidence command failed: uv run pytest tests/test_browser_signin.py tests/test_browser_agent.py tests/test_browser_box.py -q
+      FAILED tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything
+      FAILED tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking
+      12 failed, 76 passed in 12.47s
+  x S-03.01.02's evidence command failed: uv run pytest tests/test_ai_sandbox.py tests/test_browser_box.py -q
+      FAILED tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything
+      FAILED tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking
+      3 failed, 69 passed, 1 skipped in 5.15s

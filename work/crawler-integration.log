@@ -1,0 +1,9 @@
+...................................                                      [100%]
+=============================== warnings summary ===============================
+tests/test_crawl_runner.py::test_long_robots_delay_defers_without_sleep_and_survives_worker_restart
+tests/test_crawl_runner.py::test_paced_redirect_resumes_at_destination_instead_of_looping_at_source
+  /workspace/off_CRM/.venv/lib/python3.12/site-packages/lxml/html/__init__.py:1891: DeprecationWarning: The 'strip_cdata' option of HTMLParser() has never done anything and will eventually be removed.
+    super().__init__(**kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+35 passed, 2 warnings in 2.63s

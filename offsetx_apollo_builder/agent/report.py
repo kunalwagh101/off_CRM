@@ -31,10 +31,12 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Iterable
 
 from ..browser.trace import Step, Trace
+from .plan import PlanError, RunPlan
 
 REPORT_FILENAME = "report.html"
 
@@ -196,6 +198,20 @@ def render(trace: Trace) -> str:
         f'<span class="pill {TONE.get(status, "note")}">{_text(status)}</span></h1>',
         f'<p class="goal">{_text(goal) if goal else "<em>No goal recorded.</em>"}</p>',
     ]
+    plan = RunPlan(trace.directory)
+    if plan.path.exists() or plan.path.is_symlink():
+        head.append('<section aria-label="Owner plan"><h2>Owner plan</h2>')
+        try:
+            for line in plan.read().splitlines():
+                match = re.match(r'^\s*[-*] \[([ xX])\] (.*)$', line)
+                if match:
+                    checked = ' checked' if match[1].lower() == 'x' else ''
+                    head.append(f'<div><label><input type="checkbox" disabled{checked}> {_text(match[2])}</label></div>')
+                elif line.strip():
+                    head.append(f'<p>{_text(line)}</p>')
+        except PlanError as exc:
+            head.append(f'<p>{_text(exc)}</p>')
+        head.append('</section>')
     if ending and TONE.get(ending.kind) in MUST_EXPLAIN:
         head.append(f'<div class="card"><span class="k">Why it stopped</span>'
                     f'<div>{_text(ending.detail)}</div></div>')

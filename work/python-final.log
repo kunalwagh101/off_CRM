@@ -1,0 +1,3035 @@
+.......F................................................................ [  3%]
+...................................................F.................... [  7%]
+.....F.....F............................................................ [ 10%]
+......F................................................................. [ 14%]
+........................................................................ [ 17%]
+........................................................................ [ 21%]
+........................................................................ [ 24%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+..................................................................s..... [ 35%]
+........................................................................ [ 39%]
+.....................FFFFF...........................FFF................ [ 42%]
+..FFF................................................................... [ 46%]
+...................................F.................FFFF............... [ 49%]
+........................................................................ [ 53%]
+.............................................................ss......... [ 57%]
+........................................................................ [ 60%]
+........................................................................ [ 64%]
+........................................................................ [ 67%]
+........................................................................ [ 71%]
+........................................................................ [ 74%]
+........................................................................ [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 89%]
+..............................................................s......... [ 92%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+______ test_real_chromium_page_refuses_a_plausible_but_unsupported_number ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_real_chromium_page_refuse0')
+
+    @needs_browser
+    def test_real_chromium_page_refuses_a_plausible_but_unsupported_number(tmp_path):
+        broker = _Broker(
+            [
+                _read(),
+                _done(
+                    {
+                        "employees": _finding(
+                            "42",
+                            "Employees: 420",
+                            confidence=1.0,
+                        )
+                    }
+                ),
+            ]
+        )
+    
+        async def work(page: Page):
+            await page.goto(
+                "data:text/html,<html><body><h1>Acme Ltd</h1><p>Employees: 420</p></body></html>"
+            )
+            run = AgentRun(
+                broker=broker,
+                settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+                page=page,
+                trace=Trace.open(tmp_path),
+            )
+            outcome = await run.run(
+                "Return the employee count shown on the page",
+                step_budget=2,
+                result_schema=("employees",),
+            )
+            return outcome, run
+    
+>       outcome, run = asyncio.run(_drive(work))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agent_claim_verification.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_agent_claim_verification.py:311: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpiuc17s9u', browser_path = '', port = 50403
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22184:22184:1117/073157.696290:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22202:22202:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_____________ test_a_real_page_is_read_once_through_the_real_loop ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_real_page_is_read_once_0')
+
+    @pytest.mark.skipif(not _browser(), reason="no Chrome, Edge, Brave or Chromium here")
+    def test_a_real_page_is_read_once_through_the_real_loop(tmp_path):
+        """The same property against a real Chromium and the real `Page`, because a
+        fake page proves the loop's bookkeeping and not that it works on a browser.
+        """
+        from offsetx_apollo_builder.browser.page import Page
+        from offsetx_apollo_builder.browser.session import free_port, open_session
+    
+        document = "data:text/html,<h1>Acme</h1><p>Employees: 42</p>"
+        seen: list[str] = []
+    
+        async def drive():
+            with tempfile.TemporaryDirectory() as profile:
+                flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+                session = await open_session(profile_dir=profile, port=free_port(),
+                                             headless=True, extra_flags=flags)
+                try:
+                    _, session_id = await session.new_tab()
+                    page = Page(connection=session.connection, session_id=session_id)
+                    await page.start()
+                    await page.goto(document)
+    
+                    original = page.read
+    
+                    async def counted(*, limit=20_000):
+                        seen.append(page.url)
+                        return await original(limit=limit)
+    
+                    page.read = counted
+                    broker = _Broker([_act("read"), _act("read"), _done()])
+                    agent = AgentRun(broker=broker, settings=_settings(), page=page,
+                                     trace=Trace.open(tmp_path / "trace"),
+                                     planner_provider_id="trusted")
+                    return await agent.run("read the page", step_budget=8)
+                finally:
+                    await session.close(quit_browser=True)
+    
+>       outcome = asyncio.run(drive())
+                  ^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agent_page_memo.py:274: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_agent_page_memo.py:251: in drive
+    session = await open_session(profile_dir=profile, port=free_port(),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmppu7aq5p2', browser_path = '', port = 50749
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22211:22211:1117/073158.199660:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22229:22229:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+___________________ test_a_real_run_going_nowhere_is_stopped ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_real_run_going_nowhere_0')
+
+    @pytest.mark.skipif(not _browser(), reason="no Chrome, Edge, Brave or Chromium here")
+    def test_a_real_run_going_nowhere_is_stopped(tmp_path):
+        """Against a real Chromium and the real `Page`, because the fake one proves
+        the bookkeeping and not that the URLs a browser reports line up with it."""
+        from offsetx_apollo_builder.browser.page import Page
+        from offsetx_apollo_builder.browser.session import free_port, open_session
+    
+        document = "data:text/html,<button id=b>Go</button><p>Nothing here</p>"
+    
+        async def drive():
+            with tempfile.TemporaryDirectory() as profile:
+                flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+                session = await open_session(profile_dir=profile, port=free_port(),
+                                             headless=True, extra_flags=flags)
+                try:
+                    _, session_id = await session.new_tab()
+                    page = Page(connection=session.connection, session_id=session_id)
+                    await page.start()
+                    await page.goto(document)
+                    agent = AgentRun(
+                        broker=_Broker([_act("scroll", down=1)] * 30),
+                        settings=WorkspaceEgressSettings(
+                            workspace_id="w", enabled_models={"trusted": ("planner",)}),
+                        page=page, trace=Trace.open(tmp_path / "trace"),
+                        planner_provider_id="trusted",
+                    )
+                    return await agent.run("find something", step_budget=30)
+                finally:
+                    await session.close(quit_browser=True)
+    
+>       outcome = asyncio.run(drive())
+                  ^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agent_progress.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_agent_progress.py:271: in drive
+    session = await open_session(profile_dir=profile, port=free_port(),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp917v7ypz', browser_path = '', port = 49357
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22230:22230:1117/073158.475974:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22248:22248:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+______________ test_provenance_is_bound_to_real_chromium_evidence ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_provenance_is_bound_to_re0')
+
+    @needs_browser
+    def test_provenance_is_bound_to_real_chromium_evidence(tmp_path):
+        broker = _Broker(
+            [
+                _act("read"),
+                _done({"company": _finding("Acme Ltd", "Acme Ltd", CITE)}),
+            ]
+        )
+    
+        async def work(page: Page):
+            await page.goto(
+                "data:text/html,<html><body><h1>Acme Ltd</h1><p>Evidence page</p></body></html>"
+            )
+            run = AgentRun(
+                broker=broker,
+                settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+                page=page,
+                trace=Trace.open(tmp_path),
+            )
+            outcome = await run.run(
+                "Return the company shown on the page",
+                step_budget=2,
+                result_schema=("company",),
+            )
+            return outcome, run
+    
+>       outcome, run = asyncio.run(_drive(work))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agent_provenance.py:342: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_agent_provenance.py:301: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpwowhx2z5', browser_path = '', port = 52129
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22249:22249:1117/073158.663830:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22267:22267:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+__________ test_structured_result_flows_through_the_real_browser_loop __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_structured_result_flows_t0')
+
+    @needs_browser
+    def test_structured_result_flows_through_the_real_browser_loop(tmp_path):
+        broker = _Broker(
+            [
+                _read(),
+                _done(
+                    {
+                        "company": _finding("Acme Ltd", "Acme Ltd"),
+                        "employees": _finding("42", "Employees: 42"),
+                    },
+                    reason="both requested facts were read",
+                ),
+            ]
+        )
+    
+        async def work(page: Page):
+            await page.goto(
+                "data:text/html,<html><head><title>Company</title></head><body>"
+                "<h1>Acme Ltd</h1><p>Employees: 42</p></body></html>"
+            )
+            run = AgentRun(
+                broker=broker,
+                settings=WorkspaceEgressSettings(enabled_provider_ids=("trusted",)),
+                page=page,
+                trace=Trace.open(tmp_path),
+            )
+            outcome = await run.run(
+                "Return the company and employee count shown on this page",
+                step_budget=2,
+                result_schema=("company", "employees"),
+            )
+            return outcome, run
+    
+>       outcome, run = asyncio.run(_drive(work))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_agent_structured_result.py:383: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_agent_structured_result.py:335: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpnmdaf84r', browser_path = '', port = 50005
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22268:22268:1117/073208.999455:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22286:22286:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+___________________ test_a_real_browser_is_driven_end_to_end ___________________
+
+    @needs_browser
+    def test_a_real_browser_is_driven_end_to_end():
+        """The whole stack against a real Chromium: navigate, perceive, type with
+        real key events, refuse an unconfirmed send, then send, then read the result
+        the page itself produced."""
+    
+        async def work(page: Page):
+            await page.goto(PAGE)
+            snapshot = await page.snapshot()
+            names = [node.name for node in snapshot.actions]
+            assert "Email" in names and "Send message" in names
+    
+            field = next(node for node in snapshot.actions if node.name == "Email")
+            await page.type(field.handle, "hello@acme.test")
+    
+            # A field whose value was *assigned* looks filled and behaves empty, so
+            # this asserts the browser's own view of it after real key events.
+            refreshed = await page.snapshot()
+            typed = next(node for node in refreshed.nodes if node.role == "textbox")
+            assert typed.value == "hello@acme.test"
+    
+            send = next(node for node in refreshed.actions if node.name == "Send message")
+            blocked = await page.click(send.handle)
+            assert blocked.ok is False and blocked.needs_confirmation is True
+    
+            done = await page.click(send.handle, confirmed=True)
+            assert done.ok is True
+    
+            text = (await page.read()).text
+            assert "sent to hello@acme.test" in text
+    
+            shot = await page.screenshot()
+            assert shot.screenshot[:8] == b"\x89PNG\r\n\x1a\n"
+    
+            # A number the *current* snapshot never issued, as opposed to one a
+            # previous snapshot did — the two refusals are different and both real.
+            await page.snapshot()
+            with pytest.raises(LookupError):
+                await page.click(9999)
+            return True
+    
+>       assert asyncio.run(_drive(work))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_agent.py:494: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_agent.py:441: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp8umh7edh', browser_path = '', port = 37131
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22402:22402:1117/073226.038082:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22420:22420:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+________________ test_a_dropdown_is_chosen_by_its_visible_label ________________
+
+    @needs_browser
+    def test_a_dropdown_is_chosen_by_its_visible_label():
+        """`select` is the one action that goes through the DOM rather than the
+        mouse, because a native dropdown opens an OS-drawn menu no input event can
+        reach. It is still not a code path for the model: the function is fixed and
+        written in `page.py`, and the model supplies a handle and a label."""
+    
+        async def work(page: Page):
+            await page.goto(
+                "data:text/html,<select id=c>"
+                "<option value=gb>United Kingdom</option>"
+                "<option value=de>Germany</option></select>"
+                "<div id=out></div>"
+                "<script>document.getElementById('c').addEventListener('change',"
+                "e=>document.getElementById('out').textContent='picked '+e.target.value)</script>"
+            )
+            snapshot = await page.snapshot()
+            dropdown = next(node for node in snapshot.actions
+                            if node.role in ("combobox", "listbox", "menuitem"))
+    
+            result = await page.select(dropdown.handle, "Germany")
+            assert result.ok is True
+    
+            # The change event fired, which is the half a value assignment skips.
+            assert "picked de" in (await page.read()).text
+    
+            # Choosing changed the page, so the old handle is spent and the agent
+            # looks again before acting again.
+            snapshot = await page.snapshot()
+            dropdown = next(node for node in snapshot.actions
+                            if node.role in ("combobox", "listbox", "menuitem"))
+            with pytest.raises(Exception, match="not one of that dropdown"):
+                await page.select(dropdown.handle, "Atlantis")
+            return True
+    
+>       assert asyncio.run(_drive(work))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_agent.py:532: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_agent.py:441: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpook0rc0a', browser_path = '', port = 59065
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22421:22421:1117/073226.273510:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22439:22439:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+______ test_a_command_the_browser_does_not_know_raises_rather_than_hangs _______
+
+    @needs_browser
+    def test_a_command_the_browser_does_not_know_raises_rather_than_hangs():
+        async def work(page: Page):
+            with pytest.raises(cdp.CDPError, match="Nonsense.method"):
+                await page.connection.send("Nonsense.method", session_id=page.session_id)
+            # And the connection is still usable afterwards, which is the point of
+            # failing one waiter rather than the socket.
+            result = await page.connection.send(
+                "Runtime.evaluate", {"expression": "1+1", "returnByValue": True},
+                session_id=page.session_id,
+            )
+            return result["result"]["value"]
+    
+>       assert asyncio.run(_drive(work)) == 2
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_agent.py:548: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_agent.py:441: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp5uhxak25', browser_path = '', port = 58621
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22440:22440:1117/073226.439750:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22458:22458:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+___________ test_the_policy_is_enforced_against_the_live_browser_too ___________
+
+    @needs_browser
+    def test_the_policy_is_enforced_against_the_live_browser_too():
+        """Not only in the pure functions — the page object checks before it acts."""
+    
+        async def work(page: Page):
+            with pytest.raises(policy.Refused):
+                await page.goto("file:///etc/passwd")
+            page.unattended = True
+            with pytest.raises(policy.Refused, match="attended-only"):
+                await page.goto("https://www.linkedin.com/feed/")
+            return True
+    
+>       assert asyncio.run(_drive(work))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_agent.py:563: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_agent.py:441: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpebo8_fsh', browser_path = '', port = 33817
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22459:22459:1117/073226.657101:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22477:22477:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+____________ test_a_handle_from_before_the_page_changed_is_refused _____________
+
+    @needs_browser
+    def test_a_handle_from_before_the_page_changed_is_refused():
+        """The dangerous version of a stale handle, and the reason `_resolve` will
+        not re-capture on its own.
+    
+        Handles are assigned in document order, so a page that gains one node
+        renumbers everything after it. A handle taken before an action then resolves
+        against a tree taken after it and points at a *different element* — not at
+        nothing. The click succeeds, reports success, and hit the wrong thing.
+    
+        Found by typing into a password field: Chrome adds a "reveal password"
+        control the moment one has content."""
+    
+        async def work(page: Page):
+            await page.goto(
+                "data:text/html,<button id=a>Alpha</button>"
+                "<button id=b onclick=\"document.body.insertAdjacentHTML("
+                "'afterbegin','<button>Inserted</button>')\">Beta</button>"
+            )
+            snapshot = await page.snapshot()
+            beta = next(node for node in snapshot.actions if node.name == "Beta")
+            alpha = next(node for node in snapshot.actions if node.name == "Alpha")
+    
+            # Beta inserts a node at the top, so every handle shifts.
+            await page.click(beta.handle, confirmed=True)
+    
+            with pytest.raises(ActionRefused, match="page changed"):
+                await page.click(alpha.handle, confirmed=True)
+    
+            # And the caller's correct move — look again — works.
+            fresh = await page.snapshot()
+            alpha_again = next(node for node in fresh.actions if node.name == "Alpha")
+            result = await page.click(alpha_again.handle, confirmed=True)
+            return result.ok, alpha.handle, alpha_again.handle
+    
+>       ok, before, after = asyncio.run(_drive(work))
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_agent.py:601: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_agent.py:441: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp32s7ruck', browser_path = '', port = 33167
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22478:22478:1117/073226.812431:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22496:22496:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_____________ test_a_real_browser_cannot_reach_an_off_list_domain ______________
+
+    @needs_browser
+    def test_a_real_browser_cannot_reach_an_off_list_domain():
+        """The strongest evidence available without a Docker daemon: a real page
+        calls `fetch()` at a domain the run did not declare, and the request is
+        paused and refused before Chrome dispatches it.
+    
+        Asserting the guard *recorded a refusal* rather than that the fetch failed:
+        a request to a domain that does not resolve fails either way, so a test that
+        only checked for failure would pass with the guard removed."""
+    
+        async def work(page: Page):
+            await page.goto("data:text/html,<p>guarded</p>")
+            result = await page.connection.send(
+                "Runtime.evaluate",
+                {
+                    "expression": (
+                        "fetch('https://blocked-by-the-guard.test/steal')"
+                        ".then(() => 'reached').catch(e => 'refused: ' + e.message)"
+                    ),
+                    "awaitPromise": True,
+                    "returnByValue": True,
+                },
+                session_id=page.session_id,
+                timeout=20,
+            )
+            return str((result.get("result") or {}).get("value") or "")
+    
+        guard = RequestGuard(allowed_hosts=frozenset({"example.com"}), unattended=True)
+>       answer = asyncio.run(_with_guard(guard, work))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_box.py:403: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_box.py:362: in _with_guard
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmprkri6zot', browser_path = '', port = 46031
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22512:22512:1117/073229.783748:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22530:22530:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+____ test_the_guard_lets_a_request_through_rather_than_blocking_everything _____
+
+    @needs_browser
+    def test_the_guard_lets_a_request_through_rather_than_blocking_everything():
+        """The other direction, and the one that catches a guard which "passes" by
+        refusing everything.
+    
+        The assertion is `allowed_count`, not whether the fetch succeeded. A
+        request to a domain that does not resolve fails either way, so checking the
+        fetch would prove nothing — but the counter only moves if the request was
+        genuinely paused, decided, and continued.
+    
+        An earlier version of this test navigated to a `data:` URL and asserted the
+        page rendered. It passed with both counters at zero: `data:` never touches
+        the network, so no interception happened and the test would have passed with
+        the guard removed entirely."""
+    
+        async def work(page: Page):
+            await page.goto("data:text/html,<p>attended</p>")
+            await page.connection.send(
+                "Runtime.evaluate",
+                {
+                    "expression": "fetch('https://elsewhere.test/thing').catch(() => 'network')",
+                    "awaitPromise": True,
+                    "returnByValue": True,
+                },
+                session_id=page.session_id,
+                timeout=20,
+            )
+            return True
+    
+        # Attended: the open web is reachable, so this domain is allowed through
+        # even though it is on no list.
+        guard = RequestGuard(unattended=False)
+>       asyncio.run(_with_guard(guard, work))
+
+tests/test_browser_box.py:444: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_box.py:362: in _with_guard
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpjw226kxi', browser_path = '', port = 34539
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22531:22531:1117/073229.999107:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22549:22549:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+__________ test_a_tab_is_guarded_by_default_without_the_caller_asking __________
+
+    @needs_browser
+    def test_a_tab_is_guarded_by_default_without_the_caller_asking():
+        """The box's network boundary must not depend on the caller remembering to
+        switch it on. `Page.start()` attaches a guard, so a tab that was merely
+        opened is already enforcing the rules."""
+    
+        async def work():
+            with tempfile.TemporaryDirectory() as profile:
+                flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+                session = await open_session(
+                    profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
+                )
+                try:
+                    _, session_id = await session.new_tab()
+                    # Nothing is passed but the allow-list: no guard, no attach call.
+                    page = Page(
+                        connection=session.connection,
+                        session_id=session_id,
+                        unattended=True,
+                        allowed_hosts=frozenset({"example.com"}),
+                    )
+                    await page.start()
+                    await page.goto("data:text/html,<p>x</p>")
+                    await page.connection.send(
+                        "Runtime.evaluate",
+                        {
+                            "expression": "fetch('https://not-declared.test/x').catch(() => 'no')",
+                            "awaitPromise": True, "returnByValue": True,
+                        },
+                        session_id=session_id, timeout=20,
+                    )
+                    return page.guard
+                finally:
+                    await session.close(quit_browser=True)
+    
+>       guard = asyncio.run(work())
+                ^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_box.py:484: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_box.py:458: in work
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpvhvlvukm', browser_path = '', port = 46159
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22550:22550:1117/073230.176424:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22568:22568:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_____________ test_a_real_browser_stops_when_the_account_is_spent ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_real_browser_stops_when0')
+
+    @needs_browser
+    def test_a_real_browser_stops_when_the_account_is_spent(tmp_path):
+        """AC2 against a real Chromium. Two actions are allowed, the third is
+        refused, and the refusal names the account and the wait."""
+        ledger = BudgetLedger(tmp_path)
+    
+        async def work(page: Page):
+            first = await page.goto(PAGE)
+            assert first.ok is True
+            second = await page.scroll(down=1)
+            assert second.ok is True
+    
+            with pytest.raises(ActionRefused, match="can act again in"):
+                await page.scroll(down=1)
+    
+            # Looking still works with the budget spent, which is the point of AC3.
+            text = await page.read()
+            assert "hello" in text.text
+            shot = await page.screenshot()
+            assert shot.screenshot[:8] == b"\x89PNG\r\n\x1a\n"
+            return ledger.remaining("linkedin:work", Budget(actions_per_hour=2, actions_per_day=9))
+    
+>       left = asyncio.run(_drive(
+            work,
+            ledger=ledger,
+            account="linkedin:work",
+            budget=Budget(actions_per_hour=2, actions_per_day=9),
+        ))
+
+tests/test_browser_budget.py:314: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_budget.py:280: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp7521yj2z', browser_path = '', port = 34249
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22569:22569:1117/073230.531763:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22587:22587:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+______________ test_an_unattributed_tab_is_not_charged_to_anybody ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_an_unattributed_tab_is_no0')
+
+    @needs_browser
+    def test_an_unattributed_tab_is_not_charged_to_anybody(tmp_path):
+        """No account named means no account at risk, so nothing is spent — and
+        every existing caller keeps working unchanged."""
+        ledger = BudgetLedger(tmp_path)
+    
+        async def work(page: Page):
+            for _ in range(6):
+                await page.goto(PAGE)
+            return True
+    
+>       assert asyncio.run(_drive(work, ledger=ledger))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_budget.py:334: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_budget.py:280: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp1e0cie9v', browser_path = '', port = 43593
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). [22588:22588:1117/073230.714041:ERROR:third_party/crashpad/crashpad/util/file/filesystem_posix.cc:63] mkdir : No such file or directory (2) / [22588:22588:1117/073230.716526:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/ch
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_______________ test_a_refused_action_does_not_spend_the_budget ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_refused_action_does_not0')
+
+    @needs_browser
+    def test_a_refused_action_does_not_spend_the_budget(tmp_path):
+        """The budget counts actions, not attempts. An action that raised on the
+        way down never reached the site."""
+        ledger = BudgetLedger(tmp_path)
+        budget = Budget(actions_per_hour=50, actions_per_day=50)
+    
+        async def work(page: Page):
+            await page.goto(PAGE)
+            for _ in range(4):
+                with pytest.raises(LookupError):
+                    await page.click(9999)
+            return ledger.remaining("x:one", budget)
+    
+>       left = asyncio.run(_drive(work, ledger=ledger, account="x:one", budget=budget))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_budget.py:352: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_budget.py:280: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmp45ioyaxc', browser_path = '', port = 52317
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). [22607:22607:1117/073230.926369:ERROR:third_party/crashpad/crashpad/util/file/filesystem_posix.cc:63] mkdir : No such file or directory (2) / [22607:22607:1117/073230.929016:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/ch
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+__________ test_real_browser_session_cookie_is_gone_after_disconnect ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_real_browser_session_cook0')
+vault = <offsetx_apollo_builder.browser.vault.SessionVault object at 0x7f684fa09fa0>
+
+    @needs_browser
+    def test_real_browser_session_cookie_is_gone_after_disconnect(tmp_path, vault):
+        """Gate 2: ask Chromium itself whether a revoked login survived."""
+        profile = str(tmp_path / "profile")
+        os.makedirs(profile, exist_ok=True)
+        flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+        store = ConnectionStore(tmp_path)
+        store.record("local", Reading("connected", "test login"), LIVE_TARGET)
+        trace = Trace.open(tmp_path / "traces", run_id="revoke-live")
+        secret = "live-browser-session-secret"
+        cookie = {
+            "name": "session_token",
+            "value": secret,
+            "domain": "persistence.test",
+            "path": "/",
+            "expires": time.time() + 86_400,
+            "secure": True,
+        }
+        vault.seal("local", LIVE_TARGET.id, {"cookies": [cookie]})
+    
+        async def work():
+            session = await open_session(
+                profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
+            )
+            try:
+                targets = await session.targets()
+                if targets:
+                    target_id = str(targets[0]["targetId"])
+                    page_session_id = await session.attach(target_id)
+                else:
+                    target_id, page_session_id = await session.new_tab()
+                await session.connection.send("Network.enable", session_id=page_session_id)
+    
+                await session.connection.send("Storage.setCookies", {"cookies": [cookie]})
+                before = await session.connection.send("Storage.getCookies", {})
+                assert any(
+                    item.get("name") == "session_token" and item.get("value") == secret
+                    for item in before.get("cookies", [])
+                ), "the test never planted the session, so revocation would prove nothing"
+    
+                page = type(
+                    "BrowserPage",
+                    (),
+                    {"connection": session.connection, "session_id": page_session_id},
+                )()
+                result = await disconnect(page, LIVE_TARGET, store, vault, trace, "local")
+                after = await session.connection.send("Storage.getCookies", {})
+                return result, after
+            finally:
+                await session.close(quit_browser=True)
+    
+>       result, after = asyncio.run(work())
+                        ^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_revoke.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_revoke.py:224: in work
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/pytest-of-agent/pytest-122/test_real_browser_session_cook0/profile'
+browser_path = '', port = 50751, headless = True, extra_flags = ()
+launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22642:22642:1117/073237.609883:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22660:22660:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+__________ test_the_whole_flow_and_the_password_is_nowhere_afterwards __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_the_whole_flow_and_the_pa0')
+
+    @needs_browser
+    def test_the_whole_flow_and_the_password_is_nowhere_afterwards(tmp_path):
+        """The evidence for both acceptance criteria in one run.
+    
+        A real browser opens a login page. A password is typed into it the way a
+        person types — real key events, not a value assignment. The page flips to a
+        signed-in view. off_CRM notices, writes down that it worked, and then every
+        byte it wrote is searched for that password."""
+        store = ConnectionStore(tmp_path)
+    
+        async def work(page: Page):
+            reading = await signin.open_login(page, FAKE)
+            assert reading.state == "disconnected", "the login page should read as signed out"
+    
+            # The person types. Driven here because a test has no fingers, but note
+            # what is doing it: the *test*, through raw CDP, never `signin.py`.
+            snapshot = await page.snapshot()
+            field = next(n for n in snapshot.actions if "password" in n.name.lower())
+            await page.type(field.handle, SECRET)
+    
+            # A fresh snapshot between the two actions, because typing changed the
+            # page: Chrome adds a "reveal password" control once a password field
+            # has content, and every handle after it shifts. Reusing the old numbers
+            # is what an agent must not do, and `_resolve` now refuses it.
+            snapshot = await page.snapshot()
+            button = next(n for n in snapshot.actions if n.name.lower() == "sign in")
+            await page.click(button.handle, confirmed=True)
+    
+            attempt = await signin.wait_for_sign_in(page, FAKE, timeout=20, poll_seconds=0.3)
+            return attempt
+    
+>       attempt = asyncio.run(_drive(work))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_signin.py:335: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_signin.py:292: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpl5kzufyr', browser_path = '', port = 48841
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22661:22661:1117/073237.884292:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22679:22679:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_______ test_a_platform_already_signed_in_is_not_asked_to_sign_in_again ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_platform_already_signed0')
+
+    @needs_browser
+    def test_a_platform_already_signed_in_is_not_asked_to_sign_in_again(tmp_path):
+        """`open_login` checks first. Sending someone to a login page they do not
+        need is how a flow trains people to re-enter a password out of habit."""
+    
+        async def work(page: Page):
+            signed_in = identity.Platform(
+                id="linkedin", label="Test", signed_in=("my network",), signed_out=("sign in",),
+                login_url="data:text/html,<h1>Sign in</h1>",
+                home_url="data:text/html,<a href=%23>My Network</a>",
+            )
+            reading = await signin.open_login(page, signed_in)
+            return reading, page.url
+    
+>       reading, url = asyncio.run(_drive(work))
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_signin.py:369: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_signin.py:292: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpude3cnq8', browser_path = '', port = 41203
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22680:22680:1117/073238.112860:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22698:22698:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+________ test_giving_up_leaves_the_browser_open_rather_than_cancelling _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_giving_up_leaves_the_brow0')
+
+    @needs_browser
+    def test_giving_up_leaves_the_browser_open_rather_than_cancelling(tmp_path):
+        """A timeout is off_CRM stopping watching, not the sign-in being cancelled.
+        The person may still be reading a text message with a code in it."""
+    
+        async def work(page: Page):
+            never = identity.Platform(
+                id="linkedin", label="Test", signed_in=("my network",), signed_out=("sign in",),
+                login_url="data:text/html,<h1>Sign in</h1>",
+                home_url="data:text/html,<h1>Sign in</h1>",
+            )
+            return await signin.wait_for_sign_in(page, never, timeout=1.0, poll_seconds=0.2)
+    
+>       attempt = asyncio.run(_drive(work))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_browser_signin.py:387: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_signin.py:292: in _drive
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/tmpzcg7nw56', browser_path = '', port = 37379
+headless = True, extra_flags = (), launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22699:22699:1117/073238.289626:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22717:22717:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+_____________ test_a_session_survives_the_browser_being_restarted ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-122/test_a_session_survives_the_br0')
+
+    @needs_browser
+    def test_a_session_survives_the_browser_being_restarted(tmp_path):
+        """AC1, tested rather than argued.
+    
+        A signed-in session *is* a cookie with an expiry in Chrome's own jar, and
+        the jar is a file inside `--user-data-dir`. The box points that flag at
+        `/profile`, which is a Docker named volume — and a named volume outlives
+        the container that mounted it, which `test_browser_box.py` proves
+        separately.
+    
+        So the half that belongs to this story is the half above the volume: that a
+        login survives the browser process dying and coming back against the same
+        profile. This starts a real browser, plants a cookie with an expiry the way
+        a platform does, kills the browser, starts another one against the same
+        profile directory, and asks for the cookie back.
+    
+        A cookie with no expiry would *not* survive, and that is correct — that is
+        what a session cookie means. Using one here would make this test pass for
+        the wrong reason, so the expiry is explicit.
+        """
+        profile = str(tmp_path / "profile")
+        os.makedirs(profile, exist_ok=True)
+        flags = ("--no-sandbox",) if os.geteuid() == 0 else ()
+        origin = "https://persistence.test/"
+    
+        async def plant():
+            session = await open_session(
+                profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
+            )
+            try:
+                # `Storage`, not `Network`: the jar belongs to the browser, and
+                # `Network.setCookie` only exists on a page target.
+                await session.connection.send("Storage.setCookies", {
+                    "cookies": [{
+                        "name": "session_token",
+                        "value": "a-signed-in-session",
+                        "domain": "persistence.test",
+                        "path": "/",
+                        "expires": time.time() + 86_400,
+                        "secure": True,
+                    }],
+                })
+                # Chrome writes the jar on a graceful shutdown; ask for it once so
+                # the write is ordered after the set rather than racing it.
+                await session.connection.send("Storage.getCookies", {})
+            finally:
+                await session.close(quit_browser=True)
+    
+        async def recall():
+            session = await open_session(
+                profile_dir=profile, port=free_port(), headless=True, extra_flags=flags
+            )
+            try:
+                result = await session.connection.send("Storage.getCookies", {})
+                return [cookie for cookie in result.get("cookies", [])
+                        if cookie.get("name") == "session_token"]
+            finally:
+                await session.close(quit_browser=True)
+    
+>       asyncio.run(plant())
+
+tests/test_browser_signin.py:452: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/test_browser_signin.py:419: in plant
+    session = await open_session(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_dir = '/tmp/pytest-of-agent/pytest-122/test_a_session_survives_the_br0/profile'
+browser_path = '', port = 38447, headless = True, extra_flags = ()
+launch_timeout = 30.0
+
+    async def open_session(
+        *,
+        profile_dir: str,
+        browser_path: str = "",
+        port: int = DEFAULT_PORT,
+        headless: bool = False,
+        extra_flags: tuple[str, ...] = (),
+        launch_timeout: float = 30.0,
+    ) -> BrowserSession:
+        """Attach to a debuggable browser, starting one against ``profile_dir`` if
+        there is not one already.
+    
+        The order is attach-then-launch on purpose. A browser already listening is
+        one the owner may be using, and restarting it to gain control of it is the
+        wrong trade every time.
+        """
+        existing = probe(port)
+        if existing is not None:
+            connection = await connect(str(existing["webSocketDebuggerUrl"]))
+            return BrowserSession(
+                connection=connection,
+                endpoint=str(existing["webSocketDebuggerUrl"]),
+                port=port,
+                process=None,
+                profile_dir=profile_dir,
+                browser_path=str(existing.get("Browser") or ""),
+                version=existing,
+            )
+    
+        if not profile_dir:
+            raise BrowserUnavailable(
+                "No profile directory. off_CRM drives *your* browser session, so it "
+                "needs to know where your profile lives — that is what makes it able "
+                "to open a site you are already signed in to."
+            )
+        directory = Path(profile_dir).expanduser()
+        directory.mkdir(parents=True, exist_ok=True)
+        if profile_is_locked(directory):
+            raise BrowserUnavailable(
+                f"A browser already has {directory} open. Chrome allows one process "
+                "per profile, and starting a second one would quietly open an empty "
+                "profile with none of your logins in it. Close that browser and try "
+                "again — off_CRM will reopen it with the same tabs it had."
+            )
+        # Nobody holds it, so anything singleton-shaped still lying there was left
+        # by a browser that is gone. Chrome does break such a lock itself, but not
+        # reliably when the hostname in it is not this one — which is every restart
+        # of the box. Left alone, the profile's logins would be unreachable.
+        clear_stale_lock(directory)
+    
+        # Something is on the port and it did not answer the DevTools handshake, so
+        # it is not a browser. Launching against it would fail with a message about
+        # a debugging port that says nothing about the real cause.
+        if not port_is_free(port):
+            port = free_port()
+    
+        executable = find_browser(browser_path)
+        command = [
+            executable,
+            f"--remote-debugging-port={int(port)}",
+            # Explicit even when it is the default path: Chrome refuses to open a
+            # debugging port on the default profile unless the directory is named.
+            f"--user-data-dir={directory}",
+            *LAUNCH_FLAGS,
+            *extra_flags,
+        ]
+        if headless:
+            command.append("--headless=new")
+    
+        # Chrome's reason for refusing to start is on stderr and nowhere else, so
+        # it is captured rather than discarded. "The browser exited immediately
+        # (code 1)" is not a message anybody can act on; the line Chrome wrote is.
+        log = tempfile.NamedTemporaryFile("w+", suffix=".log", delete=False)
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=log,
+            start_new_session=True,
+        )
+    
+        handshake: dict[str, Any] | None = None
+        deadline = asyncio.get_running_loop().time() + launch_timeout
+        while asyncio.get_running_loop().time() < deadline:
+            if process.poll() is not None:
+>               raise BrowserUnavailable(_why_it_died(process.returncode, log.name))
+E               offsetx_apollo_builder.browser.session.BrowserUnavailable: The browser exited immediately (code -6). Try 'chrome_crashpad_handler --help' for more information. / [22718:22718:1117/073238.463702:FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /usr/lib/chromium/chrome-sandbox is owned by root and has mode 4755. / [22736:22736:0100/000
+
+offsetx_apollo_builder/browser/session.py:580: BrowserUnavailable
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /workspace/off_CRM/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_ai_egress_wall.py::test_no_module_outside_the_broker_imports_a_provider_constructor
+  /workspace/off_CRM/offsetx_apollo_builder/browser/page.py:106: SyntaxWarning: invalid escape sequence '\s'
+    ).replace(/\s+/g, ' ').trim().slice(0, 120);
+
+tests/test_discovery.py::test_scrapling_parser_extracts_structured_people_without_fetcher_stealth
+  /workspace/off_CRM/.venv/lib/python3.12/site-packages/lxml/html/__init__.py:1891: DeprecationWarning: The 'strip_cdata' option of HTMLParser() has never done anything and will eventually be removed.
+    super().__init__(**kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_agent_claim_verification.py::test_real_chromium_page_refuses_a_plausible_but_unsupported_number
+FAILED tests/test_agent_page_memo.py::test_a_real_page_is_read_once_through_the_real_loop
+FAILED tests/test_agent_progress.py::test_a_real_run_going_nowhere_is_stopped
+FAILED tests/test_agent_provenance.py::test_provenance_is_bound_to_real_chromium_evidence
+FAILED tests/test_agent_structured_result.py::test_structured_result_flows_through_the_real_browser_loop
+FAILED tests/test_browser_agent.py::test_a_real_browser_is_driven_end_to_end
+FAILED tests/test_browser_agent.py::test_a_dropdown_is_chosen_by_its_visible_label
+FAILED tests/test_browser_agent.py::test_a_command_the_browser_does_not_know_raises_rather_than_hangs
+FAILED tests/test_browser_agent.py::test_the_policy_is_enforced_against_the_live_browser_too
+FAILED tests/test_browser_agent.py::test_a_handle_from_before_the_page_changed_is_refused
+FAILED tests/test_browser_box.py::test_a_real_browser_cannot_reach_an_off_list_domain
+FAILED tests/test_browser_box.py::test_the_guard_lets_a_request_through_rather_than_blocking_everything
+FAILED tests/test_browser_box.py::test_a_tab_is_guarded_by_default_without_the_caller_asking
+FAILED tests/test_browser_budget.py::test_a_real_browser_stops_when_the_account_is_spent
+FAILED tests/test_browser_budget.py::test_an_unattributed_tab_is_not_charged_to_anybody
+FAILED tests/test_browser_budget.py::test_a_refused_action_does_not_spend_the_budget
+FAILED tests/test_browser_revoke.py::test_real_browser_session_cookie_is_gone_after_disconnect
+FAILED tests/test_browser_signin.py::test_the_whole_flow_and_the_password_is_nowhere_afterwards
+FAILED tests/test_browser_signin.py::test_a_platform_already_signed_in_is_not_asked_to_sign_in_again
+FAILED tests/test_browser_signin.py::test_giving_up_leaves_the_browser_open_rather_than_cancelling
+FAILED tests/test_browser_signin.py::test_a_session_survives_the_browser_being_restarted
+21 failed, 1994 passed, 4 skipped, 3 warnings in 78.48s (0:01:18)

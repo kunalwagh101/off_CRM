@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_model_cannot_execute_a_verb_outside_companion_grants ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-63/test_model_cannot_execute_a_ve0')
+
+    def test_model_cannot_execute_a_verb_outside_companion_grants(tmp_path):
+        broker = _Broker(['{"state":"act","action":"click","args":{"handle":1}}'])
+        page = _Page()
+        run = AgentRun(broker=broker, settings=WorkspaceEgressSettings(
+            enabled_provider_ids=('trusted',)), page=page, trace=Trace.open(tmp_path))
+        profile = dict(id='scout', name='Scout', workspace_id='local', instructions='Read only',
+                       tools=('read',), memory_scopes=())
+        run.companion = SimpleNamespace(**profile, to_dict=lambda: profile)
+        outcome = asyncio.run(run.run('Inspect public leads', step_budget=1))
+>       assert outcome.status == 'refused'
+E       AssertionError: assert 'budget_exhausted' == 'refused'
+E         
+E         - refused
+E         + budget_exhausted
+
+tests/test_agent_companions.py:20: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_agent_companions.py::test_model_cannot_execute_a_verb_outside_companion_grants
+1 failed in 0.64s

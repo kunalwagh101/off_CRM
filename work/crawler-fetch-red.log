@@ -1,0 +1,51 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_robots_crawl_delay_is_not_shortened_to_thirty_seconds __________
+
+    def test_robots_crawl_delay_is_not_shortened_to_thirty_seconds():
+        item, _ = fetcher({'https://example.test/robots.txt': Response(
+            b'User-agent: *\nAllow: /\nCrawl-delay: 120\n')})
+>       assert item._robots_allowed('https://example.test/page') == (True, 120)
+E       assert (True, 30.0) == (True, 120)
+E         
+E         At index 1 diff: 30.0 != 120
+E         Use -v to get more diff
+
+tests/test_crawl_fetch_safety.py:44: AssertionError
+__________ test_redirect_destination_robots_are_checked_before_fetch ___________
+
+    def test_redirect_destination_robots_are_checked_before_fetch():
+        item, session = fetcher({
+            'https://example.test/robots.txt': Response(b'User-agent: *\nAllow: /'),
+            'https://example.test/start': Response(status=302, Location='https://other.example.test/secret'),
+            'https://other.example.test/robots.txt': Response(b'User-agent: *\nDisallow: /secret'),
+            'https://other.example.test/secret': Response(b'<html><body>private</body></html>', **{'Content-Type':'text/html'}),
+        })
+>       with pytest.raises(DiscoveryFetchError, match='robots'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE DiscoveryFetchError
+
+tests/test_crawl_fetch_safety.py:54: Failed
+______________ test_robots_cache_does_not_cross_origins_or_ports _______________
+
+    def test_robots_cache_does_not_cross_origins_or_ports():
+        item, _ = fetcher({
+            'https://example.test/robots.txt': Response(b'User-agent: *\nAllow: /'),
+            'http://example.test/robots.txt': Response(b'User-agent: *\nDisallow: /'),
+        })
+        assert item._robots_allowed('https://example.test/page')[0]
+>       assert not item._robots_allowed('http://example.test/page')[0]
+E       assert not True
+
+tests/test_crawl_fetch_safety.py:65: AssertionError
+=============================== warnings summary ===============================
+tests/test_crawl_fetch_safety.py::test_redirect_destination_robots_are_checked_before_fetch
+  /workspace/off_CRM/.venv/lib/python3.12/site-packages/lxml/html/__init__.py:1891: DeprecationWarning: The 'strip_cdata' option of HTMLParser() has never done anything and will eventually be removed.
+    super().__init__(**kwargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_crawl_fetch_safety.py::test_robots_crawl_delay_is_not_shortened_to_thirty_seconds
+FAILED tests/test_crawl_fetch_safety.py::test_redirect_destination_robots_are_checked_before_fetch
+FAILED tests/test_crawl_fetch_safety.py::test_robots_cache_does_not_cross_origins_or_ports
+3 failed, 1 warning in 0.87s

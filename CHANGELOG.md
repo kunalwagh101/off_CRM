@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- **Persistent public crawl frontier** (`S-05.01.01`, 2026-11-19): SQLite-backed
+  workspace queues, shared host pacing/leases, durable robots and redirect
+  continuation, change-based revisits, retries, capacity/depth limits and a
+  seed/inspect/run/watch/remove CLI. No model, mailbox or logged-in session is
+  involved. Existing HTTP discovery now checks redirected robots, uses
+  origin-scoped rules and honours long/fractional crawl delays.
+- **Crawler verification:** 45 acceptance cases, 125 focused checks, 116 frontend
+  tests and the build pass. Full Python: 2039 passed, 21 pre-existing Chromium
+  failures, 4 skipped. The story remains IN_REVIEW pending D-51 browser evidence.
+
+- **Declared browser platforms** (`S-03.02.05`): packaged, validated YAML now
+  drives sign-in signals, connection status, per-domain policy, pacing and account
+  budgets. Unknown/missing fields and duplicate YAML keys fail closed.
+- **Owner-editable run plans** (`S-02.02.02`): one private PLAN.md per run,
+  reread before each decision and preserved on resume, with escaped checklists
+  in the offline report and refusal of unsafe or missing plan files.
+- **Persisted companions** (`S-04.01.01`): private workspace-scoped profiles,
+  enforced browser grants, explicit scoped memory, INTERNAL egress and immutable
+  resume bindings. Model output cannot grant another tool or bypass approval.
+- **Verification status (2026-11-17):** 175 focused acceptance/security checks,
+  116 frontend tests, build and wheel packaging pass. Full Python: 1994 passed,
+  4 skipped, 21 existing managed-Chromium failures. All three stories remain
+  IN_REVIEW pending the live-browser/full-verifier gate; see D-51.
+
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.
 - **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.
 - **Delivery failures were recorded instead of hidden.** `D-47` is dev-tooling-only: `npm audit --omit=dev` is clean while the full tree has four findings and is tracked by `S-06.02.16`. `D-48` tracks the missing DONE-dependency check under `S-06.02.17`. `D-49` records the rejected workflow-file push and the transport fix used to finish this story.

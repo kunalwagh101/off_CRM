@@ -7,8 +7,34 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
-Branch: `main`
+Last updated: 2026-11-19
+Branch: `work`
+Crawler continuation (2026-11-19): S-05.01.01 is implemented and IN_REVIEW.
+The new crawl/ package and offsetx-crawl CLI persist public queues, share host
+pacing, honour robots on every destination, resume paced redirects, back off
+unchanged pages, recover stale claims, and support explicit queue management.
+See docs/architecture/CRAWL_FRONTIER.md and work/CRAWLER_EVIDENCE.md.
+Latest verification: 45 crawler acceptance cases and 125 focused checks pass;
+frontend 116 pass and build passes; full Python 2039 passed, 21 existing Chromium
+failures, 4 skipped. The managed-browser gate remains D-51. S-06.01.01 remains
+READY and unclaimed. The previous three stories below are still IN_REVIEW.
+
+Current delivery: S-03.02.05, S-02.02.02 and S-04.01.01 are implemented and
+IN_REVIEW. The first uses a packaged browser platform registry across identity,
+policy and budgets. The second creates and rereads private owner plans and
+renders report checklists. The third adds persisted companion profiles, host-side
+tool grants, scoped memory and unchanged-grant resume. See the corresponding
+BROWSER_PLATFORMS.md, AGENT_PLANS.md and COMPANIONS.md architecture documents.
+
+Current verification (2026-11-17): 175 focused checks pass; frontend 116 pass and
+build passes; wheel contents verified. Full Python: 1994 passed, 4 skipped,
+21 pre-existing live Chromium failures. The managed environment cannot launch
+Chromium's sandbox and blocks embedded data pages. No production browser policy
+was changed. Full verifier evidence remains environment-blocked; structural
+verification and raw logs are recorded in work/. No deployment performed.
+The next five capabilities and leaf-task status are in work/NEXT_FIVE.md.
+
+Historical baseline follows:
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm

@@ -484,3 +484,24 @@ boundary that depends on the caller remembering is not a boundary.
 - **The crawler will not be pointed at LinkedIn.** The agent will, when you ask
   it to. Those are different systems on purpose, and the reason is in the
   section above.
+
+
+## Implementation update · 2026-11-17
+
+S-03.02.05 now supplies platform identity, pacing, policy and budgets from
+`browser/platforms.yaml`. S-02.02.02 supplies one owner-editable PLAN.md, fresh
+reads per decision and report checklists. S-04.01.01 supplies persisted profiles,
+scoped pushed memory and host-enforced browser grants. All three are IN_REVIEW:
+focused acceptance/security tests pass; the managed environment blocks the
+existing live-browser evidence (D-51). Skills, child agents, role wiring,
+chat-scoped permissions and the remaining Stage 3/4 scope remain separate stories.
+
+
+### Crawler implementation update · 2026-11-19
+
+S-05.01.01 is implemented in `crawl/frontier.py`, `crawl/runner.py` and
+`crawl_cli.py`. The persisted queue reuses the public HTTP fetcher and parser,
+schedules revisits from observed hashes, shares host pacing across processes,
+and survives deferred robots/page redirects and interrupted claims. It has a
+seed/inspect/run/watch/remove CLI. It is IN_REVIEW because D-51 still blocks the
+project's live-browser evidence. Extraction packs remain S-05.01.02.

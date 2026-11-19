@@ -96,69 +96,21 @@ class Platform:
         }
 
 
-#: The six the owner named. LinkedIn is first because Q-03 chose it: it is the
-#: one with no usable CRM API, so the browser is necessary there rather than
-#: merely convenient.
-PLATFORMS: dict[str, Platform] = {
-    platform.id: platform
-    for platform in (
-        Platform(
-            id="linkedin",
-            label="LinkedIn",
-            login_url="https://www.linkedin.com/login",
-            home_url="https://www.linkedin.com/feed/",
-            signed_in=("my network", "messaging", "start a post", "my items"),
-            signed_out=("sign in", "join now", "new to linkedin"),
-            note=(
-                "Attended only. The agent may read as you when you ask it to and "
-                "never on a schedule — see `policy.py`. Automated collection "
-                "breaches the User Agreement and the penalty falls on your account."
-            ),
-        ),
-        Platform(
-            id="instagram",
-            label="Instagram",
-            login_url="https://www.instagram.com/accounts/login/",
-            home_url="https://www.instagram.com/",
-            signed_in=("home", "new post", "profile", "direct"),
-            signed_out=("log in", "sign up", "forgot password"),
-            note="The Business Discovery API is the supported route for competitor data.",
-        ),
-        Platform(
-            id="facebook",
-            label="Facebook",
-            login_url="https://www.facebook.com/login/",
-            home_url="https://www.facebook.com/",
-            signed_in=("your profile", "create", "notifications"),
-            signed_out=("log in", "create new account", "forgotten password"),
-        ),
-        Platform(
-            id="youtube",
-            label="YouTube",
-            login_url="https://accounts.google.com/ServiceLogin?service=youtube",
-            home_url="https://www.youtube.com/",
-            signed_in=("account menu", "create", "subscriptions"),
-            signed_out=("sign in",),
-            note="The Data API serves public data properly. Drive the site only for what it does not expose.",
-        ),
-        Platform(
-            id="x",
-            label="X",
-            login_url="https://x.com/i/flow/login",
-            home_url="https://x.com/home",
-            signed_in=("post", "home timeline", "account menu"),
-            signed_out=("sign in", "create account"),
-        ),
-        Platform(
-            id="tiktok",
-            label="TikTok",
-            login_url="https://www.tiktok.com/login",
-            home_url="https://www.tiktok.com/foryou",
-            signed_in=("upload", "inbox", "profile"),
-            signed_out=("log in", "sign up"),
-        ),
-    )
-}
+def platforms() -> dict[str, Platform]:
+    from .registry import load_registry
+
+    return {
+        row['id']: Platform(**{
+            key: tuple(row[key]) if key in ('signed_in', 'signed_out') else row[key]
+            for key in ('id', 'label', 'login_url', 'home_url', 'signed_in', 'signed_out', 'note')
+            if key in row
+        }) for row in load_registry()['platforms']
+    }
+
+
+# Compatibility snapshot for callers importing the built-in catalogue.
+# Runtime boundaries read the owner declarations afresh.
+PLATFORMS = platforms()
 
 
 class UnknownPlatform(ValueError):
@@ -167,11 +119,12 @@ class UnknownPlatform(ValueError):
 
 def platform(platform_id: str) -> Platform:
     key = str(platform_id or "").strip().lower()
-    if key not in PLATFORMS:
+    declared = platforms()
+    if key not in declared:
         raise UnknownPlatform(
-            f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(PLATFORMS))}."
+            f"Unknown platform {platform_id!r}. Declared: {', '.join(sorted(declared))}."
         )
-    return PLATFORMS[key]
+    return declared[key]
 
 
 def _now() -> str:
@@ -392,7 +345,8 @@ class ConnectionStore:
         """
         found: list[Connection] = []
         seen: set[str] = set()
-        for platform in sorted(PLATFORMS):
+        declared = platforms()
+        for platform in sorted(declared):
             connected = self.accounts(workspace_id, platform)
             if connected:
                 found.extend(connected)
@@ -402,7 +356,7 @@ class ConnectionStore:
         # Accounts on platforms that are no longer declared still belong to the
         # owner and must not vanish from their own record.
         for key in sorted(self._document().get(str(workspace_id), {})):
-            if key in seen or key.split(":", 1)[0] in PLATFORMS:
+            if key in seen or key.split(":", 1)[0] in declared:
                 continue
             raw = self._document()[str(workspace_id)][key]
             if isinstance(raw, dict):
@@ -428,8 +382,9 @@ def catalogue(store: ConnectionStore, workspace_id: str,
     separate call a caller can forget to make.
     """
     rows = []
+    declared_platforms = platforms()
     for connection in store.all(workspace_id):
-        declared = PLATFORMS.get(connection.platform)
+        declared = declared_platforms.get(connection.platform)
         row = {**(declared.to_dict() if declared else {"id": connection.platform,
                                                        "label": connection.platform}),
                **connection.to_dict()}

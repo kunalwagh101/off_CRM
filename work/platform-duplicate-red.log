@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_duplicate_yaml_keys_are_not_silently_last_write_wins ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-77/test_duplicate_yaml_keys_are_n0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7facfa42a540>
+
+    def test_duplicate_yaml_keys_are_not_silently_last_write_wins(tmp_path, monkeypatch):
+        path = configure(tmp_path, monkeypatch, declaration())
+        path.write_text(path.read_text() + '\nplatforms: []\n')
+>       with pytest.raises(ValueError, match='duplicate'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'duplicate'
+E         Actual message: 'Cannot load browser registry platforms.yaml: platforms must be a nonempty list'
+
+tests/test_browser_platform_registry.py:98: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_browser_platform_registry.py::test_duplicate_yaml_keys_are_not_silently_last_write_wins
+1 failed in 0.47s

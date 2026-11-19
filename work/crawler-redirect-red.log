@@ -1,0 +1,34 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_paced_redirect_resumes_at_destination_instead_of_looping_at_source ____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-7/test_paced_redirect_resumes_at0')
+
+    def test_paced_redirect_resumes_at_destination_instead_of_looping_at_source(tmp_path):
+        from offsetx_apollo_builder.crawl import Frontier
+        from test_crawl_frontier import policy
+        now = [1000.0]
+        queue = Frontier(tmp_path/'paced.db', policy(request_delay_seconds=1), clock=lambda: now[0])
+        queue.enqueue('https://example.test/start')
+        session = Session({
+            'https://example.test/robots.txt': Response(b'User-agent: *\nAllow: /'),
+            'https://example.test/start': Response(status=302, Location='/finish'),
+            'https://example.test/finish': Response(b'<html><body>finished</body></html>', **{'Content-Type':'text/html'}),
+        })
+        worker = FrontierRunner(queue, fetcher=FrontierFetcher(queue, session=session, resolver=public_dns))
+        results = []
+        for _ in range(4):
+            result = worker.run_due(max_pages=1); results.extend(result.pages)
+            if results:
+                break
+            now[0] = result.next_due
+>       assert [p.url for p in results] == ['https://example.test/finish']
+E       AssertionError: assert [] == ['https://exa....test/finish']
+E         
+E         Right contains one more item: 'https://example.test/finish'
+E         Use -v to get more diff
+
+tests/test_crawl_runner.py:138: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_crawl_runner.py::test_paced_redirect_resumes_at_destination_instead_of_looping_at_source
+1 failed in 1.45s

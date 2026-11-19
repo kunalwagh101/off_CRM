@@ -53,6 +53,15 @@ the code exists and holds no stub).
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
 
+### Implemented in this increment; full gate blocked by D-51
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-18 | S-02.02.02 | 2 | `tests/test_agent_plan.py` | `agent/plan.py`, `agent/run.py`, `agent/report.py` (IN_REVIEW; D-51) |
+| R-31, R-35 | S-04.01.01 | 1 | `tests/test_agent_companions.py` | `agent/companions.py`, `agent/run.py` (IN_REVIEW; D-51) |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawl_frontier.py`, `tests/test_crawl_runner.py`, `tests/test_crawl_fetch_safety.py`, `tests/test_crawl_cli.py` | `crawl/frontier.py`, `crawl/runner.py`, `crawl_cli.py`, `discovery.py` (IN_REVIEW; D-51) |
+
+
 ## Ready — decision and dependencies resolved, not yet pulled
 
 *(Empty. No story is promoted automatically just because another story finished.)*
@@ -69,14 +78,11 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
 | R-20 | S-02.02.04 | 1 | — | — |
-| R-31, R-35 | S-04.01.01 | 1 | — | — |
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | — | — |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
 | R-41, R-42 | S-06.01.01 | 1 | — | — |
@@ -175,3 +181,9 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
+
+## Registry implementation in review
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-75 | S-03.02.05 | 2 | `tests/test_browser_platform_registry.py` | `browser/registry.py`, `browser/platforms.yaml`, `browser/identity.py`, `browser/policy.py`, `browser/budget.py` (IN_REVIEW; D-51) |

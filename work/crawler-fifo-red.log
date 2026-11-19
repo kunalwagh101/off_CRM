@@ -1,0 +1,58 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_frontier_refuses_nonregular_database_without_blocking __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-11/test_frontier_refuses_nonregul0')
+
+    def test_frontier_refuses_nonregular_database_without_blocking(tmp_path):
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+        fifo = tmp_path/'database.pipe'; os.mkfifo(fifo)
+        script = '''
+    import sys
+    from offsetx_apollo_builder.crawl import Frontier, FrontierError
+    from offsetx_apollo_builder.discovery import CrawlPolicy
+    try:
+        Frontier(sys.argv[1], CrawlPolicy(allowed_domains=('example.test',)))
+    except FrontierError:
+        print('refused')
+    else:
+        raise AssertionError('a pipe was opened as a database')
+    '''
+>       result = subprocess.run([sys.executable, '-c', script, str(fifo)], cwd=Path(__file__).parents[1],
+                                capture_output=True, text=True, timeout=10)
+
+tests/test_crawl_frontier.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:550: in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:1209: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:2116: in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['/workspace/off_CRM/.venv/bin/python', '-c', "...>
+endtime = 803.569074731, orig_timeout = 10, stdout_seq = [], stderr_seq = []
+skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['/workspace/off_CRM/.venv/bin/python', '-c', "\nimport sys\nfrom offsetx_apollo_builder.crawl import Frontier, FrontierError\nfrom offsetx_apollo_builder.discovery import CrawlPolicy\ntry:\n    Frontier(sys.argv[1], CrawlPolicy(allowed_domains=('example.test',)))\nexcept FrontierError:\n    print('refused')\nelse:\n    raise AssertionError('a pipe was opened as a database')\n", '/tmp/pytest-of-agent/pytest-11/test_frontier_refuses_nonregul0/database.pipe']' timed out after 10 seconds
+
+/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py:1253: TimeoutExpired
+=========================== short test summary info ============================
+FAILED tests/test_crawl_frontier.py::test_frontier_refuses_nonregular_database_without_blocking
+1 failed in 10.87s

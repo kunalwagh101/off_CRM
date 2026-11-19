@@ -37,7 +37,7 @@ from trace_ids import CITE, fill_citations, step_id_of
 OUR_TAGS = {
     "html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "p",
     "div", "span", "em", "table", "thead", "tbody", "tr", "th", "td", "img",
-    "footer", "a", "doctype",
+    "footer", "a", "doctype", "section", "label", "input",
 }
 
 

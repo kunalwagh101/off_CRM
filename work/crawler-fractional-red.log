@@ -1,0 +1,14 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_fractional_robots_delays_are_not_ignored _________________
+
+    def test_fractional_robots_delays_are_not_ignored():
+        item, _ = fetcher({'https://example.test/robots.txt': Response(
+            b'User-agent: *\nAllow: /\nCrawl-delay: 0.5\n')})
+>       assert item._robots_allowed('https://example.test/a')[1] >= 0.5
+E       assert 0.0 >= 0.5
+
+tests/test_crawl_fetch_safety.py:71: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_crawl_fetch_safety.py::test_fractional_robots_delays_are_not_ignored
+1 failed in 1.07s

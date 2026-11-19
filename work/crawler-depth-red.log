@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_lower_depth_limit_does_not_fetch_previously_queued_deeper_urls ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-13/test_lower_depth_limit_does_no0')
+
+    def test_lower_depth_limit_does_not_fetch_previously_queued_deeper_urls(tmp_path):
+        from offsetx_apollo_builder.crawl import Frontier
+        queue = store(tmp_path)
+        queue.enqueue('https://example.test/deep', depth=1); queue.close()
+        shallow = Frontier(tmp_path/'frontier.db', policy(max_depth=0), clock=lambda: 1000.0)
+>       assert shallow.claim() is None
+E       AssertionError: assert Claim(url='https://example.test/deep', depth=1, token='01aae5c809e8430899a78e86ffa3455e', request_url='https://example.test/deep') is None
+E        +  where Claim(url='https://example.test/deep', depth=1, token='01aae5c809e8430899a78e86ffa3455e', request_url='https://example.test/deep') = claim()
+E        +    where claim = <offsetx_apollo_builder.crawl.frontier.Frontier object at 0x7ff926ae9460>.claim
+
+tests/test_crawl_frontier.py:213: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_crawl_frontier.py::test_lower_depth_limit_does_not_fetch_previously_queued_deeper_urls
+1 failed in 0.94s

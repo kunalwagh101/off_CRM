@@ -173,14 +173,14 @@ test plan, and what it depends on.
 | Story | In one line |
 |---|---|
 | S-02.02.01 | Give it a goal → it works out the steps itself |
-| S-02.02.02 | Its to-do list is a file **you can edit mid-job** to steer it |
+| S-02.02.02 | Implemented: editable plan and report checklist; IN_REVIEW (D-51) |
 | S-02.02.03 | Stop it halfway, resume later from where it was |
 | S-02.02.04 | 5 seconds to hit cancel before anything sends or deletes |
 
 ### The team of agents
 | Story | In one line |
 |---|---|
-| S-04.01.01 | Named agents with their own instructions and memory |
+| S-04.01.01 | Implemented: persisted companions with enforced grants and scoped memory; IN_REVIEW (D-51) |
 | S-04.01.02 | Playbooks loaded only when relevant |
 | S-04.01.03 | An agent sends helpers off, so its own head stays clear |
 | S-04.01.04 | **Scout · Maker · Poster · Analyst · Director** wired to what exists |
@@ -268,3 +268,10 @@ own, and the vault that makes it safe to let them.
 
 **Three things need you and only you:** a Google Cloud project, the platform app
 reviews, and picking what gets built next.
+
+
+Current increment (2026-11-17): S-03.02.05, S-02.02.02 and S-04.01.01 are implemented and IN_REVIEW. Use BOARD.md and work/NEXT_FIVE.md for current counts and evidence; the historical scoreboard above predates this increment.
+
+Crawler continuation (2026-11-19): S-05.01.01 is implemented, locally verified
+and IN_REVIEW. S-06.01.01 remains the next unclaimed workspace capability.
+The D-51 managed-browser gate still prevents release certification.

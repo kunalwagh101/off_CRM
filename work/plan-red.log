@@ -1,0 +1,186 @@
+FF.FFFFFF.                                                               [100%]
+=================================== FAILURES ===================================
+_________ test_started_run_has_one_private_plan_and_a_report_checklist _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_started_run_has_one_priva0')
+
+    def test_started_run_has_one_private_plan_and_a_report_checklist(tmp_path):
+        run, broker, trace = agent(tmp_path, [DONE])
+        asyncio.run(run.run('Review leads', step_budget=2))
+        plans = list(trace.directory.glob('PLAN.md'))
+>       assert len(plans) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_agent_plan.py:30: AssertionError
+______________ test_owner_edit_is_seen_on_the_very_next_decision _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_owner_edit_is_seen_on_the0')
+
+    def test_owner_edit_is_seen_on_the_very_next_decision(tmp_path):
+        run, broker, trace = agent(tmp_path, [CLICK, DONE])
+        original = run.page.click
+        async def edit_after_click(*args, **kwargs):
+            result = await original(*args, **kwargs)
+            (trace.directory / 'PLAN.md').write_text('# Changed goal\n- [x] First step\n- [ ] Find only public companies')
+            return result
+        run.page.click = edit_after_click
+        asyncio.run(run.run('Review leads', step_budget=3))
+        assert 'Find only public companies' not in broker.calls[0]['request'].instructions
+>       assert 'Find only public companies' in broker.calls[1]['request'].instructions
+E       assert 'Find only public companies' in 'OWNER GOAL:\nReview leads\n\nRUN BUDGET:\nDecision 2 of 3; 2 decision(s) remain including this one.\n\nCURRENT PAGE —...ample.test/leads\n\n[1] button "Next"\n\nRESULT OF THE PREVIOUS off_CRM ACTION — TRUSTED LOCAL OBSERVATION:\nclicked 1'
+E        +  where 'OWNER GOAL:\nReview leads\n\nRUN BUDGET:\nDecision 2 of 3; 2 decision(s) remain including this one.\n\nCURRENT PAGE —...ample.test/leads\n\n[1] button "Next"\n\nRESULT OF THE PREVIOUS off_CRM ACTION — TRUSTED LOCAL OBSERVATION:\nclicked 1' = EgressRequest(task_type='browser_run_decision', data_class=<DataClass.INTERNAL: 'internal'>, instructions='OWNER GOAL:...paign_notes='', public_text='', prior_drafts=[], conversation=[], unrestricted={}, task_tags=('planning', 'reasoning')).instructions
+
+tests/test_agent_plan.py:47: AssertionError
+________ test_unreadable_or_unsafe_plan_refuses_before_egress[symlink] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_unreadable_or_unsafe_plan0')
+kind = 'symlink'
+
+    @pytest.mark.parametrize('kind', ['symlink', 'directory', 'oversize', 'empty', 'invalid_utf8'])
+    def test_unreadable_or_unsafe_plan_refuses_before_egress(tmp_path, kind):
+        run, broker, trace = agent(tmp_path, [DONE])
+        plan = trace.directory / 'PLAN.md'
+        if kind == 'symlink':
+            other = tmp_path / 'outside'; other.write_text('private material')
+            plan.symlink_to(other)
+        elif kind == 'directory':
+            plan.mkdir()
+        elif kind == 'oversize':
+            plan.write_text('a' * 20000)
+        elif kind == 'invalid_utf8':
+            plan.write_bytes(b'\xff')
+        else:
+            plan.write_text(' ')
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:74: Failed
+_______ test_unreadable_or_unsafe_plan_refuses_before_egress[directory] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_unreadable_or_unsafe_plan1')
+kind = 'directory'
+
+    @pytest.mark.parametrize('kind', ['symlink', 'directory', 'oversize', 'empty', 'invalid_utf8'])
+    def test_unreadable_or_unsafe_plan_refuses_before_egress(tmp_path, kind):
+        run, broker, trace = agent(tmp_path, [DONE])
+        plan = trace.directory / 'PLAN.md'
+        if kind == 'symlink':
+            other = tmp_path / 'outside'; other.write_text('private material')
+            plan.symlink_to(other)
+        elif kind == 'directory':
+            plan.mkdir()
+        elif kind == 'oversize':
+            plan.write_text('a' * 20000)
+        elif kind == 'invalid_utf8':
+            plan.write_bytes(b'\xff')
+        else:
+            plan.write_text(' ')
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:74: Failed
+________ test_unreadable_or_unsafe_plan_refuses_before_egress[oversize] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_unreadable_or_unsafe_plan2')
+kind = 'oversize'
+
+    @pytest.mark.parametrize('kind', ['symlink', 'directory', 'oversize', 'empty', 'invalid_utf8'])
+    def test_unreadable_or_unsafe_plan_refuses_before_egress(tmp_path, kind):
+        run, broker, trace = agent(tmp_path, [DONE])
+        plan = trace.directory / 'PLAN.md'
+        if kind == 'symlink':
+            other = tmp_path / 'outside'; other.write_text('private material')
+            plan.symlink_to(other)
+        elif kind == 'directory':
+            plan.mkdir()
+        elif kind == 'oversize':
+            plan.write_text('a' * 20000)
+        elif kind == 'invalid_utf8':
+            plan.write_bytes(b'\xff')
+        else:
+            plan.write_text(' ')
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:74: Failed
+_________ test_unreadable_or_unsafe_plan_refuses_before_egress[empty] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_unreadable_or_unsafe_plan3')
+kind = 'empty'
+
+    @pytest.mark.parametrize('kind', ['symlink', 'directory', 'oversize', 'empty', 'invalid_utf8'])
+    def test_unreadable_or_unsafe_plan_refuses_before_egress(tmp_path, kind):
+        run, broker, trace = agent(tmp_path, [DONE])
+        plan = trace.directory / 'PLAN.md'
+        if kind == 'symlink':
+            other = tmp_path / 'outside'; other.write_text('private material')
+            plan.symlink_to(other)
+        elif kind == 'directory':
+            plan.mkdir()
+        elif kind == 'oversize':
+            plan.write_text('a' * 20000)
+        elif kind == 'invalid_utf8':
+            plan.write_bytes(b'\xff')
+        else:
+            plan.write_text(' ')
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:74: Failed
+______ test_unreadable_or_unsafe_plan_refuses_before_egress[invalid_utf8] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_unreadable_or_unsafe_plan4')
+kind = 'invalid_utf8'
+
+    @pytest.mark.parametrize('kind', ['symlink', 'directory', 'oversize', 'empty', 'invalid_utf8'])
+    def test_unreadable_or_unsafe_plan_refuses_before_egress(tmp_path, kind):
+        run, broker, trace = agent(tmp_path, [DONE])
+        plan = trace.directory / 'PLAN.md'
+        if kind == 'symlink':
+            other = tmp_path / 'outside'; other.write_text('private material')
+            plan.symlink_to(other)
+        elif kind == 'directory':
+            plan.mkdir()
+        elif kind == 'oversize':
+            plan.write_text('a' * 20000)
+        elif kind == 'invalid_utf8':
+            plan.write_bytes(b'\xff')
+        else:
+            plan.write_text(' ')
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:74: Failed
+___________ test_deleted_midrun_plan_stops_instead_of_recreating_it ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-60/test_deleted_midrun_plan_stops0')
+
+    def test_deleted_midrun_plan_stops_instead_of_recreating_it(tmp_path):
+        run, broker, trace = agent(tmp_path, [CLICK, DONE])
+        original = run.page.click
+        async def delete(*args, **kwargs):
+            result = await original(*args, **kwargs)
+            (trace.directory / 'PLAN.md').unlink()
+            return result
+        run.page.click = delete
+>       with pytest.raises(RunRefused, match='plan|PLAN'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RunRefused
+
+tests/test_agent_plan.py:87: Failed
+=========================== short test summary info ============================
+FAILED tests/test_agent_plan.py::test_started_run_has_one_private_plan_and_a_report_checklist
+FAILED tests/test_agent_plan.py::test_owner_edit_is_seen_on_the_very_next_decision
+FAILED tests/test_agent_plan.py::test_unreadable_or_unsafe_plan_refuses_before_egress[symlink]
+FAILED tests/test_agent_plan.py::test_unreadable_or_unsafe_plan_refuses_before_egress[directory]
+FAILED tests/test_agent_plan.py::test_unreadable_or_unsafe_plan_refuses_before_egress[oversize]
+FAILED tests/test_agent_plan.py::test_unreadable_or_unsafe_plan_refuses_before_egress[empty]
+FAILED tests/test_agent_plan.py::test_unreadable_or_unsafe_plan_refuses_before_egress[invalid_utf8]
+FAILED tests/test_agent_plan.py::test_deleted_midrun_plan_stops_instead_of_recreating_it
+8 failed, 2 passed in 0.60s

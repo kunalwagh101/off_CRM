@@ -132,3 +132,56 @@ def test_real_chrome_workspace_cookies_are_isolated_and_restore_after_context_re
         finally:
             await session.close(quit_browser=True)
     asyncio.run(run())
+
+
+def test_parallel_workspaces_share_one_durable_os_keychain_master(tmp_path, monkeypatch):
+    """Separate vault directories must not race to replace a shared OS master."""
+    from concurrent.futures import ThreadPoolExecutor
+    import secrets
+    import threading
+    import time
+    from offsetx_apollo_builder.browser import vault as module
+    stored=[None]
+    def backend(create):
+        if stored[0] is not None:
+            return stored[0], 'test-os-keychain'
+        if not create:
+            return None, ''
+        key=secrets.token_bytes(32)
+        time.sleep(0.05)
+        stored[0]=key
+        return key, 'test-os-keychain'
+    for name in ('_linux_keychain','_macos_keychain','_windows_dpapi'):
+        monkeypatch.setattr(module,name,backend)
+    monkeypatch.setattr(module,'_keychain_lock_directory',lambda:tmp_path/'os-keychain-lock',raising=False)
+    start=threading.Barrier(2)
+    def create(identity):
+        start.wait(timeout=5)
+        vault=SessionVault(tmp_path/identity)
+        vault.seal(identity,'linkedin',{'cookies':[{'name':'li_at','value':identity,'domain':'.linkedin.com'}]})
+        return vault
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        vaults=list(pool.map(create,['alice','bob']))
+    # A process restart reads the OS store, not either process's old root bytes.
+    for identity in ('alice','bob'):
+        reopened=SessionVault(tmp_path/identity)
+        assert reopened.unseal(identity,'linkedin')['cookies'][0]['value']==identity
+
+
+def test_unavailable_common_keychain_lock_never_creates_a_master(monkeypatch):
+    from offsetx_apollo_builder.browser import vault as module
+    calls=[]
+    monkeypatch.setattr(module,'_keychain_backend',lambda create:calls.append(create) or (None,''))
+    def unavailable():
+        raise OSError('test read-only OS state directory')
+    monkeypatch.setattr(module,'_keychain_lock_directory',unavailable)
+    assert module._keychain_master(True)==(None,'')
+    assert calls==[False]
+
+
+def test_existing_os_master_is_reused_without_creating_or_rotating(monkeypatch):
+    from offsetx_apollo_builder.browser import vault as module
+    calls=[]
+    monkeypatch.setattr(module,'_keychain_backend',lambda create:calls.append(create) or (b'x'*32,'test-keychain'))
+    assert module._keychain_master(True)==(b'x'*32,'test-keychain')
+    assert calls==[False]

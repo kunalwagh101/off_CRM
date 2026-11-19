@@ -11,9 +11,7 @@ writing manifest file 'offsetx_apollo_builder.egg-info/SOURCES.txt'
 running bdist_wheel
 running build
 running build_py
-copying offsetx_apollo_builder/workspaces.py -> build/lib/offsetx_apollo_builder
-copying offsetx_apollo_builder/ai/workspace.py -> build/lib/offsetx_apollo_builder/ai
-copying offsetx_apollo_builder/api/config.py -> build/lib/offsetx_apollo_builder/api
+copying offsetx_apollo_builder/browser/vault.py -> build/lib/offsetx_apollo_builder/browser
 running egg_info
 writing offsetx_apollo_builder.egg-info/PKG-INFO
 writing dependency_links to offsetx_apollo_builder.egg-info/dependency_links.txt
@@ -190,7 +188,7 @@ running install_egg_info
 Copying offsetx_apollo_builder.egg-info to build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder-0.12.0-py3.12.egg-info
 running install_scripts
 creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder-0.12.0.dist-info/WHEEL
-creating '/tmp/off-crm-workspace-wheel/.tmp-h_jy3yvj/offsetx_apollo_builder-0.12.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+creating '/tmp/off-crm-workspace-wheel/.tmp-vjps6ipz/offsetx_apollo_builder-0.12.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
 adding 'offsetx_apollo_builder/__init__.py'
 adding 'offsetx_apollo_builder/apollo_client.py'
 adding 'offsetx_apollo_builder/attempt_ledger.py'

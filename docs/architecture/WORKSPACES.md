@@ -76,6 +76,13 @@ platform identity. Copying ciphertext and relabelling either identity fails
 authenticated decryption. Passing `workspace_id=` to `SessionVault` additionally
 binds a trusted vault handle to one identity.
 
+The OS master can serve several vault directories under one OS account. First
+creation is serialized by a private per-user lock at
+`~/.off_crm/browser_vault_keychain`. The backend is read again under that lock;
+an existing valid master is reused. If the common lock cannot be acquired, no
+new OS root is created. Supply the explicit passphrase or restore OS-user state
+directory access. Already installed masters can be read without creating locks.
+
 ## Upgrade, rollback and disconnect
 
 Stop writers and back up the complete old data directory, including encryption

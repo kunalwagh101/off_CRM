@@ -244,12 +244,33 @@ def _windows_dpapi(create: bool) -> tuple[bytes | None, str]:
     return raw, "windows-dpapi"
 
 
-def _keychain_master(create: bool) -> tuple[bytes | None, str]:
+def _keychain_lock_directory() -> Path:
+    # The OS account's master is shared across vault directories. A lock inside
+    # either workspace cannot serialize its first creation for the other one.
+    return Path.home() / '.off_crm' / 'browser_vault_keychain'
+
+
+def _keychain_backend(create: bool) -> tuple[bytes | None, str]:
     if sys.platform == "darwin":
         return _macos_keychain(create)
     if os.name == "nt":
         return _windows_dpapi(create)
     return _linux_keychain(create)
+
+
+def _keychain_master(create: bool) -> tuple[bytes | None, str]:
+    found = _keychain_backend(False)
+    if found[0] is not None or not create:
+        return found
+    try:
+        with workspace_lock(_keychain_lock_directory()):
+            # Each backend reads again before creating. A different workspace
+            # may have installed the durable master while this caller waited.
+            return _keychain_backend(True)
+    except (OSError, ValueError):
+        # Without a common lock, choosing a new root could destroy access to
+        # another vault. The caller must use its explicit passphrase instead.
+        return None, ''
 
 
 def _derive_from_passphrase(passphrase: str, salt: bytes) -> bytes:

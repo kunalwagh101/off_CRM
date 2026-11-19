@@ -67,7 +67,13 @@ _nothing claimed_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.01.01 · Workspaces with their own keys and their own logins
+  owner: Codex /root
+  work_order: work/WORKSPACE_WORK_ORDER.md
+  started: 2026-11-19
+  reopened: test-first OS keychain master initialization race across separate workspace directories; previous CI remains valid for its earlier revision
+  review: D-68 fixed; 117 affected checks passed; fresh full CI required
+  evidence: work/WORKSPACE_EVIDENCE.md
 
 ## BLOCKED
 
@@ -79,18 +85,6 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
-
-- S-06.01.01 · Workspaces with their own keys and their own logins
-  owner: Codex /root
-  work_order: work/WORKSPACE_WORK_ORDER.md
-  tests: tests/test_workspace_api.py, tests/test_workspace_isolation.py, tests/test_workspace_browser.py
-  command: uv run pytest tests/test_workspace_api.py tests/test_workspace_isolation.py tests/test_workspace_browser.py -q
-  result: all 31 workspace cases passed within CI's full Python suite (2091 passed, 4 skipped, 6 warnings; 2026-11-19); the verifier reruns the named evidence command
-  code: offsetx_apollo_builder/workspaces.py, offsetx_apollo_builder/api/config.py, offsetx_apollo_builder/api/app.py, offsetx_apollo_builder/ai/workspace.py, offsetx_apollo_builder/browser/session.py, offsetx_apollo_builder/browser/vault.py
-  commit: 487f85dcfa6799e411d4ed6a1c511d9c8c20631c
-  review: implementer self-review; work/WORKSPACE_EVIDENCE.md
-  limitation: one authenticated app instance per workspace; host administrator trusted; automated security probes are not an independent penetration assessment; no deployment
-  live: https://github.com/kunalwagh101/off_CRM/actions/runs/44573830141 — full Python, real Chromium, 59/59 historical evidence commands, frontend 116 passed and production build passed
 
 - S-05.01.01 · A crawler with a frontier, not a loop
   owner: Codex /root

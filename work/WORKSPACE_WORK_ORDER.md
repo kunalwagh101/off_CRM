@@ -55,3 +55,11 @@ and project verifier. Local managed Chromium is restricted; the existing connect
 GitHub app and draft PR #29 supply standard-browser CI without weakening policy.
 Keep IN_REVIEW until the necessary gate passes. Self-review is not independent
 penetration assessment. No live provider keys/calls, deployment or merge required.
+
+## Reopened during final restart review
+
+A new test reproduces shared OS-keychain master creation racing across distinct
+workspace vault directories. Serialize first initialization with a common private
+OS-user lock, recheck the backend after locking, preserve existing master values
+and fail closed to the explicit passphrase path if the lock cannot be used.
+Verify reopen/decryption for both workspaces. Never overwrite an existing master.

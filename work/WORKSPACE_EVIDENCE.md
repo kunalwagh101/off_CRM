@@ -56,7 +56,21 @@ https://github.com/kunalwagh101/off_CRM/actions/runs/44573830141
 - 116 frontend passed; production build, static checks and CLI smoke checks passed.
 - Raw log: work/workspace-ci-2295.log; manifest: work/WORKSPACE_CI_VERIFICATION.json.
 
-S-06.01.01 is promoted to DONE. The metadata update adds the workspace command to
+That earlier revision was promoted to DONE, then reopened for the D-68 restart race. The metadata update adds the workspace command to
 the verifier, bringing the board to 60 DONE stories; final CI will certify this
 updated evidence record. No merge, deployment, live provider call or independent
 penetration assessment is claimed.
+
+## D-68 amended source
+
+`work/workspace-keychain-red.log` proves that concurrent initialization in two
+vault directories replaced a shared OS root and failed to reopen one session.
+The fix serializes first creation under `~/.off_crm/browser_vault_keychain`,
+rechecks the backend under that lock and preserves an already installed master.
+If the shared lock is unavailable, no OS master is created: the explicit
+passphrase path remains available. No provider or browser policy changed.
+
+`uv run pytest tests/test_workspace_api.py tests/test_workspace_isolation.py tests/test_workspace_browser.py tests/test_api_auth.py tests/test_browser_vault.py tests/test_browser_vault_wiring.py tests/test_ai_egress_wall.py tests/test_security_audit.py -q -k 'not real_chrome'`:
+117 passed, 1 deselected, 2 warnings; work/workspace-keychain-green.log.
+The workspace suite now has 34 cases. Critical Ruff and source whitespace checks
+pass. Story is IN_REVIEW pending amended-source CI and its board evidence gate.

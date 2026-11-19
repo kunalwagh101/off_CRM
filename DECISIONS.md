@@ -57,6 +57,7 @@ wastes a session when nobody can answer it.
 | DD-27 | 2026-11-19 | Reject v1 vault sessions until verified offline migration or attended reconnect; bind v2 wrappers to workspace and platform | Existing sessions need operator action; v1 provenance cannot be authenticated retroactively |
 | DD-28 | 2026-11-19 | Use isolated ephemeral Chrome contexts with explicit encrypted capture/restore | Context restart needs restore; the legacy local default profile remains a separate compatibility path |
 | DD-29 | 2026-11-19 | Use hashed private environment namespaces and retain original owner files during explicit provider migration | Operators must derive variable names and protect/remove rollback backups; nonlocal command providers are refused |
+| DD-30 | 2026-11-19 | Serialize first OS-keychain master creation under one private per-user lock and re-read the backend before creation | If the common OS-user state directory cannot be locked, callers need the explicit passphrase path; existing masters remain readable without creating lock files |
 
 ---
 

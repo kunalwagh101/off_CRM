@@ -1,0 +1,123 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_parallel_workspaces_share_one_durable_os_keychain_master _________
+
+self = <cryptography.fernet.Fernet object at 0x7f27031e53a0>
+data = b"\x80\x00\x00\x00\x00j\xff0\xa2\n#\xd2\xabh?\xd38\xbb\x02\x98\xce&\xb1Oe\xec\xbe\x19\xff\xf7'\xcd\xf9j\x9c\x08\x00~\x...98P A\x0c\x9b\x9f\x11J\x90\xbf\xa9\xdb\x05\x89\xce\x80\xdc\xdaV$\xe8v1\xebjggv\xf4\x84qp\x0f\xa3c\x8f\xee\xa9\xa8w\xb2"
+
+    def _verify_signature(self, data: bytes) -> None:
+        h = HMAC(self._signing_key, _SHA256)
+        h.update(memoryview(data)[:-32])
+        try:
+>           h.verify(data[-32:])
+E           cryptography.exceptions.InvalidSignature: Signature did not match digest.
+
+.venv/lib/python3.12/site-packages/cryptography/fernet.py:133: InvalidSignature
+
+During handling of the above exception, another exception occurred:
+
+self = <offsetx_apollo_builder.browser.vault.SessionVault object at 0x7f27031e7a10>
+envelope = {'ciphertext': 'gAAAAABq_zCipRRu2DNl46pnwYAeD3j5IroV3xWO7IhRTQsKpqKS9j06tiaJC-5MngTkq6SU0xe1aJ0SQEO7v47StrPNOJBjFgQqHK...nMSpXMsdNRT-WXvK4inhuY0S4x6U=', 'cookie_count': 1, 'key_id': '71d97578f57b93a2', 'key_source': 'test-os-keychain', ...}
+
+    def _account_key(self, envelope: dict[str, Any] | None = None) -> bytes:
+        if envelope is None:
+            return Fernet.generate_key()
+        wrapped = str(envelope.get("wrapped_key") or "").encode("ascii", "strict")
+        try:
+            wrapper = self._master_fernet if envelope.get('version') == 1 else self._envelope_fernet(
+                str(envelope['workspace_id']), str(envelope['platform_id']))
+>           key = wrapper.decrypt(wrapped)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+
+offsetx_apollo_builder/browser/vault.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.12/site-packages/cryptography/fernet.py:92: in decrypt
+    return self._decrypt_data(data, timestamp, time_info)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/cryptography/fernet.py:151: in _decrypt_data
+    self._verify_signature(data)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <cryptography.fernet.Fernet object at 0x7f27031e53a0>
+data = b"\x80\x00\x00\x00\x00j\xff0\xa2\n#\xd2\xabh?\xd38\xbb\x02\x98\xce&\xb1Oe\xec\xbe\x19\xff\xf7'\xcd\xf9j\x9c\x08\x00~\x...98P A\x0c\x9b\x9f\x11J\x90\xbf\xa9\xdb\x05\x89\xce\x80\xdc\xdaV$\xe8v1\xebjggv\xf4\x84qp\x0f\xa3c\x8f\xee\xa9\xa8w\xb2"
+
+    def _verify_signature(self, data: bytes) -> None:
+        h = HMAC(self._signing_key, _SHA256)
+        h.update(memoryview(data)[:-32])
+        try:
+            h.verify(data[-32:])
+        except InvalidSignature:
+>           raise InvalidToken
+E           cryptography.fernet.InvalidToken
+
+.venv/lib/python3.12/site-packages/cryptography/fernet.py:135: InvalidToken
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-91/test_parallel_workspaces_share0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f2704b16f30>
+
+    def test_parallel_workspaces_share_one_durable_os_keychain_master(tmp_path, monkeypatch):
+        """Separate vault directories must not race to replace a shared OS master."""
+        from concurrent.futures import ThreadPoolExecutor
+        import secrets
+        import threading
+        import time
+        from offsetx_apollo_builder.browser import vault as module
+        stored=[None]
+        def backend(create):
+            if stored[0] is not None:
+                return stored[0], 'test-os-keychain'
+            if not create:
+                return None, ''
+            key=secrets.token_bytes(32)
+            time.sleep(0.05)
+            stored[0]=key
+            return key, 'test-os-keychain'
+        for name in ('_linux_keychain','_macos_keychain','_windows_dpapi'):
+            monkeypatch.setattr(module,name,backend)
+        monkeypatch.setattr(module,'_keychain_lock_directory',lambda:tmp_path/'os-keychain-lock',raising=False)
+        start=threading.Barrier(2)
+        def create(identity):
+            start.wait(timeout=5)
+            vault=SessionVault(tmp_path/identity)
+            vault.seal(identity,'linkedin',{'cookies':[{'name':'li_at','value':identity,'domain':'.linkedin.com'}]})
+            return vault
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            vaults=list(pool.map(create,['alice','bob']))
+        # A process restart reads the OS store, not either process's old root bytes.
+        for identity in ('alice','bob'):
+            reopened=SessionVault(tmp_path/identity)
+>           assert reopened.unseal(identity,'linkedin')['cookies'][0]['value']==identity
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_workspace_browser.py:168: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+offsetx_apollo_builder/browser/vault.py:422: in unseal
+    account_key = self._account_key(envelope)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <offsetx_apollo_builder.browser.vault.SessionVault object at 0x7f27031e7a10>
+envelope = {'ciphertext': 'gAAAAABq_zCipRRu2DNl46pnwYAeD3j5IroV3xWO7IhRTQsKpqKS9j06tiaJC-5MngTkq6SU0xe1aJ0SQEO7v47StrPNOJBjFgQqHK...nMSpXMsdNRT-WXvK4inhuY0S4x6U=', 'cookie_count': 1, 'key_id': '71d97578f57b93a2', 'key_source': 'test-os-keychain', ...}
+
+    def _account_key(self, envelope: dict[str, Any] | None = None) -> bytes:
+        if envelope is None:
+            return Fernet.generate_key()
+        wrapped = str(envelope.get("wrapped_key") or "").encode("ascii", "strict")
+        try:
+            wrapper = self._master_fernet if envelope.get('version') == 1 else self._envelope_fernet(
+                str(envelope['workspace_id']), str(envelope['platform_id']))
+            key = wrapper.decrypt(wrapped)
+            Fernet(key)
+            return key
+        except (InvalidToken, ValueError, TypeError) as exc:
+>           raise VaultLocked(
+                "The account key cannot be opened with this OS credential or passphrase."
+            ) from exc
+E           offsetx_apollo_builder.browser.vault.VaultLocked: The account key cannot be opened with this OS credential or passphrase.
+
+offsetx_apollo_builder/browser/vault.py:379: VaultLocked
+=========================== short test summary info ============================
+FAILED tests/test_workspace_browser.py::test_parallel_workspaces_share_one_durable_os_keychain_master
+1 failed in 1.68s

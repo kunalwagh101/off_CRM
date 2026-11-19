@@ -54,7 +54,7 @@ the code exists and holds no stub).
 | R-18 | S-02.02.02 | 2 | `tests/test_agent_plan.py` | `agent/plan.py`, `agent/run.py`, `agent/report.py` (DONE; CI run 2291) |
 | R-31, R-35 | S-04.01.01 | 1 | `tests/test_agent_companions.py` | `agent/companions.py`, `agent/run.py` (DONE; CI run 2291) |
 | R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawl_frontier.py`, `tests/test_crawl_runner.py`, `tests/test_crawl_fetch_safety.py`, `tests/test_crawl_cli.py` | `crawl/frontier.py`, `crawl/runner.py`, `crawl_cli.py`, `discovery.py` (DONE; CI run 2291) |
-| R-41, R-42 | S-06.01.01 | 1 | `tests/test_workspace_api.py`, `tests/test_workspace_isolation.py`, `tests/test_workspace_browser.py` | `workspaces.py`, `api/config.py`, `api/app.py`, `ai/workspace.py`, `browser/session.py`, `browser/vault.py` (DONE; CI run 2295) |
+| R-41, R-42 | S-06.01.01 | 1 | `tests/test_workspace_api.py`, `tests/test_workspace_isolation.py`, `tests/test_workspace_browser.py` | `workspaces.py`, `api/config.py`, `api/app.py`, `ai/workspace.py`, `browser/session.py`, `browser/vault.py` (IN_REVIEW; D-68 amended-source CI pending) |
 | R-75 | S-03.02.05 | 2 | `tests/test_browser_platform_registry.py` | `browser/registry.py`, `browser/platforms.yaml`, `browser/identity.py`, `browser/policy.py`, `browser/budget.py` (DONE; CI run 2291) |
 
 ## In review — built, but this session cannot complete the proof

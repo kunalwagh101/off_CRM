@@ -99,6 +99,7 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-65 | 2026-11-19 | data-loss | medium | A failed workspace settings migration could leave destination keys behind and prevent retry. Failure-injection test; new artifacts now roll back. | fixed · `S-06.01.01` |
 | D-66 | 2026-11-19 | security | high | Workspace cookie-key derivation could turn an empty signing secret into an enabled authenticator. Reproduced during self-review; derivation now requires a nonempty secret. | fixed · `S-06.01.01` |
 | D-67 | 2026-11-19 | security | high | API token provisioning followed symbolic links and could adopt another workspace token. Test-first probe; private no-follow reads and serialized provisioning now refuse it. | fixed · `S-06.01.01` |
+| D-68 | 2026-11-19 | data-loss | high | Separate workspace vault directories raced to replace the shared OS keychain master, making one session unreadable after restart. Test-first concurrent creation/reopen reproduction; common per-user initialization lock now preserves both. | fixed · `S-06.01.01` |
 
 ---
 

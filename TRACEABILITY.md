@@ -47,19 +47,21 @@ the code exists and holds no stub).
 | R-90 | S-06.02.08 | 2 | `tests/test_verify_board.py`, `tests/test_ci_verifier_environment.py` | `scripts/verify_board.py`, `DEFINITION_OF_DONE.md`, `README.md`, `CONTINUE.md` |
 | R-102 | S-06.02.17 | 2 | `tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails`, `tests/test_verify_board.py::test_done_with_only_done_dependencies_passes` | `scripts/verify_board.py`, `DEFINITION_OF_DONE.md` |
 
+### Certified by GitHub Actions run 2291 · 2026-11-19
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-18 | S-02.02.02 | 2 | `tests/test_agent_plan.py` | `agent/plan.py`, `agent/run.py`, `agent/report.py` (DONE; CI run 2291) |
+| R-31, R-35 | S-04.01.01 | 1 | `tests/test_agent_companions.py` | `agent/companions.py`, `agent/run.py` (DONE; CI run 2291) |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawl_frontier.py`, `tests/test_crawl_runner.py`, `tests/test_crawl_fetch_safety.py`, `tests/test_crawl_cli.py` | `crawl/frontier.py`, `crawl/runner.py`, `crawl_cli.py`, `discovery.py` (DONE; CI run 2291) |
+| R-75 | S-03.02.05 | 2 | `tests/test_browser_platform_registry.py` | `browser/registry.py`, `browser/platforms.yaml`, `browser/identity.py`, `browser/policy.py`, `browser/budget.py` (DONE; CI run 2291) |
+
 ## In review — built, but this session cannot complete the proof
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
 
-### Implemented in this increment; full gate blocked by D-51
-
-| Req | Story | Criteria | Test | Code |
-|---|---|---|---|---|
-| R-18 | S-02.02.02 | 2 | `tests/test_agent_plan.py` | `agent/plan.py`, `agent/run.py`, `agent/report.py` (IN_REVIEW; D-51) |
-| R-31, R-35 | S-04.01.01 | 1 | `tests/test_agent_companions.py` | `agent/companions.py`, `agent/run.py` (IN_REVIEW; D-51) |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawl_frontier.py`, `tests/test_crawl_runner.py`, `tests/test_crawl_fetch_safety.py`, `tests/test_crawl_cli.py` | `crawl/frontier.py`, `crawl/runner.py`, `crawl_cli.py`, `discovery.py` (IN_REVIEW; D-51) |
 
 
 ## Ready — decision and dependencies resolved, not yet pulled
@@ -181,9 +183,3 @@ the slice depends on. Change control is about scope, not about bugs.
 | R-25, R-26, R-42 | S-03.02.01 | 2 | `tests/test_browser_signin.py`, `tests/test_browser_agent.py` | `browser/identity.py`, `browser/signin.py`, `browser/session.py`, `browser/page.py` |
 | R-27, R-28, R-29 | S-03.02.02 | 3 | `tests/test_browser_vault.py`, `tests/test_browser_vault_wiring.py` | `browser/vault.py`, `browser/signin.py`, `ai/scanner.py` |
 | R-30 | S-03.02.03 | 1 | `tests/test_browser_revoke.py` | `browser/revoke.py`, `browser/vault.py`, `browser/identity.py`, `browser/trace.py` |
-
-## Registry implementation in review
-
-| Req | Story | Criteria | Test | Code |
-|---|---|---|---|---|
-| R-75 | S-03.02.05 | 2 | `tests/test_browser_platform_registry.py` | `browser/registry.py`, `browser/platforms.yaml`, `browser/identity.py`, `browser/policy.py`, `browser/budget.py` (IN_REVIEW; D-51) |

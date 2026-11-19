@@ -505,3 +505,11 @@ schedules revisits from observed hashes, shares host pacing across processes,
 and survives deferred robots/page redirects and interrupted claims. It has a
 seed/inspect/run/watch/remove CLI. It is IN_REVIEW because D-51 still blocks the
 project's live-browser evidence. Extraction packs remain S-05.01.02.
+
+
+Certification update · 2026-11-19: GitHub Actions run 2291 passed full Python
+(2060 passed, 4 skipped), all 55 historical evidence commands, frontend 116 and
+the production build. S-03.02.05, S-02.02.02, S-04.01.01 and S-05.01.01 are now
+DONE. Earlier IN_REVIEW statements describe the prior local-only evidence stage.
+See work/REMOTE_VERIFICATION.md and work/ci-run-2291.log. PR #29 is unmerged;
+no deployment or independent penetration assessment is claimed.

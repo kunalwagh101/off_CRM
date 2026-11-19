@@ -275,3 +275,11 @@ Current increment (2026-11-17): S-03.02.05, S-02.02.02 and S-04.01.01 are implem
 Crawler continuation (2026-11-19): S-05.01.01 is implemented, locally verified
 and IN_REVIEW. S-06.01.01 remains the next unclaimed workspace capability.
 The D-51 managed-browser gate still prevents release certification.
+
+
+Certification update · 2026-11-19: GitHub Actions run 2291 passed full Python
+(2060 passed, 4 skipped), all 55 historical evidence commands, frontend 116 and
+the production build. S-03.02.05, S-02.02.02, S-04.01.01 and S-05.01.01 are now
+DONE. Earlier IN_REVIEW statements describe the prior local-only evidence stage.
+See work/REMOTE_VERIFICATION.md and work/ci-run-2291.log. PR #29 is unmerged;
+no deployment or independent penetration assessment is claimed.

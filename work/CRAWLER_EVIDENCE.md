@@ -69,3 +69,11 @@ which ignores the new file. The CRM schema is unchanged.
 D-51 remains the local release blocker: Chromium cannot launch with its sandbox
 and managed policy blocks embedded test pages. The implementation is ready for
 browser verification in a suitable environment; until then keep IN_REVIEW.
+
+
+Certification update · 2026-11-19: GitHub Actions run 2291 passed full Python
+(2060 passed, 4 skipped), all 55 historical evidence commands, frontend 116 and
+the production build. S-03.02.05, S-02.02.02, S-04.01.01 and S-05.01.01 are now
+DONE. Earlier IN_REVIEW statements describe the prior local-only evidence stage.
+See work/REMOTE_VERIFICATION.md and work/ci-run-2291.log. PR #29 is unmerged;
+no deployment or independent penetration assessment is claimed.

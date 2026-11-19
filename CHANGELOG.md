@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Four stories certified in standard browser CI (2026-11-19):** platform
+  declarations, editable plans, persisted companions and the public crawl
+  frontier are DONE. GitHub Actions run 2291 passed 2060 Python tests (4 skipped),
+  all 55 historical evidence commands, 116 frontend tests and the build. The
+  managed local Chromium restriction remains; no test or policy was waived.
+  Draft PR #29 is unmerged and no deployment is included.
+
 - **Persistent public crawl frontier** (`S-05.01.01`, 2026-11-19): SQLite-backed
   workspace queues, shared host pacing/leases, durable robots and redirect
   continuation, change-based revisits, retries, capacity/depth limits and a
@@ -10,7 +17,7 @@
   origin-scoped rules and honours long/fractional crawl delays.
 - **Crawler verification:** 45 acceptance cases, 125 focused checks, 116 frontend
   tests and the build pass. Full Python: 2039 passed, 21 pre-existing Chromium
-  failures, 4 skipped. The story remains IN_REVIEW pending D-51 browser evidence.
+  failures, 4 skipped. The story is now DONE after GitHub run 2291 supplied the browser/project proof.
 
 - **Declared browser platforms** (`S-03.02.05`): packaged, validated YAML now
   drives sign-in signals, connection status, per-domain policy, pacing and account
@@ -23,8 +30,8 @@
   resume bindings. Model output cannot grant another tool or bypass approval.
 - **Verification status (2026-11-17):** 175 focused acceptance/security checks,
   116 frontend tests, build and wheel packaging pass. Full Python: 1994 passed,
-  4 skipped, 21 existing managed-Chromium failures. All three stories remain
-  IN_REVIEW pending the live-browser/full-verifier gate; see D-51.
+  4 skipped, 21 existing managed-Chromium failures. The original local-only state was IN_REVIEW; all three are now DONE after
+  GitHub run 2291 supplied the missing browser/project proof; see D-51.
 
 - **DONE dependency history is now mechanically enforced** (`S-06.02.17`, closing `D-48`). The verifier rejects a DONE story whose declared upstream story is in any non-DONE column, names both stories and the upstream state, and still accepts a chain whose dependencies are all DONE.
 - **Every DONE evidence command now enters one locked runner** (`S-06.02.08`, closing `D-10`). The board uses `uv run` consistently, the verifier rejects commands that bypass it even when tests are skipped, and clean-checkout setup documents both locked Python dependencies and frontend `npm ci` before the verifier.

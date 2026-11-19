@@ -886,3 +886,9 @@ fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 p
 - Scope cut: none of the three acceptance criteria. Workspace key/session isolation stays the separate, unclaimed S-06.01.01 story. Live-browser certification remains IN_REVIEW under D-51.
 - Estimate: no duration was promised. Shared HTTP robots defects and resumable redirect/pacing semantics required more work than queue persistence alone.
 - Next time: test paced redirects and process-level ownership before settling the storage contract; retain raw failure comparisons and separate local proof from deployment claims.
+
+
+## 2026-11-19 · Close the browser verification thread
+- Scope cut: none. The connected GitHub app supplied a safe review branch and ordinary CI, so the managed local browser restriction no longer blocks certification.
+- Estimate: full evidence replay adds several minutes beyond the Python suite. That cost belongs to release proof, not implementation time.
+- Next time: discover connected CI access before treating a local browser restriction as the end of available verification; preserve exact Git trees and real revision ancestry.

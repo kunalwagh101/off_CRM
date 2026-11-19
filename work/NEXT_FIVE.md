@@ -1,4 +1,4 @@
-# Next five pending capabilities · 2026-11-17
+# Next five capabilities · planned 2026-11-17, certified 2026-11-19
 
 Owner: Codex /root. Delivery mode: TASK. Implementer: senior engineer.
 The user authorised the first three capabilities, including all their acceptance
@@ -22,7 +22,7 @@ story in BOARD.md before code; unclaimed stories remain available to others.
    - Tasks: validated named profiles, workspace-scoped persistence and CRUD;
      run binding; enforce grants in host code; push only explicitly permitted
      memory; preserve profile binding across resume; document use.
-4. S-05.01.01 — Crawler frontier (F-05.01), implemented 2026-11-19; IN_REVIEW
+4. S-05.01.01 — Crawler frontier (F-05.01), DONE after CI run 2291
    - AC1: honour robots.txt and crawl delay.
    - AC2: unchanged pages are revisited less often than changing pages.
    - AC3: exclude session-gated platforms.
@@ -63,22 +63,22 @@ S-06.01.01 remains READY and unclaimed. See CRAWLER_WORK_ORDER.md and CRAWLER_EV
 
 | Task | Story | Work | Status |
 |---|---|---|---|
-| T-03.02.05.a | S-03.02.05 | Extract six built-in identities, pace, rules and budgets into packaged YAML | Implemented |
-| T-03.02.05.b | S-03.02.05 | Validate declarations and reject duplicate/unsafe policy fields | Verified locally |
-| T-03.02.05.c | S-03.02.05 | Integrate sign-in, status, account catalogue and budget consumers | Verified locally |
-| T-03.02.05.d | S-03.02.05 | Prove new platform and registry removal/restoration without losing accounts | Verified locally |
-| T-02.02.02.a | S-02.02.02 | Create one private, owner-editable plan per run | Verified locally |
-| T-02.02.02.b | S-02.02.02 | Read edits before the next decision through the existing broker | Verified locally |
-| T-02.02.02.c | S-02.02.02 | Preserve plans on resume and render safe report checklists | Verified locally |
-| T-02.02.02.d | S-02.02.02 | Refuse unsafe/missing plans and prove real broker secret blocking | Verified locally |
-| T-04.01.01.a | S-04.01.01 | Persist validated companion CRUD with workspace separation | Verified locally |
-| T-04.01.01.b | S-04.01.01 | Enforce grants for all ten browser verbs | Verified locally |
-| T-04.01.01.c | S-04.01.01 | Filter explicit scoped memory and preserve INTERNAL classification | Verified locally |
-| T-04.01.01.d | S-04.01.01 | Refuse grant widening/removal on resume, bound context and scan secrets | Verified locally |
-| T-05.01.01.a | S-05.01.01 | Persist crawl frontier and inspect pending URLs | Verified locally; IN_REVIEW |
-| T-05.01.01.b | S-05.01.01 | Honour robots rules and host delays | Verified locally; IN_REVIEW |
-| T-05.01.01.c | S-05.01.01 | Schedule revisits from observed changes | Verified locally; IN_REVIEW |
-| T-05.01.01.d | S-05.01.01 | Exclude session-gated platforms and test navigation safety | Verified locally; IN_REVIEW |
+| T-03.02.05.a | S-03.02.05 | Extract six built-in identities, pace, rules and budgets into packaged YAML | DONE (CI 2291) |
+| T-03.02.05.b | S-03.02.05 | Validate declarations and reject duplicate/unsafe policy fields | DONE (CI 2291) |
+| T-03.02.05.c | S-03.02.05 | Integrate sign-in, status, account catalogue and budget consumers | DONE (CI 2291) |
+| T-03.02.05.d | S-03.02.05 | Prove new platform and registry removal/restoration without losing accounts | DONE (CI 2291) |
+| T-02.02.02.a | S-02.02.02 | Create one private, owner-editable plan per run | DONE (CI 2291) |
+| T-02.02.02.b | S-02.02.02 | Read edits before the next decision through the existing broker | DONE (CI 2291) |
+| T-02.02.02.c | S-02.02.02 | Preserve plans on resume and render safe report checklists | DONE (CI 2291) |
+| T-02.02.02.d | S-02.02.02 | Refuse unsafe/missing plans and prove real broker secret blocking | DONE (CI 2291) |
+| T-04.01.01.a | S-04.01.01 | Persist validated companion CRUD with workspace separation | DONE (CI 2291) |
+| T-04.01.01.b | S-04.01.01 | Enforce grants for all ten browser verbs | DONE (CI 2291) |
+| T-04.01.01.c | S-04.01.01 | Filter explicit scoped memory and preserve INTERNAL classification | DONE (CI 2291) |
+| T-04.01.01.d | S-04.01.01 | Refuse grant widening/removal on resume, bound context and scan secrets | DONE (CI 2291) |
+| T-05.01.01.a | S-05.01.01 | Persist crawl frontier and inspect pending URLs | DONE (CI 2291) |
+| T-05.01.01.b | S-05.01.01 | Honour robots rules and host delays | DONE (CI 2291) |
+| T-05.01.01.c | S-05.01.01 | Schedule revisits from observed changes | DONE (CI 2291) |
+| T-05.01.01.d | S-05.01.01 | Exclude session-gated platforms and test navigation safety | DONE (CI 2291) |
 | T-06.01.01.a | S-06.01.01 | Trace existing workspace key and session consumers | Planned, unclaimed |
 | T-06.01.01.b | S-06.01.01 | Enforce workspace selection and storage boundaries | Planned, unclaimed |
 | T-06.01.01.c | S-06.01.01 | Test cross-workspace credential and connection access | Planned, unclaimed |
@@ -110,3 +110,11 @@ Continuation 2026-11-19: the crawler adds persisted queues, shared host pacing,
 robots/redirect continuation, change-based revisit scheduling, leases, retries,
 CLI management and rollback proof. Its 45 acceptance cases and wider 125-check
 suite pass. The same D-51 browser gate prevents DONE certification.
+
+## Current certification · 2026-11-19
+
+The first four capabilities are DONE after GitHub run 2291 passed 2060 Python
+tests, all 55 historical evidence commands, frontend 116 and the build. The
+earlier IN_REVIEW paragraphs describe the local-only stage before CI. The fifth
+capability, S-06.01.01, remains READY and unclaimed. See CI_VERIFICATION.json,
+ci-run-2291.log and REMOTE_VERIFICATION.md. The review branch is not merged.

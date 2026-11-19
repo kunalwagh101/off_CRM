@@ -82,6 +82,24 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-48 | 2026-09-16 | process | high | The verifier allows a DONE story to declare an upstream story that is not DONE | fixed · `S-06.02.17` |
 | D-49 | 2026-09-16 | process | medium | A delivery Action tried to push a `.github/workflows/` change with a contents-only token and GitHub rejected the otherwise-tested commit | fixed during `S-06.02.08` — workflow-file writes stay outside Actions |
 | D-50 | 2026-09-17 | process | low | The S-06.02.17 one-shot delivery helper contained an uncompiled nested string and failed before pulling the story | fixed during `S-06.02.17` — one-shot helpers are syntax-compiled before execution |
+| D-51 | 2026-11-17 | process | medium | Baseline: 22 Python failures before feature edits; managed Chromium cannot launch with its sandbox and blocks embedded data pages; Graphify needs a writable UV_TOOL_DIR. Found by full regression. | local environment isolated · release proof supplied by GitHub Actions run 2291; local browser policy unchanged; use UV_TOOL_DIR=/workspace/.uv-tools |
+| D-52 | 2026-11-17 | security | medium | The new registry initially accepted duplicate YAML mapping keys with last-value-wins semantics. Found during self-review and reproduced by an acceptance test. | fixed · `S-03.02.05` |
+| D-53 | 2026-11-17 | bug | low | The new registry rejected valid DNS labels with consecutive hyphens. Found in self-review and reproduced with a named acceptance test. | fixed · `S-03.02.05` |
+| D-54 | 2026-11-19 | bug | medium | Existing robots delays were capped at 30 seconds, and fractional delays were ignored. Reproduced before the fix. | fixed · `S-05.01.01` |
+| D-55 | 2026-11-19 | security | high | The HTTP fetcher checked robots at the starting URL but fetched redirect destinations without their robots rules. Reproduced with a disallowed destination. | fixed · `S-05.01.01` |
+| D-56 | 2026-11-19 | bug | medium | The existing robots cache keyed only by hostname reused HTTPS rules for HTTP, including different refusal rules. | fixed · `S-05.01.01` |
+| D-57 | 2026-11-19 | bug | high | A paced redirect restarted at its source after every deferral and could loop forever; resumption also needed a durable redirect limit. Found by self-review and reproduced before the fix. | fixed · `S-05.01.01` |
+| D-58 | 2026-11-19 | security | medium | Opening an existing FIFO as the new frontier database blocked the process before SQLite could reject it. Reproduced with a timed subprocess. | fixed · `S-05.01.01` |
+| D-59 | 2026-11-19 | bug | medium | Lowering max-depth did not prevent previously queued deeper URLs from being claimed. Reproduced before the fix. | fixed · `S-05.01.01` |
+| D-60 | 2026-11-19 | security | high | Nonlocal AI workspaces inherited global provider keys, and corrupt encrypted state silently selected an environment credential. Test-first reproductions. | fixed · `S-06.01.01` |
+| D-61 | 2026-11-19 | data-loss | high | Independent settings stores performed unlocked credential read/modify/write and could erase another writer. Thread/process reproductions. | fixed · `S-06.01.01` |
+| D-62 | 2026-11-19 | security | high | Vault v1 allowed an encrypted session to be relabelled as another workspace; capture could read browser-wide cookies. Envelope and CDP probes. | fixed · `S-06.01.01` |
+| D-63 | 2026-11-19 | security | high | Request-supplied legacy providers inherited arbitrary host environment keys and could select host commands in nonlocal instances. Boundary tests and call-path audit. | fixed · `S-06.01.01` |
+| D-64 | 2026-11-19 | bug | medium | Changing a scoped startup identity retained the previous workspace paths. Reproduced before the fix; rebinding now fails. | fixed · `S-06.01.01` |
+| D-65 | 2026-11-19 | data-loss | medium | A failed workspace settings migration could leave destination keys behind and prevent retry. Failure-injection test; new artifacts now roll back. | fixed · `S-06.01.01` |
+| D-66 | 2026-11-19 | security | high | Workspace cookie-key derivation could turn an empty signing secret into an enabled authenticator. Reproduced during self-review; derivation now requires a nonempty secret. | fixed · `S-06.01.01` |
+| D-67 | 2026-11-19 | security | high | API token provisioning followed symbolic links and could adopt another workspace token. Test-first probe; private no-follow reads and serialized provisioning now refuse it. | fixed · `S-06.01.01` |
+| D-68 | 2026-11-19 | data-loss | high | Separate workspace vault directories raced to replace the shared OS keychain master, making one session unreadable after restart. Test-first concurrent creation/reopen reproduction; common per-user initialization lock now preserves both. | fixed · `S-06.01.01` |
 
 ---
 

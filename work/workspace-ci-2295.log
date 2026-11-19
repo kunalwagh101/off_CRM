@@ -1,0 +1,924 @@
+﻿2026-11-19T17:08:08.2258726Z Current runner version: '2.338.2'
+2026-11-19T17:08:08.2282472Z ##[group]Runner Image Provisioner
+2026-11-19T17:08:08.2283293Z Hosted Compute Agent
+2026-11-19T17:08:08.2283814Z Version: 20261103.629
+2026-11-19T17:08:08.2284369Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-19T17:08:08.2285035Z Build Date: 2026-11-03T17:26:59Z
+2026-11-19T17:08:08.2285794Z Worker ID: {717e0786-22b1-403c-9b58-e9e6ce582ca7}
+2026-11-19T17:08:08.2286466Z Region: centralus
+2026-11-19T17:08:08.2286948Z Cloud: Azure
+2026-11-19T17:08:08.2287422Z ##[endgroup]
+2026-11-19T17:08:08.2288664Z ##[group]Operating System
+2026-11-19T17:08:08.2289172Z Ubuntu
+2026-11-19T17:08:08.2289655Z 26.04.1
+2026-11-19T17:08:08.2290104Z LTS
+2026-11-19T17:08:08.2290511Z ##[endgroup]
+2026-11-19T17:08:08.2291013Z ##[group]Runner Image
+2026-11-19T17:08:08.2291534Z Image: ubuntu-26.04
+2026-11-19T17:08:08.2292035Z Version: 20261111.196.1
+2026-11-19T17:08:08.2293173Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261111.196/images/ubuntu/Ubuntu2604-Readme.md
+2026-11-19T17:08:08.2294468Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261111.196
+2026-11-19T17:08:08.2295262Z ##[endgroup]
+2026-11-19T17:08:08.2296341Z ##[group]GITHUB_TOKEN Permissions
+2026-11-19T17:08:08.2298185Z Contents: read
+2026-11-19T17:08:08.2298741Z Metadata: read
+2026-11-19T17:08:08.2299208Z ##[endgroup]
+2026-11-19T17:08:08.2301137Z Secret source: Actions
+2026-11-19T17:08:08.2302047Z Cache mode: write
+2026-11-19T17:08:08.2302625Z Prepare workflow directory
+2026-11-19T17:08:08.2596849Z Prepare all required actions
+2026-11-19T17:08:08.2646633Z Getting action download info
+2026-11-19T17:08:08.5226623Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-19T17:08:08.6092050Z Download action repository 'astral-sh/setup-uv@v6' (SHA:d0cc045d04ccac9d8b7881df0226f9e82c39688e)
+2026-11-19T17:08:09.2233681Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-11-19T17:08:09.2819310Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-11-19T17:08:09.4807940Z Complete job name: quality
+2026-11-19T17:08:09.5613249Z ##[group]Run actions/checkout@v4
+2026-11-19T17:08:09.5614020Z with:
+2026-11-19T17:08:09.5614370Z   fetch-depth: 0
+2026-11-19T17:08:09.5614743Z   repository: kunalwagh101/off_CRM
+2026-11-19T17:08:09.5618299Z   token: ***
+2026-11-19T17:08:09.5618650Z   ssh-strict: true
+2026-11-19T17:08:09.5699631Z   ssh-user: git
+2026-11-19T17:08:09.5700451Z   persist-credentials: true
+2026-11-19T17:08:09.5700859Z   clean: true
+2026-11-19T17:08:09.5701253Z   sparse-checkout-cone-mode: true
+2026-11-19T17:08:09.5701731Z   fetch-tags: false
+2026-11-19T17:08:09.5702133Z   show-progress: true
+2026-11-19T17:08:09.5702525Z   lfs: false
+2026-11-19T17:08:09.5702853Z   submodules: false
+2026-11-19T17:08:09.5703235Z   set-safe-directory: true
+2026-11-19T17:08:09.5703634Z   allow-unsafe-pr-checkout: false
+2026-11-19T17:08:09.5705334Z ##[endgroup]
+2026-11-19T17:08:09.7632466Z Syncing repository: kunalwagh101/off_CRM
+2026-11-19T17:08:09.7634089Z ##[group]Getting Git version info
+2026-11-19T17:08:09.7634756Z Working directory is '/home/runner/work/off_CRM/off_CRM'
+2026-11-19T17:08:09.7635791Z [command]/usr/bin/git version
+2026-11-19T17:08:09.7659599Z git version 2.56.1
+2026-11-19T17:08:09.7679208Z ##[endgroup]
+2026-11-19T17:08:09.7694253Z Temporarily overriding HOME='/home/runner/work/_temp/20e3e742-f331-4fd9-b9c9-8a135bfe9e00' before making global git config changes
+2026-11-19T17:08:09.7695988Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-19T17:08:09.7701111Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/off_CRM/off_CRM
+2026-11-19T17:08:09.7760672Z Deleting the contents of '/home/runner/work/off_CRM/off_CRM'
+2026-11-19T17:08:09.7763976Z ##[group]Initializing the repository
+2026-11-19T17:08:09.7770359Z [command]/usr/bin/git init /home/runner/work/off_CRM/off_CRM
+2026-11-19T17:08:09.7856126Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-19T17:08:09.7857560Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-19T17:08:09.7858860Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-19T17:08:09.7859817Z hint: call:
+2026-11-19T17:08:09.7860301Z hint:
+2026-11-19T17:08:09.7861053Z hint: 	git config --global init.defaultBranch <name>
+2026-11-19T17:08:09.7861988Z hint:
+2026-11-19T17:08:09.7862835Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-19T17:08:09.7864126Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-19T17:08:09.7865350Z hint:
+2026-11-19T17:08:09.7866323Z hint: 	git branch -m <name>
+2026-11-19T17:08:09.7867128Z hint:
+2026-11-19T17:08:09.7868118Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-19T17:08:09.7869995Z Initialized empty Git repository in /home/runner/work/off_CRM/off_CRM/.git/
+2026-11-19T17:08:09.7879108Z [command]/usr/bin/git remote add origin https://github.com/kunalwagh101/off_CRM
+2026-11-19T17:08:09.7931380Z ##[endgroup]
+2026-11-19T17:08:09.7932535Z ##[group]Disabling automatic garbage collection
+2026-11-19T17:08:09.7934003Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-19T17:08:09.7970532Z ##[endgroup]
+2026-11-19T17:08:09.7971458Z ##[group]Setting up auth
+2026-11-19T17:08:09.7977336Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-19T17:08:09.8014486Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-19T17:08:09.8425517Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-19T17:08:09.8462120Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-19T17:08:09.8723354Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-19T17:08:09.8756963Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-19T17:08:09.9013849Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-19T17:08:09.9053214Z ##[endgroup]
+2026-11-19T17:08:09.9053914Z ##[group]Fetching the repository
+2026-11-19T17:08:09.9061981Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +9f950035aa8f0ae64d28f4b9e83c23232017774a:refs/remotes/pull/29/merge
+2026-11-19T17:08:11.2247977Z From https://github.com/kunalwagh101/off_CRM
+2026-11-19T17:08:11.2249622Z  * [new branch]      agent/live-integration-audit-20260907    -> origin/agent/live-integration-audit-20260907
+2026-11-19T17:08:11.2250697Z  * [new branch]      agent/off-crm-v0-12-ai-studio            -> origin/agent/off-crm-v0-12-ai-studio
+2026-11-19T17:08:11.2251523Z  * [new branch]      agent/production-contract                -> origin/agent/production-contract
+2026-11-19T17:08:11.2252334Z  * [new branch]      agent/render-demo-login                  -> origin/agent/render-demo-login
+2026-11-19T17:08:11.2253236Z  * [new branch]      agent/s-02-02-01-bounded-run-loop        -> origin/agent/s-02-02-01-bounded-run-loop
+2026-11-19T17:08:11.2253826Z  * [new branch]      agent/s-03-02-02-vault                   -> origin/agent/s-03-02-02-vault
+2026-11-19T17:08:11.2254381Z  * [new branch]      agent/s-03-02-03-revoke-forget           -> origin/agent/s-03-02-03-revoke-forget
+2026-11-19T17:08:11.2254961Z  * [new branch]      claude/abacus-ai-app-idea-t1mnja         -> origin/claude/abacus-ai-app-idea-t1mnja
+2026-11-19T17:08:11.2255795Z  * [new branch]      claude/affectionate-hawking-c35q6c       -> origin/claude/affectionate-hawking-c35q6c
+2026-11-19T17:08:11.2257286Z  * [new branch]      claude/ai-module-hardening               -> origin/claude/ai-module-hardening
+2026-11-19T17:08:11.2257891Z  * [new branch]      claude/context-layer                     -> origin/claude/context-layer
+2026-11-19T17:08:11.2258511Z  * [new branch]      claude/floqer-competitive-brief-cl2ju9   -> origin/claude/floqer-competitive-brief-cl2ju9
+2026-11-19T17:08:11.2259115Z  * [new branch]      claude/orchestration-design              -> origin/claude/orchestration-design
+2026-11-19T17:08:11.2259832Z  * [new branch]      claude/production-ai-system-design-6413s6 -> origin/claude/production-ai-system-design-6413s6
+2026-11-19T17:08:11.2260507Z  * [new branch]      claude/recall-sent-mail                  -> origin/claude/recall-sent-mail
+2026-11-19T17:08:11.2261387Z  * [new branch]      claude/vigilant-pascal-acjg05            -> origin/claude/vigilant-pascal-acjg05
+2026-11-19T17:08:11.2262363Z  * [new branch]      codex/crawler-agent-capabilities-20261119-8d93d69 -> origin/codex/crawler-agent-capabilities-20261119-8d93d69
+2026-11-19T17:08:11.2263093Z  * [new branch]      codex/inspectable-outreach-v0-8          -> origin/codex/inspectable-outreach-v0-8
+2026-11-19T17:08:11.2263576Z  * [new branch]      develop                                  -> origin/develop
+2026-11-19T17:08:11.2264089Z  * [new branch]      feature/audit-wp1-audit-baseline-merge   -> origin/feature/audit-wp1-audit-baseline-merge
+2026-11-19T17:08:11.2264794Z  * [new branch]      feature/audit-wp1-durable-state-safe-recovery -> origin/feature/audit-wp1-durable-state-safe-recovery
+2026-11-19T17:08:11.2265468Z  * [new branch]      feature/audit-wp1-with-live-audit-tests  -> origin/feature/audit-wp1-with-live-audit-tests
+2026-11-19T17:08:11.2266279Z  * [new branch]      feature/next-three-batch-2               -> origin/feature/next-three-batch-2
+2026-11-19T17:08:11.2266803Z  * [new branch]      feature/next-three-batch-3               -> origin/feature/next-three-batch-3
+2026-11-19T17:08:11.2267310Z  * [new branch]      feature/next-three-batch-4               -> origin/feature/next-three-batch-4
+2026-11-19T17:08:11.2268080Z  * [new branch]      feature/next-three-implementation        -> origin/feature/next-three-implementation
+2026-11-19T17:08:11.2268817Z  * [new branch]      feature/s-02-02-01-run-loop              -> origin/feature/s-02-02-01-run-loop
+2026-11-19T17:08:11.2269343Z  * [new branch]      feature/s-02-02-02-plan-md               -> origin/feature/s-02-02-02-plan-md
+2026-11-19T17:08:11.2270235Z  * [new branch]      feature/s-03-02-05-platform-registry     -> origin/feature/s-03-02-05-platform-registry
+2026-11-19T17:08:11.2270953Z  * [new branch]      feature/s-04-01-01-companions            -> origin/feature/s-04-01-01-companions
+2026-11-19T17:08:11.2271498Z  * [new branch]      feature/s-05-01-01-crawler-frontier      -> origin/feature/s-05-01-01-crawler-frontier
+2026-11-19T17:08:11.2272082Z  * [new branch]      feature/s-06-01-01-workspace-isolation   -> origin/feature/s-06-01-01-workspace-isolation
+2026-11-19T17:08:11.2272706Z  * [new branch]      feature/s-06-01-04-agent-routines        -> origin/feature/s-06-01-04-agent-routines
+2026-11-19T17:08:11.2273261Z  * [new branch]      feature/s-06-02-01-no-secret-egress      -> origin/feature/s-06-02-01-no-secret-egress
+2026-11-19T17:08:11.2273806Z  * [new branch]      feature/s-06-02-01-secret-egress         -> origin/feature/s-06-02-01-secret-egress
+2026-11-19T17:08:11.2274343Z  * [new branch]      feature/s-06-02-02-api-boundaries        -> origin/feature/s-06-02-02-api-boundaries
+2026-11-19T17:08:11.2274888Z  * [new branch]      feature/s-06-02-05-accessibility         -> origin/feature/s-06-02-05-accessibility
+2026-11-19T17:08:11.2275422Z  * [new branch]      feature/s-06-02-16-frontend-audit        -> origin/feature/s-06-02-16-frontend-audit
+2026-11-19T17:08:11.2276152Z  * [new branch]      feature/s-06-02-17-done-dependency-integrity -> origin/feature/s-06-02-17-done-dependency-integrity
+2026-11-19T17:08:11.2276978Z  * [new branch]      feature/s-07-01-03-meeting-transcription -> origin/feature/s-07-01-03-meeting-transcription
+2026-11-19T17:08:11.2277620Z  * [new branch]      feature/s-07-01-04-reports-artifacts     -> origin/feature/s-07-01-04-reports-artifacts
+2026-11-19T17:08:11.2278247Z  * [new branch]      feature/s-11-02-01-structured-run-results -> origin/feature/s-11-02-01-structured-run-results
+2026-11-19T17:08:11.2278868Z  * [new branch]      feature/s-11-02-02-provenance            -> origin/feature/s-11-02-02-provenance
+2026-11-19T17:08:11.2279445Z  * [new branch]      feature/s-11-02-03-claim-verification    -> origin/feature/s-11-02-03-claim-verification
+2026-11-19T17:08:11.2280044Z  * [new branch]      feature/s-11-02-04-page-read-cache       -> origin/feature/s-11-02-04-page-read-cache
+2026-11-19T17:08:11.2280618Z  * [new branch]      integration/main-consolidation           -> origin/integration/main-consolidation
+2026-11-19T17:08:11.2281127Z  * [new branch]      main                                     -> origin/main
+2026-11-19T17:08:11.2281628Z  * [new branch]      planning/next-three-features             -> origin/planning/next-three-features
+2026-11-19T17:08:11.2282204Z  * [new branch]      s-06-02-03-cost-latency-budgets          -> origin/s-06-02-03-cost-latency-budgets
+2026-11-19T17:08:11.2282724Z  * [new ref]         9f950035aa8f0ae64d28f4b9e83c23232017774a -> pull/29/merge
+2026-11-19T17:08:11.2284122Z ##[endgroup]
+2026-11-19T17:08:11.2284519Z ##[group]Determining the checkout info
+2026-11-19T17:08:11.2284963Z ##[endgroup]
+2026-11-19T17:08:11.2285238Z [command]/usr/bin/git sparse-checkout disable
+2026-11-19T17:08:11.2312214Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-19T17:08:11.2345054Z ##[group]Checking out the ref
+2026-11-19T17:08:11.2349020Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/29/merge
+2026-11-19T17:08:11.2855433Z Note: switching to 'refs/remotes/pull/29/merge'.
+2026-11-19T17:08:11.2856205Z 
+2026-11-19T17:08:11.2856554Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-11-19T17:08:11.2857307Z changes and commit them, and you can discard any commits you make in this
+2026-11-19T17:08:11.2857788Z state without impacting any branches by switching back to a branch.
+2026-11-19T17:08:11.2858048Z 
+2026-11-19T17:08:11.2858258Z If you want to create a new branch to retain commits you create, you may
+2026-11-19T17:08:11.2858712Z do so (now or later) by using -c with the switch command. Example:
+2026-11-19T17:08:11.2858948Z 
+2026-11-19T17:08:11.2859084Z   git switch -c <new-branch-name>
+2026-11-19T17:08:11.2859428Z 
+2026-11-19T17:08:11.2859554Z Or undo this operation with:
+2026-11-19T17:08:11.2859753Z 
+2026-11-19T17:08:11.2859852Z   git switch -
+2026-11-19T17:08:11.2860000Z 
+2026-11-19T17:08:11.2860245Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-11-19T17:08:11.2860524Z 
+2026-11-19T17:08:11.2860869Z HEAD is now at 9f95003 Merge 487f85dcfa6799e411d4ed6a1c511d9c8c20631c into 87381c89e23eb33d3041cb65914df9c2ba1d1e3a
+2026-11-19T17:08:11.2875415Z ##[endgroup]
+2026-11-19T17:08:11.2921987Z [command]/usr/bin/git log -1 --format=%H
+2026-11-19T17:08:11.2949322Z 9f950035aa8f0ae64d28f4b9e83c23232017774a
+2026-11-19T17:08:11.3210637Z ##[group]Run astral-sh/setup-uv@v6
+2026-11-19T17:08:11.3210942Z with:
+2026-11-19T17:08:11.3211169Z   activate-environment: false
+2026-11-19T17:08:11.3211468Z   working-directory: /home/runner/work/off_CRM/off_CRM
+2026-11-19T17:08:11.3211818Z   server-url: https://github.com
+2026-11-19T17:08:11.3214192Z   github-token: ***
+2026-11-19T17:08:11.3214423Z   enable-cache: auto
+2026-11-19T17:08:11.3214926Z   cache-dependency-glob: **/*requirements*.txt
+**/*requirements*.in
+**/*constraints*.txt
+**/*constraints*.in
+**/pyproject.toml
+**/uv.lock
+**/*.py.lock
+
+2026-11-19T17:08:11.3215467Z   restore-cache: true
+2026-11-19T17:08:11.3215934Z   save-cache: true
+2026-11-19T17:08:11.3216174Z   prune-cache: true
+2026-11-19T17:08:11.3216605Z   ignore-nothing-to-cache: false
+2026-11-19T17:08:11.3216875Z   ignore-empty-workdir: false
+2026-11-19T17:08:11.3217135Z   add-problem-matchers: true
+2026-11-19T17:08:11.3217384Z ##[endgroup]
+2026-11-19T17:08:11.4884079Z (node:2216) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:08:11.4885102Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:08:11.5071478Z Trying to find version for uv in: /home/runner/work/off_CRM/off_CRM/uv.toml
+2026-11-19T17:08:11.5088593Z Could not find file: /home/runner/work/off_CRM/off_CRM/uv.toml
+2026-11-19T17:08:11.5089386Z Trying to find version for uv in: /home/runner/work/off_CRM/off_CRM/pyproject.toml
+2026-11-19T17:08:11.5127471Z Could not determine uv version from uv.toml or pyproject.toml. Falling back to latest.
+2026-11-19T17:08:11.5129117Z Getting latest version from GitHub API...
+2026-11-19T17:08:11.8518580Z manifest-file not provided, reading from local file.
+2026-11-19T17:08:11.8567276Z manifest-file does not contain version 0.13.9, arch x86_64, platform unknown-linux-gnu. Falling back to GitHub releases.
+2026-11-19T17:08:11.8576006Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+2026-11-19T17:08:12.2263224Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/f20839f4-8c60-4a9d-88bb-70cdcc5be33d -f /home/runner/work/_temp/1b68c961-057b-4ea5-b817-de5d8f419f52
+2026-11-19T17:08:12.5637402Z Added /home/runner/.local/bin to the path
+2026-11-19T17:08:12.5639869Z Added /opt/hostedtoolcache/uv/0.13.9/x86_64 to the path
+2026-11-19T17:08:12.5664042Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:12.5664549Z Successfully installed uv version 0.13.9
+2026-11-19T17:08:12.5666822Z Searching files using cache dependency glob: /home/runner/work/off_CRM/off_CRM/**/*requirements*.txt,/home/runner/work/off_CRM/off_CRM/**/*requirements*.in,/home/runner/work/off_CRM/off_CRM/**/*constraints*.txt,/home/runner/work/off_CRM/off_CRM/**/*constraints*.in,/home/runner/work/off_CRM/off_CRM/**/pyproject.toml,/home/runner/work/off_CRM/off_CRM/**/uv.lock,/home/runner/work/off_CRM/off_CRM/**/*.py.lock
+2026-11-19T17:08:12.6146724Z /home/runner/work/off_CRM/off_CRM/pyproject.toml
+2026-11-19T17:08:12.6160559Z /home/runner/work/off_CRM/off_CRM/requirements.txt
+2026-11-19T17:08:12.6342849Z /home/runner/work/off_CRM/off_CRM/uv.lock
+2026-11-19T17:08:12.6406944Z Found 3 files to hash.
+2026-11-19T17:08:12.7045050Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.14.4-pruned-9590371f6bb841437a0b58c7f578d3b0113fed13376865d4bc4afa81b1417817
+2026-11-19T17:08:12.8382599Z Cache hit for: setup-uv-1-x86_64-unknown-linux-gnu-3.14.4-pruned-9590371f6bb841437a0b58c7f578d3b0113fed13376865d4bc4afa81b1417817
+2026-11-19T17:08:12.8464424Z (node:2216) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-19T17:08:13.3614056Z Received 2046816 of 2046816 (100.0%), 5.4 MBs/sec
+2026-11-19T17:08:13.3614794Z Cache Size: ~2 MB (2046816 B)
+2026-11-19T17:08:13.3633480Z [command]/usr/bin/tar -xf /home/runner/work/_temp/dcd452a1-2f1b-409d-bc7f-1c9f14fc37e9/cache.tzst -P -C /home/runner/work/off_CRM/off_CRM --use-compress-program unzstd
+2026-11-19T17:08:13.3779722Z Cache restored successfully
+2026-11-19T17:08:13.3784872Z uv cache restored from GitHub Actions cache with key: setup-uv-1-x86_64-unknown-linux-gnu-3.14.4-pruned-9590371f6bb841437a0b58c7f578d3b0113fed13376865d4bc4afa81b1417817
+2026-11-19T17:08:13.3974400Z ##[group]Run actions/setup-python@v5
+2026-11-19T17:08:13.3974660Z with:
+2026-11-19T17:08:13.3974840Z   python-version: 3.12
+2026-11-19T17:08:13.3975038Z   check-latest: false
+2026-11-19T17:08:13.3977361Z   token: ***
+2026-11-19T17:08:13.3977555Z   update-environment: true
+2026-11-19T17:08:13.3977929Z   allow-prereleases: false
+2026-11-19T17:08:13.3978126Z   freethreaded: false
+2026-11-19T17:08:13.3978308Z env:
+2026-11-19T17:08:13.3978519Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:13.3978779Z ##[endgroup]
+2026-11-19T17:08:13.5125413Z ##[group]Installed versions
+2026-11-19T17:08:13.5252508Z (node:2245) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:08:13.5253428Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:08:13.5254005Z Successfully set up CPython (3.12.16)
+2026-11-19T17:08:13.5254560Z ##[endgroup]
+2026-11-19T17:08:13.5452727Z ##[group]Run actions/setup-node@v4
+2026-11-19T17:08:13.5452965Z with:
+2026-11-19T17:08:13.5453136Z   node-version: 24
+2026-11-19T17:08:13.5453317Z   cache: npm
+2026-11-19T17:08:13.5453631Z   cache-dependency-path: frontend/package-lock.json
+2026-11-19T17:08:13.5453950Z   always-auth: false
+2026-11-19T17:08:13.5454185Z   check-latest: false
+2026-11-19T17:08:13.5456642Z   token: ***
+2026-11-19T17:08:13.5456821Z env:
+2026-11-19T17:08:13.5457024Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:13.5457351Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:13.5457734Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:13.5458087Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:13.5458399Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:13.5458701Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:13.5459061Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:13.5459337Z ##[endgroup]
+2026-11-19T17:08:13.6710348Z (node:2253) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:08:13.6711034Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:08:13.6727007Z Found in cache @ /opt/hostedtoolcache/node/24.22.2/x64
+2026-11-19T17:08:13.6728138Z ##[group]Environment details
+2026-11-19T17:08:14.0050986Z node: v24.22.2
+2026-11-19T17:08:14.0051330Z npm: 11.19.1
+2026-11-19T17:08:14.0051593Z yarn: 1.22.22
+2026-11-19T17:08:14.0052181Z ##[endgroup]
+2026-11-19T17:08:14.0068883Z [command]/opt/hostedtoolcache/node/24.22.2/x64/bin/npm config get cache
+2026-11-19T17:08:14.1007874Z /home/runner/.npm
+2026-11-19T17:08:14.2610650Z Cache hit for: node-cache-Linux-x64-npm-bddba9b496d28d3735f2b4781ec9a9ba1af4f7c752ddbfe08c93d414df0bb67b
+2026-11-19T17:08:14.2698845Z (node:2253) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-19T17:08:15.0069744Z Received 38247873 of 38247873 (100.0%), 58.9 MBs/sec
+2026-11-19T17:08:15.0070273Z Cache Size: ~36 MB (38247873 B)
+2026-11-19T17:08:15.0091989Z [command]/usr/bin/tar -xf /home/runner/work/_temp/a69bf1bf-f74f-44c1-abc2-f5da6eee8a1b/cache.tzst -P -C /home/runner/work/off_CRM/off_CRM --use-compress-program unzstd
+2026-11-19T17:08:15.0725525Z Cache restored successfully
+2026-11-19T17:08:15.0745915Z Cache restored from key: node-cache-Linux-x64-npm-bddba9b496d28d3735f2b4781ec9a9ba1af4f7c752ddbfe08c93d414df0bb67b
+2026-11-19T17:08:15.0944396Z ##[group]Run uv sync --extra dev --extra email --locked
+2026-11-19T17:08:15.0944815Z [36;1muv sync --extra dev --extra email --locked[0m
+2026-11-19T17:08:15.1006765Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:15.1007044Z env:
+2026-11-19T17:08:15.1007281Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:15.1007648Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:15.1008023Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:15.1008385Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:15.1008990Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:15.1009324Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:15.1009662Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:15.1009947Z ##[endgroup]
+2026-11-19T17:08:15.1185445Z Using CPython 3.12.16 interpreter at: /opt/hostedtoolcache/Python/3.12.16/x64/bin/python3
+2026-11-19T17:08:15.1186391Z Creating virtual environment at: .venv
+2026-11-19T17:08:15.1240731Z Resolved 137 packages in 1ms
+2026-11-19T17:08:15.1377193Z    Building offsetx-apollo-builder @ file:///home/runner/work/off_CRM/off_CRM
+2026-11-19T17:08:15.2164835Z Downloading lxml (5.0MiB)
+2026-11-19T17:08:15.2350540Z Downloading pydantic-core (2.0MiB)
+2026-11-19T17:08:15.2353379Z Downloading botocore (15.0MiB)
+2026-11-19T17:08:15.2354916Z Downloading cryptography (4.5MiB)
+2026-11-19T17:08:15.2355924Z Downloading pygments (1.2MiB)
+2026-11-19T17:08:15.2357773Z Downloading pandas (10.4MiB)
+2026-11-19T17:08:15.2361752Z Downloading rapidfuzz (3.0MiB)
+2026-11-19T17:08:15.2363804Z Downloading uvloop (4.2MiB)
+2026-11-19T17:08:15.2374197Z Downloading numpy (15.9MiB)
+2026-11-19T17:08:15.2379240Z Downloading ruff (10.5MiB)
+2026-11-19T17:08:15.5986608Z  Downloaded pygments
+2026-11-19T17:08:15.6528411Z  Downloaded pydantic-core
+2026-11-19T17:08:15.6905052Z  Downloaded rapidfuzz
+2026-11-19T17:08:15.7341541Z  Downloaded uvloop
+2026-11-19T17:08:15.7647183Z  Downloaded cryptography
+2026-11-19T17:08:15.7668975Z  Downloaded lxml
+2026-11-19T17:08:15.8476619Z  Downloaded ruff
+2026-11-19T17:08:15.8892359Z  Downloaded pandas
+2026-11-19T17:08:15.8990282Z  Downloaded botocore
+2026-11-19T17:08:15.8990674Z  Downloaded numpy
+2026-11-19T17:08:16.4780305Z       Built offsetx-apollo-builder @ file:///home/runner/work/off_CRM/off_CRM
+2026-11-19T17:08:16.4791277Z Prepared 55 packages in 1.35s
+2026-11-19T17:08:16.5490501Z Installed 55 packages in 69ms
+2026-11-19T17:08:16.5490949Z  + annotated-doc==0.0.4
+2026-11-19T17:08:16.5491310Z  + annotated-types==0.7.0
+2026-11-19T17:08:16.5491621Z  + anyio==4.14.2
+2026-11-19T17:08:16.5491888Z  + boto3==1.43.78
+2026-11-19T17:08:16.5492160Z  + botocore==1.43.78
+2026-11-19T17:08:16.5492436Z  + certifi==2026.6.17
+2026-11-19T17:08:16.5492713Z  + cffi==2.1.0
+2026-11-19T17:08:16.5492992Z  + charset-normalizer==3.4.9
+2026-11-19T17:08:16.5493325Z  + click==8.4.2
+2026-11-19T17:08:16.5496232Z  + cryptography==50.0.0
+2026-11-19T17:08:16.5502875Z  + cssselect==1.4.0
+2026-11-19T17:08:16.5503183Z  + et-xmlfile==2.0.0
+2026-11-19T17:08:16.5503454Z  + fastapi==0.139.0
+2026-11-19T17:08:16.5503711Z  + h11==0.16.0
+2026-11-19T17:08:16.5503961Z  + httpcore==1.0.9
+2026-11-19T17:08:16.5504230Z  + httptools==0.8.0
+2026-11-19T17:08:16.5504791Z  + httpx==0.28.1
+2026-11-19T17:08:16.5505072Z  + idna==3.18
+2026-11-19T17:08:16.5505333Z  + iniconfig==2.3.0
+2026-11-19T17:08:16.5505753Z  + jmespath==1.1.0
+2026-11-19T17:08:16.5506073Z  + lxml==6.1.1
+2026-11-19T17:08:16.5506347Z  + numpy==2.5.1
+2026-11-19T17:08:16.5506896Z  + offsetx-apollo-builder==0.12.0 (from file:///home/runner/work/off_CRM/off_CRM)
+2026-11-19T17:08:16.5507464Z  + openpyxl==3.1.5
+2026-11-19T17:08:16.5507749Z  + orjson==3.11.9
+2026-11-19T17:08:16.5508024Z  + packaging==26.2
+2026-11-19T17:08:16.5508310Z  + pandas==3.0.3
+2026-11-19T17:08:16.5508605Z  + pluggy==1.6.0
+2026-11-19T17:08:16.5508951Z  + pycparser==3.0
+2026-11-19T17:08:16.5509539Z  + pydantic==2.13.4
+2026-11-19T17:08:16.5509840Z  + pydantic-core==2.46.4
+2026-11-19T17:08:16.5510144Z  + pygments==2.20.0
+2026-11-19T17:08:16.5510416Z  + pypdf==6.16.1
+2026-11-19T17:08:16.5510696Z  + pytest==9.1.1
+2026-11-19T17:08:16.5510929Z  + python-dateutil==2.9.0.post0
+2026-11-19T17:08:16.5511175Z  + python-dotenv==1.2.2
+2026-11-19T17:08:16.5511392Z  + python-multipart==0.0.32
+2026-11-19T17:08:16.5511622Z  + pyyaml==6.0.3
+2026-11-19T17:08:16.5511816Z  + rapidfuzz==3.14.5
+2026-11-19T17:08:16.5512018Z  + requests==2.34.2
+2026-11-19T17:08:16.5512206Z  + ruff==0.16.3
+2026-11-19T17:08:16.5512394Z  + s3transfer==0.19.2
+2026-11-19T17:08:16.5512743Z  + scrapling==0.4.11
+2026-11-19T17:08:16.5512928Z  + six==1.17.0
+2026-11-19T17:08:16.5513122Z  + starlette==1.3.1
+2026-11-19T17:08:16.5513303Z  + tld==0.13.2
+2026-11-19T17:08:16.5513501Z  + typing-extensions==4.16.0
+2026-11-19T17:08:16.5513738Z  + typing-inspection==0.4.2
+2026-11-19T17:08:16.5513959Z  + urllib3==2.7.0
+2026-11-19T17:08:16.5514148Z  + uvicorn==0.51.0
+2026-11-19T17:08:16.5514342Z  + uvloop==0.22.1
+2026-11-19T17:08:16.5514534Z  + w3lib==2.4.1
+2026-11-19T17:08:16.5514733Z  + watchfiles==1.2.0
+2026-11-19T17:08:16.5526122Z  + websockets==16.1
+2026-11-19T17:08:16.5526440Z  + xlrd==2.0.2
+2026-11-19T17:08:16.5672408Z ##[group]Run npm ci
+2026-11-19T17:08:16.5672654Z [36;1mnpm ci[0m
+2026-11-19T17:08:16.5719591Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:16.5719819Z env:
+2026-11-19T17:08:16.5720038Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:16.5720379Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:16.5720769Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:16.5721132Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:16.5721456Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:16.5721772Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:16.5722082Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:16.5722364Z ##[endgroup]
+2026-11-19T17:08:17.8875348Z 
+2026-11-19T17:08:17.8876218Z added 57 packages, and audited 58 packages in 1s
+2026-11-19T17:08:17.8876569Z 
+2026-11-19T17:08:17.8877083Z 18 packages are looking for funding
+2026-11-19T17:08:17.8877823Z   run `npm fund` for details
+2026-11-19T17:08:17.9014962Z 
+2026-11-19T17:08:17.9015988Z 6 vulnerabilities (3 moderate, 3 high)
+2026-11-19T17:08:17.9016354Z 
+2026-11-19T17:08:17.9016664Z To address issues that do not require attention, run:
+2026-11-19T17:08:17.9017126Z   npm audit fix
+2026-11-19T17:08:17.9017309Z 
+2026-11-19T17:08:17.9017516Z To address all issues, run:
+2026-11-19T17:08:17.9017895Z   npm audit fix --force
+2026-11-19T17:08:17.9018106Z 
+2026-11-19T17:08:17.9018274Z Run `npm audit` for details.
+2026-11-19T17:08:17.9464750Z ##[group]Run uv run ruff check --select E9,F63,F7,F82 .
+2026-11-19T17:08:17.9465121Z [36;1muv run ruff check --select E9,F63,F7,F82 .[0m
+2026-11-19T17:08:17.9512199Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:17.9512455Z env:
+2026-11-19T17:08:17.9512691Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:17.9513036Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:17.9513402Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:17.9513765Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:17.9514091Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:17.9514412Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:17.9514738Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:17.9515033Z ##[endgroup]
+2026-11-19T17:08:18.0100314Z All checks passed!
+2026-11-19T17:08:18.0199559Z ##[group]Run uv run offsetx-apollo --help
+2026-11-19T17:08:18.0199894Z [36;1muv run offsetx-apollo --help[0m
+2026-11-19T17:08:18.0200149Z [36;1muv run offsetx-outreach --help[0m
+2026-11-19T17:08:18.0200392Z [36;1muv run offsetx-web --help[0m
+2026-11-19T17:08:18.0200627Z [36;1muv run offsetx-evals --help[0m
+2026-11-19T17:08:18.0200852Z [36;1muv run offsetx-tools --help[0m
+2026-11-19T17:08:18.0201096Z [36;1muv run offsetx-notebook --help[0m
+2026-11-19T17:08:18.0201335Z [36;1muv run offsetx-db --help[0m
+2026-11-19T17:08:18.0201571Z [36;1muv run offsetx-codegraph --help[0m
+2026-11-19T17:08:18.0201835Z [36;1muv run offsetx-email-worker --help[0m
+2026-11-19T17:08:18.0247700Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:18.0247948Z env:
+2026-11-19T17:08:18.0248169Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:18.0248706Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:18.0249127Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:18.0249480Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:18.0249800Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:18.0250106Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:18.0250411Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:18.0250691Z ##[endgroup]
+2026-11-19T17:08:19.5889178Z usage: offsetx-apollo [-h] [--exclusions [EXCLUSIONS ...]]
+2026-11-19T17:08:19.5889786Z                       [--exclusion-dir EXCLUSION_DIR]
+2026-11-19T17:08:19.5890347Z                       [--include-previous-outputs | --no-include-previous-outputs]
+2026-11-19T17:08:19.5890997Z                       [--update-exclusion-ledger | --no-update-exclusion-ledger]
+2026-11-19T17:08:19.5891570Z                       [--outdir OUTDIR] [--run-id RUN_ID] [--no-latest-copy]
+2026-11-19T17:08:19.5892183Z                       [--target-count TARGET_COUNT] [--credit-cap CREDIT_CAP]
+2026-11-19T17:08:19.5892699Z                       [--pages-per-category PAGES_PER_CATEGORY]
+2026-11-19T17:08:19.5893203Z                       [--per-page PER_PAGE] [--batch-size BATCH_SIZE]
+2026-11-19T17:08:19.5893697Z                       [--max-per-company MAX_PER_COMPANY] [--dry-run]
+2026-11-19T17:08:19.5894193Z                       [--env-file ENV_FILE] [--enrich-existing-pois]
+2026-11-19T17:08:19.5894663Z                       [--enrich-input-file ENRICH_INPUT_FILE]
+2026-11-19T17:08:19.5895116Z                       [--enrich-input-dir ENRICH_INPUT_DIR]
+2026-11-19T17:08:19.5895553Z                       [--processing-dir PROCESSING_DIR]
+2026-11-19T17:08:19.5896204Z                       [--processed-dir PROCESSED_DIR]
+2026-11-19T17:08:19.5896655Z                       [--failed-dir FAILED_DIR] [--queue-status]
+2026-11-19T17:08:19.5897091Z                       [--reuse-latest-processed]
+2026-11-19T17:08:19.5897582Z                       [--skip-existing-emails | --no-skip-existing-emails]
+2026-11-19T17:08:19.5898050Z                       [--attempt-ledger ATTEMPT_LEDGER]
+2026-11-19T17:08:19.5898577Z                       [--skip-previously-attempted | --no-skip-previously-attempted]
+2026-11-19T17:08:19.5899263Z                       [--auto-backfill-attempt-ledger | --no-auto-backfill-attempt-ledger]
+2026-11-19T17:08:19.5899661Z 
+2026-11-19T17:08:19.5900009Z Build or enrich off_CRM POIs with dedupe, analytics, and a hard Apollo credit
+2026-11-19T17:08:19.5900466Z cap.
+2026-11-19T17:08:19.5900580Z 
+2026-11-19T17:08:19.5900676Z options:
+2026-11-19T17:08:19.5900995Z   -h, --help            show this help message and exit
+2026-11-19T17:08:19.5901407Z   --exclusions [EXCLUSIONS ...]
+2026-11-19T17:08:19.5901796Z                         Optional specific old POI files to exclude.
+2026-11-19T17:08:19.5902216Z   --exclusion-dir EXCLUSION_DIR
+2026-11-19T17:08:19.5902628Z                         Folder scanned recursively for exclusion files.
+2026-11-19T17:08:19.5903600Z   --include-previous-outputs, --no-include-previous-outputs
+2026-11-19T17:08:19.5904095Z                         Exclude previous final-output contacts.
+2026-11-19T17:08:19.5904582Z   --update-exclusion-ledger, --no-update-exclusion-ledger
+2026-11-19T17:08:19.5905080Z                         Append newly accepted contacts to the permanent
+2026-11-19T17:08:19.5905487Z                         exclusion ledger.
+2026-11-19T17:08:19.5906077Z   --outdir OUTDIR       Run root. Outputs go to <outdir>/runs/<run_id>.
+2026-11-19T17:08:19.5906660Z   --run-id RUN_ID       Optional run ID. Existing non-empty run IDs are never
+2026-11-19T17:08:19.5907128Z                         overwritten.
+2026-11-19T17:08:19.5907526Z   --no-latest-copy      Do not refresh <outdir>/latest.
+2026-11-19T17:08:19.5907925Z   --target-count TARGET_COUNT
+2026-11-19T17:08:19.5908296Z                         Maximum accepted POIs with emails.
+2026-11-19T17:08:19.5908846Z   --credit-cap CREDIT_CAP
+2026-11-19T17:08:19.5909204Z                         Hard Apollo enrichment credit cap.
+2026-11-19T17:08:19.5909599Z   --pages-per-category PAGES_PER_CATEGORY
+2026-11-19T17:08:19.5909938Z   --per-page PER_PAGE
+2026-11-19T17:08:19.5910202Z   --batch-size BATCH_SIZE
+2026-11-19T17:08:19.5910580Z                         People per Apollo bulk call, 1 to 10.
+2026-11-19T17:08:19.5911008Z   --max-per-company MAX_PER_COMPANY
+2026-11-19T17:08:19.5911472Z   --dry-run             Validate, dedupe, and audit without calling Apollo.
+2026-11-19T17:08:19.5911891Z   --env-file ENV_FILE
+2026-11-19T17:08:19.5912170Z   --enrich-existing-pois
+2026-11-19T17:08:19.5912577Z                         Enrich POIs already present in CSV/XLSX/XLS files.
+2026-11-19T17:08:19.5913007Z   --enrich-input-file ENRICH_INPUT_FILE
+2026-11-19T17:08:19.5913468Z                         Use one explicit input file. The source is preserved.
+2026-11-19T17:08:19.5913908Z   --enrich-input-dir ENRICH_INPUT_DIR
+2026-11-19T17:08:19.5914260Z   --processing-dir PROCESSING_DIR
+2026-11-19T17:08:19.5914604Z   --processed-dir PROCESSED_DIR
+2026-11-19T17:08:19.5914905Z   --failed-dir FAILED_DIR
+2026-11-19T17:08:19.5915345Z   --queue-status        Show enrichment queue counts and exit without calling
+2026-11-19T17:08:19.5915942Z                         Apollo.
+2026-11-19T17:08:19.5916225Z   --reuse-latest-processed
+2026-11-19T17:08:19.5916618Z                         When inbox is empty, copy the latest processed file
+2026-11-19T17:08:19.5917140Z                         into a new run. The archived source is preserved.
+2026-11-19T17:08:19.5917611Z   --skip-existing-emails, --no-skip-existing-emails
+2026-11-19T17:08:19.5918032Z   --attempt-ledger ATTEMPT_LEDGER
+2026-11-19T17:08:19.5918358Z                         Defaults to
+2026-11-19T17:08:19.5918787Z                         old_pois/offsetx_apollo_enrichment_attempt_ledger.csv.
+2026-11-19T17:08:19.5919332Z   --skip-previously-attempted, --no-skip-previously-attempted
+2026-11-19T17:08:19.5919919Z   --auto-backfill-attempt-ledger, --no-auto-backfill-attempt-ledger
+2026-11-19T17:08:20.1379348Z usage: offsetx-outreach [-h] [--db DB]
+2026-11-19T17:08:20.1380498Z                         {create-campaign,list-campaigns,campaign-kinds,import-contacts,generate,list-drafts,approve,send,export,gmail-authorize,status}
+2026-11-19T17:08:20.1381456Z                         ...
+2026-11-19T17:08:20.1381643Z 
+2026-11-19T17:08:20.1381792Z off_CRM local outreach CRM
+2026-11-19T17:08:20.1381979Z 
+2026-11-19T17:08:20.1382109Z positional arguments:
+2026-11-19T17:08:20.1383045Z   {create-campaign,list-campaigns,campaign-kinds,import-contacts,generate,list-drafts,approve,send,export,gmail-authorize,status}
+2026-11-19T17:08:20.1384014Z     campaign-kinds      what kinds exist and which can run
+2026-11-19T17:08:20.1384352Z 
+2026-11-19T17:08:20.1384453Z options:
+2026-11-19T17:08:20.1384774Z   -h, --help            show this help message and exit
+2026-11-19T17:08:20.1385216Z   --db DB               Local SQLite database path
+2026-11-19T17:08:21.7224660Z usage: offsetx-web [-h] [--host HOST] [--port PORT]
+2026-11-19T17:08:21.7225401Z 
+2026-11-19T17:08:21.7225532Z Run the off_CRM local web CRM
+2026-11-19T17:08:21.7225916Z 
+2026-11-19T17:08:21.7225993Z options:
+2026-11-19T17:08:21.7226243Z   -h, --help   show this help message and exit
+2026-11-19T17:08:21.7226496Z   --host HOST
+2026-11-19T17:08:21.7226673Z   --port PORT
+2026-11-19T17:08:22.6295835Z usage: offsetx-evals [-h] [--data-dir DATA_DIR] [--workspace WORKSPACE]
+2026-11-19T17:08:22.6296403Z                      [--file FILE]
+2026-11-19T17:08:22.6296782Z                      {list,run,champion} ...
+2026-11-19T17:08:22.6297021Z 
+2026-11-19T17:08:22.6297254Z Measure whether orchestration beats one good model.
+2026-11-19T17:08:22.6297555Z 
+2026-11-19T17:08:22.6297689Z positional arguments:
+2026-11-19T17:08:22.6297954Z   {list,run,champion}
+2026-11-19T17:08:22.6298320Z     list                show the suites and their case counts
+2026-11-19T17:08:22.6299322Z     run                 score every connected model on a suite
+2026-11-19T17:08:22.6299830Z     champion            show what a suite currently routes to
+2026-11-19T17:08:22.6300098Z 
+2026-11-19T17:08:22.6300193Z options:
+2026-11-19T17:08:22.6300524Z   -h, --help            show this help message and exit
+2026-11-19T17:08:22.6300969Z   --data-dir DATA_DIR   override the data directory
+2026-11-19T17:08:22.6301344Z   --workspace WORKSPACE
+2026-11-19T17:08:22.6301652Z   --file FILE           path to evals.yaml
+2026-11-19T17:08:23.5205330Z usage: offsetx-tools [-h] [--data-dir DATA_DIR] [--workspace WORKSPACE]
+2026-11-19T17:08:23.5206239Z                      {register,list,show,catalogue,run,disable,enable,remove,runs}
+2026-11-19T17:08:23.5206742Z                      ...
+2026-11-19T17:08:23.5206918Z 
+2026-11-19T17:08:23.5207210Z Register and run sandboxed tools. Registration is yours alone.
+2026-11-19T17:08:23.5207550Z 
+2026-11-19T17:08:23.5207684Z positional arguments:
+2026-11-19T17:08:23.5208166Z   {register,list,show,catalogue,run,disable,enable,remove,runs}
+2026-11-19T17:08:23.5208692Z     register            pin a tool (owner only)
+2026-11-19T17:08:23.5209090Z     list                every registered tool
+2026-11-19T17:08:23.5209511Z     show                the full record for one tool
+2026-11-19T17:08:23.5209924Z     catalogue           what a model is shown
+2026-11-19T17:08:23.5210309Z     run                 run a tool in the sandbox
+2026-11-19T17:08:23.5210722Z     disable             hide a tool from the catalogue
+2026-11-19T17:08:23.5211149Z     enable              return a tool to the catalogue
+2026-11-19T17:08:23.5211544Z     remove              delete a registration
+2026-11-19T17:08:23.5211900Z     runs                run history
+2026-11-19T17:08:23.5212100Z 
+2026-11-19T17:08:23.5212201Z options:
+2026-11-19T17:08:23.5212512Z   -h, --help            show this help message and exit
+2026-11-19T17:08:23.5212872Z   --data-dir DATA_DIR
+2026-11-19T17:08:23.5213136Z   --workspace WORKSPACE
+2026-11-19T17:08:24.1211055Z usage: offsetx-notebook [-h] [--db DB] [--context CONTEXT]
+2026-11-19T17:08:24.1211716Z                         [--workspace WORKSPACE] [--owner-domain OWNER_DOMAIN]
+2026-11-19T17:08:24.1212215Z                         [--owner-address OWNER_ADDRESS]
+2026-11-19T17:08:24.1212651Z                         {targets,plan,export} ...
+2026-11-19T17:08:24.1212914Z 
+2026-11-19T17:08:24.1213141Z Build research-notebook sources from a campaign.
+2026-11-19T17:08:24.1213405Z 
+2026-11-19T17:08:24.1213544Z positional arguments:
+2026-11-19T17:08:24.1213816Z   {targets,plan,export}
+2026-11-19T17:08:24.1214168Z     targets             list export destinations
+2026-11-19T17:08:24.1214631Z     plan                show what would be exported, writing nothing
+2026-11-19T17:08:24.1215067Z     export              write the bundle
+2026-11-19T17:08:24.1215282Z 
+2026-11-19T17:08:24.1215379Z options:
+2026-11-19T17:08:24.1215991Z   -h, --help            show this help message and exit
+2026-11-19T17:08:24.1216430Z   --db DB               outreach database path
+2026-11-19T17:08:24.1216863Z   --context CONTEXT     AI context database path
+2026-11-19T17:08:24.1217650Z   --workspace WORKSPACE
+2026-11-19T17:08:24.1217944Z   --owner-domain OWNER_DOMAIN
+2026-11-19T17:08:24.1218376Z                         your own domain; the scan refuses a bundle containing
+2026-11-19T17:08:24.1218777Z                         it
+2026-11-19T17:08:24.1219079Z   --owner-address OWNER_ADDRESS
+2026-11-19T17:08:24.5928902Z usage: offsetx-db [-h] {check,copy-log} ...
+2026-11-19T17:08:24.5929238Z 
+2026-11-19T17:08:24.5929509Z Inspect the database backend and move the egress log.
+2026-11-19T17:08:24.5929798Z 
+2026-11-19T17:08:24.5929934Z positional arguments:
+2026-11-19T17:08:24.5930212Z   {check,copy-log}
+2026-11-19T17:08:24.5930608Z     check           show the target and whether it can be reached
+2026-11-19T17:08:24.5931102Z     copy-log        copy the egress log into Postgres
+2026-11-19T17:08:24.5931386Z 
+2026-11-19T17:08:24.5931495Z options:
+2026-11-19T17:08:24.5932385Z   -h, --help        show this help message and exit
+2026-11-19T17:08:24.7411765Z usage: offsetx-codegraph [-h] [--root ROOT] [--out OUT]
+2026-11-19T17:08:24.7412351Z                          {policy,build,status,verify,ignore} ...
+2026-11-19T17:08:24.7412649Z 
+2026-11-19T17:08:24.7412897Z Build a queryable map of this repository, locally.
+2026-11-19T17:08:24.7413180Z 
+2026-11-19T17:08:24.7413314Z positional arguments:
+2026-11-19T17:08:24.7413642Z   {policy,build,status,verify,ignore}
+2026-11-19T17:08:24.7414110Z     policy              show the locked invocation and refusals
+2026-11-19T17:08:24.7414570Z     build               build the graph and verify it
+2026-11-19T17:08:24.7415020Z     status              how stale the graph is
+2026-11-19T17:08:24.7415449Z     verify              re-check an existing graph
+2026-11-19T17:08:24.7416084Z     ignore              print the generated .graphifyignore
+2026-11-19T17:08:24.7416367Z 
+2026-11-19T17:08:24.7416478Z options:
+2026-11-19T17:08:24.7416824Z   -h, --help            show this help message and exit
+2026-11-19T17:08:24.7417308Z   --root ROOT           repository root (default: this repo)
+2026-11-19T17:08:24.7417782Z   --out OUT             write graphify-out/ under this directory
+2026-11-19T17:08:25.4787047Z usage: offsetx-email-worker [-h] [--database DATABASE] [--data-dir DATA_DIR]
+2026-11-19T17:08:25.4787505Z                             [--max-jobs MAX_JOBS] [--watch]
+2026-11-19T17:08:25.4787845Z                             [--poll-seconds POLL_SECONDS]
+2026-11-19T17:08:25.4788038Z 
+2026-11-19T17:08:25.4788211Z Process off_CRM's durable email delivery jobs.
+2026-11-19T17:08:25.4788398Z 
+2026-11-19T17:08:25.4788480Z options:
+2026-11-19T17:08:25.4788723Z   -h, --help            show this help message and exit
+2026-11-19T17:08:25.4789053Z   --database DATABASE   Override OFFSETX_OUTREACH_DB
+2026-11-19T17:08:25.4789368Z   --data-dir DATA_DIR   Override OFFSETX_DATA_DIR
+2026-11-19T17:08:25.4789638Z   --max-jobs MAX_JOBS
+2026-11-19T17:08:25.4789974Z   --watch               Keep polling. Without this flag exactly one bounded
+2026-11-19T17:08:25.4790313Z                         cycle runs.
+2026-11-19T17:08:25.4790550Z   --poll-seconds POLL_SECONDS
+2026-11-19T17:08:25.6548261Z ##[group]Run uv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q
+2026-11-19T17:08:25.6548843Z [36;1muv run pytest tests/test_browser_vault.py tests/test_browser_vault_wiring.py -q[0m
+2026-11-19T17:08:25.6594271Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:25.6594514Z env:
+2026-11-19T17:08:25.6594748Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:25.6595101Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:25.6595475Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:25.6596018Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:25.6596358Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:25.6596693Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:25.6597054Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:25.6597346Z ##[endgroup]
+2026-11-19T17:08:27.7869237Z ...............                                                          [100%]
+2026-11-19T17:08:27.7869973Z =============================== warnings summary ===============================
+2026-11-19T17:08:27.7870517Z offsetx_apollo_builder/browser/page.py:106
+2026-11-19T17:08:27.7871347Z   /home/runner/work/off_CRM/off_CRM/offsetx_apollo_builder/browser/page.py:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:08:27.7872143Z     ).replace(/\s+/g, ' ').trim().slice(0, 120);
+2026-11-19T17:08:27.7872418Z 
+2026-11-19T17:08:27.7872779Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-11-19T17:08:27.7873320Z 15 passed, 1 warning in 1.31s
+2026-11-19T17:08:27.9717161Z ##[group]Run uv run pytest tests/test_browser_revoke.py -q
+2026-11-19T17:08:27.9717548Z [36;1muv run pytest tests/test_browser_revoke.py -q[0m
+2026-11-19T17:08:27.9763135Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:27.9763370Z env:
+2026-11-19T17:08:27.9763585Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:27.9763936Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:27.9764292Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:27.9764644Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:27.9764966Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:27.9765283Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:27.9765702Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:27.9765976Z ##[endgroup]
+2026-11-19T17:08:30.3343192Z ......                                                                   [100%]
+2026-11-19T17:08:30.3343598Z 6 passed in 2.06s
+2026-11-19T17:08:30.4897147Z ##[group]Run uv run pytest tests/test_agent_run.py -q
+2026-11-19T17:08:30.4897546Z [36;1muv run pytest tests/test_agent_run.py -q[0m
+2026-11-19T17:08:30.4944013Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:30.4944255Z env:
+2026-11-19T17:08:30.4944508Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:30.4944856Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:30.4945222Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:30.4945785Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:30.4946149Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:30.4946494Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:30.4946835Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:30.4947128Z ##[endgroup]
+2026-11-19T17:08:31.2926425Z .......                                                                  [100%]
+2026-11-19T17:08:31.2927002Z 7 passed in 0.50s
+2026-11-19T17:08:31.4624739Z ##[group]Run uv run pytest tests/test_agent_structured_result.py -q
+2026-11-19T17:08:31.4625166Z [36;1muv run pytest tests/test_agent_structured_result.py -q[0m
+2026-11-19T17:08:31.4670880Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:31.4671133Z env:
+2026-11-19T17:08:31.4671362Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:31.4671695Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:31.4672058Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:31.4672401Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:31.4672717Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:31.4673032Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:31.4673339Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:31.4673612Z ##[endgroup]
+2026-11-19T17:08:33.1362799Z .......                                                                  [100%]
+2026-11-19T17:08:33.1363345Z 7 passed in 1.38s
+2026-11-19T17:08:33.2976547Z ##[group]Run uv run pytest tests/test_agent_provenance.py -q
+2026-11-19T17:08:33.2976961Z [36;1muv run pytest tests/test_agent_provenance.py -q[0m
+2026-11-19T17:08:33.3023006Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:33.3023259Z env:
+2026-11-19T17:08:33.3023504Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:33.3023849Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:33.3024215Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:33.3024582Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:33.3024906Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:33.3025258Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:33.3025744Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:33.3026056Z ##[endgroup]
+2026-11-19T17:08:34.9477344Z ......                                                                   [100%]
+2026-11-19T17:08:34.9477859Z 6 passed in 1.36s
+2026-11-19T17:08:35.0950520Z ##[group]Run uv run pytest tests/test_agent_claim_verification.py -q
+2026-11-19T17:08:35.0950963Z [36;1muv run pytest tests/test_agent_claim_verification.py -q[0m
+2026-11-19T17:08:35.0995989Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:35.0996218Z env:
+2026-11-19T17:08:35.0996440Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:35.0996778Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:35.0997130Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:35.0997478Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:35.0997791Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:35.0998096Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:35.0998413Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:35.0998699Z ##[endgroup]
+2026-11-19T17:08:36.7455158Z ........                                                                 [100%]
+2026-11-19T17:08:36.7455891Z 8 passed in 1.36s
+2026-11-19T17:08:36.9123107Z ##[group]Run uv run pytest -q
+2026-11-19T17:08:36.9123379Z [36;1muv run pytest -q[0m
+2026-11-19T17:08:36.9169246Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:08:36.9169482Z env:
+2026-11-19T17:08:36.9169698Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:08:36.9170034Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:36.9170400Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:08:36.9170760Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:36.9171073Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:36.9171382Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:08:36.9171720Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:08:36.9171991Z ##[endgroup]
+2026-11-19T17:08:42.1317703Z ........................................................................ [  3%]
+2026-11-19T17:08:43.1794637Z ........................................................................ [  6%]
+2026-11-19T17:08:59.6713773Z ........................................................................ [ 10%]
+2026-11-19T17:09:00.7935337Z ........................................................................ [ 13%]
+2026-11-19T17:09:10.1577580Z ........................................................................ [ 17%]
+2026-11-19T17:09:13.4399742Z ........................................................................ [ 20%]
+2026-11-19T17:09:16.6869606Z ........................................................................ [ 24%]
+2026-11-19T17:09:17.3705518Z ........................................................................ [ 27%]
+2026-11-19T17:09:21.0852527Z ........................................................................ [ 30%]
+2026-11-19T17:09:21.4833493Z ..................................................................s..... [ 34%]
+2026-11-19T17:09:23.0222231Z ........................................................................ [ 37%]
+2026-11-19T17:09:39.2430283Z ........................................................................ [ 41%]
+2026-11-19T17:09:49.9697472Z ........................................................................ [ 44%]
+2026-11-19T17:09:59.1182986Z ........................................................................ [ 48%]
+2026-11-19T17:10:20.6029084Z ........................................................................ [ 51%]
+2026-11-19T17:10:23.8000508Z ........................................................................ [ 54%]
+2026-11-19T17:10:26.3012388Z ..................................ss.................................... [ 58%]
+2026-11-19T17:10:28.5279885Z ........................................................................ [ 61%]
+2026-11-19T17:10:32.2588591Z ........................................................................ [ 65%]
+2026-11-19T17:10:38.1735033Z ........................................................................ [ 68%]
+2026-11-19T17:10:41.6684558Z ........................................................................ [ 72%]
+2026-11-19T17:10:46.8705398Z ........................................................................ [ 75%]
+2026-11-19T17:10:47.1603770Z ........................................................................ [ 79%]
+2026-11-19T17:10:47.8034664Z ........................................................................ [ 82%]
+2026-11-19T17:10:49.3001815Z ........................................................................ [ 85%]
+2026-11-19T17:10:51.4287105Z ........................................................................ [ 89%]
+2026-11-19T17:10:52.0722031Z ...................................s.................................... [ 92%]
+2026-11-19T17:10:54.3201595Z ........................................................................ [ 96%]
+2026-11-19T17:10:57.9569183Z ........................................................................ [ 99%]
+2026-11-19T17:10:59.2178006Z .......                                                                  [100%]
+2026-11-19T17:10:59.2178656Z =============================== warnings summary ===============================
+2026-11-19T17:10:59.2179232Z .venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+2026-11-19T17:10:59.2180468Z   /home/runner/work/off_CRM/off_CRM/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-11-19T17:10:59.2181272Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-11-19T17:10:59.2181520Z 
+2026-11-19T17:10:59.2181861Z tests/test_ai_egress_wall.py::test_no_module_outside_the_broker_imports_a_provider_constructor
+2026-11-19T17:10:59.2182519Z   /home/runner/work/off_CRM/off_CRM/offsetx_apollo_builder/browser/page.py:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:10:59.2183016Z     ).replace(/\s+/g, ' ').trim().slice(0, 120);
+2026-11-19T17:10:59.2183204Z 
+2026-11-19T17:10:59.2183531Z tests/test_crawl_runner.py::test_long_robots_delay_defers_without_sleep_and_survives_worker_restart
+2026-11-19T17:10:59.2184138Z tests/test_crawl_runner.py::test_paced_redirect_resumes_at_destination_instead_of_looping_at_source
+2026-11-19T17:10:59.2184696Z tests/test_crawl_runner.py::test_paced_robots_redirect_also_resumes_after_worker_restart
+2026-11-19T17:10:59.2185266Z tests/test_discovery.py::test_scrapling_parser_extracts_structured_people_without_fetcher_stealth
+2026-11-19T17:10:59.2186453Z   /home/runner/work/off_CRM/off_CRM/.venv/lib/python3.12/site-packages/lxml/html/__init__.py:1891: DeprecationWarning: The 'strip_cdata' option of HTMLParser() has never done anything and will eventually be removed.
+2026-11-19T17:10:59.2187144Z     super().__init__(**kwargs)
+2026-11-19T17:10:59.2187291Z 
+2026-11-19T17:10:59.2187532Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-11-19T17:10:59.2187954Z 2091 passed, 4 skipped, 6 warnings in 141.72s (0:02:21)
+2026-11-19T17:10:59.7929832Z ##[group]Run uv run python scripts/verify_board.py
+2026-11-19T17:10:59.7930182Z [36;1muv run python scripts/verify_board.py[0m
+2026-11-19T17:10:59.7975938Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:10:59.7976171Z env:
+2026-11-19T17:10:59.7976392Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:10:59.7976738Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:10:59.7977115Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:10:59.7977463Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:10:59.7977781Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:10:59.7978092Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:10:59.7978606Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:10:59.7978875Z ##[endgroup]
+2026-11-19T17:11:44.8808988Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:12:16.0453456Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:12:38.8481604Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:16:36.0762716Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:17:14.8663422Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:17:48.6111198Z <unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+2026-11-19T17:18:32.7186627Z 
+2026-11-19T17:18:32.7187115Z BOARD
+2026-11-19T17:18:32.7187510Z ------------------------------------------------------------
+2026-11-19T17:18:32.7187863Z   BACKLOG        12  ############
+2026-11-19T17:18:32.7188100Z   READY           6  ######
+2026-11-19T17:18:32.7188341Z   IN_PROGRESS     0    (limit 2)
+2026-11-19T17:18:32.7188590Z   IN_REVIEW       1  #
+2026-11-19T17:18:32.7188800Z   BLOCKED         3  ###
+2026-11-19T17:18:32.7189066Z   DONE           59  ########################################
+2026-11-19T17:18:32.7189342Z   DEFERRED        0  
+2026-11-19T17:18:32.7189551Z   TOTAL          81
+2026-11-19T17:18:32.7189668Z 
+2026-11-19T17:18:32.7189752Z COVERAGE
+2026-11-19T17:18:32.7190017Z ------------------------------------------------------------
+2026-11-19T17:18:32.7190307Z   requirements mapped     102
+2026-11-19T17:18:32.7190546Z   backlog IDs defined     110
+2026-11-19T17:18:32.7190764Z   acceptance criteria     175
+2026-11-19T17:18:32.7191008Z   criteria behind a DONE  139  (79%)
+2026-11-19T17:18:32.7191278Z   evidence commands run   59, passed 59
+2026-11-19T17:18:32.7191444Z 
+2026-11-19T17:18:32.7191545Z NOT BUILT YET (22)
+2026-11-19T17:18:32.7191818Z ------------------------------------------------------------
+2026-11-19T17:18:32.7192230Z     S-06.02.16   BACKLOG      Resolve frontend development dependency audit findings
+2026-11-19T17:18:32.7192616Z     S-02.02.03   BACKLOG      Interrupt, steer, resume
+2026-11-19T17:18:32.7192961Z     S-04.01.02   BACKLOG      Skills: procedures fetched on demand
+2026-11-19T17:18:32.7193313Z     S-04.01.03   BACKLOG      Sub-agents for context isolation
+2026-11-19T17:18:32.7193689Z     S-04.01.04   BACKLOG      The five roles, wired to what already exists
+2026-11-19T17:18:32.7194061Z     S-05.01.02   BACKLOG      Extraction packs as declared data
+2026-11-19T17:18:32.7194453Z     S-05.01.03   BACKLOG      Take a competitor post apart and rebuild the shape
+2026-11-19T17:18:32.7194816Z     S-06.01.02   BACKLOG      Three-level permissions
+2026-11-19T17:18:32.7195156Z     S-06.01.05   BACKLOG      Deployment, monitoring and rollback
+2026-11-19T17:18:32.7195501Z     S-06.02.04   BACKLOG      Data deletion and subject access
+2026-11-19T17:18:32.7196300Z     S-07.01.01   BACKLOG      An MCP client
+2026-11-19T17:18:32.7196591Z     S-07.01.02   BACKLOG      Native OAuth integrations
+2026-11-19T17:18:32.7196973Z     S-06.01.04   READY        Routines that fire agent runs on a schedule or an event
+2026-11-19T17:18:32.7197363Z     S-06.02.01   READY        No secret may enter a model prompt
+2026-11-19T17:18:32.7198177Z     S-06.02.02   READY        Every endpoint authorises and validates
+2026-11-19T17:18:32.7198570Z     S-06.02.05   READY        The UI is usable by keyboard and screen reader
+2026-11-19T17:18:32.7198962Z     S-07.01.03   READY        Meeting transcription with no bot in the call
+2026-11-19T17:18:32.7199299Z     S-07.01.04   READY        Reports and artifacts
+2026-11-19T17:18:32.7199678Z   ? S-06.01.01   IN_REVIEW    Workspaces with their own keys and their own logins
+2026-11-19T17:18:32.7200082Z   ! S-01.05.01   BLOCKED      Publish to YouTube through the official API
+2026-11-19T17:18:32.7200485Z   ! S-01.05.02   BLOCKED      One adapter contract for the remaining platforms
+2026-11-19T17:18:32.7200873Z   ! S-01.05.03   BLOCKED      Read real engagement back from the platform
+2026-11-19T17:18:32.7201402Z   67 defect(s) logged, 29 design decision(s) recorded.
+2026-11-19T17:18:32.7201716Z   58 recorded commit(s), all on this branch.
+2026-11-19T17:18:32.7202123Z   5 story(s) could be pulled today: S-02.02.03, S-04.01.02, S-04.01.03, S-05.01.02, S-06.02.16
+2026-11-19T17:18:32.7202398Z 
+2026-11-19T17:18:32.7202775Z OK — the board matches the repository.
+2026-11-19T17:18:32.7321056Z ##[group]Run npm test
+2026-11-19T17:18:32.7321281Z [36;1mnpm test[0m
+2026-11-19T17:18:32.7366033Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:18:32.7366259Z env:
+2026-11-19T17:18:32.7366473Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:18:32.7366799Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:32.7367156Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:18:32.7367496Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:32.7367810Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:32.7368134Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:32.7368451Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:18:32.7368719Z ##[endgroup]
+2026-11-19T17:18:32.8232131Z 
+2026-11-19T17:18:32.8232668Z > off-crm@0.12.0 test
+2026-11-19T17:18:32.8233048Z > vitest run
+2026-11-19T17:18:32.8233217Z 
+2026-11-19T17:18:33.0727240Z 
+2026-11-19T17:18:33.0730265Z [1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90m/home/runner/work/off_CRM/off_CRM/frontend[39m
+2026-11-19T17:18:33.0730915Z 
+2026-11-19T17:18:33.3049824Z  [32m✓[39m src/video/audio.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+2026-11-19T17:18:33.3349399Z  [32m✓[39m src/video/demux.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+2026-11-19T17:18:33.3603467Z  [32m✓[39m src/video/footage.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+2026-11-19T17:18:33.5591689Z  [32m✓[39m src/video/effects.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+2026-11-19T17:18:33.5597137Z  [32m✓[39m src/video/retime.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+2026-11-19T17:18:33.5777608Z  [32m✓[39m src/video/resolve.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 64[2mms[22m[39m
+2026-11-19T17:18:33.7474755Z  [32m✓[39m src/video/mixdown.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-11-19T17:18:34.1043661Z  [32m✓[39m src/components.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+2026-11-19T17:18:34.1063737Z 
+2026-11-19T17:18:34.1068266Z [2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+2026-11-19T17:18:34.1069038Z [2m      Tests [22m [1m[32m116 passed[39m[22m[90m (116)[39m
+2026-11-19T17:18:34.1069603Z [2m   Start at [22m 17:18:33
+2026-11-19T17:18:34.1070459Z [2m   Duration [22m 1.03s[2m (transform 612ms, setup 0ms, import 893ms, tests 223ms, environment 1ms)[22m
+2026-11-19T17:18:34.1070940Z 
+2026-11-19T17:18:34.1459460Z ##[group]Run npm run build
+2026-11-19T17:18:34.1459722Z [36;1mnpm run build[0m
+2026-11-19T17:18:34.1507485Z shell: /usr/bin/bash -e {0}
+2026-11-19T17:18:34.1507803Z env:
+2026-11-19T17:18:34.1508124Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-11-19T17:18:34.1508631Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:34.1509194Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib/pkgconfig
+2026-11-19T17:18:34.1509765Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:34.1510258Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:34.1510748Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.16/x64
+2026-11-19T17:18:34.1511269Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.16/x64/lib
+2026-11-19T17:18:34.1511682Z ##[endgroup]
+2026-11-19T17:18:34.2337034Z 
+2026-11-19T17:18:34.2337634Z > off-crm@0.12.0 build
+2026-11-19T17:18:34.2338046Z > tsc -b && vite build
+2026-11-19T17:18:34.2338309Z 
+2026-11-19T17:18:34.9294405Z [36mvite v8.1.4 [32mbuilding client environment for production...[36m[39m
+2026-11-19T17:18:34.9407198Z [2K
+2026-11-19T17:18:34.9905798Z transforming...✓ 58 modules transformed.
+2026-11-19T17:18:35.0212556Z rendering chunks...
+2026-11-19T17:18:35.0601595Z computing gzip size...
+2026-11-19T17:18:35.0657979Z dist/index.html                   0.52 kB │ gzip:   0.32 kB
+2026-11-19T17:18:35.0658553Z dist/assets/index-DNs2zWhb.css   75.97 kB │ gzip:  15.68 kB
+2026-11-19T17:18:35.0658999Z dist/assets/index-BNU5_S-g.js   496.83 kB │ gzip: 141.41 kB
+2026-11-19T17:18:35.0659201Z 
+2026-11-19T17:18:35.0660544Z [32m✓ built in 135ms[39m
+2026-11-19T17:18:35.0940807Z Post job cleanup.
+2026-11-19T17:18:35.1935460Z (node:43349) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:18:35.1936336Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:18:35.1938455Z Cache hit occurred on the primary key node-cache-Linux-x64-npm-bddba9b496d28d3735f2b4781ec9a9ba1af4f7c752ddbfe08c93d414df0bb67b, not saving cache.
+2026-11-19T17:18:35.2065024Z Post job cleanup.
+2026-11-19T17:18:35.3037270Z (node:43357) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:18:35.3037969Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:18:35.3156988Z Post job cleanup.
+2026-11-19T17:18:35.4242065Z Cache hit occurred on key setup-uv-1-x86_64-unknown-linux-gnu-3.14.4-pruned-9590371f6bb841437a0b58c7f578d3b0113fed13376865d4bc4afa81b1417817, not saving cache.
+2026-11-19T17:18:35.4243796Z (node:43365) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-19T17:18:35.4245845Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-19T17:18:35.4364862Z Post job cleanup.
+2026-11-19T17:18:35.5048657Z [command]/usr/bin/git version
+2026-11-19T17:18:35.5087040Z git version 2.56.1
+2026-11-19T17:18:35.5120942Z Temporarily overriding HOME='/home/runner/work/_temp/538aedb7-6328-4fc2-9a71-f96f1dbcab71' before making global git config changes
+2026-11-19T17:18:35.5122214Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-19T17:18:35.5123838Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/off_CRM/off_CRM
+2026-11-19T17:18:35.5159258Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-19T17:18:35.5189709Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-19T17:18:35.5461900Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-19T17:18:35.5485245Z http.https://github.com/.extraheader
+2026-11-19T17:18:35.5498001Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-19T17:18:35.5536023Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-19T17:18:35.5816770Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-19T17:18:35.5850975Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-19T17:18:35.6226566Z Cleaning up orphan processes
+2026-11-19T17:18:35.6537019Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, astral-sh/setup-uv@v6. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

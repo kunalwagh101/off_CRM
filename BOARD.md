@@ -41,7 +41,6 @@ indented `blocked: <Q-nn or a named external dependency>`.
 recorded in `OPEN_QUESTIONS.md` rather than the questions being deleted, so the
 reasoning survives the unblocking.)*
 
-- S-03.02.05 · A platform is a row, not a code change
 
 *(E-11 — the autonomous browsing epic. Only the stories whose upstream
 dependencies are already DONE are READY; the rest wait in BACKLOG, because the
@@ -55,10 +54,6 @@ declare is DONE, and no open question is filed against any of them. They had
 been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
-- S-02.02.02 · PLAN.md as the single source of truth
-- S-04.01.01 · Companions: persisted agent profiles
-- S-05.01.01 · A crawler with a frontier, not a loop
-- S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.02.01 · No secret may enter a model prompt
 - S-06.02.02 · Every endpoint authorises and validates
@@ -68,11 +63,17 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+_nothing claimed_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.01.01 · Workspaces with their own keys and their own logins
+  owner: Codex /root
+  work_order: work/WORKSPACE_WORK_ORDER.md
+  started: 2026-11-19
+  reopened: test-first OS keychain master initialization race across separate workspace directories; previous CI remains valid for its earlier revision
+  review: D-68 fixed; 117 affected checks passed; fresh full CI required
+  evidence: work/WORKSPACE_EVIDENCE.md
 
 ## BLOCKED
 
@@ -84,6 +85,52 @@ _nothing waiting_
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-05.01.01 · A crawler with a frontier, not a loop
+  owner: Codex /root
+  work_order: work/CRAWLER_WORK_ORDER.md
+  tests: tests/test_crawl_frontier.py, tests/test_crawl_runner.py, tests/test_crawl_fetch_safety.py, tests/test_crawl_cli.py
+  command: uv run pytest tests/test_crawl_cli.py tests/test_crawl_frontier.py tests/test_crawl_runner.py tests/test_crawl_fetch_safety.py tests/test_discovery.py tests/test_exclusion_discovery.py tests/test_parallel_discovery_and_notion.py tests/test_security_audit.py tests/test_ai_egress_wall.py -q
+  result: 125 passed, 6 warnings in 14.55s (2026-11-19)
+  code: offsetx_apollo_builder/crawl/frontier.py, offsetx_apollo_builder/crawl/runner.py, offsetx_apollo_builder/crawl_cli.py, offsetx_apollo_builder/discovery.py
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
+  review: implementer self-review; work/CRAWLER_EVIDENCE.md
+  limitation: managed local Chromium is unavailable; the full browser/project gate passed in GitHub CI; no deployment or independent penetration test is claimed
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/44519704852 — full Python 2060 passed, 4 skipped; frontend 116 passed and build passed; 55/55 historical evidence commands passed (2026-11-19)
+
+- S-04.01.01 · Companions: persisted agent profiles
+  owner: Codex /root
+  tests: tests/test_agent_companions.py
+  command: uv run pytest tests/test_agent_companions.py tests/test_agent_plan.py tests/test_browser_platform_registry.py tests/test_agent_report.py tests/test_agent_resume.py tests/test_agent_run.py tests/test_ai_egress_wall.py tests/test_security_audit.py -q
+  result: 175 passed, 2 warnings in 5.94s (2026-11-19)
+  code: offsetx_apollo_builder/agent/companions.py, offsetx_apollo_builder/agent/run.py
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
+  review: implementer self-review; work/DELIVERY_EVIDENCE.md
+  limitation: managed local Chromium is unavailable; the full browser/project gate passed in GitHub CI; no deployment or independent penetration test is claimed
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/44519704852 — full Python 2060 passed, 4 skipped; frontend 116 passed and build passed; 55/55 historical evidence commands passed (2026-11-19)
+
+- S-02.02.02 · PLAN.md as the single source of truth
+  owner: Codex /root
+  tests: tests/test_agent_plan.py
+  command: uv run pytest tests/test_agent_plan.py tests/test_agent_resume.py tests/test_agent_report.py tests/test_agent_run.py -q
+  result: 47 passed in 0.87s (2026-11-19)
+  code: offsetx_apollo_builder/agent/plan.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
+  review: implementer self-review; work/DELIVERY_EVIDENCE.md
+  limitation: managed local Chromium is unavailable; the full browser/project gate passed in GitHub CI; no deployment or independent penetration test is claimed
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/44519704852 — full Python 2060 passed, 4 skipped; frontend 116 passed and build passed; 55/55 historical evidence commands passed (2026-11-19)
+
+- S-03.02.05 · A platform is a row, not a code change
+  owner: Codex /root
+  tests: tests/test_browser_platform_registry.py
+  command: uv run pytest tests/test_browser_platform_registry.py -q
+  result: 28 passed in 0.76s (2026-11-19); combined acceptance/security 175 passed
+  code: offsetx_apollo_builder/browser/registry.py, offsetx_apollo_builder/browser/platforms.yaml, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/policy.py, offsetx_apollo_builder/browser/budget.py
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
+  review: implementer self-review; work/DELIVERY_EVIDENCE.md
+  limitation: managed local Chromium is unavailable; the full browser/project gate passed in GitHub CI; no deployment or independent penetration test is claimed
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/44519704852 — full Python 2060 passed, 4 skipped; frontend 116 passed and build passed; 55/55 historical evidence commands passed (2026-11-19)
+
 
 - S-06.02.17 · DONE may not depend on unfinished work
   tests: tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails, tests/test_verify_board.py::test_done_with_only_done_dependencies_passes

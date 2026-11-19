@@ -1,0 +1,18 @@
+
+> off-crm@0.12.0 build
+> tsc -b && vite build
+
+vite v8.1.4 building client environment for production...
+[2Ktransforming...✓ 58 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.52 kB │ gzip:   0.32 kB
+dist/assets/index-DNs2zWhb.css   75.97 kB │ gzip:  15.68 kB
+dist/assets/index-BNU5_S-g.js   496.83 kB │ gzip: 141.41 kB
+
+✓ built in 575ms
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice

@@ -171,6 +171,8 @@ class Page:
 
     connection: CDPConnection
     session_id: str
+    workspace_id: str = field(default="local", kw_only=True)
+    browser_context_id: str = field(default="", kw_only=True)
     #: Whether this is a scheduled run. Decides whether attended-only hosts are
     #: reachable at all — see `policy.py`.
     unattended: bool = False

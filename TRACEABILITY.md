@@ -47,11 +47,23 @@ the code exists and holds no stub).
 | R-90 | S-06.02.08 | 2 | `tests/test_verify_board.py`, `tests/test_ci_verifier_environment.py` | `scripts/verify_board.py`, `DEFINITION_OF_DONE.md`, `README.md`, `CONTINUE.md` |
 | R-102 | S-06.02.17 | 2 | `tests/test_verify_board.py::test_done_with_any_unfinished_dependency_fails`, `tests/test_verify_board.py::test_done_with_only_done_dependencies_passes` | `scripts/verify_board.py`, `DEFINITION_OF_DONE.md` |
 
+### Certified by GitHub Actions run 2291 · 2026-11-19
+
+| Req | Story | Criteria | Test | Code |
+|---|---|---|---|---|
+| R-18 | S-02.02.02 | 2 | `tests/test_agent_plan.py` | `agent/plan.py`, `agent/run.py`, `agent/report.py` (DONE; CI run 2291) |
+| R-31, R-35 | S-04.01.01 | 1 | `tests/test_agent_companions.py` | `agent/companions.py`, `agent/run.py` (DONE; CI run 2291) |
+| R-36, R-37, R-40 | S-05.01.01 | 3 | `tests/test_crawl_frontier.py`, `tests/test_crawl_runner.py`, `tests/test_crawl_fetch_safety.py`, `tests/test_crawl_cli.py` | `crawl/frontier.py`, `crawl/runner.py`, `crawl_cli.py`, `discovery.py` (DONE; CI run 2291) |
+| R-41, R-42 | S-06.01.01 | 1 | `tests/test_workspace_api.py`, `tests/test_workspace_isolation.py`, `tests/test_workspace_browser.py` | `workspaces.py`, `api/config.py`, `api/app.py`, `ai/workspace.py`, `browser/session.py`, `browser/vault.py` (IN_REVIEW; D-68 amended-source CI pending) |
+| R-75 | S-03.02.05 | 2 | `tests/test_browser_platform_registry.py` | `browser/registry.py`, `browser/platforms.yaml`, `browser/identity.py`, `browser/policy.py`, `browser/budget.py` (DONE; CI run 2291) |
+
 ## In review — built, but this session cannot complete the proof
 
 | Req | Story | Criteria | Current proof | Missing proof |
 |---|---|---|---|---|
 | R-63, R-71 | S-08.01.05 | 3 | 2 Python API/control tests pass | Promote the now-green frontend evidence through that story's own review/board update |
+
+
 
 ## Ready — decision and dependencies resolved, not yet pulled
 
@@ -69,17 +81,13 @@ the code exists and holds no stub).
 
 | Req | Story | Criteria | Test | Code |
 |---|---|---|---|---|
-| R-18 | S-02.02.02 | 2 | — | — |
 | R-19 | S-02.02.03 | 1 | — | — |
 | R-20 | S-02.02.04 | 1 | — | — |
-| R-31, R-35 | S-04.01.01 | 1 | — | — |
 | R-32 | S-04.01.02 | 1 | — | — |
 | R-33 | S-04.01.03 | 2 | — | — |
 | R-34, R-35 | S-04.01.04 | 2 | — | — |
-| R-36, R-37, R-40 | S-05.01.01 | 3 | — | — |
 | R-38 | S-05.01.02 | 1 | — | — |
 | R-39 | S-05.01.03 | 2 | — | — |
-| R-41, R-42 | S-06.01.01 | 1 | — | — |
 | R-43 | S-06.01.02 | 2 | — | — |
 | R-44 | S-06.01.03 | 2 | — | — |
 | R-45, R-46 | S-06.01.04 | 2 | — | — |

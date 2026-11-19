@@ -44,7 +44,7 @@ model see this data*, and *what actually left the machine*.
 | `tools.py` | The AI names a tool. It cannot invent one | ✅ |
 | `log.py` | Every outbound call, recorded. This is what "local-first" is *proved* by | ✅ |
 | **Skills** | Playbooks fetched only when relevant, so a long procedure doesn't bloat every prompt | ⬜ S-04.01.02 |
-| **Companions** | Named agents with their own instructions and memory | ⬜ S-04.01.01 |
+| **Companions** | Named agents with their own instructions and memory | DONE S-04.01.01 — `agent/companions.py`; D-51 |
 | **MCP client** | Borrow tools other people already built | ⬜ S-07.01.01 |
 
 > **Why this matters:** everything else in this document is safe *because* this
@@ -73,7 +73,7 @@ which is most of the useful web.
 | `identity.py` | The six platforms, and where this workspace stands with each | ✅ |
 | `signin.py` | Opens the login page, waits for **you**, reads back only whether it worked | ✅ |
 | **The run loop** | Goal in → look, think, act, repeat → done | ⬜ S-02.02.01 |
-| **PLAN.md** | The agent's to-do list, as a file you can edit mid-run to steer it | ⬜ S-02.02.02 |
+| **PLAN.md** | The agent's to-do list, as a file you can edit mid-run to steer it | DONE S-02.02.02 — `agent/plan.py`; D-51 |
 | **Stop & resume** | Cut in halfway; carry on later from where it stopped | ⬜ S-02.02.03 |
 | **Countdowns** | 5 seconds to hit cancel before anything sends or deletes | ⬜ S-02.02.04 |
 | **Sub-agents** | One agent sends helpers off to do side-quests | ⬜ S-04.01.03 |
@@ -242,3 +242,16 @@ the vault that makes it safe to let them.
 1. **A Google Cloud project** with YouTube Data API v3 enabled → real uploads.
 2. **Meta / TikTok / LinkedIn app review** → real posting there. Weeks, not days.
 3. **Nothing else.** Everything in section 8 is now decided and buildable.
+
+
+Crawler continuation (2026-11-19): S-05.01.01 is implemented and IN_REVIEW.
+The `crawl/` package and `offsetx-crawl` provide persistent public queues,
+robots/pace enforcement, leases and revisits. See CRAWL_FRONTIER.md and BOARD.md.
+
+
+Certification update · 2026-11-19: GitHub Actions run 2291 passed full Python
+(2060 passed, 4 skipped), all 55 historical evidence commands, frontend 116 and
+the production build. S-03.02.05, S-02.02.02, S-04.01.01 and S-05.01.01 are now
+DONE. Earlier IN_REVIEW statements describe the prior local-only evidence stage.
+See work/REMOTE_VERIFICATION.md and work/ci-run-2291.log. PR #29 is unmerged;
+no deployment or independent penetration assessment is claimed.

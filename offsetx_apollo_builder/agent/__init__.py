@@ -1,5 +1,6 @@
 """Bounded autonomous work loops built on off_CRM's existing safety boundaries."""
 
+from .companions import Companion, CompanionError, CompanionStore, MemorySnapshot
 from .result import (
     Finding,
     Provenance,
@@ -13,6 +14,10 @@ from .watch import Progress, console
 
 __all__ = [
     "AgentRun",
+    "Companion",
+    "CompanionError",
+    "CompanionStore",
+    "MemorySnapshot",
     "console",
     "Decision",
     "Finding",

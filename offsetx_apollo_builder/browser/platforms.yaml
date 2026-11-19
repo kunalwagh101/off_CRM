@@ -1,0 +1,162 @@
+platforms:
+- id: linkedin
+  label: LinkedIn
+  login_url: https://www.linkedin.com/login
+  home_url: https://www.linkedin.com/feed/
+  signed_in:
+  - my network
+  - messaging
+  - start a post
+  - my items
+  signed_out:
+  - sign in
+  - join now
+  - new to linkedin
+  note: "Attended only. The agent may read as you when you ask it to and never on\
+    \ a schedule \u2014 see `policy.py`. Automated collection breaches the User Agreement\
+    \ and the penalty falls on your account."
+  domains:
+  - linkedin.com
+  min_seconds_between_actions: 6.0
+  unattended: false
+  refuse:
+  - bulk_export
+  confirm:
+  - send
+  - submit
+  - connect
+  actions_per_hour: 30
+  actions_per_day: 120
+- id: instagram
+  label: Instagram
+  login_url: https://www.instagram.com/accounts/login/
+  home_url: https://www.instagram.com/
+  signed_in:
+  - home
+  - new post
+  - profile
+  - direct
+  signed_out:
+  - log in
+  - sign up
+  - forgot password
+  note: The Business Discovery API is the supported route for competitor data.
+  domains:
+  - instagram.com
+  min_seconds_between_actions: 5.0
+  unattended: false
+  refuse: []
+  confirm:
+  - send
+  - submit
+  - publish
+  actions_per_hour: 25
+  actions_per_day: 100
+- id: facebook
+  label: Facebook
+  login_url: https://www.facebook.com/login/
+  home_url: https://www.facebook.com/
+  signed_in:
+  - your profile
+  - create
+  - notifications
+  signed_out:
+  - log in
+  - create new account
+  - forgotten password
+  note: ''
+  domains:
+  - facebook.com
+  min_seconds_between_actions: 5.0
+  unattended: false
+  refuse: []
+  confirm:
+  - send
+  - submit
+  - publish
+  actions_per_hour: 25
+  actions_per_day: 100
+- id: youtube
+  label: YouTube
+  login_url: https://accounts.google.com/ServiceLogin?service=youtube
+  home_url: https://www.youtube.com/
+  signed_in:
+  - account menu
+  - create
+  - subscriptions
+  signed_out:
+  - sign in
+  note: The Data API serves public data properly. Drive the site only for what it
+    does not expose.
+  domains:
+  - youtube.com
+  min_seconds_between_actions: 1.0
+  unattended: true
+  refuse: []
+  confirm: []
+  actions_per_hour: 60
+  actions_per_day: 400
+- id: x
+  label: X
+  login_url: https://x.com/i/flow/login
+  home_url: https://x.com/home
+  signed_in:
+  - post
+  - home timeline
+  - account menu
+  signed_out:
+  - sign in
+  - create account
+  note: ''
+  domains:
+  - x.com
+  - twitter.com
+  min_seconds_between_actions: 4.0
+  unattended: false
+  refuse: []
+  confirm:
+  - send
+  - submit
+  - publish
+  actions_per_hour: 40
+  actions_per_day: 200
+- id: tiktok
+  label: TikTok
+  login_url: https://www.tiktok.com/login
+  home_url: https://www.tiktok.com/foryou
+  signed_in:
+  - upload
+  - inbox
+  - profile
+  signed_out:
+  - log in
+  - sign up
+  note: ''
+  domains:
+  - tiktok.com
+  min_seconds_between_actions: 5.0
+  unattended: false
+  refuse: []
+  confirm:
+  - send
+  - submit
+  - publish
+  actions_per_hour: 25
+  actions_per_day: 100
+extra_rules:
+- suffix: mail.google.com
+  label: Gmail
+  min_seconds_between_actions: 1.5
+  unattended: false
+  refuse: []
+  confirm:
+  - send
+  - delete
+  - submit
+  note: Sending mail as you is the highest-consequence thing here.
+budget_aliases:
+  twitter: x
+extra_budgets:
+  reddit:
+  - 40
+  - 200

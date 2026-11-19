@@ -1,0 +1,25 @@
+{
+  "repository": "kunalwagh101/off_CRM",
+  "pull_request": "https://github.com/kunalwagh101/off_CRM/pull/29",
+  "run": "https://github.com/kunalwagh101/off_CRM/actions/runs/44573830141",
+  "run_number": 2295,
+  "head_sha": "487f85dcfa6799e411d4ed6a1c511d9c8c20631c",
+  "implementation_sha": "487f85dcfa6799e411d4ed6a1c511d9c8c20631c",
+  "result": "success",
+  "python": {
+    "passed": 2091,
+    "skipped": 4,
+    "warnings": 6
+  },
+  "workspace_cases": 31,
+  "verifier": {
+    "commands_run": 59,
+    "commands_passed": 59
+  },
+  "frontend": {
+    "passed": 116,
+    "production_build": "passed"
+  },
+  "raw_log": "work/workspace-ci-2295.log",
+  "final_board_verification": "pending metadata-only 60-DONE rerun"
+}

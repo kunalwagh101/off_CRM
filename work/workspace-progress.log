@@ -1,0 +1,44 @@
+...FF.....                                                               [100%]
+=================================== FAILURES ===================================
+________ test_vault_envelope_cannot_be_relabelled_as_another_workspace _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-73/test_vault_envelope_cannot_be_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8b51f98c20>
+
+    def test_vault_envelope_cannot_be_relabelled_as_another_workspace(tmp_path, monkeypatch):
+        from offsetx_apollo_builder.browser import vault as module
+        monkeypatch.setattr(module, '_keychain_master', lambda create: (None, ''))
+        vault = SessionVault(tmp_path, passphrase='test-only-long-passphrase')
+        vault.seal('alice','linkedin',{'cookies':[{'name':'li_at','value':'ALICE','domain':'.linkedin.com'}]})
+        raw = json.loads(vault._path('alice','linkedin').read_text())
+        raw['workspace_id'] = 'bob'
+        vault._path('bob','linkedin').write_text(json.dumps(raw))
+>       with pytest.raises(VaultLocked):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE VaultLocked
+
+tests/test_workspace_isolation.py:67: Failed
+_______ test_capture_refuses_a_foreign_workspace_before_touching_browser _______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-73/test_capture_refuses_a_foreign0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8b51f99700>
+
+    def test_capture_refuses_a_foreign_workspace_before_touching_browser(tmp_path, monkeypatch):
+        from offsetx_apollo_builder.browser import vault as module
+        monkeypatch.setattr(module, '_keychain_master', lambda create: (None, ''))
+        vault = SessionVault(tmp_path, passphrase='test-only-long-passphrase')
+        calls=[]
+        class Connection:
+            async def send(self, method, params=None, **kwargs):
+                calls.append((method,params))
+                return {'cookies':[{'name':'li_at','value':'ALICE','domain':'.linkedin.com'}]}
+        page=SimpleNamespace(connection=Connection(),workspace_id='alice',browser_context_id='context-alice',session_id='tab-a')
+>       with pytest.raises(VaultError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE VaultError
+
+tests/test_workspace_isolation.py:81: Failed
+=========================== short test summary info ============================
+FAILED tests/test_workspace_isolation.py::test_vault_envelope_cannot_be_relabelled_as_another_workspace
+FAILED tests/test_workspace_isolation.py::test_capture_refuses_a_foreign_workspace_before_touching_browser
+2 failed, 8 passed in 2.07s

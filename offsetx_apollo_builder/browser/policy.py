@@ -89,88 +89,24 @@ OPEN_WEB = DomainRule(
     note="Ordinary sites. Paced enough to be polite, not enough to be slow.",
 )
 
-#: The platforms whose terms specifically forbid automated collection, and whose
-#: enforcement is account termination rather than a rate-limit response.
-#:
-#: They are **not blocked** — the agent works in your session and you are
-#: allowed to look at your own feed. They are slowed to human pace and kept out
-#: of unattended runs, which is where the difference between "using a computer"
-#: and "operating a scraper" actually lies.
-RULES: tuple[DomainRule, ...] = (
-    DomainRule(
-        suffix="linkedin.com",
-        label="LinkedIn",
-        min_seconds_between_actions=6.0,
-        unattended=False,
-        refuse=("bulk_export",),
-        confirm=("send", "submit", "connect"),
-        note=(
-            "Your session, your account, your risk. Automated collection breaches "
-            "the User Agreement and the penalty is permanent restriction, so this "
-            "runs at reading pace and never on a schedule. Profile data about "
-            "people in the EU or UK is personal data — having a lawful basis for "
-            "holding it is your job, not the browser's."
-        ),
-    ),
-    DomainRule(
-        suffix="instagram.com",
-        label="Instagram",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-        note=(
-            "Same shape as LinkedIn. The Business Discovery API is the supported "
-            "route for competitor data and needs no session at all — prefer it."
-        ),
-    ),
-    DomainRule(
-        suffix="facebook.com",
-        label="Facebook",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="tiktok.com",
-        label="TikTok",
-        min_seconds_between_actions=5.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="x.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="twitter.com",
-        label="X",
-        min_seconds_between_actions=4.0,
-        unattended=False,
-        confirm=("send", "submit", "publish"),
-    ),
-    DomainRule(
-        suffix="youtube.com",
-        label="YouTube",
-        min_seconds_between_actions=1.0,
-        unattended=True,
-        note=(
-            "The Data API serves public video and channel data properly and is "
-            "already wired in `distribution/trends.py`. Drive the site only for "
-            "what the API does not expose."
-        ),
-    ),
-    DomainRule(
-        suffix="mail.google.com",
-        label="Gmail",
-        min_seconds_between_actions=1.5,
-        unattended=False,
-        confirm=("send", "delete", "submit"),
-        note="Sending mail as you is the highest-consequence thing here.",
-    ),
-)
+def declared_rules() -> tuple[DomainRule, ...]:
+    from .registry import load_registry
+
+    data = load_registry()
+    rules = [DomainRule(
+        suffix=domain, label=row['label'],
+        min_seconds_between_actions=row['min_seconds_between_actions'],
+        unattended=row['unattended'], refuse=tuple(row.get('refuse', ())),
+        confirm=tuple(row.get('confirm', ())), note=row.get('note', ''),
+    ) for row in data['platforms'] for domain in row['domains']]
+    rules.extend(DomainRule(**{**row, 'refuse': tuple(row['refuse']),
+                              'confirm': tuple(row['confirm'])})
+                 for row in data.get('extra_rules', []))
+    # A specific subdomain must win over its parent regardless of row order.
+    return tuple(sorted(rules, key=lambda rule: len(rule.suffix), reverse=True))
+
+
+RULES = declared_rules()
 
 #: Hosts nothing may reach, ever. Not a policy choice — these resolve to the
 #: machine off_CRM is running on, and a page that can be talked into fetching
@@ -198,7 +134,7 @@ def rule_for(url: str) -> DomainRule:
     host = host_of(url)
     if not host:
         return OPEN_WEB
-    for rule in RULES:
+    for rule in declared_rules():
         if host == rule.suffix or host.endswith("." + rule.suffix):
             return rule
     return OPEN_WEB
@@ -248,7 +184,7 @@ def catalogue() -> dict[str, Any]:
     """Every rule, for a settings screen that shows what the agent may do."""
     return {
         "default": OPEN_WEB.to_dict(),
-        "rules": [rule.to_dict() for rule in RULES],
+        "rules": [rule.to_dict() for rule in declared_rules()],
         "sensitive_actions": sorted(SENSITIVE_ACTIONS),
         "never": list(NEVER),
     }

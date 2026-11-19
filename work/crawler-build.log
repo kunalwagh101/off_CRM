@@ -1,0 +1,349 @@
+Building wheel...
+running egg_info
+writing offsetx_apollo_builder.egg-info/PKG-INFO
+writing dependency_links to offsetx_apollo_builder.egg-info/dependency_links.txt
+writing entry points to offsetx_apollo_builder.egg-info/entry_points.txt
+writing requirements to offsetx_apollo_builder.egg-info/requires.txt
+writing top-level names to offsetx_apollo_builder.egg-info/top_level.txt
+reading manifest file 'offsetx_apollo_builder.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'offsetx_apollo_builder.egg-info/SOURCES.txt'
+running bdist_wheel
+running build
+running build_py
+copying offsetx_apollo_builder/discovery.py -> build/lib/offsetx_apollo_builder
+copying offsetx_apollo_builder/crawl_cli.py -> build/lib/offsetx_apollo_builder
+creating build/lib/offsetx_apollo_builder/crawl
+copying offsetx_apollo_builder/crawl/__init__.py -> build/lib/offsetx_apollo_builder/crawl
+copying offsetx_apollo_builder/crawl/frontier.py -> build/lib/offsetx_apollo_builder/crawl
+copying offsetx_apollo_builder/crawl/runner.py -> build/lib/offsetx_apollo_builder/crawl
+running egg_info
+writing offsetx_apollo_builder.egg-info/PKG-INFO
+writing dependency_links to offsetx_apollo_builder.egg-info/dependency_links.txt
+writing entry points to offsetx_apollo_builder.egg-info/entry_points.txt
+writing requirements to offsetx_apollo_builder.egg-info/requires.txt
+writing top-level names to offsetx_apollo_builder.egg-info/top_level.txt
+reading manifest file 'offsetx_apollo_builder.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'offsetx_apollo_builder.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/publishers.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/pipeline.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/automation.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/engine.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/trends.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/pacing.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/youtube.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/topics.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/store.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/distribution/platforms.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/distribution
+copying build/lib/offsetx_apollo_builder/notebook.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/locked_categories.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/db_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/existing_poi_enrichment.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/crawl_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/attempt_ledger.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/backup.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/memory.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/provider_profiles.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/providers.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/sales.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/ai_chat.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/gmail.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/domain_auth.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/service.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/events.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/preflight.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/models.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/store.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/ses.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/deliverability/unsubscribe.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach/deliverability
+copying build/lib/offsetx_apollo_builder/outreach/automation.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/engine.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/notion.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/models.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/email_expert.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/store.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/outreach/schema.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/outreach
+copying build/lib/offsetx_apollo_builder/intake.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/notebook_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/outreach_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/scanner.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/evals.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/recall.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/failures.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/providers.yaml -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/payload.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/broker.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/cache.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/scoreboard.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/registry.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/abstraction.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/modes.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/log.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/verify.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/discovery.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/context.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/tiers.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/tool_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/eval_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/sandbox.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/workspace.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/tools.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/evals.yaml -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/errors.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/bandit.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+copying build/lib/offsetx_apollo_builder/ai/quota.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/ai
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/crawl
+copying build/lib/offsetx_apollo_builder/crawl/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/crawl
+copying build/lib/offsetx_apollo_builder/crawl/frontier.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/crawl
+copying build/lib/offsetx_apollo_builder/crawl/runner.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/crawl
+copying build/lib/offsetx_apollo_builder/codegraph.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/dedupe.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/auth.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/config.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/schemas.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/email_delivery.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/api/app.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/api
+copying build/lib/offsetx_apollo_builder/input_loader.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/discovery.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/io_utils.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/perceive.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/countdown.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/guard.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/session.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/identity.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/budget.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/trace.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/registry.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/box.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/vault.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/platforms.yaml -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/page.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/signin.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/revoke.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/policy.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/cdp.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+copying build/lib/offsetx_apollo_builder/browser/pace.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/browser
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/recipes.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/director.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/presets.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/gates.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/mixdown.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/engine.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/edits.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/assembly.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/store.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/effects.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/captions.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/video/timeline.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/video
+copying build/lib/offsetx_apollo_builder/campaigns.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/email_worker_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/runner.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/web_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/apollo_client.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/imagery
+copying build/lib/offsetx_apollo_builder/imagery/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/imagery
+copying build/lib/offsetx_apollo_builder/imagery/gates.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/imagery
+copying build/lib/offsetx_apollo_builder/imagery/engine.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/imagery
+copying build/lib/offsetx_apollo_builder/imagery/store.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/imagery
+copying build/lib/offsetx_apollo_builder/codegraph_cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/research.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/categories.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/result.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/plan.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/companions.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/watch.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/injection.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/verify.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/report.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/wall.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/agent/run.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/agent
+copying build/lib/offsetx_apollo_builder/scoring.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/file_queue.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+copying build/lib/offsetx_apollo_builder/cli.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder/db
+copying build/lib/offsetx_apollo_builder/db/__init__.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/db
+copying build/lib/offsetx_apollo_builder/db/translate.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/db
+copying build/lib/offsetx_apollo_builder/db/copy.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/db
+copying build/lib/offsetx_apollo_builder/db/connection.py -> build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder/db
+running install_egg_info
+Copying offsetx_apollo_builder.egg-info to build/bdist.linux-x86_64/wheel/./offsetx_apollo_builder-0.12.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/offsetx_apollo_builder-0.12.0.dist-info/WHEEL
+creating '/workspace/off_CRM/work/crawler-dist/.tmp-wwwx04x6/offsetx_apollo_builder-0.12.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'offsetx_apollo_builder/__init__.py'
+adding 'offsetx_apollo_builder/apollo_client.py'
+adding 'offsetx_apollo_builder/attempt_ledger.py'
+adding 'offsetx_apollo_builder/campaigns.py'
+adding 'offsetx_apollo_builder/categories.py'
+adding 'offsetx_apollo_builder/cli.py'
+adding 'offsetx_apollo_builder/codegraph.py'
+adding 'offsetx_apollo_builder/codegraph_cli.py'
+adding 'offsetx_apollo_builder/crawl_cli.py'
+adding 'offsetx_apollo_builder/db_cli.py'
+adding 'offsetx_apollo_builder/dedupe.py'
+adding 'offsetx_apollo_builder/discovery.py'
+adding 'offsetx_apollo_builder/email_worker_cli.py'
+adding 'offsetx_apollo_builder/existing_poi_enrichment.py'
+adding 'offsetx_apollo_builder/file_queue.py'
+adding 'offsetx_apollo_builder/input_loader.py'
+adding 'offsetx_apollo_builder/intake.py'
+adding 'offsetx_apollo_builder/io_utils.py'
+adding 'offsetx_apollo_builder/locked_categories.py'
+adding 'offsetx_apollo_builder/notebook.py'
+adding 'offsetx_apollo_builder/notebook_cli.py'
+adding 'offsetx_apollo_builder/outreach_cli.py'
+adding 'offsetx_apollo_builder/research.py'
+adding 'offsetx_apollo_builder/runner.py'
+adding 'offsetx_apollo_builder/scoring.py'
+adding 'offsetx_apollo_builder/web_cli.py'
+adding 'offsetx_apollo_builder/agent/__init__.py'
+adding 'offsetx_apollo_builder/agent/companions.py'
+adding 'offsetx_apollo_builder/agent/injection.py'
+adding 'offsetx_apollo_builder/agent/plan.py'
+adding 'offsetx_apollo_builder/agent/report.py'
+adding 'offsetx_apollo_builder/agent/result.py'
+adding 'offsetx_apollo_builder/agent/run.py'
+adding 'offsetx_apollo_builder/agent/verify.py'
+adding 'offsetx_apollo_builder/agent/wall.py'
+adding 'offsetx_apollo_builder/agent/watch.py'
+adding 'offsetx_apollo_builder/ai/__init__.py'
+adding 'offsetx_apollo_builder/ai/abstraction.py'
+adding 'offsetx_apollo_builder/ai/bandit.py'
+adding 'offsetx_apollo_builder/ai/broker.py'
+adding 'offsetx_apollo_builder/ai/cache.py'
+adding 'offsetx_apollo_builder/ai/context.py'
+adding 'offsetx_apollo_builder/ai/discovery.py'
+adding 'offsetx_apollo_builder/ai/errors.py'
+adding 'offsetx_apollo_builder/ai/eval_cli.py'
+adding 'offsetx_apollo_builder/ai/evals.py'
+adding 'offsetx_apollo_builder/ai/evals.yaml'
+adding 'offsetx_apollo_builder/ai/failures.py'
+adding 'offsetx_apollo_builder/ai/log.py'
+adding 'offsetx_apollo_builder/ai/modes.py'
+adding 'offsetx_apollo_builder/ai/payload.py'
+adding 'offsetx_apollo_builder/ai/providers.yaml'
+adding 'offsetx_apollo_builder/ai/quota.py'
+adding 'offsetx_apollo_builder/ai/recall.py'
+adding 'offsetx_apollo_builder/ai/registry.py'
+adding 'offsetx_apollo_builder/ai/sandbox.py'
+adding 'offsetx_apollo_builder/ai/scanner.py'
+adding 'offsetx_apollo_builder/ai/scoreboard.py'
+adding 'offsetx_apollo_builder/ai/tiers.py'
+adding 'offsetx_apollo_builder/ai/tool_cli.py'
+adding 'offsetx_apollo_builder/ai/tools.py'
+adding 'offsetx_apollo_builder/ai/verify.py'
+adding 'offsetx_apollo_builder/ai/workspace.py'
+adding 'offsetx_apollo_builder/api/__init__.py'
+adding 'offsetx_apollo_builder/api/app.py'
+adding 'offsetx_apollo_builder/api/auth.py'
+adding 'offsetx_apollo_builder/api/config.py'
+adding 'offsetx_apollo_builder/api/email_delivery.py'
+adding 'offsetx_apollo_builder/api/schemas.py'
+adding 'offsetx_apollo_builder/browser/__init__.py'
+adding 'offsetx_apollo_builder/browser/box.py'
+adding 'offsetx_apollo_builder/browser/budget.py'
+adding 'offsetx_apollo_builder/browser/cdp.py'
+adding 'offsetx_apollo_builder/browser/countdown.py'
+adding 'offsetx_apollo_builder/browser/guard.py'
+adding 'offsetx_apollo_builder/browser/identity.py'
+adding 'offsetx_apollo_builder/browser/pace.py'
+adding 'offsetx_apollo_builder/browser/page.py'
+adding 'offsetx_apollo_builder/browser/perceive.py'
+adding 'offsetx_apollo_builder/browser/platforms.yaml'
+adding 'offsetx_apollo_builder/browser/policy.py'
+adding 'offsetx_apollo_builder/browser/registry.py'
+adding 'offsetx_apollo_builder/browser/revoke.py'
+adding 'offsetx_apollo_builder/browser/session.py'
+adding 'offsetx_apollo_builder/browser/signin.py'
+adding 'offsetx_apollo_builder/browser/trace.py'
+adding 'offsetx_apollo_builder/browser/vault.py'
+adding 'offsetx_apollo_builder/crawl/__init__.py'
+adding 'offsetx_apollo_builder/crawl/frontier.py'
+adding 'offsetx_apollo_builder/crawl/runner.py'
+adding 'offsetx_apollo_builder/db/__init__.py'
+adding 'offsetx_apollo_builder/db/connection.py'
+adding 'offsetx_apollo_builder/db/copy.py'
+adding 'offsetx_apollo_builder/db/translate.py'
+adding 'offsetx_apollo_builder/distribution/__init__.py'
+adding 'offsetx_apollo_builder/distribution/automation.py'
+adding 'offsetx_apollo_builder/distribution/engine.py'
+adding 'offsetx_apollo_builder/distribution/pacing.py'
+adding 'offsetx_apollo_builder/distribution/pipeline.py'
+adding 'offsetx_apollo_builder/distribution/platforms.py'
+adding 'offsetx_apollo_builder/distribution/publishers.py'
+adding 'offsetx_apollo_builder/distribution/store.py'
+adding 'offsetx_apollo_builder/distribution/topics.py'
+adding 'offsetx_apollo_builder/distribution/trends.py'
+adding 'offsetx_apollo_builder/distribution/youtube.py'
+adding 'offsetx_apollo_builder/imagery/__init__.py'
+adding 'offsetx_apollo_builder/imagery/engine.py'
+adding 'offsetx_apollo_builder/imagery/gates.py'
+adding 'offsetx_apollo_builder/imagery/store.py'
+adding 'offsetx_apollo_builder/outreach/__init__.py'
+adding 'offsetx_apollo_builder/outreach/ai_chat.py'
+adding 'offsetx_apollo_builder/outreach/automation.py'
+adding 'offsetx_apollo_builder/outreach/backup.py'
+adding 'offsetx_apollo_builder/outreach/email_expert.py'
+adding 'offsetx_apollo_builder/outreach/engine.py'
+adding 'offsetx_apollo_builder/outreach/gmail.py'
+adding 'offsetx_apollo_builder/outreach/memory.py'
+adding 'offsetx_apollo_builder/outreach/models.py'
+adding 'offsetx_apollo_builder/outreach/notion.py'
+adding 'offsetx_apollo_builder/outreach/provider_profiles.py'
+adding 'offsetx_apollo_builder/outreach/providers.py'
+adding 'offsetx_apollo_builder/outreach/sales.py'
+adding 'offsetx_apollo_builder/outreach/schema.py'
+adding 'offsetx_apollo_builder/outreach/store.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/__init__.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/domain_auth.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/events.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/models.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/preflight.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/service.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/ses.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/store.py'
+adding 'offsetx_apollo_builder/outreach/deliverability/unsubscribe.py'
+adding 'offsetx_apollo_builder/video/__init__.py'
+adding 'offsetx_apollo_builder/video/assembly.py'
+adding 'offsetx_apollo_builder/video/captions.py'
+adding 'offsetx_apollo_builder/video/director.py'
+adding 'offsetx_apollo_builder/video/edits.py'
+adding 'offsetx_apollo_builder/video/effects.py'
+adding 'offsetx_apollo_builder/video/engine.py'
+adding 'offsetx_apollo_builder/video/gates.py'
+adding 'offsetx_apollo_builder/video/mixdown.py'
+adding 'offsetx_apollo_builder/video/presets.py'
+adding 'offsetx_apollo_builder/video/recipes.py'
+adding 'offsetx_apollo_builder/video/store.py'
+adding 'offsetx_apollo_builder/video/timeline.py'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/licenses/LICENSE'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/METADATA'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/WHEEL'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/entry_points.txt'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/top_level.txt'
+adding 'offsetx_apollo_builder-0.12.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built work/crawler-dist/offsetx_apollo_builder-0.12.0-py3-none-any.whl

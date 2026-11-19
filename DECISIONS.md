@@ -48,6 +48,16 @@ wastes a session when nobody can answer it.
 | DD-18 | 2026-09-11 | Shared state is shared by construction, not by asking callers | A class-level registry keyed by file, which is global state by another name |
 | DD-19 | 2026-09-11 | The pace floor records a deadline, not a last-seen time | A run reserves its slot before it knows whether it will use it |
 | DD-20 | 2026-09-16 | A latency ceiling stops new work at operation boundaries; it does not kill an operation already in flight | The run can exceed the ceiling by the latency of one already-started operation; the overrun is measured and reported |
+| DD-21 | 2026-11-17 | Owner plans replace goal text in decision input; scoped companion context must fit a bounded control section before broker truncation | Long profiles/plans/memory must be shortened explicitly; no silent truncation of owner control |
+| DD-22 | 2026-11-17 | Companion profiles use one atomic private JSON file per workspace and profile; resume requires identical original grants | Profile edits apply to new runs; callers must retain the original snapshot for a stopped run |
+| DD-23 | 2026-11-19 | The public frontier uses durable request deferral and redirect continuation instead of sleeping through robots delays | A one-shot batch can fetch only robots and report a later next_due; watch or another invocation completes the document |
+| DD-24 | 2026-11-19 | Public queues are workspace-scoped, while host pace and robots cache are shared by database and bot identity | Workers using different database files do not coordinate; public host activity timing is shared |
+| DD-25 | 2026-11-19 | Unchanged HTML hashes double revisit intervals; changed hashes reset to the base | Cosmetic HTML changes can count as changes; this scheduler does not claim semantic business-event detection |
+| DD-26 | 2026-11-19 | Bind one authenticated app instance to one startup workspace; no request-selected identity | Separate ports/processes are required; shared-server roles remain S-06.01.02, and host administrators remain trusted |
+| DD-27 | 2026-11-19 | Reject v1 vault sessions until verified offline migration or attended reconnect; bind v2 wrappers to workspace and platform | Existing sessions need operator action; v1 provenance cannot be authenticated retroactively |
+| DD-28 | 2026-11-19 | Use isolated ephemeral Chrome contexts with explicit encrypted capture/restore | Context restart needs restore; the legacy local default profile remains a separate compatibility path |
+| DD-29 | 2026-11-19 | Use hashed private environment namespaces and retain original owner files during explicit provider migration | Operators must derive variable names and protect/remove rollback backups; nonlocal command providers are refused |
+| DD-30 | 2026-11-19 | Serialize first OS-keychain master creation under one private per-user lock and re-read the backend before creation | If the common OS-user state directory cannot be locked, callers need the explicit passphrase path; existing masters remain readable without creating lock files |
 
 ---
 

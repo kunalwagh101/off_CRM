@@ -366,8 +366,10 @@ class EgressBroker:
         cache: Any = None,
         max_retries: int = 2,
         deadline_seconds: float = 120.0,
+        workspace_id: str | None = None,
     ) -> None:
         self.registry = registry
+        self.workspace_id = workspace_id
         #: Optional :class:`~offsetx_apollo_builder.ai.cache.ResponseCache`.
         #: Consulted after the payload is built and scanned, never before —
         #: a cache lookup must not become a way to skip the policy checks.
@@ -404,6 +406,8 @@ class EgressBroker:
         Exposed separately so the UI can show *before* a run which model would
         be used and which were filtered out, and why.
         """
+        if self.workspace_id is not None and settings.workspace_id != self.workspace_id:
+            raise PolicyViolation("This broker belongs to another workspace; no provider was called.")
         if request.data_class is DataClass.MAILBOX and not settings.mailbox_unlocked:
             raise PolicyViolation(
                 "Mailbox content cannot be sent to any AI provider. No model has access "

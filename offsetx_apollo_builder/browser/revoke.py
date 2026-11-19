@@ -68,6 +68,8 @@ async def disconnect(
     nowhere else except wrapped inside the same file.
     """
     resolved = target if isinstance(target, Platform) else lookup_platform(target)
+    if hasattr(vault, '_page_context'):
+        vault._page_context(page, workspace_id)
     session_id = str(getattr(page, "session_id", "") or "")
     if not session_id:
         raise RevokeError(
@@ -124,6 +126,7 @@ async def disconnect(
     envelope = vault._path(workspace_id, resolved.id)
     try:
         envelope.unlink()
+        envelope.with_suffix(envelope.suffix+'.v1.bak').unlink(missing_ok=True)
     except FileNotFoundError as exc:
         raise RevokeError(
             f"Could not destroy {resolved.label}'s vault envelope because it disappeared during revocation."

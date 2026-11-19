@@ -1,0 +1,59 @@
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:106: SyntaxWarning: invalid escape sequence '\s'
+
+BOARD
+------------------------------------------------------------
+  BACKLOG        12  ############
+  READY           7  #######
+  IN_PROGRESS     0    (limit 2)
+  IN_REVIEW       0  
+  BLOCKED         3  ###
+  DONE           59  ########################################
+  DEFERRED        0  
+  TOTAL          81
+
+COVERAGE
+------------------------------------------------------------
+  requirements mapped     102
+  backlog IDs defined     110
+  acceptance criteria     175
+  criteria behind a DONE  139  (79%)
+  evidence commands run   0, passed 0
+
+NOT BUILT YET (22)
+------------------------------------------------------------
+    S-06.02.16   BACKLOG      Resolve frontend development dependency audit findings
+    S-02.02.03   BACKLOG      Interrupt, steer, resume
+    S-04.01.02   BACKLOG      Skills: procedures fetched on demand
+    S-04.01.03   BACKLOG      Sub-agents for context isolation
+    S-04.01.04   BACKLOG      The five roles, wired to what already exists
+    S-05.01.02   BACKLOG      Extraction packs as declared data
+    S-05.01.03   BACKLOG      Take a competitor post apart and rebuild the shape
+    S-06.01.02   BACKLOG      Three-level permissions
+    S-06.01.05   BACKLOG      Deployment, monitoring and rollback
+    S-06.02.04   BACKLOG      Data deletion and subject access
+    S-07.01.01   BACKLOG      An MCP client
+    S-07.01.02   BACKLOG      Native OAuth integrations
+    S-06.01.01   READY        Workspaces with their own keys and their own logins
+    S-06.01.04   READY        Routines that fire agent runs on a schedule or an event
+    S-06.02.01   READY        No secret may enter a model prompt
+    S-06.02.02   READY        Every endpoint authorises and validates
+    S-06.02.05   READY        The UI is usable by keyboard and screen reader
+    S-07.01.03   READY        Meeting transcription with no bot in the call
+    S-07.01.04   READY        Reports and artifacts
+  ! S-01.05.01   BLOCKED      Publish to YouTube through the official API
+  ! S-01.05.02   BLOCKED      One adapter contract for the remaining platforms
+  ! S-01.05.03   BLOCKED      Read real engagement back from the platform
+
+NOTES
+------------------------------------------------------------
+  Evidence commands were not run (--skip-tests).
+  59 defect(s) logged, 25 design decision(s) recorded.
+  58 recorded commit(s), all on this branch.
+  5 story(s) could be pulled today: S-02.02.03, S-04.01.02, S-04.01.03, S-05.01.02, S-06.02.16
+
+OK — the board matches the repository.

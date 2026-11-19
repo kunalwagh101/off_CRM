@@ -7,8 +7,27 @@ Then read **`docs/architecture/CAMPAIGN_TYPES.md`** before designing anything
 new. The product is a CRM *with an AI layer that runs the campaigns itself*, and
 email is one campaign kind of several. Nothing built from here may assume email.
 
-Last updated: 2026-08-28
-Branch: `main`
+Last updated: 2026-11-19
+Branch: `work`
+Current delivery (2026-11-19): S-03.02.05, S-02.02.02, S-04.01.01 and
+S-05.01.01 remain DONE. S-06.01.01 is IN_REVIEW after a final restart probe found
+D-68: parallel workspace directories could race to initialize the shared OS
+keychain master. The common per-user initialization lock fixes that race;
+117 affected tests pass. Fresh full CI is required for this amended source.
+
+The prior workspace revision passed GitHub Actions run 2295: 2091 Python passed,
+4 skipped, 59/59 historical evidence commands, 116 frontend tests and production
+build. That result remains evidence for its source revision, not this later fix.
+Raw log: work/workspace-ci-2295.log. Scope, tests and status are in
+work/WORKSPACE_WORK_ORDER.md and work/WORKSPACE_EVIDENCE.md.
+
+Draft PR #29 contains the five-story increment. It is not merged and no
+application was deployed. Local managed Chromium restrictions remain; standard
+GitHub CI supplies browser proof without changing local policy. Workspace setup,
+key namespaces, verified legacy migration and rollback:
+docs/architecture/WORKSPACES.md. No other story is claimed automatically.
+
+Historical baseline follows:
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).
 The latest frontend evidence remains 116 passed plus a clean production build
 from 2026-08-24; this clean checkout could not re-install one uncached npm

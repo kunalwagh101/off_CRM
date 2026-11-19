@@ -497,3 +497,64 @@ Expect `7 passed`. The failing fixtures deliberately put the upstream story in
 BACKLOG, READY, IN_PROGRESS, IN_REVIEW, BLOCKED and DEFERRED; each must make the
 verifier name both story IDs and refuse the DONE claim.
 
+
+## Configured platforms, editable plans and companions · 2026-11-17
+
+Run the complete new acceptance slice without contacting a provider or a real
+platform:
+
+```bash
+uv run pytest tests/test_browser_platform_registry.py tests/test_agent_plan.py tests/test_agent_companions.py -v
+```
+
+The tests declare a new platform and exercise its sign-in/status/policy/budget
+path; edit PLAN.md between decisions and resume the same file; then save a
+companion, enforce its tool and memory grants, and refuse a resumed grant
+escalation. The profile CRUD test saves, updates, deletes and restores isolated
+workspace state. Real-broker tests prove that secrets block before a provider is
+created. The architecture guides show the public Python interfaces:
+`BROWSER_PLATFORMS.md`, `AGENT_PLANS.md` and `COMPANIONS.md`.
+
+For the wider local security and integration evidence:
+
+```bash
+uv run pytest tests/test_agent_companions.py tests/test_agent_plan.py tests/test_browser_platform_registry.py tests/test_agent_report.py tests/test_agent_resume.py tests/test_agent_run.py tests/test_ai_egress_wall.py tests/test_security_audit.py -q
+```
+
+The existing live Chromium suite remains blocked in the managed Codex container
+(D-51). These local checks do not certify a deployment or a remote penetration
+test. Full evidence replay: `uv run python scripts/verify_board.py`; it reports
+browser-dependent historical commands as failed in this environment.
+
+
+## Persistent public crawl frontier · S-05.01.01
+
+Run the acceptance path without contacting a real site or provider:
+
+```bash
+uv run pytest tests/test_crawl_frontier.py tests/test_crawl_runner.py tests/test_crawl_fetch_safety.py tests/test_crawl_cli.py -q
+```
+
+These tests persist and reopen a real SQLite queue, schedule changing pages more
+frequently, defer a 120-second robots delay without sleeping, continue paced page
+and robots redirects after restart, enforce redirect/depth limits, reject unsafe
+targets, exercise CLI seed/inspect/run/watch/remove, and restore a SQLite backup.
+For an empty local queue inspection (no network):
+
+```bash
+uv run offsetx-crawl --db local_data/crawl-demo.db --allow example.org inspect
+```
+
+Live public crawling is available through seed/run/watch; review the explicit
+allow-list before using it. See docs/architecture/CRAWL_FRONTIER.md for commands,
+public library usage, pacing, retry, data retention and rollback.
+
+## Workspace isolation · S-06.01.01
+
+Run `uv run pytest tests/test_workspace_api.py tests/test_workspace_isolation.py tests/test_workspace_browser.py -q`.
+The demo uses two authenticated local instances and fake provider keys. It proves
+that headers cannot select Bob from Alice, concurrent apps retain their own keys,
+Chrome cookie jars stay distinct and a captured session restores after context
+restart. It also probes relabelled vaults, copied auth cookies and migration
+failure/rollback. Real Chrome is needed for the browser scenario; no live provider
+or public platform login is used. See `docs/architecture/WORKSPACES.md` for setup.

@@ -38,10 +38,13 @@ class DemoSessionAuth:
         password: str,
         session_secret: str,
         session_hours: int,
+        audience: str = "local",
     ) -> None:
         self.username = username
         self._password = password
         self._secret = session_secret.encode("utf-8")
+        if self._secret and audience != 'local':
+            self._secret = hmac.new(self._secret, ('offcrm-session\0'+audience).encode(), hashlib.sha256).digest()
         self.session_seconds = session_hours * 60 * 60
 
     @property

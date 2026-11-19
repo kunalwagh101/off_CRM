@@ -876,3 +876,19 @@ test the invariant across every state, not only the state that first exposed the
 bug. A checker should encode the invariant once and make new impossible states
 fail automatically. Focused evidence: 7 passed in 0.57s. Full regression: 1940 passed, 4 skipped, 4 warnings in 139.98s (0:02:19).
 
+
+## 2026-11-17 · S-03.02.05, S-02.02.02, S-04.01.01
+- Scope cut: none of the three story acceptance criteria; fourth/fifth candidates stay unclaimed. Release certification remains IN_REVIEW because Chromium evidence cannot run here.
+- Estimate: no duration was promised. Baseline environment recovery and full evidence replay required more work than the feature-specific checks; 21 Chromium failures predate the edits.
+- Next time: establish writable uv/npm paths and browser fixture access before starting full replay; keep owner control text ahead of broker truncation and test real boundary escapes.
+
+## 2026-11-19 · S-05.01.01 persistent crawler frontier
+- Scope cut: none of the three acceptance criteria. Workspace key/session isolation stays the separate, unclaimed S-06.01.01 story. Live-browser certification remains IN_REVIEW under D-51.
+- Estimate: no duration was promised. Shared HTTP robots defects and resumable redirect/pacing semantics required more work than queue persistence alone.
+- Next time: test paced redirects and process-level ownership before settling the storage contract; retain raw failure comparisons and separate local proof from deployment claims.
+
+
+## 2026-11-19 · Close the browser verification thread
+- Scope cut: none. The connected GitHub app supplied a safe review branch and ordinary CI, so the managed local browser restriction no longer blocks certification.
+- Estimate: full evidence replay adds several minutes beyond the Python suite. That cost belongs to release proof, not implementation time.
+- Next time: discover connected CI access before treating a local browser restriction as the end of available verification; preserve exact Git trees and real revision ancestry.

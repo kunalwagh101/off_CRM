@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..workspaces import workspace_env
 from ..ai.failures import describe_kinds as describe_failure_kinds
 from ..campaigns import list_kinds as list_campaign_kinds
 from ..distribution.automation import ContentAutomationService
@@ -167,7 +168,7 @@ class _TimerScope:
     """Enough of a request for the per-request factories to work off a timer.
 
     `_trends`, `_imagery`, `_distribution` and `_pipeline` are built per request
-    because they need the workspace's credential resolver. Every one of them
+    to refresh workspace settings. Every one of them
     reads only ``request.app.state`` and the workspace id, which is constant —
     so a timer needs an object with an ``.app`` and nothing else.
 
@@ -261,14 +262,17 @@ def _idempotent(
 
 
 def create_app(settings: AppSettings | None = None) -> FastAPI:
-    resolved = settings or AppSettings.from_env()
+    resolved = (settings or AppSettings.from_env()).scoped()
     resolved.validate()
+    bound_workspace = resolved.workspace_id
     session_auth = DemoSessionAuth(
         username=resolved.demo_username,
         password=resolved.demo_password,
         session_secret=resolved.session_secret,
         session_hours=resolved.session_hours,
+        audience=resolved.workspace_id,
     )
+    session_cookie = SESSION_COOKIE if resolved.workspace_id == 'local' else workspace_env(resolved.workspace_id, 'SESSION')
     login_limiter = LoginAttemptLimiter()
     loopback = resolved.host in {"127.0.0.1", "localhost", "::1"}
 
@@ -295,7 +299,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return hmac.compare_digest(supplied, resolved.api_token)
 
     def session_identity(request: Request):
-        return session_auth.verify(request.cookies.get(SESSION_COOKIE, ""))
+        return session_auth.verify(request.cookies.get(session_cookie, ""))
 
     def security_headers(response: Response) -> Response:
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -361,17 +365,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.engine.unsubscribe_service = unsubscribe
         app.state.sns_verifier = SnsVerifier()
         app.state.maintenance_lock = threading.Lock()
-        app.state.provider_profiles = ProviderProfileStore(resolved.data_dir)
+        app.state.provider_profiles = ProviderProfileStore(resolved.data_dir, workspace_id=resolved.workspace_id)
         app.state.ai_registry = ProviderRegistry()
         app.state.ai_workspaces = WorkspaceAISettingsStore(
-            resolved.data_dir, app.state.ai_registry
+            resolved.data_dir, app.state.ai_registry, workspace_id=resolved.workspace_id
         )
         # Resolved rather than passed straight through, so OFFSETX_DATABASE_URL
         # can move the log off a disposable disk without every call site
         # learning about it. On a deployment whose filesystem does not survive
         # a restart, the audit trail is the one thing that must not live there.
         app.state.ai_egress_log = EgressLog(
-            resolve_database_target(default=resolved.data_dir / "ai_egress.db")
+            resolve_database_target(str(resolved.data_dir / "ai_egress.db") if resolved.workspace_id != "local" else None, default=resolved.data_dir / "ai_egress.db")
         )
         app.state.ai_quota = QuotaTracker(resolved.data_dir)
         # The cache only reuses answers for task types on its allowlist — work
@@ -382,7 +386,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.ai_cache = ResponseCache(resolved.data_dir / "ai_cache.db")
         app.state.ai_broker = EgressBroker(
             registry=app.state.ai_registry,
-            credential_resolver=lambda provider_id: "",
+            credential_resolver=app.state.ai_workspaces.credential_resolver(resolved.workspace_id),
+            workspace_id=resolved.workspace_id,
             quota=app.state.ai_quota,
             logger=app.state.ai_egress_log.record,
             cache=app.state.ai_cache,
@@ -402,7 +407,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # sleeps. The rendered files still need a real disk; the *document* does
         # not, and it is the part that took the work.
         app.state.video_store = VideoStore(
-            resolve_database_target(default=resolved.data_dir / "video.db"),
+            resolve_database_target(str(resolved.data_dir / "video.db") if resolved.workspace_id != "local" else None, default=resolved.data_dir / "video.db"),
             renders_dir=resolved.data_dir / "video_renders",
         )
         app.state.trends_path = resolved.data_dir / "trends.db"
@@ -561,6 +566,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     async def stale_sales_card(_: Request, exc: SalesConflictError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    @app.get(f"{API_PREFIX}/workspace")
+    def workspace_identity(request: Request) -> dict[str, Any]:
+        return {'workspace_id': bound_workspace,
+                'mode': 'local-instance', 'client_selectable': False}
+
     @app.get("/health/live")
     def live() -> dict[str, str]:
         return {"status": "ok"}
@@ -616,7 +626,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             content={"authenticated": True, "username": resolved.demo_username}
         )
         response.set_cookie(
-            SESSION_COOKIE,
+            session_cookie,
             session_auth.issue(),
             max_age=session_auth.session_seconds,
             httponly=True,
@@ -630,7 +640,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def auth_logout() -> Response:
         response = JSONResponse(content={"authenticated": False})
         response.delete_cookie(
-            SESSION_COOKIE,
+            session_cookie,
             httponly=True,
             secure=not loopback,
             samesite="strict",
@@ -1021,15 +1031,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def _imagery(request: Request) -> ImageCampaignEngine:
         """The image runner, wired to the same broker as everything else.
 
-        Built per request rather than held on app.state, because it needs the
-        workspace's credential resolver — and a long-lived engine holding one
-        workspace's key would be the wrong shape the day there are two.
+        Built per request to refresh workspace settings. The broker and its
+        credential resolver remain bound to the instance's startup identity.
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         return ImageCampaignEngine(
             store=state.image_store,
             broker=state.ai_broker,
@@ -1145,9 +1151,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         state = request.app.state
         workspace_id = _workspace_id(request)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         settings = state.ai_workspaces.egress_settings(workspace_id)
 
         def transcriber(**kwargs: Any) -> Any:
@@ -1682,7 +1685,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         a key is missing would hide data the owner already paid quota for.
         """
         state = request.app.state
-        key = os.getenv("OFFSETX_YOUTUBE_API_KEY", "").strip()
+        key = os.getenv(workspace_env(_workspace_id(request), 'YOUTUBE_API_KEY'), '').strip()
         client = None
         if key:
             client = YouTubeClient(key, logger=state.ai_egress_log.record)
@@ -1714,9 +1717,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         state = request.app.state
         workspace_id = _workspace_id(request)
         settings = state.ai_workspaces.egress_settings(workspace_id)
-        state.ai_broker.credential_resolver = state.ai_workspaces.credential_resolver(
-            workspace_id
-        )
         data_class = DataClass.CAMPAIGN if angle.strip() else DataClass.PUBLIC
 
         def writer(kind: str, prompt: str) -> str:
@@ -2264,7 +2264,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         return HTTPException(500, detail={"error": "ai_error", "message": str(exc)})
 
     def _workspace_id(request: Request) -> str:
-        return "local"
+        return bound_workspace
 
     @app.post(f"{API_PREFIX}/ai/chats/{{chat_id}}/messages")
     def ai_send_message(chat_id: str, body: dict[str, Any], request: Request) -> dict[str, Any]:
@@ -2277,7 +2277,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         requested_class = str(body.get("data_class", "campaign")).strip().lower()
         if requested_class not in {"public", "campaign"}:
@@ -2543,7 +2542,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         raw_mode = str(body.get("mode", "simple")).strip().lower()
         if raw_mode not in {item.value for item in RunMode}:
@@ -2647,7 +2645,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         broker, workspaces, _ = _ai(request)
         workspace_id = _workspace_id(request)
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
 
         prompt = str(body.get("prompt", "")).strip()[:4000]
         if not prompt:
@@ -2742,7 +2739,6 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             )
 
         settings = workspaces.egress_settings(workspace_id)
-        broker.credential_resolver = workspaces.credential_resolver(workspace_id)
         egress = layer.rewrite_request(
             score,
             winner=layer.winner(workspace_id) if body.get("use_winner", True) else None,
@@ -3094,6 +3090,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     data_policy=body.data_policy,
                     audit_callback=engine.store.record_provider_call,
                     profile_id="request-supplied",
+                    workspace_id=_workspace_id(request),
                 )
             with request.app.state.campaign_locks.hold(campaign_id):
                 return engine.generate_drafts(

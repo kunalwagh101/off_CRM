@@ -75,6 +75,7 @@ _nothing in flight_
   command: uv run pytest tests/test_crawl_cli.py tests/test_crawl_frontier.py tests/test_crawl_runner.py tests/test_crawl_fetch_safety.py tests/test_discovery.py tests/test_exclusion_discovery.py tests/test_parallel_discovery_and_notion.py tests/test_security_audit.py tests/test_ai_egress_wall.py -q
   result: 125 passed, 6 warnings in 14.55s (2026-11-19)
   code: offsetx_apollo_builder/crawl/frontier.py, offsetx_apollo_builder/crawl/runner.py, offsetx_apollo_builder/crawl_cli.py, offsetx_apollo_builder/discovery.py
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
   review: implementer self-review; work/CRAWLER_EVIDENCE.md
   limitation: full live Chromium evidence remains blocked in the managed environment; D-51
 
@@ -84,7 +85,7 @@ _nothing in flight_
   command: uv run pytest tests/test_agent_companions.py tests/test_agent_plan.py tests/test_browser_platform_registry.py tests/test_agent_report.py tests/test_agent_resume.py tests/test_agent_run.py tests/test_ai_egress_wall.py tests/test_security_audit.py -q
   result: 175 passed (2026-11-17)
   code: offsetx_apollo_builder/agent/companions.py, offsetx_apollo_builder/agent/run.py
-  commit: 551c27e
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
   review: implementer self-review; work/DELIVERY_EVIDENCE.md
   limitation: full live Chromium evidence blocked by managed container policy; D-51
 
@@ -94,7 +95,7 @@ _nothing in flight_
   command: uv run pytest tests/test_agent_plan.py tests/test_agent_resume.py tests/test_agent_report.py tests/test_agent_run.py -q
   result: 47 passed (2026-11-17)
   code: offsetx_apollo_builder/agent/plan.py, offsetx_apollo_builder/agent/run.py, offsetx_apollo_builder/agent/report.py
-  commit: 551c27e
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
   review: implementer self-review; work/DELIVERY_EVIDENCE.md
   limitation: full live Chromium evidence blocked by managed container policy; D-51
 
@@ -104,7 +105,7 @@ _nothing in flight_
   command: uv run pytest tests/test_browser_platform_registry.py -q
   result: 28 passed (2026-11-17); combined acceptance/security 175 passed
   code: offsetx_apollo_builder/browser/registry.py, offsetx_apollo_builder/browser/platforms.yaml, offsetx_apollo_builder/browser/identity.py, offsetx_apollo_builder/browser/policy.py, offsetx_apollo_builder/browser/budget.py
-  commit: 551c27e
+  commit: 6fefc1b620899ae03c3beccd0ba8a02b17b7170b
   review: implementer self-review; work/DELIVERY_EVIDENCE.md
   limitation: full live Chromium evidence blocked by managed container policy; D-51
 

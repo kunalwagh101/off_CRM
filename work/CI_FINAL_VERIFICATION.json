@@ -1,0 +1,188 @@
+{
+  "repository": "kunalwagh101/off_CRM",
+  "pull_request": "https://github.com/kunalwagh101/off_CRM/pull/29",
+  "run": "https://github.com/kunalwagh101/off_CRM/actions/runs/44522416927",
+  "run_number": 2293,
+  "head_sha": "9b04c4896debbb9e194947ac6dc85d5cc30c4a87",
+  "implementation_sha": "6fefc1b620899ae03c3beccd0ba8a02b17b7170b",
+  "result": "success",
+  "python": {
+    "passed": 2060,
+    "skipped": 4,
+    "warnings": 6
+  },
+  "verifier": {
+    "commands_run": 59,
+    "commands_passed": 59
+  },
+  "frontend": {
+    "passed": 116,
+    "files": 8,
+    "production_build": "passed"
+  },
+  "board": {
+    "DONE": 59,
+    "IN_PROGRESS": 0,
+    "IN_REVIEW": 0,
+    "READY": 7,
+    "BACKLOG": 12,
+    "BLOCKED": 3,
+    "DEFERRED": 0
+  },
+  "jobs": [
+    {
+      "id": 135554145453,
+      "name": "quality",
+      "status": "completed",
+      "conclusion": "success",
+      "run_id": 44522416927,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Run astral-sh/setup-uv@v6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5
+        },
+        {
+          "name": "Install Python dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Install frontend dependencies",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7
+        },
+        {
+          "name": "Catch broken Python names and syntax",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8
+        },
+        {
+          "name": "Smoke-test installed command-line entry points",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9
+        },
+        {
+          "name": "Run Vault acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10
+        },
+        {
+          "name": "Run Revoke and Forget acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Run bounded Run Loop acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Run structured Run Result acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        },
+        {
+          "name": "Run provenance acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14
+        },
+        {
+          "name": "Run claim verification acceptance evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15
+        },
+        {
+          "name": "Run Python tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16
+        },
+        {
+          "name": "Verify the board against the repository",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17
+        },
+        {
+          "name": "Run frontend tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18
+        },
+        {
+          "name": "Build frontend",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 35
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 36
+        },
+        {
+          "name": "Post Run astral-sh/setup-uv@v6",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 37
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 38
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 39
+        }
+      ]
+    }
+  ]
+}

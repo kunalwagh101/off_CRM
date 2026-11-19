@@ -53,6 +53,10 @@ wastes a session when nobody can answer it.
 | DD-23 | 2026-11-19 | The public frontier uses durable request deferral and redirect continuation instead of sleeping through robots delays | A one-shot batch can fetch only robots and report a later next_due; watch or another invocation completes the document |
 | DD-24 | 2026-11-19 | Public queues are workspace-scoped, while host pace and robots cache are shared by database and bot identity | Workers using different database files do not coordinate; public host activity timing is shared |
 | DD-25 | 2026-11-19 | Unchanged HTML hashes double revisit intervals; changed hashes reset to the base | Cosmetic HTML changes can count as changes; this scheduler does not claim semantic business-event detection |
+| DD-26 | 2026-11-19 | Bind one authenticated app instance to one startup workspace; no request-selected identity | Separate ports/processes are required; shared-server roles remain S-06.01.02, and host administrators remain trusted |
+| DD-27 | 2026-11-19 | Reject v1 vault sessions until verified offline migration or attended reconnect; bind v2 wrappers to workspace and platform | Existing sessions need operator action; v1 provenance cannot be authenticated retroactively |
+| DD-28 | 2026-11-19 | Use isolated ephemeral Chrome contexts with explicit encrypted capture/restore | Context restart needs restore; the legacy local default profile remains a separate compatibility path |
+| DD-29 | 2026-11-19 | Use hashed private environment namespaces and retain original owner files during explicit provider migration | Operators must derive variable names and protect/remove rollback backups; nonlocal command providers are refused |
 
 ---
 

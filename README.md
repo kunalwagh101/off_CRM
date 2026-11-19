@@ -301,3 +301,8 @@ Issues and focused pull requests are welcome. Before changing runtime behaviour,
 Copyright 2026 Kunal Wagh.
 
 Licensed under the [Apache License 2.0](LICENSE).
+
+Workspace instances: set `OFFSETX_WORKSPACE_ID` before startup to isolate provider
+keys, app data and browser sessions. Default `local` preserves existing installs.
+See [workspace setup and migration](docs/architecture/WORKSPACES.md) before upgrading
+legacy session vaults or running multiple instances.

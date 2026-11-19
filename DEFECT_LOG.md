@@ -91,6 +91,14 @@ anything) · `process` (the way we work went wrong, not the code).
 | D-57 | 2026-11-19 | bug | high | A paced redirect restarted at its source after every deferral and could loop forever; resumption also needed a durable redirect limit. Found by self-review and reproduced before the fix. | fixed · `S-05.01.01` |
 | D-58 | 2026-11-19 | security | medium | Opening an existing FIFO as the new frontier database blocked the process before SQLite could reject it. Reproduced with a timed subprocess. | fixed · `S-05.01.01` |
 | D-59 | 2026-11-19 | bug | medium | Lowering max-depth did not prevent previously queued deeper URLs from being claimed. Reproduced before the fix. | fixed · `S-05.01.01` |
+| D-60 | 2026-11-19 | security | high | Nonlocal AI workspaces inherited global provider keys, and corrupt encrypted state silently selected an environment credential. Test-first reproductions. | fixed · `S-06.01.01` |
+| D-61 | 2026-11-19 | data-loss | high | Independent settings stores performed unlocked credential read/modify/write and could erase another writer. Thread/process reproductions. | fixed · `S-06.01.01` |
+| D-62 | 2026-11-19 | security | high | Vault v1 allowed an encrypted session to be relabelled as another workspace; capture could read browser-wide cookies. Envelope and CDP probes. | fixed · `S-06.01.01` |
+| D-63 | 2026-11-19 | security | high | Request-supplied legacy providers inherited arbitrary host environment keys and could select host commands in nonlocal instances. Boundary tests and call-path audit. | fixed · `S-06.01.01` |
+| D-64 | 2026-11-19 | bug | medium | Changing a scoped startup identity retained the previous workspace paths. Reproduced before the fix; rebinding now fails. | fixed · `S-06.01.01` |
+| D-65 | 2026-11-19 | data-loss | medium | A failed workspace settings migration could leave destination keys behind and prevent retry. Failure-injection test; new artifacts now roll back. | fixed · `S-06.01.01` |
+| D-66 | 2026-11-19 | security | high | Workspace cookie-key derivation could turn an empty signing secret into an enabled authenticator. Reproduced during self-review; derivation now requires a nonempty secret. | fixed · `S-06.01.01` |
+| D-67 | 2026-11-19 | security | high | API token provisioning followed symbolic links and could adopt another workspace token. Test-first probe; private no-follow reads and serialized provisioning now refuse it. | fixed · `S-06.01.01` |
 
 ---
 

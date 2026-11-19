@@ -10,6 +10,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Iterable
 
 from cryptography.fernet import Fernet, InvalidToken
+from ..workspaces import provider_environment, workspace_id as checked_workspace
 
 from .models import ProviderConfig, to_utc_iso
 from .providers import DATA_POLICIES, FallbackAIProvider, PolicyAIProvider, ProviderError, create_provider
@@ -30,6 +31,7 @@ def create_guarded_provider(
     data_policy: str = "minimal",
     audit_callback: Any | None = None,
     profile_id: str = "ad-hoc",
+    workspace_id: str = "local",
 ) -> PolicyAIProvider:
     """Build a provider that is always wrapped in the data-policy guard.
 
@@ -38,7 +40,10 @@ def create_guarded_provider(
     unguarded provider, and an ad-hoc provider supplied in a request body is
     exactly the path that used to skip the guard.
     """
-    raw_provider = create_provider(config)
+    identity = checked_workspace(workspace_id)
+    if identity != 'local' and config.provider_type == 'local_command':
+        raise ProviderError('Host commands are available only in the local workspace.')
+    raw_provider = create_provider(config, environ=provider_environment(identity))
     return PolicyAIProvider(
         raw_provider,
         profile_id=profile_id,
@@ -60,7 +65,8 @@ def _atomic_json(path: Path, payload: Any) -> None:
 class ProviderProfileStore:
     """Local provider profiles with API keys encrypted outside SQLite."""
 
-    def __init__(self, data_dir: Path | str):
+    def __init__(self, data_dir: Path | str, *, workspace_id: str = 'local'):
+        self.workspace_id = checked_workspace(workspace_id)
         self.data_dir = Path(data_dir)
         self.profile_path = self.data_dir / "provider_profiles.json"
         self.secret_path = self.data_dir / "provider_secrets.enc"
@@ -155,6 +161,8 @@ class ProviderProfileStore:
 
     def _upsert(self, values: dict[str, Any], *, api_key: str = "") -> dict[str, Any]:
         provider_type = str(values.get("provider_type", "")).strip().lower()
+        if self.workspace_id != 'local' and provider_type == 'local_command':
+            raise ValueError('Host commands are available only in the local workspace.')
         if provider_type not in PROFILE_TYPES:
             raise ValueError(f"Unsupported provider type: {provider_type}")
         profile_id = str(values.get("id", "")).strip()
@@ -217,6 +225,8 @@ class ProviderProfileStore:
                 self._write_secrets(secrets)
 
     def _provider(self, profile: dict[str, Any], secrets: dict[str, str]):
+        if self.workspace_id != 'local' and profile['provider_type'] == 'local_command':
+            raise ProviderError('Host commands are available only in the local workspace.')
         config = ProviderConfig(
             provider_type=str(profile["provider_type"]),
             model=str(profile.get("model", "")),
@@ -230,7 +240,7 @@ class ProviderProfileStore:
             env_name = config.api_key_env or "OFFSETX_PROVIDER_PROFILE_KEY"
             config.api_key_env = env_name
             return create_provider(config, environ={env_name: stored})
-        return create_provider(config)
+        return create_provider(config, environ=provider_environment(self.workspace_id))
 
     def router(
         self,

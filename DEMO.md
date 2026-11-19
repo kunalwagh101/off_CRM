@@ -548,3 +548,13 @@ uv run offsetx-crawl --db local_data/crawl-demo.db --allow example.org inspect
 Live public crawling is available through seed/run/watch; review the explicit
 allow-list before using it. See docs/architecture/CRAWL_FRONTIER.md for commands,
 public library usage, pacing, retry, data retention and rollback.
+
+## Workspace isolation · S-06.01.01
+
+Run `uv run pytest tests/test_workspace_api.py tests/test_workspace_isolation.py tests/test_workspace_browser.py -q`.
+The demo uses two authenticated local instances and fake provider keys. It proves
+that headers cannot select Bob from Alice, concurrent apps retain their own keys,
+Chrome cookie jars stay distinct and a captured session restores after context
+restart. It also probes relabelled vaults, copied auth cookies and migration
+failure/rollback. Real Chrome is needed for the browser scenario; no live provider
+or public platform login is used. See `docs/architecture/WORKSPACES.md` for setup.

@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_workspace_cookie_binding_cannot_enable_an_authenticator_with_no_secret __
+
+    def test_workspace_cookie_binding_cannot_enable_an_authenticator_with_no_secret():
+        from offsetx_apollo_builder.api.auth import DemoSessionAuth
+        auth=DemoSessionAuth(username='owner',password='test-only-password',session_secret='',session_hours=1,audience='alice')
+>       assert not auth.enabled
+E       assert not True
+E        +  where True = <offsetx_apollo_builder.api.auth.DemoSessionAuth object at 0x7f2f6b33d670>.enabled
+
+tests/test_workspace_isolation.py:226: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_isolation.py::test_workspace_cookie_binding_cannot_enable_an_authenticator_with_no_secret
+1 failed in 1.37s

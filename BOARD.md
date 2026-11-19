@@ -54,7 +54,6 @@ declare is DONE, and no open question is filed against any of them. They had
 been sitting in BACKLOG because nothing moves an item to READY when the story
 it waited on finishes — that is a manual step and nobody was doing it.)*
 
-- S-06.01.01 · Workspaces with their own keys and their own logins
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.02.01 · No secret may enter a model prompt
 - S-06.02.02 · Every endpoint authorises and validates
@@ -64,11 +63,16 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_PROGRESS
 
-_nothing in flight_
+_nothing claimed_
 
 ## IN_REVIEW
 
-_nothing waiting_
+- S-06.01.01 · Workspaces with their own keys and their own logins
+  owner: Codex /root
+  work_order: work/WORKSPACE_WORK_ORDER.md
+  started: 2026-11-19
+  review: implementation complete; focused checks pass; standard Chromium and full board evidence gate pending
+  evidence: work/WORKSPACE_EVIDENCE.md
 
 ## BLOCKED
 

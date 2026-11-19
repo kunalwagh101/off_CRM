@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import ctypes
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -28,7 +29,9 @@ from urllib.parse import urlparse
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-VAULT_VERSION = 1
+from ..workspaces import workspace_id as checked_workspace, workspace_lock, private_read
+
+VAULT_VERSION = 2
 KEYCHAIN_SERVICE = "off_CRM browser vault"
 KEYCHAIN_ACCOUNT = "master"
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -78,6 +81,13 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         path.chmod(0o600)
     except OSError:
         pass
+
+
+def _workspace_identity(value: str) -> str:
+    try:
+        return checked_workspace(value)
+    except ValueError as exc:
+        raise VaultError(f'Invalid workspace id. {exc}') from exc
 
 
 def _checked(value: str, label: str) -> str:
@@ -261,10 +271,12 @@ class SessionVault:
     module long enough to move between Chrome and authenticated encryption.
     """
 
-    def __init__(self, data_dir: Path | str, *, passphrase: str = "") -> None:
+    def __init__(self, data_dir: Path | str, *, passphrase: str = "", workspace_id: str | None = None) -> None:
         self.directory = Path(data_dir) / "browser_vault"
         self.metadata_path = self.directory / "metadata.json"
-        self._root, self.key_source = self._master(passphrase)
+        self.workspace_id = _workspace_identity(workspace_id) if workspace_id is not None else None
+        with workspace_lock(self.directory):
+            self._root, self.key_source = self._master(passphrase)
 
     def _master(self, passphrase: str) -> tuple[bytes, str]:
         root, source = _keychain_master(create=True)
@@ -294,7 +306,7 @@ class SessionVault:
         if not self.metadata_path.exists():
             return {}
         try:
-            payload = json.loads(self.metadata_path.read_text(encoding="utf-8"))
+            payload = json.loads(private_read(self.metadata_path).decode("utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise VaultLocked("The browser-vault metadata cannot be read safely.") from exc
         if not isinstance(payload, dict):
@@ -308,33 +320,59 @@ class SessionVault:
         return Fernet(base64.urlsafe_b64encode(self._root))
 
     def _path(self, workspace_id: str, platform_id: str) -> Path:
-        workspace = _checked(workspace_id, "workspace id")
+        workspace = _workspace_identity(workspace_id)
+        if self.workspace_id is not None and workspace != self.workspace_id:
+            raise VaultLocked("This vault belongs to another workspace.")
         platform = _checked(platform_id, "platform id")
         digest = hashlib.sha256(f"{workspace}\0{platform}".encode("utf-8")).hexdigest()[:32]
         return self.directory / f"{digest}.vault.json"
 
-    def _read_envelope(self, workspace_id: str, platform_id: str) -> dict[str, Any]:
+    def _read_envelope(self, workspace_id: str, platform_id: str, *, allow_legacy: bool = False) -> dict[str, Any]:
         path = self._path(workspace_id, platform_id)
         if not path.exists():
             raise VaultLocked(f"No vaulted session exists for {platform_id!r}.")
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(private_read(path).decode("utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise VaultLocked("The vaulted session cannot be read safely.") from exc
-        if not isinstance(payload, dict) or int(payload.get("version", 0) or 0) != VAULT_VERSION:
+        if not isinstance(payload, dict) or type(payload.get('version')) is not int or payload.get('version') not in (1, VAULT_VERSION):
             raise VaultLocked("The vaulted session has an unsupported format.")
+        if payload['version'] == 1 and not allow_legacy:
+            raise VaultLocked("This legacy session needs explicit owner migration before use. Back up and migrate it or reconnect the workspace.")
         if payload.get("workspace_id") != _checked(workspace_id, "workspace id"):
             raise VaultLocked("The vaulted session belongs to a different workspace.")
         if payload.get("platform_id") != _checked(platform_id, "platform id"):
             raise VaultLocked("The vaulted session belongs to a different platform.")
         return payload
 
+    def _envelope_fernet(self, workspace_id: str, platform_id: str) -> Fernet:
+        if len(self._root) != 32:
+            raise VaultLocked('The browser vault is locked in this process.')
+        context = f'offcrm-vault-v2\0{workspace_id}\0{platform_id}'.encode()
+        key = hmac.new(self._root, context, hashlib.sha256).digest()
+        return Fernet(base64.urlsafe_b64encode(key))
+
+    def _page_context(self, page: Any, workspace_id: str) -> str:
+        if len(self._root) != 32:
+            raise VaultLocked('The browser vault is locked in this process.')
+        identity = _workspace_identity(workspace_id)
+        self._path(identity, 'context-check')
+        bound = getattr(page, 'workspace_id', 'local')
+        context = str(getattr(page, 'browser_context_id', '') or '')
+        if bound != identity:
+            raise VaultError('The browser page belongs to another workspace.')
+        if identity != 'local' and not context:
+            raise VaultError('A nonlocal workspace requires an isolated browser context.')
+        return context
+
     def _account_key(self, envelope: dict[str, Any] | None = None) -> bytes:
         if envelope is None:
             return Fernet.generate_key()
         wrapped = str(envelope.get("wrapped_key") or "").encode("ascii", "strict")
         try:
-            key = self._master_fernet.decrypt(wrapped)
+            wrapper = self._master_fernet if envelope.get('version') == 1 else self._envelope_fernet(
+                str(envelope['workspace_id']), str(envelope['platform_id']))
+            key = wrapper.decrypt(wrapped)
             Fernet(key)
             return key
         except (InvalidToken, ValueError, TypeError) as exc:
@@ -343,40 +381,41 @@ class SessionVault:
             ) from exc
 
     def seal(self, workspace_id: str, platform_id: str, material: dict[str, Any]) -> VaultMetadata:
-        if set(material) != {"cookies"} or not isinstance(material.get("cookies"), list):
-            raise VaultError("Browser-vault material must contain only a cookies list.")
-        workspace = _checked(workspace_id, "workspace id")
-        platform = _checked(platform_id, "platform id")
-        path = self._path(workspace, platform)
-        existing = self._read_envelope(workspace, platform) if path.exists() else None
-        account_key = self._account_key(existing)
-        encoded = json.dumps(material, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
-        ciphertext = Fernet(account_key).encrypt(encoded).decode("ascii")
-        wrapped_key = (
-            str(existing["wrapped_key"])
-            if existing is not None
-            else self._master_fernet.encrypt(account_key).decode("ascii")
-        )
-        cookies = material.get("cookies") if isinstance(material, dict) else None
-        cookie_count = len(cookies) if isinstance(cookies, list) else 0
-        envelope = {
-            "version": VAULT_VERSION,
-            "workspace_id": workspace,
-            "platform_id": platform,
-            "key_source": self.key_source,
-            "key_id": hashlib.sha256(account_key).hexdigest()[:16],
-            "wrapped_key": wrapped_key,
-            "ciphertext": ciphertext,
-            "cookie_count": cookie_count,
-        }
-        _atomic_json(path, envelope)
-        return VaultMetadata(
-            workspace_id=workspace,
-            platform_id=platform,
-            key_id=str(envelope["key_id"]),
-            key_source=self.key_source,
-            cookie_count=cookie_count,
-        )
+        with workspace_lock(self.directory):
+            if set(material) != {"cookies"} or not isinstance(material.get("cookies"), list):
+                raise VaultError("Browser-vault material must contain only a cookies list.")
+            workspace = _workspace_identity(workspace_id)
+            platform = _checked(platform_id, "platform id")
+            path = self._path(workspace, platform)
+            existing = self._read_envelope(workspace, platform) if path.exists() else None
+            account_key = self._account_key(existing)
+            encoded = json.dumps(material, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+            ciphertext = Fernet(account_key).encrypt(encoded).decode("ascii")
+            wrapped_key = (
+                str(existing["wrapped_key"])
+                if existing is not None
+                else self._envelope_fernet(workspace, platform).encrypt(account_key).decode("ascii")
+            )
+            cookies = material.get("cookies") if isinstance(material, dict) else None
+            cookie_count = len(cookies) if isinstance(cookies, list) else 0
+            envelope = {
+                "version": VAULT_VERSION,
+                "workspace_id": workspace,
+                "platform_id": platform,
+                "key_source": self.key_source,
+                "key_id": hashlib.sha256(account_key).hexdigest()[:16],
+                "wrapped_key": wrapped_key,
+                "ciphertext": ciphertext,
+                "cookie_count": cookie_count,
+            }
+            _atomic_json(path, envelope)
+            return VaultMetadata(
+                workspace_id=workspace,
+                platform_id=platform,
+                key_id=str(envelope["key_id"]),
+                key_source=self.key_source,
+                cookie_count=cookie_count,
+            )
 
     def unseal(self, workspace_id: str, platform_id: str) -> dict[str, Any]:
         envelope = self._read_envelope(workspace_id, platform_id)
@@ -400,6 +439,31 @@ class SessionVault:
             cookie_count=int(envelope.get("cookie_count", 0) or 0),
         )
 
+    def migrate_legacy(self, workspace_id: str, platform_id: str, *, confirmation: str) -> VaultMetadata:
+        """Owner-only offline conversion; a v1 identity cannot be authenticated."""
+        if confirmation != 'MIGRATE VERIFIED WORKSPACE SESSION':
+            raise VaultLocked('Verify the legacy workspace/account and type MIGRATE VERIFIED WORKSPACE SESSION.')
+        with workspace_lock(self.directory):
+            envelope = self._read_envelope(workspace_id, platform_id, allow_legacy=True)
+            if envelope['version'] == VAULT_VERSION:
+                return self.inspect(workspace_id, platform_id)
+            key = self._account_key(envelope)
+            try:
+                material = json.loads(Fernet(key).decrypt(envelope['ciphertext'].encode()).decode())
+            except (ValueError, InvalidToken) as exc:
+                raise VaultLocked('The legacy session could not be authenticated.') from exc
+            path = self._path(workspace_id, platform_id)
+            backup = path.with_suffix(path.suffix+'.v1.bak')
+            if backup.exists():
+                raise VaultLocked('A migration backup already exists. Preserve it and resolve the earlier migration first.')
+            _atomic_json(backup, envelope)
+            path.unlink()
+            try:
+                return self.seal(workspace_id, platform_id, material)
+            except Exception:
+                _atomic_json(path, envelope)
+                raise
+
     def lock(self) -> None:
         """Drop this process's reference to the master material."""
         self._root = b""
@@ -411,7 +475,12 @@ class SessionVault:
         tool. Its return value is metadata only; cookie names and values never
         cross the boundary back to a model-facing caller.
         """
-        answer = await page.connection.send("Storage.getCookies")
+        self._page_context(page, workspace_id)
+        session_id = str(getattr(page, 'session_id', '') or '')
+        if not session_id:
+            raise VaultError('Session capture requires an attached workspace page.')
+        answer = await page.connection.send('Network.getCookies',
+            {'urls': [target.login_url, target.home_url]}, session_id=session_id)
         raw = answer.get("cookies") if isinstance(answer, dict) else []
         cookies = [
             cleaned for cookie in (raw or [])
@@ -428,6 +497,7 @@ class SessionVault:
 
     async def restore(self, page: Any, target: Any, workspace_id: str) -> VaultMetadata:
         """Restore a platform's cookies directly into Chrome and return no secret."""
+        self._page_context(page, workspace_id)
         payload = self.unseal(workspace_id, str(target.id))
         raw = payload.get("cookies")
         if not isinstance(raw, list) or not raw:
@@ -440,7 +510,10 @@ class SessionVault:
             if cleaned is None:
                 raise VaultLocked("The vaulted session contains an invalid cookie record.")
             cookies.append(cleaned)
-        await page.connection.send("Storage.setCookies", {"cookies": cookies})
+        session_id = str(getattr(page, 'session_id', '') or '')
+        if not session_id:
+            raise VaultError('Session restore requires an attached workspace page.')
+        await page.connection.send('Network.setCookies', {'cookies': cookies}, session_id=session_id)
         return self.inspect(workspace_id, str(target.id))
 
 

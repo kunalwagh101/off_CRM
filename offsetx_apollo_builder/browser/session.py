@@ -427,6 +427,8 @@ class BrowserSession:
     #: `Page(..., pace=session.pace)` — or two runs halve the interval and N
     #: runs divide it by N.
     pace: Pace = field(default_factory=Pace)
+    workspace_contexts: dict[str, str] = field(default_factory=dict)
+    workspace_context_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
     def launched_by_us(self) -> bool:
@@ -453,11 +455,45 @@ class BrowserSession:
         )
         return str(result["sessionId"])
 
-    async def new_tab(self, url: str = "about:blank") -> tuple[str, str]:
-        """Open a tab and attach to it. Returns ``(target_id, session_id)``."""
-        created = await self.connection.send("Target.createTarget", {"url": url})
-        target_id = str(created["targetId"])
+    async def workspace_context(self, workspace_id: str) -> str:
+        """Trusted host allocation; never exposed as a model browser verb."""
+        from ..workspaces import workspace_id as checked
+        identity = checked(workspace_id)
+        async with self.workspace_context_lock:
+            if identity not in self.workspace_contexts:
+                answer = await self.connection.send('Target.createBrowserContext', {'disposeOnDetach': True})
+                context = str(answer.get('browserContextId') or '')
+                if not context:
+                    raise BrowserUnavailable('Chrome did not create an isolated workspace context.')
+                self.workspace_contexts[identity] = context
+            return self.workspace_contexts[identity]
+
+    async def new_tab(self, url: str = "about:blank", *, workspace_id: str | None = None) -> tuple[str, str]:
+        """Open a tab; explicitly scoped tabs never use Chrome's default context."""
+        params = {'url': url}
+        if workspace_id is not None:
+            params['browserContextId'] = await self.workspace_context(workspace_id)
+        created = await self.connection.send('Target.createTarget', params)
+        target_id = str(created['targetId'])
         return target_id, await self.attach(target_id)
+
+    async def workspace_page(self, workspace_id: str, **kwargs):
+        from .page import Page
+        context = await self.workspace_context(workspace_id)
+        _, session_id = await self.new_tab(workspace_id=workspace_id)
+        page = Page(connection=self.connection, session_id=session_id,
+                    workspace_id=workspace_id, browser_context_id=context, pace=self.pace, **kwargs)
+        await page.start()
+        return page
+
+    async def close_workspace(self, workspace_id: str) -> None:
+        from ..workspaces import workspace_id as checked
+        identity = checked(workspace_id)
+        async with self.workspace_context_lock:
+            context = self.workspace_contexts.get(identity)
+            if context:
+                await self.connection.send('Target.disposeBrowserContext', {'browserContextId': context})
+                del self.workspace_contexts[identity]
 
     async def close_tab(self, target_id: str) -> None:
         try:

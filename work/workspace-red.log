@@ -1,0 +1,176 @@
+FFFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+__________ test_nonlocal_workspace_never_inherits_global_provider_key __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_nonlocal_workspace_never_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe560b72180>
+
+    def test_nonlocal_workspace_never_inherits_global_provider_key(tmp_path, monkeypatch):
+        monkeypatch.setenv('OFFSETX_AI_OPENAI_KEY', 'GLOBAL-LOCAL-ONLY')
+        store = WorkspaceAISettingsStore(tmp_path, registry())
+        assert store.key_for('local', 'openai') == 'GLOBAL-LOCAL-ONLY'
+>       assert store.key_for('alice', 'openai') == ''
+E       AssertionError: assert 'GLOBAL-LOCAL-ONLY' == ''
+E         
+E         + GLOBAL-LOCAL-ONLY
+
+tests/test_workspace_isolation.py:26: AssertionError
+___ test_corrupt_stored_key_cannot_silently_fall_back_to_another_credential ____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_corrupt_stored_key_cannot0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe560b72420>
+
+    def test_corrupt_stored_key_cannot_silently_fall_back_to_another_credential(tmp_path, monkeypatch):
+        store = WorkspaceAISettingsStore(tmp_path, registry())
+        store.set_key('local', 'openai', 'stored')
+        store.secret_path.write_bytes(b'corrupt ciphertext')
+        monkeypatch.setenv('OFFSETX_AI_OPENAI_KEY', 'DIFFERENT-CREDENTIAL')
+>       with pytest.raises(RegistryError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RegistryError
+
+tests/test_workspace_isolation.py:34: Failed
+_________ test_concurrent_workspace_key_writes_cannot_erase_each_other _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_concurrent_workspace_key_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe560b72ff0>
+
+    def test_concurrent_workspace_key_writes_cannot_erase_each_other(tmp_path, monkeypatch):
+        initial = WorkspaceAISettingsStore(tmp_path, registry())
+        initial.set_key('local', 'openai', 'local-seed')
+        stores = [WorkspaceAISettingsStore(tmp_path, registry()) for _ in range(2)]
+        barrier = threading.Barrier(2)
+        for store in stores:
+            original = store._write_secrets
+            def write(*args, original=original, **kwargs):
+                barrier.wait(timeout=5)
+                return original(*args, **kwargs)
+            monkeypatch.setattr(store, '_write_secrets', write)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(s.set_key, workspace, 'openai', value)
+                       for s, workspace, value in zip(stores, ('alice','bob'), ('ALICE','BOB'))]
+            for future in futures:
+                future.result()
+        check = WorkspaceAISettingsStore(tmp_path, registry())
+        assert check.key_for('alice','openai') == 'ALICE'
+>       assert check.key_for('bob','openai') == 'BOB'
+E       AssertionError: assert '' == 'BOB'
+E         
+E         - BOB
+
+tests/test_workspace_isolation.py:56: AssertionError
+________ test_vault_envelope_cannot_be_relabelled_as_another_workspace _________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_vault_envelope_cannot_be_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe5618126f0>
+
+    def test_vault_envelope_cannot_be_relabelled_as_another_workspace(tmp_path, monkeypatch):
+        from offsetx_apollo_builder.browser import vault as module
+        monkeypatch.setattr(module, '_keychain_master', lambda create: (None, ''))
+        vault = SessionVault(tmp_path, passphrase='test-only-long-passphrase')
+        vault.seal('alice','linkedin',{'cookies':[{'name':'li_at','value':'ALICE','domain':'.linkedin.com'}]})
+        raw = json.loads(vault._path('alice','linkedin').read_text())
+        raw['workspace_id'] = 'bob'
+        vault._path('bob','linkedin').write_text(json.dumps(raw))
+>       with pytest.raises(VaultLocked):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE VaultLocked
+
+tests/test_workspace_isolation.py:67: Failed
+_______ test_capture_refuses_a_foreign_workspace_before_touching_browser _______
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_capture_refuses_a_foreign0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe561812ae0>
+
+    def test_capture_refuses_a_foreign_workspace_before_touching_browser(tmp_path, monkeypatch):
+        from offsetx_apollo_builder.browser import vault as module
+        monkeypatch.setattr(module, '_keychain_master', lambda create: (None, ''))
+        vault = SessionVault(tmp_path, passphrase='test-only-long-passphrase')
+        calls=[]
+        class Connection:
+            async def send(self, method, params=None, **kwargs):
+                calls.append((method,params))
+                return {'cookies':[{'name':'li_at','value':'ALICE','domain':'.linkedin.com'}]}
+        page=SimpleNamespace(connection=Connection(),workspace_id='alice',browser_context_id='context-alice',session_id='tab-a')
+>       with pytest.raises(VaultError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE VaultError
+
+tests/test_workspace_isolation.py:81: Failed
+__________ test_ambiguous_workspace_identifiers_are_refused[../alice] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_ambiguous_workspace_ident0')
+workspace = '../alice'
+
+    @pytest.mark.parametrize('workspace', ['../alice','alice::openai','Alice','a/b',''])
+    def test_ambiguous_workspace_identifiers_are_refused(tmp_path, workspace):
+        store=WorkspaceAISettingsStore(tmp_path,registry())
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:89: Failed
+_______ test_ambiguous_workspace_identifiers_are_refused[alice::openai] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_ambiguous_workspace_ident1')
+workspace = 'alice::openai'
+
+    @pytest.mark.parametrize('workspace', ['../alice','alice::openai','Alice','a/b',''])
+    def test_ambiguous_workspace_identifiers_are_refused(tmp_path, workspace):
+        store=WorkspaceAISettingsStore(tmp_path,registry())
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:89: Failed
+___________ test_ambiguous_workspace_identifiers_are_refused[Alice] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_ambiguous_workspace_ident2')
+workspace = 'Alice'
+
+    @pytest.mark.parametrize('workspace', ['../alice','alice::openai','Alice','a/b',''])
+    def test_ambiguous_workspace_identifiers_are_refused(tmp_path, workspace):
+        store=WorkspaceAISettingsStore(tmp_path,registry())
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:89: Failed
+____________ test_ambiguous_workspace_identifiers_are_refused[a/b] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_ambiguous_workspace_ident3')
+workspace = 'a/b'
+
+    @pytest.mark.parametrize('workspace', ['../alice','alice::openai','Alice','a/b',''])
+    def test_ambiguous_workspace_identifiers_are_refused(tmp_path, workspace):
+        store=WorkspaceAISettingsStore(tmp_path,registry())
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:89: Failed
+______________ test_ambiguous_workspace_identifiers_are_refused[] ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-72/test_ambiguous_workspace_ident4')
+workspace = ''
+
+    @pytest.mark.parametrize('workspace', ['../alice','alice::openai','Alice','a/b',''])
+    def test_ambiguous_workspace_identifiers_are_refused(tmp_path, workspace):
+        store=WorkspaceAISettingsStore(tmp_path,registry())
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:89: Failed
+=========================== short test summary info ============================
+FAILED tests/test_workspace_isolation.py::test_nonlocal_workspace_never_inherits_global_provider_key
+FAILED tests/test_workspace_isolation.py::test_corrupt_stored_key_cannot_silently_fall_back_to_another_credential
+FAILED tests/test_workspace_isolation.py::test_concurrent_workspace_key_writes_cannot_erase_each_other
+FAILED tests/test_workspace_isolation.py::test_vault_envelope_cannot_be_relabelled_as_another_workspace
+FAILED tests/test_workspace_isolation.py::test_capture_refuses_a_foreign_workspace_before_touching_browser
+FAILED tests/test_workspace_isolation.py::test_ambiguous_workspace_identifiers_are_refused[../alice]
+FAILED tests/test_workspace_isolation.py::test_ambiguous_workspace_identifiers_are_refused[alice::openai]
+FAILED tests/test_workspace_isolation.py::test_ambiguous_workspace_identifiers_are_refused[Alice]
+FAILED tests/test_workspace_isolation.py::test_ambiguous_workspace_identifiers_are_refused[a/b]
+FAILED tests/test_workspace_isolation.py::test_ambiguous_workspace_identifiers_are_refused[]
+10 failed in 1.17s

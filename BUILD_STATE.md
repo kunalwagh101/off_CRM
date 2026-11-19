@@ -20,7 +20,11 @@ profiles are implemented and verified. Draft PR #29 contains the work; it is
 not merged and no application was deployed. Local Chromium still cannot run
 under the managed sandbox, so the complete browser proof came from standard
 GitHub CI without changing local browser policy. See work/REMOTE_VERIFICATION.md.
-S-06.01.01 (workspace keys and sessions) remains READY and unclaimed.
+S-06.01.01 (workspace keys and sessions) is claimed by Codex /root and implemented;
+verification is in progress. It binds one authenticated instance per workspace,
+separates keys/storage/authentication and provides isolated Chrome contexts with
+vault v2 identity binding. See work/WORKSPACE_WORK_ORDER.md and
+`docs/architecture/WORKSPACES.md`. Do not claim it while its CI gate runs.
 
 Historical baseline follows:
 Tests: **1520 Python passed, 0 failed**, 4 environment-gated skips (2026-08-28).

@@ -1,0 +1,70 @@
+.............FFF                                                         [100%]
+=================================== FAILURES ===================================
+____ test_legacy_provider_paths_do_not_inherit_other_workspace_environment _____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-80/test_legacy_provider_paths_do_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe067f36870>
+
+    def test_legacy_provider_paths_do_not_inherit_other_workspace_environment(tmp_path, monkeypatch):
+        from offsetx_apollo_builder.outreach import provider_profiles as profiles
+        from offsetx_apollo_builder.outreach.models import ProviderConfig
+        from offsetx_apollo_builder.workspaces import workspace_env
+        monkeypatch.setenv('OPENAI_API_KEY', 'OWNER-ONLY')
+        own = workspace_env('alice', 'AI_OPENAI_KEY')
+        monkeypatch.setenv(own, 'ALICE')
+        monkeypatch.setenv(workspace_env('bob', 'AI_OPENAI_KEY'), 'BOB')
+        monkeypatch.setenv(workspace_env('alice', 'SESSION_SECRET'), 'SESSION')
+        seen = []
+        monkeypatch.setattr(profiles, 'create_provider', lambda config, **kw: seen.append(kw.get('environ')) or object())
+>       profiles.create_guarded_provider(ProviderConfig(provider_type='openai'), workspace_id='alice')
+E       TypeError: create_guarded_provider() got an unexpected keyword argument 'workspace_id'
+
+tests/test_workspace_isolation.py:147: TypeError
+_____________ test_nonlocal_provider_cannot_execute_a_host_command _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-80/test_nonlocal_provider_cannot_0')
+
+    def test_nonlocal_provider_cannot_execute_a_host_command(tmp_path):
+        from offsetx_apollo_builder.outreach.provider_profiles import ProviderProfileStore, create_guarded_provider
+        from offsetx_apollo_builder.outreach.models import ProviderConfig
+        from offsetx_apollo_builder.outreach.providers import ProviderError
+        with pytest.raises((ValueError, ProviderError), match='local'):
+>           ProviderProfileStore(tmp_path, workspace_id='alice').upsert({'provider_type':'local_command','name':'escape'})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: ProviderProfileStore.__init__() got an unexpected keyword argument 'workspace_id'
+
+tests/test_workspace_isolation.py:158: TypeError
+________________ test_scoped_app_settings_cannot_be_relabelled _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-80/test_scoped_app_settings_canno0')
+
+    def test_scoped_app_settings_cannot_be_relabelled(tmp_path):
+        from offsetx_apollo_builder.api.config import AppSettings
+>       settings = AppSettings(project_root=tmp_path, workspace_id='alice').scoped()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: AppSettings.__init__() missing 4 required positional arguments: 'database_path', 'data_dir', 'export_dir', and 'frontend_dist'
+
+tests/test_workspace_isolation.py:165: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_isolation.py::test_legacy_provider_paths_do_not_inherit_other_workspace_environment
+FAILED tests/test_workspace_isolation.py::test_nonlocal_provider_cannot_execute_a_host_command
+FAILED tests/test_workspace_isolation.py::test_scoped_app_settings_cannot_be_relabelled
+3 failed, 13 passed in 1.53s
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_scoped_app_settings_cannot_be_relabelled _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-81/test_scoped_app_settings_canno0')
+
+    def test_scoped_app_settings_cannot_be_relabelled(tmp_path):
+        from offsetx_apollo_builder.api.config import AppSettings
+        settings = AppSettings(project_root=tmp_path, database_path=tmp_path/'crm.db', data_dir=tmp_path/'data', export_dir=tmp_path/'exports', frontend_dist=tmp_path/'frontend', workspace_id='alice').scoped()
+        settings.workspace_id = 'bob'
+>       with pytest.raises(ValueError, match='identity'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_isolation.py:167: Failed
+=========================== short test summary info ============================
+FAILED tests/test_workspace_isolation.py::test_scoped_app_settings_cannot_be_relabelled
+1 failed in 1.20s

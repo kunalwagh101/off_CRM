@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Workspace keys and logins** (`S-06.01.01`, 2026-11-19): fixed startup identity,
+  private app storage/authentication, isolated provider credentials, cryptographically
+  bound vault v2 and scoped Chrome contexts. Explicit legacy migration/rollback;
+  see `docs/architecture/WORKSPACES.md`. Verification status is recorded on BOARD.md.
+
+
 - **Four stories certified in standard browser CI (2026-11-19):** platform
   declarations, editable plans, persisted companions and the public crawl
   frontier are DONE. GitHub Actions run 2291 passed 2060 Python tests (4 skipped),

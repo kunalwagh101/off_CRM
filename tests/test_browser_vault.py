@@ -141,9 +141,9 @@ class FakeConnection:
 
     async def send(self, method, params=None, **kwargs):
         self.calls.append((method, params))
-        if method == "Storage.getCookies":
+        if method == "Network.getCookies":
             return {"cookies": self.cookies}
-        if method == "Storage.setCookies":
+        if method == "Network.setCookies":
             return {}
         raise AssertionError(f"unexpected CDP method {method}")
 
@@ -151,6 +151,7 @@ class FakeConnection:
 class FakePage:
     def __init__(self, cookies):
         self.connection = FakeConnection(cookies)
+        self.session_id = "test-page-session"
 
 
 def test_capture_keeps_only_target_platform_and_returns_metadata_only(passphrase_vault):
@@ -187,7 +188,7 @@ def test_restore_moves_plaintext_only_from_vault_to_chrome(passphrase_vault):
 
     assert result.cookie_count == 1
     method, params = page.connection.calls[-1]
-    assert method == "Storage.setCookies"
+    assert method == "Network.setCookies"
     assert params["cookies"][0]["value"] == "LINKEDIN-SECRET"
     assert "SECRET" not in str(result.to_dict())
 

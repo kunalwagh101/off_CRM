@@ -367,7 +367,12 @@ def test_D463_missing_youtube_key_is_actionable_4xx_not_server_error(api, monkey
     monkeypatch.delenv("OFFSETX_YOUTUBE_API_KEY", raising=False)
     response = api.post("/api/v1/trends/sweep", json={})
     assert response.status_code == 422, response.text
-    message = response.json()["detail"]
-    assert message["error"] == "youtube"
-    assert "key" in message["message"].lower()
+    # Failure middleware redacts raw external exceptions and replaces them
+    # with a safe traceable reference, including for YouTubeError.
+    payload = response.json()
+    message = payload["detail"]
+    assert isinstance(message, str) and "settings" in message.lower()
+    assert "Reference: " + payload["error_id"] in message
+    assert payload["error_id"].startswith("E-")
+    assert "OFFSETX_YOUTUBE_API_KEY" not in message
 

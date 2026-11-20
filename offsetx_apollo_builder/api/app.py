@@ -302,6 +302,37 @@ def is_public_api_path(path: str) -> bool:
         return False
     token = path[len(PUBLIC_UNSUBSCRIBE_PREFIX):]
     return bool(token) and "/" not in token
+
+
+# D-451 emergency boundary: these routes still touch the install's shared
+# legacy CRM or resources whose ownership depends on its campaigns. Do not
+# trust a logged-in customer with an unscoped store until the explicit
+# S-06.01.06 ownership migration and every dependent factory are activated.
+# Safe, independently workspace-scoped AI settings/chat/permissions remain
+# available. Keep this an explicit, reviewable list; no client-provided
+# workspace name or route suffix can escape it.
+UNSCOPED_CRM_API_ROOTS: frozenset[str] = frozenset({
+    "/dashboard", "/campaigns", "/crm", "/sales",
+    "/templates", "/expert-sources", "/discovery", "/research",
+    "/apollo", "/privacy", "/notion", "/automation",
+    "/content-automation", "/posts", "/gtm", "/distribution",
+    "/trends", "/image-briefs", "/image-assets", "/video-projects",
+    "/video-media", "/video-renders", "/email-delivery",
+    "/settings/status", "/provider-calls", "/provider-profiles",
+    "/ai/recall", "/ai/context", "/ai/plan", "/ai/run",
+    "/agent-team", "/agent-routines", "/agent-routine-runs",
+    "/agent-routine-status", "/agent-routine-notifications",
+})
+
+
+def is_unscoped_crm_api_path(path: str) -> bool:
+    if not path.startswith(API_PREFIX + "/"):
+        return False
+    relative = path[len(API_PREFIX):]
+    return any(relative == root or relative.startswith(root + "/")
+               for root in UNSCOPED_CRM_API_ROOTS)
+
+
 #: The services `_close_runtime` closes, users of a store before the store.
 #: Everything on app.state with a `close()` must be here — see
 #: `test_every_open_service_is_closed_for_a_restore`.
@@ -1154,6 +1185,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
             )
+        if caller not in (None, "", "local") and is_unscoped_crm_api_path(request.url.path):
+            # The registry is implemented but NOT cut over. Returning a
+            # customer-visible error is safer than serving another workspace's
+            # campaigns, search, CSV, sales board or sending queue.
+            return security_headers(JSONResponse(
+                status_code=403,
+                content={"detail": (
+                    "CRM access for this workspace is temporarily unavailable "
+                    "until the install owner completes workspace-data isolation."
+                )},
+            ))
         # D-456: a valid login cookie must not approve browser writes from a
         # different origin. API-token clients are not browser-cookie sessions.
         # Keep absent Origin valid for non-browser clients, but reject an

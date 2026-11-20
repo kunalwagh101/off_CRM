@@ -1,3 +1,9 @@
+## 2026-11-21 — Multi-process AI quota concurrency test made deterministic
+
+- D-469: An A11 quota concurrency test failed when it crossed an actual calendar-minute boundary. Python 3.10 output showed two workers both sent at the 22:49 UTC rollover, while the same revision's Python 3.11 test passed.
+- The test now fixes the same minute window in both child processes so it genuinely tests database-lock and reserve-before-transport atomicity, independent of the wall-clock minute. A separate test documents and proves the configured fixed-minute reset.
+- No production quota policy was changed, and no production atomicity vulnerability is claimed from that single CI trace. Rolling 60-second windows would be a different product decision. Full CI replay pending.
+
 ## 2026-11-21 — Cookie request safety, YouTube setup and image failover (unreleased)
 
 - D-463: Adding a YouTube channel or sweeping trends without a server-side YouTube API key returns a specific safe 422 naming `OFFSETX_YOUTUBE_API_KEY`. An absent credential is an operator setup step, not a masked generic provider failure.

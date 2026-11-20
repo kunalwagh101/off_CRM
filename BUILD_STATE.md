@@ -1,3 +1,9 @@
+## 2026-11-21 — A11 multi-process CI anomaly reviewed (D-469)
+
+- GitHub Actions run 44831804205, Python 3.10, produced one failure from `tests/test_ai_quota_atomic.py::test_A11_two_processes_can_send_only_one_provider_request[requests_per_minute-hosted-sqlite]` (2 workers reached the fake provider). The failure marker was timestamped 22:49:01 UTC near the minute rollover; 3.11 of the same revision passed, and `HostedStorage.exclusive()` uses an SQLite BEGIN IMMEDIATE writer transaction. Current quota policy is a fixed UTC calendar minute.
+- Test-only repair on develop `a4cb895` makes the window stable for spawned child processes so only reservation concurrency is tested. Added an explicit minute-transition unit case. Production limiter was not changed; if the product requires rolling 60-second protection, that is separate scope and would require design and dedicated tests.
+- Do not describe these fixes as all green until current HEAD has finished Python3.10/3.11/3.12/PostgreSQL and quality/browser workflows.
+
 ## 2026-11-21 — Post-CI remediation and next security/agent boundaries
 
 - First full CI of the previous D-455 / D-468 revisions failed on one added D-463 test: 3,326 passed on Python 3.11 and 3,437 passed against PostgreSQL, but the test assumed an error object while the caught YouTubeError had been safely replaced with a string + error reference by failure middleware. Real production code then gained a preflight for absent configuration: deterministic 422 with the actual key name, no provider call, tested on watch and sweep (2ceb621 RED, 115e07c source).

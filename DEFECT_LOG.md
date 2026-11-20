@@ -32,6 +32,7 @@ anything) · `process` (the way we work went wrong, not the code).
 
 | ID | Found | Kind | Severity | What went wrong, in one line | Status |
 |---|---|---|---|---|
+| D-468 | 2026-11-21 | security | medium | Hosted PostgreSQL restore's allegedly empty-database preflight did not check user-defined collations or text-search configurations; a destination with either could pass and receive a restore. Found by a fresh catalog-object review of S-06.03.04. | Source remediated on develop: tests for actual PostgreSQL plus catalog guard for pg_collation/pg_ts_config (test-first 1fe027d; fix 3002c8a). Full CI/recovery drills pending; S-06.03.04 stays BACKLOG and not released. |
 | D-467 | 2026-11-13 | gap | low | The lead discovery crawler ignores proxy settings on purpose (it pins the checked address), so on a network that only allows web traffic through a proxy it cannot crawl at all. Seen live: certificate refused in the cloud sandbox, 0 pages. | open · S-05.01.01; an owner-approved proxy path that keeps the destination check. Found by the 2026-11-13 feature showcase. |
 | D-466 | 2026-11-13 | bug | low | Revenue projection silently reads 0.7 as 0.7% (the field takes 0 to 100), giving a forecast of 0.03, and shows INR even when the month's goal is in EUR. | open · S-06.02.48; Found by the feature showcase. |
 | D-465 | 2026-11-13 | bug | low | The AI chat shows tokens back to the user: a reply read "Best, SENDER" instead of the owner's name. | open · S-06.02.29; Found by the feature showcase privacy demo. |

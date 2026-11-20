@@ -1,3 +1,9 @@
+## 2026-11-21 — Hosted recovery target catalog guard (unreleased)
+
+- D-468: Restore to an allegedly empty PostgreSQL database now also refuses user-defined collations and text-search configurations in public; before this, those objects could pass the empty-database check.
+- Test-first additions exercise both catalog checks, then use disposable real PostgreSQL to create a collation and a text-search configuration, prove the preflight rejects them without touching the source, and drop them before a normal encrypted restore.
+- This is a narrow guard improvement, NOT proof of a real private S3 bucket, independent backup-key custody, nightly scheduling, remote retention or disaster-recovery readiness. All production/independent security gates remain open.
+
 ## 2026-11-21 — Image generation failure semantics and safety (unreleased)
 
 - D-455: The image-brief generate endpoint no longer responds with HTTP 200 when no usable image is produced. Provider failure returns 502; output rejected only by the quality gates returns 422; any usable image in a partially failing batch remains reviewable with HTTP 200.

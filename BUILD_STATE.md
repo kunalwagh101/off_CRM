@@ -1,3 +1,8 @@
+## 2026-11-21 — Continued F-06.03 backup restore hardening (D-468)
+
+- Read `S-06.03.04` work order and reviewed `db/hosted_backup.py` against the claim that recovery is refused for every pre-existing object. A PostgreSQL database could have a custom collation or text-search configuration but none of the object kinds checked by `_ensure_empty_restore_target`; restore could proceed against a non-empty target.
+- RED test change 1fe027d adds catalog assertions and actual PostgreSQL create/drop/restore refusals. GREEN source change 3002c8a adds pg_catalog.pg_collation/pg_ts_config under the existing public-schema preflight. Full current-HEAD CI and real separate-database restore still need observed results. Never mark S-06.03.04 DONE while external S3/IAM/key custody/retention/schedule and recovery drill are absent.
+
 ## 2026-11-21 — Continued first-three programme, image generation failure path
 
 - Reviewed develop (baseline 1e794b6) and GitHub CI. Previous D-459/D-460/D-462 changes passed the complete test workflow, run 44824029994. D-451 cross-workspace CRM exposure remains the highest-severity unclosed release blocker; do not promote customer/main or enable the native CRM registry early.

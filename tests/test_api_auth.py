@@ -354,10 +354,12 @@ def test_D456_cookie_unsafe_writes_refuse_foreign_browser_origins(tmp_path, fore
 
 def test_D456_loopback_development_and_token_clients_still_work(tmp_path):
     settings = _demo_settings(tmp_path)
+    settings.host = "127.0.0.1"
     with TestClient(create_app(settings), base_url="http://localhost:8766") as client:
         assert client.post("/api/v1/auth/login", json={
             "username": "demo-owner", "password": "temporary-password-123",
         }).status_code == 200
+        assert client.get("/api/v1/auth/session").json()["authenticated"] is True
         assert client.post(
             "/api/v1/auth/logout", json={},
             headers={"Origin": "http://localhost:5173", "Sec-Fetch-Site": "same-site"},

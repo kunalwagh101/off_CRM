@@ -142,6 +142,12 @@ def audit_draft(
         warnings.append("Subject is longer than seven words")
     if OFFSETX_SIGNATURE not in body:
         errors.append("Exact off_CRM signature is missing")
+    if r"\n" in body or r"\r" in body:
+        errors.append("Unrendered escaped line breaks are not sendable")
+    if re.search(r"(?<!\.)\.\.(?!\.)", body):
+        errors.append("Repeated punctuation (two full stops) needs correction")
+    if not re.match(r"(?i)^(?:hi|hello|dear)\s+[^\n,]{1,120},", body.lstrip()):
+        errors.append("Email must start with a recipient greeting")
     if "—" in body or "–" in body or "—" in subject or "–" in subject:
         errors.append("Em dash or en dash is not allowed")
     # A model echoes what it was given: an address or number the payload
@@ -229,6 +235,9 @@ def _extract_json_object(text: str) -> dict[str, Any]:
 
 
 def normalize_email_body(body: str) -> str:
+    # Providers sometimes double-encode JSON line breaks. Decode only those
+    # two explicit email separators, not arbitrary backslash escapes or HTML.
+    body = body.replace("\\r\\n", "\n").replace("\\n", "\n")
     lines = [line.rstrip() for line in body.replace("\r\n", "\n").split("\n")]
     output: list[str] = []
     previous_blank = False

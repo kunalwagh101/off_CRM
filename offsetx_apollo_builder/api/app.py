@@ -318,7 +318,7 @@ UNSCOPED_CRM_API_ROOTS: frozenset[str] = frozenset({
     "/content-automation", "/posts", "/gtm", "/distribution",
     "/trends", "/image-briefs", "/image-assets", "/video-projects",
     "/video-media", "/video-renders", "/email-delivery",
-    "/settings/status", "/provider-calls", "/provider-profiles",
+    "/provider-calls", "/provider-profiles",
     "/ai/recall", "/ai/context", "/ai/plan", "/ai/run",
     "/agent-team", "/agent-routines", "/agent-routine-runs",
     "/agent-routine-status", "/agent-routine-notifications",

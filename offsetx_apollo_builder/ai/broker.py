@@ -998,8 +998,20 @@ class EgressBroker:
         """
         candidates, rejected = self.plan(request, settings, provider_id=provider_id, kind="image")
         attempts: list[dict[str, Any]] = []
+        # As for text calls, bound the complete image failover chain. The
+        # transport timeout still controls each individual in-flight request;
+        # never start a *new* provider after the wall-clock budget expires.
+        deadline = time.monotonic() + self.deadline_seconds
 
         for candidate in candidates:
+            if self._time_left(deadline) <= 0:
+                attempts.append({
+                    "provider_id": candidate.id,
+                    "model_id": candidate.model_id,
+                    "status": "deadline_exceeded",
+                    "detail": "The image generation time budget was used; no further model was called.",
+                })
+                break
             payload = build_payload(
                 request,
                 candidate.policy,

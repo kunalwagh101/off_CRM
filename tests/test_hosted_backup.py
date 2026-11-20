@@ -159,6 +159,8 @@ def test_restore_rejects_views_functions_types_schemas_and_extensions_without_dr
         assert "pg_catalog.pg_type" in sql
         assert "pg_catalog.pg_namespace" in sql
         assert "pg_catalog.pg_extension" in sql
+        assert "pg_catalog.pg_collation" in sql
+        assert "pg_catalog.pg_ts_config" in sql
 
 
 @pytest.mark.skipif(
@@ -256,6 +258,10 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
              "DROP TYPE protected_status"),
             ("CREATE SCHEMA protected_schema",
              "DROP SCHEMA protected_schema"),
+            ("CREATE COLLATION protected_collation (provider = libc, locale = 'C')",
+             "DROP COLLATION protected_collation"),
+            ("CREATE TEXT SEARCH CONFIGURATION protected_search (COPY = pg_catalog.simple)",
+             "DROP TEXT SEARCH CONFIGURATION protected_search"),
         ):
             with psycopg.connect(named(destination_name)) as conn:
                 conn.execute(create)

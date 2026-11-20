@@ -155,3 +155,32 @@ def test_role_api_requires_owner_provision_and_denies_unauthenticated_access(tmp
         assert {item["id"] for item in provision.json()["items"]} == {
             item["id"] for item in second.json()["items"]
         }
+
+
+def test_analyst_wrong_campaign_reports_actionable_public_reason(tmp_path):
+    """D-462: content analytics must explain an email-campaign refusal safely."""
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist", host="127.0.0.1",
+        api_token=OWNER, allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        campaign_id = client.app.state.engine.store.create_campaign(
+            name="Email outreach", daily_send_limit=10, kind="email",
+        )
+        assert client.post(
+            "/api/v1/agent-team/provision", headers=HEADERS,
+        ).status_code == 200
+        result = client.post(
+            "/api/v1/agent-team/execute",
+            json={"role": "Analyst", "campaign_id": campaign_id},
+            headers=HEADERS,
+        )
+        assert result.status_code == 409
+        detail = result.json()["detail"].lower()
+        assert "distribution" in detail
+        assert "campaign" in detail
+        assert "select" in detail
+        assert campaign_id.lower() not in detail
+        assert "existing engine refused" not in detail

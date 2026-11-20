@@ -1154,6 +1154,54 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
             )
+        # D-456: a valid login cookie must not approve browser writes from a
+        # different origin. API-token clients are not browser-cookie sessions.
+        # Keep absent Origin valid for non-browser clients, but reject an
+        # explicit foreign Origin and a browser's cross-site fetch marker.
+        if (
+            caller is not None
+            and request.url.path.startswith("/api/")
+            and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
+            and request.cookies.get(SESSION_COOKIE)
+            and not valid_api_token(request)
+        ):
+            origin = request.headers.get("origin", "").strip()
+            fetch_site = request.headers.get("sec-fetch-site", "").strip().lower()
+            accepted_origin = False
+            if origin:
+                try:
+                    sent = urlsplit(origin)
+                    target = urlsplit(str(request.url))
+                    plain = (
+                        sent.scheme in {"http", "https"}
+                        and not sent.username and not sent.password
+                        and not sent.path and not sent.query and not sent.fragment
+                    )
+                    origin_port = sent.port or (443 if sent.scheme == "https" else 80)
+                    target_port = target.port or (443 if target.scheme == "https" else 80)
+                    accepted_origin = bool(
+                        plain and sent.scheme == target.scheme
+                        and sent.hostname == target.hostname
+                        and origin_port == target_port
+                    )
+                    # The explicitly supported local Vite frontend uses port
+                    # 5173 while the backend uses 8766. Never apply this
+                    # exception to hosted customer domains.
+                    accepted_origin = accepted_origin or (
+                        plain
+                        and target.hostname in {"localhost", "127.0.0.1"}
+                        and target.scheme == "http"
+                        and origin in {
+                            "http://localhost:5173", "http://127.0.0.1:5173",
+                        }
+                    )
+                except ValueError:
+                    accepted_origin = False
+            if fetch_site == "cross-site" or (origin and not accepted_origin):
+                return security_headers(JSONResponse(
+                    status_code=403,
+                    content={"detail": "This browser write came from another origin or site."},
+                ))
         return await serve_as(caller, request, call_next)
 
     async def serve_as(caller: str | None, request: Request, call_next: Any) -> Response:

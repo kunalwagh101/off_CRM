@@ -98,11 +98,47 @@ def test_A05_workspace_login_cannot_administer_other_users(sessions):
 def test_A05_disabling_one_user_revokes_its_cookie_without_affecting_others(sessions):
     """A05: account revocation must affect existing sessions, not just new logins."""
     owner, admin, alice, bob = sessions
-    assert alice.get("/api/v1/dashboard").status_code == 200
-    assert bob.get("/api/v1/dashboard").status_code == 200
+    assert alice.get("/api/v1/dashboard").status_code == 403
+    assert bob.get("/api/v1/dashboard").status_code == 403
     disabled = owner.patch(
         "/api/v1/workspaces/alice", headers=admin, json={"enabled": False}
     )
     assert disabled.status_code == 200, disabled.text
     assert alice.get("/api/v1/dashboard").status_code == 401
-    assert bob.get("/api/v1/dashboard").status_code == 200
+    assert bob.get("/api/v1/dashboard").status_code == 403
+
+
+@pytest.mark.parametrize("method,path,body", [
+    ("get", "/api/v1/dashboard", None),
+    ("get", "/api/v1/campaigns", None),
+    ("get", "/api/v1/campaigns/guessed-cross-workspace-id", None),
+    ("get", "/api/v1/crm/search?q=other-company", None),
+    ("get", "/api/v1/sales/board", None),
+    ("get", "/api/v1/templates", None),
+    ("get", "/api/v1/research/graph", None),
+    ("get", "/api/v1/campaigns/guessed-cross-workspace-id/export", None),
+    ("post", "/api/v1/campaigns", {"name": "Should not exist"}),
+    ("post", "/api/v1/campaigns/guessed-cross-workspace-id/send", {}),
+    ("post", "/api/v1/ai/recall/search", {"query": "other-company"}),
+    ("post", "/api/v1/privacy/subject-access", {"email": "other@example.com"}),
+])
+def test_D451_legacy_shared_crm_refuses_non_owner_workspaces(sessions, method, path, body):
+    """Until migration/cutover, unscoped CRM routes may not expose any customer."""
+    owner, admin, alice, bob = sessions
+    # The only install owner with shared legacy CRM authority is the install
+    # API token. The workspace logins cannot claim any unowned CRM records.
+    client = alice if "search" not in path else bob
+    response = getattr(client, method)(path, **({"json": body} if body is not None else {}))
+    assert response.status_code == 403, (method, path, response.text)
+    assert "workspace" in response.json()["detail"].lower()
+    assert owner.get("/api/v1/dashboard", headers=admin).status_code == 200
+
+
+def test_D451_explicitly_isolated_workspace_features_remain_usable(sessions):
+    owner, admin, alice, bob = sessions
+    for client in (alice, bob):
+        assert client.get("/api/v1/auth/session").status_code == 200
+        assert client.get("/api/v1/agent-permissions").status_code == 200
+        assert client.get("/api/v1/ai/egress-log").status_code == 200
+    assert owner.get("/api/v1/campaigns", headers=admin).status_code == 200
+

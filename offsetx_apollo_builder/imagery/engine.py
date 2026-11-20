@@ -46,6 +46,7 @@ from ..ai.bandit import Arm, allocate
 from ..ai.payload import EgressRequest
 from ..ai.tiers import DataClass
 from ..campaigns import assert_kind
+from ..observability import report_failure
 from .gates import GateReport, decode_data_uri, run_gates
 from .store import ImageStore
 
@@ -201,9 +202,21 @@ class ImageCampaignEngine:
                     generated = self.broker.call_image(
                         request, settings, provider_id=chosen
                     )
-            except Exception as exc:  # noqa: BLE001 - recorded, round continues
+            except Exception as exc:  # noqa: BLE001 - failed candidate must not hide successes
+                reference = report_failure(
+                    exc,
+                    operation="image.generate",
+                    data_dir=self.store.assets_dir.parent,
+                    workspace=self.workspace_id,
+                )
                 result.call_failed += 1
-                result.failures.append({"stage": "call", "detail": str(exc)[:300]})
+                # Never put a raw provider exception (possibly containing a
+                # key, URL or customer text) into a user-visible result.
+                result.failures.append({
+                    "stage": "call",
+                    "detail": "Image provider failed. Check Connectors and quota. Reference: " + reference,
+                    "error_id": reference,
+                })
                 continue
 
             for image in generated.images:

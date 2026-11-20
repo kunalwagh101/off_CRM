@@ -1,3 +1,10 @@
+## 2026-11-21 — D-451 provisional fail-closed API barrier (not a cutover)
+
+- Verified a full green previous HEAD GitHub Actions run `44834203786` on `07f9a33f`: Python 3.10, 3.11, 3.12, PostgreSQL and quality/browser. This is only for the state *before* new D-451 containment changes.
+- Re-read owner-approved S-06.01.06 and CRM_TENANCY.md. `_engine(request)` still returns the install's singleton, and SalesTracker/privacy/other resources use unscoped stores; the already-built `WorkspaceCrmRegistry` is NOT wired into requests, workers or recovery. A naive factory swap would expose/misplace data and is prohibited.
+- Test-first HTTP protection `617496d` requires alpha/beta to receive HTTP 403 for known shared CRM reads, guessed IDs, mutation, exports and sends while local/token remains permitted. Code `a348f73` adds explicit unsafe prefix set and an authenticated middleware refusal. Additional predicate tests `11c95b5` pin nested/foreign-ID paths and independent AI features. This is temporary containment, not a substitute for manifest archive/apply, worker isolation or an independent all-route security audit.
+- Nonlocal CRM UI is intentionally unavailable until complete tenant cutover. Do not deploy to customers or move D-451/S-06.01.06 to DONE until the owner confirms the UX impact and the entire tenancy matrix passes. No Render deploy in this session. Latest containment CI still requires observed success.
+
 ## 2026-11-21 — A11 multi-process CI anomaly reviewed (D-469)
 
 - GitHub Actions run 44831804205, Python 3.10, produced one failure from `tests/test_ai_quota_atomic.py::test_A11_two_processes_can_send_only_one_provider_request[requests_per_minute-hosted-sqlite]` (2 workers reached the fake provider). The failure marker was timestamped 22:49:01 UTC near the minute rollover; 3.11 of the same revision passed, and `HostedStorage.exclusive()` uses an SQLite BEGIN IMMEDIATE writer transaction. Current quota policy is a fixed UTC calendar minute.

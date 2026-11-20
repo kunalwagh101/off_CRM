@@ -367,12 +367,19 @@ def test_D463_missing_youtube_key_is_actionable_4xx_not_server_error(api, monkey
     monkeypatch.delenv("OFFSETX_YOUTUBE_API_KEY", raising=False)
     response = api.post("/api/v1/trends/sweep", json={})
     assert response.status_code == 422, response.text
-    # Failure middleware redacts raw external exceptions and replaces them
-    # with a safe traceable reference, including for YouTubeError.
-    payload = response.json()
-    message = payload["detail"]
-    assert isinstance(message, str) and "settings" in message.lower()
-    assert "Reference: " + payload["error_id"] in message
-    assert payload["error_id"].startswith("E-")
-    assert "OFFSETX_YOUTUBE_API_KEY" not in message
+    # Absent configuration is an expected operator action, not a provider
+    # exception; it must name the exact server-side setup step.
+    message = response.json()["detail"]
+    assert isinstance(message, dict)
+    assert message["error"] == "youtube"
+    assert "OFFSETX_YOUTUBE_API_KEY" in message["message"]
 
+
+def test_D463_missing_youtube_key_on_watch_names_safe_configuration(api, monkeypatch):
+    monkeypatch.delenv("OFFSETX_YOUTUBE_API_KEY", raising=False)
+    response = api.post("/api/v1/trends/channels", json={"handle": "@Example"})
+    assert response.status_code == 422, response.text
+    message = response.json()["detail"]
+    assert message["error"] == "youtube"
+    assert "OFFSETX_YOUTUBE_API_KEY" in message["message"]
+    assert "secret" not in response.text.lower()

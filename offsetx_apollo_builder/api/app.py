@@ -325,8 +325,29 @@ UNSCOPED_CRM_API_ROOTS: frozenset[str] = frozenset({
 })
 
 
+def is_workspace_scoped_media_path(path: str) -> bool:
+    """Existing A05 image/video proof uses workspace-owned IDs and byte stores.
+
+    Do not turn the D-451 CRM safety barrier into a media outage. The CRM
+    campaign list itself is still blocked for nonlocal workspaces.
+    """
+    relative = path[len(API_PREFIX):] if path.startswith(API_PREFIX + "/") else ""
+    if any(relative.startswith(prefix) for prefix in (
+        "/image-briefs/", "/image-assets/", "/video-projects/",
+        "/video-media/", "/video-renders/",
+    )):
+        return True
+    return bool(re.fullmatch(
+        r"/campaigns/[^/]+/(?:image-briefs|image-queue|image-assets|image-summary|"
+        r"video-projects|video-summary|video-queue|video-approved|video-media)"
+        r"(?:/[^/]*)*", relative,
+    ))
+
+
 def is_unscoped_crm_api_path(path: str) -> bool:
     if not path.startswith(API_PREFIX + "/"):
+        return False
+    if is_workspace_scoped_media_path(path):
         return False
     relative = path[len(API_PREFIX):]
     return any(relative == root or relative.startswith(root + "/")
@@ -1185,10 +1206,23 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             return security_headers(
                 JSONResponse(status_code=401, content={"detail": "CRM login required"})
             )
-        if caller not in (None, "", "local") and is_unscoped_crm_api_path(request.url.path):
+        demo_sample_read = (
+            resolved.public_demo
+            and request.method == "GET"
+            and (
+                request.url.path == f"{API_PREFIX}/campaigns"
+                or bool(re.fullmatch(
+                    rf"{API_PREFIX}/campaigns/[^/]+/contacts", request.url.path
+                ))
+            )
+        )
+        if (caller not in (None, "", "local")
+                and is_unscoped_crm_api_path(request.url.path)
+                and not demo_sample_read):
             # The registry is implemented but NOT cut over. Returning a
             # customer-visible error is safer than serving another workspace's
-            # campaigns, search, CSV, sales board or sending queue.
+            # campaigns, search, CSV, sales board or sending queue. Public demo
+            # has a separate validated sample-only root and read-only CRM.
             return security_headers(JSONResponse(
                 status_code=403,
                 content={"detail": (

@@ -31,7 +31,14 @@ class _WireProvider:
         return "done"
 
 
-def _attempt_from_process(path, use_hosted, key, limits_name, start, wire, results, hosted_target=""):
+def _attempt_from_process(path, use_hosted, key, limits_name, start, wire, results,
+                          hosted_target="", fixed_minute_window=None):
+    # The concurrency test checks atomicity within ONE quota window. Two
+    # workers started at xx:59.99 / xx+1:00.01 may legitimately both send
+    # under the product's documented fixed-calendar-minute policy.
+    if fixed_minute_window is not None:
+        from offsetx_apollo_builder.ai import quota as quota_module
+        quota_module._minute_window = lambda: fixed_minute_window
     data_dir = Path(path)
     quota = QuotaTracker(
         data_dir / "quota",
@@ -69,10 +76,12 @@ def test_A11_two_processes_can_send_only_one_provider_request(tmp_path, use_host
     ctx = multiprocessing.get_context("spawn")
     start, wire, results = ctx.Event(), ctx.Value("i", 0), ctx.Queue()
     key = Fernet.generate_key().decode()
+    fixed_window = int(time.time() // 60)
     workers = [
         ctx.Process(
             target=_attempt_from_process,
-            args=(str(tmp_path), use_hosted, key, limit_name, start, wire, results),
+            args=(str(tmp_path), use_hosted, key, limit_name, start, wire, results,
+                  "", fixed_window),
         )
         for _ in range(2)
     ]
@@ -332,3 +341,21 @@ def test_A11_key_rotation_cannot_reset_a_workspaces_daily_budget(tmp_path):
                     settings, system_prompt="test",
                 )
     assert sent == ["provider"]
+
+
+def test_A11_fixed_minute_window_rollover_is_explicit(tmp_path, monkeypatch):
+    """A fixed calendar minute resets at its boundary; atomicity is separate."""
+    from offsetx_apollo_builder.ai import quota as quota_module
+
+    minute = [123_456]
+    monkeypatch.setattr(quota_module, "_minute_window", lambda: minute[0])
+    tracker = QuotaTracker(tmp_path)
+    limits = QuotaLimits(requests_per_minute=1)
+    first, reason = tracker.try_reserve("mistral", limits)
+    assert first and reason == ""
+    refused, reason = tracker.try_reserve("mistral", limits)
+    assert refused is None and "per-minute" in reason
+    minute[0] += 1
+    second, reason = tracker.try_reserve("mistral", limits)
+    assert second and reason == ""
+

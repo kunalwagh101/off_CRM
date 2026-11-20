@@ -3277,6 +3277,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     def watch_channel(body: TrendWatchBody, request: Request) -> dict[str, Any]:
         watcher = _trends(request)
         try:
+            if watcher.client is None:
+                raise HTTPException(
+                    status_code=422, detail={
+                        "error": "youtube",
+                        "message": (
+                            "YouTube API key is not configured. Set "
+                            "OFFSETX_YOUTUBE_API_KEY in the server environment "
+                            "and restart off_CRM before adding channels."
+                        ),
+                    },
+                )
             return watcher.watch(str(body.get("handle", "")))
         except YouTubeError as exc:
             raise HTTPException(
@@ -3294,6 +3305,17 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         """
         watcher = _trends(request)
         try:
+            if watcher.client is None:
+                raise HTTPException(
+                    status_code=422, detail={
+                        "error": "youtube",
+                        "message": (
+                            "YouTube API key is not configured. Set "
+                            "OFFSETX_YOUTUBE_API_KEY in the server environment "
+                            "and restart off_CRM before sweeping trends."
+                        ),
+                    },
+                )
             return watcher.sweep(
                 per_channel=int(body.get("per_channel") or 10),
                 limit=int(body.get("limit") or 0),

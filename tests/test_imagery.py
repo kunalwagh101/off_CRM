@@ -563,3 +563,29 @@ def test_generation_goes_through_the_broker_and_nothing_else():
 
     assert not (imported & {"requests", "httpx", "urllib.request", "openai"}), imported
     assert not any("providers" in name for name in imported), imported
+
+
+def test_failed_provider_call_records_safe_reference(engine, capsys):
+    """A failed paid call is traceable without returning the provider's secret."""
+    import json
+    import re
+    brief = engine.add_brief(CAMPAIGN, brief="a warehouse")
+    planted = "nvapi-never-print-this-in-output"
+    engine.broker.script = [RuntimeError("provider rejected " + planted)]
+    result = engine.generate(brief, count=1)
+    assert result.call_failed == 1 and result.stored == 0
+    output = result.to_dict()
+    assert planted not in repr(output)
+    detail = output["failures"][0]
+    assert detail["stage"] == "call"
+    assert re.fullmatch(r"E-[A-F0-9]{24}", detail["error_id"])
+    assert detail["error_id"] in detail["detail"]
+    logging = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines()
+        if line.startswith('{"event":"failure"')
+    ]
+    matching = [line for line in logging if line["error_id"] == detail["error_id"]]
+    assert len(matching) == 1
+    assert planted not in repr(matching[0])
+    assert matching[0]["workspace"] == "local"
+

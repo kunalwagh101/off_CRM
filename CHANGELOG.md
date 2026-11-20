@@ -1,3 +1,10 @@
+## 2026-11-21 — Image generation failure semantics and safety (unreleased)
+
+- D-455: The image-brief generate endpoint no longer responds with HTTP 200 when no usable image is produced. Provider failure returns 502; output rejected only by the quality gates returns 422; any usable image in a partially failing batch remains reviewable with HTTP 200.
+- Provider error text is no longer returned as raw JSON: failed calls emit a safe, searchable reference. Browser responses show actionable next steps without leaking vendor URLs, tokens or exception text.
+- New negative/positive API tests cover no image, gate-only rejection, partial success and missing YouTube credentials (D-463). New engine test checks secret-safe failure logs. Full CI, live model, independent penetration and production deployment gates remain distinct and unverified at this note.
+- No work was deployed to `majors_97`: its only Render service is `offsetx-demo` from `offset_mvp`, not off_CRM. Customer isolation (D-451) is still a critical release blocker.
+
 ## 2026-11-21 — Draft formatting and agent refusal repairs (unreleased)
 
 - D-459: Draft generation decodes double-encoded JSON line breaks before outbox review. Raw literal backslash-n paragraphs are rejected by the sendability audit rather than graded 100.

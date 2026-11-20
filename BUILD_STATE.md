@@ -1,3 +1,10 @@
+## 2026-11-21 — Continued first-three programme, image generation failure path
+
+- Reviewed develop (baseline 1e794b6) and GitHub CI. Previous D-459/D-460/D-462 changes passed the complete test workflow, run 44824029994. D-451 cross-workspace CRM exposure remains the highest-severity unclosed release blocker; do not promote customer/main or enable the native CRM registry early.
+- D-455 test-first commits 83de40a (image HTTP contract) and d9a33c1 (secret-safe per-attempt failure logs), followed by source fixes 965ddb0 / 9ddc9c4 / 9bf61d6. Tests: `tests/test_e2e_findings_2026_11_13.py::test_D455_image_round_http_status_is_honest`, `tests/test_imagery.py::test_failed_provider_call_records_safe_reference`. D-463 missing-key regression is also added; source already returned a controlled 422.
+- Current source is on develop, no production deploy. Record exact final CI status separately once available; do not convert S-06.02.56, S-06.03, or F-04.01 to DONE from this narrow remediation. Missing real S3 recovery and an isolated CRM runtime cannot be replaced by green local tests.
+- `majors_97` Render owns `offsetx-demo` from `offset_mvp`; the off_CRM staging and demo services are in the separate Primary Render connection and have manual deployments. Do not deploy CRM to the wrong codebase/account.
+
 ## 2026-11-13 — Live end-to-end sweep with a real NVIDIA key; AI path repaired (not released)
 
 - First run of the real AI path with a valid key (D-341 had left it unverified). Local server on an empty data folder, key entered only through the app. 245-route sweep: 0 server errors, 0 auth bypasses. 234 live checks passed; 19 real defects D-440–D-458 logged; 11 raw FAILs were the harness's own wrong inputs.

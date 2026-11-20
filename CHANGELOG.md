@@ -1,9 +1,9 @@
 ## 2026-11-21 — Shared CRM isolation containment (unreleased)
 
-- D-451: Non-owner workspace sessions now receive HTTP 403 on a defined legacy shared-CRM API surface: campaigns and dependent media/jobs, sales, CRM search/analytics/export, templates, delivery, privacy, discovery, research, GTM and related unscoped routes. This protects existing legacy customer data while the native, workspace-specific CRM registry remains unactivated.
-- Install-owner `local` and valid API-token access retain existing legacy operations. Auth/session, workspace-scoped AI settings, chat, permissions and other isolated services remain available.
+- D-451: Non-owner workspace sessions now receive HTTP 403 on a defined legacy shared-CRM API surface: campaigns and their sending jobs, sales, CRM search/analytics/export, templates, delivery, privacy, discovery, research, GTM and related unscoped routes. This protects existing legacy customer data while the native, workspace-specific CRM registry remains unactivated.
+- Proven separately workspace-owned image/video APIs and only the dedicated public demo's sample-CRM read endpoints remain available, along with redacted settings status. Install-owner `local` and valid API-token access retain existing legacy operations. Auth/session, workspace-scoped AI settings, chat, permissions and other isolated services remain available.
 - High-cost trade-off: nonlocal users lose CRM functionality temporarily, rather than seeing another customer's data. This is a deliberately restrictive temporary control, not the workspace-owned CRM feature.
-- HTTP-level test-first alpha/beta/local matrix checks read, guessed foreign ID, export, send, mutation and isolated-service availability. D-451 is still OPEN: no legacy migration, worker/unscoped raw-service matrix, independent penetration or customer staging deploy. Audit every new route; the prefix list is not a proof of total isolation.
+- HTTP-level test-first alpha/beta/local matrix and existing image/video/public-demo suites check read, guessed foreign ID, export, send, mutation and isolated-service availability. D-451 is still OPEN: no legacy migration, worker/unscoped raw-service matrix, independent penetration or customer staging deploy. Audit every new route; the prefix list is not a proof of total isolation.
 
 ## 2026-11-21 — Multi-process AI quota concurrency test made deterministic
 

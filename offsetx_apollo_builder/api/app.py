@@ -2385,6 +2385,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     if failure.get("stage") == "gate" else
                     "The image provider failed; check its model and quota in Connectors."
                 ),
+                "error_id": (
+                    failure.get("error_id") if re.fullmatch(
+                        r"E-[A-F0-9]{24}", str(failure.get("error_id") or "")
+                    ) else ""
+                ),
             }
             for failure in result["failures"]
         ]

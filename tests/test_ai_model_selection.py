@@ -720,3 +720,48 @@ def test_the_image_adapter_asks_for_base64_not_a_link():
     assert sent["url"].endswith("/images/generations")
     assert sent["payload"]["response_format"] == "b64_json"
     assert sent["payload"]["size"] == "1024x1024"
+
+
+def test_D457_image_failover_does_not_start_again_after_deadline(registry, monkeypatch):
+    """After an over-time provider attempt, never spend another attempt."""
+    from types import SimpleNamespace
+
+    tick = [300.0]
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.ai.broker.time",
+        SimpleNamespace(monotonic=lambda: tick[0]),
+    )
+    broker = EgressBroker(
+        registry=registry, credential_resolver=lambda _: "safe-test-key",
+        deadline_seconds=2, timeout_seconds=60,
+    )
+    attempts = []
+
+    class SlowImage:
+        def generate_images(self, *, prompt):
+            attempts.append(prompt)
+            tick[0] += 4
+            raise TimeoutError("The previous provider already consumed the budget")
+
+    broker._instantiate = lambda candidate, adapter_override="": SlowImage()  # type: ignore[method-assign]
+    with pytest.raises(NoPermittedProvider) as exc:
+        broker.call_image(
+            EgressRequest(
+                task_type="image_generation", data_class=DataClass.PUBLIC,
+                instructions="public warehouse illustration",
+            ),
+            _settings(
+                enabled_provider_ids=("nvidia",),
+                enabled_models={
+                    "nvidia": (
+                        "black-forest-labs/flux.1-dev",
+                        "black-forest-labs/flux.1-schnell",
+                    ),
+                },
+            ),
+        )
+    assert len(attempts) == 1
+    assert any(
+        item.get("status") == "deadline_exceeded" for item in exc.value.considered
+    )
+

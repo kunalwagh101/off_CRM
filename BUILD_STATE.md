@@ -1,3 +1,10 @@
+## 2026-11-21 — Post-CI remediation and next security/agent boundaries
+
+- First full CI of the previous D-455 / D-468 revisions failed on one added D-463 test: 3,326 passed on Python 3.11 and 3,437 passed against PostgreSQL, but the test assumed an error object while the caught YouTubeError had been safely replaced with a string + error reference by failure middleware. Real production code then gained a preflight for absent configuration: deterministic 422 with the actual key name, no provider call, tested on watch and sweep (2ceb621 RED, 115e07c source).
+- Cookie Origin/Sec-Fetch-Site hardening D-456 was developed with seven malicious browser-origin variants and loopback/token positive coverage (26c6264 RED; 5b87127 source; da7877a tightened local-session fixture). No customer data migrated.
+- D-457 image failover monotonic stop check was added after a test-first simulated slow provider (fa90ea3 RED, 8eb8bca source). This is explicitly not an in-flight hard deadline.
+- Owner-directed first three features F-06.02, F-06.03 and F-04.01 remain open. D-451 native CRM workspace ownership/migration, offsite restore and complete role-team QA are release blockers. No main promotion or manual Render deploy. Full final CI and independent security QA must be inspected and recorded, not inferred from container builds.
+
 ## 2026-11-21 — Continued F-06.03 backup restore hardening (D-468)
 
 - Read `S-06.03.04` work order and reviewed `db/hosted_backup.py` against the claim that recovery is refused for every pre-existing object. A PostgreSQL database could have a custom collation or text-search configuration but none of the object kinds checked by `_ensure_empty_restore_target`; restore could proceed against a non-empty target.

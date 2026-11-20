@@ -1,3 +1,10 @@
+## 2026-11-21 — Cookie request safety, YouTube setup and image failover (unreleased)
+
+- D-463: Adding a YouTube channel or sweeping trends without a server-side YouTube API key returns a specific safe 422 naming `OFFSETX_YOUTUBE_API_KEY`. An absent credential is an operator setup step, not a masked generic provider failure.
+- D-456: Cookie-authenticated browser writes reject a foreign Origin or Sec-Fetch-Site: cross-site. Same-origin requests, explicitly supported local Vite development, non-browser requests without Origin, and valid API-token automation remain supported.
+- D-457 (partial): Image model failover now checks the same shared deadline as text before beginning each additional model. It does not forcibly abort an already in-flight provider request; the five-minute browser stall remains an open acceptance issue.
+- Each change was preceded by focused tests. CI for latest HEAD, actual desktop/mobile cookie QA and external security testing remain outstanding. No production deploy, CRM cross-workspace release, or board DONE change.
+
 ## 2026-11-21 — Hosted recovery target catalog guard (unreleased)
 
 - D-468: Restore to an allegedly empty PostgreSQL database now also refuses user-defined collations and text-search configurations in public; before this, those objects could pass the empty-database check.

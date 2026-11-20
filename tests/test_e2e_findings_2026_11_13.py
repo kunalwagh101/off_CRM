@@ -329,3 +329,45 @@ def test_a_connection_failure_is_still_retried_because_nothing_was_sent(monkeypa
     session = _FlakySession(requests.exceptions.ConnectionError("connection refused"))
     assert _genai_provider(session).generate_images(prompt="x") == ["data:image/jpeg;base64,QUJD"]
     assert session.calls == 2
+
+
+@pytest.mark.parametrize(
+    ("stored", "call_failed", "gate_failed", "expected_status"),
+    [(0, 1, 0, 502), (0, 0, 1, 422), (1, 1, 0, 200)],
+)
+def test_D455_image_round_http_status_is_honest(
+    api, monkeypatch, stored, call_failed, gate_failed, expected_status,
+):
+    """A zero-result image run must never look successful to HTTP clients."""
+    from offsetx_apollo_builder.imagery.engine import ImageCampaignEngine, GenerationRound
+
+    secret = "nvapi-secret-should-not-leak"
+    def stub_generate(self, brief_id, *, count, provider_id):
+        return GenerationRound(
+            brief_id=brief_id, requested=count, stored=stored,
+            call_failed=call_failed, gate_failed=gate_failed,
+            assets=["asset"] if stored else [],
+            failures=[{"stage": "call", "detail": secret}] if call_failed else [],
+        )
+
+    monkeypatch.setattr(ImageCampaignEngine, "generate", stub_generate)
+    response = api.post("/api/v1/image-briefs/synthetic/generate", json={"count": 1})
+    assert response.status_code == expected_status, response.text
+    payload = response.json()
+    assert secret not in response.text
+    if stored:
+        assert payload["stored"] == 1 and payload["assets"] == ["asset"]
+    else:
+        assert payload.get("detail"), payload
+        assert "image" in str(payload["detail"]).lower()
+
+
+def test_D463_missing_youtube_key_is_actionable_4xx_not_server_error(api, monkeypatch):
+    """Missing optional credentials are an operator step, not an internal crash."""
+    monkeypatch.delenv("OFFSETX_YOUTUBE_API_KEY", raising=False)
+    response = api.post("/api/v1/trends/sweep", json={})
+    assert response.status_code == 422, response.text
+    message = response.json()["detail"]
+    assert message["error"] == "youtube"
+    assert "key" in message["message"].lower()
+

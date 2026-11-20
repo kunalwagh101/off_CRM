@@ -1,3 +1,10 @@
+## 2026-11-21 — Draft formatting and agent refusal repairs (unreleased)
+
+- D-459: Draft generation decodes double-encoded JSON line breaks before outbox review. Raw literal backslash-n paragraphs are rejected by the sendability audit rather than graded 100.
+- D-460: The email audit refuses missing recipient greetings and accidental two-full-stop punctuation; dedicated regression tests cover both.
+- D-462: Analyst now explains that the selected campaign must be a content-distribution campaign, without returning the campaign identifier or arbitrary internal engine error text.
+- All changes are on develop only; no CRM deployment to the separate majors_97 OffsetX service. New regression and full CI results must be recorded before declaring verified; the wider F-06.02/F-06.03/F-04.01 delivery and external security/production gates remain open.
+
 ## 2026-11-13 — Live end-to-end sweep and NVIDIA repair (unreleased)
 
 - NVIDIA works again on a fresh connection: the default model and nine others had been retired by NVIDIA, so every AI feature failed. The list now holds only models that answered a real call; default `nvidia/nemotron-3.5-lightning-30b-a3b`.

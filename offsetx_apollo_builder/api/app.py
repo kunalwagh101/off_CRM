@@ -2368,13 +2368,39 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )}
 
     @app.post(f"{API_PREFIX}/image-briefs/{{brief_id}}/generate")
-    def generate_images(brief_id: str, body: ImageGenerateBody, request: Request) -> dict[str, Any]:
+    def generate_images(brief_id: str, body: ImageGenerateBody, request: Request) -> Any:
         engine = _imagery(request)
-        return engine.generate(
+        result = engine.generate(
             brief_id,
             count=int(body.get("count") or 3),
             provider_id=str(body.get("provider_id", "")).strip(),
         ).to_dict()
+        # Provider exception strings can contain internal URLs or credentials.
+        # Every browser-visible path receives bounded, fixed reasons instead.
+        result["failures"] = [
+            {
+                "stage": "gate" if failure.get("stage") == "gate" else "call",
+                "detail": (
+                    "The image failed quality checks; review the requested size."
+                    if failure.get("stage") == "gate" else
+                    "The image provider failed; check its model and quota in Connectors."
+                ),
+            }
+            for failure in result["failures"]
+        ]
+        if result["stored"]:
+            # Partial success remains a usable review queue, with honest counts.
+            return result
+        if result["call_failed"] or not result["gate_failed"]:
+            request.state.public_failure_detail = (
+                "Image generation returned no pictures. Check the image model, "
+                "provider key and quota in Connectors before trying again."
+            )
+            return JSONResponse(status_code=502, content=result)
+        return JSONResponse(status_code=422, content={
+            **result,
+            "detail": "No image passed the quality checks. Review the image brief and dimensions.",
+        })
 
     @app.get(f"{API_PREFIX}/campaigns/{{campaign_id}}/image-queue")
     def image_review_queue(campaign_id: str, request: Request) -> dict[str, Any]:

@@ -84,3 +84,60 @@ Would a quick call help?
     assert not audit.sendable
     assert "A public hook source is required" in audit.errors
     assert any("quick call" in error for error in audit.errors)
+
+
+def test_ai_escaped_paragraph_breaks_are_real_newlines():
+    from offsetx_apollo_builder.outreach.email_expert import normalize_email_body
+
+    # A provider can return double-encoded JSON strings. These must not enter
+    # a prospect's outbox as the visible characters backslash and n.
+    rendered = (
+        "Hi Anita," + r"\n\n"
+        + "I read your public supplier briefing." + r"\n\n"
+        + "Would the evidence workflow be useful?" + r"\n\n"
+        + OFFSETX_SIGNATURE.replace("\n", r"\n")
+    )
+    cleaned = normalize_email_body(rendered)
+    assert r"\n" not in cleaned
+    assert "Hi Anita,\n\nI read" in cleaned
+    assert OFFSETX_SIGNATURE in cleaned
+
+
+def test_literal_escaped_newlines_are_never_sendable_without_normalization():
+    audit = audit_draft(
+        stage=INITIAL,
+        route=route_for_category(LOCKED_CATEGORIES[0]),
+        category=LOCKED_CATEGORIES[0],
+        public_hook="Public supplier briefing",
+        hook_source="https://example.com/brief",
+        subject="Supplier evidence",
+        body="Hi Anita," + r"\n\n" + "Any thoughts?" + r"\n\n"
+        + OFFSETX_SIGNATURE.replace("\n", r"\n"),
+    )
+    assert not audit.sendable
+    assert any("escaped" in item.lower() for item in audit.errors)
+
+
+def test_draft_audit_blocks_missing_greeting_and_double_full_stop():
+    common = dict(
+        stage=INITIAL,
+        route=route_for_category(LOCKED_CATEGORIES[0]),
+        category=LOCKED_CATEGORIES[0],
+        public_hook="Public supplier briefing",
+        hook_source="https://example.com/brief",
+        subject="Supplier evidence",
+    )
+    no_greeting = audit_draft(
+        **common,
+        body="I read your public supplier update.\n\nWould this help?\n\n"
+        + OFFSETX_SIGNATURE,
+    )
+    double_dot = audit_draft(
+        **common,
+        body="Hi Anita,\n\nI saw your October.. update.\n\n"
+        "Would this help?\n\n" + OFFSETX_SIGNATURE,
+    )
+    assert not no_greeting.sendable
+    assert any("greeting" in item.lower() for item in no_greeting.errors)
+    assert not double_dot.sendable
+    assert any("punctuation" in item.lower() for item in double_dot.errors)

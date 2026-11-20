@@ -1971,6 +1971,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         """Dispatch to the exact existing role engine; no tool/publish bypass."""
         from ..agent.role_team import RoleEngines, execute_role, release_role_resources
+        from ..campaigns import WrongCampaignKind
 
         require_install_owner(request)
         workspace_id = _workspace_id(request)
@@ -2000,6 +2001,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(404, "Campaign, asset or account not found in this workspace") from exc
+        except WrongCampaignKind as exc:
+            # The campaign ID may be private; do not echo it from the engine.
+            # The user needs the correct kind, not a vague 409 or a raw stack.
+            raise HTTPException(
+                409,
+                "This agent needs a content-distribution campaign. Select one in Content and try again.",
+            ) from exc
         except ValueError as exc:
             raise HTTPException(409, "The existing engine refused this action; review its prerequisites") from exc
         finally:

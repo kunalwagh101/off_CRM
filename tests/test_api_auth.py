@@ -327,3 +327,50 @@ def test_generic_value_error_never_reflects_sensitive_input(tmp_path):
         assert response.status_code == 422
         assert "secret-should-not-echo" not in response.text.lower()
         assert "traceback" not in response.text.lower()
+
+
+@pytest.mark.parametrize("foreign", [
+    {"Origin": "https://evil.example"},
+    {"Origin": "null"},
+    {"Origin": "https://crm.test.evil.example"},
+    {"Origin": "http://crm.test"},
+    {"Origin": "https://crm.test:444"},
+    {"Sec-Fetch-Site": "cross-site"},
+    {"Origin": "https://crm.test", "Sec-Fetch-Site": "cross-site"},
+])
+def test_D456_cookie_unsafe_writes_refuse_foreign_browser_origins(tmp_path, foreign):
+    """A login cookie must not approve mutations from a different site."""
+    with TestClient(create_app(_demo_settings(tmp_path)), base_url="https://crm.test") as client:
+        assert client.post("/api/v1/auth/login", json={
+            "username": "demo-owner", "password": "temporary-password-123",
+        }).status_code == 200
+        rejected = client.post("/api/v1/auth/logout", json={}, headers=foreign)
+        assert rejected.status_code == 403, (foreign, rejected.text)
+        assert "origin" in rejected.text.lower() or "site" in rejected.text.lower()
+        assert client.get("/api/v1/auth/session").json()["authenticated"] is True
+        assert client.post("/api/v1/auth/logout", json={},
+                           headers={"Origin": "https://crm.test"}).status_code == 200
+
+
+def test_D456_loopback_development_and_token_clients_still_work(tmp_path):
+    settings = _demo_settings(tmp_path)
+    with TestClient(create_app(settings), base_url="http://localhost:8766") as client:
+        assert client.post("/api/v1/auth/login", json={
+            "username": "demo-owner", "password": "temporary-password-123",
+        }).status_code == 200
+        assert client.post(
+            "/api/v1/auth/logout", json={},
+            headers={"Origin": "http://localhost:5173", "Sec-Fetch-Site": "same-site"},
+        ).status_code == 200
+    settings = _demo_settings(tmp_path / "token")
+    settings.demo_username = ""
+    settings.demo_password = ""
+    settings.api_token = "external-client-" + "b" * 32
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        response = client.post(
+            "/api/v1/memory", json={"content": "A sourced fact for the team."},
+            headers={"Authorization": "Bearer " + settings.api_token,
+                     "Origin": "https://evil.example"},
+        )
+        assert response.status_code == 201, response.text
+

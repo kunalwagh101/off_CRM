@@ -156,6 +156,10 @@ def test_D451_known_unscoped_routes_cannot_escape_by_suffix():
     for independent in (
         "/api/v1/auth/session", "/api/v1/agent-permissions",
         "/api/v1/memory", "/api/v1/ai/chats", "/api/v1/ai/providers",
+        "/api/v1/image-assets/image-private/file",
+        "/api/v1/video-projects/project-private",
+        "/api/v1/campaigns/campaign-fixture/image-briefs",
+        "/api/v1/campaigns/campaign-fixture/video-projects",
         "/api/v1/campaigns-public", "/health/live",
     ):
         assert not is_unscoped_crm_api_path(independent), independent

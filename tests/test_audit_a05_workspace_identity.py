@@ -142,3 +142,20 @@ def test_D451_explicitly_isolated_workspace_features_remain_usable(sessions):
         assert client.get("/api/v1/ai/egress-log").status_code == 200
     assert owner.get("/api/v1/campaigns", headers=admin).status_code == 200
 
+
+
+def test_D451_known_unscoped_routes_cannot_escape_by_suffix():
+    from offsetx_apollo_builder.api.app import is_unscoped_crm_api_path
+    for protected in (
+        "/api/v1/campaigns", "/api/v1/campaigns/private-id/export",
+        "/api/v1/crm/accounts", "/api/v1/sales/leads/private-id",
+        "/api/v1/privacy/deletions/request-id", "/api/v1/ai/recall/rebuild",
+        "/api/v1/email-delivery/jobs", "/api/v1/agent-team/execute",
+    ):
+        assert is_unscoped_crm_api_path(protected), protected
+    for independent in (
+        "/api/v1/auth/session", "/api/v1/agent-permissions",
+        "/api/v1/memory", "/api/v1/ai/chats", "/api/v1/ai/providers",
+        "/api/v1/campaigns-public", "/health/live",
+    ):
+        assert not is_unscoped_crm_api_path(independent), independent

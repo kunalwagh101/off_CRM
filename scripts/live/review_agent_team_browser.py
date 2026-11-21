@@ -112,11 +112,9 @@ def verify(page, width):
     legacy_key = "legacy-role-once-" + str(width)
     page.get_by_label("Companion", exact=True).select_option(label="Research " + str(width))
     page.get_by_label("Video topic", exact=True).fill(legacy_topic)
-    page.evaluate("""async (key) => {
+    page.evaluate("""async ({key, topic}) => {
       const companion = document.querySelector('select[aria-label="Companion"]').value;
       const campaign_id = document.querySelector('select[aria-label="Role campaign"]').value;
-      const topic = document.querySelector('input[aria-label="Video topic"]')?.value
-        ?? document.querySelector('input[maxlength="500"]')?.value;
       const intent = {workspace: "local", actor: "", companion,
                       payload: {role: "Maker", campaign_id, topic}};
       const bytes = new TextEncoder().encode(JSON.stringify(intent));
@@ -124,7 +122,7 @@ def verify(page, width):
       const digest = [...new Uint8Array(hash)].map(n => n.toString(16).padStart(2,"0")).join("");
       sessionStorage.setItem("offcrm-agent-role-pending-v1-" + digest,
                              JSON.stringify({fingerprint: JSON.stringify(digest), key}));
-    }""", legacy_key)
+    }""", {"key": legacy_key, "topic": legacy_topic})
     page.reload(wait_until="domcontentloaded")
     page.get_by_label("Companion", exact=True).select_option(label="Scout")
     page.get_by_label("Role", exact=True).select_option("Maker")

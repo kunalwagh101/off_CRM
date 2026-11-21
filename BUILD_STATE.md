@@ -1,3 +1,8 @@
+## 2026-11-21 — D-493 safe provider/backup key-generation CLI, unverified release
+
+- F-06.03 and F-06.02: `offsetx-db new-secrets-key` and `new-backup-key` previously printed sensitive encryption keys to stdout even when run by CI, a supervisor or a shell pipe. Test-first parametrised command tests `2b0b196` cover non-TTY stdout denial and a new `--output FILE` path: freshly created exclusive private 0600 file, valid Fernet key, key never echoed, no overwrite and no final-symlink follow. CLI fix `ea720ab` adds this guarded delivery path; interactive legacy acceptance updated `2a79219`. `Dockerfile.review` now executes targeted checks early (`d58e1a2`).
+- This hardens key custody, but no hosted S3 backup destination has been approved or configured for off_CRM. S-06.03.04 is NOT DONE until real independent backup and isolated recovery are proven. All full latest-source CI/Render and manual acceptance remain open for this slice. No customer keys or data were handled.
+
 ## 2026-11-21 — D-492 interactive token display follow-up, QA gate pending
 
 - F-06.02 token-only `web_cli` used a loopback host test but ignored whether stdout was a terminal: a localhost service under an unattended process supervisor would still write the bearer credential into captured logs. TDD new noninteractive pipe test source `05ce97e`; implementation `099c95e` requires `os.isatty(1)`, while `b6aad8d` explicitly models the interactive terminal for existing tests. No change to authentication or session validation.

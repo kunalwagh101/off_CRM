@@ -202,21 +202,45 @@ def _key_destination(args: argparse.Namespace) -> str | None:
     return destination
 
 
-def _save_new_key(destination: str, key: str) -> int:
-    """Create a private key file once; never follow or overwrite a final symlink."""
-    target = Path(destination).expanduser()
-    # O_NOFOLLOW protects only the final component. An operator-supplied
-    # symlinked parent can silently send a new decryption key elsewhere.
-    # This rejects the ordinary redirect case; trusted directory ownership
-    # still matters because filesystem races are a separate threat.
-    if any(parent.is_symlink() for parent in (target.parent, *target.parent.parents)):
-        print("Private key output refuses linked parent directories.", file=sys.stderr)
-        return 2
+def _open_private_key_file(target: Path) -> int:
+    """Pin each POSIX directory before opening the exclusive key destination.
+
+    A preflight lstat can race a directory replacement. Holding a directory
+    descriptor stops a later symlink swap from redirecting our key bytes.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    if (
+        os.name != "posix"
+        or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+    ):
+        if any(parent.is_symlink() for parent in (target.parent, *target.parent.parents)):
+            raise OSError("Private key destination has a linked parent")
+        return os.open(target, flags, 0o600)
+
+    absolute = Path(os.path.abspath(target))
+    parent_fd = os.open(absolute.anchor, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-        fd = os.open(target, flags, 0o600)
+        for component in absolute.parent.parts[1:]:
+            next_fd = os.open(
+                component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            os.close(parent_fd)
+            parent_fd = next_fd
+        return os.open(absolute.name, flags, 0o600, dir_fd=parent_fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _save_new_key(destination: str, key: str) -> int:
+    """Create a private key file once; never redirect or overwrite a key."""
+    target = Path(destination).expanduser()
+    try:
+        fd = _open_private_key_file(target)
     except OSError:
-        print("Cannot create private key file; choose a new accessible path.", file=sys.stderr)
+        print("Cannot create private key file; choose a new accessible non-linked path.", file=sys.stderr)
         return 2
     try:
         with os.fdopen(fd, "w", encoding="ascii") as private:

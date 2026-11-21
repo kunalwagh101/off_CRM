@@ -88,7 +88,9 @@ def verify(page, width):
     page.get_by_role("button", name="Run selected role", exact=True).click()
     expect(page.get_by_role("alert")).to_be_visible()
     page.reload(wait_until="domcontentloaded")
-    page.get_by_label("Companion", exact=True).select_option(label="Research " + str(width))
+    # D-494: the chosen companion is unrelated to the role endpoint. Switch
+    # profiles after a lost response; this still must replay the same key.
+    page.get_by_label("Companion", exact=True).select_option(label="Scout")
     page.get_by_label("Role", exact=True).select_option("Maker")
     page.get_by_label("Role campaign", exact=True).select_option(label="QA image")
     page.get_by_label("Video topic", exact=True).fill(topic)
@@ -101,6 +103,50 @@ def verify(page, width):
         "Object.keys(sessionStorage).filter(k => k.startsWith('offcrm-agent-role-pending-v1-')).length"
     ) == 0, "Successful retry must clear the pending receipt from the tab"
     page.unroute("**/api/v1/agent-team/execute", intercept_maker)
+
+    # A v1 tab may already have an uncertain receipt hashed with an earlier
+    # companion ID. Recreate that old storage record, reload and switch the
+    # picker. The migrated request MUST reuse the old key, not create a new
+    # paid/media effect. Everything is synthetic and intercepted.
+    legacy_topic = "Synthetic old receipt after companion change"
+    legacy_key = "legacy-role-once-" + str(width)
+    page.get_by_label("Companion", exact=True).select_option(label="Research " + str(width))
+    page.get_by_label("Video topic", exact=True).fill(legacy_topic)
+    page.evaluate("""async (key) => {
+      const companion = document.querySelector('select[aria-label="Companion"]').value;
+      const campaign_id = document.querySelector('select[aria-label="Role campaign"]').value;
+      const topic = document.querySelector('input[aria-label="Video topic"]')?.value
+        ?? document.querySelector('input[maxlength="500"]')?.value;
+      const intent = {workspace: "local", actor: "", companion,
+                      payload: {role: "Maker", campaign_id, topic}};
+      const bytes = new TextEncoder().encode(JSON.stringify(intent));
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      const digest = [...new Uint8Array(hash)].map(n => n.toString(16).padStart(2,"0")).join("");
+      sessionStorage.setItem("offcrm-agent-role-pending-v1-" + digest,
+                             JSON.stringify({fingerprint: JSON.stringify(digest), key}));
+    }""", legacy_key)
+    page.reload(wait_until="domcontentloaded")
+    page.get_by_label("Companion", exact=True).select_option(label="Scout")
+    page.get_by_label("Role", exact=True).select_option("Maker")
+    page.get_by_label("Role campaign", exact=True).select_option(label="QA image")
+    page.get_by_label("Video topic", exact=True).fill(legacy_topic)
+    legacy_keys = []
+    def intercept_legacy(route):
+        if route.request.post_data_json.get("role") == "Maker":
+            legacy_keys.append(route.request.headers.get("idempotency-key"))
+            route.fulfill(status=200, content_type="application/json",
+                          body='{"role":"Maker","status":"needs_review","project":{"name":"Synthetic legacy result"}}')
+        else:
+            route.continue_()
+    page.route("**/api/v1/agent-team/execute", intercept_legacy)
+    page.get_by_role("button", name="Run selected role", exact=True).click()
+    expect(page.get_by_label("Role result", exact=True)).to_contain_text("Timeline ready for review")
+    assert legacy_keys == [legacy_key], "Migrating a v1 receipt changed the original request key"
+    assert page.evaluate(
+        "Object.keys(sessionStorage).filter(k => k.startsWith('offcrm-agent-role-pending-v1-')).length"
+    ) == 0, "Migrated legacy and canonical receipts must both clear on success"
+    page.unroute("**/api/v1/agent-team/execute", intercept_legacy)
+    page.get_by_label("Companion", exact=True).select_option(label="Research " + str(width))
     page.get_by_label("Role", exact=True).select_option("Poster")
     expect(role_campaign).to_have_value("")
     assert "QA image" not in role_campaign.inner_text()

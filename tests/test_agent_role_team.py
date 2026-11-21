@@ -157,6 +157,61 @@ def test_no_role_can_invent_an_action_or_autopublish():
             execute_role(role, body, engines=RoleEngines())
 
 
+@pytest.mark.parametrize("payload", [
+    {"role": "Maker", "campaign_id": "synthetic", "topic": "Public explainer"},
+    {"role": "Poster", "campaign_id": "synthetic", "image_campaign_id": "approved",
+     "account_ids": ["account"]},
+    {"role": "Director", "gtm_request": {"product_id": "synthetic"}},
+])
+def test_role_api_replays_consequential_actions_by_key_without_reexecuting(
+    tmp_path, monkeypatch, payload,
+):
+    """D-489/A14: one owner key must not create two drafts or paid actions."""
+    import offsetx_apollo_builder.agent.role_team as role_team
+
+    calls = []
+    def synthetic_action(role, values, *, engines):
+        calls.append((role, values))
+        return {"role": role, "status": "needs_review", "result": "synthetic"}
+
+    monkeypatch.setattr(role_team, "execute_role", synthetic_action)
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist", host="127.0.0.1",
+        api_token=OWNER, allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        assert client.post(
+            "/api/v1/agent-team/provision", headers=HEADERS,
+        ).status_code == 200
+        unkeyed = client.post(
+            "/api/v1/agent-team/execute", json=payload, headers=HEADERS,
+        )
+        assert unkeyed.status_code == 422
+        assert calls == []
+
+        headers = {**HEADERS, "Idempotency-Key": "agent-role-qa-once"}
+        first = client.post(
+            "/api/v1/agent-team/execute", json=payload, headers=headers,
+        )
+        assert first.status_code == 200, first.text
+        repeated = client.post(
+            "/api/v1/agent-team/execute", json=payload, headers=headers,
+        )
+        assert repeated.status_code == 200, repeated.text
+        assert repeated.json().get("idempotent_replay") is True
+        assert len(calls) == 1
+
+        changed = dict(payload)
+        changed["topic"] = "Different action with the same receipt"
+        conflict = client.post(
+            "/api/v1/agent-team/execute", json=changed, headers=headers,
+        )
+        assert conflict.status_code == 409
+        assert len(calls) == 1
+
+
 def test_role_api_requires_owner_provision_and_denies_unauthenticated_access(tmp_path):
     settings = AppSettings(
         project_root=Path.cwd(), database_path=tmp_path / "crm.db",

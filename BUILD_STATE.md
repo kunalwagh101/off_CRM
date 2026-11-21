@@ -1,3 +1,9 @@
+## 2026-11-21 — D-472 Render QA found stale D-125 isolation fixtures
+
+- The prior QA image `dep-dc0o7ee1egvs738i1amg` failed at Dockerfile.review WP1 check: two `tests/test_workspace_isolation.py` cases could not finish setup because D-451 had changed nonlocal GTM product writes from supported to HTTP 403. This is not proof that the product-reader permission guard failed.
+- Source correction keeps the closed shared-CRM HTTP boundary and seeds the old acme product through the separate workspace-owned GTM store only in tests. Both unauthorized HTTP requests and raw reader access are asserted; acme reader remains permitted only in explicitly scoped context.
+- Existing production audit remains IN_PROGRESS. New commit still requires actual QA execution, full suites and independent penetration assessment. Do not classify this as a completed tenant migration.
+
 ## 2026-11-21 — D-471 security regression in Vitest (unverified source patch)
 
 - New `waghkunal1997@gmail.com` Render QA service `off-crm-qa-major-1997-20261121` on baseline `7b8c167` found two moderate Vitest 4.1.11 advisories despite a passing high-threshold dev audit.

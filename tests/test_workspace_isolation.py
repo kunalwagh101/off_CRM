@@ -9,7 +9,7 @@ import pytest
 
 from offsetx_apollo_builder.ai.registry import ProviderRegistry
 from offsetx_apollo_builder.ai.workspace import WorkspaceAISettingsStore
-from offsetx_apollo_builder.api.app import create_app
+from offsetx_apollo_builder.api.app import create_app, _CALLER_WORKSPACE
 from offsetx_apollo_builder.api.auth import WorkspaceAuthError, WorkspaceAuthStore
 from offsetx_apollo_builder.api.config import AppSettings
 from offsetx_apollo_builder.browser.vault import SessionVault
@@ -418,10 +418,12 @@ def _two_workspaces_and_a_shared_campaign(client, app) -> tuple[str, str]:
         template = dict(template)
         template["body_template"] += "\n\nWe offer {product_offer}."
         store.upsert_template(template)
-    _login(client, "acme")
-    product = client.post(
-        "/api/v1/gtm/products",
-        json={
+    # D-472: this is a legacy install-wide campaign, deliberately inaccessible
+    # to nonlocal HTTP sessions after D-451. Seed the previously existing
+    # privately owned product through its scoped store, not an API bypass.
+    product = app.state.gtm_store.create_product(
+        "acme",
+        {
             "name": "Acme product",
             "one_liner": "Freight invoice reconciliation for finance teams",
             "audience": "Finance leads at logistics companies",
@@ -430,10 +432,14 @@ def _two_workspaces_and_a_shared_campaign(client, app) -> tuple[str, str]:
             "proof": [],
             "forbidden_claims": [],
         },
-    ).json()
-    assert client.put(
-        f"/api/v1/gtm/products/{product['id']}/campaigns", json={"campaign_ids": [campaign]}
-    ).status_code == 200
+    )
+    app.state.gtm_store.set_links(product["id"], "acme", [campaign])
+    _login(client, "acme")
+    assert client.post("/api/v1/gtm/products", json={"name": "blocked"}).status_code == 403
+    assert client.post(
+        f"/api/v1/campaigns/{campaign}/drafts/generate",
+        json={"campaign_contact_ids": [], "stages": ["initial"], "provider": None},
+    ).status_code == 403
     return campaign, product["id"]
 
 
@@ -445,31 +451,30 @@ def _login(client, workspace: str) -> None:
     ).status_code == 200
 
 
-def _generate(client, campaign: str) -> list[dict]:
-    generated = client.post(
-        f"/api/v1/campaigns/{campaign}/drafts/generate",
-        json={"campaign_contact_ids": [], "stages": ["initial"], "provider": None},
-    )
-    assert generated.status_code == 200, generated.text
-    return client.get(f"/api/v1/campaigns/{campaign}/drafts").json()["items"]
-
-
 def test_a_workspace_cannot_draft_another_workspaces_product(tmp_path):
-    """beta cannot read acme's product at /gtm, and could not before — but it
-    could draft acme's campaign and read the offer out of the drafts, or add
-    every product placeholder to the install-wide templates and read them all
-    (D-125). The reader now asks with the caller's workspace."""
+    """D-451 blocks legacy shared CRM routes; D-125 protects the reader too.
+
+    A pre-existing acme-owned product must not leak to beta via a guessed
+    product ID, shared campaign drafts, or a direct product-reader call.
+    """
     app = create_app(_settings(tmp_path))
     with TestClient(app) as client:
         campaign, product_id = _two_workspaces_and_a_shared_campaign(client, app)
         _login(client, "beta")
-        assert client.get(f"/api/v1/gtm/products/{product_id}").status_code == 404
+        assert client.get(f"/api/v1/gtm/products/{product_id}").status_code == 403
+        denied = client.post(
+            f"/api/v1/campaigns/{campaign}/drafts/generate",
+            json={"campaign_contact_ids": [], "stages": ["initial"], "provider": None},
+        )
+        assert denied.status_code == 403
+        assert ACME_OFFER not in denied.text
 
-        drafts = _generate(client, campaign)
-        assert drafts
-        assert ACME_OFFER not in json.dumps(drafts)
-        # Blocked with the reason, not sent without its product's checks.
-        assert all("another workspace" in json.dumps(draft) for draft in drafts)
+        marker = _CALLER_WORKSPACE.set("beta")
+        try:
+            with pytest.raises(PermissionError, match="another workspace"):
+                app.state.engine.email_expert.product_reader(campaign)
+        finally:
+            _CALLER_WORKSPACE.reset(marker)
 
 
 def test_lost_request_context_cannot_read_other_workspaces_product(tmp_path):
@@ -507,13 +512,24 @@ def test_only_explicit_timer_scope_can_read_linked_product_without_a_request(tmp
             reader(campaign)
 
 
-def test_the_linking_workspace_still_drafts_its_own_product(tmp_path):
-    """The other half: acme's own login drafts with its product (D-109)."""
+def test_linking_workspace_product_reader_is_scoped_while_shared_crm_is_blocked(tmp_path):
+    """The internal reader remains scoped, without reopening legacy CRM HTTP."""
     app = create_app(_settings(tmp_path))
     with TestClient(app) as client:
         campaign, _ = _two_workspaces_and_a_shared_campaign(client, app)
-        drafts = _generate(client, campaign)
-        assert drafts and all(ACME_OFFER in draft["body"] for draft in drafts)
+        marker = _CALLER_WORKSPACE.set("acme")
+        try:
+            product = app.state.engine.email_expert.product_reader(campaign)
+            assert ACME_OFFER in json.dumps(product)
+        finally:
+            _CALLER_WORKSPACE.reset(marker)
+
+        denied = client.post(
+            f"/api/v1/campaigns/{campaign}/drafts/generate",
+            json={"campaign_contact_ids": [], "stages": ["initial"], "provider": None},
+        )
+        assert denied.status_code == 403
+        assert ACME_OFFER not in denied.text
 
 
 def test_only_the_install_owner_runs_or_configures_the_content_timer(tmp_path):
@@ -525,7 +541,7 @@ def test_only_the_install_owner_runs_or_configures_the_content_timer(tmp_path):
         _login(client, "beta")
         assert client.post("/api/v1/content-automation/run").status_code == 403
         assert client.patch("/api/v1/content-automation", json={"enabled": False}).status_code == 403
-        assert client.get("/api/v1/content-automation").status_code == 200
+        assert client.get("/api/v1/content-automation").status_code == 403
 
         client.cookies.clear()
         owner = {"X-Offsetx-Token": ADMIN_TOKEN}

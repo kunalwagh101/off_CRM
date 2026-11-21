@@ -1,3 +1,9 @@
+## 2026-11-21 — D-472: preserve legacy CRM isolation in security regressions (unreleased)
+
+- Existing workspace-isolation tests attempted product creation through CRM-backed APIs that D-451 now correctly denies to nonlocal sessions. The baseline QA build failed two tests during setup with KeyError.
+- Preserve real per-workspace product isolation by seeding a historical linked product via its explicitly workspace-scoped store. Assert both acme and beta are forbidden from shared CRM HTTP writes, and retain caller-context, lost-context and timer-context reader checks.
+- No production authorization was relaxed and no customer CRM migration was attempted. Full regression, PostgreSQL, history verification and real security testing remain open.
+
 ## 2026-11-21 — D-471: patch Vitest dev-tool vulnerabilities (unreleased)
 
 - New Render QA observed two moderate `@vitest/mocker` findings in Vitest 4.1.11. The production-only audit reported zero.

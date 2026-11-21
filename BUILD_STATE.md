@@ -1,3 +1,10 @@
+## 2026-11-21 — D-479/D-480 and A05 live API route-matrix security follow-up
+
+- D-479 / F-06.03: S3 upload/HEAD/download adapter exceptions can include sensitive diagnostic text. Test-first three hostile adapter fixtures on 715c694; code error boundaries on dc3593a hide SDK internals, preserve ciphertext cleanup and never report failed transfer as success. Exact-source full tests, Render image, owner-approved offsite S3 and encrypted recovery drill are separate gates.
+- D-480 / F-04.01: React Agent Team kept a stale Scout role result after switching companion. Real Chromium desktop/mobile assertion added in 56d6b39; profile selection clears the role result and its campaign context in d243843. The existing review image runs this script but an observed exact-source successful build is still required.
+- F-06.02 / F-06.01: new tests in tests/test_audit_a05_workspace_identity.py inspect all registered FastAPI API routes and demand explicit unscoped-CRM versus independently workspace-owned classification. The tests also submit synthetic GETs to every registered shared CRM handler as two distinct user sessions to enforce D-451's 403 safety boundary; test source 3e67180. Full independent penetration, unowned legacy migration, native registry activation and worker isolation remain OPEN.
+- Do not conflate a Render review-only marker with the deployed product. All four whole-feature states remain unshipped unless all stories and external Definition of Done criteria are verified. No main/customer data changes.
+
 ## 2026-11-21 — Four-feature continuation: D-477/D-478 and Render agent-team QA gate
 
 - Current selected programme remains F-06.02 (production assurance), F-06.03 (hosted data/recovery), F-04.01 (agent team) and F-06.01 (workspace permissions). Their independent external/DoD gates remain OPEN; no complete feature and no main/customer promotion is claimed.

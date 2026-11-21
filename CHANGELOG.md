@@ -1,3 +1,10 @@
+## 2026-11-21 — D-479/D-480: secret-safe backup failures and honest Agent Team results (unreleased)
+
+- D-479: a failing object-store upload, metadata HEAD or owner ciphertext download now returns a safe operator message without raw adapter/SDK exception text. An interrupted download deletes its partial local ciphertext. Three hostile adapter tests supply credential-shaped error messages to prove the boundary. Backup uploads and independent restore remain owner-controlled.
+- D-480: changing the selected Agent Team companion clears the previously generated role output and its campaign action target. Desktop/mobile real-browser regression selects Scout after a completed Scout run and requires the stale result to disappear.
+- F-06.02/A05: added an actual FastAPI route inventory check requiring an explicit workspace classification for each route; a second authenticated HTTP matrix tests that every declared shared-CRM GET is refused to non-owner sessions. No CRM tenancy barrier was removed.
+- Test-first/source commits: D-479 715c694 / dc3593a, D-480 56d6b39 / d243843, route matrix 3e67180. Do not mark DONE until full source-linked CI, Render Chromium/PostgreSQL and independent security gates pass.
+
 ## 2026-11-21 — D-477/D-478: owner-bound agent stores and safe database recovery (unreleased)
 
 - D-477: companion profiles and procedures reject workspace names that cannot be issued by the authenticated workspace system. Five parameterised invalid identities test both stores before any creation. This does not implement the remaining shared CRM tenancy cutover.

@@ -91,8 +91,13 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
             metadata = os.fstat(secret_file.fileno())
             if not stat.S_ISREG(metadata.st_mode):
                 raise ValueError("Local credential file must be a private regular file")
-            if os.name == "posix" and stat.S_IMODE(metadata.st_mode) & 0o077:
-                raise ValueError("Local credential file must have private permissions (0600)")
+            if os.name == "posix":
+                if metadata.st_nlink != 1:
+                    raise ValueError("Local credential file must not be hardlinked")
+                if metadata.st_uid != os.geteuid():
+                    raise ValueError("Local credential file owner must match this process")
+                if stat.S_IMODE(metadata.st_mode) & 0o077:
+                    raise ValueError("Local credential file must have private permissions (0600)")
             payload = secret_file.read(4097)
         if len(payload) > 4096:
             raise ValueError("Local credential file is invalid; inspect the private file")

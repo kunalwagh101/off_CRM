@@ -1,6 +1,23 @@
+## 2026-11-22 — D-498 confirmed RED/GREEN and Render QA LIVE
+
+**D-498 verification:** test-only GitHub `189e2f8` run `44947941384` (rerun Python 3.11) produced **3 expected RED failures / 3,417 passed / 149 skipped**, all three `psycopg.errors.InsufficientPrivilege`; corrected `96c65db` full CI `44947976626` **5/5 jobs PASS**, real PostgreSQL **3,531 passed / 107 skipped**, and real Render review deploy `dep-dc10602jnfac73f8usbg` **LIVE** with **3,482 passed / 156 skipped** in its full PG suite. The previously failed teardown did not recur. This verifies the isolated QA fixture repair, not an actual company-hosted CRM release. The three parent features remain NOT DONE.
+
+## 2026-11-22 — D-499 live handoff points to develop, not archived main
+
+- Found `CONTINUE.md` still presenting 2026-09-22 `feature/next-three-batch-4` as the current work and instructing future agents to push to `main` in the copyable prompt. New top-level continuation now directs work to the verified `develop` branch and current `BOARD.md`, records recent Render/CI references and genuine external blockers; the original September notes are explicitly archived and the copyable push/checkout lines are corrected to `develop`.
+- Regression test `tests/test_ci_verifier_environment.py::test_current_handoff_does_not_direct_develop_work_to_main` asserts correct active branch and no `push to main` instruction. Exact-source CI and board verifier must run before treating the handoff correction as verified.
+
+## 2026-11-22 — D-498 real Render PostgreSQL review teardown (build-level repair)
+
+- The latest `develop` commit `bae5db00` passed all 5 GitHub CI jobs and its functional Render service `off-crm-functional-qa-20261122` remained LIVE with public HTTPS 5/5. However, `Dockerfile.review` deploy `dep-dc0vm8afngtc73e3lh40` **FAILED** after **3,479 passed, 156 skipped, 1 teardown error** on real disposable PostgreSQL.
+- Verified failing operation: `tests/test_install_import_boundaries.py` fixture `isolated_install_database` ran `DROP DATABASE ... WITH (FORCE)` using `offcrmqa`, a CREATEDB-only role. PostgreSQL refused `pg_terminate_backend` on another role's process with `psycopg.errors.InsufficientPrivilege`; no failed CRM assertion, customer operation or leaked secret was observed.
+- Test-first `189e2f8` adds a no-FORCE negative case, a temporary session retry case and persistent connection-leak visibility. Fix `96c65db` uses unprivileged ordinary DROP with at most five ObjectInUse retries; a persistent error still stops QA. The test database remains uniquely isolated. No application runtime source changed.
+- Reverification: GitHub full five-job CI `44947976626` PASS 5/5, including real PG 3531 passed/107 skipped; Render review `dep-dc10602jnfac73f8usbg` still running. Record final statuses before considering D-498 verified. All three parent features (F-06.02, F-06.03, F-04.01) remain **NOT DONE**; real hosted durable offsite backup, authenticated UI, provider-account and independent security acceptance still open.
+- Evidence: `docs/evidence/2026-11-22-d498-pg-qa-cleanup.md`.
+
 ## 2026-11-22 — D-497: reject malformed Render smoke URLs cleanly
 
-- The new QA-only URL parser redundantly read `urlsplit.port`, causing an uncontrolled `ValueError` for a malformed port. TDD local test first 1 failed/10 passed; removed the read because the existing strict netloc/hostname equality already rejects any port, then 11 passed. Correction blobs: script `4010e43`, test `c7ea978`. No production application route or credential was changed. Full exact-source CI and remote public-host smoke must be observed separately.
+- The new QA-only URL parser redundantly read `urlsplit.port`, causing an uncontrolled `ValueError` for a malformed port. TDD local test first 1 failed/10 passed; removed the read because the existing strict netloc/hostname equality already rejects any port, then 11 passed. Correction blobs: script `4010e43`, test `c7ea978`. No production application route or credential was changed. Exact-source GitHub CI 44944989839 completed all five jobs successfully; post-deploy external HTTPS smoke 44944989952 PASS five checks. Neither covers authenticated workflows or provider actions.
 
 ## 2026-11-22 — functional Render QA, real public-host acceptance (not a parent feature release)
 

@@ -114,3 +114,14 @@ def test_superseded_workflow_runs_do_not_consume_parallel_minutes():
         assert concurrency.get("cancel-in-progress") is True, (
             f"{path}: superseded runs should be cancelled to free runners"
         )
+
+def test_current_handoff_does_not_direct_develop_work_to_main():
+    """D-499: copyable continuation must not direct a main-branch push."""
+    from pathlib import Path
+
+    handoff = Path("CONTINUE.md").read_text(encoding="utf-8")
+    assert "Active branch: `develop`" in handoff[:700]
+    assert "## Archived handoff — 2026-09-22" in handoff
+    assert "Repository: https://github.com/kunalwagh101/off_CRM   (branch: develop)" in handoff
+    assert "Commit, then push to develop" in handoff
+    assert "Commit, then push to main" not in handoff

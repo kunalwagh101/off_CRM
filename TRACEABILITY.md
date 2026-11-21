@@ -380,3 +380,13 @@ Do not mark R-196 or S-06.02.69 done until observable QA completes. Source recor
 | Requirement | Parent story | Live acceptance checked | Test / run | Source | Missing release proof |
 |---|---|---|---|---|---|
 | A29 hosted real application boundary | S-06.02.23 (IN_PROGRESS) | Real functional Dockerfile app on free Render; HTTPS root 200, readiness 200, anonymous session 200, private dashboard 401, invalid credential POST 401; 5/5 external requests and matching Render logs | `tests/test_render_functional_smoke.py` (10 RED locally before implementation, 10 GREEN; malformed-port 1 RED/11 GREEN); [run 44943657458](https://github.com/kunalwagh101/off_CRM/actions/runs/44943657458) | `scripts/live/remote_render_smoke.py`, `.github/workflows/render-functional-smoke.yml`, `docs/evidence/2026-11-22-functional-render-qa.md` | Authenticated browser flows, real CRM tenant migration, dedicated durable PostgreSQL, S3 recovery, actual AI/media/provider/worker and independent security acceptance. Synthetic review service and functional disposable service are different. |
+
+
+## 2026-11-22 — D-498 review test harness audit evidence
+
+| Requirement | Parent story | Acceptance | Tests/source | Release limit |
+|---|---|---|---|---|
+| A29 reproducible full PostgreSQL review without privileged cleanup | S-06.02.23 IN_PROGRESS | Disposable CREATEDB role drops only its own test database, needs no FORCE/pg_signal_backend; retries transient sessions but reports a persistent leak as failure | `tests/test_install_import_boundaries.py::test_install_database_cleanup_does_not_need_pg_signal_backend`, `::test_install_database_cleanup_retries_transient_active_sessions`, `::test_install_database_cleanup_does_not_hide_persistent_active_sessions`. Source fixture in the same file. TDD 189e2f8/96c65db, `docs/evidence/2026-11-22-d498-pg-qa-cleanup.md` | Exact-source GitHub CI 44947976626 PASS 5/5; Render review still pending; live CRM tenancy/backup/provider/user/browser/independent security not certified. |
+
+
+**D-498 executed gates (2026-11-22):** source `189e2f8` observed RED 3 failures on GitHub Actions 44947941384; fixed `96c65db` GREEN all 5 jobs on 44947976626, PG 3531 pass/107 skip; real Render review `dep-dc10602jnfac73f8usbg` LIVE, PG 3482 pass/156 skip. The parent S-06.02.23 remains IN_PROGRESS.

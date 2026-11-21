@@ -1,6 +1,22 @@
+# Current development handoff — 2026-11-22
+
+**Active branch: `develop`. The live GitHub branch, BOARD.md and verified Render deployments override every historical note below. Never push to `main` or change customer data as part of QA.**
+
+Read `AGENTS.md`, `BOARD.md`, `PRODUCT_BACKLOG.md`, `DEFINITION_OF_DONE.md`, `OPEN_QUESTIONS.md`, `BUILD_STATE.md`, `docs/DEVELOP_NEXT_WORK.md` and the relevant work orders before changing code. The three selected whole features are **NOT DONE**: F-06.02 (49 open board stories), F-06.03 (5 open), and F-04.01 (4 open). Some open stories already have source and tests but have not passed their full release criteria.
+
+**Current development checkpoint:** `96c65db459a5e928f6fcea0417bb080ccd51fcea` (D-498 test-fixture repair). The older `bae5db00` code had five passing GitHub CI jobs and a live functional free Render CRM with a 5/5 external HTTPS smoke check. But the separate `Dockerfile.review` build `dep-dc0vm8afngtc73e3lh40` failed on one real PostgreSQL teardown (3479 tests passed, 156 skipped, one `DROP DATABASE WITH (FORCE)` permission error). Test-first regression `189e2f8` and unprivileged cleanup repair `96c65db` were committed. Five-job CI `44947976626` finished PASS 5/5 (real PG 3531 passed, 107 skipped); exact-source Render review `dep-dc10602jnfac73f8usbg` is LIVE at 96c65db (3482 passed, 156 skipped) with PostgreSQL teardown clean. The failure and contract are documented in `docs/evidence/2026-11-22-d498-pg-qa-cleanup.md`.
+
+**Actual Render services:** new `waghkunal1997@gmail.com` workspace; `off-crm-functional-qa-20261122` at `https://off-crm-functional-qa-20261122.onrender.com` hosts the real CRM Dockerfile with synthetic credentials, temporary `/tmp` storage and autoDeploy off; `off-crm-qa-major-1997-20261121` runs the disposable review image and shows a **QA marker**, not a customer CRM. No production or `main` promotion took place.
+
+**Release blockers, still open:** Render refused a second free PostgreSQL database in this workspace (the existing free database belongs to OffsetX and must not be reused); an owner-approved independent private S3-compatible bucket and key custody/retention and a real restore drill are not yet configured; shared CRM-to-workspace migration/ownership, provider credentials, actual owner-authenticated desktop/mobile UI, media/send-worker tests and independent security acceptance are incomplete. Do not create paid services or transmit customer records without authorisation. Board states remain unchanged until every acceptance check is evidenced.
+
+**Next actions:** inspect latest `develop` head, re-run failed QA tests against the exact source, confirm all 5 CI jobs and both Render image/real app health, then record evidence in `BOARD.md`, `BUILD_STATE.md`, `DEFECT_LOG.md`, `TRACEABILITY.md` and the relevant work order. Proceed through red→green→review, avoid repeatedly pushing superseded commits, and keep external blockers explicit. `CONTINUE.md` content below this heading is archived history and must not override these current instructions.
+
+---
+
 # CONTINUE — the handoff prompt
 
-## Current handoff — 2026-09-22
+## Archived handoff — 2026-09-22
 
 - Working branch: `feature/next-three-batch-4`, stacked on
   `feature/next-three-batch-3`.
@@ -66,7 +82,7 @@ chat. Read these files before doing anything else:
   TRACEABILITY.md          requirement -> story -> test -> code
   STATE_OF_THE_PRODUCT.md  plain-English summary, useful context but board wins
 
-Repository: https://github.com/kunalwagh101/off_CRM   (branch: main)
+Repository: https://github.com/kunalwagh101/off_CRM   (branch: develop)
 Deep context, only if you need it:
   docs/architecture/BROWSER_AGENT_BLUEPRINT.md   the agent plan, 8 stages
   docs/VAULT.md                                  browser-session custody contract
@@ -174,7 +190,7 @@ for "I am fairly sure it works".
   2. Update CHANGELOG.md
   3. Add a runnable block to DEMO.md — a command the owner pastes and watches
   4. Update TRACEABILITY.md and any repo-first feature map affected by the slice
-  5. Commit, then push to main
+  5. Commit, then push to develop
   6. Retro, three lines: what was cut, what the estimate got wrong, what to
      change next time. Append it to RETRO.md.
 

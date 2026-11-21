@@ -1,3 +1,15 @@
+## 2026-11-22 — D-497: reject malformed Render smoke URLs cleanly
+
+- The new QA-only URL parser redundantly read `urlsplit.port`, causing an uncontrolled `ValueError` for a malformed port. TDD local test first 1 failed/10 passed; removed the read because the existing strict netloc/hostname equality already rejects any port, then 11 passed. Correction blobs: script `4010e43`, test `c7ea978`. No production application route or credential was changed. Full exact-source CI and remote public-host smoke must be observed separately.
+
+## 2026-11-22 — functional Render QA, real public-host acceptance (not a parent feature release)
+
+- Created isolated free Render functional web app `off-crm-functional-qa-20261122` (`srv-dc0vbd8m7kps73di4pm0`, `develop`, Dockerfile) in new `waghkunal1997@gmail.com` account. Render deploy `dep-dc0vbdom7kps73di4r00` LIVE; Uvicorn startup and root GET 200 observed. This is distinct from the disposable `Dockerfile.review` QA marker.
+- TDD RED: `tests/test_render_functional_smoke.py` at `3ebb401`, 10 expected failures in an isolated local Python test; GREEN: actual committed `scripts/live/remote_render_smoke.py` blob `1c159b2` at `8433d0e`, same 10 tests passed locally.
+- GitHub Actions external HTTPS run `44943657458` PASS: real Render `/` 200, `/health/ready` 200, `/api/v1/auth/session` 200 anonymous, `/api/v1/dashboard` 401, intentionally invalid `/api/v1/auth/login` 401; matched independent Render access logs. No customer data, genuine password, paid provider or sending involved.
+- Attempted dedicated free PostgreSQL in new workspace, rejected (one active free DB already belongs to OffsetX). Kept off_CRM QA on disposable isolated `/tmp`, no cross-project database reuse. Real offsite S3 backup, durable media/outbox, live paid model, full authenticated UI, independent penetration and customer deployment remain unverified. **F-06.02, F-06.03 and F-04.01 are NOT DONE.**
+- Evidence: `docs/evidence/2026-11-22-functional-render-qa.md`; remote workflow `.github/workflows/render-functional-smoke.yml`. Keep the complete new-source CI result as separate evidence; the passing external smoke alone cannot certify a feature.
+
 ## 2026-11-21 — D-496: pin directories while saving private encryption keys (develop only)
 
 - Found a time-of-check/time-of-use race after D-495: an untrusted local process could rename an output directory and replace it with a symlink between the parent-symlink preflight and `O_CREAT`, so newly generated hosted secrets and backup encryption keys could be redirected.

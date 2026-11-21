@@ -22,7 +22,6 @@ def _origin(value: str) -> str:
         or parsed.hostname == ".onrender.com"
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.port is not None
         or parsed.path not in ("", "/")
         or parsed.query
         or parsed.fragment

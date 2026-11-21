@@ -12,6 +12,7 @@ from scripts.live import remote_render_smoke as smoke
     "https://qa.onrender.com.evil.example",
     "https://user:secret@qa.onrender.com",
     "https://qa.onrender.com:443",
+    "https://qa.onrender.com:invalid-port",
     "https://qa.onrender.com/path",
     "https://127.0.0.1",
 ])

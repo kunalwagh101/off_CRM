@@ -943,3 +943,16 @@ uv run pytest -q tests/test_imagery.py tests/test_video_assembly.py tests/test_a
 **Do not present this as a passing demonstration:** The isolated Render build was canceled before tests because the workspace exhausted build pipeline minutes. Once capacity is restored, run the isolated review gate and record observed results for exact tested source. Evidence `docs/evidence/2026-11-05-a05-image-workspace-isolation.md`. No live providers or customer files.
 
 ---
+
+
+## 2026-11-22 — Run the real Render functional-host boundary smoke
+
+The hosted disposable CRM QA service is https://off-crm-functional-qa-20261122.onrender.com (branch develop, autoDeploy off, free ephemeral data). It is **not** the synthetic review runner and must never hold customer data. The demo login password lives privately in the new Render workspace Environment page, not in this repository or test logs.
+
+Run from a trusted checkout with network access:
+
+```bash
+python3 scripts/live/remote_render_smoke.py --base-url https://off-crm-functional-qa-20261122.onrender.com
+```
+
+Expected output on exact observed run 44943657458: `RENDER QA PASS: 5 checks: root, ready, anonymous_session, private_dashboard, wrong_login`. This sends only five bounded public/negative requests. Confirm GET /health/ready 200, no anonymous dashboard access, and no cookie on invalid login in the Render access logs. To inspect the authenticated UI, use the private QA credentials from Render and a real browser; do not paste them into code or GitHub logs. UI, restart persistence, backup restoration, external providers, sending and independent penetration still require separate acceptance. See docs/evidence/2026-11-22-functional-render-qa.md.

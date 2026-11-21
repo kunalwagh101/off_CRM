@@ -19,3 +19,8 @@
 5. Independently assess POSIX portability and any concurrent attacker with write permission to a trusted directory.
 
 **Release limitation:** existing Render `Dockerfile.review` only runs a disposable QA marker. It is not a CRM customer app; no live S3 destination, retention, offsite recovery or encrypted customer data was verified. Do not mark any parent feature DONE from this test alone.
+
+
+## 2026-11-22 — isolated path-swap reproduction and exact-source gates
+
+A standalone Python comparison of the old path-based writer and the new parent-directory-fd writer injected the same rename+symlink swap at final `O_CREAT`. Its observed tuples were `(return=0, swapped=True, diverted=True, original=False)` before the fix and `(return=0, swapped=True, diverted=False, original=True)` after. This is **isolated algorithm reproduction**, not an installed-package penetration result. The exact new-source five-job GitHub CI run 44930518745 completed PASS, and Render review deploy `dep-dc0u8t3rjlhs73an2nfg` reached LIVE with 3468 PostgreSQL-suite tests passing and 156 skipped. No real operator keys, S3 destination or customer restore were tested; retain the feature release blockers.

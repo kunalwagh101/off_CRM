@@ -123,3 +123,13 @@ def test_new_memory_returns_its_own_receipt_after_more_than_thousand_records(tmp
         assert actual is not None and body["id"] == actual["id"]
         assert store.get_memory_item(body["id"], workspace_id="local")["id"] == body["id"]
         assert store.get_memory_item(body["id"], workspace_id="beta") is None
+        # D-488: an ordinary memory list must not silently stop at record 1,000.
+        page, total = store.search_memory_items(
+            "", workspace_id="local", limit=10, offset=1000,
+        )
+        assert total == 1002
+        assert len(page) == 2
+        foreign_page, foreign_total = store.search_memory_items(
+            "", workspace_id="beta", limit=10, offset=1000,
+        )
+        assert foreign_page == [] and foreign_total == 0

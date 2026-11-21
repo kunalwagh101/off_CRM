@@ -1,3 +1,7 @@
+## 2026-11-22 — D-502 handoff heading placement regression
+
+- GitHub CI 44957829631 Python 3.11 reported one failure in `test_current_handoff_does_not_direct_develop_work_to_main`: D-501 notes had been inserted ahead of `CONTINUE.md`'s first-line active branch header. The remaining 3,435 tests passed with 149 skipped. Restored the current handoff heading and `develop` marker to the top, then placed D-501 notes immediately after the branch instruction; no runtime change. Full exact-source replay pending.
+
 ## 2026-11-22 — D-501 observed RED/GREEN; release gates remain open
 
 **D-501 observed RED:** test-only commit `5957f6e`, Python 3.11 replay 44956948171: **four expected failures** (two hardlinks and two other-UID files), **3,432 unrelated tests passed / 149 skipped**. **Focused GREEN:** corrected `48eb240`, Render early `tests/test_local_secret_file_safety.py` **15 PASS**. Production Docker 44956962856 PASS. Full final-source CI and complete Render review remain separate checks.

@@ -1,3 +1,7 @@
+# Current development handoff — 2026-11-22
+
+**Active branch: `develop`. The live GitHub branch, BOARD.md and verified Render deployments override every historical note below. Never push to `main` or change customer data as part of QA.**
+
 **D-501 verification 2026-11-22:** RED four expected failed/3432 others passed at GitHub 44956948171; fix `48eb240`, targeted Render security suite 15 PASS, Docker container 44956962856 PASS, full final-source CI and review image still require terminal verification. Parent features remain NOT DONE.
 
 ## 2026-11-22 — D-501 existing credential-file ownership and hardlink refusal
@@ -5,10 +9,6 @@
 - Active reliability audit S-06.02.23: after D-500, a pre-existing mode-0600 ordinary file with an untrusted owner or a second hardlink could still be used as the API token or signing secret. TDD regression `5957f6e` adds four cases; source fix `48eb240` requires single-link same-effective-UID regular files before reading, retaining POSIX fd-pinned ancestors, NOFOLLOW, exclusive new creation and existing-file no-overwrite.
 - Fixed-source production container job `44956962856` PASS. TDD RED GitHub replay `44956948171`, latest CI, exact-source Render review `dep-dc11mdmc6qcc73ckv3bg` require terminal evidence. The functional CRM at `dep-dc11me6c6qcc73ckv4h0` is live with five public-boundary requests passing through external GitHub smoke, backed by actual Render access logs.
 - This is a local bootstrap credential-file security hardening, not production-hosted storage completion or a claim about customer account credentials. F-06.02 / F-06.03 / F-04.01 stay NOT DONE. Evidence `docs/evidence/2026-11-22-d501-secret-inode-ownership.md`.
-
-# Current development handoff — 2026-11-22
-
-**Active branch: `develop`. The live GitHub branch, BOARD.md and verified Render deployments override every historical note below. Never push to `main` or change customer data as part of QA.**
 
 **2026-11-22 D-500 continuation:** Security tests were added first at `1b33fec`; fix `c93b2e3` prevents linked/unsafe local token and session signing files, unsafe `O_TRUNC` and parent redirection. Fixed-code GitHub CI `44952349677` passed all 5 jobs (Python 3.10/11/12 each 3431 pass/149 skip; real PG 3542 pass/107 skip), production Docker `44952349680` PASS. Test-only RED replay 44952285835 confirmed 8 expected failures/3423 passing, and latest Render full QA must still be independently verified before upgrading any audit story. Details: `docs/evidence/2026-11-22-d500-local-secret-files.md`. No parent feature is DONE; dedicated off_CRM durable database and independent S3 recovery remain external blockers.
 

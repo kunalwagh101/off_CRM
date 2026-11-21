@@ -32,6 +32,10 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         # writes are refused until its rows have explicit workspace ownership.
         assert client.post('/api/v1/campaigns', json={'name': 'Blocked beta feedback'}).status_code == 403
         assert client.get('/api/v1/campaigns').status_code == 403
+        # A login cookie takes priority over the install token. Drop the beta
+        # cookie before testing authenticated owner actions: never use an
+        # owner header to impersonate local while still logged in as beta.
+        client.cookies.clear()
         campaign = client.post('/api/v1/campaigns', headers=owner, json={'name': 'Owner feedback'}).json()['id']
         imported = client.post(f'/api/v1/campaigns/{campaign}/contacts/import', headers=owner, files={'file': (
             'contacts.csv', b'Full Name,Email,Company,Category\nAnita Rao,anita@example.com,Example Exports,CBAM\n', 'text/csv')})
@@ -60,6 +64,9 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         assert any(row['kind'] == 'human_correction' for row in owner_observations)
         assert any(row['kind'] == 'reply_observation' for row in owner_observations)
         assert 'PRIVATE RECEIVED EMAIL' not in str(owner_observations)
+        # Return to beta to prove the owner observations were never exposed.
+        assert client.post('/api/v1/auth/login', json={'username': 'beta',
+            'password': 'beta-password-123'}).status_code == 200
         rows = client.get('/api/v1/memory').json()['items']
         assert [row['id'] for row in rows] == [beta['id']]
         assert all(row['workspace_id'] == 'beta' for row in rows)

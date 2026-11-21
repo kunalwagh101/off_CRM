@@ -16,3 +16,7 @@ No API/egress auth controls changed. The tests require full fresh CI and Render 
 ## Focused QA fast-fail and owner fixture hygiene
 
 Owner-token generated contact feedback, human corrections and reply observation now use explicit OWNER labels. The beta workspace's own memory remains BETA labelled, so the comparison detects accidental ownership leakage rather than conflating two fixture roles. Added an early full-file security gate for draft Connectors, memory workspace, provider profile, recall and product isolation tests in Dockerfile.review. This gate must execute on the next exact-source Render build; no pass is claimed here.
+
+## Cookie precedence safety correction
+
+API authentication gives an existing valid browser session precedence over an install-token header, so owner-token contact/draft/reply tests must clear the beta cookie first. They then log beta back in and verify owner observations never appear in beta memory. This maintains the actual user path and does not add privilege escalation or bypass authentication. Exact-source execution still required.

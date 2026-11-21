@@ -359,7 +359,7 @@ def _ensure_empty_restore_target(connection) -> None:
     """Refuse every non-system object, not only tables, in a restore destination.
 
     A view, function, custom schema, type, sequence, collation, text search
-    configuration/dictionary, publication or installed extension is customer state
+    configuration/dictionary, publication, large object or installed extension is customer state
     even when pg_tables reports zero rows. Never use --clean as
     a shortcut: recovery must not run DROP on existing customer objects.
     """
@@ -399,6 +399,8 @@ def _ensure_empty_restore_target(connection) -> None:
             UNION ALL
             SELECT 1 FROM pg_catalog.pg_publication
             UNION ALL
+            SELECT 1 FROM pg_catalog.pg_largeobject_metadata
+            UNION ALL
             SELECT 1 FROM pg_catalog.pg_extension e
                 WHERE e.extname <> 'plpgsql'
         )
@@ -407,7 +409,7 @@ def _ensure_empty_restore_target(connection) -> None:
     if row is None or bool(row[0]):
         raise HostedBackupError(
             "Restore refused: the destination is not empty; choose a NEW database "
-            "without user tables, views, functions, types, collations, text-search objects, publications, schemas or extensions"
+            "without user tables, views, functions, types, collations, text-search objects, publications, large objects, schemas or extensions"
         )
 
 

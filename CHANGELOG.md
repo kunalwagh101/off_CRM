@@ -1,3 +1,10 @@
+## 2026-11-21 — D-496: pin directories while saving private encryption keys (develop only)
+
+- Found a time-of-check/time-of-use race after D-495: an untrusted local process could rename an output directory and replace it with a symlink between the parent-symlink preflight and `O_CREAT`, so newly generated hosted secrets and backup encryption keys could be redirected.
+- Test first: `tests/test_hosted_storage.py::test_private_key_output_parent_swap_cannot_redirect_secret`, parametrised over `new-secrets-key` and `new-backup-key` (`c6ac720`). A faithful isolated old-code run failed as intended with a generated key appearing in the diverted directory; it passed in an isolated run using the directory-descriptor correction.
+- Fix: `offsetx_apollo_builder/db_cli.py` (`adeb18f`, corrected `7f182f3`) opens the directory chain with POSIX `O_DIRECTORY|O_NOFOLLOW`, then creates the final mode-0600 file relative to an already-open directory descriptor. The directory rename cannot redirect the new file into a replacement symlink.
+- Release limits: full current-source CI and Render review, real operator acceptance, and independent security review must be separately observed. Non-POSIX hosts continue to use a preflight-only fallback; restrict key creation to trusted private directories. No actual customer keys were generated, no main or customer deployment was changed.
+
 ## 2026-11-21 — D-494: stable role-effect idempotency across companion changes (unreleased)
 
 - Consequential Maker, Poster and Director API operations select a named role and act on its request payload, not the UI companion dropdown. The old UI included the dropdown selection in the pending request fingerprint. A failed/unknown response followed by a profile switch could generate a new idempotency key for the same effect.

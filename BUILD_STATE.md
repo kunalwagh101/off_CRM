@@ -1,3 +1,10 @@
+## 2026-11-21 — D-496: pin directories while saving private encryption keys (develop only)
+
+- Found a time-of-check/time-of-use race after D-495: an untrusted local process could rename an output directory and replace it with a symlink between the parent-symlink preflight and `O_CREAT`, so newly generated hosted secrets and backup encryption keys could be redirected.
+- Test first: `tests/test_hosted_storage.py::test_private_key_output_parent_swap_cannot_redirect_secret`, parametrised over `new-secrets-key` and `new-backup-key` (`c6ac720`). A faithful isolated old-code run failed as intended with a generated key appearing in the diverted directory; it passed in an isolated run using the directory-descriptor correction.
+- Fix: `offsetx_apollo_builder/db_cli.py` (`adeb18f`, corrected `7f182f3`) opens the directory chain with POSIX `O_DIRECTORY|O_NOFOLLOW`, then creates the final mode-0600 file relative to an already-open directory descriptor. The directory rename cannot redirect the new file into a replacement symlink.
+- Release limits: full current-source CI and Render review, real operator acceptance, and independent security review must be separately observed. Non-POSIX hosts continue to use a preflight-only fallback; restrict key creation to trusted private directories. No actual customer keys were generated, no main or customer deployment was changed.
+
 ## 2026-11-21 — D-495 symlinked parent path for operator encryption keys
 
 - F-06.03/F-06.02: after D-493 private 0600 `--output` key generation, `os.open(O_EXCL|O_NOFOLLOW)` protected only the last path component; a symlinked directory ancestor could silently redirect the saved key. Two parametrised failing-intent cases added in `tests/test_hosted_storage.py` (`a9e6cea`); `db_cli._save_new_key` (`5a5baf2`) refuses linked ancestors before file creation.

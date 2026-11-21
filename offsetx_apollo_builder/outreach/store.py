@@ -2203,6 +2203,20 @@ class OutreachStore:
         total = len(ranked)
         return [item for _, item in ranked[offset : offset + limit]], total
 
+    def get_memory_item(
+        self, memory_id: str, *, workspace_id: str = "local",
+    ) -> dict[str, Any] | None:
+        """Exact workspace-scoped receipt, independent of ranked search limits.
+
+        A successful save cannot rely on the first 1,000 relevance-ranked
+        rows to find the new record; use its durable unique ID instead.
+        """
+        row = self._row(
+            "SELECT * FROM memory_items WHERE id = ? AND workspace_id = ?",
+            (memory_id, workspace_id),
+        )
+        return self._decode_memory(row) if row is not None else None
+
     def set_memory_approval(self, memory_id: str, approved: bool, *, workspace_id: str = "local") -> dict[str, Any]:
         with self.transaction() as conn:
             cursor = conn.execute(

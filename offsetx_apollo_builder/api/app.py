@@ -2099,8 +2099,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     @app.post(f"{API_PREFIX}/agent-team/execute")
     def execute_agent_team_role(
         body: AgentRoleActionBody, request: Request,
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> dict[str, Any]:
-        """Dispatch to the exact existing role engine; no tool/publish bypass."""
+        """Run owner-picked roles through their existing engines and approval gates.
+
+        Maker/Poster/Director can write media/drafts or spend model quota.
+        Their caller must provide a stable request key so a network retry
+        cannot silently repeat an action with an uncertain outcome.
+        """
         from ..agent.role_team import RoleEngines, execute_role, release_role_resources
         from ..campaigns import WrongCampaignKind
 
@@ -2115,34 +2121,55 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             raise HTTPException(
                 409, "Create and enable this companion with agent-team/provision first"
             )
-        # Only resolve the one role's existing engine. Nothing is given broad
-        # access to other workspaces or background publishing.
-        engines = RoleEngines(
-            trends=_trends(request) if body.role == "Scout" else None,
-            video=_video(request) if body.role == "Maker" else None,
-            pipeline=_pipeline(request) if body.role == "Poster" else None,
-            distribution=_distribution(request) if body.role == "Analyst" else None,
-            gtm=_gtm(request) if body.role == "Director" else None,
-        )
-        try:
-            return execute_role(
-                body.role, body.model_dump(exclude={"role"}), engines=engines,
-            )
-        except CompanionError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        except KeyError as exc:
-            raise HTTPException(404, "Campaign, asset or account not found in this workspace") from exc
-        except WrongCampaignKind as exc:
-            # The campaign ID may be private; do not echo it from the engine.
-            # The user needs the correct kind, not a vague 409 or a raw stack.
+
+        consequential = body.role in {"Maker", "Poster", "Director"}
+        if consequential and idempotency_key is None:
             raise HTTPException(
-                409,
-                "This agent needs a content-distribution campaign. Select one in Content and try again.",
-            ) from exc
-        except ValueError as exc:
-            raise HTTPException(409, "The existing engine refused this action; review its prerequisites") from exc
-        finally:
-            release_role_resources(body.role, engines)
+                422, "Maker, Poster and Director require an Idempotency-Key. "
+                "Reuse the same key when retrying an uncertain request.",
+            )
+
+        def run_once() -> dict[str, Any]:
+            # A cached replay must not construct a provider, open a watcher,
+            # create a draft or call a model for a second time.
+            engines = RoleEngines(
+                trends=_trends(request) if body.role == "Scout" else None,
+                video=_video(request) if body.role == "Maker" else None,
+                pipeline=_pipeline(request) if body.role == "Poster" else None,
+                distribution=_distribution(request) if body.role == "Analyst" else None,
+                gtm=_gtm(request) if body.role == "Director" else None,
+            )
+            try:
+                return execute_role(
+                    body.role, body.model_dump(exclude={"role"}), engines=engines,
+                )
+            except CompanionError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except KeyError as exc:
+                raise HTTPException(404, "Campaign, asset or account not found in this workspace") from exc
+            except WrongCampaignKind as exc:
+                raise HTTPException(
+                    409,
+                    "This agent needs a content-distribution campaign. Select one in Content and try again.",
+                ) from exc
+            except ValueError as exc:
+                raise HTTPException(
+                    409, "The existing engine refused this action; review its prerequisites",
+                ) from exc
+            finally:
+                release_role_resources(body.role, engines)
+
+        if consequential:
+            # These effects live outside the CRM's transaction, and a provider
+            # outcome may be unknown after a crash. Persist an in-progress
+            # receipt BEFORE action, never re-execute a conflicted receipt.
+            return _idempotent(
+                _engine(request), "agent-team:execute",
+                idempotency_key, run_once,
+                principal=_decided_by(request),
+                payload=body.model_dump(mode="json"), external=True,
+            )
+        return run_once()
 
     @app.post(f"{API_PREFIX}/companions/{{companion_id}}/delegate")
     def delegate_companion(

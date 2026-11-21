@@ -1,3 +1,9 @@
+## 2026-11-21 — D-494 Agent Team retry receipt after companion switch (release review pending)
+
+- F-04.01/F-06.02: named /agent-team/execute role ignores the UI's selected companion, but an uncertain Maker/Poster/Director receipt used to hash that companion ID. Changing the picker or reloading after a lost result created a fresh key and could repeat external cost/draft effects.
+- TDD frontend regression (RED commit `ccdaf44`, Docker build 44923871291 failed on missing functions); source repair `9dc87bf` uses only actual workspace/actor/payload, searches v1 per-companion pending receipts, reuses a matching key, and fails closed on conflicting legacy keys. Docker production-container build 44923971665 passed. Browser test `12cbe89` exercises profile switch and v1 migration with synthetic intercepted Maker responses, seeded with exact topic at `8a9ac84`.
+- No live provider call or customer posting. Full exact-source CI, Render Docker QA and actual owner/provider acceptance still required; the new canonical receipt cannot reconstruct a deleted companion's unknown v1 digest. Keep F-04.01 and F-06.02 IN_REVIEW, with F-06.03 separate and incomplete.
+
 ## 2026-11-21 — D-493 safe provider/backup key-generation CLI, unverified release
 
 - F-06.03 and F-06.02: `offsetx-db new-secrets-key` and `new-backup-key` previously printed sensitive encryption keys to stdout even when run by CI, a supervisor or a shell pipe. Test-first parametrised command tests `2b0b196` cover non-TTY stdout denial and a new `--output FILE` path: freshly created exclusive private 0600 file, valid Fernet key, key never echoed, no overwrite and no final-symlink follow. CLI fix `ea720ab` adds this guarded delivery path; interactive legacy acceptance updated `2a79219`. `Dockerfile.review` now executes targeted checks early (`d58e1a2`).

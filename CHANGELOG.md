@@ -1,3 +1,10 @@
+## 2026-11-21 — D-494: stable role-effect idempotency across companion changes (unreleased)
+
+- Consequential Maker, Poster and Director API operations select a named role and act on its request payload, not the UI companion dropdown. The old UI included the dropdown selection in the pending request fingerprint. A failed/unknown response followed by a profile switch could generate a new idempotency key for the same effect.
+- The UI now derives an opaque SHA-256 intent fingerprint only from workspace, acting username and actual role payload. It scans known legacy companion IDs to recover the v1 receipt in sessionStorage; if conflicting pending keys exist it refuses to run, instead of guessing. Only hashed intent and random request key are stored. On success both new and migrated keys are removed.
+- RED: frontend test commit `ccdaf44` and failed production-container 44923871291. GREEN: source `9dc87bf` and successful production-container 44923971665. Added isolated Chromium retry after switching profiles and v1 migration `12cbe89`/`8a9ac84`, using intercepted synthetic success and no paid provider.
+- Latest full CI, Render review and live provider reconciliation still required. Backend A14 uncertain-result behaviour remains fail-closed.
+
 ## 2026-11-21 — D-493: private operator key generation for hosted CRM and backups (unreleased)
 
 - The key-generation commands `offsetx-db new-secrets-key` and `offsetx-db new-backup-key` previously printed secret key material even when stdout was piped into deployment logs. Non-interactive execution now refuses stdout output and directs the operator to an interactive terminal or `--output FILE`.

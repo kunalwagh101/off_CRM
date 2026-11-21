@@ -1,3 +1,9 @@
+## 2026-11-21 — D-481 S3 endpoint containment and real Analyst acceptance
+
+- F-06.03 D-481: owner-supplied custom S3 URL must not accept known internal DNS labels before boto3 client initialization. Test RED source ea4ffc1 and source fix 3798e3f; several private-name cases are covered. No external network request or production S3 credentials used in tests. This does not solve malicious DNS rebinding or remove the need for a true backup destination and recovery drill.
+- F-04.01: `tests/test_agent_role_team.py` now exercises Analyst through the real owner-authenticated FastAPI API on a disposable distribution campaign, asserting zero metric totals, empty performance and no post writes. The existing Render Chromium script also exercises the Analyst read-only result at 1280 and 390 pixels. Latest-source CI/Render must be observed before acceptance.
+- The working branch is develop; do not promote main or assert whole-feature DONE. D-479/D-480 and A05 route-matrix tests added earlier are independent and must also pass.
+
 ## 2026-11-21 — D-479/D-480 and A05 live API route-matrix security follow-up
 
 - D-479 / F-06.03: S3 upload/HEAD/download adapter exceptions can include sensitive diagnostic text. Test-first three hostile adapter fixtures on 715c694; code error boundaries on dc3593a hide SDK internals, preserve ciphertext cleanup and never report failed transfer as success. Exact-source full tests, Render image, owner-approved offsite S3 and encrypted recovery drill are separate gates.

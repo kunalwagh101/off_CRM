@@ -1,3 +1,10 @@
+## 2026-11-21 — D-481: reject known internal custom S3 endpoints (unreleased)
+
+- The custom backup S3 endpoint validator checked private IP address literals but accepted `localhost`, unqualified hostnames and common internal/reserved DNS suffixes. New parametrised tests refuse these before the SDK client is created.
+- Explicit rejection implemented for single-label names and reserved/internal suffixes while continuing to allow configured public HTTPS endpoints and verified global IP literals. This is defence in depth; a public-looking domain can still rebind to an internal address, so an actual production egress boundary or preapproved endpoint allowlist remains required.
+- Test-first source ea4ffc1 and application fix 3798e3f. S-06.03.04 remains open pending exact CI/Render results, owner-approved offsite destination and restore drill.
+- Added an authenticated, read-only Analyst API integration test and a real desktop/mobile Chromium Analyst result check using a synthetic distribution campaign. No external publishing, email send or paid model call.
+
 ## 2026-11-21 — D-479/D-480: secret-safe backup failures and honest Agent Team results (unreleased)
 
 - D-479: a failing object-store upload, metadata HEAD or owner ciphertext download now returns a safe operator message without raw adapter/SDK exception text. An interrupted download deletes its partial local ciphertext. Three hostile adapter tests supply credential-shaped error messages to prove the boundary. Backup uploads and independent restore remain owner-controlled.

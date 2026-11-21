@@ -413,3 +413,28 @@ def test_web_cli_does_not_print_api_token_on_public_bind(
     assert (settings.api_token in captured.out) is may_print
     assert settings.api_token not in captured.err
     assert len(run_calls) == 1 and run_calls[0]["host"] == host
+
+
+def test_web_cli_never_logs_api_token_in_render_environment(
+    tmp_path, monkeypatch, capsys,
+):
+    """D-491: Render log sinks stay secret-free even with a loopback bind."""
+    from offsetx_apollo_builder import web_cli
+
+    settings = _demo_settings(tmp_path)
+    settings.host = "127.0.0.1"
+    settings.api_token = "TEST-PRIVATE-RENDER-TOKEN-" + "r" * 48
+    settings.demo_username = ""
+    settings.demo_password = ""
+    settings.session_secret = ""
+    monkeypatch.setenv("RENDER_EXTERNAL_HOSTNAME", "isolated-qa.onrender.com")
+    monkeypatch.setattr(
+        web_cli.AppSettings, "from_env", classmethod(lambda cls: settings),
+    )
+    monkeypatch.setattr(web_cli, "create_app", lambda given: object())
+    monkeypatch.setattr(web_cli.uvicorn, "run", lambda app, **kwargs: None)
+
+    assert web_cli.main([]) == 0
+    captured = capsys.readouterr()
+    assert settings.api_token not in captured.out
+    assert settings.api_token not in captured.err

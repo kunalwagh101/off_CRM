@@ -80,3 +80,44 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         assert saved['id'] in [row['id'] for row in own_rows]
         assert all(row['workspace_id'] == 'local' for row in own_rows)
         assert 'BETA PRIVATE' not in str(own_rows)
+
+
+
+def test_new_memory_returns_its_own_receipt_after_more_than_thousand_records(tmp_path):
+    """D-487: a saved fact must not return 500 because the first page is full."""
+    token = "memory-owner-large-" + "m" * 40
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing", api_token=token,
+        allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings), raise_server_exceptions=False) as client:
+        store = client.app.state.engine.store
+        for index in range(1001):
+            store.add_memory_item(
+                workspace_id="local", kind="playbook", scope="global",
+                content=f"Existing seed fact {index}",
+            )
+        # Use an explicitly future timestamp, not a wall-clock tie, to prove
+        # that the next saved item is outside the first 1,000 returned rows.
+        with store.transaction() as connection:
+            connection.execute(
+                "UPDATE memory_items SET updated_at = ? WHERE workspace_id = ?",
+                ("2099-01-01T00:00:00+00:00", "local"),
+            )
+        response = client.post(
+            "/api/v1/memory",
+            json={"content": "Latest fact is saved with its exact ID"},
+            headers={"X-Offsetx-Token": token},
+        )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["workspace_id"] == "local"
+        assert body["content"] == "Latest fact is saved with its exact ID"
+        assert body["id"]
+        actual = store._row(
+            "SELECT id FROM memory_items WHERE workspace_id = ? AND content = ?",
+            ("local", "Latest fact is saved with its exact ID"),
+        )
+        assert actual is not None and body["id"] == actual["id"]

@@ -1,3 +1,8 @@
+## 2026-11-21 — D-495 symlinked parent path for operator encryption keys
+
+- F-06.03/F-06.02: after D-493 private 0600 `--output` key generation, `os.open(O_EXCL|O_NOFOLLOW)` protected only the last path component; a symlinked directory ancestor could silently redirect the saved key. Two parametrised failing-intent cases added in `tests/test_hosted_storage.py` (`a9e6cea`); `db_cli._save_new_key` (`5a5baf2`) refuses linked ancestors before file creation.
+- Preserve the non-TTY output guard and the existing destination/no-overwrite rules. This preflight is not atomic against local malicious directory swap races: use trusted non-user-writable destination directories for genuine keys. Exact-source CI, Render full build and real hosted operator acceptance pending; none of F-06.02/F-06.03/F-04.01 is DONE.
+
 ## 2026-11-21 — D-494 Agent Team retry receipt after companion switch (release review pending)
 
 - F-04.01/F-06.02: named /agent-team/execute role ignores the UI's selected companion, but an uncertain Maker/Poster/Director receipt used to hash that companion ID. Changing the picker or reloading after a lost result created a fresh key and could repeat external cost/draft effects.

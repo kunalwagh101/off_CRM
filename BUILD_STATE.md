@@ -1,3 +1,7 @@
+## 2026-11-22 — D-503 duplicate design decision ID corrected
+
+- Full GitHub CI 44958580729: Python 3.10/3.11/3.12 and real PostgreSQL PASS (PG 3547 passed/107 skipped), but board quality FAIL because the D-501 decision was inserted as duplicate DD-180. All 72 historical evidence commands passed first. The D-500 decision keeps DD-180; D-501 moves to unused DD-181. Added D-503 defect record. Rerun exact-source five-job CI before marking the handoff verified. Render code image dep-dc11mdmc6qcc73ckv3bg remains LIVE with SQLite 3409 pass/176 skipped and real PG 3498 pass/156 skipped.
+
 ## 2026-11-22 — D-502 handoff heading placement regression
 
 - GitHub CI 44957829631 Python 3.11 reported one failure in `test_current_handoff_does_not_direct_develop_work_to_main`: D-501 notes had been inserted ahead of `CONTINUE.md`'s first-line active branch header. The remaining 3,435 tests passed with 149 skipped. Restored the current handoff heading and `develop` marker to the top, then placed D-501 notes immediately after the branch instruction; no runtime change. Full exact-source replay pending.

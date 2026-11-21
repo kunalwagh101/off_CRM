@@ -125,3 +125,40 @@ def test_reloading_a_file_managed_token_refuses_a_replaced_symlink(tmp_path):
     assert settings.api_token == original
     assert outside.read_text(encoding="utf-8") == "p" * 64
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX inode and ownership checks")
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+def test_private_local_secret_rejects_hardlinked_file(tmp_path, kind, filename):
+    """D-501: a second pathname must not alias a credential's inode."""
+    settings = _settings(tmp_path)
+    original = settings.data_dir / filename
+    alias = tmp_path / "alias-to-credential"
+    alias.write_text("k" * 64, encoding="ascii")
+    alias.chmod(0o600)
+    os.link(alias, original)
+    before = alias.read_bytes()
+    with pytest.raises(ValueError, match="private|unsafe|link"):
+        _issue(settings, kind)
+    assert original.read_bytes() == before
+    assert alias.read_bytes() == before
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX effective-user ownership")
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+def test_private_local_secret_rejects_other_user_owned_file(tmp_path, monkeypatch, kind, filename):
+    """D-501: a privileged service must not accept a planted user's token."""
+    settings = _settings(tmp_path)
+    token = settings.data_dir / filename
+    token.write_text("m" * 64, encoding="ascii")
+    token.chmod(0o600)
+    before = token.read_bytes()
+    real_uid = os.geteuid()
+    monkeypatch.setattr(os, "geteuid", lambda: real_uid + 1)
+    with pytest.raises(ValueError, match="private|owner|unsafe"):
+        _issue(settings, kind)
+    assert token.read_bytes() == before

@@ -268,6 +268,27 @@ def test_s3_custom_endpoint_refuses_known_internal_hostnames_before_client_creat
     assert calls == []
 
 
+def test_owner_download_refuses_symlinked_parent_without_contacting_storage(tmp_path):
+    """D-484: a private download path must not redirect through a directory link."""
+    private = tmp_path / "private"
+    private.mkdir()
+    shortcut = tmp_path / "shortcut"
+    shortcut.symlink_to(private, target_is_directory=True)
+
+    class NoRemoteUse:
+        def head_object(self, **kwargs):
+            raise AssertionError("An unsafe destination must fail before S3 access")
+
+    destination = shortcut / "backup.enc"
+    with pytest.raises(backup.HostedBackupError, match="symlink"):
+        backup.download_ciphertext(
+            "owner/backup.enc", destination,
+            bucket="backups-private", client=NoRemoteUse(),
+        )
+    assert not destination.exists()
+    assert list(private.iterdir()) == []
+
+
 def test_s3_keys_refuse_traversal_or_unapproved_destination():
     for key in ("../other/secret", "/absolute", "a/../../b", ""):
         with pytest.raises(backup.HostedBackupError):

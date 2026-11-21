@@ -1,3 +1,12 @@
+## 2026-11-21 — Four-feature continuation: D-477/D-478 and Render agent-team QA gate
+
+- Current selected programme remains F-06.02 (production assurance), F-06.03 (hosted data/recovery), F-04.01 (agent team) and F-06.01 (workspace permissions). Their independent external/DoD gates remain OPEN; no complete feature and no main/customer promotion is claimed.
+- F-04.01 / F-06.01 D-477: companion/skill registry accepted IDs that WorkspaceAuthStore cannot issue; 5 two-path TDD regression inputs committed at 03d5ae6; hardened registry at a14c8d9. This is an input-boundary fix, not S-06.01.06 CRM ownership migration. No legacy row owner is inferred.
+- F-06.03 D-478: backup restore empty-destination check missed pg_largeobject_metadata. Real-PG fixture created at dc22f87; preflight refusal at d11eba5. Real S3, schedule, key custody and full disaster recovery remain unverified.
+- F-06.02 / F-04.01 QA: the existing scripts/live/review_agent_team_browser.py (owner role/procedure CRUD and mobile tests) was not executed by Dockerfile.review; chromium-checks now runs it at a23209a, following Contacts/browser QA. It uses disposable data and never posts/sends.
+- Verified earlier source c46045b GitHub Actions run 44907073344 completed successfully on all five jobs, including Python 3.10/3.11/3.12, PostgreSQL, historical board verifier, frontend/browser and dependency audit. D-476 TDD RED source efe4700 had a failing real-PG job 44906874744 and fixed-source PG succeeded. Later D-477/D-478 exact-source CI and Render status MUST be checked independently.
+- New Render QA account service srv-dc0o7e61egvs738i1920 is review-only, with a disposable Dockerfile.review and QA marker response. Do not mistake a successful marker for a CRM production/manual customer session.
+
 ## 2026-11-21 — D-476 PostgreSQL recovery target preflight (source pending exact-source QA)
 
 - F-06.03 S-06.03.04: reviewed restored target validation and found it still accepted user-created text-search dictionaries and PostgreSQL publications despite refusing other custom objects. Two real-PG denial cases were committed first (efe4700); production preflight now checks pg_ts_dict and pg_publication (2488513).

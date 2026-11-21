@@ -1,3 +1,10 @@
+## 2026-11-21 — D-477/D-478: owner-bound agent stores and safe database recovery (unreleased)
+
+- D-477: companion profiles and procedures reject workspace names that cannot be issued by the authenticated workspace system. Five parameterised invalid identities test both stores before any creation. This does not implement the remaining shared CRM tenancy cutover.
+- D-478: PostgreSQL restore refuses a destination containing existing large objects even when it has no user tables. Actual disposable database fixture creates and removes an object and checks refusal before the restore. This does not replace an offsite recovery drill.
+- Render's review Dockerfile now runs the already-written real Agent Team desktop/mobile Chromium walkthrough, in addition to targeted companion tests and full PostgreSQL/SQLite checks. The QA service serves a test marker, not a live customer application.
+- Test-first commits 03d5ae6 and dc22f87; fixes a14c8d9 and d11eba5; QA harness a23209a. Current exact-source CI/Render and independent penetration evidence must be observed before any DONE claim.
+
 ## 2026-11-21 — D-476: refuse non-empty PostgreSQL recovery targets (unreleased)
 
 - Added real-PostgreSQL regression cases for an existing user-created text-search dictionary and an existing publication in an otherwise table-free restore database.

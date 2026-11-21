@@ -1,3 +1,16 @@
+## 2026-11-21 — D-491: stop public-host API token logging (unreleased)
+
+- Token-only `web_cli.main` previously printed a complete authentication bearer token to stdout, including when bound to `0.0.0.0` or `::`, which would expose it in hosted Render logs. This is a secret disclosure, not a UI feature.
+- Test-first four public-vs-loopback cases at 577c833: GitHub Actions 44917737416 Python 3.11 confirmed exactly two expected public-host failures. Added Render-hostname/loopback case at 7bde15b. Source 82555cef limits token display to local loopback **outside** Render, while preserving local terminal setup; follow-up test isolation cd76737. Existing authentication and host allowlists stay enabled.
+- Owner must configure hosted authentication using a private channel and never expect secrets to appear in logs. Exact post-fix CI, review deployment and actual hosted operator verification remain outstanding. No real token was copied into a commit.
+
+## 2026-11-21 — D-490: preserve Agent Team request receipts after reload (unreleased)
+
+- Consequential Maker, Poster and Director actions reuse an idempotency key after a lost response. Before D-490, closing/reloading the page lost the pending receipt, allowing a second request key for the same action.
+- Frontend stores only a SHA-256 digest of workspace/actor/companion/payload plus the random request key in tab sessionStorage, not campaign text, prompt or provider credentials. The same intent reuses the receipt after reload, changed intent gets a new key, and successful response clears it. TDD RED b2e13b7, source 38f9c7f, browser response-loss/reload regression 248a54e.
+- Exact code-source GitHub Actions 44913555466: five jobs PASS, Python 3.12 3,394 pass/149 skipped, real PostgreSQL 3,505 pass/107 skipped, frontend 239 pass, board 72/72. On Render `dep-dc0r5js9v7es739n1ehg` Chromium Agent Team 1280px/390px PASS and the Python review stage reported 3,367 pass/176 skipped; final image live and actual provider reconciliation are distinct unverified gates.
+- This does not mean a scheduled publishing operation can safely be retried after an ambiguous remote provider outcome; it continues to fail closed pending reconciliation.
+
 ## 2026-11-21 — D-489: preserve exactly-once intent for Agent Team requests (unreleased)
 
 - Maker, Poster and Director can save media/drafts or consume paid AI calls. Their owner-only execution endpoint now REQUIRES an Idempotency-Key; previously the React UI sent one but the backend ignored it.

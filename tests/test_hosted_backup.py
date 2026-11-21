@@ -245,6 +245,14 @@ def test_s3_refuses_unverified_or_tampered_remote_objects(tmp_path, backup_key, 
     "https://storage.local",
     "https://unqualified-hostname",
     "https://s3.invalid",
+    # libc/network stacks can resolve these short/octal/hex spellings to
+    # loopback or RFC1918 addresses even though ipaddress.ip_address rejects them.
+    "https://127.1:9000",
+    "https://127.0.1:9000",
+    "https://0177.0.0.1:9000",
+    "https://0x7f.0.0.1:9000",
+    "https://0xc0.0xa8.1.1:9000",
+    "https://192.168.1:9000",
 ])
 def test_s3_custom_endpoint_refuses_known_internal_hostnames_before_client_creation(
     monkeypatch, endpoint,

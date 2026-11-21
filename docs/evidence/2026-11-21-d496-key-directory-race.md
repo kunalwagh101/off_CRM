@@ -6,9 +6,9 @@
 
 - RED test commit: `c6ac720f65e4609678cbca10ceedfa185c39817f`.
 - `tests/test_hosted_storage.py::test_private_key_output_parent_swap_cannot_redirect_secret` parametrises both key generation commands. Monkeypatch changes the parent directory into a symlink exactly before final `O_CREAT` to model a concurrent local attacker.
-- Faithful isolated old-code run reproduced `return=0 diverted_file_exists=True` and raised `AssertionError: RED: key was redirected to attacker-controlled parent`.
+- RED-source GitHub run 44929927714 was cancelled by a subsequent push; no observed failing test can be claimed. The test intentionally swaps the parent before `O_CREAT`; the old implementation's path-based `os.open` would follow the replacement symlink.
 - Code changes: `adeb18ff29bc96ac47cb6b4324daf7ce8398c468`, then `7f182f36f2316661a7f8fbcdbb1daff9c83c9827` to keep directory-fd safety under the test's adversarial monkeypatch.
-- An isolated corrected-code reproduction showed `return=0 diverted_file_exists=False`. It does **not** certify full application, CI or Render.
+- The test's corrected-code acceptance requires `return=0 diverted_file_exists=False`. It does **not** certify full application, CI or Render.
 
 ## Full acceptance still required
 

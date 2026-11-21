@@ -1,3 +1,10 @@
+## 2026-11-21 — D-470: restore independently owned profiles and sample AI (unreleased)
+
+- Keep the shared CRM/provider-call boundary blocked for nonlocal customers; allow only separately workspace-owned encrypted provider profiles.
+- In the dedicated sample visitor installation only, keep explicitly allowed AI plan/run working without customer CRM access.
+- Added API security regression. GitHub Actions 44836755927 supplies pre-fix RED failures, not post-fix proof. Full CI, penetration and tenant migration are still open.
+- No main promotion or production deployment.
+
 ## 2026-11-21 — Shared CRM isolation containment (unreleased)
 
 - D-451: Non-owner workspace sessions now receive HTTP 403 on a defined legacy shared-CRM API surface: campaigns and their sending jobs, sales, CRM search/analytics/export, templates, delivery, privacy, discovery, research, GTM and related unscoped routes. This protects existing legacy customer data while the native, workspace-specific CRM registry remains unactivated.

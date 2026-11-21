@@ -7,6 +7,7 @@ Plain English.
 
 | File | Whose decision | Question it answers |
 |---|---|---|
+| DD-174 | 2026-11-21 | Keep the D-451 default-deny shared-CRM boundary, except separately encrypted owner-confirmed profile APIs and AI plan/run in the strictly isolated sample visitor installation. | Profile handlers must continue checking ownership; visitor startup must enforce dedicated sample data. Full tenant migration and customer AI/CRM remain unavailable pending independent release evidence. |
 | `OPEN_QUESTIONS.md` | The **owner's** | "Which of these options do you want?" |
 | `DECISIONS.md` | The **builder's** | "Why is it built this way and not the obvious way?" |
 | `DEFECT_LOG.md` | Nobody's | "What broke, and how was it found?" |

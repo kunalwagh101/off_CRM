@@ -318,7 +318,8 @@ UNSCOPED_CRM_API_ROOTS: frozenset[str] = frozenset({
     "/content-automation", "/posts", "/gtm", "/distribution",
     "/trends", "/image-briefs", "/image-assets", "/video-projects",
     "/video-media", "/video-renders", "/email-delivery",
-    "/provider-calls", "/provider-profiles",
+    # Profiles have an independently encrypted, owner-scoped store.
+    "/provider-calls",
     "/ai/recall", "/ai/context", "/ai/plan", "/ai/run",
     "/agent-team", "/agent-routines", "/agent-routine-runs",
     "/agent-routine-status", "/agent-routine-notifications",
@@ -1216,9 +1217,15 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 ))
             )
         )
+        # Demo AI uses a separate sample-only installation, not customer CRM.
+        demo_scoped_ai = (
+            resolved.public_demo
+            and request.url.path in {f"{API_PREFIX}/ai/plan", f"{API_PREFIX}/ai/run"}
+            and public_demo.request_allowed(request.method, request.url.path)
+        )
         if (caller not in (None, "", "local")
                 and is_unscoped_crm_api_path(request.url.path)
-                and not demo_sample_read):
+                and not (demo_sample_read or demo_scoped_ai)):
             # The registry is implemented but NOT cut over. Returning a
             # customer-visible error is safer than serving another workspace's
             # campaigns, search, CSV, sales board or sending queue. Public demo

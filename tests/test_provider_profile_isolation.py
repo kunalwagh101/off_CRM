@@ -146,6 +146,22 @@ def test_a_client_login_drafts_with_its_own_profiles_only(client, built):
     assert not built  # the owner's profile was never assembled for beta
 
 
+def test_d470_owned_profiles_work_while_shared_crm_stays_closed(client):
+    """Owned profiles stay usable; the unscoped CRM must remain forbidden."""
+    _login(client, "beta")
+    saved = client.post("/api/v1/provider-profiles", json={
+        "name": "Beta isolated connector", "provider_type": "openai_compatible",
+        "model": "test-model", "base_url": "https://api.openai.com/v1",
+        "api_key": "sk-beta-isolated-" + "z" * 24,
+    })
+    assert saved.status_code == 201, saved.text
+    listed = client.get("/api/v1/provider-profiles")
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()["items"]] == [saved.json()["id"]]
+    assert client.get("/api/v1/campaigns").status_code == 403
+    assert client.get("/api/v1/provider-calls").status_code == 403
+
+
 def test_a_client_logins_new_profile_is_its_own(client):
     _login(client, "beta")
     saved = client.post(

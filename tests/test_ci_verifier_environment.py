@@ -74,7 +74,29 @@ def test_frontend_production_and_dev_vulnerabilities_are_hard_ci_gates():
     assert steps[production]["working-directory"] == "frontend"
     assert steps[production]["run"] == "npm audit --omit=dev --audit-level=low"
     assert steps[development]["working-directory"] == "frontend"
-    assert steps[development]["run"] == "npm audit --audit-level=high"
+    assert steps[development]["run"] == "npm audit --audit-level=moderate"
     for step in (steps[production], steps[development]):
         assert not step.get("continue-on-error", False)
         assert "|| true" not in step["run"]
+
+
+def test_render_review_image_enforces_the_same_dev_audit_threshold_as_ci():
+    """D-474: a vulnerable mocker must fail the actual review Docker image.
+
+    The 2026-11-21 npm audit printed two moderate advisories but the old
+    high-only gate passed. Check both independently built review stages.
+    """
+    docker = Path("Dockerfile.review").read_text(encoding="utf-8")
+    frontend = docker.split("FROM python:3.12-slim", 1)[0]
+    assert frontend.index("RUN npm ci") < frontend.index(
+        "RUN npm audit --audit-level=moderate"
+    )
+    assert "RUN npm audit --omit=dev --audit-level=low" in frontend
+    assert "RUN npm audit --audit-level=high" not in frontend
+    audit_commands = [
+        line.strip() for line in frontend.splitlines()
+        if line.strip().startswith("RUN npm audit")
+    ]
+    assert len(audit_commands) == 2
+    for command in audit_commands:
+        assert "||" not in command and "; true" not in command

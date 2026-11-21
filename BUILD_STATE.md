@@ -1,3 +1,10 @@
+## 2026-11-21 — QA verified on 0bd5ceed; D-474 moderate security gate amendment pending recheck
+
+- GitHub run `44901741765`: **all five jobs success**. Python 3.10/3.11/3.12 each 3354 passed/149 skipped, actual PostgreSQL 3465 passed/107 skipped, full-history board verifier success, frontend 237 passed, build success and registry npm production/dev audits each reported 0 vulnerabilities.
+- Render deploy `dep-dc0of5id217c73fcm0hg` on same exact source is **live** (12:30 UTC), review Docker image passed full Chromium and disposable PostgreSQL 3416 passed/156 skipped. **QA marker only:** the live URL responds to an HTTP marker, not the customer CRM app. Do not claim real SaaS deployment from this marker.
+- D-474: old `npm audit --audit-level=high` permitted two moderate `@vitest/mocker` advisories detected on older 4.1.11; Vitest 4.1.12 remediation passed old audit. CI and Dockerfile.review now enforce moderate-or-higher failure with a structural regression; **this change requires a fresh exact-source CI and QA build** before claiming it passed.
+- F-06.02 remains IN_REVIEW/production-audit open; F-06.03 offsite S3 recovery and F-04.01 live provider/browser workflows need external setup and acceptance. No main/customer release, no blanket penetration clearance. Existing D-451 fail-closed shared-CRM permissions remain unchanged.
+
 ## 2026-11-21 — D-473 full GitHub CI found eight legacy-D-451 test conflicts
 
 - GitHub Actions run `44900978605` Python 3.11: 8 failed, 3346 passed, 149 skipped. All eight failed because old tests expected nonlocal workspace access to shared campaigns/drafts/provider-call logs/recall; production D-451 guard intentionally returns 403.

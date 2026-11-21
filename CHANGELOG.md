@@ -1,3 +1,9 @@
+## 2026-11-21 — D-474: fail CI on moderate frontend development vulnerabilities (unreleased)
+
+- The previous high-only development audit allowed two reported moderate Vitest advisories. Pin moderate-or-higher failure in both GitHub quality CI and the review-only Render image, while keeping the production dependency audit at the strict low threshold.
+- Extend the CI-environment regression to check the exact policy in both places and reject swallowed audit failures. Keep the Vitest 4.1.12 patch from D-471.
+- Record the verified previous-source 0bd5ceed CI and Render QA results separately from this unverified new audit threshold. No change to customer runtime/authorization, no main promotion.
+
 ## 2026-11-21 — D-473: full-regression D-451 security contract update (unreleased)
 
 - Full Python 3.11 CI on `f7021b8` reached 3346 passed but eight older integration tests assumed nonlocal access to the install-wide CRM; D-451 now refuses those routes to prevent cross-tenant data exposure.

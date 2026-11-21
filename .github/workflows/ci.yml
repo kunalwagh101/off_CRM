@@ -64,7 +64,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=low
       - name: Audit frontend development dependencies
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Catch broken Python names and syntax
         run: uv run ruff check --select E9,F63,F7,F82 .
       - name: Smoke-test installed command-line entry points

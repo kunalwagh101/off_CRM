@@ -388,7 +388,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
   work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md
-  review: docs/evidence/S-06.02.16-validation.md; npm-regenerated Vitest/lockfile fixed 5 advisories; clean npm ci, 212 Vitest, build, both npm audits zero findings; full CI/board history review pending
+  review: docs/evidence/S-06.02.16-validation.md; 2026-11-21 exact-source 0bd5ceed GitHub CI 5 jobs SUCCESS, frontend 237 PASS, full-history verifier PASS, Render review LIVE with 3416 PG PASS and Chromium. D-471 patched moderate Vitest advisories; D-474 strengthens dev audit to moderate threshold in CI and Docker. New threshold QA, rollback exercise and independent release review still pending; no customer production claim
 
 - S-12.01.03 · The video director uses the product
   work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md

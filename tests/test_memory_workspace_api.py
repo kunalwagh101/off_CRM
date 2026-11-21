@@ -38,14 +38,14 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         assert imported.status_code == 200
         contact = client.get(f'/api/v1/campaigns/{campaign}/contacts', headers=owner).json()['items'][0]
         assert client.patch(f'/api/v1/campaigns/{campaign}/contacts/'+contact['id'], headers=owner, json={
-            'outcome_label': 'positive', 'notes': 'BETA PRIVATE FEEDBACK'}).status_code == 200
+            'outcome_label': 'positive', 'notes': 'OWNER PRIVATE FEEDBACK'}).status_code == 200
         generated = client.post(f'/api/v1/campaigns/{campaign}/drafts/generate', headers=owner, json={'stages': ['initial']})
         assert generated.json()['generated'] == 1
         draft = client.get(f'/api/v1/campaigns/{campaign}/drafts', headers=owner).json()['items'][0]
         assert client.patch(f'/api/v1/campaigns/{campaign}/drafts/'+draft['id'], headers=owner, json={
-            'subject': draft['subject'], 'body': draft['body']+'\nBETA PRIVATE EDIT'}).status_code == 200
+            'subject': draft['subject'], 'body': draft['body']+'\nOWNER PRIVATE EDIT'}).status_code == 200
         assert client.post(f'/api/v1/campaigns/{campaign}/drafts/bulk-replace', headers=owner, json={
-            'draft_ids': [draft['id']], 'find': 'BETA PRIVATE EDIT', 'replace': 'BETA PRIVATE CORRECTION',
+            'draft_ids': [draft['id']], 'find': 'OWNER PRIVATE EDIT', 'replace': 'OWNER PRIVATE CORRECTION',
             'preview_only': False}).status_code == 200
         inbox = tmp_path / 'data' / 'mail' / 'inbox'
         inbox.mkdir(parents=True, exist_ok=True)

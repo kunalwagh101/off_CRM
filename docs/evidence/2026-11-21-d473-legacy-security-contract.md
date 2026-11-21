@@ -12,3 +12,7 @@ Eight affected checks:
 Source change: preserve D-451's HTTP 403 for nonlocal shared CRM while retaining executable owner-token validation of malicious inputs, direct workspace-local profile/memory visibility, and memory generation from actual owner contact/draft/reply actions. Explicit 403 for beta and no secret content in refused responses. The underlying provider-call/recall stores remain tested for scoped records; the owner sees combined historical audit information, customer cannot access it until migration.
 
 No API/egress auth controls changed. The tests require full fresh CI and Render acceptance on the new commit. Do not waive missing independent penetration, browser UX, real backup destination, external provider, CRM migration, or customer release.
+
+## Focused QA fast-fail and owner fixture hygiene
+
+Owner-token generated contact feedback, human corrections and reply observation now use explicit OWNER labels. The beta workspace's own memory remains BETA labelled, so the comparison detects accidental ownership leakage rather than conflating two fixture roles. Added an early full-file security gate for draft Connectors, memory workspace, provider profile, recall and product isolation tests in Dockerfile.review. This gate must execute on the next exact-source Render build; no pass is claimed here.

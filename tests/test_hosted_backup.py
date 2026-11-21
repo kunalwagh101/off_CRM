@@ -159,6 +159,68 @@ def test_s3_export_does_not_expose_remote_transport_error_or_claim_success(
     assert "could not be verified" in str(failure.value)
     assert "SECRET-DIAGNOSTIC-CREDENTIAL" not in str(failure.value)
 
+@pytest.mark.parametrize("operation", ["upload", "head"])
+def test_s3_export_transport_failures_never_expose_adapter_credentials(
+    tmp_path, backup_key, monkeypatch, operation,
+):
+    """D-479: failing upload and HEAD must not print private adapter diagnostics."""
+    secret = "SECRET-FROM-STORAGE-ADAPTER"
+
+    class FailingS3(FakeS3):
+        def upload_file(self, source, bucket, name, ExtraArgs):
+            if operation == "upload":
+                raise RuntimeError(secret)
+            super().upload_file(source, bucket, name, ExtraArgs)
+
+        def head_object(self, *, Bucket, Key):
+            if operation == "head":
+                raise RuntimeError(secret)
+            return super().head_object(Bucket=Bucket, Key=Key)
+
+    temporary = tmp_path / "temp-encrypted"
+    monkeypatch.setattr(backup, "_new_temp_path", lambda: temporary)
+
+    def fake_dump(path, url, key, *, maximum_bytes):
+        _envelope(path, key, {"version": 1, "counts": {}})
+        return {}
+
+    monkeypatch.setattr(backup, "_write_encrypted_snapshot", fake_dump)
+    with pytest.raises(backup.HostedBackupError, match="Remote backup") as failure:
+        backup.export_to_s3(
+            "postgresql://db/hosted",
+            bucket="backups-private", client=FailingS3(), key=backup_key,
+        )
+    assert secret not in str(failure.value)
+    assert not temporary.exists()
+
+
+def test_s3_download_failure_does_not_leak_secret_or_leave_partial_ciphertext(
+    tmp_path, backup_key,
+):
+    """D-479: owner download failures remove partial files and hide SDK details."""
+    secret = "SECRET-FROM-STORAGE-ADAPTER"
+
+    class FailingDownload(FakeS3):
+        def download_file(self, bucket, key, destination):
+            Path(destination).write_bytes(b"truncated")
+            raise RuntimeError(secret)
+
+    remote = FailingDownload()
+    envelope = tmp_path / "fixture.enc"
+    _envelope(envelope, backup_key, {"version": 1, "counts": {}})
+    digest = backup._sha256(envelope)
+    remote.objects["backups-private", "owner/snapshot.enc"] = (
+        envelope.read_bytes(), {"sha256": digest},
+    )
+    destination = tmp_path / "partial.enc"
+    with pytest.raises(backup.HostedBackupError, match="Remote backup") as failure:
+        backup.download_ciphertext(
+            "owner/snapshot.enc", destination, bucket="backups-private", client=remote,
+        )
+    assert secret not in str(failure.value)
+    assert not destination.exists()
+
+
 def test_s3_refuses_unverified_or_tampered_remote_objects(tmp_path, backup_key, monkeypatch):
     store = FakeS3()
     def fake_dump(path, url, key, *, maximum_bytes):

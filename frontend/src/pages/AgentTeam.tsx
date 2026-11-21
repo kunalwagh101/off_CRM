@@ -29,6 +29,45 @@ export function roleRequestAttempt(
   return previous?.fingerprint === fingerprint ? previous : { fingerprint, key: generateKey() };
 }
 
+const PENDING_ROLE_PREFIX = "offcrm-agent-role-pending-v1-";
+type RoleAttemptStore = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/** Hash private intent before putting a receipt in the tab's session storage.
+ * The key is not a credential; do not store topics, goals or provider data. */
+export async function roleIntentDigest(intent: unknown): Promise<string> {
+  const encoded = new TextEncoder().encode(JSON.stringify(intent));
+  const hash = await crypto.subtle.digest("SHA-256", encoded);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+export function loadRoleRequestAttempt(store: RoleAttemptStore | null, digest: string): RoleRequestAttempt | null {
+  if (!/^[0-9a-f]{64}$/.test(digest)) return null;
+  try {
+    const raw = store?.getItem(PENDING_ROLE_PREFIX + digest);
+    if (!raw || raw.length > 320) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object") return null;
+    const found = value as Partial<RoleRequestAttempt>;
+    if (found.fingerprint !== JSON.stringify(digest) || typeof found.key !== "string"
+        || found.key.length > 128 || !/^[a-zA-Z0-9._-]+$/.test(found.key)) return null;
+    return { fingerprint: found.fingerprint, key: found.key };
+  } catch { return null; }
+}
+export function saveRoleRequestAttempt(store: RoleAttemptStore | null, digest: string, attempt: RoleRequestAttempt): void {
+  if (!/^[0-9a-f]{64}$/.test(digest) || attempt.fingerprint !== JSON.stringify(digest)) return;
+  try { store?.setItem(PENDING_ROLE_PREFIX + digest, JSON.stringify(attempt)); }
+  catch { /* Browser storage can be disabled. In-memory receipt still protects immediate retry. */ }
+}
+export function clearRoleRequestAttempt(store: RoleAttemptStore | null, digest: string): void {
+  if (!/^[0-9a-f]{64}$/.test(digest)) return;
+  try { store?.removeItem(PENDING_ROLE_PREFIX + digest); }
+  catch { /* Storage might have been disabled after the request was made. */ }
+}
+function browserRoleAttemptStore(): RoleAttemptStore | null {
+  try { return window.sessionStorage; }
+  catch { return null; }
+}
+
+
 
 export function ToolGrantChoices({ tools, grants, savedGrants, catalogueReady, onToggle }: {
   tools: Tool[]; grants: string[]; savedGrants: string[]; catalogueReady: boolean; onToggle: (id: string) => void;
@@ -51,7 +90,7 @@ export function ToolGrantChoices({ tools, grants, savedGrants, catalogueReady, o
 
 export default function AgentTeam() {
   const { notify, campaigns, publicDemo, selectCampaign } = useApp();
-  const session = useResource(() => api.get<{ workspace_id: string }>("/auth/session"), []);
+  const session = useResource(() => api.get<{ workspace_id: string; username?: string }>("/auth/session"), []);
   const owner = session.data?.workspace_id === "local" && !publicDemo;
   const profiles = useResource(() => api.get<{ items: Companion[] }>("/companions"), []);
   const skills = useResource(() => owner ? api.get<{ items: Procedure[] }>("/companion-skills") : Promise.resolve({ items: [] }), [owner]);
@@ -203,13 +242,27 @@ export default function AgentTeam() {
         <p>Scout observes. Maker queues a timeline for review. Poster creates drafts. Analyst reads metrics. Director drafts a plan. Approval and publication stay in their existing review screens.</p>
         <form className="form-stack" onSubmit={(e) => submit(e, "role", async () => {
           const payload = { role, ...(role !== "Scout" && role !== "Director" ? { campaign_id: campaign } : {}), ...(role === "Maker" ? { topic } : {}), ...(role === "Poster" ? { image_campaign_id: imageCampaign, account_ids: accountIds } : {}), ...(role === "Director" ? { gtm_request: { product_id: product, goal_kind: "replies", goal_target: target, horizon_days: days, contact_budget: 0, channels: [], assumed_reply_rate: 0.034, per_identity_daily_cap: 30, notes: "", use_model: true } } : {}) };
-          const intent = { workspace: session.data?.workspace_id ?? "", companion: selected, payload };
-          const attempt = roleRequestAttempt(roleAttemptRef.current, intent, () => idempotencyKey("role"));
+          const intent = {
+            workspace: session.data?.workspace_id ?? "", actor: session.data?.username ?? "",
+            companion: selected, payload,
+          };
+          // An uncertain role result must keep its key even after page reload.
+          // Store only a SHA-256 of the intent and the random receipt, never
+          // private campaign topics, product goals, model prompts or keys.
+          let digest = "";
+          try { digest = await roleIntentDigest(intent); }
+          catch { /* The immediate in-memory retry still uses one stable key. */ }
+          const storage = digest ? browserRoleAttemptStore() : null;
+          const saved = digest ? loadRoleRequestAttempt(storage, digest) : null;
+          const attempt = roleRequestAttempt(
+            saved ?? roleAttemptRef.current, digest || intent, () => idempotencyKey("role"),
+          );
           roleAttemptRef.current = attempt;
-          // Preserve the key on failed or uncertain requests; do not repeat
-          // paid work or draft creation with a different key on the next click.
+          if (digest) saveRoleRequestAttempt(storage, digest, attempt);
+          // Preserve the key on failed/uncertain requests, including 500/409.
           const result = await api.post<RoleOutcome>("/agent-team/execute", payload, attempt.key);
           roleAttemptRef.current = null;
+          if (digest) clearRoleRequestAttempt(storage, digest);
           setRoleResult(result); setResultCampaign(campaign);
         })}>
           <Field label="Role"><select aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value as Role); setRoleResult(null); }}>{ROLES.map((name) => <option key={name}>{name}</option>)}</select></Field>

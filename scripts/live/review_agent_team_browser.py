@@ -51,6 +51,13 @@ def verify(page, width):
     page.get_by_label("Role result", exact=True).get_by_text(
         "Observed topics", exact=False
     ).wait_for()
+    # F-04.01/D-480 RED: switching companions must not leave the previous
+    # role's result visible as if it belonged to the newly selected profile.
+    page.get_by_label("Companion", exact=True).select_option(label="Scout")
+    expect(page.get_by_label("Role result", exact=True)).to_have_count(0)
+    page.get_by_label("Companion", exact=True).select_option(
+        label="Research " + str(width)
+    )
     page.get_by_label("Role", exact=True).select_option("Maker")
     role_campaign = page.get_by_label("Role campaign", exact=True)
     expect(role_campaign).to_contain_text("QA image")

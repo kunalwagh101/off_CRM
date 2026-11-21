@@ -162,3 +162,32 @@ def test_private_local_secret_rejects_other_user_owned_file(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="private|owner|unsafe"):
         _issue(settings, kind)
     assert token.read_bytes() == before
+
+
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+def test_failed_random_secret_generation_does_not_leave_poisoned_file(
+    tmp_path, monkeypatch, kind, filename
+):
+    """D-504: entropy failure must not strand an invalid permanent credential."""
+    from offsetx_apollo_builder.api import config
+
+    settings = _settings(tmp_path)
+    target = settings.data_dir / filename
+    real_generate = config.secrets.token_urlsafe
+
+    def unavailable_entropy(_number):
+        raise OSError("synthetic random source failure")
+
+    monkeypatch.setattr(config.secrets, "token_urlsafe", unavailable_entropy)
+    with pytest.raises(ValueError, match="unsafe|inaccessible|credential|secret"):
+        _issue(settings, kind)
+    assert not target.exists(), "a failed key generation must not poison the next boot"
+
+    monkeypatch.setattr(config.secrets, "token_urlsafe", real_generate)
+    created = _issue(_settings(tmp_path), kind)
+    assert len(created) >= 32
+    assert target.is_file()
+    assert target.read_text(encoding="ascii").strip() == created

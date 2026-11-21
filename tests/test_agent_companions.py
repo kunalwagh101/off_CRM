@@ -64,6 +64,32 @@ def _tool(registry: ToolRegistry, name: str, workspace_id: str = "w"):
     )
 
 
+@pytest.mark.parametrize("invalid_workspace", [
+    "OtherWorkspace",
+    "team alpha",
+    "alpha\\nbeta".replace("\\n", "\n"),
+    "alpha/beta",
+    "a" * 65,
+])
+def test_companion_registry_rejects_workspace_ids_auth_cannot_issue(
+    tmp_path, invalid_workspace,
+):
+    """D-477/A05: stored companions must use the same IDs as authenticated accounts."""
+    tools = ToolRegistry(tmp_path / "tools.db")
+    registry = CompanionRegistry(tmp_path, tools=tools, memory_backend=Memory())
+    with pytest.raises(CompanionError, match="workspace_id"):
+        registry.create(
+            workspace_id=invalid_workspace, name="Never stored",
+            instructions="Keep workspace identity strict",
+        )
+    with pytest.raises(CompanionError, match="workspace_id"):
+        registry.create_skill(
+            workspace_id=invalid_workspace, name="Never stored",
+            content="Private procedure.",
+        )
+    assert registry.list(workspace_id="local") == []
+
+
 def test_run_context_contains_only_its_granted_tools_and_memory_scope(tmp_path):
     tools = ToolRegistry(tmp_path / "tools.db")
     memory = Memory()

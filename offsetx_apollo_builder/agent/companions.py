@@ -25,6 +25,9 @@ from ..outreach.models import to_utc_iso
 
 _NAME = re.compile(r"^[^\x00\r\n]{1,100}$")
 _SCOPE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_-]{0,159}$")
+# Keep in sync with api.auth._WORKSPACE_ID. Neither profile nor skill stores
+# may invent an identity that the authenticated workspace system cannot issue.
+_WORKSPACE_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 MAX_INSTRUCTIONS = 12_000
 MAX_TOOLS = 100
 MAX_SKILL_TEXT = 2000
@@ -301,8 +304,10 @@ class CompanionRegistry:
     @staticmethod
     def _workspace(value: str) -> str:
         workspace = str(value or "").strip()
-        if not workspace or len(workspace) > 120 or "\x00" in workspace:
-            raise CompanionError("workspace_id must be a non-empty bounded string")
+        if not _WORKSPACE_ID.fullmatch(workspace):
+            raise CompanionError(
+                "workspace_id must be 1-64 lowercase letters, digits, '-' or '_'"
+            )
         return workspace
 
     @staticmethod

@@ -32,6 +32,12 @@ on:
 permissions:
   contents: read
 
+# Only the newest commit per workflow/ref needs a complete expensive run.
+# PRs and different branches still get their own isolated test execution.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-start:
     runs-on: ubuntu-24.04

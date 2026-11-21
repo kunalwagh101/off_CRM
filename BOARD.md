@@ -133,6 +133,7 @@ workspace `local` acts as the install owner with nothing asking for that.)*
 next day, `AGENTS.md` "Logging".)*
 
 - S-06.03.04 · The hosted database is backed up outside itself
+  checkpoint: 2026-11-21 D-475: S3 export previously trusted remote HEAD metadata+size only; source now streams ciphertext GET to compare actual SHA256/length before success, and tests intentionally corrupt same-sized objects and fail remote GET safely. Full CI/Render QA, real owner bucket, retention schedule, independent offsite restore and customer acceptance are not yet verified; BACKLOG retained.
   checkpoint: 2026-11-05 D-380 restore safety: no pg_restore --clean/--if-exists, refuse even a no-table destination with views, functions, sequences, types, extra schemas or extensions via pg_catalog. Fake preflight and real disposable PG test source in tests/test_hosted_backup.py (75b4ce2, ff00a0d). New tests NOT RUN. No owner-approved S3 bucket/recovery drill; remains BACKLOG, not DONE.
 
   design: docs/architecture/HOSTED_STORAGE.md

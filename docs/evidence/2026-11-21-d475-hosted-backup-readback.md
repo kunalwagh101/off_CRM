@@ -1,0 +1,9 @@
+# D-475 — S3 backup read-back integrity contract (2026-11-21)
+
+Source finding: `offsetx_apollo_builder/db/hosted_backup.py::export_to_s3` accepted a remote `head_object` with the original SHA256 user metadata and byte size, without comparing remote ciphertext. A same-length changed object would be reported as exported.
+
+Test-first cases added to `tests/test_hosted_backup.py`: `test_s3_export_refuses_matching_metadata_when_actual_ciphertext_is_corrupt` mutates the last ciphertext byte on upload but preserves the metadata and length; `test_s3_export_does_not_expose_remote_transport_error_or_claim_success` refuses the remote GET with a sensitive exception. Under the earlier HEAD-only code, the first would report success and the second would never access GET. This is a reasoned expected-red contract, **not a claim that an executable RED run was performed**.
+
+Implementation: `_verify_remote_ciphertext` makes a real streamed GET on the same encrypted S3 object, bounds the read to expected byte count, compares SHA256 and reports a stable secret-safe error on remote failure. Body is always closed; no second plaintext file or network plaintext is created. A correct encrypted S3 read-back is expected to pass the existing end-to-end export/download/restore tests.
+
+Verification required on exact new commit: `uv run pytest -q tests/test_hosted_backup.py`, plus `uv run pytest -q`, actual disposable PostgreSQL restore `test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts`, and full-history `uv run python scripts/verify_board.py`. Owner-supplied S3 destination/retention, IAM, scheduling, separate AES key custody, and offsite restore drill remain unprovided. Extra GET transfer charges are documented (DD-176). Do not mark DONE or production-live before these checks.

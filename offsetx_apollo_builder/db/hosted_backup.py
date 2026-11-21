@@ -252,6 +252,44 @@ def _new_temp_path() -> Path:
     return Path(name)
 
 
+def _verify_remote_ciphertext(client, bucket: str, object_key: str,
+                              *, expected_bytes: int, expected_sha256: str) -> None:
+    """Read back ciphertext: S3 HEAD metadata alone cannot attest stored bytes.
+
+    Stream at a fixed chunk size without creating a second plaintext or a large
+    local copy. A 2 GiB backup adds one encrypted-object download to the bill.
+    """
+    body = None
+    try:
+        body = client.get_object(Bucket=bucket, Key=object_key)["Body"]
+        observed = 0
+        digest = hashlib.sha256()
+        while True:
+            chunk = body.read(CHUNK_BYTES)
+            if not chunk:
+                break
+            observed += len(chunk)
+            if observed > expected_bytes:
+                raise HostedBackupError("Remote backup read-back size mismatch; do not rely on this export")
+            digest.update(chunk)
+        if observed != expected_bytes or digest.hexdigest() != expected_sha256:
+            raise HostedBackupError("Remote backup read-back checksum mismatch; do not rely on this export")
+    except HostedBackupError:
+        raise
+    except Exception:
+        # Some storage adapters include credentials or request details in
+        # exceptions. The operator needs a safe next step, not those values.
+        raise HostedBackupError(
+            "Remote backup read-back could not be verified; do not rely on this export"
+        ) from None
+    finally:
+        if body is not None:
+            try:
+                body.close()
+            except Exception:
+                pass
+
+
 def export_to_s3(database_url: str, *, bucket: str | None = None, prefix: str | None = None,
                  key: bytes | None = None, client=None,
                  maximum_bytes: int = MAX_BACKUP_BYTES) -> dict[str, object]:
@@ -279,6 +317,12 @@ def export_to_s3(database_url: str, *, bucket: str | None = None, prefix: str | 
         if (head.get("Metadata", {}).get("sha256") != digest
                 or int(head.get("ContentLength", -1)) != temporary.stat().st_size):
             raise HostedBackupError("Remote backup verification failed; do not rely on this export")
+        # A copied or altered metadata SHA256 is not integrity proof. Require
+        # the actual ciphertext to hash correctly before reporting success.
+        _verify_remote_ciphertext(
+            remote, destination, object_key,
+            expected_bytes=temporary.stat().st_size, expected_sha256=digest,
+        )
         return {"bucket": destination, "key": object_key, "sha256": digest,
                 "encrypted_bytes": temporary.stat().st_size, "tables": len(counts)}
     finally:

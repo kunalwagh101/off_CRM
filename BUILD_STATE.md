@@ -1,3 +1,8 @@
+## 2026-11-21 — D-475 streamed offsite ciphertext verification (source, unverified)
+
+- F-06.03 `S-06.03.04`: a remote backup report relied on S3 `head_object` size and user-set SHA256 metadata. These can match a corrupted same-size object. Code now reads back encrypted object bytes in bounded chunks, verifies length and SHA256 before success, and returns a safe error on remote GET failure. Test doubles include both corruption and unreadable object; no customer data accessed.
+- The extra read-back transfers the entire ciphertext, so budget storage egress, time and bandwidth accordingly (DD-176). This is not proof of independent bucket, actual scheduled offsite retention, encrypted-key custody or full restart/disaster drill. New source requires exact-source CI and real disposable PostgreSQL/Chromium QA; do not mark F-06.03 DONE.
+
 ## 2026-11-21 — QA verified on 0bd5ceed; D-474 moderate security gate amendment pending recheck
 
 - GitHub run `44901741765`: **all five jobs success**. Python 3.10/3.11/3.12 each 3354 passed/149 skipped, actual PostgreSQL 3465 passed/107 skipped, full-history board verifier success, frontend 237 passed, build success and registry npm production/dev audits each reported 0 vulnerabilities.

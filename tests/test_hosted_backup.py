@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+from io import BytesIO
 import os
 import struct
 from pathlib import Path
@@ -26,6 +27,10 @@ class FakeS3:
 
     def download_file(self, bucket, key, destination):
         Path(destination).write_bytes(self.objects[bucket, key][0])
+
+    def get_object(self, *, Bucket, Key):
+        # Same interface as boto3's StreamingBody, without any network.
+        return {"Body": BytesIO(self.objects[Bucket, Key][0])}
 
 
 @pytest.fixture
@@ -107,6 +112,52 @@ def test_s3_export_uploads_ciphertext_then_checks_remote_hash(tmp_path, backup_k
     with pytest.raises(backup.HostedBackupError, match="already exists"):
         backup.download_ciphertext(result["key"], downloaded, bucket="backups-private", client=store)
 
+
+
+
+def test_s3_export_refuses_matching_metadata_when_actual_ciphertext_is_corrupt(
+    tmp_path, backup_key, monkeypatch,
+):
+    """D-475: an upload can preserve metadata and size yet corrupt its bytes."""
+    class CorruptS3(FakeS3):
+        def upload_file(self, source, bucket, name, ExtraArgs):
+            super().upload_file(source, bucket, name, ExtraArgs)
+            encrypted, metadata = self.objects[bucket, name]
+            altered = bytearray(encrypted)
+            altered[-1] ^= 0x01
+            self.objects[bucket, name] = (bytes(altered), metadata)
+
+    def fake_dump(path, url, key, *, maximum_bytes):
+        _envelope(path, key, {"version": 1, "counts": {"test": 2}})
+        return {"test": 2}
+
+    monkeypatch.setattr(backup, "_write_encrypted_snapshot", fake_dump)
+    remote = CorruptS3()
+    with pytest.raises(backup.HostedBackupError, match="read-back checksum mismatch"):
+        backup.export_to_s3("postgresql://db/hosted", bucket="backups-private",
+                            client=remote, key=backup_key)
+    assert len(remote.objects) == 1
+    assert not list(tmp_path.glob("*.plaintext"))
+
+
+def test_s3_export_does_not_expose_remote_transport_error_or_claim_success(
+    tmp_path, backup_key, monkeypatch,
+):
+    """An unavailable remote GET is an unverified backup, not a green export."""
+    class UnreadableS3(FakeS3):
+        def get_object(self, *, Bucket, Key):
+            raise RuntimeError("SECRET-DIAGNOSTIC-CREDENTIAL remote read denied")
+
+    def fake_dump(path, url, key, *, maximum_bytes):
+        _envelope(path, key, {"version": 1, "counts": {}})
+        return {}
+
+    monkeypatch.setattr(backup, "_write_encrypted_snapshot", fake_dump)
+    with pytest.raises(backup.HostedBackupError) as failure:
+        backup.export_to_s3("postgresql://db/hosted", bucket="backups-private",
+                            client=UnreadableS3(), key=backup_key)
+    assert "could not be verified" in str(failure.value)
+    assert "SECRET-DIAGNOSTIC-CREDENTIAL" not in str(failure.value)
 
 def test_s3_refuses_unverified_or_tampered_remote_objects(tmp_path, backup_key, monkeypatch):
     store = FakeS3()

@@ -1,3 +1,9 @@
+## 2026-11-21 — D-475: verify real S3 backup bytes before success (unreleased)
+
+- Added streaming SHA256/byte-count read-back after encrypted PostgreSQL object upload, so a same-sized corrupted remote object cannot pass by retaining user-set checksum metadata.
+- Added fake S3 corruption and remote GET failure tests; errors are safe for operators and no plaintext is uploaded.
+- Every successful backup now incurs an additional encrypted-object read; account for object-store traffic, elapsed time and independent restore. Real offsite credentials, schedule, recovery drill and new-source integration gates remain outstanding; no production/customer rollout.
+
 ## 2026-11-21 — D-474: fail CI on moderate frontend development vulnerabilities (unreleased)
 
 - The previous high-only development audit allowed two reported moderate Vitest advisories. Pin moderate-or-higher failure in both GitHub quality CI and the review-only Render image, while keeping the production dependency audit at the strict low threshold.

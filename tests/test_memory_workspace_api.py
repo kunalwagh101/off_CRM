@@ -133,3 +133,11 @@ def test_new_memory_returns_its_own_receipt_after_more_than_thousand_records(tmp
             "", workspace_id="beta", limit=10, offset=1000,
         )
         assert foreign_page == [] and foreign_total == 0
+        # D-488: a newer exact keyword must also be found when its timestamp
+        # puts it outside the old hard-coded 1,000-candidate SQL window.
+        matches, count = store.search_memory_items(
+            "Latest", workspace_id="local", limit=10,
+        )
+        assert count == 1
+        assert [item["id"] for item in matches] == [body["id"]]
+        assert "_memory_rank" not in matches[0]

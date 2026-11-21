@@ -29,6 +29,13 @@ export function roleRequestAttempt(
   return previous?.fingerprint === fingerprint ? previous : { fingerprint, key: generateKey() };
 }
 
+/** The role endpoint selects a role by its name, not by the profile picker.
+ * Only fields that change the actual backend effect may identify its receipt. */
+export type RoleEffectIntent = { workspace: string; actor: string; payload: unknown };
+export function roleExecutionIntent(workspace: string, actor: string, payload: unknown): RoleEffectIntent {
+  return { workspace, actor, payload };
+}
+
 const PENDING_ROLE_PREFIX = "offcrm-agent-role-pending-v1-";
 type RoleAttemptStore = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -61,6 +68,29 @@ export function clearRoleRequestAttempt(store: RoleAttemptStore | null, digest: 
   if (!/^[0-9a-f]{64}$/.test(digest)) return;
   try { store?.removeItem(PENDING_ROLE_PREFIX + digest); }
   catch { /* Storage might have been disabled after the request was made. */ }
+}
+/** Migrate pending v1 receipts whose hash included the unrelated selected
+ * companion. Never re-execute an already-uncertain action with a new key.
+ * If two old selections have different receipts, fail closed instead. */
+export async function recoverLegacyRoleRequestAttempt(
+  store: RoleAttemptStore | null, intent: RoleEffectIntent, companionIds: string[],
+): Promise<{ key: string; digests: string[] } | null> {
+  if (!store) return null;
+  let key = "";
+  const digests: string[] = [];
+  for (const companion of new Set(["", ...companionIds])) {
+    const digest = await roleIntentDigest({
+      workspace: intent.workspace, actor: intent.actor, companion, payload: intent.payload,
+    });
+    const found = loadRoleRequestAttempt(store, digest);
+    if (!found) continue;
+    if (key && key !== found.key) {
+      throw new Error("Multiple pending role attempts exist for this action. Do not retry it until an owner reconciles the earlier results.");
+    }
+    key = found.key;
+    digests.push(digest);
+  }
+  return key ? { key, digests } : null;
 }
 function browserRoleAttemptStore(): RoleAttemptStore | null {
   try { return window.sessionStorage; }
@@ -242,20 +272,31 @@ export default function AgentTeam() {
         <p>Scout observes. Maker queues a timeline for review. Poster creates drafts. Analyst reads metrics. Director drafts a plan. Approval and publication stay in their existing review screens.</p>
         <form className="form-stack" onSubmit={(e) => submit(e, "role", async () => {
           const payload = { role, ...(role !== "Scout" && role !== "Director" ? { campaign_id: campaign } : {}), ...(role === "Maker" ? { topic } : {}), ...(role === "Poster" ? { image_campaign_id: imageCampaign, account_ids: accountIds } : {}), ...(role === "Director" ? { gtm_request: { product_id: product, goal_kind: "replies", goal_target: target, horizon_days: days, contact_budget: 0, channels: [], assumed_reply_rate: 0.034, per_identity_daily_cap: 30, notes: "", use_model: true } } : {}) };
-          const intent = {
-            workspace: session.data?.workspace_id ?? "", actor: session.data?.username ?? "",
-            companion: selected, payload,
-          };
-          // An uncertain role result must keep its key even after page reload.
-          // Store only a SHA-256 of the intent and the random receipt, never
-          // private campaign topics, product goals, model prompts or keys.
+          const intent = roleExecutionIntent(
+            session.data?.workspace_id ?? "", session.data?.username ?? "", payload,
+          );
+          // Only the named role and its payload are executed by the backend.
+          // Changing the unrelated companion picker must not make a retry
+          // look like a fresh paid/media action after an uncertain response.
+          // Keep only an opaque SHA-256 fingerprint and random receipt in tab
+          // storage; never retain the actual topic, goal, prompt or credentials.
           let digest = "";
           try { digest = await roleIntentDigest(intent); }
           catch { /* The immediate in-memory retry still uses one stable key. */ }
           const storage = digest ? browserRoleAttemptStore() : null;
           const saved = digest ? loadRoleRequestAttempt(storage, digest) : null;
+          // Existing tabs can have v1 receipts hashed with the selected
+          // companion. Search known old profile IDs and retain that key before
+          // an action is allowed to run; ambiguous old receipts fail closed.
+          const legacy = digest ? await recoverLegacyRoleRequestAttempt(
+            storage, intent, (profiles.data?.items ?? []).map((p) => p.id),
+          ) : null;
+          if (saved && legacy && saved.key !== legacy.key) {
+            throw new Error("Conflicting pending role attempts exist. Reconcile earlier results before trying this action.");
+          }
+          const matchingLegacy = legacy ? { fingerprint: JSON.stringify(digest), key: legacy.key } : null;
           const attempt = roleRequestAttempt(
-            saved ?? roleAttemptRef.current, digest || intent, () => idempotencyKey("role"),
+            saved ?? matchingLegacy ?? roleAttemptRef.current, digest || intent, () => idempotencyKey("role"),
           );
           roleAttemptRef.current = attempt;
           if (digest) saveRoleRequestAttempt(storage, digest, attempt);
@@ -263,6 +304,7 @@ export default function AgentTeam() {
           const result = await api.post<RoleOutcome>("/agent-team/execute", payload, attempt.key);
           roleAttemptRef.current = null;
           if (digest) clearRoleRequestAttempt(storage, digest);
+          for (const oldDigest of legacy?.digests ?? []) clearRoleRequestAttempt(storage, oldDigest);
           setRoleResult(result); setResultCampaign(campaign);
         })}>
           <Field label="Role"><select aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value as Role); setRoleResult(null); }}>{ROLES.map((name) => <option key={name}>{name}</option>)}</select></Field>

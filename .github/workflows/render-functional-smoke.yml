@@ -1,0 +1,26 @@
+name: Render functional QA smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - scripts/live/remote_render_smoke.py
+      - .github/workflows/render-functional-smoke.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-functional-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-boundary:
+    name: Public boundary smoke (no credentials)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe deployed real CRM via HTTPS
+        run: python3 scripts/live/remote_render_smoke.py --base-url https://off-crm-functional-qa-20261122.onrender.com

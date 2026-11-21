@@ -392,6 +392,9 @@ def test_web_cli_does_not_print_api_token_on_public_bind(
     """
     from offsetx_apollo_builder import web_cli
 
+    # The local-loopback cases must behave the same under Render build CI.
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_HOSTNAME", raising=False)
     settings = _demo_settings(tmp_path)
     settings.host = host
     settings.api_token = "TEST-PRIVATE-API-TOKEN-" + "a" * 48

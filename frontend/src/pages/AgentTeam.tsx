@@ -17,6 +17,19 @@ type Role = typeof ROLES[number];
 const describeError = (error: unknown) => error instanceof Error ? error.message : "The action failed. Retry after checking the workspace.";
 const toggle = (items: string[], id: string) => items.includes(id) ? items.filter((v) => v !== id) : [...items, id];
 
+/** Keep a single request receipt for an uncertain role action. A changed
+ * companion/workspace/payload must never reuse the previous receipt. */
+export type RoleRequestAttempt = { fingerprint: string; key: string };
+export function roleRequestAttempt(
+  previous: RoleRequestAttempt | null,
+  intent: unknown,
+  generateKey: () => string,
+): RoleRequestAttempt {
+  const fingerprint = JSON.stringify(intent);
+  return previous?.fingerprint === fingerprint ? previous : { fingerprint, key: generateKey() };
+}
+
+
 export function ToolGrantChoices({ tools, grants, savedGrants, catalogueReady, onToggle }: {
   tools: Tool[]; grants: string[]; savedGrants: string[]; catalogueReady: boolean; onToggle: (id: string) => void;
 }) {
@@ -48,6 +61,7 @@ export default function AgentTeam() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLDivElement>(null);
+  const roleAttemptRef = useRef<RoleRequestAttempt | null>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   const [selected, setSelected] = useState("");
   const [name, setName] = useState("");
@@ -189,7 +203,14 @@ export default function AgentTeam() {
         <p>Scout observes. Maker queues a timeline for review. Poster creates drafts. Analyst reads metrics. Director drafts a plan. Approval and publication stay in their existing review screens.</p>
         <form className="form-stack" onSubmit={(e) => submit(e, "role", async () => {
           const payload = { role, ...(role !== "Scout" && role !== "Director" ? { campaign_id: campaign } : {}), ...(role === "Maker" ? { topic } : {}), ...(role === "Poster" ? { image_campaign_id: imageCampaign, account_ids: accountIds } : {}), ...(role === "Director" ? { gtm_request: { product_id: product, goal_kind: "replies", goal_target: target, horizon_days: days, contact_budget: 0, channels: [], assumed_reply_rate: 0.034, per_identity_daily_cap: 30, notes: "", use_model: true } } : {}) };
-          setRoleResult(await api.post<RoleOutcome>("/agent-team/execute", payload, idempotencyKey("role"))); setResultCampaign(campaign);
+          const intent = { workspace: session.data?.workspace_id ?? "", companion: selected, payload };
+          const attempt = roleRequestAttempt(roleAttemptRef.current, intent, () => idempotencyKey("role"));
+          roleAttemptRef.current = attempt;
+          // Preserve the key on failed or uncertain requests; do not repeat
+          // paid work or draft creation with a different key on the next click.
+          const result = await api.post<RoleOutcome>("/agent-team/execute", payload, attempt.key);
+          roleAttemptRef.current = null;
+          setRoleResult(result); setResultCampaign(campaign);
         })}>
           <Field label="Role"><select aria-label="Role" value={role} onChange={(e) => { setRole(e.target.value as Role); setRoleResult(null); }}>{ROLES.map((name) => <option key={name}>{name}</option>)}</select></Field>
           {!enabledProfiles.some((p) => p.name.toLowerCase() === role.toLowerCase()) && <p className="form-note">Set up the five roles and enable the selected companion first.</p>}

@@ -1,3 +1,9 @@
+## 2026-11-21 — D-488 memory search total and ranking no longer capped at 1,000
+
+- F-06.02/F-06.01: search_memory_items ranked only SQL's first 1,000 stored facts, so paging and text searches silently missed older records. Added 1,002-record test-first route/store assertions at 14cb638 and later relevant-only keyword test d17f491.
+- Implementation 4cdfb08 calculates workspace-scoped matching counts, ranks in SQL with bound terms and pages using LIMIT/OFFSET; decoded results keep the old relevance field. This avoids a single giant Python result list, but full concurrency and performance under large data volumes remain unproven.
+- Do not mark the feature released until exact-source Python/real PostgreSQL/Render Chromium and full-history verifier pass. The customer CRM native ownership migration and independent pen test are still separate blockers.
+
 ## 2026-11-21 — D-487 memory API exact receipt with tenant ownership
 
 - F-06.02/F-06.01: API POST /api/v1/memory previously used first-1,000 ranked search to find a newly committed saved item. With over 1,000 existing records it could return 500 after successful write. TDD actual 1,001-record API test 7608082, direct workspace-scoped get 76980a0 and safe API response 44b8cf8; added foreign-workspace negative test d467c3f. Exact-source CI/Render review pending.

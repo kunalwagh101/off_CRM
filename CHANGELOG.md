@@ -1,3 +1,10 @@
+## 2026-11-21 — D-488: accurate memory search and pagination beyond 1,000 (unreleased)
+
+- The legacy memory search loaded only the most recent 1,000 workspace records and then filtered/ranked them in Python. Even a requested offset beyond 1,000 returned no results, and an older but relevant fact could never match.
+- SQL now applies workspace predicates, optional scope/kind/approved filters, keyword candidate matching and relevance ordering before LIMIT/OFFSET. A separate count query reports the full matching total. Result decoding and public `relevance_score` fields retain their original shape; SQL never interpolates user text, only bound parameters.
+- Added a real API fixture with 1,002 stored facts and tests for page 101, full total, foreign-workspace denial, exact keyword match beyond the previous window and no internal SQL alias in response.
+- Test-first 14cb638; source fix 4cdfb08; keyword test d17f491. Exact-source SQLite/PostgreSQL/full CI and Render QA remain required, and very large concurrent memory writes still require measured load/performance testing.
+
 ## 2026-11-21 — D-487: return a real receipt for every saved memory item (unreleased)
 
 - The API created an owned memory item but then scanned only a fixed top-1,000 search result set to construct its 201 response. When the new item was outside that window, it raised after the write and could mislead the user into retrying.

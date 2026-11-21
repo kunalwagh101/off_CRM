@@ -774,3 +774,28 @@ def test_generated_hosted_keys_never_leak_to_nonterminal_stdout(
     symlink.symlink_to(destination)
     assert db_cli.main([command, "--output", str(symlink)]) == 2
     assert destination.read_text(encoding="ascii").strip() == key
+
+
+@pytest.mark.parametrize("command", ["new-secrets-key", "new-backup-key"])
+def test_private_key_output_rejects_symlinked_parent(
+    command, tmp_path, monkeypatch, capsys,
+):
+    """D-495: private key output must not resolve through a redirected folder."""
+    if os.name != "posix":
+        pytest.skip("POSIX directory symlink control")
+    monkeypatch.setattr(db_cli.os, "isatty", lambda fd: False)
+    real_folder = tmp_path / "unexpected-private-folder"
+    real_folder.mkdir(mode=0o700)
+    redirected = tmp_path / "redirected"
+    redirected.symlink_to(real_folder, target_is_directory=True)
+    output = redirected / (command + ".key")
+    assert db_cli.main([command, "--output", str(output)]) == 2
+    assert not (real_folder / (command + ".key")).exists()
+    output_lines = capsys.readouterr()
+    assert not re.search(r"[A-Za-z0-9_-]{43}=", output_lines.out)
+
+    # A normal private directory still works, and the key stays in that folder.
+    safe_output = real_folder / (command + ".key")
+    assert db_cli.main([command, "--output", str(safe_output)]) == 0
+    key = safe_output.read_text(encoding="ascii").strip()
+    Fernet(key.encode("ascii"))

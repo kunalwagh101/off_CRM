@@ -121,3 +121,5 @@ def test_new_memory_returns_its_own_receipt_after_more_than_thousand_records(tmp
             ("local", "Latest fact is saved with its exact ID"),
         )
         assert actual is not None and body["id"] == actual["id"]
+        assert store.get_memory_item(body["id"], workspace_id="local")["id"] == body["id"]
+        assert store.get_memory_item(body["id"], workspace_id="beta") is None

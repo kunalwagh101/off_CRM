@@ -399,7 +399,9 @@ def test_postgres_logout_revocation_reaches_another_live_app_and_survives_restar
 
 # ── the operator's two commands ───────────────────────────────────────────────
 
-def test_new_secrets_key_prints_a_key_the_app_accepts(capsys):
+def test_new_secrets_key_prints_a_key_the_app_accepts(capsys, monkeypatch):
+    # Deliberate interactive usage, not captured service logs.
+    monkeypatch.setattr(db_cli.os, "isatty", lambda fd: fd == 1)
     assert db_cli.main(["new-secrets-key"]) == 0
     printed = capsys.readouterr().out
     assert "OFFSETX_SECRETS_KEY" in printed

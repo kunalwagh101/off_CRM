@@ -1,3 +1,9 @@
+## 2026-11-21 — D-489 explicit role-action idempotency, pending full QA
+
+- F-04.01/F-06.02: existing POST /api/v1/agent-team/execute ignored the Idempotency-Key sent by React and was free to run costly/draft effects twice. It now refuses unkeyed Maker/Poster/Director requests (422), calls existing durable external A14 claim/replay before constructing any role engine, and returns 409 when an identical key's result is uncertain. Owner/provision, typed role fields and human review gates remain.
+- React uses roleRequestAttempt to retain the same key across unchanged pending action attempts, clearing on success. Context includes workspace and selected companion. Frontend test-first RED at 24c39af, source fix 0dda7bf, real frontend Dockerfile build PASS 44913160713. Backend API targeted tests at c61624b and a8e70fd require executed source-linked CI.
+- Session reload, expired tab, reconciliation, live provider and producer-owned file storage are NOT yet verified. Full feature statuses remain open.
+
 ## 2026-11-21 — D-488 memory search total and ranking no longer capped at 1,000
 
 - F-06.02/F-06.01: search_memory_items ranked only SQL's first 1,000 stored facts, so paging and text searches silently missed older records. Added 1,002-record test-first route/store assertions at 14cb638 and later relevant-only keyword test d17f491.

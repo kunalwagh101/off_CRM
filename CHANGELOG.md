@@ -1,3 +1,11 @@
+## 2026-11-21 — D-489: preserve exactly-once intent for Agent Team requests (unreleased)
+
+- Maker, Poster and Director can save media/drafts or consume paid AI calls. Their owner-only execution endpoint now REQUIRES an Idempotency-Key; previously the React UI sent one but the backend ignored it.
+- Reused A14's durable external in-progress receipts before invoking existing engines. Identical completed requests replay without re-running providers, conflicting keys/payloads return 409, and uncertain exceptions leave a 409 on subsequent repeat rather than silently retrying an external effect. Scout and Analyst remain read-only and do not need a key.
+- Agent Team React uses a stable pending request key for the same workspace, companion and canonical request payload; changes create new keys; the key is cleared only after success. This is per-mounted browser component, so a full reload/reopened browser and true provider reconciliation need further acceptance before production exactly-once claims.
+- Real owner-authenticated API tests across Maker/Poster/Director and failed uncertain Poster action; React request-key state unit tests. Test-first API c61624b, backend 59d0ff5, test-first frontend 24c39af, frontend fix 0dda7bf, unknown-outcome API test a8e70fd.
+- Verified test-first frontend production-container build 44913032836 failed on unexported roleRequestAttempt; subsequent fixed frontend production-container build 44913160713 succeeded. Full exact-source Python/PG/Render QA not yet certified.
+
 ## 2026-11-21 — D-488: accurate memory search and pagination beyond 1,000 (unreleased)
 
 - The legacy memory search loaded only the most recent 1,000 workspace records and then filtered/ranked them in Python. Even a requested offset beyond 1,000 returned no results, and an older but relevant fact could never match.

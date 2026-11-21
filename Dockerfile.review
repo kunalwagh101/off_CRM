@@ -25,6 +25,8 @@ ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run pytest -q tests/test_api_auth.py -k web_cli
 # D-493: refusing key output to non-TTY logs must pass before expensive build gates.
 RUN uv run pytest -q tests/test_hosted_storage.py -k generated_hosted_keys_never_leak_to_nonterminal_stdout
+# D-500: reject linked local bootstrap secrets and redirect races before full build.
+RUN uv run pytest -q tests/test_local_secret_file_safety.py
 # Regression: fail early if an unsafe Vitest family release returns.
 RUN uv run pytest -q tests/test_frontend_vitest_pinning.py
 # D-473: exercise all old nonlocal-CRM isolation contracts before long QA gates.

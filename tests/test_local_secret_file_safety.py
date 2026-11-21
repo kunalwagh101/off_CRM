@@ -112,3 +112,16 @@ def test_generated_local_secret_is_private_and_reusable(tmp_path, kind, filename
     if os.name == "posix":
         assert stat.S_IMODE(target.stat().st_mode) == 0o600
 
+def test_reloading_a_file_managed_token_refuses_a_replaced_symlink(tmp_path):
+    settings = _settings(tmp_path)
+    original = settings.ensure_api_token()
+    token = settings.data_dir / "local_api_token"
+    token.unlink()
+    outside = tmp_path / "outside-existing-secret"
+    outside.write_text("p" * 64, encoding="utf-8")
+    token.symlink_to(outside)
+    with pytest.raises(ValueError, match="Restored local API token is invalid"):
+        settings.reload_local_api_token()
+    assert settings.api_token == original
+    assert outside.read_text(encoding="utf-8") == "p" * 64
+

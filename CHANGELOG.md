@@ -1,3 +1,19 @@
+## 2026-11-22 — D-500 recorded RED → GREEN
+
+**Observed D-500 RED:** test-only GitHub commit 1b33fec replayed Python 3.11 job 44952285835: 8 expected D-500 tests failed (2 symlink, 2 invalid-existing-file, 2 broad-permissions, 2 parent-directory swap); 3423 other tests passed and 149 skipped. **Observed GREEN:** fixed c93b2e3 GitHub CI 44952349677 all 5 jobs passed (Python 3.10/3.11/3.12 each 3431 passed/149 skipped; real PostgreSQL 3542 passed/107 skipped), production container 44952349680 passed. Render exact-source QA/manual acceptance remain pending.
+
+## 2026-11-22 — D-500 fixed source CI confirmed
+
+**D-500 verified fixed-source CI:** GitHub 44952349677 all five jobs PASS (Python 3.10/3.11/3.12 each 3431 pass/149 skip; real PostgreSQL 3542 pass/107 skip; quality/board PASS), plus production Docker restart 44952349680 PASS. Test-only original source 1b33fec RED replay 44952285835 and exact-source Render review remain separate pending gates.
+
+**Current source verification:** On fixed source c93b2e3 GitHub CI 44952349677: Python 3.10/3.11/3.12 each 3431 passed, 149 skipped; real PostgreSQL 3542 passed, 107 skipped; board quality still running. Production Docker build-and-restart workflow 44952349680 PASS. A targeted early Render gate (tests/test_local_secret_file_safety.py) and guarded-reload test are prepared for the next exact-source commit. Do not claim full green or Render live verification before those terminal results.
+
+## 2026-11-22 — D-500 local bootstrap secret-file hardening (review gates pending)
+
+- Existing bootstrap API-token and session-signing-key files could be followed through a symlink, or clobbered with `O_TRUNC` when short/invalid. New tests first `1b33fec`, source fix `c93b2e3` in `api/config.py` uses POSIX descriptor-anchored parents, `O_NOFOLLOW`, private 0600 regular-file checks and exclusive new creation. The reload path now uses the same reader.
+- Current green checks: production Docker build `44952349680`. Full five-job CI `44952349677`, test-only RED capture and Render review are pending actual terminal checks. No customer data or keys changed.
+- D-500 evidence: `docs/evidence/2026-11-22-d500-local-secret-files.md`. F-06.02/F-06.03/F-04.01 remain NOT DONE.
+
 ## 2026-11-22 — D-498 confirmed RED/GREEN and Render QA LIVE
 
 **D-498 verification:** test-only GitHub `189e2f8` run `44947941384` (rerun Python 3.11) produced **3 expected RED failures / 3,417 passed / 149 skipped**, all three `psycopg.errors.InsufficientPrivilege`; corrected `96c65db` full CI `44947976626` **5/5 jobs PASS**, real PostgreSQL **3,531 passed / 107 skipped**, and real Render review deploy `dep-dc10602jnfac73f8usbg` **LIVE** with **3,482 passed / 156 skipped** in its full PG suite. The previously failed teardown did not recur. This verifies the isolated QA fixture repair, not an actual company-hosted CRM release. The three parent features remain NOT DONE.

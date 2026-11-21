@@ -390,3 +390,16 @@ Do not mark R-196 or S-06.02.69 done until observable QA completes. Source recor
 
 
 **D-498 executed gates (2026-11-22):** source `189e2f8` observed RED 3 failures on GitHub Actions 44947941384; fixed `96c65db` GREEN all 5 jobs on 44947976626, PG 3531 pass/107 skip; real Render review `dep-dc10602jnfac73f8usbg` LIVE, PG 3482 pass/156 skip. The parent S-06.02.23 remains IN_PROGRESS.
+
+
+## 2026-11-22 — D-500 local bootstrap credential-file isolation
+
+| Requirement | Parent story | Acceptance and tests | Code | Outstanding release evidence |
+|---|---|---|---|---|
+| Protected file-backed API token/session key cannot follow symlink or overwrite an unrelated file | S-06.02.23 (IN_PROGRESS) | `tests/test_local_secret_file_safety.py`: symlinked final target, invalid existing file preserved, broad file permissions denied, parent-swap adversary cannot divert new key on POSIX, creation 0600/reuse; extra guarded-reload regression staged | `offsetx_apollo_builder/api/config.py` D-500 source `c93b2e3`, decision DD-180, `docs/evidence/2026-11-22-d500-local-secret-files.md` | CI/Render actual terminal results, non-POSIX race-free path and independent local/operator confirmation. Full F-06.02/F-06.03 release remains open. |
+
+
+**D-500 verified fixed-source CI:** GitHub 44952349677 all five jobs PASS (Python 3.10/3.11/3.12 each 3431 pass/149 skip; real PostgreSQL 3542 pass/107 skip; quality/board PASS), plus production Docker restart 44952349680 PASS. Test-only original source 1b33fec RED replay 44952285835 and exact-source Render review remain separate pending gates.
+
+
+**Observed D-500 RED:** test-only GitHub commit 1b33fec replayed Python 3.11 job 44952285835: 8 expected D-500 tests failed (2 symlink, 2 invalid-existing-file, 2 broad-permissions, 2 parent-directory swap); 3423 other tests passed and 149 skipped. **Observed GREEN:** fixed c93b2e3 GitHub CI 44952349677 all 5 jobs passed (Python 3.10/3.11/3.12 each 3431 passed/149 skipped; real PostgreSQL 3542 passed/107 skipped), production container 44952349680 passed. Render exact-source QA/manual acceptance remain pending.

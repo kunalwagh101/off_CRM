@@ -1,3 +1,10 @@
+## 2026-11-21 — D-482: explicit backup authority and signed unsubscribe classification (unreleased)
+
+- A05 full-route inventory regression highlighted routes missing an explicit owner/workspace classification. Added `/backups` to the fail-closed D-451 shared-CRM guard as extra protection on top of the existing install-owner checks.
+- Kept `/email/unsubscribe/{token}` outside the workspace-login guard because it is a public signed-token capability needed for legitimate email opt-outs. The route-inventory test now documents that narrow exception instead of silently allowing any `/email` path.
+- Added alpha/beta HTTP regressions for backup export and restore refusal before payload validation and included them in the direct guard matrix. Existing owner-authorised backups remain unchanged.
+- Source commits 30a26c9 and 797bbfb. Actual registered-route/whole-suite and exact-source Render verification must pass; do not infer whole CRM tenancy or external penetration clearance.
+
 ## 2026-11-21 — D-481: reject known internal custom S3 endpoints (unreleased)
 
 - The custom backup S3 endpoint validator checked private IP address literals but accepted `localhost`, unqualified hostnames and common internal/reserved DNS suffixes. New parametrised tests refuse these before the SDK client is created.

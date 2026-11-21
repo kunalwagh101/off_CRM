@@ -1,3 +1,9 @@
+## 2026-11-21 — D-482 route classification and backup owner guard
+
+- F-06.02/F-06.01: live FastAPI route-inventory regression identified owner-only backup export/restore routes as missing from D-451's explicit guard. Added `/backups` to the private CRM route roots at 30a26c9. Existing require_install_owner checks remain.
+- The signed one-click unsubscribe route is intentionally public for any holder of a valid scoped token, so the new route-inventory classifier explicitly exempts only `/email/unsubscribe` and tests non-owner denial of backup POSTs at 797bbfb. Do not block email opt-outs by a broad `/email` rule.
+- This is security containment only. The actual customer CRM native registry, legacy ownership manifest/restore and external independent penetration remain open. Await latest-source GitHub/Render evidence for any completion claim.
+
 ## 2026-11-21 — D-481 S3 endpoint containment and real Analyst acceptance
 
 - F-06.03 D-481: owner-supplied custom S3 URL must not accept known internal DNS labels before boto3 client initialization. Test RED source ea4ffc1 and source fix 3798e3f; several private-name cases are covered. No external network request or production S3 credentials used in tests. This does not solve malicious DNS rebinding or remove the need for a true backup destination and recovery drill.

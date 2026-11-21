@@ -237,6 +237,29 @@ def test_s3_refuses_unverified_or_tampered_remote_objects(tmp_path, backup_key, 
     assert not (tmp_path / "altered.enc").exists()
 
 
+@pytest.mark.parametrize("endpoint", [
+    "https://localhost:9000",
+    "https://backup.localhost",
+    "https://storage.internal",
+    "https://metadata.google.internal",
+    "https://storage.local",
+    "https://unqualified-hostname",
+    "https://s3.invalid",
+])
+def test_s3_custom_endpoint_refuses_known_internal_hostnames_before_client_creation(
+    monkeypatch, endpoint,
+):
+    """D-481: backup credentials must not be sent to obvious private endpoints."""
+    import boto3
+
+    calls = []
+    monkeypatch.setattr(boto3, "client", lambda *args, **kw: calls.append((args, kw)))
+    monkeypatch.setenv("OFFSETX_BACKUP_S3_ENDPOINT", endpoint)
+    with pytest.raises(backup.HostedBackupError, match="public HTTPS"):
+        backup._s3_client()
+    assert calls == []
+
+
 def test_s3_keys_refuse_traversal_or_unapproved_destination():
     for key in ("../other/secret", "/absolute", "a/../../b", ""):
         with pytest.raises(backup.HostedBackupError):

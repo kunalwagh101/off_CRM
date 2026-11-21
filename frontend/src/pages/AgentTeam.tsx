@@ -88,6 +88,9 @@ export default function AgentTeam() {
     setEditName(profile?.name ?? ""); setEditInstructions(profile?.instructions ?? "");
     setScope(profile?.memory_scope ?? ""); setGrants(profile?.granted_tool_ids ?? []);
     setSelectedSkills([]); setContext(null); setAnswer(""); setDelegated(null);
+    // A role result belongs to the previously selected companion. Do not
+    // present it as a result for the next profile after selection/reload.
+    setRoleResult(null); setResultCampaign("");
     setAssignments([{ companion_id: "", goal: "" }]); setMemory(""); setApproved(false);
   }, [profile]);
   useEffect(() => {

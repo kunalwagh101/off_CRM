@@ -30,7 +30,7 @@ RUN uv run pytest -q tests/test_pipeline.py::test_draft_pipeline_rejects_other_w
 # F-06.03: encryption, tamper detection, offsite transport and guard-only local checks.
 RUN uv run pytest -q tests/test_hosted_backup.py
 # F-04.01: owner-picked procedures and bounded child context isolation.
-RUN uv run pytest -q tests/test_companion_skills.py tests/test_companion_delegation.py tests/test_agent_role_team.py tests/test_hosted_companion_profiles.py tests/test_companion_import.py
+RUN uv run pytest -q tests/test_companion_skills.py tests/test_companion_delegation.py tests/test_agent_role_team.py tests/test_agent_companions.py tests/test_hosted_companion_profiles.py tests/test_companion_import.py
 # A05: image briefs, pictures, review decisions and video handoff must respect workspace ownership.
 RUN uv run pytest -q tests/test_audit_a05_image_workspace_isolation.py
 # A05: video projects, recordings and exports are owned by the authenticated workspace.
@@ -113,6 +113,9 @@ RUN uv pip install --python /review/.venv/bin/python playwright==1.56.0
 RUN uv run pytest -q tests/test_browser_agent.py -k A09_enter_js_handler
 RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18_real_chromium
 RUN uv run --no-sync python scripts/live/review_contacts_browser.py
+# F-04.01/F-06.01/A05: real owner UI + role actions + input/accessibility check.
+# Synthetic campaigns only; no provider, external post, email or customer data.
+RUN uv run --no-sync python scripts/live/review_agent_team_browser.py
 RUN uv run --no-sync python scripts/live/review_public_demo_browser.py
 
 # Review-only PostgreSQL: all state is disposable inside this Docker build.

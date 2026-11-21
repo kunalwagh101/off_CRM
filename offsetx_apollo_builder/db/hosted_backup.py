@@ -310,10 +310,17 @@ def export_to_s3(database_url: str, *, bucket: str | None = None, prefix: str | 
         )
         digest = _sha256(temporary)
         remote = client or _s3_client()
-        remote.upload_file(str(temporary), destination, object_key, ExtraArgs={
-            "Metadata": {"sha256": digest, "format": "offcrm-pgbackup-v1"},
-        })
-        head = remote.head_object(Bucket=destination, Key=object_key)
+        try:
+            remote.upload_file(str(temporary), destination, object_key, ExtraArgs={
+                "Metadata": {"sha256": digest, "format": "offcrm-pgbackup-v1"},
+            })
+            head = remote.head_object(Bucket=destination, Key=object_key)
+        except Exception:
+            # boto3 and custom adapters can include private endpoint details or
+            # credentials in their error text. Do not expose them to the caller.
+            raise HostedBackupError(
+                "Remote backup upload or metadata verification failed; do not rely on this export"
+            ) from None
         if (head.get("Metadata", {}).get("sha256") != digest
                 or int(head.get("ContentLength", -1)) != temporary.stat().st_size):
             raise HostedBackupError("Remote backup verification failed; do not rely on this export")
@@ -338,7 +345,12 @@ def download_ciphertext(object_key: str, destination: Path, *, bucket: str | Non
     remote = client or _s3_client()
     origin = _bucket(bucket)
     object_key = _object_key(object_key)
-    head = remote.head_object(Bucket=origin, Key=object_key)
+    try:
+        head = remote.head_object(Bucket=origin, Key=object_key)
+    except Exception:
+        raise HostedBackupError(
+            "Remote backup metadata lookup failed; check access and try again"
+        ) from None
     digest = head.get("Metadata", {}).get("sha256", "")
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
         raise HostedBackupError("The remote object lacks a valid checksum")
@@ -346,7 +358,12 @@ def download_ciphertext(object_key: str, destination: Path, *, bucket: str | Non
     fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.close(fd)
     try:
-        remote.download_file(origin, object_key, str(destination))
+        try:
+            remote.download_file(origin, object_key, str(destination))
+        except Exception:
+            raise HostedBackupError(
+                "Remote backup download failed; choose a new private destination"
+            ) from None
         if destination.stat().st_size != int(head["ContentLength"]) or _sha256(destination) != digest:
             raise HostedBackupError("Downloaded backup failed checksum verification")
         return destination

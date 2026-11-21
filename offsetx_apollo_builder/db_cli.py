@@ -205,6 +205,13 @@ def _key_destination(args: argparse.Namespace) -> str | None:
 def _save_new_key(destination: str, key: str) -> int:
     """Create a private key file once; never follow or overwrite a final symlink."""
     target = Path(destination).expanduser()
+    # O_NOFOLLOW protects only the final component. An operator-supplied
+    # symlinked parent can silently send a new decryption key elsewhere.
+    # This rejects the ordinary redirect case; trusted directory ownership
+    # still matters because filesystem races are a separate threat.
+    if any(parent.is_symlink() for parent in (target.parent, *target.parent.parents)):
+        print("Private key output refuses linked parent directories.", file=sys.stderr)
+        return 2
     try:
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(target, flags, 0o600)

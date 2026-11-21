@@ -184,6 +184,47 @@ def test_role_api_requires_owner_provision_and_denies_unauthenticated_access(tmp
         }
 
 
+def test_scout_api_returns_a_result_even_when_per_request_watcher_close_fails(
+    tmp_path, monkeypatch,
+):
+    """D-486: a completed Scout API call must not become a false retryable 500."""
+    import offsetx_apollo_builder.agent.role_team as role_team
+    from offsetx_apollo_builder.distribution.trends import TrendWatcher
+
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist", host="127.0.0.1",
+        api_token=OWNER, allowed_hosts=("testserver",),
+    )
+    failures = []
+    with TestClient(create_app(settings), raise_server_exceptions=False) as client:
+        assert client.post(
+            "/api/v1/agent-team/provision", headers=HEADERS,
+        ).status_code == 200
+
+        def broken_close(self):
+            raise RuntimeError("DO-NOT-ECHO-PRIVATE-WATCHER-DETAILS")
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(TrendWatcher, "close", broken_close)
+            scoped.setattr(
+                role_team, "report_failure",
+                lambda exc, *, operation: failures.append(
+                    (operation, type(exc).__name__)
+                ),
+            )
+            result = client.post(
+                "/api/v1/agent-team/execute",
+                json={"role": "Scout"}, headers=HEADERS,
+            )
+        assert result.status_code == 200, result.text
+        assert result.json()["role"] == "Scout"
+        assert result.json()["status"] == "observed"
+        assert failures == [("agent.role.watcher_cleanup", "RuntimeError")]
+        assert "DO-NOT-ECHO" not in result.text
+
+
 def test_analyst_wrong_campaign_reports_actionable_public_reason(tmp_path):
     """D-462: content analytics must explain an email-campaign refusal safely."""
     settings = AppSettings(

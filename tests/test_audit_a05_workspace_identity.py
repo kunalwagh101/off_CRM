@@ -163,3 +163,82 @@ def test_D451_known_unscoped_routes_cannot_escape_by_suffix():
         "/api/v1/campaigns-public", "/health/live",
     ):
         assert not is_unscoped_crm_api_path(independent), independent
+
+
+
+def test_D451_entire_live_api_route_inventory_has_a_tenancy_decision(sessions):
+    """A05/D-451: a new route must not bypass the temporary shared-CRM barrier.
+
+    Fail closed for any new API family until its storage and workspace
+    ownership have been reviewed. This inspects *registered* FastAPI routes,
+    including routes provided by included routers, not just @app decorators.
+    """
+    from fastapi.routing import APIRoute
+    from offsetx_apollo_builder.api.app import (
+        is_unscoped_crm_api_path, is_workspace_scoped_media_path,
+    )
+
+    owner, _, _, _ = sessions
+    scoped_roots = {
+        "/auth", "/workspaces", "/settings", "/provider-profiles",
+        "/companion-tools", "/companions", "/companion-skills",
+        "/memory", "/agent-permissions", "/operations", "/video",
+        "/campaign-kinds", "/storage", "/meetings", "/meta",
+    }
+    scoped_ai_roots = {
+        "/ai/projects", "/ai/chats", "/ai/providers", "/ai/workspace",
+        "/ai/modes", "/ai/image", "/ai/egress-log", "/ai/failure-kinds",
+        "/ai/cache",
+    }
+
+    def root_matches(path, root):
+        return path == root or path.startswith(root + "/")
+
+    unclassified = []
+    guarded = []
+    for route in owner.app.routes:
+        if not isinstance(route, APIRoute) or not route.path.startswith("/api/v1/"):
+            continue
+        path = route.path
+        if is_unscoped_crm_api_path(path):
+            guarded.append(path)
+            continue
+        if is_workspace_scoped_media_path(path):
+            continue
+        relative = path[len("/api/v1"):]
+        if any(root_matches(relative, root) for root in scoped_roots):
+            continue
+        if any(root_matches(relative, root) for root in scoped_ai_roots):
+            continue
+        unclassified.append(path)
+    assert guarded, "The live inventory missed all D-451 CRM routes"
+    assert not unclassified, (
+        "A new API route needs an explicit workspace ownership/guard review: "
+        + ", ".join(sorted(set(unclassified)))
+    )
+
+
+def test_D451_every_registered_shared_crm_get_is_blocked_over_real_http(sessions):
+    """A05: non-owner cookies cannot read any declared shared-CRM GET route."""
+    from fastapi.routing import APIRoute
+    from offsetx_apollo_builder.api.app import is_unscoped_crm_api_path
+    import re
+
+    owner, _, alice, bob = sessions
+    tested = []
+    for route in owner.app.routes:
+        if not isinstance(route, APIRoute) or "GET" not in route.methods:
+            continue
+        path = route.path
+        if not is_unscoped_crm_api_path(path):
+            continue
+        # A synthetic ID reaches the authentication middleware without
+        # selecting a real user's row or making external API calls.
+        synthetic_path = re.sub(r"\{[^{}]+\}", "unowned-probe-id", path)
+        response = (alice if len(tested) % 2 == 0 else bob).get(synthetic_path)
+        assert response.status_code == 403, (
+            "Shared-CRM GET route escaped workspace containment",
+            path, response.status_code,
+        )
+        tested.append(path)
+    assert len(tested) >= 30, "Live shared-CRM route matrix unexpectedly shrank"

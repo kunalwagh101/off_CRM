@@ -1,3 +1,9 @@
+## 2026-11-21 — D-492: keep API tokens out of unattended local process logs (unreleased)
+
+- Security recheck found that a localhost bind is not proof of an interactive private console. When a supervisor pipes stdout to a log, the token-only CLI still disclosed the complete bearer credential after D-491.
+- Added test-first non-TTY regression in `tests/test_api_auth.py` (`05ce97e`), then gated the token display on an actual terminal `os.isatty(1)` (`099c95e`); interactive-local test model updated (`b6aad8d`). Public binds and Render hosts remain blocked independently. The CLI does not print a token when output is redirected.
+- This is source-level hardening pending exact-source Python/PG/Render verification. It does not make the hosted QA marker a functioning CRM or prove external backup recovery. No tokens or customer records used.
+
 ## 2026-11-21 — D-491: stop public-host API token logging (unreleased)
 
 - Token-only `web_cli.main` previously printed a complete authentication bearer token to stdout, including when bound to `0.0.0.0` or `::`, which would expose it in hosted Render logs. This is a secret disclosure, not a UI feature.

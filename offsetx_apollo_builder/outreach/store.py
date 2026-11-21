@@ -2182,26 +2182,68 @@ class OutreachStore:
             params.append(kind)
         if approved_only:
             where.append("approved = 1")
-        rows = self._rows(
-            f"SELECT * FROM memory_items WHERE {' AND '.join(where)} ORDER BY updated_at DESC LIMIT 1000",
+        # Rank and page in SQL. The former query loaded only the newest
+        # 1,000 rows before computing relevance, so offsets above 1,000 and
+        # older but relevant facts disappeared while total was undercounted.
+        # SQL applies the same score and workspace predicates before LIMIT.
+        tokens = sorted(set(re.findall(r"[a-z0-9]{3,}", query.lower())))
+        haystack_sql = (
+            "LOWER(COALESCE(content, '') || ' ' || COALESCE(tags_json, '')"
+            " || ' ' || COALESCE(kind, ''))"
+        )
+        search_params = [f"%{token}%" for token in tokens]
+        if tokens:
+            where.append("(" + " OR ".join(
+                f"{haystack_sql} LIKE ?" for _ in tokens
+            ) + ")")
+            params.extend(search_params)
+        where_sql = " AND ".join(where)
+        count = self._row(
+            f"SELECT COUNT(*) AS total FROM memory_items WHERE {where_sql}",
             params,
         )
-        tokens = {token for token in re.findall(r"[a-z0-9]{3,}", query.lower())}
-        ranked: list[tuple[float, dict[str, Any]]] = []
+        total = int(count["total"]) if count else 0
+        if not total or limit <= 0:
+            return [], total
+
+        fixed_score = (
+            "(COALESCE(confidence, 0) * 0.25)"
+            " + (CASE WHEN approved = 1 THEN 0.2 ELSE 0 END)"
+        )
+        if tokens:
+            matched = " + ".join(
+                f"(CASE WHEN {haystack_sql} LIKE ? THEN 1 ELSE 0 END)"
+                for _ in tokens
+            )
+            score_sql = f"(({matched}) * {1.0 / len(tokens):.17g}) + {fixed_score}"
+        else:
+            score_sql = fixed_score
+        # Placeholder order matters: SELECT's relevance expression precedes
+        # WHERE's workspace and keyword predicates.
+        rows = self._rows(
+            f"SELECT *, ({score_sql}) AS _memory_rank FROM memory_items "
+            f"WHERE {where_sql} "
+            "ORDER BY _memory_rank DESC, updated_at DESC LIMIT ? OFFSET ?",
+            [*search_params, *params, limit, offset],
+        )
+        result: list[dict[str, Any]] = []
         for row in rows:
             decoded = self._decode_memory(row)
-            haystack = " ".join(
-                [decoded.get("content", ""), " ".join(decoded.get("tags", [])), decoded.get("kind", "")]
-            ).lower()
+            decoded.pop("_memory_rank", None)
+            haystack = " ".join([
+                decoded.get("content", ""),
+                " ".join(decoded.get("tags", [])),
+                decoded.get("kind", ""),
+            ]).lower()
             matched = sum(1 for token in tokens if token in haystack)
-            if tokens and matched == 0:
-                continue
-            score = matched / max(1, len(tokens)) + decoded["confidence"] * 0.25 + (0.2 if decoded["approved"] else 0)
+            score = (
+                matched / max(1, len(tokens))
+                + decoded["confidence"] * 0.25
+                + (0.2 if decoded["approved"] else 0)
+            )
             decoded["relevance_score"] = round(score, 4)
-            ranked.append((score, decoded))
-        ranked.sort(key=lambda item: (item[0], item[1].get("updated_at", "")), reverse=True)
-        total = len(ranked)
-        return [item for _, item in ranked[offset : offset + limit]], total
+            result.append(decoded)
+        return result, total
 
     def get_memory_item(
         self, memory_id: str, *, workspace_id: str = "local",

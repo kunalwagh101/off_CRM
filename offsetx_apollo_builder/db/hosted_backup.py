@@ -226,8 +226,21 @@ def _s3_client():
             address = ip_address(host)
         except ValueError:
             address = None
-        if address is not None and not address.is_global:
-            raise ValueError("endpoint is not public")
+        if address is not None:
+            if not address.is_global:
+                raise ValueError("endpoint is not public")
+        else:
+            # The endpoint is operator-configured, but a typo or unsafe
+            # configuration must not send S3 credentials to loopback,
+            # single-label or known internal/reserved DNS hostnames.
+            hostname = host.rstrip(".").lower()
+            reserved_suffixes = (
+                ".localhost", ".localdomain", ".local", ".internal",
+                ".home.arpa", ".lan", ".test", ".invalid",
+            )
+            if ("." not in hostname or hostname == "localhost"
+                    or hostname.endswith(reserved_suffixes)):
+                raise ValueError("endpoint is not a public hostname")
     except ValueError as exc:
         raise HostedBackupError("Backup S3 endpoint must be public HTTPS without credentials") from exc
     return boto3.client("s3", endpoint_url=endpoint)

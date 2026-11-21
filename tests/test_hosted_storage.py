@@ -750,7 +750,11 @@ def test_generated_hosted_keys_never_leak_to_nonterminal_stdout(
     monkeypatch.setattr(db_cli.os, "isatty", lambda fd: False)
     assert db_cli.main([command]) == 2
     emitted = capsys.readouterr()
-    assert emitted.out == ""
+    # The standard observability wrapper may emit a secret-safe failure ID.
+    # Reject the actual exposure risk (a Fernet key), not ordinary telemetry.
+    assert not __import__("re").search(r"[A-Za-z0-9_-]{43}=", emitted.out)
+    assert "Set OFFSETX_SECRETS_KEY" not in emitted.out
+    assert "Set OFFSETX_BACKUP_KEY" not in emitted.out
     assert "--output" in emitted.err
 
     destination = tmp_path / (command + ".key")

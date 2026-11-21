@@ -1,3 +1,9 @@
+## 2026-11-21 — D-471 security regression in Vitest (unverified source patch)
+
+- New `waghkunal1997@gmail.com` Render QA service `off-crm-qa-major-1997-20261121` on baseline `7b8c167` found two moderate Vitest 4.1.11 advisories despite a passing high-threshold dev audit.
+- Security source fix pins Vitest 4.1.12 and matched seven transitive lockfile entries from publicly generated npm metadata, plus a dedicated regression. Do not claim verified until new build checks npm ci, audits, full suites, PostgreSQL and Chromium.
+- S-06.02.16 remains IN_REVIEW; F-06.02, F-06.03 and F-04.01 are not fully shipped. Rollback both frontend manifest and lockfile together; never deploy this QA marker as a customer service.
+
 ## 2026-11-21 — D-451 provisional fail-closed API barrier (not a cutover)
 
 - Verified a full green previous HEAD GitHub Actions run `44834203786` on `07f9a33f`: Python 3.10, 3.11, 3.12, PostgreSQL and quality/browser. This is only for the state *before* new D-451 containment changes.

@@ -1,3 +1,10 @@
+## 2026-11-21 — D-471: patch Vitest dev-tool vulnerabilities (unreleased)
+
+- New Render QA observed two moderate `@vitest/mocker` findings in Vitest 4.1.11. The production-only audit reported zero.
+- Pin Vitest and seven related transitive lockfile packages at patched 4.1.12, using exact registry integrity metadata from a public npm-generated lockfile.
+- Add early review regression for the lockfile family. The existing `npm audit --audit-level=high` gate permits moderate findings, so a passing gate alone is not proof of zero advisories.
+- New exact-source npm ci, registry-backed audit, frontend/Python/PostgreSQL/Chromium and history checks are required. No customer deployment or main promotion.
+
 ## 2026-11-21 — D-470: restore independently owned profiles and sample AI (unreleased)
 
 - Keep the shared CRM/provider-call boundary blocked for nonlocal customers; allow only separately workspace-owned encrypted provider profiles.

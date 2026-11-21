@@ -1,3 +1,9 @@
+## 2026-11-21 — D-486 agent action cleanup result integrity
+
+- F-04.01/F-06.02: `release_role_resources` used to let a failing request-owned watcher `close()` override a successful Scout/Poster response. That could trigger unnecessary repeat draft creation if an owner retried after a false HTTP 500. TDD tests d947c1c, fix 6cbc02a; owner-authenticated Scout API integration check 2324168.
+- Cleanup failures are now recorded through `report_failure(operation="agent.role.watcher_cleanup")` and the previous role result is preserved. The independent external provider/media account acceptance and full review build are not done; F-04.01 remains open.
+- No production data, real posting accounts, customer keys, or main branch touched.
+
 ## 2026-11-21 — Latest verification checkpoint: D-484 and D-485
 
 - D-484 (F-06.03/S-06.03.04): test-first linked parent download refusal at f6300c6, source guard fbb9ebf. Owner S3 download now rejects symlinked directory ancestors before contacting remote storage, avoiding accidental redirect to another directory. External bucket and recovery proof remain unavailable.

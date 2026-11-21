@@ -1,3 +1,9 @@
+## 2026-11-21 — D-486: completed agent role results survive watcher cleanup failures (unreleased)
+
+- Scout and Poster temporarily allocate a TrendWatcher. If its close failed, the route's `finally` raised and overwrote the original result, potentially encouraging a duplicate Poster draft on retry. No action is automatically retried.
+- Request cleanup now records the failure through the repository's secret-safe observability reporter and returns the already-computed role outcome. Two direct regressions and an authenticated Scout API test exercise this boundary. Shared services remain untouched.
+- Test first d947c1c; source fix 6cbc02a; HTTP acceptance 2324168. This does not claim live external posting/provider or full agent-team readiness. Latest exact-source Render Chromium and Python/PG suites pending.
+
 ## 2026-11-21 — D-484/D-485: private backup download paths and bounded CI retries (unreleased)
 
 - D-484: do not download an S3 ciphertext backup into a path whose parent chain contains a symbolic link. Reject before remote lookup so an unexpected directory redirect cannot misplace customer backups. Regression test first at f6300c6, fix at fbb9ebf. This is not protection against a malicious local user racing directory changes.

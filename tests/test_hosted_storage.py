@@ -799,3 +799,46 @@ def test_private_key_output_rejects_symlinked_parent(
     assert db_cli.main([command, "--output", str(safe_output)]) == 0
     key = safe_output.read_text(encoding="ascii").strip()
     Fernet(key.encode("ascii"))
+
+@pytest.mark.parametrize("command", ["new-secrets-key", "new-backup-key"])
+def test_private_key_output_parent_swap_cannot_redirect_secret(
+    command, tmp_path, monkeypatch,
+):
+    """D-496: parent substitution after validation must not redirect a private key.
+
+    Inject the swap exactly before O_CREAT. A simple is_symlink preflight is
+    insufficient: the path may change between the check and the open.
+    """
+    if os.name != "posix" or not hasattr(os, "O_NOFOLLOW"):
+        pytest.skip("POSIX directory-handle protection required")
+    monkeypatch.setattr(db_cli.os, "isatty", lambda fd: False)
+    chosen_parent = tmp_path / "chosen"
+    chosen_parent.mkdir(mode=0o700)
+    moved_parent = tmp_path / "chosen-moved"
+    diverted_parent = tmp_path / "diverted"
+    diverted_parent.mkdir(mode=0o700)
+    file_name = command + ".key"
+    original_open = os.open
+    swapped = False
+
+    def swap_parent_before_create(path, flags, mode=0o777, *, dir_fd=None):
+        nonlocal swapped
+        if flags & os.O_CREAT and not swapped:
+            chosen_parent.rename(moved_parent)
+            chosen_parent.symlink_to(diverted_parent, target_is_directory=True)
+            swapped = True
+        if dir_fd is None:
+            return original_open(path, flags, mode)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(db_cli.os, "open", swap_parent_before_create)
+    result = db_cli.main([command, "--output", str(chosen_parent / file_name)])
+    assert swapped, "the write must be exercised after the adversarial directory change"
+    assert not (diverted_parent / file_name).exists(), "key escaped to redirected directory"
+    if result == 0:
+        safe_file = moved_parent / file_name
+        Fernet(safe_file.read_text(encoding="ascii").strip().encode("ascii"))
+        assert safe_file.stat().st_mode & 0o777 == 0o600
+    else:
+        assert result == 2
+        assert not (moved_parent / file_name).exists()

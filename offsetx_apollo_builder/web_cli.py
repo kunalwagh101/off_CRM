@@ -28,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     # A logged API token would itself grant access to the hosted CRM.
     local_private_console = (
         settings.host in {"127.0.0.1", "localhost", "::1"}
+        and os.isatty(1)  # a pipe or supervisor can persist stdout as logs
         and not os.environ.get("RENDER")
         and not os.environ.get("RENDER_EXTERNAL_HOSTNAME")
     )

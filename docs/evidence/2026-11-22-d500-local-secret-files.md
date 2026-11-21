@@ -27,3 +27,8 @@ The pinned parent-descriptor guarantee applies to POSIX platforms with `dir_fd` 
 **Observed D-500 RED:** test-only GitHub commit 1b33fec replayed Python 3.11 job 44952285835: 8 expected D-500 tests failed (2 symlink, 2 invalid-existing-file, 2 broad-permissions, 2 parent-directory swap); 3423 other tests passed and 149 skipped. **Observed GREEN:** fixed c93b2e3 GitHub CI 44952349677 all 5 jobs passed (Python 3.10/3.11/3.12 each 3431 passed/149 skipped; real PostgreSQL 3542 passed/107 skipped), production container 44952349680 passed. Render exact-source QA/manual acceptance remain pending.
 
 Targeted early Dockerfile.review gate and guarded-reload regression are included in the final evidence commit; they require exact-source GitHub and Render verification.
+
+
+## 2026-11-22 — exact-source review status
+
+Source `9321f614` included the D-500 fix, targeted early Review Dockerfile gate and token-reload regression. GitHub CI [44954100077](https://github.com/kunalwagh101/off_CRM/actions/runs/44954100077) succeeded all five jobs; Render review deploy `dep-dc117356e07s73bva02g` reached LIVE with 3,494 PostgreSQL-suite tests passing and 156 skipped. The functional Render app `dep-dc1173mtlv9c73anm800` was also live. These constitute current-code CI and disposable Render QA, not authorised owner login/provider/backup or independent penetration. D-501 is the distinct subsequent inode ownership hardening.

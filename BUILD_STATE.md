@@ -1,3 +1,13 @@
+## 2026-11-22 — D-501 observed RED/GREEN; release gates remain open
+
+**D-501 observed RED:** test-only commit `5957f6e`, Python 3.11 replay 44956948171: **four expected failures** (two hardlinks and two other-UID files), **3,432 unrelated tests passed / 149 skipped**. **Focused GREEN:** corrected `48eb240`, Render early `tests/test_local_secret_file_safety.py` **15 PASS**. Production Docker 44956962856 PASS. Full final-source CI and complete Render review remain separate checks.
+
+## 2026-11-22 — D-501 existing credential-file ownership and hardlink refusal
+
+- Active reliability audit S-06.02.23: after D-500, a pre-existing mode-0600 ordinary file with an untrusted owner or a second hardlink could still be used as the API token or signing secret. TDD regression `5957f6e` adds four cases; source fix `48eb240` requires single-link same-effective-UID regular files before reading, retaining POSIX fd-pinned ancestors, NOFOLLOW, exclusive new creation and existing-file no-overwrite.
+- Fixed-source production container job `44956962856` PASS. TDD RED GitHub replay `44956948171`, latest CI, exact-source Render review `dep-dc11mdmc6qcc73ckv3bg` require terminal evidence. The functional CRM at `dep-dc11me6c6qcc73ckv4h0` is live with five public-boundary requests passing through external GitHub smoke, backed by actual Render access logs.
+- This is a local bootstrap credential-file security hardening, not production-hosted storage completion or a claim about customer account credentials. F-06.02 / F-06.03 / F-04.01 stay NOT DONE. Evidence `docs/evidence/2026-11-22-d501-secret-inode-ownership.md`.
+
 ## 2026-11-22 — D-500 recorded RED → GREEN
 
 **Observed D-500 RED:** test-only GitHub commit 1b33fec replayed Python 3.11 job 44952285835: 8 expected D-500 tests failed (2 symlink, 2 invalid-existing-file, 2 broad-permissions, 2 parent-directory swap); 3423 other tests passed and 149 skipped. **Observed GREEN:** fixed c93b2e3 GitHub CI 44952349677 all 5 jobs passed (Python 3.10/3.11/3.12 each 3431 passed/149 skipped; real PostgreSQL 3542 passed/107 skipped), production container 44952349680 passed. Render exact-source QA/manual acceptance remain pending.

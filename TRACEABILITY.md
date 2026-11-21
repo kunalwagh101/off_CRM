@@ -403,3 +403,13 @@ Do not mark R-196 or S-06.02.69 done until observable QA completes. Source recor
 
 
 **Observed D-500 RED:** test-only GitHub commit 1b33fec replayed Python 3.11 job 44952285835: 8 expected D-500 tests failed (2 symlink, 2 invalid-existing-file, 2 broad-permissions, 2 parent-directory swap); 3423 other tests passed and 149 skipped. **Observed GREEN:** fixed c93b2e3 GitHub CI 44952349677 all 5 jobs passed (Python 3.10/3.11/3.12 each 3431 passed/149 skipped; real PostgreSQL 3542 passed/107 skipped), production container 44952349680 passed. Render exact-source QA/manual acceptance remain pending.
+
+
+## 2026-11-22 — D-501 local API-token/signing-key origin acceptance (pending final release gate)
+
+| Requirement | Story | Tests and code | Acceptance and limit |
+|---|---|---|---|
+| A29 / D-501: existing local bootstrap secrets must be owned by current process and never be hardlinked | S-06.02.23 IN_PROGRESS | `tests/test_local_secret_file_safety.py::test_private_local_secret_rejects_hardlinked_file`, `::test_private_local_secret_rejects_other_user_owned_file`; `offsetx_apollo_builder/api/config.py::_local_secret_file`; commits 5957f6e / 48eb240 | Both token/session variants reject an unsafe pre-existing inode without rewrite. CI/Render and independently authorised owner acceptance are separate; no parent feature release. |
+
+
+**D-501 executed TDD:** test-only GitHub 44956948171 RED four expected failures (3432 unrelated passed/149 skipped); corrected source `48eb240` focused Render local credential-file suite GREEN 15 passed. Full source-wide CI and Render verification remain separate.

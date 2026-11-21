@@ -1,3 +1,9 @@
+## 2026-11-21 — D-493: private operator key generation for hosted CRM and backups (unreleased)
+
+- The key-generation commands `offsetx-db new-secrets-key` and `offsetx-db new-backup-key` previously printed secret key material even when stdout was piped into deployment logs. Non-interactive execution now refuses stdout output and directs the operator to an interactive terminal or `--output FILE`.
+- Both commands use a new-file-only, owner-readable 0600 file path and refuse existing destinations/final symlinks. File output prints confirmation without the secret. Tests first `2b0b196`, fix `ea720ab`, interactive test compatibility `2a79219`, Render early targeted gate `d58e1a2`.
+- This is source-level security hardening only; full latest-source CI, actual QA image, permitted S3 destination, key custody and independent empty-DB restore remain outstanding. No live company credential touched.
+
 ## 2026-11-21 — D-492: keep API tokens out of unattended local process logs (unreleased)
 
 - Security recheck found that a localhost bind is not proof of an interactive private console. When a supervisor pipes stdout to a log, the token-only CLI still disclosed the complete bearer credential after D-491.

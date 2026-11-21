@@ -738,3 +738,32 @@ def test_the_classifier_never_blames_a_provider_for_the_database():
     assert failure.action is FailureAction.STOP_REQUEST
     assert not failure.counts_against_provider
     assert "database" in failure.owner_action and "key" in failure.owner_action
+
+
+@pytest.mark.parametrize("command", ["new-secrets-key", "new-backup-key"])
+def test_generated_hosted_keys_never_leak_to_nonterminal_stdout(
+    command, tmp_path, monkeypatch, capsys,
+):
+    """D-493: redirected CLI output is a log, never a safe key delivery path."""
+    monkeypatch.setattr(db_cli.os, "isatty", lambda fd: False)
+    assert db_cli.main([command]) == 2
+    emitted = capsys.readouterr()
+    assert emitted.out == ""
+    assert "--output" in emitted.err
+
+    destination = tmp_path / (command + ".key")
+    assert db_cli.main([command, "--output", str(destination)]) == 0
+    emitted = capsys.readouterr()
+    key = destination.read_text(encoding="ascii").strip()
+    Fernet(key.encode("ascii"))
+    assert key not in emitted.out and key not in emitted.err
+    if os.name == "posix":
+        assert destination.stat().st_mode & 0o777 == 0o600
+
+    # Never overwrite a saved operator key or follow an attacker-planted link.
+    assert db_cli.main([command, "--output", str(destination)]) == 2
+    assert destination.read_text(encoding="ascii").strip() == key
+    symlink = tmp_path / (command + "-link")
+    symlink.symlink_to(destination)
+    assert db_cli.main([command, "--output", str(symlink)]) == 2
+    assert destination.read_text(encoding="ascii").strip() == key

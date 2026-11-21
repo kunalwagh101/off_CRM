@@ -2235,8 +2235,21 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             scope=body.scope,
             tags=body.tags,
         )
-        items, _ = _engine(request).store.search_memory_items("", limit=1000, workspace_id=_workspace_id(request))
-        return next(item for item in items if item["id"] == memory_id)
+        # Look up the exact saved ID, not a bounded relevance-ranked list.
+        # Once a workspace has over 1,000 facts the saved row can be outside
+        # the search window, turning a successful write into a false HTTP 500.
+        item = _engine(request).store.get_memory_item(
+            memory_id, workspace_id=_workspace_id(request),
+        )
+        if item is None:
+            raise HTTPException(
+                409, "Memory changed after saving. Reload the memory list before trying again.",
+            )
+        # Preserve the create response's existing empty-query relevance field.
+        item["relevance_score"] = round(
+            item["confidence"] * 0.25 + (0.2 if item["approved"] else 0), 4
+        )
+        return item
 
     @app.patch(f"{API_PREFIX}/memory/{{memory_id}}")
     def approve_memory(

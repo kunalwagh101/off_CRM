@@ -25,6 +25,9 @@ ENV PATH="/review/.venv/bin:$PATH"
 RUN uv run pytest -q tests/test_frontend_vitest_pinning.py
 # D-473: exercise all old nonlocal-CRM isolation contracts before long QA gates.
 RUN uv run pytest -q tests/test_draft_connectors.py tests/test_memory_workspace_api.py tests/test_provider_profile_isolation.py tests/test_recall_workspace_mutations.py tests/test_workspace_isolation.py
+# F-06.01/F-06.02: full memory API ownership, 1,002-row receipt and paging
+# acceptance must fail before the expensive full QA suite.
+RUN uv run pytest -q tests/test_memory_workspace_api.py
 # A05: keep post drafts and Analyst campaign results scoped at SQL boundary.
 RUN uv run pytest -q tests/test_pipeline.py::test_draft_pipeline_rejects_other_workspaces_images_topic_history_and_cooldown tests/test_distribution.py::test_analyst_metrics_and_goals_never_mix_workspaces_with_shared_campaign_ids tests/test_pipeline.py::test_batch_rejects_foreign_account_before_any_post_is_written tests/test_pipeline.py::test_batch_rejects_duplicate_or_disabled_accounts_before_drafting
 # F-06.03: encryption, tamper detection, offsite transport and guard-only local checks.

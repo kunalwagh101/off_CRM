@@ -362,6 +362,12 @@ def download_ciphertext(object_key: str, destination: Path, *, bucket: str | Non
     destination = Path(destination)
     if destination.exists() or destination.is_symlink():
         raise HostedBackupError("Download destination already exists; choose a new private path")
+    # An existing directory symlink could silently redirect owner-only
+    # ciphertext into a different folder. Reject it before contacting S3.
+    # This protects ordinary configuration errors, not hostile local races:
+    # the download runner must also be isolated from untrusted local writers.
+    if any(parent.is_symlink() for parent in destination.parents):
+        raise HostedBackupError("Download destination has a symlinked parent; choose a private directory")
     remote = client or _s3_client()
     origin = _bucket(bucket)
     object_key = _object_key(object_key)

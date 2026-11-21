@@ -1,3 +1,8 @@
+## 2026-11-21 — D-476 PostgreSQL recovery target preflight (source pending exact-source QA)
+
+- F-06.03 S-06.03.04: reviewed restored target validation and found it still accepted user-created text-search dictionaries and PostgreSQL publications despite refusing other custom objects. Two real-PG denial cases were committed first (efe4700); production preflight now checks pg_ts_dict and pg_publication (2488513).
+- These checks prevent unsafe restore into those nonempty targets. They do not make existing arbitrary databases safe to overwrite, do not create a dedicated offsite backup destination and do not prove a recovery drill. The active hosted QA service is a synthetic build/test marker only. Inspect the RED test commit and full exact-source CI/Render outputs before recording passing counts; retain BACKLOG/IN_PROGRESS release gates unchanged.
+
 ## 2026-11-21 — D-475 streamed offsite ciphertext verification (source, unverified)
 
 - F-06.03 `S-06.03.04`: a remote backup report relied on S3 `head_object` size and user-set SHA256 metadata. These can match a corrupted same-size object. Code now reads back encrypted object bytes in bounded chunks, verifies length and SHA256 before success, and returns a safe error on remote GET failure. Test doubles include both corruption and unreadable object; no customer data accessed.

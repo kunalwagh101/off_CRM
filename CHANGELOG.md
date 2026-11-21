@@ -1,3 +1,9 @@
+## 2026-11-21 — D-476: refuse non-empty PostgreSQL recovery targets (unreleased)
+
+- Added real-PostgreSQL regression cases for an existing user-created text-search dictionary and an existing publication in an otherwise table-free restore database.
+- Extended the restore preflight's catalogue query to reject either object before decrypting or launching pg_restore. The existing no-overwrite, single-transaction and ciphertext checks remain unchanged.
+- TDD test source: efe4700; application fix: 2488513. Exact-source CI, independent offsite storage, operator-approved recovery and customer release remain separate gates; do not call S-06.03.04 DONE.
+
 ## 2026-11-21 — D-475: verify real S3 backup bytes before success (unreleased)
 
 - Added streaming SHA256/byte-count read-back after encrypted PostgreSQL object upload, so a same-sized corrupted remote object cannot pass by retaining user-set checksum metadata.

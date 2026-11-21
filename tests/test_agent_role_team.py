@@ -184,3 +184,38 @@ def test_analyst_wrong_campaign_reports_actionable_public_reason(tmp_path):
         assert "select" in detail
         assert campaign_id.lower() not in detail
         assert "existing engine refused" not in detail
+
+
+
+def test_analyst_real_api_reads_distribution_campaign_without_side_effects(tmp_path):
+    """F-04.01: owner can run Analyst on a real empty campaign without a model."""
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist", host="127.0.0.1",
+        api_token=OWNER, allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings)) as client:
+        campaign_id = client.app.state.engine.store.create_campaign(
+            name="Distribution audit", daily_send_limit=10, kind="distribution",
+        )
+        provision = client.post("/api/v1/agent-team/provision", headers=HEADERS)
+        assert provision.status_code == 200, provision.text
+        before = client.app.state.distribution_store.list_posts(
+            campaign_id=campaign_id, workspace_id="local",
+        )
+        result = client.post(
+            "/api/v1/agent-team/execute",
+            json={"role": "Analyst", "campaign_id": campaign_id},
+            headers=HEADERS,
+        )
+        assert result.status_code == 200, result.text
+        payload = result.json()
+        assert payload["role"] == "Analyst"
+        assert payload["status"] == "read_only"
+        assert payload["progress"]["totals"]["views"] == 0
+        assert isinstance(payload["generator_performance"], list)
+        after = client.app.state.distribution_store.list_posts(
+            campaign_id=campaign_id, workspace_id="local",
+        )
+        assert before == after == []

@@ -1,3 +1,8 @@
+## 2026-11-21 — D-487 memory API exact receipt with tenant ownership
+
+- F-06.02/F-06.01: API POST /api/v1/memory previously used first-1,000 ranked search to find a newly committed saved item. With over 1,000 existing records it could return 500 after successful write. TDD actual 1,001-record API test 7608082, direct workspace-scoped get 76980a0 and safe API response 44b8cf8; added foreign-workspace negative test d467c3f. Exact-source CI/Render review pending.
+- Existing search_memory_items deliberately still caps its ranked candidates to 1,000: general memory search pagination is a separate issue and not fixed by the exact-receipt path. No tenant CRM migration, independent pentest or production deployment was performed.
+
 ## 2026-11-21 — D-486 agent action cleanup result integrity
 
 - F-04.01/F-06.02: `release_role_resources` used to let a failing request-owned watcher `close()` override a successful Scout/Poster response. That could trigger unnecessary repeat draft creation if an owner retried after a false HTTP 500. TDD tests d947c1c, fix 6cbc02a; owner-authenticated Scout API integration check 2324168.

@@ -1,3 +1,10 @@
+## 2026-11-21 — D-487: return a real receipt for every saved memory item (unreleased)
+
+- The API created an owned memory item but then scanned only a fixed top-1,000 search result set to construct its 201 response. When the new item was outside that window, it raised after the write and could mislead the user into retrying.
+- Added an exact ID+workspace store getter and replaced the broad post-write search. The response preserves the existing decoded metadata and empty-query relevance field. Missing concurrent-deleted records return a safe 409 with reload advice rather than a false 500.
+- Added a real FastAPI test with 1,001 earlier records, forced search-order separation, ID comparison and a wrong-workspace denial. Test-first 7608082; store/API fixes 76980a0 / 44b8cf8; follow-up d467c3f. The general ranked memory search's 1,000-row cap is still separate unverified work.
+- No production migration or customer data access. Exact-source SQLite/PostgreSQL/full CI and Render QA remain pending.
+
 ## 2026-11-21 — D-486: completed agent role results survive watcher cleanup failures (unreleased)
 
 - Scout and Poster temporarily allocate a TrendWatcher. If its close failed, the route's `finally` raised and overwrote the original result, potentially encouraging a duplicate Poster draft on retry. No action is automatically retried.

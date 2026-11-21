@@ -100,3 +100,17 @@ def test_render_review_image_enforces_the_same_dev_audit_threshold_as_ci():
     assert len(audit_commands) == 2
     for command in audit_commands:
         assert "||" not in command and "; true" not in command
+
+
+
+def test_superseded_workflow_runs_do_not_consume_parallel_minutes():
+    """F-06.02: a newer develop push replaces old CI, not a second full bill."""
+    for path in (CI, Path(".github/workflows/container.yml")):
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        concurrency = workflow.get("concurrency", {})
+        assert concurrency.get("group") == (
+            "${{ github.workflow }}-${{ github.ref }}"
+        ), f"{path}: do not cancel a different branch or workflow"
+        assert concurrency.get("cancel-in-progress") is True, (
+            f"{path}: superseded runs should be cancelled to free runners"
+        )

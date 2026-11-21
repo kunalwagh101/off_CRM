@@ -308,3 +308,78 @@ def test_unsupported_current_claim_view_is_rejected_before_evaluating_it(isolate
         assert db.execute('SELECT is_called FROM view_evaluations').fetchone()['is_called'] is False
     finally:
         store.close()
+
+
+def _exercise_cleanup_with_fake_server(monkeypatch, *, busy_once=False, busy_forever=False):
+    """An unprivileged CREATEDB role can clean up without pg_signal_backend."""
+    import psycopg
+
+    statements = []
+    attempts = 0
+
+    class DisposableAdmin:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _type, _value, _traceback):
+            return False
+
+        def execute(self, command):
+            nonlocal attempts
+            statement = repr(command)
+            statements.append(statement)
+            if "DROP DATABASE" not in statement:
+                return
+            attempts += 1
+            if "FORCE" in statement:
+                raise psycopg.errors.InsufficientPrivilege(
+                    "permission denied to terminate another role's process"
+                )
+            if busy_forever or (busy_once and attempts == 1):
+                raise psycopg.errors.ObjectInUse(
+                    "database is being accessed by other users"
+                )
+
+    monkeypatch.setenv(
+        "OFF_CRM_TEST_POSTGRES_URL",
+        "postgresql://disposable-test-role:fixture-only@127.0.0.1:5432/test",
+    )
+    monkeypatch.setattr(psycopg, "connect", lambda *_args, **_kwargs: DisposableAdmin())
+    # Do not connect to a real server in this unit test.
+    generator = isolated_install_database.__wrapped__()
+    target = next(generator)
+    assert "/offcrm_install_" in target
+    return generator, statements, lambda: attempts
+
+
+def test_install_database_cleanup_does_not_need_pg_signal_backend(monkeypatch):
+    """D-498 RED: DROP DATABASE FORCE can require privileges the QA role lacks."""
+    generator, statements, attempts = _exercise_cleanup_with_fake_server(monkeypatch)
+    with pytest.raises(StopIteration):
+        next(generator)
+    assert attempts() == 1
+    assert not any("FORCE" in statement for statement in statements)
+
+
+def test_install_database_cleanup_retries_transient_active_sessions(monkeypatch):
+    """Do not fail the entire PG suite on one short-lived closing connection."""
+    generator, statements, attempts = _exercise_cleanup_with_fake_server(
+        monkeypatch, busy_once=True,
+    )
+    with pytest.raises(StopIteration):
+        next(generator)
+    assert attempts() == 2
+    assert not any("FORCE" in statement for statement in statements)
+
+
+def test_install_database_cleanup_does_not_hide_persistent_active_sessions(monkeypatch):
+    """A real connection leak is an error, not an excuse to skip teardown."""
+    import psycopg
+
+    generator, statements, attempts = _exercise_cleanup_with_fake_server(
+        monkeypatch, busy_forever=True,
+    )
+    with pytest.raises(psycopg.errors.ObjectInUse):
+        next(generator)
+    assert 2 <= attempts() <= 10
+    assert not any("FORCE" in statement for statement in statements)

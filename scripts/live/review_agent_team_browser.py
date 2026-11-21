@@ -66,6 +66,41 @@ def verify(page, width):
         and "QA distribution" not in role_campaign.inner_text()
     )
     role_campaign.select_option(label="QA image")
+    # D-490: simulate a lost HTTP response to a consequential Maker action.
+    # Abort BEFORE backend execution, then reload and replay a synthetic
+    # response. Both browser requests must carry exactly the same receipt.
+    topic = "Safe synthetic Maker retry with no provider calls"
+    page.get_by_label("Video topic", exact=True).fill(topic)
+    maker_keys = []
+    def intercept_maker(route):
+        if route.request.post_data_json.get("role") != "Maker":
+            route.continue_()
+            return
+        maker_keys.append(route.request.headers.get("idempotency-key"))
+        if len(maker_keys) == 1:
+            route.abort("failed")
+        else:
+            route.fulfill(
+                status=200, content_type="application/json",
+                body='{"role":"Maker","status":"needs_review","project":{"name":"Synthetic result only"}}',
+            )
+    page.route("**/api/v1/agent-team/execute", intercept_maker)
+    page.get_by_role("button", name="Run selected role", exact=True).click()
+    expect(page.get_by_role("alert")).to_be_visible()
+    page.reload(wait_until="domcontentloaded")
+    page.get_by_label("Companion", exact=True).select_option(label="Research " + str(width))
+    page.get_by_label("Role", exact=True).select_option("Maker")
+    page.get_by_label("Role campaign", exact=True).select_option(label="QA image")
+    page.get_by_label("Video topic", exact=True).fill(topic)
+    page.get_by_role("button", name="Run selected role", exact=True).click()
+    expect(page.get_by_label("Role result", exact=True)).to_contain_text("Timeline ready for review")
+    assert len(maker_keys) == 2 and maker_keys[0] and maker_keys[0] == maker_keys[1], (
+        "A browser reload changed the key for the same uncertain Maker action"
+    )
+    assert page.evaluate(
+        "Object.keys(sessionStorage).filter(k => k.startsWith('offcrm-agent-role-pending-v1-')).length"
+    ) == 0, "Successful retry must clear the pending receipt from the tab"
+    page.unroute("**/api/v1/agent-team/execute", intercept_maker)
     page.get_by_label("Role", exact=True).select_option("Poster")
     expect(role_campaign).to_have_value("")
     assert "QA image" not in role_campaign.inner_text()

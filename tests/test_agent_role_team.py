@@ -212,6 +212,37 @@ def test_role_api_replays_consequential_actions_by_key_without_reexecuting(
         assert len(calls) == 1
 
 
+def test_role_api_does_not_retry_uncertain_poster_action_after_error(tmp_path, monkeypatch):
+    """D-489/A14: an in-progress claim survives a crashed external side effect."""
+    import offsetx_apollo_builder.agent.role_team as role_team
+
+    attempts = []
+
+    def uncertain_post(*args, **kwargs):
+        attempts.append(True)
+        raise RuntimeError("PRIVATE-PROVIDER-ERROR-NEVER-ECHO")
+
+    monkeypatch.setattr(role_team, "execute_role", uncertain_post)
+    settings = AppSettings(
+        project_root=Path.cwd(), database_path=tmp_path / "crm.db",
+        data_dir=tmp_path / "data", export_dir=tmp_path / "exports",
+        frontend_dist=tmp_path / "missing-dist", host="127.0.0.1",
+        api_token=OWNER, allowed_hosts=("testserver",),
+    )
+    with TestClient(create_app(settings), raise_server_exceptions=False) as client:
+        assert client.post("/api/v1/agent-team/provision", headers=HEADERS).status_code == 200
+        headers = {**HEADERS, "Idempotency-Key": "uncertain-draft-creation"}
+        payload = {"role": "Poster", "campaign_id": "campaign",
+                   "image_campaign_id": "images", "account_ids": ["account"]}
+        first = client.post("/api/v1/agent-team/execute", json=payload, headers=headers)
+        assert first.status_code == 500
+        assert "PRIVATE-PROVIDER-ERROR-NEVER-ECHO" not in first.text
+        repeated = client.post("/api/v1/agent-team/execute", json=payload, headers=headers)
+        assert repeated.status_code == 409, repeated.text
+        assert "uncertain" in repeated.text.lower() or "in progress" in repeated.text.lower()
+        assert attempts == [True], "Second click must never rerun an uncertain action"
+
+
 def test_role_api_requires_owner_provision_and_denies_unauthenticated_access(tmp_path):
     settings = AppSettings(
         project_root=Path.cwd(), database_path=tmp_path / "crm.db",

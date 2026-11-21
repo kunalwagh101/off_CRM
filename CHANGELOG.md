@@ -1,3 +1,9 @@
+## 2026-11-21 — D-484/D-485: private backup download paths and bounded CI retries (unreleased)
+
+- D-484: do not download an S3 ciphertext backup into a path whose parent chain contains a symbolic link. Reject before remote lookup so an unexpected directory redirect cannot misplace customer backups. Regression test first at f6300c6, fix at fbb9ebf. This is not protection against a malicious local user racing directory changes.
+- D-485: GitHub CI and production-container workflows now cancel superseded same-ref runs, preventing test-first pushes from repeating every slow regression for obsolete commits. Both workflow definitions are covered by a regression, with no relaxed test matrix or validation threshold.
+- Full final-commit GitHub CI, exact-source Render review, owner-approved offsite recovery and independent penetration remain pending; no customer release.
+
 ## 2026-11-21 — D-482: explicit backup authority and signed unsubscribe classification (unreleased)
 
 - A05 full-route inventory regression highlighted routes missing an explicit owner/workspace classification. Added `/backups` to the fail-closed D-451 shared-CRM guard as extra protection on top of the existing install-owner checks.

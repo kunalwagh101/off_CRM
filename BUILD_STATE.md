@@ -1,3 +1,9 @@
+## 2026-11-21 — Latest verification checkpoint: D-484 and D-485
+
+- D-484 (F-06.03/S-06.03.04): test-first linked parent download refusal at f6300c6, source guard fbb9ebf. Owner S3 download now rejects symlinked directory ancestors before contacting remote storage, avoiding accidental redirect to another directory. External bucket and recovery proof remain unavailable.
+- D-485 (F-06.02): test-first CI concurrency contract at e637ac6, changed both .github/workflows/ci.yml and container.yml at 70c766b. Same-workflow/ref older jobs now cancel after a later push; already observed cancelled old runs. Render autoDeploy remains off and its QA image is independent.
+- Earlier Render bf91d75 browser check explicitly PASS on 1280px/390px Agent Team and Contacts; the latest backend repair source is not that same commit and cannot inherit that PASS. The selected four features are still not fully DONE, no main/customer deployment.
+
 ## 2026-11-21 — D-482 route classification and backup owner guard
 
 - F-06.02/F-06.01: live FastAPI route-inventory regression identified owner-only backup export/restore routes as missing from D-451's explicit guard. Added `/backups` to the private CRM route roots at 30a26c9. Existing require_install_owner checks remain.

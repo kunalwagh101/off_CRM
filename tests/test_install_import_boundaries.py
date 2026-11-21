@@ -32,8 +32,21 @@ def isolated_install_database():
     try:
         yield target
     finally:
-        with psycopg.connect(base, autocommit=True) as admin:
-            admin.execute(sql.SQL('DROP DATABASE {} WITH (FORCE)').format(sql.Identifier(name)))
+        # This CREATEDB role has no pg_signal_backend permission. FORCE can
+        # try to terminate server-owned processes (for example autovacuum) and
+        # fail even though the test's own connections are already closed.
+        # Ordinary DROP requires no signal privilege; retry briefly while a
+        # closing backend exits, then fail visibly on a persistent leak.
+        import time
+        for attempt in range(5):
+            try:
+                with psycopg.connect(base, autocommit=True) as admin:
+                    admin.execute(sql.SQL('DROP DATABASE {}').format(sql.Identifier(name)))
+                break
+            except psycopg.errors.ObjectInUse:
+                if attempt == 4:
+                    raise
+                time.sleep(0.2)
 
 
 @pytest.fixture(params=['sqlite', 'postgres'])

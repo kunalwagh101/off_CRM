@@ -28,6 +28,91 @@ def _inside(path: Path, root: Path) -> bool:
         return False
 
 
+
+def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
+    """Read or exclusively create a private credential with a pinned parent.
+
+    Opening a path twice (check, then O_TRUNC) can follow a replaced symlink or
+    overwrite a restored credential. Pin each POSIX ancestor and never truncate.
+    The Windows fallback checks links but cannot guarantee a race-free parent.
+    """
+    target = Path(os.path.abspath(path))
+    parent_fd: int | None = None
+    pinned = (
+        os.name == "posix"
+        and hasattr(os, "O_DIRECTORY")
+        and hasattr(os, "O_NOFOLLOW")
+    )
+    flags_no_follow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        if pinned:
+            parent_fd = os.open(target.anchor, os.O_RDONLY | os.O_DIRECTORY)
+            for component in target.parent.parts[1:]:
+                try:
+                    next_fd = os.open(
+                        component,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                        dir_fd=parent_fd,
+                    )
+                finally:
+                    # The next descriptor holds the child even if someone later
+                    # renames a parent and replaces it with a symlink.
+                    os.close(parent_fd)
+                    parent_fd = None
+                parent_fd = next_fd
+            name = target.name
+        else:
+            if any(part.is_symlink() for part in (target, target.parent, *target.parent.parents)):
+                raise ValueError("Local credential file cannot use linked paths")
+            name = str(target)
+
+        try:
+            fd = os.open(
+                name,
+                os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | flags_no_follow,
+                dir_fd=parent_fd,
+            )
+        except FileNotFoundError:
+            if generate_bytes is None:
+                raise ValueError("Local credential file is missing; restore it from a private backup")
+            try:
+                fd = os.open(
+                    name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | flags_no_follow,
+                    0o600, dir_fd=parent_fd,
+                )
+            except FileExistsError:
+                raise ValueError("Local credential file was created concurrently; restart safely") from None
+            value = secrets.token_urlsafe(generate_bytes)
+            with os.fdopen(fd, "w", encoding="ascii") as secret_file:
+                secret_file.write(value)
+            return value
+
+        with os.fdopen(fd, "rb") as secret_file:
+            metadata = os.fstat(secret_file.fileno())
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError("Local credential file must be a private regular file")
+            if os.name == "posix" and stat.S_IMODE(metadata.st_mode) & 0o077:
+                raise ValueError("Local credential file must have private permissions (0600)")
+            payload = secret_file.read(4097)
+        if len(payload) > 4096:
+            raise ValueError("Local credential file is invalid; inspect the private file")
+        try:
+            value = payload.decode("ascii").strip()
+        except UnicodeDecodeError:
+            raise ValueError("Local credential file is invalid; inspect the private file") from None
+        if len(value) < 32:
+            raise ValueError("Local credential file is invalid; inspect the private file")
+        return value
+    except OSError:
+        raise ValueError(
+            "Local credential directory or file is unsafe or inaccessible; "
+            "check private directory ownership and symbolic links"
+        ) from None
+    finally:
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+
 @dataclass(slots=True)
 class AppSettings:
     project_root: Path
@@ -239,32 +324,21 @@ class AppSettings:
         if self.api_token or self.demo_login_enabled or self.allow_unauthenticated:
             return self.api_token
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        path = self.data_dir / self.TOKEN_FILENAME
-        try:
-            existing = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            existing = ""
-        if len(existing) >= 32:
-            self.api_token = existing
-            self.api_token_from_file = True
-            return self.api_token
-        token = secrets.token_urlsafe(32)
-        # Create with the mode set, rather than creating then chmod-ing: between
-        # those two calls the token is world-readable.
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, stat.S_IRUSR | stat.S_IWUSR)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(token)
-        self.api_token = token
+        self.api_token = _local_secret_file(
+            self.data_dir / self.TOKEN_FILENAME, generate_bytes=32
+        )
         self.api_token_from_file = True
-        return token
+        return self.api_token
 
     def reload_local_api_token(self) -> None:
         """Restore file-managed authentication with the workspace it protects."""
         if self.api_token_from_file:
-            token = (self.data_dir / self.TOKEN_FILENAME).read_text(encoding="utf-8").strip()
-            if len(token) < 32 or not token.isascii():
-                raise ValueError("Restored local API token is invalid")
-            self.api_token = token
+            try:
+                self.api_token = _local_secret_file(
+                    self.data_dir / self.TOKEN_FILENAME, generate_bytes=None
+                )
+            except ValueError:
+                raise ValueError("Restored local API token is invalid or not private") from None
 
 
     def ensure_session_secret(self) -> str:
@@ -277,24 +351,10 @@ class AppSettings:
         if self.session_secret:
             return self.session_secret
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        path = self.data_dir / self.SESSION_SECRET_FILENAME
-        try:
-            existing = path.read_text(encoding="utf-8").strip()
-        except OSError:
-            existing = ""
-        if len(existing) >= 32:
-            self.session_secret = existing
-            return existing
-        value = secrets.token_urlsafe(48)
-        descriptor = os.open(
-            path,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-            stat.S_IRUSR | stat.S_IWUSR,
+        self.session_secret = _local_secret_file(
+            self.data_dir / self.SESSION_SECRET_FILENAME, generate_bytes=48
         )
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(value)
-        self.session_secret = value
-        return value
+        return self.session_secret
 
     def host_allowlist(self) -> frozenset[str]:
         """Host header values this server answers to.

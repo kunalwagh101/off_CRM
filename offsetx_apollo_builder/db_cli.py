@@ -189,6 +189,42 @@ def _cmd_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def _key_destination(args: argparse.Namespace) -> str | None:
+    """Refuse secret key output to service logs, shell pipelines and CI."""
+    destination = getattr(args, "output", "") or ""
+    if not destination and not os.isatty(1):
+        print(
+            "Refusing to print an encryption key to redirected output. "
+            "Use an interactive terminal or --output FILE (new private file).",
+            file=sys.stderr,
+        )
+        return None
+    return destination
+
+
+def _save_new_key(destination: str, key: str) -> int:
+    """Create a private key file once; never follow or overwrite a final symlink."""
+    target = Path(destination).expanduser()
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(target, flags, 0o600)
+    except OSError:
+        print("Cannot create private key file; choose a new accessible path.", file=sys.stderr)
+        return 2
+    try:
+        with os.fdopen(fd, "w", encoding="ascii") as private:
+            private.write(key + "\n")
+            private.flush()
+            os.fsync(private.fileno())
+    except OSError:
+        # Do not claim success when a write or durability check failed. A
+        # partial 0600 file may remain; an operator can inspect/remove it.
+        print("Private key file write failed; inspect and remove any partial file.", file=sys.stderr)
+        return 2
+    print("Generated key stored in a new private (0600) file; save it in a password manager.")
+    return 0
+
+
 def _cmd_new_secrets_key(args: argparse.Namespace) -> int:
     """Print a fresh key for the provider keys kept in a hosted database.
 
@@ -196,7 +232,12 @@ def _cmd_new_secrets_key(args: argparse.Namespace) -> int:
     environment is set, and keeps a copy. Generated, never typed, so it cannot
     be a password someone could guess (`S-06.03.02`).
     """
+    destination = _key_destination(args)
+    if destination is None:
+        return 2
     key = Fernet.generate_key().decode("ascii")
+    if destination:
+        return _save_new_key(destination, key)
     print(f"Set {SECRETS_KEY_ENV} to this key, once, where the app's settings live")
     print("(on Render: the service's Environment page):")
     print()
@@ -487,9 +528,15 @@ def _cmd_import_crm(args: argparse.Namespace) -> int:
 def _cmd_new_backup_key(args: argparse.Namespace) -> int:
     from .db.hosted_backup import BACKUP_KEY_ENV, new_backup_key
 
+    destination = _key_destination(args)
+    if destination is None:
+        return 2
+    key = new_backup_key()
+    if destination:
+        return _save_new_key(destination, key)
     print(f"Set {BACKUP_KEY_ENV} on the backup/recovery operator only:")
     print()
-    print(new_backup_key())
+    print(key)
     print()
     print("Save this in an independent password manager or KMS. Losing it means losing")
     print("access to backups; never use OFFSETX_SECRETS_KEY as the backup key.")
@@ -603,7 +650,8 @@ def main(argv: list[str] | None = None) -> int:
     stores.add_argument("--markdown", action="store_true", help="print the design document's table")
     stores.set_defaults(func=_cmd_inventory)
 
-    fresh = sub.add_parser("new-secrets-key", help=f"print a new {SECRETS_KEY_ENV}")
+    fresh = sub.add_parser("new-secrets-key", help=f"generate a new {SECRETS_KEY_ENV}")
+    fresh.add_argument("--output", default="", help="create a new private 0600 key file instead of printing")
     fresh.set_defaults(func=_cmd_new_secrets_key)
 
     forget = sub.add_parser(
@@ -685,6 +733,7 @@ def main(argv: list[str] | None = None) -> int:
     crm.set_defaults(func=_cmd_import_crm)
 
     new_backup = sub.add_parser("new-backup-key", help="generate an independent 256-bit backup key")
+    new_backup.add_argument("--output", default="", help="create a new private 0600 key file instead of printing")
     new_backup.set_defaults(func=_cmd_new_backup_key)
 
     export = sub.add_parser(

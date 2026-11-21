@@ -65,6 +65,33 @@ def test_role_resources_close_workspace_watchers_only():
     assert closed == ["scout", "poster"]
 
 
+@pytest.mark.parametrize("role", ["Scout", "Poster"])
+def test_role_cleanup_error_is_recorded_without_masking_a_completed_action(
+    monkeypatch, role,
+):
+    """D-486: cleanup failure must not make owner repeat an already-created draft."""
+    import offsetx_apollo_builder.agent.role_team as role_team
+
+    errors = []
+    monkeypatch.setattr(
+        role_team, "report_failure",
+        lambda exc, *, operation: errors.append((operation, type(exc).__name__)),
+    )
+
+    def broken_close():
+        raise RuntimeError("PRIVATE-ADAPTER-DIAGNOSTIC")
+
+    watcher = SimpleNamespace(close=broken_close)
+    engines = (
+        RoleEngines(trends=watcher) if role == "Scout" else
+        RoleEngines(pipeline=SimpleNamespace(trends=watcher))
+    )
+    # A single request finishing its work must not turn into an unknown
+    # 500 response merely because its private watcher failed during teardown.
+    release_role_resources(role, engines)
+    assert errors == [("agent.role.watcher_cleanup", "RuntimeError")]
+
+
 def test_maker_reuses_existing_video_director_and_review_gated_assembler():
     called = []
     def assemble(campaign_id, *, topic):

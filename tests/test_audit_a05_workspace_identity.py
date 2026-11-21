@@ -250,3 +250,36 @@ def test_D451_every_registered_shared_crm_get_is_blocked_over_real_http(sessions
         )
         tested.append(path)
     assert len(tested) >= 30, "Live shared-CRM route matrix unexpectedly shrank"
+
+
+def test_D451_every_registered_shared_crm_mutation_is_denied_before_parsing(sessions):
+    """A05: all live shared-CRM mutation routes fail closed for other workspaces.
+
+    Query the application's actual route table, including mounted routers.
+    The dummy IDs and invalid bodies must be rejected in middleware before
+    reaching any worker, provider, database mutation or action handler.
+    """
+    from fastapi.routing import APIRoute
+    from offsetx_apollo_builder.api.app import is_unscoped_crm_api_path
+    import re
+
+    owner, _, alice, bob = sessions
+    writes = []
+    allowed_verbs = {"POST", "PATCH", "PUT", "DELETE"}
+    for route in owner.app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        if not is_unscoped_crm_api_path(route.path):
+            continue
+        for method in sorted(set(route.methods) & allowed_verbs):
+            path = re.sub(r"\{[^{}]+\}", "unowned-probe-id", route.path)
+            client = (alice, bob)[len(writes) % 2]
+            response = client.request(
+                method, path, json={"malicious_field": "untrusted-input"},
+            )
+            assert response.status_code == 403, (
+                "Unscoped CRM mutation reached a handler", method,
+                route.path, response.status_code,
+            )
+            writes.append((method, route.path))
+    assert len(writes) >= 40, "The mutation route inventory unexpectedly shrank"

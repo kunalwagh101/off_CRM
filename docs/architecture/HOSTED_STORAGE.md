@@ -102,9 +102,12 @@ runs unreviewed code and must never reach `main`'s keys.
    or AWS or Azure later. Copy its connection URL. From Render, inside the same
    region, use the *internal* URL; from anywhere else the URL must carry
    `sslmode=require`.
-2. Run `offsetx-db new-secrets-key` on any machine with off_CRM installed. Keep
-   what it prints in a password manager: it is stored nowhere else, and without
-   it nobody can read the provider keys in the database.
+2. Run `offsetx-db new-secrets-key` in a **private interactive terminal**,
+   or use `offsetx-db new-secrets-key --output /private/path/provider.key` to
+   create a fresh owner-only (0600) file. Never pipe the key into CI/deployment
+   logs. Copy it into a password manager and remove the temporary file after
+   confirming the protected copy; it is stored nowhere by the application,
+   and without it nobody can read the provider keys in the database.
 3. Set `OFFSETX_DATABASE_URL` and `OFFSETX_SECRETS_KEY` where the service's
    environment is set (on Render: the service's Environment page), and deploy.
 4. `/health/ready` answers `ready`; type the provider keys in Connectors again,

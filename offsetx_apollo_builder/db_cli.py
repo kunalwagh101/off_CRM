@@ -213,7 +213,6 @@ def _open_private_key_file(target: Path) -> int:
         os.name != "posix"
         or not hasattr(os, "O_DIRECTORY")
         or not hasattr(os, "O_NOFOLLOW")
-        or os.open not in os.supports_dir_fd
     ):
         if any(parent.is_symlink() for parent in (target.parent, *target.parent.parents)):
             raise OSError("Private key destination has a linked parent")

@@ -75,6 +75,9 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
         except FileNotFoundError:
             if generate_bytes is None:
                 raise ValueError("Local credential file is missing; restore it from a private backup")
+            # Generate first. If secure randomness fails, do not leave a
+            # permanently invalid zero-byte credential after O_EXCL creation.
+            value = secrets.token_urlsafe(generate_bytes)
             try:
                 fd = os.open(
                     name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | flags_no_follow,
@@ -82,7 +85,6 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
                 )
             except FileExistsError:
                 raise ValueError("Local credential file was created concurrently; restart safely") from None
-            value = secrets.token_urlsafe(generate_bytes)
             with os.fdopen(fd, "w", encoding="ascii") as secret_file:
                 secret_file.write(value)
             return value

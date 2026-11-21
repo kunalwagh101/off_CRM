@@ -376,3 +376,40 @@ def test_D456_loopback_development_and_token_clients_still_work(tmp_path):
         )
         assert response.status_code == 201, response.text
 
+@pytest.mark.parametrize("host,may_print", [
+    ("127.0.0.1", True),
+    ("localhost", True),
+    ("0.0.0.0", False),
+    ("::", False),
+])
+def test_web_cli_does_not_print_api_token_on_public_bind(
+    tmp_path, monkeypatch, capsys, host, may_print,
+):
+    """D-491: a publicly bound Render process must not leak API tokens in logs.
+
+    Token-only local loopback installs may still show the token to their
+    interactive owner. A process reachable off-host cannot safely print it.
+    """
+    from offsetx_apollo_builder import web_cli
+
+    settings = _demo_settings(tmp_path)
+    settings.host = host
+    settings.api_token = "TEST-PRIVATE-API-TOKEN-" + "a" * 48
+    settings.demo_username = ""
+    settings.demo_password = ""
+    settings.session_secret = ""
+    monkeypatch.setattr(
+        web_cli.AppSettings, "from_env", classmethod(lambda cls: settings),
+    )
+    monkeypatch.setattr(web_cli, "create_app", lambda given: object())
+    run_calls = []
+    monkeypatch.setattr(
+        web_cli.uvicorn, "run",
+        lambda app, **kwargs: run_calls.append(kwargs),
+    )
+
+    assert web_cli.main([]) == 0
+    captured = capsys.readouterr()
+    assert (settings.api_token in captured.out) is may_print
+    assert settings.api_token not in captured.err
+    assert len(run_calls) == 1 and run_calls[0]["host"] == host

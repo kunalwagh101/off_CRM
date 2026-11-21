@@ -234,6 +234,13 @@ def _s3_client():
             # configuration must not send S3 credentials to loopback,
             # single-label or known internal/reserved DNS hostnames.
             hostname = host.rstrip(".").lower()
+            # libc accepts abbreviated, octal and hexadecimal IPv4 literals
+            # (for example 127.1 and 0x7f.0.0.1) that ipaddress rejects.
+            # Never pass those to an S3 SDK with backup credentials.
+            numeric_labels = hostname.split(".")
+            if all(re.fullmatch(r"(?:0x[0-9a-f]+|[0-9]+)", part)
+                   for part in numeric_labels):
+                raise ValueError("legacy numeric IP address")
             reserved_suffixes = (
                 ".localhost", ".localdomain", ".local", ".internal",
                 ".home.arpa", ".lan", ".test", ".invalid",

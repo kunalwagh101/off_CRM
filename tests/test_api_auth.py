@@ -441,3 +441,30 @@ def test_web_cli_never_logs_api_token_in_render_environment(
     captured = capsys.readouterr()
     assert settings.api_token not in captured.out
     assert settings.api_token not in captured.err
+
+
+def test_web_cli_does_not_print_api_token_when_stdout_is_a_pipe(
+    tmp_path, monkeypatch, capsys,
+):
+    """D-492: even localhost can log a bearer credential under a supervisor."""
+    from offsetx_apollo_builder import web_cli
+
+    settings = _demo_settings(tmp_path)
+    settings.host = "127.0.0.1"
+    settings.api_token = "TEST-PRIVATE-PIPE-TOKEN-" + "p" * 48
+    settings.demo_username = ""
+    settings.demo_password = ""
+    settings.session_secret = ""
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("RENDER_EXTERNAL_HOSTNAME", raising=False)
+    monkeypatch.setattr(web_cli.os, "isatty", lambda fd: False)
+    monkeypatch.setattr(
+        web_cli.AppSettings, "from_env", classmethod(lambda cls: settings),
+    )
+    monkeypatch.setattr(web_cli, "create_app", lambda given: object())
+    monkeypatch.setattr(web_cli.uvicorn, "run", lambda app, **kwargs: None)
+
+    assert web_cli.main([]) == 0
+    captured = capsys.readouterr()
+    assert settings.api_token not in captured.out
+    assert settings.api_token not in captured.err

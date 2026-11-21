@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam, { ToolGrantChoices } from "./AgentTeam";
+import AgentTeam, { ToolGrantChoices, roleRequestAttempt } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -66,5 +66,23 @@ describe('saved tool access', () => {
     expect(known).toContain('known-tool');
     expect(known).not.toContain('Unavailable saved tool');
     expect(known).toContain('checked=""');
+  });
+});
+
+
+describe("role actions keep the same receipt across uncertain retries", () => {
+  it("uses one key for the same pending effect, and changes key for new action context", () => {
+    let generated = 0;
+    const next = () => `agent-attempt-${++generated}`;
+    const payload = { workspace: "local", companion: "maker", role: "Poster", account_ids: ["a"] };
+    const first = roleRequestAttempt(null, payload, next);
+    expect(first.key).toBe("agent-attempt-1");
+    const retry = roleRequestAttempt(first, { ...payload, account_ids: ["a"] }, next);
+    expect(retry).toEqual(first);
+    expect(generated).toBe(1);
+    const changed = roleRequestAttempt(first, { ...payload, account_ids: ["b"] }, next);
+    expect(changed.key).toBe("agent-attempt-2");
+    const changedCompanion = roleRequestAttempt(first, { ...payload, companion: "director" }, next);
+    expect(changedCompanion.key).toBe("agent-attempt-3");
   });
 });

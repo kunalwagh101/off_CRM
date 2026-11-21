@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam, { ToolGrantChoices, roleRequestAttempt } from "./AgentTeam";
+import AgentTeam, { ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -84,5 +84,33 @@ describe("role actions keep the same receipt across uncertain retries", () => {
     expect(changed.key).toBe("agent-attempt-2");
     const changedCompanion = roleRequestAttempt(first, { ...payload, companion: "director" }, next);
     expect(changedCompanion.key).toBe("agent-attempt-3");
+  });
+});
+
+
+describe("uncertain Agent Team receipts survive reload without storing private content", () => {
+  it("restores the same receipt only for an identical hashed intent", async () => {
+    const records = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => records.get(key) ?? null,
+      setItem: (key: string, value: string) => { records.set(key, value); },
+      removeItem: (key: string) => { records.delete(key); },
+    };
+    const intent = {
+      workspace: "local", companion: "Maker", role: "Maker",
+      topic: "PRIVATE PRODUCT RESEARCH CONTENT",
+    };
+    const hashed = await roleIntentDigest(intent);
+    expect(hashed).toMatch(/^[0-9a-f]{64}$/);
+    const attempt = roleRequestAttempt(null, hashed, () => "role-once");
+    saveRoleRequestAttempt(storage, hashed, attempt);
+    expect([...records.values()].join("")).not.toContain("PRIVATE PRODUCT");
+    expect(loadRoleRequestAttempt(storage, hashed)).toEqual(attempt);
+    const changed = await roleIntentDigest({ ...intent, topic: "Different action" });
+    expect(loadRoleRequestAttempt(storage, changed)).toBeNull();
+    const restored = roleRequestAttempt(loadRoleRequestAttempt(storage, hashed), hashed, () => "unwanted-key");
+    expect(restored.key).toBe("role-once");
+    clearRoleRequestAttempt(storage, hashed);
+    expect(loadRoleRequestAttempt(storage, hashed)).toBeNull();
   });
 });

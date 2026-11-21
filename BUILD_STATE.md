@@ -1,3 +1,17 @@
+## 2026-11-22 — D-504 observed RED and targeted GREEN on live Render QA
+
+- Test-only original commit `0baa866` had **two expected RED failures**, with 3,436 unrelated passes and 149 skipped in GitHub Actions run `44961617228` (Python 3.11). Both failures prove a stranded token/signing-key file after injected entropy failure.
+- Fixed `4746864` targeted Render review secret-file suite **17 PASS**, production container `44961630723` PASS, functional Render deployment `dep-dc12h3ff3r2c73bd82ug` LIVE, and rerun of public-host smoke `44944989952` PASS 5/5 external HTTPS checks. Full five-job CI/real-PG and full Render review on the final documented source must be observed separately.
+- F-06.02, F-06.03, F-04.01 remain NOT DONE; external durable PostgreSQL, encrypted S3 backup/restore, logged-in UI and live providers remain open.
+
+## 2026-11-22 — D-504 local credential creation fails safely under entropy failure
+
+- Security/reliability audit F-06.02/S-06.02.23, local bootstrap. `_local_secret_file` previously opened its new credential filename with `O_CREAT|O_EXCL` before calling `secrets.token_urlsafe`. If secure randomness failed, the API token/session-signing file remained empty and every subsequent local startup rejected the invalid file, causing a persistent availability failure.
+- Test-first `0baa8662d320bbfce92185756bfd189c74db1459`: two tests inject an `OSError` from the entropy source, require a controlled failure **without leaving a file**, then require a successful retry and the correct saved value for both token and session secret.
+- Fix `4746864dc050ec0339aa7287ee4bd377b1924761`: generate the key bytes *before* exclusive creation. Existing-value reads, pinned parent directory, no-symlink, no-clobber, owner/link-count, mode-0600 and error handling are unchanged.
+- Source-level CI and Render review are currently requested, not yet release-certified; no change to the actual hosted QA customer data. A separate failure during disk write remains out of scope and should not be treated as atomic durability.
+- All 3 selected parent features remain **NOT DONE**. Independent S3 backup/restore, dedicated durable database, authenticated live UI, provider and comprehensive penetration acceptance remain open.
+
 ## 2026-11-22 — D-503 duplicate design decision ID corrected
 
 - Full GitHub CI 44958580729: Python 3.10/3.11/3.12 and real PostgreSQL PASS (PG 3547 passed/107 skipped), but board quality FAIL because the D-501 decision was inserted as duplicate DD-180. All 72 historical evidence commands passed first. The D-500 decision keeps DD-180; D-501 moves to unused DD-181. Added D-503 defect record. Rerun exact-source five-job CI before marking the handoff verified. Render code image dep-dc11mdmc6qcc73ckv3bg remains LIVE with SQLite 3409 pass/176 skipped and real PG 3498 pass/156 skipped.

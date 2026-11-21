@@ -2,6 +2,9 @@
 
 **Active branch: `develop`. The live GitHub branch, BOARD.md and verified Render deployments override every historical note below. Never push to `main` or change customer data as part of QA.**
 
+**2026-11-22 D-504 checkpoint:** The latest source on `develop` is `4746864`. Observed test-only RED on GitHub 44961617228 (2 failed/3436 unrelated passed/149 skipped) demonstrated a local API-token/session-secret recovery weakness when secure randomness fails after opening an empty file. New checks require no file on failed entropy and valid credentials on retry. Source fix `4746864` generates before `O_CREAT|O_EXCL`; Render targeted security checks `17 PASS`, production container build 44961630723 PASS. Exact-source full GitHub CI and Render review must be observed separately. The functional QA service is disposable and still not approved for customer data. F-06.02/F-06.03/F-04.01 remain NOT DONE. Evidence: `docs/evidence/2026-11-22-d504-entropy-failure.md`.
+
+
 **D-501 verification 2026-11-22:** RED four expected failed/3432 others passed at GitHub 44956948171; fix `48eb240`, targeted Render security suite 15 PASS, Docker container 44956962856 PASS, full final-source CI and review image still require terminal verification. Parent features remain NOT DONE.
 
 ## 2026-11-22 — D-501 existing credential-file ownership and hardlink refusal

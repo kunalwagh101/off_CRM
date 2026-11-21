@@ -313,6 +313,10 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
              "DROP COLLATION protected_collation"),
             ("CREATE TEXT SEARCH CONFIGURATION protected_search (COPY = pg_catalog.simple)",
              "DROP TEXT SEARCH CONFIGURATION protected_search"),
+            ("CREATE TEXT SEARCH DICTIONARY protected_dictionary (TEMPLATE = pg_catalog.simple)",
+             "DROP TEXT SEARCH DICTIONARY protected_dictionary"),
+            ("CREATE PUBLICATION protected_publication",
+             "DROP PUBLICATION protected_publication"),
         ):
             with psycopg.connect(named(destination_name)) as conn:
                 conn.execute(create)

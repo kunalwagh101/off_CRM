@@ -70,6 +70,14 @@ def verify(page, width):
     expect(role_campaign).to_have_value("")
     assert "QA image" not in role_campaign.inner_text()
     expect(role_campaign).to_contain_text("QA distribution")
+    # Real read-only Analyst path: existing distribution campaign, no provider
+    # credential, model request, external post or mutation.
+    page.get_by_label("Role", exact=True).select_option("Analyst")
+    page.get_by_label("Role campaign", exact=True).select_option(label="QA distribution")
+    page.get_by_role("button", name="Run selected role", exact=True).click()
+    page.get_by_label("Role result", exact=True).get_by_text(
+        "Measured campaign performance", exact=False
+    ).wait_for()
     page.get_by_label("Role", exact=True).select_option("Scout")
     page.get_by_label("Edit profile name", exact=True).fill(
         "Research revised " + str(width)

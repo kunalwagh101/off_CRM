@@ -2,6 +2,7 @@ from __future__ import annotations
 from .observability import traced_command
 
 import argparse
+import os
 
 import uvicorn
 from dotenv import load_dotenv
@@ -23,7 +24,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.port:
         settings.port = args.port
     settings.validate()
-    if settings.api_token and not settings.demo_login_enabled:
+    # On Render, stdout is an operator log, not the owner's private terminal.
+    # A logged API token would itself grant access to the hosted CRM.
+    local_private_console = (
+        settings.host in {"127.0.0.1", "localhost", "::1"}
+        and not os.environ.get("RENDER")
+        and not os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+    )
+    if settings.api_token and not settings.demo_login_enabled and local_private_console:
         # Printed, not logged: a token nobody can see is a lock with no key, and
         # the first thing an owner needs after this change is the value to paste
         # into the UI. Never printed when a demo login exists — then the browser

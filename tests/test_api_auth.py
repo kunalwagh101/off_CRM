@@ -395,6 +395,7 @@ def test_web_cli_does_not_print_api_token_on_public_bind(
     # The local-loopback cases must behave the same under Render build CI.
     monkeypatch.delenv("RENDER", raising=False)
     monkeypatch.delenv("RENDER_EXTERNAL_HOSTNAME", raising=False)
+    monkeypatch.setattr(web_cli.os, "isatty", lambda fd: fd == 1)
     settings = _demo_settings(tmp_path)
     settings.host = host
     settings.api_token = "TEST-PRIVATE-API-TOKEN-" + "a" * 48

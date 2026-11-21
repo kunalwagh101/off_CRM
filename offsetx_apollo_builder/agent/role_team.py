@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from ..observability import report_failure
+
 from .companions import CompanionRegistry, CompanionError
 
 ROLE_INSTRUCTIONS = {
@@ -76,7 +78,13 @@ def release_role_resources(role: str, engines: RoleEngines) -> None:
     )
     close = getattr(watcher, "close", None)
     if callable(close):
-        close()
+        try:
+            close()
+        except Exception as exc:
+            # The role action may already have saved drafts. Turning a
+            # successful response into HTTP 500 invites an unsafe retry.
+            # Keep the result intact and leave a secret-safe operator record.
+            report_failure(exc, operation="agent.role.watcher_cleanup")
 
 
 def execute_role(

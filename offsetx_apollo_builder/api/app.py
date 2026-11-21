@@ -319,7 +319,7 @@ UNSCOPED_CRM_API_ROOTS: frozenset[str] = frozenset({
     "/trends", "/image-briefs", "/image-assets", "/video-projects",
     "/video-media", "/video-renders", "/email-delivery",
     # Profiles have an independently encrypted, owner-scoped store.
-    "/provider-calls",
+    "/provider-calls", "/backups",
     "/ai/recall", "/ai/context", "/ai/plan", "/ai/run",
     "/agent-team", "/agent-routines", "/agent-routine-runs",
     "/agent-routine-status", "/agent-routine-notifications",

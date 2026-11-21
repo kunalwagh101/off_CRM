@@ -317,6 +317,8 @@ def test_real_postgres_snapshot_survives_object_copy_and_restores_equal_counts(
              "DROP TEXT SEARCH DICTIONARY protected_dictionary"),
             ("CREATE PUBLICATION protected_publication",
              "DROP PUBLICATION protected_publication"),
+            ("SELECT lo_create(481516234)",
+             "SELECT lo_unlink(481516234)"),
         ):
             with psycopg.connect(named(destination_name)) as conn:
                 conn.execute(create)

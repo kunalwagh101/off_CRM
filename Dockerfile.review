@@ -23,6 +23,8 @@ RUN uv sync --locked --extra dev --extra email --extra postgres
 ENV PATH="/review/.venv/bin:$PATH"
 # D-491: public Render logs may never reveal an API token; retain local setup only.
 RUN uv run pytest -q tests/test_api_auth.py -k web_cli
+# D-493: refusing key output to non-TTY logs must pass before expensive build gates.
+RUN uv run pytest -q tests/test_hosted_storage.py -k generated_hosted_keys_never_leak_to_nonterminal_stdout
 # Regression: fail early if an unsafe Vitest family release returns.
 RUN uv run pytest -q tests/test_frontend_vitest_pinning.py
 # D-473: exercise all old nonlocal-CRM isolation contracts before long QA gates.

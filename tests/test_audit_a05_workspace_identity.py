@@ -120,6 +120,8 @@ def test_A05_disabling_one_user_revokes_its_cookie_without_affecting_others(sess
     ("post", "/api/v1/campaigns", {"name": "Should not exist"}),
     ("post", "/api/v1/campaigns/guessed-cross-workspace-id/send", {}),
     ("post", "/api/v1/ai/recall/search", {"query": "other-company"}),
+    ("post", "/api/v1/backups/export", {}),
+    ("post", "/api/v1/backups/restore", {}),
     ("post", "/api/v1/privacy/subject-access", {"email": "other@example.com"}),
 ])
 def test_D451_legacy_shared_crm_refuses_non_owner_workspaces(sessions, method, path, body):
@@ -151,6 +153,7 @@ def test_D451_known_unscoped_routes_cannot_escape_by_suffix():
         "/api/v1/crm/accounts", "/api/v1/sales/leads/private-id",
         "/api/v1/privacy/deletions/request-id", "/api/v1/ai/recall/rebuild",
         "/api/v1/email-delivery/jobs", "/api/v1/agent-team/execute",
+        "/api/v1/backups/export", "/api/v1/backups/restore",
     ):
         assert is_unscoped_crm_api_path(protected), protected
     for independent in (
@@ -185,6 +188,9 @@ def test_D451_entire_live_api_route_inventory_has_a_tenancy_decision(sessions):
         "/memory", "/agent-permissions", "/operations", "/video",
         "/campaign-kinds", "/storage", "/meetings", "/meta",
     }
+    # One-click unsubscribe is a deliberate public, signed-token capability;
+    # do not put it behind workspace login or D-451's CRM middleware.
+    token_capability_roots = {"/email/unsubscribe"}
     scoped_ai_roots = {
         "/ai/projects", "/ai/chats", "/ai/providers", "/ai/workspace",
         "/ai/modes", "/ai/image", "/ai/egress-log", "/ai/failure-kinds",
@@ -207,6 +213,8 @@ def test_D451_entire_live_api_route_inventory_has_a_tenancy_decision(sessions):
             continue
         relative = path[len("/api/v1"):]
         if any(root_matches(relative, root) for root in scoped_roots):
+            continue
+        if any(root_matches(relative, root) for root in token_capability_roots):
             continue
         if any(root_matches(relative, root) for root in scoped_ai_roots):
             continue

@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam, { ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt } from "./AgentTeam";
+import AgentTeam, { ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt, roleExecutionIntent, recoverLegacyRoleRequestAttempt } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -112,5 +112,63 @@ describe("uncertain Agent Team receipts survive reload without storing private c
     expect(restored.key).toBe("role-once");
     clearRoleRequestAttempt(storage, hashed);
     expect(loadRoleRequestAttempt(storage, hashed)).toBeNull();
+  });
+});
+
+describe("role execution receipts ignore the unrelated companion selection", () => {
+  it("roleExecutionIntent keeps Maker retries stable when the selected companion changes", async () => {
+    const payload = { role: "Maker", campaign_id: "image-1", topic: "Private topic" };
+    const before = roleExecutionIntent("local", "owner", payload);
+    const afterSelectingDifferentCompanion = roleExecutionIntent("local", "owner", { ...payload });
+    expect(await roleIntentDigest(before)).toBe(await roleIntentDigest(afterSelectingDifferentCompanion));
+    expect(await roleIntentDigest(roleExecutionIntent("other", "owner", payload))).not.toBe(await roleIntentDigest(before));
+    expect(await roleIntentDigest(roleExecutionIntent("local", "colleague", payload))).not.toBe(await roleIntentDigest(before));
+    expect(await roleIntentDigest(roleExecutionIntent("local", "owner", { ...payload, topic: "changed" }))).not.toBe(await roleIntentDigest(before));
+    expect(JSON.stringify(before)).not.toContain("companion");
+  });
+
+  it("recovers a pre-fix pending receipt after selecting another companion and a reload", async () => {
+    const entries = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, value: string) => { entries.set(key, value); },
+      removeItem: (key: string) => { entries.delete(key); },
+    };
+    const payload = { role: "Poster", campaign_id: "distribution-1", account_ids: ["a"] };
+    const legacy = { workspace: "local", actor: "owner", companion: "old-companion", payload };
+    const oldDigest = await roleIntentDigest(legacy);
+    saveRoleRequestAttempt(storage, oldDigest, roleRequestAttempt(null, oldDigest, () => "existing-receipt"));
+
+    const intent = roleExecutionIntent("local", "owner", payload);
+    const recovered = await recoverLegacyRoleRequestAttempt(storage, intent, ["new-companion", "old-companion"]);
+    expect(recovered?.key).toBe("existing-receipt");
+    expect(recovered?.digests).toContain(oldDigest);
+    expect(await recoverLegacyRoleRequestAttempt(storage, roleExecutionIntent("other", "owner", payload), ["old-companion"])).toBeNull();
+    expect(await recoverLegacyRoleRequestAttempt(storage, roleExecutionIntent("local", "owner", { ...payload, account_ids: ["b"] }), ["old-companion"])).toBeNull();
+
+    const newDigest = await roleIntentDigest(intent);
+    const next = roleRequestAttempt(null, newDigest, () => recovered?.key ?? "unexpected");
+    saveRoleRequestAttempt(storage, newDigest, next);
+    expect(loadRoleRequestAttempt(storage, newDigest)?.key).toBe("existing-receipt");
+    clearRoleRequestAttempt(storage, newDigest);
+    for (const digest of recovered?.digests ?? []) clearRoleRequestAttempt(storage, digest);
+    expect(entries.size).toBe(0);
+  });
+
+  it("refuses to choose between two distinct legacy keys for the same actual role request", async () => {
+    const entries = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, value: string) => { entries.set(key, value); },
+      removeItem: (key: string) => { entries.delete(key); },
+    };
+    const payload = { role: "Director", gtm_request: { product_id: "p1" } };
+    for (const [companion, key] of [["a", "first-key"], ["b", "second-key"]] as const) {
+      const digest = await roleIntentDigest({ workspace: "local", actor: "owner", companion, payload });
+      saveRoleRequestAttempt(storage, digest, roleRequestAttempt(null, digest, () => key));
+    }
+    await expect(recoverLegacyRoleRequestAttempt(
+      storage, roleExecutionIntent("local", "owner", payload), ["a", "b"],
+    )).rejects.toThrow(/multiple pending/i);
   });
 });

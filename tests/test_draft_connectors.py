@@ -69,11 +69,14 @@ def test_actual_draft_generation_uses_workspace_broker_without_legacy_profiles(t
         assert client.post('/api/v1/workspaces', json={'username': 'beta', 'workspace_id': 'beta',
             'password': 'beta-password-123'}).status_code == 201
         assert client.post('/api/v1/auth/login', json={'username': 'beta', 'password': 'beta-password-123'}).status_code == 200
+        # D-451: beta is not permitted to use the install-wide campaign until
+        # ownership is migrated. The broker must never see beta's request.
         beta = client.post(f'/api/v1/campaigns/{campaign}/drafts/generate', json={'use_connectors': True, 'stages': ['initial']})
-        assert beta.status_code == 200 and beta.json()['generated'] == 1, beta.text
-        assert requests[-1][1] == 'beta'
-        assert 'OWNER_ONLY_PRIVATE_MEMORY' not in requests[-1][0].campaign_notes
-        assert 'BETA_APPROVED_MEMORY' in requests[-1][0].campaign_notes
+        assert beta.status_code == 403, beta.text
+        assert len(requests) == 1 and requests[0][1] == 'local'
+        assert 'OWNER_ONLY_PRIVATE_MEMORY' not in beta.text
+        assert 'BETA_APPROVED_MEMORY' not in beta.text
+        assert client.get(f'/api/v1/campaigns/{campaign}/drafts').status_code == 403
 
 
 def provider_for(result_text):

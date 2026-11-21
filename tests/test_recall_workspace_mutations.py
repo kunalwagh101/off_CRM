@@ -57,9 +57,12 @@ def test_signed_forget_cannot_delete_foreign_message_or_contact(tmp_path):
         assert client.post('/api/v1/workspaces', headers=owner, json={'username':'beta',
             'workspace_id':'beta', 'password':'beta-password-123'}).status_code == 201
         assert client.post('/api/v1/auth/login', json={'username':'beta', 'password':'beta-password-123'}).status_code == 200
-        assert client.post('/api/v1/ai/recall/forget', json={'message_id':'shared-message'}).json() == {'removed':0}
-        assert client.post('/api/v1/ai/recall/forget', json={'campaign_contact_id':'shared-membership'}).json() == {'removed':1}
+        # D-451 blocks legacy shared-CRM recall mutation altogether for
+        # nonlocal sessions; no foreign or own rows may change through HTTP.
+        assert client.post('/api/v1/ai/recall/forget', json={'message_id':'shared-message'}).status_code == 403
+        assert client.post('/api/v1/ai/recall/forget', json={'campaign_contact_id':'shared-membership'}).status_code == 403
         assert app.state.ai_recall.stats('alpha')['indexed'] == 1
+        assert app.state.ai_recall.stats('beta')['indexed'] == 1
         assert app.state.ai_recall.search('supplier', workspace_id='alpha')
 
 
@@ -163,6 +166,8 @@ def test_http_rebuild_refuses_unowned_legacy_source_before_reading_it(tmp_path, 
         assert client.post('/api/v1/workspaces', headers=owner, json={'username':'beta',
             'workspace_id':'beta', 'password':'beta-password-123'}).status_code == 201
         assert client.post('/api/v1/auth/login', json={'username':'beta', 'password':'beta-password-123'}).status_code == 200
-        assert client.post('/api/v1/ai/recall/rebuild').status_code == 409
+        # Customer HTTP is blocked at the shared-CRM perimeter. The install
+        # owner still gets the safe 409 with a tracked error reference above.
+        assert client.post('/api/v1/ai/recall/rebuild').status_code == 403
         assert app.state.ai_recall.stats('alpha')['indexed'] == 1
         assert app.state.ai_recall.stats('beta')['indexed'] == 0

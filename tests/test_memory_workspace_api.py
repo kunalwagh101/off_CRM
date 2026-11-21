@@ -28,32 +28,41 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         beta = client.post('/api/v1/memory', json={'content': 'BETA PRIVATE EVIDENCE'}).json()
         assert beta['workspace_id'] == 'beta'
         assert [row['id'] for row in client.get('/api/v1/memory').json()['items']] == [beta['id']]
-        campaign = client.post('/api/v1/campaigns', json={'name': 'Beta feedback'}).json()['id']
-        imported = client.post(f'/api/v1/campaigns/{campaign}/contacts/import', files={'file': (
+        # D-451: workspace-owned memory remains usable, but legacy campaign
+        # writes are refused until its rows have explicit workspace ownership.
+        assert client.post('/api/v1/campaigns', json={'name': 'Blocked beta feedback'}).status_code == 403
+        assert client.get('/api/v1/campaigns').status_code == 403
+        campaign = client.post('/api/v1/campaigns', headers=owner, json={'name': 'Owner feedback'}).json()['id']
+        imported = client.post(f'/api/v1/campaigns/{campaign}/contacts/import', headers=owner, files={'file': (
             'contacts.csv', b'Full Name,Email,Company,Category\nAnita Rao,anita@example.com,Example Exports,CBAM\n', 'text/csv')})
         assert imported.status_code == 200
-        contact = client.get(f'/api/v1/campaigns/{campaign}/contacts').json()['items'][0]
-        assert client.patch(f'/api/v1/campaigns/{campaign}/contacts/'+contact['id'], json={
+        contact = client.get(f'/api/v1/campaigns/{campaign}/contacts', headers=owner).json()['items'][0]
+        assert client.patch(f'/api/v1/campaigns/{campaign}/contacts/'+contact['id'], headers=owner, json={
             'outcome_label': 'positive', 'notes': 'BETA PRIVATE FEEDBACK'}).status_code == 200
-        generated = client.post(f'/api/v1/campaigns/{campaign}/drafts/generate', json={'stages': ['initial']})
+        generated = client.post(f'/api/v1/campaigns/{campaign}/drafts/generate', headers=owner, json={'stages': ['initial']})
         assert generated.json()['generated'] == 1
-        draft = client.get(f'/api/v1/campaigns/{campaign}/drafts').json()['items'][0]
-        assert client.patch(f'/api/v1/campaigns/{campaign}/drafts/'+draft['id'], json={
+        draft = client.get(f'/api/v1/campaigns/{campaign}/drafts', headers=owner).json()['items'][0]
+        assert client.patch(f'/api/v1/campaigns/{campaign}/drafts/'+draft['id'], headers=owner, json={
             'subject': draft['subject'], 'body': draft['body']+'\nBETA PRIVATE EDIT'}).status_code == 200
-        assert client.post(f'/api/v1/campaigns/{campaign}/drafts/bulk-replace', json={
+        assert client.post(f'/api/v1/campaigns/{campaign}/drafts/bulk-replace', headers=owner, json={
             'draft_ids': [draft['id']], 'find': 'BETA PRIVATE EDIT', 'replace': 'BETA PRIVATE CORRECTION',
             'preview_only': False}).status_code == 200
         inbox = tmp_path / 'data' / 'mail' / 'inbox'
         inbox.mkdir(parents=True, exist_ok=True)
         (inbox / 'reply.json').write_text(json.dumps({'id': 'beta-reply-1', 'from': 'anita@example.com',
             'subject': 'Re: evidence', 'body': 'PRIVATE RECEIVED EMAIL MUST NOT BECOME MEMORY'}))
-        reply = client.post(f'/api/v1/campaigns/{campaign}/replies/sync', json={'mode': 'local'})
+        reply = client.post(f'/api/v1/campaigns/{campaign}/replies/sync', headers=owner, json={'mode': 'local'})
         assert reply.status_code == 200 and reply.json()['matched'] == 1, reply.text
+        # Owner-generated observations remain with local; beta cannot see
+        # them just because an install-wide campaign exists.
+        owner_observations = client.get('/api/v1/memory', headers=owner).json()['items']
+        assert any(row['kind'] == 'labelled_outcome' for row in owner_observations)
+        assert any(row['kind'] == 'human_correction' for row in owner_observations)
+        assert any(row['kind'] == 'reply_observation' for row in owner_observations)
+        assert 'PRIVATE RECEIVED EMAIL' not in str(owner_observations)
         rows = client.get('/api/v1/memory').json()['items']
-        assert rows and all(row['workspace_id'] == 'beta' for row in rows)
-        assert any(row['kind'] == 'labelled_outcome' for row in rows)
-        assert any(row['kind'] == 'human_correction' for row in rows)
-        assert any(row['kind'] == 'reply_observation' for row in rows)
+        assert [row['id'] for row in rows] == [beta['id']]
+        assert all(row['workspace_id'] == 'beta' for row in rows)
         assert 'PRIVATE RECEIVED EMAIL' not in str(rows)
         client.cookies.clear()
         assert client.post('/api/v1/auth/login', json={'username': 'alpha', 'password': 'alpha-password-123'}).status_code == 200
@@ -61,5 +70,6 @@ def test_memory_reads_writes_stats_approval_and_feedback_are_workspace_owned(tmp
         assert client.patch('/api/v1/memory/'+beta['id'], json={'approved': False}).status_code == 404
         client.cookies.clear()
         own_rows = client.get('/api/v1/memory', headers=owner).json()['items']
-        assert [row['id'] for row in own_rows] == [saved['id']]
+        assert saved['id'] in [row['id'] for row in own_rows]
+        assert all(row['workspace_id'] == 'local' for row in own_rows)
         assert 'BETA PRIVATE' not in str(own_rows)

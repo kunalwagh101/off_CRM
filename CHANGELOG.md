@@ -1,3 +1,9 @@
+## 2026-11-21 — D-473: full-regression D-451 security contract update (unreleased)
+
+- Full Python 3.11 CI on `f7021b8` reached 3346 passed but eight older integration tests assumed nonlocal access to the install-wide CRM; D-451 now refuses those routes to prevent cross-tenant data exposure.
+- Tests now assert that beta cannot generate shared-campaign drafts or access shared call logs/recall, while the install-owner token still validates hostile inputs and performs owner-scoped feedback capture. The separately owned profile and memory paths remain usable.
+- No production security restriction was relaxed and no real customer migration was performed. Exact-source full Python (all versions), PostgreSQL, browser, security, and board verification must pass on the new commit before DONE.
+
 ## 2026-11-21 — D-472: preserve legacy CRM isolation in security regressions (unreleased)
 
 - Existing workspace-isolation tests attempted product creation through CRM-backed APIs that D-451 now correctly denies to nonlocal sessions. The baseline QA build failed two tests during setup with KeyError.

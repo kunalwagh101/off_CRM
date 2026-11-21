@@ -1,3 +1,9 @@
+## 2026-11-21 — D-473 full GitHub CI found eight legacy-D-451 test conflicts
+
+- GitHub Actions run `44900978605` Python 3.11: 8 failed, 3346 passed, 149 skipped. All eight failed because old tests expected nonlocal workspace access to shared campaigns/drafts/provider-call logs/recall; production D-451 guard intentionally returns 403.
+- Test source now keeps owner-token validation, scoped provider-key and memory guarantees, and negative 403 checks for nonlocal shared CRM. Actual backend access guard is **unchanged**.
+- The new exact-source full regression and external penetration checks remain pending. D-451 and S-06.01.06 still need workspace CRM migration with explicit ownership; do not silently reopen unscoped routes or claim DONE.
+
 ## 2026-11-21 — D-472 Render QA found stale D-125 isolation fixtures
 
 - The prior QA image `dep-dc0o7ee1egvs738i1amg` failed at Dockerfile.review WP1 check: two `tests/test_workspace_isolation.py` cases could not finish setup because D-451 had changed nonlocal GTM product writes from supported to HTTP 403. This is not proof that the product-reader permission guard failed.

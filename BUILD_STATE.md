@@ -1,3 +1,8 @@
+## 2026-11-21 — D-492 interactive token display follow-up, QA gate pending
+
+- F-06.02 token-only `web_cli` used a loopback host test but ignored whether stdout was a terminal: a localhost service under an unattended process supervisor would still write the bearer credential into captured logs. TDD new noninteractive pipe test source `05ce97e`; implementation `099c95e` requires `os.isatty(1)`, while `b6aad8d` explicitly models the interactive terminal for existing tests. No change to authentication or session validation.
+- Latest test SHA `b6aad8d` is queued/running for five-job CI; no exact-source Render or manual service acceptance yet. No status upgrade for F-06.02/F-06.03/F-04.01 until the full release gate passes. Offsite backup remains owner-configured and unverified.
+
 ## 2026-11-21 — D-490/D-491 continuation, current develop-only release gate
 
 - D-490 F-04.01/F-06.02: lost-response Agent Team role receipt now persists across reload without private text using SHA-256 intent fingerprints in tab sessionStorage (test-first b2e13b7, source 38f9c7f, browser reload 248a54e). CI 44913555466 all five jobs PASS; Python 3.12 3,394 PASS / 149 skipped; real PG 3,505 PASS / 107 skipped; board historical replays 72/72 and frontend 239 PASS. Render synthetic QA `dep-dc0r5js9v7es739n1ehg` at 248a54e logged Chromium Agent Team desktop/mobile PASS; Render full SQLite 3,367 PASS / 176 skipped; actual live status and PostgreSQL final result require separate check. No customer/provider action run.

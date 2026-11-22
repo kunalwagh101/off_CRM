@@ -1,3 +1,7 @@
+## 2026-11-22 — D-513 A33 test harness start-state correction
+
+- Fixed a false assumption in the new desktop/mobile acceptance check: the fresh mobile context can select the latest campaign from the server, not necessarily the first seed. It now verifies the initial selection is a real server row, while keeping strict new-create/manual-switch/reload checks. Exact-commit CI/Render checks are still pending; no app code changed.
+
 ## 2026-11-22 — A33 real-browser acceptance added to CI
 
 - F-06.02 / S-06.02.23: new disposable real Chromium QA script covers campaign creation, immediate active selection, Contacts navigation, browser reload, and manual selection/reload at 1280px and 390px. It uses synthetic campaigns and a short-lived isolated local server and database, never customer data or external providers.

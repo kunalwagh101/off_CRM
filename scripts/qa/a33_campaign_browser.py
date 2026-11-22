@@ -95,7 +95,15 @@ def main() -> None:
                                     page.goto(base + "/#campaigns", wait_until="domcontentloaded")
                                     page.get_by_role("heading", name="Campaigns", exact=True).wait_for()
                                     active = page.get_by_label("Active campaign")
-                                    expect(active).to_have_value(first_id)
+                                    # A fresh mobile browser has different local storage.
+                                    # Do not assume it starts on the seed campaign after the
+                                    # desktop run created another (newer) campaign.
+                                    expect(active).to_be_enabled()
+                                    existing = client.get("/api/v1/campaigns?limit=200")
+                                    assert existing.status_code == 200
+                                    assert active.input_value() in {
+                                        row["id"] for row in existing.json()["items"]
+                                    }
                                     page.get_by_role("button", name="Create campaign", exact=True).first.click()
                                     modal = page.get_by_role("dialog", name="Create campaign")
                                     modal.get_by_label("Campaign name").fill(f"A33 New QA {width}")

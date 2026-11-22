@@ -18,3 +18,7 @@ Any incorrect selection, missing persistence, UI error, API failure, or browser 
 Code and workflow were added to the selected F-06.02 scope as regression QA. This document initially records **no observed final-source browser result**. A completed GitHub quality log must be inspected before calling the new QA verified. The separate Render service `off-crm-qa-major-1997-20261121` (workspace `majors_97`) rejected build `dep-dc1ipb4s728c73ci9jd0` on 2026-11-22 due to exhausted build minutes. This local Chromium proof cannot replace current-source manual Render acceptance or customer-release security and durability checks.
 
 The audit A33 status remains pending live deployment until those checks are completed.
+
+## QA harness correction D-513 (before observed browser result)
+
+A review found an invalid starting-state expectation: desktop creation adds a second campaign, so a fresh mobile browser need not default to the original seeded ID. The test now accepts any actually persisted current selection at startup, while still strictly requiring the newly created campaign and later manual switch to survive reload. This is a test harness correction, not a product repair. Current CI execution is still required.

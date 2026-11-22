@@ -6,7 +6,7 @@ import json
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 class SmokeError(RuntimeError):
@@ -31,6 +31,13 @@ def _origin(value: str) -> str:
     return f"https://{parsed.hostname}"
 
 
+class _RefuseRedirect(HTTPRedirectHandler):
+    """Never allow a smoke probe to follow a redirect, even on the same host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _request(base_url: str, path: str, *, method: str = "GET",
              data: bytes | None = None) -> tuple[int, dict[str, str], bytes]:
     headers = {"User-Agent": "off-crm-render-qa/1"}
@@ -38,7 +45,7 @@ def _request(base_url: str, path: str, *, method: str = "GET",
         headers.update({"Content-Type": "application/json", "Origin": base_url})
     req = Request(base_url + path, data=data, method=method, headers=headers)
     try:
-        with urlopen(req, timeout=30) as response:
+        with build_opener(_RefuseRedirect).open(req, timeout=30) as response:
             return (response.status,
                     {k.lower(): v for k, v in response.headers.items()},
                     response.read(16_384))

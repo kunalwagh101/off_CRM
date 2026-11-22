@@ -22,3 +22,9 @@ A separate local Python regex fixture reproducing the live scanner first returne
 ## Live/customer constraints
 
 F-06.02 remains IN_PROGRESS. The actual Render QA service has not deployed the newest source because the selected workspace ran out of build pipeline minutes. Current source QA, isolated Docker, a disposable Render demo and a signed-in production customer workflow are **different evidence categories**. No customer records/provider emails or paid infrastructure were touched. Outstanding: independent offsite encrypted backup and actual restore, dedicated hosted PostgreSQL, durable media/object storage, supervised worker, cross-workspace CRM tenant isolation, live browser/provider/sandbox and independent penetration.
+
+## A35 / D-511 — helper-generated frontend URL calls
+
+The frontend source scan found 16 API calls passing paths through local helpers rather than literal API arguments, including CRM quality/compare/search, campaigns, contacts, queue and inbox. The previous A35 test ignored these routes. The updated test inventory resolves a helper's simple static template or pagePath return and compares it against actual FastAPI routes; unknown helper syntax raises a test failure instead of silently skipping.
+
+Isolated local scanner TDD: original **3 failed**, updated **3 passed**. The existing successful GitHub [45025552759](https://github.com/kunalwagh101/off_CRM/actions/runs/45025552759), five jobs on prior commit `118f453`, **predates D-511**. The final D-511 commit needs separate CI verification. New Render builds failed before code execution when workspace `majors_97` exhausted pipeline minutes: deploy `dep-dc1celtg1s2s73cvt52g`; existing functional service runs older commit `4e5de7d`. No fresh manual Render verification, customer access or live provider test is claimed. F-06.02/S-06.02.23 remain IN_PROGRESS.

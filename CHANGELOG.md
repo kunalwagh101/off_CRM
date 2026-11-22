@@ -1,3 +1,8 @@
+## 2026-11-22 — A35 / D-511 frontend helper route coverage
+
+- F-06.02 / S-06.02.23: added audit regression for 16 existing helper-generated API calls across CRM, campaign, contacts, queue and inbox screens. The scanner resolves simple static local helpers and fails closed for unsupported helper syntax. No production application runtime was modified.
+- Isolated TDD scanner RED: 3 failed. Revised scanner GREEN: 3 passed. Full latest-source CI and new Render manual acceptance are pending. Parent feature remains IN_PROGRESS.
+
 ## 2026-11-22 — A01–A04, A26, A30, A31 and A35 source audit recheck
 
 - F-06.02 / S-06.02.23: passing five-job GitHub [45019165204](https://github.com/kunalwagh101/off_CRM/actions/runs/45019165204) exercised the core WP1 production mount, concurrency, encrypted backup and restore regressions, A30 doc contract and A35 literal frontend-to-server API path contract. Its Python 3.11 run reported 3,459 passing/149 skipped; PostgreSQL 3,570 passing/107 skipped; development and production npm audit each reported 0 vulnerabilities. These are **source/isolated QA** results, not proof of hosted customer durability.

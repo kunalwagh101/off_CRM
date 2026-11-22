@@ -5,14 +5,17 @@ never existed, so its Gmail panel showed an error to every owner who opened it.
 Nothing failed, because the frontend tests render screens without a server and
 the backend tests never read the frontend. This reads both.
 
-Only paths written out at the call site are checked — a path assembled in a
-variable first is invisible here. `${…}` parts match one path segment, the way
-a `{param}` does on the server; a query string is ignored.
+Literal API calls and local helper-generated paths are checked. Unknown helpers
+fail closed rather than silently vanishing from the inventory. `${…}` segments
+match server path parameters, and query strings are ignored.
 """
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
+
+import pytest
 
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
@@ -39,13 +42,42 @@ CALL = re.compile(
 )
 
 
+HELPER_CALL = re.compile(
+    r"api\.(?P<method>" + "|".join(METHODS)
+    + r")(?:<[^()]*>)?\s*\(\s*(?P<helper>[A-Za-z_$][\w$]*)\s*\("
+)
+
+
+def _indirect_path(source: str, helper: str) -> str:
+    """Resolve a simple local helper, refusing unknown dynamic route logic."""
+    signature = re.search(
+        rf"\b(?:export\s+)?function\s+{re.escape(helper)}\s*\([^)]*\)\s*:\s*string\s*\{{",
+        source,
+    )
+    if signature is None:
+        raise AssertionError(f"A35 unresolved indirect API route helper: {helper}")
+    end = re.search(r"(?m)^\s*}\s*$", source[signature.end():])
+    body = source[signature.end():signature.end() + end.start()] if end else ""
+    route = re.search(
+        r"\breturn\s+(?:pagePath\(\s*)?(?P<quote>[\x60\"'])(?P<path>/[^\x60\"']*)(?P=quote)",
+        body,
+    )
+    if route is None:
+        raise AssertionError(f"A35 unresolved indirect API route helper: {helper}")
+    return route.group("path").split("?", 1)[0]
+
+
 def _called() -> set[tuple[str, str, str]]:
     calls = set()
     for path in FRONTEND.rglob("*.ts*"):
         if ".test." in path.name:
             continue
-        for match in CALL.finditer(path.read_text(encoding="utf-8")):
+        source = path.read_text(encoding="utf-8")
+        for match in CALL.finditer(source):
             target = match.group("path").split("?", 1)[0]
+            calls.add((METHODS[match.group("method")], target, path.name))
+        for match in HELPER_CALL.finditer(source):
+            target = _indirect_path(source, match.group("helper"))
             calls.add((METHODS[match.group("method")], target, path.name))
     return calls
 
@@ -117,3 +149,40 @@ def test_A35_literal_route_scan_covers_nested_generic_type_arguments():
         ("post", "/campaigns"),
         ("get", "/meta"),
     }
+
+
+def test_A35_indirect_helpers_include_template_and_paginated_routes(tmp_path, monkeypatch):
+    """An API call via a page helper must be checked against server routes."""
+    frontend = tmp_path / "src"
+    frontend.mkdir()
+    (frontend / "Helpers.tsx").write_text(
+        """
+        export function queuePagePath(id: string): string {
+          return `/campaigns/${encodeURIComponent(id)}/queue?limit=100`;
+        }
+        api.get<QueueResponse>(queuePagePath(campaignId));
+        export function qualityPath(page: number): string {
+          return pagePath("/crm/quality", {}, page);
+        }
+        api.get(qualityPath(page));
+        """,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys.modules[__name__], "FRONTEND", frontend)
+    assert _called() == {
+        ("GET", "/campaigns/${encodeURIComponent(id)}/queue", "Helpers.tsx"),
+        ("GET", "/crm/quality", "Helpers.tsx"),
+    }
+
+
+def test_A35_unknown_indirect_helpers_fail_closed(tmp_path, monkeypatch):
+    """Never quietly ignore an indirect API path that cannot be resolved."""
+    frontend = tmp_path / "src"
+    frontend.mkdir()
+    (frontend / "Unknown.tsx").write_text(
+        "api.get<Payload>(missingRoute(value))",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(sys.modules[__name__], "FRONTEND", frontend)
+    with pytest.raises(AssertionError, match="A35 unresolved indirect API route helper"):
+        _called()

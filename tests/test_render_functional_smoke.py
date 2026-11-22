@@ -34,6 +34,9 @@ def _fake_responses(authenticated=False, dashboard_code=401, login_code=401):
                         "workspace_id": "", "expires_at": None}).encode(),
         ),
         ("GET", "/api/v1/dashboard"): (dashboard_code, {}, b""),
+        ("GET", "/api/v1/companions"): (401, {}, b""),
+        ("GET", "/api/v1/storage/readiness"): (401, {}, b""),
+        ("GET", "/api/v1/ai/egress-log"): (401, {}, b""),
         ("POST", "/api/v1/auth/login"): (login_code, {}, b""),
     }
 
@@ -48,7 +51,10 @@ def test_render_smoke_checks_real_unauthenticated_boundaries(monkeypatch):
 
     monkeypatch.setattr(smoke, "_request", fake_request)
     checks = smoke.run_smoke("https://off-crm-qa.onrender.com")
-    assert set(checks) == {"root", "ready", "anonymous_session", "private_dashboard", "wrong_login"}
+    assert set(checks) == {
+        "root", "ready", "anonymous_session", "private_dashboard",
+        "private_companions", "private_storage", "private_ai_egress", "wrong_login",
+    }
     assert observed == list(responses)
     
 
@@ -63,5 +69,32 @@ def test_render_smoke_rejects_false_success_or_exposed_private_api(monkeypatch, 
         smoke, "_request",
         lambda base_url, path, *, method="GET", data=None: responses[(method, path)],
     )
+    with pytest.raises(smoke.SmokeError):
+        smoke.run_smoke("https://off-crm-qa.onrender.com")
+
+
+@pytest.mark.parametrize("path", [
+    "/api/v1/companions",
+    "/api/v1/storage/readiness",
+    "/api/v1/ai/egress-log",
+])
+def test_render_smoke_detects_exposed_feature_data(monkeypatch, path):
+    """A change exposing agent, backup or model data must fail the live gate."""
+    responses = _fake_responses()
+    responses[("GET", path)] = (200, {}, b"private")
+    monkeypatch.setattr(smoke, "_request", lambda base_url, p, *, method="GET", data=None: responses[(method, p)])
+    with pytest.raises(smoke.SmokeError):
+        smoke.run_smoke("https://off-crm-qa.onrender.com")
+
+
+@pytest.mark.parametrize("path", [
+    "/api/v1/companions",
+    "/api/v1/storage/readiness",
+    "/api/v1/ai/egress-log",
+])
+def test_render_smoke_rejects_anonymous_session_cookie_on_private_get(monkeypatch, path):
+    responses = _fake_responses()
+    responses[("GET", path)] = (401, {"set-cookie": "session=should-not-exist"}, b"")
+    monkeypatch.setattr(smoke, "_request", lambda base_url, p, *, method="GET", data=None: responses[(method, p)])
     with pytest.raises(smoke.SmokeError):
         smoke.run_smoke("https://off-crm-qa.onrender.com")

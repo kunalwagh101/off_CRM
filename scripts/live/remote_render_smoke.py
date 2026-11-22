@@ -82,10 +82,19 @@ def run_smoke(base_url: str) -> list[str]:
         raise SmokeError(f"Anonymous session contract failed: HTTP {code}")
     checks.append("anonymous_session")
 
-    code, _, _ = _request(origin, "/api/v1/dashboard")
-    if code != 401:
-        raise SmokeError(f"Anonymous dashboard was not denied: HTTP {code}")
-    checks.append("private_dashboard")
+    # Each route is a registered feature entry point. Anonymous access must
+    # not return feature data or mint a session cookie on a denial.
+    private_routes = (
+        ("private_dashboard", "/api/v1/dashboard"),
+        ("private_companions", "/api/v1/companions"),
+        ("private_storage", "/api/v1/storage/readiness"),
+        ("private_ai_egress", "/api/v1/ai/egress-log"),
+    )
+    for label, path in private_routes:
+        code, headers, _ = _request(origin, path)
+        if code != 401 or "set-cookie" in headers:
+            raise SmokeError(f"Anonymous {label} was not safely denied: HTTP {code}")
+        checks.append(label)
 
     body = json.dumps({
         "username": "unconfigured-qa-probe",

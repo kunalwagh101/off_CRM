@@ -20,7 +20,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (1 written):**
 
-1. **Given** the payload builder, **when** any request is assembled, **then** a
+1. **Given** the payload builder, **when** any request is assembled, **then** a scan for credential-shaped material passes.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -36,8 +36,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** any API endpoint outside the documented closed public bootstrap /
-2. **Given** any body, **when** it is malformed, **then** the response is a 4xx
+1. **Given** any API endpoint outside the documented closed public bootstrap / signed-callback allowlist, **when** called without an authenticated session or install token, **then** it refuses before business logic runs.
+2. **Given** any body, **when** it is malformed, **then** the response is a 4xx with a bounded message, never a stack trace and never an echo of sensitive request-body content.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -53,10 +53,10 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (4 written):**
 
-1. **Given** a positive spend ceiling, **when** the next model decision would
-2. **Given** a positive latency ceiling, **when** a completed provider or browser
+1. **Given** a positive spend ceiling, **when** the next model decision would cross it, **then** no provider call starts and the run ends `over_budget` with the ceiling and projected next spend recorded.
+2. **Given** a positive latency ceiling, **when** a completed provider or browser operation makes cumulative recorded `took_ms` reach or exceed it, **then** no new unit of work starts and the run ends `over_latency` with ceiling, actual latency and any in-flight overrun recorded.
 3. **Given** a run that is resumed, **when** no new latency ceiling is supplied,
-4. **Given** a zero ceiling, **when** the run executes, **then** that dimension is
+4. **Given** a zero ceiling, **when** the run executes, **then** that dimension is uncapped exactly as before; a negative, boolean or non-integer latency ceiling is refused before the run starts.
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.03.a integrate latency with the existing trace/run/resume
 
@@ -73,7 +73,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (3 written):**
 
 1. **Given** an identified person, **when** a subject-access request is executed,
-2. **Given** a confirmed deletion request, **when** it succeeds, **then** the
+2. **Given** a confirmed deletion request, **when** it succeeds, **then** the person's data is removed from every registered mutable store including CRM research/discovery records, crawler URL/cache state that identifies the subject, trace captures/screenshots and generated subject-specific artifacts, and a non-personal deletion receipt records what store classes were cleared.
 3. **Given** any registered store fails deletion, **when** the operation runs,
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.04.a define one store inventory/subject-match contract and
@@ -90,7 +90,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (1 written):**
 
-1. **Given** any interactive screen, **when** navigated by keyboard alone, **then**
+1. **Given** any interactive screen, **when** navigated by keyboard alone, **then** every action is reachable and focus is visible.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -106,8 +106,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** a DONE item whose named test does not exist, **when** the verifier
-2. **Given** an orphan requirement, **when** the verifier runs, **then** it exits
+1. **Given** a DONE item whose named test does not exist, **when** the verifier runs, **then** it exits non-zero.
+2. **Given** an orphan requirement, **when** the verifier runs, **then** it exits non-zero.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -140,8 +140,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** the board, **when** every DONE evidence command is read, **then**
-2. **Given** a clean checkout, **when** the documented setup is run and the
+1. **Given** the board, **when** every DONE evidence command is read, **then** they all invoke the same runner.
+2. **Given** a clean checkout, **when** the documented setup is run and the verifier follows, **then** it passes without a second, undocumented step.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -159,7 +159,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 1. **Given** concurrent transactions on `OutreachStore`, **when** they run,
 2. **Given** a bare `store.connection.execute(...)` outside a transaction,
-3. **Given** a long-lived connection assigned anywhere in `outreach/`, **when**
+3. **Given** a long-lived connection assigned anywhere in `outreach/`, **when** the package is parsed, **then** it is wrapped by `GuardedConnection`.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -175,9 +175,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** no token and no demo login, **when** the app is constructed, **then**
-2. **Given** a local install that has never been configured, **when** it starts
-3. **Given** a request whose `Host` is not one this server answers to, **when** it
+1. **Given** no token and no demo login, **when** the app is constructed, **then** it refuses to start and says how to fix it. **(done)**
+2. **Given** a local install that has never been configured, **when** it starts through `run_offsetx_web.py`, **then** a token is generated at `0600`, printed once, and stable across restarts. **(done)**
+3. **Given** a request whose `Host` is not one this server answers to, **when** it arrives, **then** it is refused with 421 before any other check, including the public-path exemption. **(done)**
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -193,8 +193,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** a story in `BACKLOG` whose declared dependencies are all `DONE` and
-2. **Given** a story in `READY` whose dependencies are not all `DONE`, **when**
+1. **Given** a story in `BACKLOG` whose declared dependencies are all `DONE` and which has no open question against it, **when** the verifier runs, **then** it names the story as ready to move.
+2. **Given** a story in `READY` whose dependencies are not all `DONE`, **when** the verifier runs, **then** it fails — the Definition of Ready is not advisory.
 3. **Given** a story whose dependency line names an id that does not exist,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -211,9 +211,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** a DONE entry whose `commit:` is reachable from `HEAD`, **when** the
-2. **Given** a DONE entry whose `commit:` names an object that exists but is not
-3. **Given** a DONE entry whose `commit:` names no object at all, **when** the
+1. **Given** a DONE entry whose `commit:` is reachable from `HEAD`, **when** the verifier runs, **then** it passes.
+2. **Given** a DONE entry whose `commit:` names an object that exists but is not on the branch — the usual cause is `git commit --amend` after the sha was written down — **when** the verifier runs, **then** it fails and names the entry.
+3. **Given** a DONE entry whose `commit:` names no object at all, **when** the verifier runs, **then** it fails.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -229,10 +229,10 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (4 written):**
 
-1. **Given** `DEFECT_LOG.md`, **when** it is read, **then** every defect found
-2. **Given** a defect recorded as `open`, **when** the verifier runs, **then** it
-3. **Given** two rows sharing an id, **when** the verifier runs, **then** it
-4. **Given** `DECISIONS.md`, **when** it is read, **then** every entry says what
+1. **Given** `DEFECT_LOG.md`, **when** it is read, **then** every defect found carries an id, the date it was found, its kind, one plain-English line saying what went wrong, and whether it is fixed or filed.
+2. **Given** a defect recorded as `open`, **when** the verifier runs, **then** it fails unless that row names a backlog id that exists — an unfixed defect with nowhere to go is a defect nobody will fix.
+3. **Given** two rows sharing an id, **when** the verifier runs, **then** it fails. An id that points at two things points at neither.
+4. **Given** `DECISIONS.md`, **when** it is read, **then** every entry says what was given up, because a decision with no cost was not a decision.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -248,8 +248,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** a test that needs a particular step's id, **when** it runs, **then**
-2. **Given** a new step added anywhere in a run, **when** the suite runs, **then**
+1. **Given** a test that needs a particular step's id, **when** it runs, **then** it locates the step by kind or content, not by a literal like `step-000002`.
+2. **Given** a new step added anywhere in a run, **when** the suite runs, **then** no test fails because the numbering moved.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -265,9 +265,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** a DONE evidence commit older than `HEAD`, **when** CI runs the
-2. **Given** DONE frontend evidence, **when** CI runs the verifier, **then**
-3. **Given** the CI workflow itself, **when** its regression test runs, **then**
+1. **Given** a DONE evidence commit older than `HEAD`, **when** CI runs the verifier, **then** full ancestry is available and a reachable commit passes.
+2. **Given** DONE frontend evidence, **when** CI runs the verifier, **then** `npm ci` has already completed and the named frontend test can execute.
+3. **Given** the CI workflow itself, **when** its regression test runs, **then** both ordering constraints above are pinned in code.
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.15.a repair checkout/dependency ordering (<=1 day);
 
@@ -283,9 +283,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** a clean `npm ci`, **when** `npm audit --omit=dev` runs, **then** the
+1. **Given** a clean `npm ci`, **when** `npm audit --omit=dev` runs, **then** the production dependency tree reports zero known vulnerabilities.
 2. **Given** the full development dependency tree, **when** `npm audit` runs,
-3. **Given** a remediation that requires a breaking upgrade, **when** it is
+3. **Given** a remediation that requires a breaking upgrade, **when** it is applied, **then** frontend tests and the production build prove the upgrade rather than relying on `npm audit fix --force`.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -302,7 +302,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (2 written):**
 
 1. **Given** a DONE story that depends on a READY, BACKLOG or BLOCKED story,
-2. **Given** a DONE story whose declared dependencies are all DONE, **when** the
+2. **Given** a DONE story whose declared dependencies are all DONE, **when** the verifier runs, **then** the dependency check passes.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -319,8 +319,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (3 written):**
 
 1. **Given** the current private repository and `.github/workflows/ci.yml`,
-2. **Given** the hosted job cannot acquire a runner because of an account,
-3. **Given** GitHub-hosted execution is unavailable but an approved self-hosted
+2. **Given** the hosted job cannot acquire a runner because of an account, repository or GitHub Actions service restriction, **when** the failure is inspected, **then** the blocker is recorded explicitly and no application story uses that run as passing evidence.
+3. **Given** GitHub-hosted execution is unavailable but an approved self-hosted runner is intentionally configured, **when** the same locked commands run,
 
 **Named tasks/subtasks:** **Tasks:** verify owner Billing & licensing → Actions usage/budgets/payment
 
@@ -337,8 +337,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (3 written):**
 
 1. **Given** the thirty-odd branches of 2026-09-23, **when** they are consolidated,
-2. **Given** two lines that used the same story, requirement, defect or decision
-3. **Given** the consolidated branch, **when** the full Python suite, ruff gate,
+2. **Given** two lines that used the same story, requirement, defect or decision IDs for different things, **when** they meet, **then** the later ones are renumbered and each renumbered entry says what it was called before.
+3. **Given** the consolidated branch, **when** the full Python suite, ruff gate, frontend tests and build, and the board verifier run, **then** all pass; a test that passed only because it checked nothing is repaired and shown to fail when the code is broken on purpose.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -354,56 +354,56 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (50 written):**
 
-1. **Given** a shallow clone that lacks a recorded commit, **when** the verifier
-2. **Given** the CI workflow, **when** it checks out the repository, **then** it
-3. **Given** the required fields, **when** a product is created, **then** it is
-4. **Given** a missing or out-of-bounds required field, a website that is not
+1. **Given** a shallow clone that lacks a recorded commit, **when** the verifier runs, **then** it fails with a message naming the shallow clone and `git fetch --unshallow`, not one saying the commit does not exist.
+2. **Given** the CI workflow, **when** it checks out the repository, **then** it fetches full history so the ancestry rule can run there.
+3. **Given** the required fields, **when** a product is created, **then** it is stored at version 1 and reads back identically.
+4. **Given** a missing or out-of-bounds required field, a website that is not `http(s)`, or more list items than the bound, **when** it is saved, **then** it is refused with a sentence naming the field.
 5. **Given** an email address anywhere in the product, **when** it is saved,
-6. **Given** an existing product, **when** it is edited, **then** its version
-7. **Given** a forbidden claim, **when** text is checked, **then** the phrase is
-8. **Given** a product in one workspace, **when** another workspace reads, edits
-9. **Given** the Product screen, **when** it renders, **then** the required
-10. **Given** a product and campaigns, **when** the owner sets the product's
-11. **Given** an email template using `{product_offer}` and a campaign linked to a
-12. **Given** a campaign with no product, **when** a draft is created from a
-13. **Given** a rendered draft containing one of the linked product's forbidden
-14. **Given** a distribution campaign linked to a product and no angle, **when**
-15. **Given** an explicit angle, **when** the pipeline runs, **then** the explicit
+6. **Given** an existing product, **when** it is edited, **then** its version rises by exactly one.
+7. **Given** a forbidden claim, **when** text is checked, **then** the phrase is found case-insensitively as a whole phrase — including one ending in `%` — and not inside a longer word.
+8. **Given** a product in one workspace, **when** another workspace reads, edits or deletes it, **then** the answer is not found.
+9. **Given** the Product screen, **when** it renders, **then** the required fields and the forbidden-claims box are present.
+10. **Given** a product and campaigns, **when** the owner sets the product's campaigns, **then** each campaign is linked to exactly one product and the new set replaces the old one.
+11. **Given** an email template using `{product_offer}` and a campaign linked to a product, **when** a draft is created, **then** the placeholder is filled from the product.
+12. **Given** a campaign with no product, **when** a draft is created from a template using a product placeholder, **then** it renders empty rather than failing, and templates without product placeholders render exactly as before.
+13. **Given** a rendered draft containing one of the linked product's forbidden claims, **when** it is audited, **then** the audit flags the claim.
+14. **Given** a distribution campaign linked to a product and no angle, **when** the trend pipeline runs over HTTP or from the automation timer, **then** the product one-liner is the angle **and** the writer's data class is `campaign`.
+15. **Given** an explicit angle, **when** the pipeline runs, **then** the explicit angle wins over the product.
 16. **Given** a video campaign linked to a product, **when** the director runs,
-17. **Given** any director call, **when** the egress log is read, **then** it
-18. **Given** a model reply naming a channel kind or an audience source outside
-19. **Given** a reply proposing more email volume than the connected identities
+17. **Given** any director call, **when** the egress log is read, **then** it shows everything that left, the system prompt included.
+18. **Given** a model reply naming a channel kind or an audience source outside the vocabulary, **when** it is parsed, **then** the plan is refused by name with the known values.
+19. **Given** a reply proposing more email volume than the connected identities carry, or more posts than the accounts allow, **when** it is parsed, **then** the volume is clamped and a note says so.
 20. **Given** a reply whose angle contains one of the product's forbidden claims,
 21. **Given** any plan with an email channel, **when** it is parsed or built,
-22. **Given** the system prompt the brain sends, **when** it is built, **then** it
-23. **Given** the request the brain sends, **when** it is built, **then** its data
-24. **Given** no permitted model, **when** a plan is drafted, **then** a
-25. **Given** a `replies` goal, **when** a plan is drafted, **then** its
-26. **Given** an unknown goal kind, a target or horizon out of bounds, or an
-27. **Given** the Strategy screen, **when** it renders, **then** the goal form and
-28. **Given** a draft plan, **when** it is applied, **then** one campaign per
-29. **Given** an email channel, **when** it is applied, **then** its campaign
+22. **Given** the system prompt the brain sends, **when** it is built, **then** it contains no text from the product.
+23. **Given** the request the brain sends, **when** it is built, **then** its data class is `campaign`, the one-liner is the positioning line and the rest of the product is in campaign notes.
+24. **Given** no permitted model, **when** a plan is drafted, **then** a rules-based plan is returned with a note saying why.
+25. **Given** a `replies` goal, **when** a plan is drafted, **then** its feasibility is arithmetic the owner can reproduce by hand.
+26. **Given** an unknown goal kind, a target or horizon out of bounds, or an unknown product, **when** it is submitted, **then** it is refused with a sentence.
+27. **Given** the Strategy screen, **when** it renders, **then** the goal form and the capacity panel are present.
+28. **Given** a draft plan, **when** it is applied, **then** one campaign per channel exists, each paused, each linked to the product and the plan.
+29. **Given** an email channel, **when** it is applied, **then** its campaign carries the plan's daily volume, window, weekdays, timezone, hypothesis and per-message approval.
 30. **Given** a `views` goal with a distribution channel, **when** it is applied,
-31. **Given** a plan that is not a draft, **when** apply is called, **then** it is
-32. **Given** an apply, **when** it returns, **then** it lists next steps, each
-33. **Given** an email channel whose delivery health is breached, **when** it is
-34. **Given** each earlier condition in the order — paused, no contacts, drafts
-35. **Given** fewer than 20 contacted, **when** it is reviewed, **then** the
-36. **Given** enough contacted, **when** the 90% interval sits wholly below,
-37. **Given** a distribution channel, **when** it is reviewed, **then** the
-38. **Given** a model reply proposing a remedy the finding does not permit, a
-39. **Given** no permitted model, **when** it is reviewed, **then** each finding
-40. **Given** a review, **when** it is stored, **then** the measurements it read
-41. **Given** an applied plan with a review and at least 20 contacted, **when** it
-42. **Given** fewer than 20 contacted, **when** it is revised, **then** the
-43. **Given** a revision that is applied, **when** it runs, **then** the same
-44. **Given** a plan with no review, **when** revise is called, **then** it is
-45. **Given** an imported expert library and a judged winning template, **when** a
+31. **Given** a plan that is not a draft, **when** apply is called, **then** it is refused and nothing is created.
+32. **Given** an apply, **when** it returns, **then** it lists next steps, each naming an existing screen, and no contact is imported and nothing is spent.
+33. **Given** an email channel whose delivery health is breached, **when** it is reviewed, **then** the finding is `delivery_unhealthy` whatever the reply rate, and raising volume is not permitted.
+34. **Given** each earlier condition in the order — paused, no contacts, drafts waiting, under volume — **when** it is reviewed, **then** that finding wins over every later one.
+35. **Given** fewer than 20 contacted, **when** it is reviewed, **then** the finding is `insufficient_data` and no copy remedy is offered.
+36. **Given** enough contacted, **when** the 90% interval sits wholly below, wholly above or across the assumed rate, **then** the finding is `behind_target`, `ahead_of_target` or `inconclusive`, and `inconclusive` states how many more sends would decide it.
+37. **Given** a distribution channel, **when** it is reviewed, **then** the finding follows `pacing.decide()`'s action.
+38. **Given** a model reply proposing a remedy the finding does not permit, a channel not in the plan, or a proposal containing a forbidden claim, **when** it is parsed, **then** that remedy is dropped with a note.
+39. **Given** no permitted model, **when** it is reviewed, **then** each finding gets its first permitted remedy and a note says why.
+40. **Given** a review, **when** it is stored, **then** the measurements it read are stored with it.
+41. **Given** an applied plan with a review and at least 20 contacted, **when** it is revised, **then** a draft at the next version exists whose parent is the plan and whose assumed reply rate is the measured one.
+42. **Given** fewer than 20 contacted, **when** it is revised, **then** the assumption is carried forward and a note says why.
+43. **Given** a revision that is applied, **when** it runs, **then** the same campaigns are updated rather than new ones created, a channel it dropped is paused, and the previous version is superseded.
+44. **Given** a plan with no review, **when** revise is called, **then** it is refused.
+45. **Given** an imported expert library and a judged winning template, **when** a plan is drafted, **then** both travel as reference material in classified fields, and the `gtm_plan` eval suite scores the brain with and without them.
 46. **Given** fewer than 30 cases in `gtm_plan`, **when** the comparison runs,
-47. **Given** an applied plan with posting and picture channels, **when** the
-48. **Given** a drafted post, **when** the owner opens Posting, **then** they can
-49. **Given** a paused campaign in a declared pair, **when** content automation
-50. **Given** a plan's posts a day, **when** its posting runs, **then** that is
+47. **Given** an applied plan with posting and picture channels, **when** the owner resumes them, **then** content automation runs that pair without the owner writing its ids into an API call.
+48. **Given** a drafted post, **when** the owner opens Posting, **then** they can approve or skip it there.
+49. **Given** a paused campaign in a declared pair, **when** content automation runs, **then** it makes nothing for that pair — pairing at Apply must not spend image credits on a plan nobody has started. *(Done early for `D-87`.)*
+50. **Given** a plan's posts a day, **when** its posting runs, **then** that is the rate the pacer starts from, so the number the plan shows is the number that posts (`D-97`).
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -420,9 +420,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (4 written):**
 
 1. **Given** production configuration, **when** the durable root is ephemeral,
-2. **Given** a backup, **when** it is made, **then** every durable file under the
-3. **Given** a restore, **when** it succeeds or is rejected, **then** writers are
-4. **Given** readiness, **when** a required store or durable path cannot be
+2. **Given** a backup, **when** it is made, **then** every durable file under the data directory is in it — new stores included without editing a list — with a versioned, hashed manifest; only named rebuildable caches are left out.
+3. **Given** a restore, **when** it succeeds or is rejected, **then** writers are drained first, the whole workspace is swapped under a journal, every service is reopened and health-checked, and a failure rolls back to the previous generation; an interrupted swap rolls back at the next start.
+4. **Given** readiness, **when** a required store or durable path cannot be opened or written, or recovery is in progress, **then** `/health/ready` is red.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -438,8 +438,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** a new campaign, **when** it is created, **then** it becomes the
-2. **Given** a selected campaign outside the bounded list, **when** the list
+1. **Given** a new campaign, **when** it is created, **then** it becomes the selected campaign and stays so after the campaign list refreshes.
+2. **Given** a selected campaign outside the bounded list, **when** the list refreshes, **then** the selection is kept by reading its detail; only a 404 for that campaign lets the selection fall back.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -455,7 +455,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (1 written):**
 
-1. **Given** a finding the consolidation did not re-check, **when** its
+1. **Given** a finding the consolidation did not re-check, **when** its reproduction from `docs/audits/2026-09-07-production-audit.md` is run against `develop`, **then** it becomes a test that fails while the finding holds — or the finding is closed with the test that shows it no longer does.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -471,8 +471,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** a restore in progress, **when** the outreach, notebook or eval CLI
-2. **Given** a CLI command running, **when** a restore starts, **then** the
+1. **Given** a restore in progress, **when** the outreach, notebook or eval CLI starts, **then** it refuses with a sentence saying to retry once readiness returns, and writes nothing.
+2. **Given** a CLI command running, **when** a restore starts, **then** the restore waits for it within its bound, or is refused — as for the worker.
 3. **Given** a restore nobody has rolled back yet, **when** a CLI starts,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -490,7 +490,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 **Acceptance sub-cases (3 written):**
 
 1. **Given** any screen opened from the navigation, **when** it has rendered,
-2. **Given** the campaign list failing, **when** a screen opens, **then** the
+2. **Given** the campaign list failing, **when** a screen opens, **then** the "Could not refresh campaigns" panel is visible without scrolling.
 3. **Given** keyboard or screen-reader use, **when** the screen changes,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -507,8 +507,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** a push, **when** CI runs, **then** the whole suite runs on 3.10,
-2. **Given** a version added to `pyproject.toml`, or the image's version
+1. **Given** a push, **when** CI runs, **then** the whole suite runs on 3.10, 3.11 and 3.12, each installed from the lock, and a failure on any fails the check.
+2. **Given** a version added to `pyproject.toml`, or the image's version changed, **when** the suite runs, **then** a test fails until CI names it.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -524,7 +524,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (1 written):**
 
-1. **Given** the audit's live harness (`verification/` on the archived
+1. **Given** the audit's live harness (`verification/` on the archived `integration/main-consolidation`), **when** it can run — CI runners (`S-06.02.18`) or a trusted machine with Docker, Chrome and PostgreSQL —
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -540,8 +540,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** an explicit `--db`, `--context` or `--token`, or an absolute
-2. **Given** `OFFSETX_DATA_DIR` set only in `.env`, **when** any of the six tools
+1. **Given** an explicit `--db`, `--context` or `--token`, or an absolute `OFFSETX_OUTREACH_DB` or `OFFSETX_GMAIL_TOKEN`, naming the web app's files, run from any folder, **when** a restore holds the web app's workspace, **then** the tool refuses — it does not lock a `local_data` beside the current folder.
+2. **Given** `OFFSETX_DATA_DIR` set only in `.env`, **when** any of the six tools runs, **then** it resolves the same data directory as `offsetx-web`; today only `offsetx-web` and `offsetx-outreach` read `.env`.
 3. **Given** `offsetx-artifacts --run-dir .` from inside a run the app recorded,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -558,7 +558,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (1 written):**
 
-1. **Given** `nvidia/nemotron-3-ultra-550b-a55b` connected with a key, **when**
+1. **Given** `nvidia/nemotron-3-ultra-550b-a55b` connected with a key, **when** the owner chats, **then** the request carries only options NVIDIA accepts: `max_tokens`, `temperature`, `top_p`, `chat_template_kwargs` — not `reasoning_budget`.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -574,7 +574,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** the Connectors form's defaults — call cap 0, spend cap 0 — **when**
+1. **Given** the Connectors form's defaults — call cap 0, spend cap 0 — **when** the owner connects a provider, **then** it connects, and 0 means no cap of ours.
 2. **Given** a value the server refuses, **when** the screen shows the error,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -591,8 +591,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** `OFFSETX_AI_<PROVIDER>_KEY` set on the server, **when** any workspace
-2. **Given** any web request — a draft, a provider profile — **when** it names
+1. **Given** `OFFSETX_AI_<PROVIDER>_KEY` set on the server, **when** any workspace lists or uses providers, **then** that variable supplies nothing.
+2. **Given** any web request — a draft, a provider profile — **when** it names a server environment variable or brings its own provider, **then** it is refused; and a login sees and uses only its own workspace's profiles (`D-154`, `D-155`, found by the story's fresh-context review).
 3. **Given** no stored key, **when** the owner connects a provider that needs one,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -609,8 +609,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** the Connect form, **when** the owner sets the call cap, **then** the
-2. **Given** a saved cap, **when** the form opens again, **then** it shows that
+1. **Given** the Connect form, **when** the owner sets the call cap, **then** the choices are the provider's own limit (0), 50, 200, 1,000 or a typed number; the spend cap offers no cap (0), $1, $5, $20 or a typed amount.
+2. **Given** a saved cap, **when** the form opens again, **then** it shows that cap, as its preset or as a typed number.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -626,11 +626,11 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (6 written):**
 
-1. **Given** any provider, **when** the owner lowers its trust, **then** it
+1. **Given** any provider, **when** the owner lowers its trust, **then** it applies at once to every model under it, with no reason asked.
 2. **Given** any model under a provider, **when** the owner sets its own trust,
-3. **Given** a raise above a default, **when** the owner saves it, **then** a
-4. **Given** a provider raised above its default, **when** one of its models is
-5. **Given** any trust setting, **when** the owner has not typed the separate
+3. **Given** a raise above a default, **when** the owner saves it, **then** a typed reason is required and recorded with who and when; without one nothing changes.
+4. **Given** a provider raised above its default, **when** one of its models is capped because of who built it, **then** the provider's raise does not lift that model — only the model's own setting can.
+5. **Given** any trust setting, **when** the owner has not typed the separate mailbox unlock phrase, **then** received mail reaches no model — no trust setting opens the mailbox (`AGENTS.md` rule 5).
 6. **Given** a changed trust, **when** the owner saves the connection again,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -647,8 +647,8 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** every connected provider, **when** Connectors opens, **then** it
-2. **Given** a provider that reports what is left — a key or balance endpoint,
+1. **Given** every connected provider, **when** Connectors opens, **then** it shows today's calls counted by off_CRM against the owner's cap.
+2. **Given** a provider that reports what is left — a key or balance endpoint, or rate-limit headers on its replies — **when** it has been checked or called,
 3. **Given** a provider that reports nothing (NVIDIA, checked 2026-09-25),
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -665,9 +665,9 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (3 written):**
 
-1. **Given** the owner's answer to `Q-28`, **when** a model is connected the way
-2. **Given** no model set up for the workspace, **when** Drafts opens, **then**
-3. **Given** profiles saved before `DD-68`, **then** the owner can see and
+1. **Given** the owner's answer to `Q-28`, **when** a model is connected the way it names, **then** the Drafts screen offers it and drafts through it, and the trust tiers, scanner and egress log apply as they do to every other model call (answer 1), or the profile form is back in Settings and lists each profile with whose it is (answer 2).
+2. **Given** no model set up for the workspace, **when** Drafts opens, **then** its empty state names the screen that sets one up — a screen that exists.
+3. **Given** profiles saved before `DD-68`, **then** the owner can see and confirm or remove each one there, not only through the API.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -700,7 +700,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (2 written):**
 
-1. **Given** Settings or another screen, **when** Skip to main content is
+1. **Given** Settings or another screen, **when** Skip to main content is activated with Enter, **then** the route and screen stay unchanged and main receives focus.
 2. **Given** a pointer activation of the same link, **when** it is used,
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
@@ -717,11 +717,11 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (5 written):**
 
-1. **Given** any request that fails with a 5xx, **then** the response carries a
-2. **Given** a failed worker cycle, command or background job, **then** the same:
-3. **Given** a local install, **then** the lines also go to a size-capped
-4. **Given** a failure whose message holds a password, key, token, cookie or a
-5. **Given** a successful request, **then** nothing is logged beyond a one-line
+1. **Given** any request that fails with a 5xx, **then** the response carries a readable sentence and an error id, and standard output carries one JSON line with that id, the time, the route, the workspace and the traceback.
+2. **Given** a failed worker cycle, command or background job, **then** the same: one line, an id, and the id printed with the sentence.
+3. **Given** a local install, **then** the lines also go to a size-capped rotating file under `OFFSETX_DATA_DIR/logs/`; on Render, standard output only.
+4. **Given** a failure whose message holds a password, key, token, cookie or a database URL with credentials, **then** none of it reaches a log line.
+5. **Given** a successful request, **then** nothing is logged beyond a one-line access record (method, route, status, time taken) — no bodies.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1024,7 +1024,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Acceptance sub-cases (0 written):**
 
-Consult the linked work order for full acceptance. No Given/When/Then bullet appears in this backlog section.
+Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1040,7 +1040,7 @@ Consult the linked work order for full acceptance. No Given/When/Then bullet app
 
 **Acceptance sub-cases (0 written):**
 
-Consult the linked work order for full acceptance. No Given/When/Then bullet appears in this backlog section.
+Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1056,7 +1056,7 @@ Consult the linked work order for full acceptance. No Given/When/Then bullet app
 
 **Acceptance sub-cases (0 written):**
 
-Consult the linked work order for full acceptance. No Given/When/Then bullet appears in this backlog section.
+Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1279,66 +1279,66 @@ Consult the linked work order for full acceptance. No Given/When/Then bullet app
 1. **Given** two workspaces use the same CRM campaign, **when** they view image briefs/assets/queue/summary, **then** SQL returns only the caller's rows before limits apply.
 2. **Given** another workspace's image or brief ID, **when** a user downloads, generates, approves, rejects, refreshes or places it in a video, **then** the app refuses with 404 before any media or usage change.
 3. **Given** own assets and briefs, **when** used normally, **then** the image and video operations work unchanged.
-4. **Given** a declared MCP server, **when** it is connected, **then** its tools
-5. **Given** a tool the owner has not granted, **when** an agent names it, **then**
-6. **Given** an OAuth grant, **when** it is stored, **then** it is held under the
-7. **Given** a capture, **when** it completes, **then** audio never leaves the
-8. **Given** a run's findings, **when** a report is generated, **then** every
+4. **Given** a declared MCP server, **when** it is connected, **then** its tools appear in the same registry and obey the same permission rules.
+5. **Given** a tool the owner has not granted, **when** an agent names it, **then** the call is refused.
+6. **Given** an OAuth grant, **when** it is stored, **then** it is held under the same vault rules as a platform session.
+7. **Given** a capture, **when** it completes, **then** audio never leaves the machine except through the transcription provider/model declared when that meeting began, raw audio is not persisted by off_CRM, and the derived transcript remains workspace-scoped.
+8. **Given** a run's findings, **when** a report is generated, **then** every claim in it links to a trace step.
 9. **Given** the same verified findings, **when** XLSX, PPTX or PDF is requested,
 10. **Given** page-controlled text beginning with spreadsheet formula characters,
-11. **Given** permission marketing without an active recorded grant, **when**
-12. **Given** an address that denied permission or is globally suppressed, **when**
-13. **Given** a transactional lane, **when** its permission is checked, **then**
-14. **Given** an approved due draft, **when** it is queued, **then** an immutable
-15. **Given** an ambiguous provider result or an expired claim without a recorded
+11. **Given** permission marketing without an active recorded grant, **when** preflight runs, **then** the recipient is blocked before queueing.
+12. **Given** an address that denied permission or is globally suppressed, **when** either the direct or durable path tries to send, **then** it refuses and queued work is cancelled.
+13. **Given** a transactional lane, **when** its permission is checked, **then** only a recorded customer, contract or service-request relationship passes.
+14. **Given** an approved due draft, **when** it is queued, **then** an immutable payload snapshot is stored and only one worker can claim it.
+15. **Given** an ambiguous provider result or an expired claim without a recorded message, **when** recovery runs, **then** the job becomes `delivery_unknown` and is never retried automatically.
 16. **Given** a reply, cancellation, closed send window, daily cap or lane delay,
-17. **Given** a sending identity, **when** it is assigned to a campaign, **then**
-18. **Given** a permission-marketing send, **when** authentication evidence is
-19. **Given** an allowed SES job, **when** it is submitted, **then** raw MIME
+17. **Given** a sending identity, **when** it is assigned to a campaign, **then** its provider and stream must match and bulk lanes use isolated subdomains.
+18. **Given** a permission-marketing send, **when** authentication evidence is missing, failing or older than seven days, **then** SPF, DKIM, DMARC, alignment or SES verification blocks it.
+19. **Given** an allowed SES job, **when** it is submitted, **then** raw MIME carries the correct stream tags, feedback configuration and unsubscribe headers where required.
 20. **Given** an SNS envelope, **when** it reaches the public feedback endpoint,
 21. **Given** a duplicate hard-bounce or complaint event, **when** it is processed,
-22. **Given** health metrics beyond configured thresholds, **when** feedback is
-23. **Given** an authenticated operator, **when** the delivery API or dashboard is
-24. **Given** a recipient using the public unsubscribe route, **when** the signed
-25. **Given** a live SES queue request, **when** the exact confirmation phrase is
-26. **Given** an action that raises `ActionRefused`, **when** it fails, **then**
-27. **Given** three consecutive failed actions, **when** the third fails, **then**
-28. **Given** a transient failure, **when** it happens, **then** it is retried
-29. **Given** the agent returns to a URL it has already acted on twice with no new
-30. **Given** ten consecutive steps that produce nothing new, **when** the tenth
-31. **Given** a run that is progressing, **when** these checks run, **then** they
-32. **Given** a run interrupted at step N, **when** it is resumed, **then** it
-33. **Given** a resumed run, **when** it finishes, **then** the trace is one
-34. **Given** a run that already ended, **when** a resume is attempted, **then** it
-35. **Given** a fact whose evidence artefact is gone, **when** the trace is
-36. **Given** a run with a spend ceiling, **when** the next decision would cross
-37. **Given** a run, **when** it is planned, **then** an estimate is produced
-38. **Given** a finished run, **when** it is inspected, **then** actual spend per
+22. **Given** health metrics beyond configured thresholds, **when** feedback is aggregated, **then** the campaign pauses automatically and only an explicit resume clears the pause.
+23. **Given** an authenticated operator, **when** the delivery API or dashboard is opened, **then** identities, settings, preflight, permissions, suppressions, jobs and health are visible and editable through guarded actions.
+24. **Given** a recipient using the public unsubscribe route, **when** the signed token is valid, **then** the action works without login; an invalid token is refused.
+25. **Given** a live SES queue request, **when** the exact confirmation phrase is absent, **then** no job is created and the dashboard keeps the safety controls visible.
+26. **Given** an action that raises `ActionRefused`, **when** it fails, **then** the agent re-perceives and is told what failed and why, and the same action with the same arguments is never retried more than once.
+27. **Given** three consecutive failed actions, **when** the third fails, **then** the run stops with `status=stuck` rather than continuing to burn budget.
+28. **Given** a transient failure, **when** it happens, **then** it is retried with backoff and the retry is recorded in the trace as a retry, not as a fresh attempt. **(done)**
+29. **Given** the agent returns to a URL it has already acted on twice with no new facts recorded, **when** the third visit is decided, **then** the run stops with `status=looping` and the trace names the cycle.
+30. **Given** ten consecutive steps that produce nothing new, **when** the tenth completes, **then** the run stops with `status=stalled`. **(done)**
+31. **Given** a run that is progressing, **when** these checks run, **then** they never stop it — a false positive here is worse than a wasted step. **(done)**
+32. **Given** a run interrupted at step N, **when** it is resumed, **then** it continues from step N+1 with the facts already gathered intact. **(done)**
+33. **Given** a resumed run, **when** it finishes, **then** the trace is one continuous record, not two, and the resume point is marked in it. **(done)**
+34. **Given** a run that already ended, **when** a resume is attempted, **then** it is refused — a second ending would make the trace say two contradictory things about how the run turned out. **(added during the build)**
+35. **Given** a fact whose evidence artefact is gone, **when** the trace is replayed, **then** the fact is dropped rather than rebuilt unsourced. Losing one is recoverable; inventing one is what `S-11.02.02` exists to prevent.
+36. **Given** a run with a spend ceiling, **when** the next decision would cross it, **then** the decision is not made and the run stops with `status=over_budget`.
+37. **Given** a run, **when** it is planned, **then** an estimate is produced before the first step and the owner sees it.
+38. **Given** a finished run, **when** it is inspected, **then** actual spend per step is in the trace, not a total nobody can decompose.
 39. **Given** a goal with a declared field schema, **when** the run finishes,
-40. **Given** a model that returns a field not in the schema, **when** the result
-41. **Given** no schema, **when** a run finishes, **then** it still returns the
-42. **Given** a returned field, **when** it is inspected, **then** it carries the
-43. **Given** a field with no source, **when** the result is assembled, **then**
-44. **Given** a returned field, **when** it is verified, **then** its value must
+40. **Given** a model that returns a field not in the schema, **when** the result is assembled, **then** the extra field is dropped and the drop is recorded.
+41. **Given** no schema, **when** a run finishes, **then** it still returns the free-text result `S-02.02.01` returns today — the old behaviour is not removed.
+42. **Given** a returned field, **when** it is inspected, **then** it carries the URL, the UTC timestamp, the trace step id and the screenshot filename of the page it was read from.
+43. **Given** a field with no source, **when** the result is assembled, **then** it is refused rather than returned unsourced.
+44. **Given** a returned field, **when** it is verified, **then** its value must appear in the captured text of the cited page, normalised for whitespace and case, or the field is dropped and the drop is reported.
 45. **Given** a field that is a legitimate derivation (a count, a summary),
-46. **Given** a page whose text was truncated by `MAX_READ_CHARS`, **when** a
-47. **Given** a URL already read in this run, **when** the agent decides to read
-48. **Given** two URLs that differ only by tracking parameters, **when** they are
-49. **Given** a page that changed under an unchanged URL, **when** it is read
+46. **Given** a page whose text was truncated by `MAX_READ_CHARS`, **when** a claim cannot be found in it, **then** the failure says the text was truncated rather than asserting the claim was invented.
+47. **Given** a URL already read in this run, **when** the agent decides to read it again, **then** the stored capture is returned and the page is not asked again. **(done)**
+48. **Given** two URLs that differ only by tracking parameters, **when** they are compared, **then** they are treated as the same page. **(done)**
+49. **Given** a page that changed under an unchanged URL, **when** it is read again, **then** the memo is not used — added during the build, because a stale capture is worse than a second read. **(done)**
 50. **Given** a page carrying a CAPTCHA, a sign-in form or a 2FA challenge,
-51. **Given** a paused run, **when** the owner completes the challenge and
+51. **Given** a paused run, **when** the owner completes the challenge and resumes, **then** the run continues from the same step.
 52. **Given** any of these, **when** they are encountered, **then** off_CRM
-53. **Given** page text instructing the agent to ignore instructions, exfiltrate,
-54. **Given** such a page, **when** the next decision is made, **then** the run
-55. **Given** a page where clicking "Send" needs confirmation, **when** the agent
-56. **Given** a key that cannot submit anything, **when** it is pressed, **then**
-57. **Given** a finished run, **when** its report is opened, **then** every
-58. **Given** a run that failed, **when** its report is opened, **then** it shows
-59. **Given** a running agent, **when** the owner watches, **then** each step
-60. **Given** two runs on the same browser, **when** both act, **then** each has
-61. **Given** N concurrent runs, **when** they act on one host, **then** the
-62. **Given** N concurrent runs on one account, **when** they act, **then** they
-63. **Given** a consequential action already recorded in the trace, **when** a
+53. **Given** page text instructing the agent to ignore instructions, exfiltrate, change goal or call a tool, **when** it is perceived, **then** the step is flagged `injection_suspected` in the trace with the offending text quoted.
+54. **Given** such a page, **when** the next decision is made, **then** the run continues under the owner's original goal — detection changes the record, not the behaviour, because behaviour is already contained by the closed vocabulary. **(done)**
+55. **Given** a page where clicking "Send" needs confirmation, **when** the agent presses Enter in the same form, **then** it needs confirmation too.
+56. **Given** a key that cannot submit anything, **when** it is pressed, **then** nothing new is asked of the owner.
+57. **Given** a finished run, **when** its report is opened, **then** every returned field appears with its source URL, timestamp and screenshot, and every step appears in order with its cost.
+58. **Given** a run that failed, **when** its report is opened, **then** it shows where and why, not a blank page. **(done)**
+59. **Given** a running agent, **when** the owner watches, **then** each step appears as it completes with its action, URL and running cost.
+60. **Given** two runs on the same browser, **when** both act, **then** each has its own tab, its own trace and its own snapshot, and neither can resolve a handle from the other's page.
+61. **Given** N concurrent runs, **when** they act on one host, **then** the per-host pace floor is respected **across** them, not per run.
+62. **Given** N concurrent runs on one account, **when** they act, **then** they draw on one budget, not N.
+63. **Given** a consequential action already recorded in the trace, **when** a resumed run reaches the same step, **then** it is not performed again.
 
 **Named tasks/subtasks:** **Tasks:** T-07.01.04.a shared provenance-bound artifact model (<=1 day);
 

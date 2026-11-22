@@ -56,14 +56,25 @@ def _request(base_url: str, path: str, *, method: str = "GET",
 def run_smoke(base_url: str) -> list[str]:
     origin = _origin(base_url)
     checks: list[str] = []
-    code, _, body = _request(origin, "/")
+    try:
+        code, _, body = _request(origin, "/")
+    except SmokeError:
+        # Render free instances can be asleep during the first read. Retry the
+        # safe entry page once only; never repeat private or write requests.
+        code, _, body = _request(origin, "/")
     if code != 200 or b"<html" not in body.lower():
         raise SmokeError(f"CRM page failed: HTTP {code} or missing HTML")
     checks.append("root")
 
-    code, _, _ = _request(origin, "/health/ready")
+    code, _, body = _request(origin, "/health/ready")
     if code != 200:
         raise SmokeError(f"Readiness failed: HTTP {code}")
+    try:
+        readiness = json.loads(body)
+    except (ValueError, UnicodeDecodeError, TypeError):
+        raise SmokeError("Readiness failed: invalid JSON response") from None
+    if not isinstance(readiness, dict) or readiness.get("status") != "ready":
+        raise SmokeError("Readiness failed: no ready status in response")
     checks.append("ready")
 
     code, _, body = _request(origin, "/api/v1/auth/session")

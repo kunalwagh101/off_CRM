@@ -17,3 +17,9 @@ def test_a33_qa_is_importable_from_both_ci_and_render() -> None:
     assert "RUN uv run --no-sync python -m scripts.qa.a33_campaign_browser" in render
     assert "python scripts/qa/a33_campaign_browser.py" not in ci
     assert "python scripts/qa/a33_campaign_browser.py" not in render
+
+def test_a33_real_browser_precedes_expensive_history_replay() -> None:
+    ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert ci.index("name: Run frontend tests") < ci.index(
+        "name: A33 real campaign creation, selection and reload on desktop and mobile"
+    ) < ci.index("name: Verify the board against the repository")

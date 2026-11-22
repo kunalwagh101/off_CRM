@@ -101,8 +101,8 @@ jobs:
       # The board verifier is standard-library-only, but the evidence commands
       # it re-runs are not: they invoke `python -m pytest` and, for shipped UI
       # slices, `npm test`. Run it only after both locked environments exist.
-      - name: Verify the board against the repository
-        run: uv run python scripts/verify_board.py
+      # Run the real A33 browser acceptance before the long historical board
+      # replay; a broken browser gate must fail fast without losing any checks.
       - name: Run frontend tests
         working-directory: frontend
         run: npm test
@@ -111,6 +111,8 @@ jobs:
         run: npm run build
       - name: A33 real campaign creation, selection and reload on desktop and mobile
         run: uv run python -m scripts.qa.a33_campaign_browser
+      - name: Verify the board against the repository
+        run: uv run python scripts/verify_board.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser
         run: uv run python scripts/qa/hosted_tool_browser.py --backend sqlite
 

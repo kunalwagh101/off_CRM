@@ -1,3 +1,7 @@
+## 2026-11-22 — A33 test-first workflow ordering
+
+- Moved frontend build and the actual A33 Chromium gate ahead of the slow historical board evidence replay. All original quality checks remain required; failed real browser acceptance now appears earlier in GitHub CI rather than after the lengthy board run. Added a test that pins the ordering. D-514 module import repair is still awaiting first green browser execution; Render build minutes remain exhausted.
+
 ## 2026-11-22 — D-514 A33 real-browser test import repair
 
 - GitHub quality run 45053197067 executed 72/72 board evidence commands, 242 frontend tests and the frontend build, then failed the new A33 browser check with ModuleNotFoundError: scripts. This was a QA launch packaging bug, **not** proof of an application defect.

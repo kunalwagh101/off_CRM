@@ -35,7 +35,7 @@ METHODS = {
     "delete": "DELETE",
 }
 CALL = re.compile(
-    r"api\.(?P<method>" + "|".join(METHODS) + r")(?:<[^>(]*>)?\(\s*(?P<quote>[`\"'])(?P<path>/[^`\"']*)(?P=quote)"
+    r"api\.(?P<method>" + "|".join(METHODS) + r")(?:<[^()]*>)?\s*\(\s*(?P<quote>[`\"'])(?P<path>/[^`\"']*)(?P=quote)"
 )
 
 
@@ -97,3 +97,23 @@ def test_every_api_path_a_screen_calls_exists(tmp_path):
         if not _matches(method, _segments(path, "*"), routes)
     )
     assert missing == []
+
+
+def test_A35_literal_route_scan_covers_nested_generic_type_arguments():
+    """Do not skip calls using common nested TypeScript response wrappers."""
+    sample = """
+        api.get<Paginated<Contact>>("/contacts")
+        api.post<Promise<Result<Item>>>(
+            "/campaigns"
+        )
+        api.get("/meta")
+    """
+    found = {
+        (match.group("method"), match.group("path"))
+        for match in CALL.finditer(sample)
+    }
+    assert found == {
+        ("get", "/contacts"),
+        ("post", "/campaigns"),
+        ("get", "/meta"),
+    }

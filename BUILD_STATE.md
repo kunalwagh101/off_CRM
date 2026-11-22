@@ -1,3 +1,10 @@
+## 2026-11-22 — A01–A04, A26, A30, A31 and A35 source audit recheck
+
+- F-06.02 / S-06.02.23: passing five-job GitHub [45019165204](https://github.com/kunalwagh101/off_CRM/actions/runs/45019165204) exercised the core WP1 production mount, concurrency, encrypted backup and restore regressions, A30 doc contract and A35 literal frontend-to-server API path contract. Its Python 3.11 run reported 3,459 passing/149 skipped; PostgreSQL 3,570 passing/107 skipped; development and production npm audit each reported 0 vulnerabilities. These are **source/isolated QA** results, not proof of hosted customer durability.
+- Actual [production Docker 45024963091](https://github.com/kunalwagh101/off_CRM/actions/runs/45024963091) on 0c42801 successfully built/starter/HTTP-checked the app; its A26 runtime probe logged **5 locked distributions, binary psycopg and no dev tools**; restart and cleanup passed. This does not establish email provider/customer acceptance.
+- D-510/A35: the literal route scanner omitted nested TypeScript generic calls; independent local RED 1 failed, GREEN 1 passed; corrected scanner regex and added the regression test. New latest-source full CI pending, no live Render build after exhausted minutes.
+- The audit's status table now separates checked source mechanisms from outstanding dedicated PostgreSQL, encrypted offsite restore, object stores, worker, tenancy, external providers, independent penetration and manual customer release. **F-06.02 remains IN_PROGRESS, not DONE.** Evidence: `docs/evidence/2026-11-22-audit-source-recheck.md`.
+
 ## 2026-11-22 — A26 / D-509 release-image dependency lock parity
 
 - Found that the A26 audit's historical Dockerfile fix had no **actual-image** check proving installed SES boto3 and PostgreSQL psycopg/psycopg-binary matched the shipped uv.lock. Added standalone safe gate `scripts/qa/a26_image_dependency_contract.py`, eight regressions `tests/test_audit_a26_image_dependencies.py` and a `production container` workflow step **inside the running image**. The check also rejects developer-only test tooling and proves binary psycopg/libpq import.

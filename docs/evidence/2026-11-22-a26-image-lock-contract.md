@@ -24,3 +24,7 @@ In an isolated local Python test directory matching the repository module layout
 ## Limitations and release status
 
 Image dependency parity is necessary but not sufficient for any production deployment. Live SES delivery, managed PostgreSQL connection, controlled external backup/recovery, supervised workers and independent penetration/customer acceptance remain OPEN. Render deployment remains blocked by build minutes. Keep A26 as verification pending until the Docker job completes; keep S-06.02.23 and F-06.02 IN_PROGRESS.
+
+## Verified production Docker result (2026-11-22)
+
+The [actual production-container workflow 45024963091](https://github.com/kunalwagh101/off_CRM/actions/runs/45024963091) built and started the image on source `0c42801`. All stages passed: production Docker build, health/frontend/unprivileged process, A26 dependency check, app restart and cleanup. The actual job log at 12:58:24 UTC says: `A26 PASS: 5 locked runtime distributions; binary SQL driver; no dev tools`. Exact-source five-job Python/PG CI for `0c42801` remained pending when this checkpoint was written; the documentation/A35 source change requires its own newer CI. Render customer acceptance remains **OPEN**.

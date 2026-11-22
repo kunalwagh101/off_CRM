@@ -1,3 +1,8 @@
+## 2026-11-22 — A30 / D-508 current-source instructions and production safety
+
+- The `develop` operating guide, historical feature-tree priority and Render Blueprint contained stale runner and incomplete customer-data guidance. Source-level pre-fix inspection plus red-intent tests `tests/test_a30_active_runbook.py` at `2041004` identified the gap. Corrected `docs/BRANCHING.md`, `FEATURE_TREE.md` and comments in `render.yaml` to separate *past single-disk proposal* from actual production release requirements; the Blueprint's deploy behavior remains unchanged.
+- Active work: F-06.02 / S-06.02.23. Independent dedicated database, offsite backup/recovery, object storage, supervised email worker, tenant isolation and real customer/provider acceptance remain unresolved. A30 is partially rechecked, not marked closed. Exact-source CI and any host QA must be reported separately; no customer deployment claimed. See `docs/evidence/2026-11-22-a30-documentation-consistency.md`.
+
 ## 2026-11-22 — D-507 Render smoke redirect guard (release blocked)
 
 - F-06.02 / active audit S-06.02.23: public HTTPS QA silently followed redirects. Test-first loopback GET and POST at `8ae954b` reproduced original unsafe navigation; code `226e9a6` refuses redirects, with both local cases passing. Real existing-host external HTTPS smoke [45013807759](https://github.com/kunalwagh101/off_CRM/actions/runs/45013807759) passed all eight public/auth requests.

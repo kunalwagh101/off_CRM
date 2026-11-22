@@ -12,14 +12,16 @@
 # neither sets OFFSETX_PRODUCTION — the app refuses a production start on /tmp,
 # and a demo must never look like the place to keep customers.
 #
-# Keeping real customer data needs a persistent disk, and Render attaches disks
-# only to a paid service. The switch for main is written out in
-# docs/BRANCHING.md ("Making main keep its data") and is the owner's call: it
-# costs money every month (OPEN_QUESTIONS.md Q-26).
+# This is an isolated demo Blueprint, not an approved production recipe.
+# A persistent disk alone does not satisfy customer durability. Production
+# also requires dedicated PostgreSQL, independent encrypted/offsite backup,
+# durable object storage, supervised worker, tenancy and a recovery drill.
+# The old single-disk example is explicitly historical in docs/BRANCHING.md.
 #
-# autoDeployTrigger is `commit`, not `checksPass`: GitHub-hosted CI cannot
-# start a runner on this repository today (D-75), so "deploy when checks pass"
-# would mean "never deploy". Switch it once CI runs.
+# autoDeployTrigger remains `commit` for this historical demo Blueprint, not
+# because CI is unavailable: GitHub CI passed all five jobs at run 45014613268
+# on 2026-11-22. Switching to `checksPass` requires an explicit operator
+# decision; passing CI alone does not authorize customer or main deployment.
 services:
   - type: web
     name: off-crm-demo

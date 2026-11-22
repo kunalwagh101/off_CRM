@@ -32,6 +32,19 @@ def test_A30_disk_example_cannot_be_mistaken_for_complete_production_storage():
 
 
 def test_A30_ephemeral_state_warning_does_not_equate_push_with_data_loss():
-    text = _active_runbook().lower()
+    text = " ".join(_active_runbook().lower().split())
     assert "nothing typed into either survives the next push" not in text
     assert "restart or redeploy" in text
+
+
+def test_A30_render_blueprint_does_not_claim_ci_is_still_unavailable():
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8").lower()
+    assert "ci cannot" not in blueprint
+    assert "github ci passed all five jobs" in blueprint
+    assert "not an approved production recipe" in blueprint
+
+
+def test_A30_feature_tree_marks_old_priority_order_as_historical():
+    tree = (ROOT / "FEATURE_TREE.md").read_text(encoding="utf-8")
+    assert "**Historical architecture snapshot.**" in tree[:750]
+    assert "the run loop (`S-02.02.01`) | **DONE in the current board.**" in tree

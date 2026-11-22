@@ -1,5 +1,7 @@
 # The Feature Tree
 
+**Historical architecture snapshot.** The maturity ratings and recommended shipping order below reflect the time each section was written. They are **not** the current backlog or authorization to pull work. For current branch, READY state, dependency rules and verified evidence, use `BOARD.md`, `BUILD_STATE.md` and `DEFINITION_OF_DONE.md`. Some capabilities listed as "next" below are now DONE, others are still IN_REVIEW.
+
 **What off_CRM is made of, all the way down, and what is wired to what.**
 
 Read this if you are about to build something, review something, or decide what
@@ -23,7 +25,7 @@ parts, with the wires drawn."*
 There is a visual version of this document — the same content with the schematic
 and the coverage chart drawn rather than described:
 **https://claude.ai/code/artifact/36a7be48-e0a9-4fa6-80e2-7e5fd3227955**
-This file is the source of truth; the page is rebuilt from it.
+This file describes the architecture behind that historical visual; the live board and build state, not this visual, are the sources of truth for delivery and production readiness.
 
 The distinction that matters most is between this file and `PRODUCT_BACKLOG.md`.
 The backlog was decomposed **from a conversation**. This tree is decomposed
@@ -742,7 +744,7 @@ and it is what a senior reviewer would insist on before anything else ships.
 |---|---|---|
 | 5 | `P-8.8` — the vault (`S-03.02.02`) — **DONE 2026-09-04** | The login now has protected per-account session custody, an OS-backed/passphrase master boundary, and fail-closed prompt/connection gates. |
 | 6 | `P-8.9` — revoke and forget (`S-03.02.03`) — **DONE 2026-09-04** | The managed session lifecycle is now closed: real Chromium loses the vaulted session cookie before the account envelope and public connection record are destroyed. |
-| 7 | `P-8.10` — the run loop (`S-02.02.01`) | **Next autonomy slice.** Hands and a safe credential lifecycle exist; will does not. |
+| 7 | `P-8.10` — the run loop (`S-02.02.01`) | **DONE in the current board.** This row was an earlier priority note, not the next work order. |
 | 8 | `P-8.11`–`P-8.13` — PLAN.md, interrupt/resume, countdowns | These make the loop *safe* to leave alone. Shipping the run loop without them is not defensible. |
 
 ### Wave 3 — reach the world

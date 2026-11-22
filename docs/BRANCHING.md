@@ -75,16 +75,11 @@ A push to develop does not update these manual services. Check the live deploy's
 the repository's `Dockerfile`, on its own branch, and checks
 `/health/ready` before sending it traffic.
 
-**Both services are on the free plan, and on the free plan everything under
-`/tmp` is wiped on every restart and every deploy.** That is where both keep
-their data today. Treat both as demos: nothing typed into either survives the
-next push. This is deliberate — a persistent disk needs a paid service
+**Both Blueprint services are disposable demonstrations.** Their local `/tmp` files can be lost on restart or redeploy; a Git push alone does not delete a hosted database or redeploy a service whose auto-deploy is disabled. The actual running Render service and database configuration determine what survives. Do not place real contacts, consent records, provider keys or customer work in a temporary demonstration. This is deliberate — a persistent disk needs a paid service
 ([Render: disks](https://render.com/docs/disks)), and paying is the owner's
 decision (`OPEN_QUESTIONS.md` Q-26), not something a merge should do.
 
-In this Blueprint, both deploy on every commit (`autoDeployTrigger: commit`); this does not describe the manual existing services above. The safer setting,
-`checksPass`, waits for CI; CI cannot start a runner on this repository today
-(`D-75`), so it would mean never deploying. Switch it once CI runs.
+In this Blueprint, both deploy on a branch commit (`autoDeployTrigger: commit`); this does **not** describe the existing manually deployed services. **GitHub CI now runs:** five jobs passed on `develop` at [run 45014613268](https://github.com/kunalwagh101/off_CRM/actions/runs/45014613268) on 2026-11-22. `checksPass` is a safer option for a separately approved release, but is **not** configured here. A successful CI run is necessary, not sufficient: the owner must also verify the exact Render deploy, authenticated workflows, storage recovery and external integrations. Do not switch live deployment policy without owner change approval.
 
 On each service, set in the Render dashboard (they are `sync: false`):
 `OFFSETX_ALLOWED_HOSTS` — the service's own hostname, for example
@@ -100,10 +95,13 @@ touch `main`'s keys or logins. Render's free database is deleted after 30 days
 plus 14 days' grace, and Render allows one free database per workspace — so
 the free option for two services is Neon.
 
-### Making `main` keep its data
+### Historical single-disk example (not a production release recipe)
 
-When real records go into `main`, change the `off-crm-demo` service in
-`render.yaml` to a paid plan with a disk, and turn production mode on:
+**Do not apply this example as a customer release plan.** The 2026-09 single-host disk example below only illustrates how a local SQLite directory might survive a restart. **A paid disk and `OFFSETX_PRODUCTION=1` are not sufficient for an approved production deployment.**
+
+The current product also needs a **dedicated PostgreSQL** database with workspace ownership, **independent encrypted backup** in a separately controlled destination, durable **object storage** for media and outboxes, a supervised **durable worker**, and a successfully tested empty-target **recovery drill**, plus authenticated user acceptance and security checks. These are not currently certified. See `docs/architecture/HOSTED_STORAGE.md`, `S-06.03.04`, `S-06.03.06`, `S-06.01.06` and `S-06.02.40`.
+
+For historical reference only, the old single-process SQLite disk proposal was:
 
 ```yaml
     plan: 1c-2g              # a paid instance type (disks need one); 2 GB leaves
@@ -125,10 +123,7 @@ When real records go into `main`, change the `off-crm-demo` service in
       # …plus the existing ALLOWED_HOSTS, DEMO_* and SESSION_* keys
 ```
 
-With `OFFSETX_PRODUCTION=1` the app refuses to start if the disk is missing or
-the data is under `/tmp`, rather than run and lose it. Backup, restore,
-readiness and the restart behaviour are in
-`docs/architecture/WP1_OPERATIONS.md`. The valid `plan` values are the
+For that historical SQLite option, `OFFSETX_PRODUCTION=1` checks for a persistent mount and refuses unsafe temporary storage. **It does not prove that other stores, backups, queue workers, tenants or integrations are durable.** Older backup/restore and restart behaviour is recorded in `docs/architecture/WP1_OPERATIONS.md`; do not treat it as full current-source release evidence. The valid `plan` values are the
 instance types in Render's [Blueprint spec](https://render.com/docs/blueprint-spec)
 (`free`, `0.5c-512mb`, `1c-2g`, …, as listed there on 2026-09-23).
 

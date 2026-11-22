@@ -1,3 +1,7 @@
+## 2026-11-22 — A33 QA in both CI and Render review image
+
+- Wired the disposable desktop/mobile campaign-selection Chromium acceptance script into `Dockerfile.review`, so future Render review builds cannot return a successful QA marker unless A33 passes alongside existing contacts and agent-team browser checks. This is not a customer-host runtime deployment; the latest Render build remains blocked by exhausted build minutes. No production Dockerfile or app runtime logic changed.
+
 ## 2026-11-22 — D-513 A33 test harness start-state correction
 
 - Fixed a false assumption in the new desktop/mobile acceptance check: the fresh mobile context can select the latest campaign from the server, not necessarily the first seed. It now verifies the initial selection is a real server row, while keeping strict new-create/manual-switch/reload checks. Exact-commit CI/Render checks are still pending; no app code changed.

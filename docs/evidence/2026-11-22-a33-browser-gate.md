@@ -22,3 +22,7 @@ The audit A33 status remains pending live deployment until those checks are comp
 ## QA harness correction D-513 (before observed browser result)
 
 A review found an invalid starting-state expectation: desktop creation adds a second campaign, so a fresh mobile browser need not default to the original seeded ID. The test now accepts any actually persisted current selection at startup, while still strictly requiring the newly created campaign and later manual switch to survive reload. This is a test harness correction, not a product repair. Current CI execution is still required.
+
+## Render review dependency
+
+The same A33 script is now required in the `chromium-checks` stage of `Dockerfile.review`, after the 503-contact browser acceptance and before the review QA marker can be published. A green GitHub workflow and this build-stage declaration are not evidence that Render accepted the newest image: the workspace build pipeline is currently blocked by zero remaining minutes. Manual verification against the actual web service remains open.

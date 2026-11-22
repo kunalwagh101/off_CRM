@@ -32,3 +32,16 @@ The same A33 script is now required in the `chromium-checks` stage of `Dockerfil
 GitHub [45053197067](https://github.com/kunalwagh101/off_CRM/actions/runs/45053197067) ran the new A33 quality step on commit `8d93a6c` but failed before launching Chromium: Python executed `scripts/qa/a33_campaign_browser.py` by path, then raised `ModuleNotFoundError: No module named 'scripts'` while importing the sibling QA environment helper. The earlier 72/72 historical board commands, 242 frontend tests and production frontend build succeeded. This is a real failed CI QA entrypoint, not a failing product UI assertion.
 
 Both CI and Render review launch commands now use module mode (`python -m scripts.qa.a33_campaign_browser`). A static test pins the invocation. New CI GREEN and actual Render build/manual acceptance are still pending. No app runtime change or customer action was performed.
+
+## Exact-source GREEN — 2026-11-22
+
+Commit [051541f](https://github.com/kunalwagh101/off_CRM/commit/051541feb1be851714bef0a55519626ed69d1d3f), GitHub workflow [45054567526](https://github.com/kunalwagh101/off_CRM/actions/runs/45054567526), **5/5 jobs successful**.
+
+Actual quality log:
+- `A33 PASS: Chromium 1280px, create/select/contacts/reload/manual-switch`
+- `A33 PASS: Chromium 390px, create/select/contacts/reload/manual-switch`
+- Frontend 242 passing tests, successful production build; board verifier 72/72 evidence commands PASS.
+- Python 3.10/3.11/3.12 each 3,472 PASS/149 skipped; disposable real PostgreSQL 3,583 PASS/107 skipped.
+- Dependency scans reported zero vulnerabilities; separate hosted companion desktop/mobile browser passed with zero JavaScript errors.
+
+This proves the disposable local product UI and automated checks. Render workspace `majors_97` refused new QA builds for exhausted build minutes (latest attempted deploy `dep-dc1ipb4s728c73ci9jd0`). The review image now requires A33, but has not run the updated build on Render. Manual deployed-app QA, customer durability, independent penetration, external providers and worker acceptance remain OPEN. Parent F-06.02 is NOT DONE.

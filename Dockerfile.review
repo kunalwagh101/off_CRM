@@ -123,7 +123,7 @@ RUN uv run pytest -q tests/test_browser_agent.py -k A09_enter_js_handler
 RUN uv run pytest -q tests/test_agent_claim_verification.py -k A18_real_chromium
 RUN uv run --no-sync python scripts/live/review_contacts_browser.py
 # A33: campaign creation/select/reload at desktop and mobile widths, synthetic data only.
-RUN uv run --no-sync python scripts/qa/a33_campaign_browser.py
+RUN uv run --no-sync python -m scripts.qa.a33_campaign_browser
 # F-04.01/F-06.01/A05: real owner UI + role actions + input/accessibility check.
 # Synthetic campaigns only; no provider, external post, email or customer data.
 RUN uv run --no-sync python scripts/live/review_agent_team_browser.py

@@ -1,3 +1,8 @@
+## 2026-11-22 — D-514 A33 real-browser test import repair
+
+- GitHub quality run 45053197067 executed 72/72 board evidence commands, 242 frontend tests and the frontend build, then failed the new A33 browser check with ModuleNotFoundError: scripts. This was a QA launch packaging bug, **not** proof of an application defect.
+- Changed GitHub and Render review invocations to `python -m scripts.qa.a33_campaign_browser`, which preserves the repository root on Python's module path. Added test to pin the two entrypoints; only a fresh green browser execution can verify the fix. Existing customer application runtime is unchanged and F-06.02 is still IN_PROGRESS.
+
 ## 2026-11-22 — A33 QA in both CI and Render review image
 
 - Wired the disposable desktop/mobile campaign-selection Chromium acceptance script into `Dockerfile.review`, so future Render review builds cannot return a successful QA marker unless A33 passes alongside existing contacts and agent-team browser checks. This is not a customer-host runtime deployment; the latest Render build remains blocked by exhausted build minutes. No production Dockerfile or app runtime logic changed.

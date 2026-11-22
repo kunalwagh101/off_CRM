@@ -26,3 +26,9 @@ A review found an invalid starting-state expectation: desktop creation adds a se
 ## Render review dependency
 
 The same A33 script is now required in the `chromium-checks` stage of `Dockerfile.review`, after the 503-contact browser acceptance and before the review QA marker can be published. A green GitHub workflow and this build-stage declaration are not evidence that Render accepted the newest image: the workspace build pipeline is currently blocked by zero remaining minutes. Manual verification against the actual web service remains open.
+
+## Actual first-source RED — D-514
+
+GitHub [45053197067](https://github.com/kunalwagh101/off_CRM/actions/runs/45053197067) ran the new A33 quality step on commit `8d93a6c` but failed before launching Chromium: Python executed `scripts/qa/a33_campaign_browser.py` by path, then raised `ModuleNotFoundError: No module named 'scripts'` while importing the sibling QA environment helper. The earlier 72/72 historical board commands, 242 frontend tests and production frontend build succeeded. This is a real failed CI QA entrypoint, not a failing product UI assertion.
+
+Both CI and Render review launch commands now use module mode (`python -m scripts.qa.a33_campaign_browser`). A static test pins the invocation. New CI GREEN and actual Render build/manual acceptance are still pending. No app runtime change or customer action was performed.

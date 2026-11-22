@@ -1,3 +1,9 @@
+## 2026-11-22 — D-507 Render smoke redirect guard (release blocked)
+
+- F-06.02 / active audit S-06.02.23: public HTTPS QA silently followed redirects. Test-first loopback GET and POST at `8ae954b` reproduced original unsafe navigation; code `226e9a6` refuses redirects, with both local cases passing. Real existing-host external HTTPS smoke [45013807759](https://github.com/kunalwagh101/off_CRM/actions/runs/45013807759) passed all eight public/auth requests.
+- Full GitHub [45013807674](https://github.com/kunalwagh101/off_CRM/actions/runs/45013807674) was running at documentation time. Fresh Render review `dep-dc1celtg1s2s73cvt52g` **build_failed before testing** because account `majors_97` has exhausted build minutes. No new-image deployment/manual UI/provider/customer data/independent penetration success is claimed. Remain NOT DONE.
+- Full 69-story feature status/acceptance breakdown: `docs/evidence/2026-11-22-f0602-feature-tracker.md`.
+
 ## 2026-11-22 — A17 public Render readiness, D-505 and D-506
 
 - Audit: F-06.02 / S-06.02.23. Exact code/test commit `4e5de7d4ceca52439c7287a6aba6d4760b19ef6c` on `develop`; `main` untouched.

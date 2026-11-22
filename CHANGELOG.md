@@ -1,3 +1,8 @@
+## 2026-11-22 — A33 real-browser acceptance added to CI
+
+- F-06.02 / S-06.02.23: new disposable real Chromium QA script covers campaign creation, immediate active selection, Contacts navigation, browser reload, and manual selection/reload at 1280px and 390px. It uses synthetic campaigns and a short-lived isolated local server and database, never customer data or external providers.
+- Wired the script into the GitHub quality workflow after the frontend build, recorded D-512 and audit evidence. This is a test-coverage improvement, not a new product implementation. Exact-source CI and latest Render manual verification remain separate requirements; F-06.02 remains IN_PROGRESS.
+
 ## 2026-11-22 — A35 / D-511 frontend helper route coverage
 
 - F-06.02 / S-06.02.23: added audit regression for 16 existing helper-generated API calls across CRM, campaign, contacts, queue and inbox screens. The scanner resolves simple static local helpers and fails closed for unsupported helper syntax. No production application runtime was modified.

@@ -109,6 +109,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+      - name: A33 real campaign creation, selection and reload on desktop and mobile
+        run: uv run python scripts/qa/a33_campaign_browser.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser
         run: uv run python scripts/qa/hosted_tool_browser.py --backend sqlite
 

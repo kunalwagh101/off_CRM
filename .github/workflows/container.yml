@@ -80,6 +80,8 @@ jobs:
           PY
           docker exec offcrm-container-check python -c \
             "from pathlib import Path; s=Path('/proc/1/status').read_text(); u=next(x for x in s.splitlines() if x.startswith('Uid:')); assert u.split()[1:] == ['10001'] * 4, u"
+      - name: A26 verify actual release-image dependency lock and extras
+        run: docker exec offcrm-container-check python scripts/qa/a26_image_dependency_contract.py
       - name: Verify restart readiness with the same disposable volume
         run: |
           docker restart offcrm-container-check

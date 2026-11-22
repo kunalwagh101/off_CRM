@@ -1,3 +1,9 @@
+## 2026-11-22 — A26 / D-509 release-image dependency lock parity
+
+- Found that the A26 audit's historical Dockerfile fix had no **actual-image** check proving installed SES boto3 and PostgreSQL psycopg/psycopg-binary matched the shipped uv.lock. Added standalone safe gate `scripts/qa/a26_image_dependency_contract.py`, eight regressions `tests/test_audit_a26_image_dependencies.py` and a `production container` workflow step **inside the running image**. The check also rejects developer-only test tooling and proves binary psycopg/libpq import.
+- TDD performed in isolated local mirror: RED: missing module during pytest collection (exit 2); GREEN: 8 passed (0.07s). These are local test results, **not** a real Docker check. The exact-source five-job GitHub CI, actual image build/start/lock check, and any Render live test are separate mandatory evidence gates. Parent F-06.02/S-06.02.23 remain IN_PROGRESS.
+- Evidence: `docs/evidence/2026-11-22-a26-image-lock-contract.md`. No customer messages, paid resources, secret output or production deployment touched.
+
 ## 2026-11-22 — A30 / D-508 current-source instructions and production safety
 
 - The `develop` operating guide, historical feature-tree priority and Render Blueprint contained stale runner and incomplete customer-data guidance. Source-level pre-fix inspection plus red-intent tests `tests/test_a30_active_runbook.py` at `2041004` identified the gap. Corrected `docs/BRANCHING.md`, `FEATURE_TREE.md` and comments in `render.yaml` to separate *past single-disk proposal* from actual production release requirements; the Blueprint's deploy behavior remains unchanged.

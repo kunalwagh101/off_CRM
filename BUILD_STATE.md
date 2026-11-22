@@ -1,3 +1,13 @@
+## 2026-11-22 — A17 public Render readiness, D-505 and D-506
+
+- Audit: F-06.02 / S-06.02.23. Exact code/test commit `4e5de7d4ceca52439c7287a6aba6d4760b19ef6c` on `develop`; `main` untouched.
+- Red-first: 5 new false-readiness JSON responses (HTTP 200, non-ready/invalid JSON) and 1 first-GET network timeout failed against the earlier smoke source; 19 earlier tests passed. Fixed code accepts JSON `{"status":"ready"}` only, retries **only** the first public HTML GET once on transport failure, and still fails on a non-200 HTTP result without retry. Focused local `python -m pytest -q tests/test_render_functional_smoke.py`: **25 passed**.
+- GitHub CI run [45005353735](https://github.com/kunalwagh101/off_CRM/actions/runs/45005353735) executed five jobs and **all five passed**, including full Python 3.10/3.11/3.12 suites, real PostgreSQL (3,563 passed / 107 skipped), 242 frontend tests, and full-history board replay (72/72 evidence commands).
+- Render `majors_97` functional QA: service `srv-dc0vbd8m7kps73di4pm0`, exact-source deployment `dep-dc1au02jnfac7388nh1g` **LIVE**. External HTTPS smoke [45005353383](https://github.com/kunalwagh101/off_CRM/actions/runs/45005353383) rerun attempt 2 **PASS 8/8**. Independent Render app access logs around 09:01:15-09:01:18 UTC show HTML 200, readiness 200, anonymous session 200, dashboard 401, companions 401, storage readiness 401, AI egress log 401, invalid login 401.
+- Existing real TestClient test `tests/test_audit_wp1.py::test_readiness_fails_when_required_database_is_unavailable` closes the core local 503-on-DB-failure test scope on the tested source. The live Render service was not intentionally taken down or modified to simulate a database failure.
+- Separate Render `Dockerfile.review` QA started at `dep-dc1aub7f3r2c73c6lmeg`; completion is a separate claim. Its initial synthetic-stage tests included hosted backups 26 PASS/1 skip and agent-team 57 PASS/2 skip, which are not equivalent to external S3 or customer agent acceptance.
+- **No production DONE claim.** The free functional service uses disposable state, dedicated offsite backup bucket/key/scheduler and independent restore remain unavailable, CRM tenancy/customer access and external worker are unresolved, independent penetration and actual provider testing are pending. No real customer data or messages were used.
+
 ## 2026-11-22 — D-504 observed RED and targeted GREEN on live Render QA
 
 - Test-only original commit `0baa866` had **two expected RED failures**, with 3,436 unrelated passes and 149 skipped in GitHub Actions run `44961617228` (Python 3.11). Both failures prove a stranded token/signing-key file after injected entropy failure.

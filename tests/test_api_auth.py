@@ -515,3 +515,27 @@ def test_A22_validation_errors_never_reflect_sensitive_input(tmp_path, leak_sour
         assert canary not in response.text
         assert "detail" in response.json()
         assert len(response.text) < 3000
+
+
+
+def test_A22_validation_path_indexes_keep_the_existing_string_contract(tmp_path):
+    """A22 safety must not change JSON location element types for list inputs."""
+    from fastapi.exceptions import RequestValidationError
+
+    app = create_app(_demo_settings(tmp_path))
+
+    async def bad_index():
+        raise RequestValidationError([{
+            "type": "int_parsing", "loc": ("body", 7),
+            "msg": "Input should be a valid integer", "input": "not-an-int",
+        }])
+
+    app.add_api_route("/api/v1/_audit_validation_index", bad_index, methods=["POST"])
+    with TestClient(app, base_url="https://crm.test") as client:
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        ).status_code == 200
+        response = client.post("/api/v1/_audit_validation_index", json={})
+        assert response.status_code == 422
+        assert response.json()["errors"][0]["location"] == ["7"]

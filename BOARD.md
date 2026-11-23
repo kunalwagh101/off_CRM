@@ -397,7 +397,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.43 · Logout revokes the copied browser session
   work_order: docs/work-orders/S-06.02.43-logout-revocation.md
-  review: docs/evidence/S-06.02.43-validation.md; disposable PostgreSQL two-instance replay/restart 1 passed, hosted suite 215 passed, PG full suite 2772 passed; real browser acceptance open; old-hosted-data v1-to-v2 PostgreSQL migration + preserved-login/revoked-cookie test added 2026-11-24, exact-source PG CI pending
+  review: docs/evidence/S-06.02.43-validation.md; disposable PostgreSQL two-instance replay/restart 1 passed, hosted suite 215 passed, PG full suite 2772 passed; v1-to-v2 hosted PostgreSQL login migration, copied-cookie replay and 503 failure/retry Chromium are source-verified in GitHub 45286935498 (5/5 jobs, 3,499 Python per version, PG 3,611, frontend 242, board 74/74); D-520 React false logout fixed. Current-source Render manual browser proof, production rollout and independent release review still OPEN
 
 
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners

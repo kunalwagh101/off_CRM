@@ -1,3 +1,9 @@
+## 2026-11-24 — D-520 false successful logout fixed and independently exercised in Chromium
+
+- Corrected frontend logout so failed server-side cookie revocation cannot appear as successful sign-out. Failed network/storage responses leave auth state intact and display an accessible retry warning.
+- Real disposable Chromium A06 gate tested HTTP 503 failure and retry, copied-cookie replay refusal in another browser, independent session survival and server restart. Exact-source GitHub [45286935498](https://github.com/kunalwagh101/off_CRM/actions/runs/45286935498) **PASS 5/5**, Python3.10/3.11/3.12 3499 each, PostgreSQL 3611, frontend 242/build, board 74/74.
+- Defect D-520 recorded. S-06.02.43 remains IN_REVIEW: customer-hosted Render manual QA and independent review remain required; parent F-06.02 still IN_PROGRESS (22 DONE / 47 not DONE). No destructive reset, customer data, Render deploy or production secret changed.
+
 ## 2026-11-24 — S-06.02.43 old hosted login migration/revocation test
 
 - Added a real PostgreSQL regression starting with the previous workspace-users schema version 1 and an existing salted user. The current API must migrate to v2 without resetting credentials, persist only the hashed revoked cookie and reject replay on a second app startup while allowing fresh login. This fills the previously recorded old-hosted-data upgrade acceptance gap.

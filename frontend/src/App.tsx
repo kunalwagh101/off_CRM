@@ -198,7 +198,7 @@ export function LoginScreen({ onLogin, publicDemo }: { onLogin: (session: AuthSe
   );
 }
 
-export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogout: () => void }) {
+export function AuthenticatedApp({ auth, onLogout, logoutError = "" }: { auth: AuthSession; onLogout: () => void; logoutError?: string }) {
   const [page, setPage] = useState<Page>(currentPage());
   // One store owns the campaign list and the selection, so they cannot
   // disagree for a render — which is how a new campaign lost its selection to
@@ -321,6 +321,7 @@ export function AuthenticatedApp({ auth, onLogout }: { auth: AuthSession; onLogo
             <div className="topbar-actions">
               {campaignsResource.error ? (campaignsResource.authError ? <button className="connection-error" onClick={() => setTokenOpen(true)}>API access needed</button> : <span className="connection-error" role="status">Backend error</span>) : <span className="connection-ok"><span />Backend ready</span>}
               {auth.configured ? <span className="session-user">{auth.username}</span> : <button className="topbar-button" onClick={() => setTokenOpen(true)} aria-label="Set local API token">Key</button>}
+              {logoutError ? <span className="connection-error" role="alert">{logoutError}</span> : null}
               {auth.configured ? <button className="topbar-button logout-button" onClick={onLogout}>Log out</button> : null}
               <a className="topbar-button" href="/api/docs" target="_blank" rel="noreferrer" aria-label="Open API documentation">?</a>
             </div>
@@ -373,6 +374,7 @@ const EMPTY_AUTH: AuthSession = { configured: false, authenticated: false, usern
 export default function App() {
   const [auth, setAuth] = useState<AuthSession | null>(null);
   const [error, setError] = useState("");
+  const [logoutError, setLogoutError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -385,12 +387,16 @@ export default function App() {
   }, []);
 
   async function logout() {
+    setLogoutError("");
     try {
       await api.post("/auth/logout", {});
-    } finally {
-      setToken("");
-      setAuth({ ...EMPTY_AUTH, configured: true, public_demo: auth?.public_demo });
+    } catch {
+      // An unrevoked HttpOnly cookie may remain valid on another device.
+      setLogoutError("Sign-out could not be confirmed. Your session may still be active. Try again.");
+      return;
     }
+    setToken("");
+    setAuth({ ...EMPTY_AUTH, configured: true, public_demo: auth?.public_demo });
   }
 
   if (error) {
@@ -402,5 +408,5 @@ export default function App() {
   if (auth.configured && !auth.authenticated) {
     return <LoginScreen onLogin={setAuth} publicDemo={auth.public_demo} />;
   }
-  return <AuthenticatedApp auth={auth} onLogout={logout} />;
+  return <AuthenticatedApp auth={auth} onLogout={logout} logoutError={logoutError} />;
 }

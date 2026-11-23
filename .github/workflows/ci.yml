@@ -115,6 +115,8 @@ jobs:
         run: npm run build
       - name: A33 real campaign creation, selection and reload on desktop and mobile
         run: uv run python -m scripts.qa.a33_campaign_browser
+      - name: A06 real Chromium logout revocation and replay
+        run: uv run python -m scripts.qa.a06_logout_browser
       - name: Verify the board against the repository
         run: uv run python scripts/verify_board.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser

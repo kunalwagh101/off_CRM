@@ -135,6 +135,46 @@ These are enforced by tests, not by convention. Breaking one fails CI.
 
 ---
 
+## Render build-budget safety (2026-11-23; F-06.02 incident)
+
+**Do not use Render as a duplicate full regression runner.** On the new
+`majors_97` workspace, the review-only service
+`off-crm-qa-major-1997-20261121` executed 20 complete image builds over
+21–22 November: 17 passed, 3 failed, approximately **482.5 elapsed
+build-minutes** according to Render events. That nearly exhausted the
+workspace's monthly included 500 minutes. Later builds across CRM and
+TravelX failed with `pipeline_minutes_exhausted` before app startup.
+
+For every feature and every coding agent, enforce these deployment rules:
+
+- **One exact commit, one QA deployment.** Run the complete GitHub Actions
+  Python/PostgreSQL/frontend/Chromium checks first. Re-run failed tests in CI
+  or locally, **not** by repeatedly invoking a Render Docker build. Wait for
+  the final job results rather than creating a new deployment to check progress.
+- **Do not trigger `Dockerfile.review` on Render.** Its all-tests-in-Docker
+  harness repeats the full CI suites and previously took 24–29 minutes per
+  successful build. The review service is legacy evidence, not the actual
+  CRM. Use the existing isolated **functional** QA service with `Dockerfile`
+  for the one required hosted API/UI/manual check after CI passes.
+- **No new per-story QA services.** Reuse the existing functional QA
+  `off-crm-functional-qa-20261122` (`srv-dc0vbd8m7kps73di4pm0`) in
+  `majors_97` only after checking its configuration, disposable-data boundary
+  and most recent commit. Do not repurpose an unrelated customer, public
+  demo, TravelX or OffsetX service. Keep QA auto-deploy disabled.
+- **If the workspace is out of minutes, stop.** Record the
+  `pipeline_minutes_exhausted` event and the exact unverified commit.
+  Never retry unchanged blocked builds, create extra accounts to evade limits,
+  increase spending, upgrade a plan or claim manual Render acceptance without
+  explicit owner approval and a successful exact-commit deployment.
+- **No silent destructive cleanup.** Do not delete/suspend services, reset
+  databases, rotate production credentials, or remove customer data in the name
+  of saving build minutes. Unused QA services can be reviewed separately.
+
+This is an operations guard, **not** proof of a feature being deployed. CI
+passes and the actual hosted/manual checks are distinct release gates.
+
+---
+
 ## Commands
 
 Dependencies are installed by the session-start hook in `.claude/hooks/`

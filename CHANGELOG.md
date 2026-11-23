@@ -1,3 +1,8 @@
+## 2026-11-24 — S-06.02.20 shallow Git verification evidence and review closeout
+
+- The original real shallow `file://` Git clone/recovery fixture and 67 focused Render QA tests passed. GitHub CI [45256420863](https://github.com/kunalwagh101/off_CRM/actions/runs/45256420863) now passes all five jobs in a full-depth checkout (3,481 Python3.11 pass, 149 skip; board verifier 72/72). S-06.02.20's code-only acceptance can move from IN_REVIEW to DONE subject to fresh board-promotion CI. No Render app redeploy is needed for this repository-only verifier diagnostic. Parent F-06.02 and all customer release blockers stay open.
+- Rollback: revert only this board/evidence status if its new verifier run fails; the `S-06.02.20` work order documents the code-only rollback if a future regression arises.
+
 ## 2026-11-24 — F-06.02 scope fidelity and acceptance checklist fix (D-516)
 
 - Verified the 69-story security scope against PRODUCT_BACKLOG.md. Found two story blocks importing F-12.01/F-07.01 requirements, three missing-case blocks, 30 truncated Given/When/Then cases across 22 stories and four truncated task descriptions.

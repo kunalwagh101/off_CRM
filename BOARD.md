@@ -436,9 +436,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
   review: docs/evidence/S-06.02.37-validation.md; code/tests committed, frontend and Chromium acceptance unrun
 
-- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
-  work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
-  review: docs/evidence/S-06.02.20-validation.md; 67 real Git-fixture and CI tests passed in Render QA; full historical Git ancestry and GitHub Actions verification pending
 
 - S-06.02.39 · Valid low-bitrate WebM exports pass verification
   work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
@@ -498,6 +495,14 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
+  work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
+  tests: tests/test_verify_board.py::test_a_shallow_checkout_names_the_missing_history_and_recovers, tests/test_ci_verifier_environment.py::test_ci_fetches_history_needed_for_evidence_commit_ancestry, tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails
+  command: uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q
+  result: Real Git depth-1 fixture and full-history recovery passed; 67 targeted Git/CI tests PASS on isolated Render review dep-db8akqs9v7es73877d9g (2026-10-15); source at b28a22221b passed GitHub CI 45256420863, Python3.11 3481 passed/149 skipped and quality full-depth board verifier 72/72 PASS (2026-11-23). Board promotion requires fresh same-commit CI after this metadata change; release/customer hosting is not certified.
+  code: scripts/verify_board.py, .github/workflows/ci.yml, tests/test_verify_board.py, tests/test_ci_verifier_environment.py
+  commit: b28a22221b664861bcf1e80ab139e4f7e5e3c496
 
 - S-06.02.18 · Restore executable CI runner capacity
   work_order: docs/work-orders/S-06.02.18-ci-runner-capacity.md

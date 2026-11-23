@@ -70,3 +70,20 @@ def test_quality_gate_runs_disposable_recovery_after_npm_audits() -> None:
     build = ci.index("name: Build frontend")
     assert production < development < recovery < build
     assert "run: uv run python -m scripts.qa.s16_frontend_lock_recovery" in ci
+
+
+def test_npm_failure_never_escapes_secret_in_process_output(monkeypatch, tmp_path) -> None:
+    """D-517: npm stderr must not leak a private registry credential in CI."""
+    from subprocess import CompletedProcess
+    import scripts.qa.s16_frontend_lock_recovery as recovery
+
+    canary = "npm-private-registry-key-should-not-be-logged"
+
+    def fake_run(*args, **kwargs):
+        return CompletedProcess(args[0], 1, stdout=canary, stderr=canary)
+
+    monkeypatch.setattr(recovery.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError) as exc:
+        recovery._run(["npm", "ci"], tmp_path, timeout=10)
+    assert canary not in str(exc.value)
+    assert "npm ci failed" in str(exc.value)

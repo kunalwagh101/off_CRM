@@ -1,3 +1,8 @@
+## 2026-11-24 — D-517 keep npm rollback QA logs credential-safe
+
+- New S-06.02.16 rollback QA helper originally reflected raw npm stderr/stdout in errors. Isolated fake subprocess canary reproduced the leak (1 RED / 10 unrelated PASS); fixed exception output to a static action + exit status message and confirmed 11 GREEN.
+- New exact-source CI must rerun the rollback drill and all prior gates. Application runtime and Render services are untouched; feature F-06.02 remains IN_PROGRESS.
+
 ## 2026-11-24 — S-06.02.16 safe frontend rollback gate
 
 - Confirmed current patched Vitest 4.1.12 manifest and lockfile are byte-identical to Render-reviewed commit `4e5de7d`, which ran the stricter npm moderate-development audit and passed. GitHub CI 45262723267 later ran both production/development registry audits with zero vulnerabilities and 242 frontend tests/build PASS.

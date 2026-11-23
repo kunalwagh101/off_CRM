@@ -49,9 +49,10 @@ def _run(args: list[str], cwd: Path, *, timeout: int) -> str:
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True,
                             timeout=timeout, check=False)
     if result.returncode:
+        # npm output may contain a private registry URL or authentication data.
         raise RuntimeError(
-            f"{' '.join(args[:2])} failed: "
-            + (result.stderr or result.stdout).strip()[-700:]
+            f"{' '.join(args[:2])} failed (exit status {result.returncode}). "
+            "Check the CI npm setup without copying its raw log into an error."
         )
     return result.stdout
 

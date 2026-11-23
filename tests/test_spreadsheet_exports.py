@@ -104,3 +104,78 @@ def test_every_report_tab_escapes_untrusted_rows_without_mutating_source(tmp_pat
         saved = next(csv.DictReader(fp))
     assert saved["reason"].startswith("'@RISK")
     assert saved["name"].startswith("'-1+2")
+
+
+
+def test_A19_invalid_openxml_controls_do_not_crash_human_exports_or_change_source(
+    tmp_path: Path,
+):
+    """D-518: hostile source text must not break XLSX generation or run formulas."""
+    import copy
+
+    accepted = [{
+        "Full Name": "Person\x00Zero",
+        "Notes": "\x0b=HYPERLINK(\"https://attacker.invalid\",\"Open\")",
+        "Email": "safe@example.test",
+        "Overall Score": 42,
+    }]
+    rejected = [{"reason": "\x1f+SUM(1,2)", "name": "normal"}]
+    raw = [{"name": "Info\x0cmore"}]
+    decision = [{"Reason": "Invalid\x0etext", "Decision": "rejected"}]
+    meta = {"run_id": "r\x07-123", "output_dir": str(tmp_path)}
+    original = copy.deepcopy((accepted, rejected, raw, decision, meta))
+
+    write_outputs(
+        tmp_path, accepted, rejected, meta, raw_candidates=raw, decision_log=decision,
+    )
+    assert (accepted, rejected, raw, decision, meta) == original
+
+    workbook = load_workbook(
+        tmp_path / "offsetx_final_pois_with_emails.xlsx", data_only=False,
+    )
+    expected = (
+        ("Final_POIs", "Full Name", r"Person\x00Zero"),
+        ("Final_POIs", "Notes", r"\x0b=HYPERLINK"),
+        ("Rejected_Log", "reason", r"\x1f+SUM"),
+        ("Raw_Apollo_Search", "name", r"Info\x0cmore"),
+        ("Decision_Audit", "Reason", r"Invalid\x0etext"),
+        ("Run_Metadata", "run_id", r"r\x07-123"),
+    )
+    for sheet_name, column, prefix in expected:
+        sheet = workbook[sheet_name]
+        headers = {cell.value: cell.column for cell in sheet[1]}
+        cell = sheet.cell(2, headers[column])
+        assert cell.data_type == "s", (sheet_name, column, cell.value)
+        assert str(cell.value).startswith(prefix), (sheet_name, column, cell.value)
+
+    score_col = {
+        cell.value: cell.column for cell in workbook["Final_POIs"][1]
+    }["Overall Score"]
+    assert workbook["Final_POIs"].cell(2, score_col).value == 42
+
+    # CSV report mirrors the same display-safe representation.
+    with (tmp_path / "offsetx_final_pois_with_emails.csv").open(
+        newline="", encoding="utf-8",
+    ) as handle:
+        row = next(csv.DictReader(handle))
+    assert row["Full Name"] == r"Person\x00Zero"
+    assert row["Notes"].startswith(r"\x0b=HYPERLINK")
+
+    # Structured source metadata remains exact, including control characters.
+    import json
+    persisted_meta = json.loads((tmp_path / "run_meta.json").read_text())
+    assert persisted_meta == meta
+
+
+def test_A19_control_character_escape_is_readable_and_only_at_export_boundary():
+    """D-518: do not create actual Excel-forbidden characters or mutate numbers."""
+    for invalid in ("\x00", "\x08", "\x0b", "\x0c", "\x0e", "\x1f"):
+        safe = spreadsheet_safe_cell("field" + invalid + "value")
+        assert safe == "field" + f"\\x{ord(invalid):02x}" + "value"
+        assert invalid not in safe
+    assert spreadsheet_safe_cell(10) == 10
+    assert spreadsheet_safe_cell(True) is True
+    assert spreadsheet_safe_cell(None) is None
+    assert spreadsheet_safe_cell("=2+2") == "'=2+2"
+    assert spreadsheet_safe_cell(" \t=2+2") == "' \t=2+2"
+    assert spreadsheet_safe_cell("ordinary") == "ordinary"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -50,16 +51,26 @@ APOLLO_REJECTION_LEDGER_COLUMNS = [
 # as a formula. Quoting in CSV syntax alone does not stop evaluation.
 _SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@")
 _SPREADSHEET_IGNORED_PREFIX = " \t\r\n\ufeff"
+# OpenXML workbooks reject these controls outright, including inside text.
+# Printable escapes belong in *human exports only*: internal CSV dedupe/credit
+# ledgers, stored CRM records and raw JSON keep the exact source bytes.
+_SPREADSHEET_INVALID_XML = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 def spreadsheet_safe_cell(value: Any) -> Any:
-    """Escape external text at spreadsheet output, not inside the CRM/source rows."""
+    """Make untrusted human-report text safe for CSV and Excel, without mutation."""
     if not isinstance(value, str) or not value:
         return value
-    visible = value.lstrip(_SPREADSHEET_IGNORED_PREFIX)
-    if visible.startswith(_SPREADSHEET_FORMULA_PREFIXES) or value[0] in "\t\r\n":
-        return "'" + value
-    return value
+    # A leading control character can hide a formula from a scanner, and any
+    # control in this range makes openpyxl raise IllegalCharacterError. Render
+    # it visibly as \xNN instead of deleting evidence of the original input.
+    printable = _SPREADSHEET_INVALID_XML.sub(
+        lambda match: f"\\x{ord(match.group()):02x}", value
+    )
+    visible = printable.lstrip(_SPREADSHEET_IGNORED_PREFIX)
+    if visible.startswith(_SPREADSHEET_FORMULA_PREFIXES) or printable[0] in "\t\r\n":
+        return "'" + printable
+    return printable
 
 
 def spreadsheet_safe_frame(frame: pd.DataFrame) -> pd.DataFrame:

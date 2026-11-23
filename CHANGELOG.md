@@ -1,3 +1,8 @@
+## 2026-11-24 — F-06.02 / S-06.02.42 XLSX illegal-control safety (D-518)
+
+- Confirmed that an imported NUL/VT/FF character makes openpyxl throw `IllegalCharacterError` during human-facing report creation. In an isolated RED/GREEN test, changed only report-cell presentation to visible `\\xNN` control escapes, preserving formula safety, numeric cells and original source values.
+- Added real `write_outputs` export acceptance cases for accepted/rejected/raw/decision/metadata worksheets and CSV, plus raw JSON source preservation. S-06.02.42 remains IN_REVIEW pending full exact-source CI, independent actual Excel/LibreOffice open and current-source Render acceptance. No customer or external-provider data touched.
+
 ## 2026-11-24 — S-06.02.16 frontend audit controls pass real registry and rollback CI
 
 - Exact-source GitHub [45266709119](https://github.com/kunalwagh101/off_CRM/actions/runs/45266709119) PASS 5/5, including patched Vitest 4.1.12 pinned lock, npm production/dev moderate audits 0 vulnerabilities, disposable 4.1.11 rollback refusal / patched recovery PASS, Python3.10/11/12 3,493 PASS each, real PG 3,604 PASS, frontend 242/build, Chromium and 73/73 historical evidence commands. D-517 fixed by secret-safe npm failure reporting.

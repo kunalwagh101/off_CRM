@@ -1305,17 +1305,42 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # Pydantic/FastAPI errors are client input failures, not server crashes.
         # Return bounded field/type information and never echo request bodies,
         # which may contain credentials or other sensitive material.
+        # Error metadata is not trusted: custom Pydantic validators can embed
+        # the original secret in 'msg', 'type' or a dynamic dictionary key in
+        # 'loc'. Never forward those strings into an API response (A22).
+        # Keep useful, static hints for the most common validation failures.
+        safe_messages = {
+            "missing": "Required value is missing",
+            "extra_forbidden": "Unexpected field",
+            "int_parsing": "Use a whole number",
+            "int_type": "Use a whole number",
+            "float_parsing": "Use a number",
+            "float_type": "Use a number",
+            "bool_parsing": "Use true or false",
+            "bool_type": "Use true or false",
+            "string_type": "Use text",
+            "string_too_short": "Text is too short",
+            "string_too_long": "Text is too long",
+            "list_type": "Use a list",
+            "dict_type": "Use an object",
+            "json_invalid": "Invalid JSON",
+            "greater_than_equal": "Value is below the allowed minimum",
+            "less_than_equal": "Value is above the allowed maximum",
+        }
         errors: list[dict[str, Any]] = []
         for item in exc.errors()[:50]:
+            kind = str(item.get("type") or "")
+            # String locations can contain attacker-controlled map keys. Do
+            # not echo any; preserve only bounded structural list indices.
             location = [
-                str(part)
-                for part in item.get("loc", ())
-                if str(part) not in {"body"}
+                part if isinstance(part, int) and 0 <= part <= 100_000 else "field"
+                for part in tuple(item.get("loc") or ())[:8]
+                if part != "body"
             ]
             errors.append({
                 "location": location,
-                "message": str(item.get("msg") or "Invalid value")[:500],
-                "type": str(item.get("type") or "validation_error")[:120],
+                "message": safe_messages.get(kind, "Invalid value"),
+                "type": kind if kind in safe_messages else "validation_error",
             })
         # Screens show `detail` alone, so it names the first refused field: a
         # bare "Request validation failed" left the owner nothing to change

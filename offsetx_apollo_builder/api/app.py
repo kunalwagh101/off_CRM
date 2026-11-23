@@ -29,6 +29,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .. import __version__
+from . import schemas as request_schemas
 from ..observability import FailureMiddleware, FailureReporter, reported_reference, failure_message, report_failure
 from .video_upload_guard import VideoUploadBodyGuard
 from . import public_demo
@@ -1327,19 +1328,41 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             "greater_than_equal": "Value is below the allowed minimum",
             "less_than_equal": "Value is above the allowed maximum",
         }
+        # Only identifiers declared in our API request schemas can be shown.
+        # A validator's dynamic dictionary key or arbitrary text is not a
+        # declared field and must never be reflected into the response.
+        declared_fields = frozenset(
+            field
+            for model in vars(request_schemas).values()
+            if isinstance(model, type)
+            and model.__module__ == request_schemas.__name__
+            for field in getattr(model, "model_fields", ())
+        )
         errors: list[dict[str, Any]] = []
         for item in exc.errors()[:50]:
             kind = str(item.get("type") or "")
             # String locations can contain attacker-controlled map keys. Do
             # not echo any; preserve only bounded structural list indices.
             location = [
-                str(part) if isinstance(part, int) and 0 <= part <= 100_000 else "field"
+                (
+                    part if isinstance(part, str) and part in declared_fields
+                    else str(part) if isinstance(part, int) and 0 <= part <= 100_000
+                    else "field"
+                )
                 for part in tuple(item.get("loc") or ())[:8]
                 if part != "body"
             ]
+            message = safe_messages.get(kind, "Invalid value")
+            # A fixed schema threshold of zero can be described accurately
+            # without reflecting untrusted error/context strings.
+            context = item.get("ctx")
+            if (kind == "greater_than_equal" and isinstance(context, dict)
+                    and type(context.get("ge")) in (int, float)
+                    and context["ge"] == 0):
+                message = "Input should be greater than or equal to 0"
             errors.append({
                 "location": location,
-                "message": safe_messages.get(kind, "Invalid value"),
+                "message": message,
                 "type": kind if kind in safe_messages else "validation_error",
             })
         # Screens show `detail` alone, so it names the first refused field: a

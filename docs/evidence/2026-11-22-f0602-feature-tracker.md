@@ -1,6 +1,6 @@
 # F-06.02 — complete direct-story acceptance tracker
 
-**Snapshot:** 2026-11-24, off_CRM `develop` (board statuses retained from the 2026-11-22 baseline; scope corrected against the current backlog). **Authoritative:** [board](../../BOARD.md), [backlog](../../PRODUCT_BACKLOG.md), [Done rules](../../DEFINITION_OF_DONE.md), [audit work order](../work-orders/S-06.02.23-audit-recheck.md). Do not treat this inventory as certification.
+**Snapshot:** 2026-11-24, off_CRM `develop` (scope corrected against backlog; board statuses updated through S-06.02.20 verified closeout). **Authoritative:** [board](../../BOARD.md), [backlog](../../PRODUCT_BACKLOG.md), [Done rules](../../DEFINITION_OF_DONE.md), [audit work order](../work-orders/S-06.02.23-audit-recheck.md). Do not treat this inventory as certification.
 
 ## Scope integrity check (2026-11-24)
 
@@ -354,7 +354,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 
-**Status:** DONE (repository-only story, GitHub full-depth CI 45256420863 and isolated Render Git fixtures; re-verification of board promotion pending). **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.20-shallow-git-history.md).
+**Status:** DONE (repository-only story, GitHub full-depth CI 45262723267 all five jobs successful; board verifier 73/73; isolated Render Git fixtures 67/67). **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.20-shallow-git-history.md).
 
 **Requirement:** The verifier tells a shallow clone apart from a missing commit.
 

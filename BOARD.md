@@ -500,7 +500,7 @@ write the code, then the evidence block.)*
   work_order: docs/work-orders/S-06.02.20-shallow-git-history.md
   tests: tests/test_verify_board.py::test_a_shallow_checkout_names_the_missing_history_and_recovers, tests/test_ci_verifier_environment.py::test_ci_fetches_history_needed_for_evidence_commit_ancestry, tests/test_verify_board.py::test_a_commit_that_exists_but_was_orphaned_fails
   command: uv run pytest tests/test_verify_board.py tests/test_ci_verifier_environment.py -q
-  result: Real Git depth-1 fixture and full-history recovery passed; 67 targeted Git/CI tests PASS on isolated Render review dep-db8akqs9v7es73877d9g (2026-10-15); source at b28a22221b passed GitHub CI 45256420863, Python3.11 3481 passed/149 skipped and quality full-depth board verifier 72/72 PASS (2026-11-23). Board promotion requires fresh same-commit CI after this metadata change; release/customer hosting is not certified.
+  result: Real Git depth-1 fixture and full-history recovery passed; 67 targeted Git/CI tests PASS on isolated Render review dep-db8akqs9v7es73877d9g (2026-10-15); source at b28a22221b passed GitHub CI 45256420863, Python3.11 3481 passed/149 skipped and quality full-depth board verifier 72/72 PASS (2026-11-23). Promoted source fcb6002b4f8bb76300a8d837944b68371b8ae46e verified at GitHub 45262723267 5/5 PASS; 73/73 board evidence. No customer-hosted acceptance is claimed.
   code: scripts/verify_board.py, .github/workflows/ci.yml, tests/test_verify_board.py, tests/test_ci_verifier_environment.py
   commit: b28a22221b664861bcf1e80ab139e4f7e5e3c496
 

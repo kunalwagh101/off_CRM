@@ -842,3 +842,106 @@ def test_private_key_output_parent_swap_cannot_redirect_secret(
     else:
         assert result == 2
         assert not (moved_parent / file_name).exists()
+
+
+
+def test_postgres_v1_login_schema_upgrades_with_existing_user_and_revoked_cookie(
+    postgres_url, tmp_path, monkeypatch,
+):
+    """S-06.02.43: a pre-revocation hosted DB upgrades without losing accounts.
+
+    The test deliberately creates version 1 of the actual users store, inserts
+    an old customer-shaped login (with test-only credentials) and lets the real
+    app perform the version-2 migration. An already-issued cookie must stay
+    revoked after another application process opens the same hosted schema.
+    """
+    import hashlib
+    import time
+
+    from offsetx_apollo_builder.api.auth import (
+        SESSION_COOKIE,
+        WorkspaceAuthStore,
+        _create_users,
+    )
+
+    username = "legacy-migration-user"
+    password = "disposable-legacy-password-123"
+    salt = os.urandom(16)
+    old_digest = WorkspaceAuthStore._derive(password, salt)
+    now = int(time.time())
+    database = open_database(postgres_url)
+    try:
+        assert ensure_schema(database, "workspace_users", (_create_users,)) == 1
+        assert schema_version(database, "workspace_users") == 1
+        assert not database.columns("workspace_revoked_sessions")
+        database.execute(
+            "INSERT INTO workspace_users("
+            "username, workspace_id, password_salt, password_hash, "
+            "session_version, enabled, created_at, updated_at"
+            ") VALUES(?, ?, ?, ?, 1, 1, ?, ?)",
+            (username, "local", salt, old_digest, now, now),
+        )
+    finally:
+        database.close()
+
+    monkeypatch.setenv("OFFSETX_DATABASE_URL", postgres_url)
+    key = _new_key()
+
+    def settings_for(name: str) -> AppSettings:
+        settings = _settings(tmp_path / name, key)
+        settings.demo_username = username
+        settings.demo_password = password
+        settings.allowed_hosts = ("crm.test",)
+        return settings
+
+    with TestClient(
+        create_app(settings_for("migrated")), base_url="https://crm.test"
+    ) as client:
+        signed_in = client.post(
+            f"{API}/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert signed_in.status_code == 200, signed_in.text
+        copied_cookie = signed_in.cookies.get(SESSION_COOKIE)
+        assert copied_cookie
+        assert client.get(f"{API}/dashboard").status_code == 200
+        assert client.post(f"{API}/auth/logout", json={}).status_code == 200
+
+    database = open_database(postgres_url)
+    try:
+        assert schema_version(database, "workspace_users") == 2
+        restored = database.execute(
+            "SELECT password_salt, password_hash, session_version, enabled "
+            "FROM workspace_users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        assert restored is not None
+        assert bytes(restored["password_salt"]) == salt
+        assert bytes(restored["password_hash"]) == old_digest
+        assert restored["session_version"] == 1
+        assert bool(restored["enabled"])
+        revoked = database.execute(
+            "SELECT token_digest FROM workspace_revoked_sessions"
+        ).fetchall()
+        assert [row["token_digest"] for row in revoked] == [
+            hashlib.sha256(copied_cookie.encode("utf-8")).hexdigest()
+        ]
+    finally:
+        database.close()
+
+    # The old cookie may not become valid again after process restart or when
+    # the hosted schema is opened by another independent app instance.
+    with TestClient(
+        create_app(settings_for("after-restart")), base_url="https://crm.test"
+    ) as reopened:
+        reopened.cookies.set(
+            SESSION_COOKIE, copied_cookie, domain="crm.test", path="/",
+        )
+        assert reopened.get(f"{API}/dashboard").status_code == 401
+        # The original user's credentials must still work after migration.
+        signed_in_again = reopened.post(
+            f"{API}/auth/login",
+            json={"username": username, "password": password},
+        )
+        assert signed_in_again.status_code == 200
+        assert reopened.get(f"{API}/dashboard").status_code == 200

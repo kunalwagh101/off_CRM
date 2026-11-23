@@ -397,7 +397,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.43 · Logout revokes the copied browser session
   work_order: docs/work-orders/S-06.02.43-logout-revocation.md
-  review: docs/evidence/S-06.02.43-validation.md; disposable PostgreSQL two-instance replay/restart 1 passed, hosted suite 215 passed, PG full suite 2772 passed; real browser and old-hosted-data upgrade acceptance open
+  review: docs/evidence/S-06.02.43-validation.md; disposable PostgreSQL two-instance replay/restart 1 passed, hosted suite 215 passed, PG full suite 2772 passed; real browser acceptance open; old-hosted-data v1-to-v2 PostgreSQL migration + preserved-login/revoked-cookie test added 2026-11-24, exact-source PG CI pending
 
 
 - S-12.02.05 · The brain drafts against the expert corpus and the owner's winners

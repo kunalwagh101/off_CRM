@@ -1,3 +1,8 @@
+## 2026-11-24 — S-06.02.43 old hosted login migration/revocation test
+
+- Added a real PostgreSQL regression starting with the previous workspace-users schema version 1 and an existing salted user. The current API must migrate to v2 without resetting credentials, persist only the hashed revoked cookie and reject replay on a second app startup while allowing fresh login. This fills the previously recorded old-hosted-data upgrade acceptance gap.
+- No product runtime code or customer database changed; uses the disposable PostgreSQL schema in GitHub CI. S-06.02.43 remains IN_REVIEW pending exact-source CI, live-browser cookie replay and independent manual acceptance. Parent F-06.02 remains IN_PROGRESS.
+
 ## 2026-11-24 — D-519 export test aligns with tracking columns
 
 - Corrected the new malicious-header workbook/CSV test to locate hostile headings by safe names, because the actual writer includes three run-provenance columns ahead of them. No application code changed; exact-source CI must rerun.

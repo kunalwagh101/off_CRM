@@ -1,3 +1,9 @@
+## 2026-11-24 — S-06.02.16 frontend audit controls pass real registry and rollback CI
+
+- Exact-source GitHub [45266709119](https://github.com/kunalwagh101/off_CRM/actions/runs/45266709119) PASS 5/5, including patched Vitest 4.1.12 pinned lock, npm production/dev moderate audits 0 vulnerabilities, disposable 4.1.11 rollback refusal / patched recovery PASS, Python3.10/11/12 3,493 PASS each, real PG 3,604 PASS, frontend 242/build, Chromium and 73/73 historical evidence commands. D-517 fixed by secret-safe npm failure reporting.
+- Independently rendered package/lock pair with byte-identical SHAs in isolated Render review `dep-dc1aub7f3r2c73c6lmeg` also ran moderate dev/low production audits, frontend, PostgreSQL and Chromium successfully. S-06.02.16 promoted from IN_REVIEW to DONE for repository dependency security controls; subsequent board-promotion CI must reverify the extra evidence entry.
+- Parent F-06.02 stays IN_PROGRESS; live customer-host durability/tenant/privacy/API/worker/penetration checks remain open; Render current-source application QA blocked by exhausted build minutes. No customer/paid provider deployment.
+
 ## 2026-11-24 — D-517 keep npm rollback QA logs credential-safe
 
 - New S-06.02.16 rollback QA helper originally reflected raw npm stderr/stdout in errors. Isolated fake subprocess canary reproduced the leak (1 RED / 10 unrelated PASS); fixed exception output to a static action + exit status message and confirmed 11 GREEN.

@@ -404,9 +404,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-12.02.05-plans-with-expert-references.md
   review: docs/evidence/S-12.02.05-validation.md; D-268 reference A/B context-isolation regression committed, owner corpus/30 real cases and full verification pending
 
-- S-06.02.16 · Resolve frontend development dependency audit findings
-  work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md
-  review: docs/evidence/S-06.02.16-validation.md; 2026-11-21 exact-source 0bd5ceed GitHub CI 5 jobs SUCCESS, frontend 237 PASS, full-history verifier PASS, Render review LIVE with 3416 PG PASS and Chromium. D-471 patched moderate Vitest advisories; D-474 strengthens dev audit to moderate threshold in CI and Docker. New threshold and exact Vitest 4.1.12 lock were audited in Render review dep-dc1aub7f3r2c73c6lmeg (source 4e5de7d; identical manifest+lock SHA on develop); GitHub 45262723267 passed both audits with 0 findings and frontend 242. Test-first safe rollback/recovery drill added; live npm recovery CI step passed on first source; D-517 unsafe stderr canary 1 RED / 10 unrelated PASS then 11 GREEN after fixed output. New fixed-source full CI and independent closeout pending. No customer production claim
 
 - S-12.01.03 · The video director uses the product
   work_order: docs/work-orders/S-12.01.03-video-director-uses-the-product.md
@@ -495,6 +492,14 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.16 · Resolve frontend development dependency audit findings
+  work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md
+  tests: tests/test_frontend_dependency_rollback.py::test_npm_failure_never_escapes_secret_in_process_output, tests/test_frontend_dependency_rollback.py::test_quality_gate_runs_disposable_recovery_after_npm_audits, tests/test_frontend_vitest_pinning.py::test_vitest_family_is_patched_and_integrity_pinned, tests/test_ci_verifier_environment.py::test_frontend_production_and_dev_vulnerabilities_are_hard_ci_gates
+  command: uv run pytest tests/test_frontend_dependency_rollback.py tests/test_frontend_vitest_pinning.py tests/test_ci_verifier_environment.py -q
+  result: Full exact-source GitHub CI 45266709119 5/5 PASS on de08141b; npm production audit 0, dev moderate audit 0, disposable rollback drill refused vulnerable 4.1.11, restored 4.1.12, npm ci and audit PASS. Frontend 242 PASS/build; Python3.10/3.11/3.12 each3493 PASS/149 skipped; real PostgreSQL3604 PASS/107 skipped; historical board verifier 73/73 PASS. Real isolated Render dep-dc1aub7f3r2c73c6lmeg LIVE with both npm audits, frontend and PostgreSQL/Chromium on byte-identical frontend manifest/lock. Current board-promotion evidence requires recheck in subsequent exact-source CI; no claim of customer production acceptance.
+  code: frontend/package.json, frontend/package-lock.json, .github/workflows/ci.yml, scripts/qa/s16_frontend_lock_recovery.py, tests/test_frontend_dependency_rollback.py
+  commit: de08141bfdb256ff30189f4b8e45679a03a9e441
 
 - S-06.02.20 · The verifier tells a shallow clone apart from a missing commit
   work_order: docs/work-orders/S-06.02.20-shallow-git-history.md

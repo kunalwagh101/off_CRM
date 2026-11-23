@@ -12,7 +12,7 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 21 DONE, 36 IN_REVIEW, 10 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **48 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 35 IN_REVIEW, 10 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 Each Given/When/Then below is a required *acceptance sub-case*. For each case: implement through the real API/UI/store/worker; run the failing test first where relevant, then unit/integration/API, adverse/security, regression and end-to-end; deploy the exact commit to isolated Render; manually test the API/UI/DB and error path, inspect responses/logs, verify reload/restart/rollback and evidence; run `uv run pytest -q`, frontend tests/build, real PostgreSQL, `uv run python scripts/verify_board.py`, independent penetration and owner acceptance where applicable. **Passing a mock does not prove real provider operation.**
 
@@ -283,7 +283,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.16 — Resolve frontend development dependency audit findings
 
-**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.16-frontend-dependency-audit.md).
+**Status:** DONE (source/CI frontend dependency audit only; live npm audits, patched rollback/recovery, full CI and isolated Render same-lock review verified). **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.16-frontend-dependency-audit.md).
 
 **Requirement:** Resolve frontend development dependency audit findings.
 
@@ -297,7 +297,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Source/CI dependencies audit satisfied in GitHub 45266709119 5/5 and isolated Render same package-lock review. Parent F-06.02, current app Render release and customer security acceptance remain OPEN.
 
 ### S-06.02.17 — DONE may not depend on unfinished work
 

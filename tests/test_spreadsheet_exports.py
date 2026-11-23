@@ -179,3 +179,49 @@ def test_A19_control_character_escape_is_readable_and_only_at_export_boundary():
     assert spreadsheet_safe_cell("=2+2") == "'=2+2"
     assert spreadsheet_safe_cell(" \t=2+2") == "' \t=2+2"
     assert spreadsheet_safe_cell("ordinary") == "ordinary"
+
+
+
+def test_A19_untrusted_column_names_are_never_spreadsheet_formulas(tmp_path: Path):
+    """D-519: pandas.map only guards values, while headers can be raw API keys."""
+    hostile = '=HYPERLINK("https://attacker.invalid","click")'
+    original = [{"=HYPERLINK(\"https://attacker.invalid\",\"click\")": "first",
+                 "'=HYPERLINK(\"https://attacker.invalid\",\"click\")": "second",
+                 "\x0b=SUM(1,2)": "third"}]
+    write_outputs(
+        tmp_path, [], [], {"run_id": "audit-header", "output_dir": str(tmp_path)},
+        raw_candidates=original,
+    )
+    assert list(original[0]) == [hostile, "'" + hostile, "\x0b=SUM(1,2)"]
+
+    sheet = load_workbook(
+        tmp_path / "offsetx_final_pois_with_emails.xlsx", data_only=False,
+    )["Raw_Apollo_Search"]
+    headers = [cell.value for cell in sheet[1]]
+    assert len(headers) == len(set(headers)), "Escaping must not merge unrelated fields"
+    assert "'=HYPERLINK" in headers[0]
+    assert headers[0].startswith("'=HYPERLINK")
+    assert headers[1].startswith("'=HYPERLINK")
+    assert headers[1] != headers[0]
+    assert headers[2].startswith(r"\x0b=SUM")
+    assert all(cell.data_type != "f" for cell in sheet[1])
+    assert [sheet.cell(2, i).value for i in (1, 2, 3)] == [
+        "first", "second", "third",
+    ]
+
+    # A CSV reader must retain all three data fields under distinct safe names.
+    with (tmp_path / "offsetx_apollo_raw_search_candidates.csv").open(
+        newline="", encoding="utf-8",
+    ) as handle:
+        rows = csv.DictReader(handle)
+        assert rows.fieldnames == headers
+        assert list(next(rows).values()) == ["first", "second", "third"]
+
+
+def test_A19_column_name_safety_does_not_rename_original_frame():
+    """The internal source keys still drive ledgers and programme logic."""
+    original = pd.DataFrame([{"=SUM(1,1)": 5, "'=SUM(1,1)": 6}])
+    safe = spreadsheet_safe_frame(original)
+    assert list(original.columns) == ["=SUM(1,1)", "'=SUM(1,1)"]
+    assert list(safe.columns) == ["'=SUM(1,1)", "'=SUM(1,1) [2]"]
+    assert list(safe.iloc[0]) == [5, 6]

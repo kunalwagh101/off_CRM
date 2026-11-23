@@ -1,3 +1,9 @@
+## 2026-11-24 — S-06.02.42 formula injection through dynamic spreadsheet headers (D-519)
+
+- Found that pandas' cell-only sanitizer left untrusted API map keys as raw CSV/XLSX column headings. Openpyxl wrote a malicious `=HYPERLINK` heading as a real formula cell in an isolated reproduction.
+- Guarded export-only column labels with the same formula/control escaping and stable disambiguation of colliding headings. Added actual full-report CSV/XLSX tests proving the malicious header becomes text, both values remain accessible and the source DataFrame stays unchanged. Full source CI and Excel/LibreOffice independent manual acceptance remain pending.
+- No original ledgers, databases, customer data, or Render application deployment changed; parent F-06.02 stays IN_PROGRESS.
+
 ## 2026-11-24 — F-06.02 / S-06.02.42 XLSX illegal-control safety (D-518)
 
 - Confirmed that an imported NUL/VT/FF character makes openpyxl throw `IllegalCharacterError` during human-facing report creation. In an isolated RED/GREEN test, changed only report-cell presentation to visible `\\xNN` control escapes, preserving formula safety, numeric cells and original source values.

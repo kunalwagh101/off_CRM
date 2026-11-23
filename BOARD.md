@@ -393,7 +393,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.42 · Enrichment exports cannot run spreadsheet formulas
   work_order: docs/work-orders/S-06.02.42-spreadsheet-formulas.md
-  review: Render QA dep-db93t2mi0phs73c6msq0 spreadsheet CSV/XLSX full-report tabs/source-immutability security regression PASS; isolated Excel/LibreOffice open and independent review still required (docs/evidence/2026-10-16-S-06.02.41-42-validation.md). D-518 found: XLSX rejected hostile XML control chars; test-first export-only escaped-control patch and regression added 2026-11-24, new exact-source CI and live artifact review pending
+  review: Render QA dep-db93t2mi0phs73c6msq0 spreadsheet CSV/XLSX full-report tabs/source-immutability security regression PASS; isolated Excel/LibreOffice open and independent review still required (docs/evidence/2026-10-16-S-06.02.41-42-validation.md). D-518 found: XLSX rejected hostile XML control chars; test-first export-only escaped-control patch and regression added 2026-11-24, new exact-source CI and live artifact review pending. D-519: dynamic column headings were executable formulas; guard and collision-safe labels plus regression added, full CI and independent human-app verification pending
 
 - S-06.02.43 · Logout revokes the copied browser session
   work_order: docs/work-orders/S-06.02.43-logout-revocation.md

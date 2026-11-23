@@ -74,8 +74,28 @@ def spreadsheet_safe_cell(value: Any) -> Any:
 
 
 def spreadsheet_safe_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Create an export-only copy, preserving real number/boolean cell types."""
-    return frame.map(spreadsheet_safe_cell)
+    """Guard both report values and column names, preserving numeric data.
+
+    DataFrame.map sanitises cells, NOT column labels. External JSON keys can
+    be column labels in raw/rejected reports, where a leading "=" is otherwise
+    emitted by pandas/openpyxl as a real executable XLSX formula. Distinguish
+    labels that become identical after escaping, so a CSV consumer still sees
+    both original columns and no source fields are renamed in memory.
+    """
+    safe = frame.map(spreadsheet_safe_cell)
+    labels: list[Any] = []
+    seen: set[Any] = set()
+    for original in frame.columns:
+        label = spreadsheet_safe_cell(original)
+        if label in seen:
+            suffix = 2
+            while f"{label} [{suffix}]" in seen:
+                suffix += 1
+            label = f"{label} [{suffix}]"
+        labels.append(label)
+        seen.add(label)
+    safe.columns = labels
+    return safe
 
 
 def safe_get(obj: dict, *keys: str) -> str:

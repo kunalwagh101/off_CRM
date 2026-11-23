@@ -1,3 +1,9 @@
+## 2026-11-24 — F-06.02 scope fidelity and acceptance checklist fix (D-516)
+
+- Verified the 69-story security scope against PRODUCT_BACKLOG.md. Found two story blocks importing F-12.01/F-07.01 requirements, three missing-case blocks, 30 truncated Given/When/Then cases across 22 stories and four truncated task descriptions.
+- Corrected the feature tracker and restored all 198 acceptance cases, preserving recorded story statuses. Added a test to compare story IDs, per-story counts and complete acceptance wording against the backlog. Source comparison showed mismatches before the fix and none after. Automated CI and hosted manual verification are separate gates.
+- Render QA on majors_97 remains blocked by pipeline_minutes_exhausted. The functional app runs older source. No new Render deployment, customer data or external sends were attempted. F-06.02 is NOT DONE; 49 direct stories remain outside DONE.
+
 ## 2026-11-22 — A33 CI verified on actual Chromium, Render pending
 
 - F-06.02 / S-06.02.23: CI [45054567526](https://github.com/kunalwagh101/off_CRM/actions/runs/45054567526) on `051541f` PASS **5/5 jobs**. Chromium A33 desktop 1280/mobile 390 both PASS, frontend 242 PASS/build PASS, board evidence 72/72 PASS, all Python versions 3,472 PASS/149 skipped each, real PostgreSQL 3,583 PASS/107 skipped.

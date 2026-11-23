@@ -25,3 +25,7 @@ Rollback: revert only this new human-report cell transformation and its tests; w
 Independent isolated pandas/openpyxl reproduction with a DataFrame headed `=HYPERLINK("https://malicious.invalid","click")` showed a workbook header with `data_type='f'` (**RED**). Applying the existing cell formula guard to column labels on an export-only copy produced the same header as `'=HYPERLINK(...)`, with `data_type='s'` (**GREEN**). Tests added in `tests/test_spreadsheet_exports.py` cover the **actual** `write_outputs` workbook and CSV paths, collision handling when a literal quoted key exists, source-key immutability and preserved numeric values. The new source run in GitHub must pass before this case is considered verified.
 
 The original untrusted DataFrame is left intact. Converting display headers to safe text is a one-way human-report rendering, not an authoritative data transformation. No external spreadsheet file was opened with link execution permitted.
+
+## 2026-11-24 — test fixture aligns with production run tracking fields
+
+The actual `write_outputs` API prepends `Run ID`, `Run Mode`, and `Run Output Dir` to nonempty report tabs. The new D-519 assertion was adjusted before test certification to locate source-key headers by their safe names, rather than incorrectly assuming they are worksheet columns A-C. This is a test correction only, not an application security change. Full source CI is still the acceptance gate.

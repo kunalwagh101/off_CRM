@@ -199,15 +199,18 @@ def test_A19_untrusted_column_names_are_never_spreadsheet_formulas(tmp_path: Pat
     )["Raw_Apollo_Search"]
     headers = [cell.value for cell in sheet[1]]
     assert len(headers) == len(set(headers)), "Escaping must not merge unrelated fields"
-    assert "'=HYPERLINK" in headers[0]
-    assert headers[0].startswith("'=HYPERLINK")
-    assert headers[1].startswith("'=HYPERLINK")
-    assert headers[1] != headers[0]
-    assert headers[2].startswith(r"\x0b=SUM")
+    # The real writer also prepends Run ID, Run Mode and Run Output Dir.
+    # Select adversarial source fields by their *safe name*, not fixed position.
+    hostile_columns = [name for name in headers if name.startswith("'=HYPERLINK")]
+    assert len(hostile_columns) == 2
+    assert hostile_columns[0] != hostile_columns[1]
+    control_columns = [name for name in headers if name.startswith(r"\x0b=SUM")]
+    assert len(control_columns) == 1
     assert all(cell.data_type != "f" for cell in sheet[1])
-    assert [sheet.cell(2, i).value for i in (1, 2, 3)] == [
-        "first", "second", "third",
-    ]
+    positions = {cell.value: cell.column for cell in sheet[1]}
+    assert [sheet.cell(2, positions[name]).value for name in [
+        *hostile_columns, *control_columns,
+    ]] == ["first", "second", "third"]
 
     # A CSV reader must retain all three data fields under distinct safe names.
     with (tmp_path / "offsetx_apollo_raw_search_candidates.csv").open(
@@ -215,7 +218,10 @@ def test_A19_untrusted_column_names_are_never_spreadsheet_formulas(tmp_path: Pat
     ) as handle:
         rows = csv.DictReader(handle)
         assert rows.fieldnames == headers
-        assert list(next(rows).values()) == ["first", "second", "third"]
+        saved = next(rows)
+        assert [saved[name] for name in [*hostile_columns, *control_columns]] == [
+            "first", "second", "third",
+        ]
 
 
 def test_A19_column_name_safety_does_not_rename_original_frame():

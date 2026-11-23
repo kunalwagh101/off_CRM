@@ -1,3 +1,7 @@
+## 2026-11-24 — D-519 export test aligns with tracking columns
+
+- Corrected the new malicious-header workbook/CSV test to locate hostile headings by safe names, because the actual writer includes three run-provenance columns ahead of them. No application code changed; exact-source CI must rerun.
+
 ## 2026-11-24 — S-06.02.42 formula injection through dynamic spreadsheet headers (D-519)
 
 - Found that pandas' cell-only sanitizer left untrusted API map keys as raw CSV/XLSX column headings. Openpyxl wrote a malicious `=HYPERLINK` heading as a real formula cell in an isolated reproduction.

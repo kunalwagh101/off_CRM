@@ -1,6 +1,10 @@
 # F-06.02 — complete direct-story acceptance tracker
 
-**Snapshot:** 2026-11-22, off_CRM `develop`. **Authoritative:** [board](../../BOARD.md), [backlog](../../PRODUCT_BACKLOG.md), [Done rules](../../DEFINITION_OF_DONE.md), [audit work order](../work-orders/S-06.02.23-audit-recheck.md). Do not treat this inventory as certification.
+**Snapshot:** 2026-11-24, off_CRM `develop` (board statuses retained from the 2026-11-22 baseline; scope corrected against the current backlog). **Authoritative:** [board](../../BOARD.md), [backlog](../../PRODUCT_BACKLOG.md), [Done rules](../../DEFINITION_OF_DONE.md), [audit work order](../work-orders/S-06.02.23-audit-recheck.md). Do not treat this inventory as certification.
+
+## Scope integrity check (2026-11-24)
+
+Corrected five story blocks to match `PRODUCT_BACKLOG.md`: S-06.02.20 (2 cases, not 50), S-06.02.55 (3, not 0), S-06.02.56 (3, not 0), S-06.02.57 (4, not 0), and S-06.02.69 (3, not 63). Earlier extraction accidentally crossed F-12.01/F-07.01 boundaries and included unrelated requirements. `tests/test_f0602_tracker_scope.py` now checks all 69 story IDs and case counts. This is **scope documentation only**, not verification of those stories or hosted acceptance.
 
 ## Scope hierarchy
 
@@ -350,60 +354,12 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Requirement:** The verifier tells a shallow clone apart from a missing commit.
 
-**Dependencies:** **Dependencies:** S-06.02.12. **Size:** S. **Indicator:** verifier failures **Dependencies:** none. **Size:** M. **Indicator:** products with every **Dependencies:** S-12.01.01. **Size:** M. **Indicator:** campaigns linked to **Dependencies:** S-12.01.02. **Size:** M. **Indicator:** model calls carrying **Dependencies:** S-12.01.01. **Size:** L. **Indicator:** plans drafted per **Dependencies:** S-12.02.01. **Size:** M. **Indicator:** plans applied. **Dependencies:** S-12.02.02. **Size:** L. **Indicator:** reviews whose first **Dependencies:** S-12.02.03. **Size:** M. **Indicator:** plan versions whose **Dependencies:** S-12.02.04. **Size:** L. **Indicator:** plan-suite score **Dependencies:** S-12.02.02. **Size:** M. **Indicator:** plans with a views
+**Dependencies:** S-06.02.12. **Size:** S. **Indicator:** verifier failures
 
-**Acceptance sub-cases (50 written):**
+**Acceptance sub-cases (2 written):**
 
 1. **Given** a shallow clone that lacks a recorded commit, **when** the verifier runs, **then** it fails with a message naming the shallow clone and `git fetch --unshallow`, not one saying the commit does not exist.
 2. **Given** the CI workflow, **when** it checks out the repository, **then** it fetches full history so the ancestry rule can run there.
-3. **Given** the required fields, **when** a product is created, **then** it is stored at version 1 and reads back identically.
-4. **Given** a missing or out-of-bounds required field, a website that is not `http(s)`, or more list items than the bound, **when** it is saved, **then** it is refused with a sentence naming the field.
-5. **Given** an email address anywhere in the product, **when** it is saved,
-6. **Given** an existing product, **when** it is edited, **then** its version rises by exactly one.
-7. **Given** a forbidden claim, **when** text is checked, **then** the phrase is found case-insensitively as a whole phrase — including one ending in `%` — and not inside a longer word.
-8. **Given** a product in one workspace, **when** another workspace reads, edits or deletes it, **then** the answer is not found.
-9. **Given** the Product screen, **when** it renders, **then** the required fields and the forbidden-claims box are present.
-10. **Given** a product and campaigns, **when** the owner sets the product's campaigns, **then** each campaign is linked to exactly one product and the new set replaces the old one.
-11. **Given** an email template using `{product_offer}` and a campaign linked to a product, **when** a draft is created, **then** the placeholder is filled from the product.
-12. **Given** a campaign with no product, **when** a draft is created from a template using a product placeholder, **then** it renders empty rather than failing, and templates without product placeholders render exactly as before.
-13. **Given** a rendered draft containing one of the linked product's forbidden claims, **when** it is audited, **then** the audit flags the claim.
-14. **Given** a distribution campaign linked to a product and no angle, **when** the trend pipeline runs over HTTP or from the automation timer, **then** the product one-liner is the angle **and** the writer's data class is `campaign`.
-15. **Given** an explicit angle, **when** the pipeline runs, **then** the explicit angle wins over the product.
-16. **Given** a video campaign linked to a product, **when** the director runs,
-17. **Given** any director call, **when** the egress log is read, **then** it shows everything that left, the system prompt included.
-18. **Given** a model reply naming a channel kind or an audience source outside the vocabulary, **when** it is parsed, **then** the plan is refused by name with the known values.
-19. **Given** a reply proposing more email volume than the connected identities carry, or more posts than the accounts allow, **when** it is parsed, **then** the volume is clamped and a note says so.
-20. **Given** a reply whose angle contains one of the product's forbidden claims,
-21. **Given** any plan with an email channel, **when** it is parsed or built,
-22. **Given** the system prompt the brain sends, **when** it is built, **then** it contains no text from the product.
-23. **Given** the request the brain sends, **when** it is built, **then** its data class is `campaign`, the one-liner is the positioning line and the rest of the product is in campaign notes.
-24. **Given** no permitted model, **when** a plan is drafted, **then** a rules-based plan is returned with a note saying why.
-25. **Given** a `replies` goal, **when** a plan is drafted, **then** its feasibility is arithmetic the owner can reproduce by hand.
-26. **Given** an unknown goal kind, a target or horizon out of bounds, or an unknown product, **when** it is submitted, **then** it is refused with a sentence.
-27. **Given** the Strategy screen, **when** it renders, **then** the goal form and the capacity panel are present.
-28. **Given** a draft plan, **when** it is applied, **then** one campaign per channel exists, each paused, each linked to the product and the plan.
-29. **Given** an email channel, **when** it is applied, **then** its campaign carries the plan's daily volume, window, weekdays, timezone, hypothesis and per-message approval.
-30. **Given** a `views` goal with a distribution channel, **when** it is applied,
-31. **Given** a plan that is not a draft, **when** apply is called, **then** it is refused and nothing is created.
-32. **Given** an apply, **when** it returns, **then** it lists next steps, each naming an existing screen, and no contact is imported and nothing is spent.
-33. **Given** an email channel whose delivery health is breached, **when** it is reviewed, **then** the finding is `delivery_unhealthy` whatever the reply rate, and raising volume is not permitted.
-34. **Given** each earlier condition in the order — paused, no contacts, drafts waiting, under volume — **when** it is reviewed, **then** that finding wins over every later one.
-35. **Given** fewer than 20 contacted, **when** it is reviewed, **then** the finding is `insufficient_data` and no copy remedy is offered.
-36. **Given** enough contacted, **when** the 90% interval sits wholly below, wholly above or across the assumed rate, **then** the finding is `behind_target`, `ahead_of_target` or `inconclusive`, and `inconclusive` states how many more sends would decide it.
-37. **Given** a distribution channel, **when** it is reviewed, **then** the finding follows `pacing.decide()`'s action.
-38. **Given** a model reply proposing a remedy the finding does not permit, a channel not in the plan, or a proposal containing a forbidden claim, **when** it is parsed, **then** that remedy is dropped with a note.
-39. **Given** no permitted model, **when** it is reviewed, **then** each finding gets its first permitted remedy and a note says why.
-40. **Given** a review, **when** it is stored, **then** the measurements it read are stored with it.
-41. **Given** an applied plan with a review and at least 20 contacted, **when** it is revised, **then** a draft at the next version exists whose parent is the plan and whose assumed reply rate is the measured one.
-42. **Given** fewer than 20 contacted, **when** it is revised, **then** the assumption is carried forward and a note says why.
-43. **Given** a revision that is applied, **when** it runs, **then** the same campaigns are updated rather than new ones created, a channel it dropped is paused, and the previous version is superseded.
-44. **Given** a plan with no review, **when** revise is called, **then** it is refused.
-45. **Given** an imported expert library and a judged winning template, **when** a plan is drafted, **then** both travel as reference material in classified fields, and the `gtm_plan` eval suite scores the brain with and without them.
-46. **Given** fewer than 30 cases in `gtm_plan`, **when** the comparison runs,
-47. **Given** an applied plan with posting and picture channels, **when** the owner resumes them, **then** content automation runs that pair without the owner writing its ids into an API call.
-48. **Given** a drafted post, **when** the owner opens Posting, **then** they can approve or skip it there.
-49. **Given** a paused campaign in a declared pair, **when** content automation runs, **then** it makes nothing for that pair — pairing at Apply must not spend image credits on a plan nobody has started. *(Done early for `D-87`.)*
-50. **Given** a plan's posts a day, **when** its posting runs, **then** that is the rate the pacer starts from, so the number the plan shows is the number that posts (`D-97`).
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1020,11 +976,13 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Requirement:** Verify numeric claims without changing sign, precision or magnitude (A18).
 
-**Dependencies:** Check board, source architecture and related-work table; no direct dependency text extracted here.
+**Dependencies:** S-11.02.03 (existing verifier). **Size:** M. **Open audit:** A18 / D-354. **Work order:** docs/work-orders/S-06.02.55-numeric-claim-integrity.md. Not READY; test-first fix requires normal verification gates.
 
-**Acceptance sub-cases (0 written):**
+**Acceptance sub-cases (3 written):**
 
-Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
+1. **Given** `value='42'`, **when** the host-captured quote says `-42`, `42.7`, `42,000` or `42%` as a different figure, **then** the claimed `42` must not be marked supported by the observed-finding verification path.
+2. **Given** a matching signed, decimal or grouped figure, **when** a quote belongs to the captured page, **then** it may be supported with correct sign/unit/locale handling; conflicting or ambiguous representations fail closed.
+3. **Given** a derived number, **when** its inputs exist, **then** unverified arithmetic cannot be reported as an observed fact merely because the model claims a total.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1036,11 +994,13 @@ Consult linked work order for the full acceptance; no Given/When/Then bullet is 
 
 **Requirement:** Reject corrupt image payloads safely (A21).
 
-**Dependencies:** Check board, source architecture and related-work table; no direct dependency text extracted here.
+**Dependencies:** existing image gate and image runner; bounded decoder choice and limits must be decided before READY. **Size:** M. **Open audit:** A21 / D-355. **Work order:** docs/work-orders/S-06.02.56-complete-image-decoding.md.
 
-**Acceptance sub-cases (0 written):**
+**Acceptance sub-cases (3 written):**
 
-Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
+1. **Given** a well-shaped PNG header but no image data, **when** the image-gate entry point processes it, **then** the candidate fails the decodes gate, even above the byte threshold.
+2. **Given** truncated GIF/JPEG/WebP/PNG or hostile dimensions, **when** the gate checks it, **then** it returns a failed `GateReport`, not an uncaught parsing exception or an unsafe memory allocation.
+3. **Given** a real valid image, **when** checked with supported format, dimensions and aspect ratio, **then** the result succeeds; rejecting bad images must not reject ordinary good ones.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1052,11 +1012,14 @@ Consult linked work order for the full acceptance; no Given/When/Then bullet is 
 
 **Requirement:** A09: Enter handlers cannot bypass human approval.
 
-**Dependencies:** Check board, source architecture and related-work table; no direct dependency text extracted here.
+**Dependencies:** S-11.03.03 (previously implemented). **Size:** S. **Work order:** docs/work-orders/S-06.02.57-enter-approval.md. **Audit:** A09, partial remediation pending independent confirmation/DOM-change tests.
 
-**Acceptance sub-cases (0 written):**
+**Acceptance sub-cases (4 written):**
 
-Consult linked work order for the full acceptance; no Given/When/Then bullet is written in the linked story section.
+1. **Given** a focused textarea, rich-text editor, ordinary input without a form, non-English button or an event handler attached to the document, **when** the agent requests Enter without human approval, **then** no Enter key event is dispatched and the run needs confirmation.
+2. **Given** a failed or ambiguous focused-element inspection, **when** Enter is requested, **then** it fails closed without sending the key; failure to identify a safe target is not permission.
+3. **Given** an actual safe navigation key or an explicit trusted confirmation, **when** the action is invoked, **then** the original key behaviour is retained; the model cannot supply confirmed=true.
+4. **Given** a controlled real Chromium form with JavaScript Enter handlers, **when** the agent tries unconfirmed Enter, **then** the page does not change to SUBMITTED; the same action with trusted owner confirmation is observable.
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
@@ -1272,75 +1235,15 @@ Consult linked work order for the full acceptance; no Given/When/Then bullet is 
 
 **Requirement:** Image briefs, generated files and video handoff remain private to their workspace (A05).
 
-**Dependencies:** **Dependencies:** existing workspace sessions, image/video stores; wider CRM tenancy Q-27 is not changed. Feature F-06.02, **Size M**. Work order `docs/work-orders/S-06.02.69-image-workspace-ownership.md`, BACKLOG during audit S-06.02.23 IN_PROGRESS. **Dependencies:** S-06.01.02. **Size:** L. **Indicator:** tools available per workspace. **Dependencies:** S-03.02.02, S-07.01.01. **Size:** L. **Indicator:** browser fallbacks avoided. **Dependencies:** S-03.01.01. **Size:** L. **Indicator:** meetings captured per week. **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** reports produced per research run. **Dependencies:** none. **Size:** M. **Indicator:** provider calls to ineligible recipients. **Dependencies:** S-08.01.01. **Size:** L. **Indicator:** duplicate-send incidents. **Dependencies:** S-08.01.01. **Size:** L. **Indicator:** authenticated accepted sends. **Dependencies:** S-08.01.02, S-08.01.03. **Size:** L. **Indicator:** sends after a complaint. **Dependencies:** S-08.01.01, S-08.01.02, S-08.01.03, S-08.01.04. **Size:** M. **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** runs ending `stuck` **Dependencies:** S-11.01.01. **Size:** M. **Indicator:** steps per fact returned. **Dependencies:** S-02.02.01, S-02.01.05. **Size:** M. **Indicator:** runs **Dependencies:** S-02.02.01, S-06.01.03. **Size:** M. **Indicator:** runs **Dependencies:** S-02.02.01. **Size:** L. **Indicator:** runs returning a **Dependencies:** S-11.02.01, S-02.01.05. **Size:** M. **Indicator:** share of **Dependencies:** S-11.02.02. **Size:** L. **Indicator:** claims dropped by **Dependencies:** S-02.02.01. **Size:** S. **Indicator:** duplicate fetches **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** runs resumed after **Dependencies:** S-02.02.01. **Size:** M. **Indicator:** injection attempts **Dependencies:** S-02.02.04. **Size:** M. **Indicator:** consequential **Dependencies:** S-11.02.02. **Size:** M. **Indicator:** reports opened per run. **Dependencies:** S-11.04.01. **Size:** M. **Indicator:** runs stopped early **Dependencies:** S-03.02.04. **Size:** L. **Indicator:** concurrent runs **Dependencies:** S-11.01.03. **Size:** M. **Indicator:** duplicate side
+**Dependencies:** existing workspace sessions, image/video stores; wider CRM tenancy Q-27 is not changed. Feature F-06.02, **Size M**. Work order `docs/work-orders/S-06.02.69-image-workspace-ownership.md`, BACKLOG during audit S-06.02.23 IN_PROGRESS.
 
-**Acceptance sub-cases (63 written):**
+**Acceptance sub-cases (3 written):**
 
 1. **Given** two workspaces use the same CRM campaign, **when** they view image briefs/assets/queue/summary, **then** SQL returns only the caller's rows before limits apply.
 2. **Given** another workspace's image or brief ID, **when** a user downloads, generates, approves, rejects, refreshes or places it in a video, **then** the app refuses with 404 before any media or usage change.
 3. **Given** own assets and briefs, **when** used normally, **then** the image and video operations work unchanged.
-4. **Given** a declared MCP server, **when** it is connected, **then** its tools appear in the same registry and obey the same permission rules.
-5. **Given** a tool the owner has not granted, **when** an agent names it, **then** the call is refused.
-6. **Given** an OAuth grant, **when** it is stored, **then** it is held under the same vault rules as a platform session.
-7. **Given** a capture, **when** it completes, **then** audio never leaves the machine except through the transcription provider/model declared when that meeting began, raw audio is not persisted by off_CRM, and the derived transcript remains workspace-scoped.
-8. **Given** a run's findings, **when** a report is generated, **then** every claim in it links to a trace step.
-9. **Given** the same verified findings, **when** XLSX, PPTX or PDF is requested,
-10. **Given** page-controlled text beginning with spreadsheet formula characters,
-11. **Given** permission marketing without an active recorded grant, **when** preflight runs, **then** the recipient is blocked before queueing.
-12. **Given** an address that denied permission or is globally suppressed, **when** either the direct or durable path tries to send, **then** it refuses and queued work is cancelled.
-13. **Given** a transactional lane, **when** its permission is checked, **then** only a recorded customer, contract or service-request relationship passes.
-14. **Given** an approved due draft, **when** it is queued, **then** an immutable payload snapshot is stored and only one worker can claim it.
-15. **Given** an ambiguous provider result or an expired claim without a recorded message, **when** recovery runs, **then** the job becomes `delivery_unknown` and is never retried automatically.
-16. **Given** a reply, cancellation, closed send window, daily cap or lane delay,
-17. **Given** a sending identity, **when** it is assigned to a campaign, **then** its provider and stream must match and bulk lanes use isolated subdomains.
-18. **Given** a permission-marketing send, **when** authentication evidence is missing, failing or older than seven days, **then** SPF, DKIM, DMARC, alignment or SES verification blocks it.
-19. **Given** an allowed SES job, **when** it is submitted, **then** raw MIME carries the correct stream tags, feedback configuration and unsubscribe headers where required.
-20. **Given** an SNS envelope, **when** it reaches the public feedback endpoint,
-21. **Given** a duplicate hard-bounce or complaint event, **when** it is processed,
-22. **Given** health metrics beyond configured thresholds, **when** feedback is aggregated, **then** the campaign pauses automatically and only an explicit resume clears the pause.
-23. **Given** an authenticated operator, **when** the delivery API or dashboard is opened, **then** identities, settings, preflight, permissions, suppressions, jobs and health are visible and editable through guarded actions.
-24. **Given** a recipient using the public unsubscribe route, **when** the signed token is valid, **then** the action works without login; an invalid token is refused.
-25. **Given** a live SES queue request, **when** the exact confirmation phrase is absent, **then** no job is created and the dashboard keeps the safety controls visible.
-26. **Given** an action that raises `ActionRefused`, **when** it fails, **then** the agent re-perceives and is told what failed and why, and the same action with the same arguments is never retried more than once.
-27. **Given** three consecutive failed actions, **when** the third fails, **then** the run stops with `status=stuck` rather than continuing to burn budget.
-28. **Given** a transient failure, **when** it happens, **then** it is retried with backoff and the retry is recorded in the trace as a retry, not as a fresh attempt. **(done)**
-29. **Given** the agent returns to a URL it has already acted on twice with no new facts recorded, **when** the third visit is decided, **then** the run stops with `status=looping` and the trace names the cycle.
-30. **Given** ten consecutive steps that produce nothing new, **when** the tenth completes, **then** the run stops with `status=stalled`. **(done)**
-31. **Given** a run that is progressing, **when** these checks run, **then** they never stop it — a false positive here is worse than a wasted step. **(done)**
-32. **Given** a run interrupted at step N, **when** it is resumed, **then** it continues from step N+1 with the facts already gathered intact. **(done)**
-33. **Given** a resumed run, **when** it finishes, **then** the trace is one continuous record, not two, and the resume point is marked in it. **(done)**
-34. **Given** a run that already ended, **when** a resume is attempted, **then** it is refused — a second ending would make the trace say two contradictory things about how the run turned out. **(added during the build)**
-35. **Given** a fact whose evidence artefact is gone, **when** the trace is replayed, **then** the fact is dropped rather than rebuilt unsourced. Losing one is recoverable; inventing one is what `S-11.02.02` exists to prevent.
-36. **Given** a run with a spend ceiling, **when** the next decision would cross it, **then** the decision is not made and the run stops with `status=over_budget`.
-37. **Given** a run, **when** it is planned, **then** an estimate is produced before the first step and the owner sees it.
-38. **Given** a finished run, **when** it is inspected, **then** actual spend per step is in the trace, not a total nobody can decompose.
-39. **Given** a goal with a declared field schema, **when** the run finishes,
-40. **Given** a model that returns a field not in the schema, **when** the result is assembled, **then** the extra field is dropped and the drop is recorded.
-41. **Given** no schema, **when** a run finishes, **then** it still returns the free-text result `S-02.02.01` returns today — the old behaviour is not removed.
-42. **Given** a returned field, **when** it is inspected, **then** it carries the URL, the UTC timestamp, the trace step id and the screenshot filename of the page it was read from.
-43. **Given** a field with no source, **when** the result is assembled, **then** it is refused rather than returned unsourced.
-44. **Given** a returned field, **when** it is verified, **then** its value must appear in the captured text of the cited page, normalised for whitespace and case, or the field is dropped and the drop is reported.
-45. **Given** a field that is a legitimate derivation (a count, a summary),
-46. **Given** a page whose text was truncated by `MAX_READ_CHARS`, **when** a claim cannot be found in it, **then** the failure says the text was truncated rather than asserting the claim was invented.
-47. **Given** a URL already read in this run, **when** the agent decides to read it again, **then** the stored capture is returned and the page is not asked again. **(done)**
-48. **Given** two URLs that differ only by tracking parameters, **when** they are compared, **then** they are treated as the same page. **(done)**
-49. **Given** a page that changed under an unchanged URL, **when** it is read again, **then** the memo is not used — added during the build, because a stale capture is worse than a second read. **(done)**
-50. **Given** a page carrying a CAPTCHA, a sign-in form or a 2FA challenge,
-51. **Given** a paused run, **when** the owner completes the challenge and resumes, **then** the run continues from the same step.
-52. **Given** any of these, **when** they are encountered, **then** off_CRM
-53. **Given** page text instructing the agent to ignore instructions, exfiltrate, change goal or call a tool, **when** it is perceived, **then** the step is flagged `injection_suspected` in the trace with the offending text quoted.
-54. **Given** such a page, **when** the next decision is made, **then** the run continues under the owner's original goal — detection changes the record, not the behaviour, because behaviour is already contained by the closed vocabulary. **(done)**
-55. **Given** a page where clicking "Send" needs confirmation, **when** the agent presses Enter in the same form, **then** it needs confirmation too.
-56. **Given** a key that cannot submit anything, **when** it is pressed, **then** nothing new is asked of the owner.
-57. **Given** a finished run, **when** its report is opened, **then** every returned field appears with its source URL, timestamp and screenshot, and every step appears in order with its cost.
-58. **Given** a run that failed, **when** its report is opened, **then** it shows where and why, not a blank page. **(done)**
-59. **Given** a running agent, **when** the owner watches, **then** each step appears as it completes with its action, URL and running cost.
-60. **Given** two runs on the same browser, **when** both act, **then** each has its own tab, its own trace and its own snapshot, and neither can resolve a handle from the other's page.
-61. **Given** N concurrent runs, **when** they act on one host, **then** the per-host pace floor is respected **across** them, not per run.
-62. **Given** N concurrent runs on one account, **when** they act, **then** they draw on one budget, not N.
-63. **Given** a consequential action already recorded in the trace, **when** a resumed run reaches the same step, **then** it is not performed again.
 
-**Named tasks/subtasks:** **Tasks:** T-07.01.04.a shared provenance-bound artifact model (<=1 day);
+**Named tasks/subtasks:** No separately numbered tasks or sub-stories are declared for this story. Follow its three acceptance cases and linked work order.
 
 **QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 

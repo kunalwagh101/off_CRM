@@ -472,7 +472,7 @@ def test_web_cli_does_not_print_api_token_when_stdout_is_a_pipe(
 
 
 
-@pytest.mark.parametrize("leak_source", ["message", "location"])
+@pytest.mark.parametrize("leak_source", ["message", "location", "type"])
 def test_A22_validation_errors_never_reflect_sensitive_input(tmp_path, leak_source):
     """Untrusted validator messages and dynamic keys must not echo credentials.
 
@@ -493,7 +493,7 @@ def test_A22_validation_errors_never_reflect_sensitive_input(tmp_path, leak_sour
             else "Value error, invalid field"
         )
         raise RequestValidationError([{
-            "type": "value_error",
+            "type": f"custom_{canary}" if leak_source == "type" else "value_error",
             "loc": location,
             "msg": message,
             "input": canary,

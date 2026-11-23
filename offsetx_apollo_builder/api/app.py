@@ -1333,7 +1333,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             # String locations can contain attacker-controlled map keys. Do
             # not echo any; preserve only bounded structural list indices.
             location = [
-                part if isinstance(part, int) and 0 <= part <= 100_000 else "field"
+                str(part) if isinstance(part, int) and 0 <= part <= 100_000 else "field"
                 for part in tuple(item.get("loc") or ())[:8]
                 if part != "body"
             ]

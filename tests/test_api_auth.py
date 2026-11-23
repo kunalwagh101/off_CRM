@@ -469,3 +469,73 @@ def test_web_cli_does_not_print_api_token_when_stdout_is_a_pipe(
     captured = capsys.readouterr()
     assert settings.api_token not in captured.out
     assert settings.api_token not in captured.err
+
+
+
+@pytest.mark.parametrize("leak_source", ["message", "location", "type"])
+def test_A22_validation_errors_never_reflect_sensitive_input(tmp_path, leak_source):
+    """Untrusted validator messages and dynamic keys must not echo credentials.
+
+    This runs through real FastAPI routing, authentication, and the app's
+    RequestValidationError handler. The synthetic route only supplies the
+    adversarial validator error; production response handling is unchanged.
+    """
+    from fastapi.exceptions import RequestValidationError
+
+    canary = "sk-proj-SENSITIVE-CANARY-DO-NOT-RETURN"
+    app = create_app(_demo_settings(tmp_path))
+
+    async def malicious_validation_error():
+        location = ("body", canary if leak_source == "location" else "api_key")
+        message = (
+            f"Value error, rejected credential {canary}"
+            if leak_source == "message"
+            else "Value error, invalid field"
+        )
+        raise RequestValidationError([{
+            "type": f"custom_{canary}" if leak_source == "type" else "value_error",
+            "loc": location,
+            "msg": message,
+            "input": canary,
+        }])
+
+    app.add_api_route(
+        "/api/v1/_audit_validation_redaction",
+        malicious_validation_error,
+        methods=["POST"],
+    )
+    with TestClient(app, base_url="https://crm.test") as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        )
+        assert login.status_code == 200
+        response = client.post("/api/v1/_audit_validation_redaction", json={})
+        assert response.status_code == 422, response.text
+        assert canary not in response.text
+        assert "detail" in response.json()
+        assert len(response.text) < 3000
+
+
+
+def test_A22_validation_path_indexes_keep_the_existing_string_contract(tmp_path):
+    """A22 safety must not change JSON location element types for list inputs."""
+    from fastapi.exceptions import RequestValidationError
+
+    app = create_app(_demo_settings(tmp_path))
+
+    async def bad_index():
+        raise RequestValidationError([{
+            "type": "int_parsing", "loc": ("body", 7),
+            "msg": "Input should be a valid integer", "input": "not-an-int",
+        }])
+
+    app.add_api_route("/api/v1/_audit_validation_index", bad_index, methods=["POST"])
+    with TestClient(app, base_url="https://crm.test") as client:
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        ).status_code == 200
+        response = client.post("/api/v1/_audit_validation_index", json={})
+        assert response.status_code == 422
+        assert response.json()["errors"][0]["location"] == ["7"]

@@ -71,6 +71,10 @@ jobs:
       - name: Audit frontend development dependencies
         working-directory: frontend
         run: npm audit --audit-level=moderate
+      # Validate recovery without installing the historical vulnerable version.
+      # The disposable npm graph must still install and audit cleanly.
+      - name: Verify safe frontend dependency rollback and recovery
+        run: uv run python -m scripts.qa.s16_frontend_lock_recovery
       - name: Catch broken Python names and syntax
         run: uv run ruff check --select E9,F63,F7,F82 .
       - name: Smoke-test installed command-line entry points

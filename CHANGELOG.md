@@ -1,3 +1,9 @@
+## 2026-11-24 — S-06.02.16 safe frontend rollback gate
+
+- Confirmed current patched Vitest 4.1.12 manifest and lockfile are byte-identical to Render-reviewed commit `4e5de7d`, which ran the stricter npm moderate-development audit and passed. GitHub CI 45262723267 later ran both production/development registry audits with zero vulnerabilities and 242 frontend tests/build PASS.
+- Added an isolated old-dependency rollback refusal and patched-pair recovery drill to the GitHub quality workflow; it refuses known-vulnerable Vitest 4.1.11 before installation, restores the audited lock pair and re-runs npm ci and npm audit. Added unit/regression tests with observed local RED (missing module) and GREEN (10 passed) plus a CI-required-step check. New networked CI gate and independent review pending; story stays IN_REVIEW and parent F-06.02 remains IN_PROGRESS.
+- No production app, customer data, Render configuration, or paid services were changed; decision DD-183 records the rollback trade-off.
+
 ## 2026-11-24 — S-06.02.20 verified DONE on develop
 
 - Verified exact commit [fcb6002](https://github.com/kunalwagh101/off_CRM/commit/fcb6002b4f8bb76300a8d837944b68371b8ae46e) with GitHub [45262723267](https://github.com/kunalwagh101/off_CRM/actions/runs/45262723267): 5/5 jobs SUCCESS. Python 3.10/3.11/3.12 each 3,481 passed / 149 skipped; real PostgreSQL 3,592 passed / 107 skipped; frontend 242 passed, npm audits 0 findings, actual browser gate passed, and 73/73 full-history board evidence commands passed. Manual disposable `file://` Git depth-one test reproduced missing historical object and successful `git fetch --unshallow` ancestry recovery.

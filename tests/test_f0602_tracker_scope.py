@@ -53,3 +53,47 @@ def test_unrelated_requirements_not_assigned_to_security_stories() -> None:
     assert "S-12.01.01" not in tracker["S-06.02.20"]
     assert "S-07.01.01" not in tracker["S-06.02.69"]
     assert "T-07.01.04.a" not in tracker["S-06.02.69"]
+
+
+def _normalise(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _source_cases(text: str) -> list[str]:
+    cases: list[str] = []
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("- **Given**"):
+            if current is not None:
+                cases.append(_normalise(current))
+            current = line[2:].strip()
+        elif current is not None and (
+            line.startswith("- ") or line.startswith("#") or not line.strip()
+        ):
+            cases.append(_normalise(current))
+            current = None
+        elif current is not None:
+            current += " " + line.strip()
+    if current is not None:
+        cases.append(_normalise(current))
+    return cases
+
+
+def _tracker_cases(text: str) -> list[str]:
+    if "**Acceptance sub-cases (" not in text:
+        return []
+    section = text.split("**Acceptance sub-cases (", 1)[1].split(
+        "**Named tasks/subtasks:", 1
+    )[0]
+    return [
+        _normalise(match.group(1))
+        for line in section.splitlines()
+        if (match := re.match(r"^\d+\. (\*\*Given\*\*.*)$", line))
+    ]
+
+
+def test_all_f0602_acceptance_text_matches_original_backlog() -> None:
+    backlog = _sections(BACKLOG.read_text(encoding="utf-8"), 4)
+    tracker = _sections(TRACKER.read_text(encoding="utf-8"), 3)
+    for story_id, source in sorted(backlog.items()):
+        assert _tracker_cases(tracker[story_id]) == _source_cases(source), story_id

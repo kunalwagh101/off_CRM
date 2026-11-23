@@ -539,3 +539,26 @@ def test_A22_validation_path_indexes_keep_the_existing_string_contract(tmp_path)
         response = client.post("/api/v1/_audit_validation_index", json={})
         assert response.status_code == 422
         assert response.json()["errors"][0]["location"] == ["7"]
+
+
+@pytest.mark.parametrize("private_key", [
+    "customer-private-ref-78540",
+    "sk-proj-SENSITIVE-CANARY-DO-NOT-RETURN",
+])
+def test_A22_unexpected_keyerror_does_not_echo_private_identifiers(tmp_path, private_key):
+    """A22/D-515: 404 responses must not expose arbitrary KeyError arguments."""
+    app = create_app(_demo_settings(tmp_path))
+
+    async def missing_lookup():
+        raise KeyError(private_key)
+
+    app.add_api_route("/api/v1/_audit_missing_key", missing_lookup, methods=["GET"])
+    with TestClient(app, base_url="https://crm.test") as client:
+        assert client.post(
+            "/api/v1/auth/login",
+            json={"username": "demo-owner", "password": "temporary-password-123"},
+        ).status_code == 200
+        response = client.get("/api/v1/_audit_missing_key")
+        assert response.status_code == 404, response.text
+        assert response.json() == {"detail": "Requested resource was not found."}
+        assert private_key not in response.text

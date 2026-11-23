@@ -1385,8 +1385,14 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         )
 
     @app.exception_handler(KeyError)
-    async def not_found(_: Request, exc: KeyError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc).strip("'")})
+    async def not_found(_: Request, _exc: KeyError) -> JSONResponse:
+        # KeyError can contain a private ID, arbitrary dictionary key, or
+        # credential copied from a request. Never send exception text to a
+        # browser. A stable 404 is sufficient for an unknown resource (A22).
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Requested resource was not found."},
+        )
 
     app.include_router(build_email_delivery_router())
     # A lambda so the workspace rule is looked up when a request arrives:

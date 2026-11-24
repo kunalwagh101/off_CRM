@@ -120,8 +120,12 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                 panel = page.locator("section").filter(has=title)
                 export_button = panel.get_by_role("button", name="Create encrypted backup")
                 restore_button = panel.get_by_role("button", name="Restore backup", exact=True)
-                export_form = panel.locator("form").filter(has=export_button)
-                restore_form = panel.locator("form").filter(has=restore_button)
+                export_form = panel.locator("form").filter(
+                    has=page.get_by_role("button", name="Create encrypted backup", exact=True)
+                )
+                restore_form = panel.locator("form").filter(
+                    has=page.get_by_role("button", name="Restore backup", exact=True)
+                )
                 export_form.get_by_label("Backup passphrase").fill(passphrase)
                 with page.expect_download() as backup:
                     export_button.click()

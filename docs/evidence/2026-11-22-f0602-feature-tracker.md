@@ -31,7 +31,7 @@ The SQLite and PostgreSQL jobs at `94e89b6` both passed the focused regression s
 
 ## 2026-11-24 — Archived WP1 recovery checks on develop
 
-On `631079d`, [production container run 45434745341](https://github.com/kunalwagh101/off_CRM/actions/runs/45434745341) passed the archived WP1 recovery path with a real release image, a disposable named volume, a read-only container root and an unprivileged app. The check killed and replaced the container, confirmed the campaign and file survived, and restored both after post-backup changes. The current Chromium workflow also runs the Settings export and restore path against a disposable app. These checks cover WP1 recovery under the audit. S-06.02.21, S-06.02.23 and S-06.02.27 retain their board statuses pending the remaining acceptance evidence.
+On `631079d`, [production container run 45434745341](https://github.com/kunalwagh101/off_CRM/actions/runs/45434745341) passed the archived WP1 recovery path with a real release image, a disposable named volume, a read-only container root and an unprivileged app. The check killed and replaced the container, confirmed the campaign and file survived, and restored both after post-backup changes. At `26e3b10`, [Chromium run 45437636843](https://github.com/kunalwagh101/off_CRM/actions/runs/45437636843) downloaded an encrypted backup in Settings, restored it through the UI and confirmed that the original campaign was recovered. D-528 records and resolves the browser harness setup failures. These checks cover WP1 recovery under the audit. S-06.02.21, S-06.02.23 and S-06.02.27 retain their board statuses pending the remaining acceptance evidence.
 
 ## Directly contained stories and all written acceptance cases
 

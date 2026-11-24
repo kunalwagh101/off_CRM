@@ -257,3 +257,23 @@ def test_concurrent_credential_creation_preserves_winner(
     assert list(settings.data_dir.iterdir()) == [target]
     assert target.read_text(encoding="ascii") == "z" * 64
     assert _issue(_settings(tmp_path), kind) == "z" * 64
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX umask and inode modes")
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+def test_local_credential_creation_preserves_owner_access_under_restrictive_umask(
+    tmp_path, kind, filename
+):
+    settings = _settings(tmp_path)
+    old_umask = os.umask(0o777)
+    try:
+        created = _issue(settings, kind)
+    finally:
+        os.umask(old_umask)
+    target = settings.data_dir / filename
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+    assert target.read_text(encoding="ascii") == created
+    assert _issue(_settings(tmp_path), kind) == created

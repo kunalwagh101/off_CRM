@@ -90,6 +90,10 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
             cleanup = True
             try:
                 with os.fdopen(fd, "w", encoding="ascii") as secret_file:
+                    # A restrictive process umask can remove owner access.
+                    # Set the intended mode on this private inode, never a path.
+                    if os.name == "posix":
+                        os.fchmod(secret_file.fileno(), 0o600)
                     secret_file.write(value)
                     secret_file.flush()
                     os.fsync(secret_file.fileno())
@@ -111,7 +115,7 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
                     or (published.st_dev, published.st_ino) != (written.st_dev, written.st_ino)
                     or (os.name == "posix" and (published.st_nlink != 1
                         or published.st_uid != os.geteuid()
-                        or stat.S_IMODE(published.st_mode) & 0o077))):
+                        or stat.S_IMODE(published.st_mode) != 0o600))):
                 raise ValueError("Local credential file is unsafe after publication")
             return value
 

@@ -1,3 +1,8 @@
+## 2026-11-24 — D-522 local credential owner-access regression
+
+- Enforce mode 0600 using the already-open private POSIX staging file descriptor before publication; preserve no-replace semantics and reject a published inode with a different mode.
+- Added a regression for API token and signing secret creation under umask 0777, including reload. Isolated publication reproduction: 2 failed before correction, 2 passed after. Full repository CI and Render acceptance remain separate pending gates under F-06.02/S-06.02.23.
+
 ## 2026-11-24 — D-520 false successful logout fixed and independently exercised in Chromium
 
 - Corrected frontend logout so failed server-side cookie revocation cannot appear as successful sign-out. Failed network/storage responses leave auth state intact and display an accessible retry warning.

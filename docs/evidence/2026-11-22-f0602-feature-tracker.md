@@ -14,7 +14,9 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 **One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 35 IN_REVIEW, 10 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
-Each Given/When/Then below is a required *acceptance sub-case*. For each case: implement through the real API/UI/store/worker; run the failing test first where relevant, then unit/integration/API, adverse/security, regression and end-to-end; deploy the exact commit to isolated Render; manually test the API/UI/DB and error path, inspect responses/logs, verify reload/restart/rollback and evidence; run `uv run pytest -q`, frontend tests/build, real PostgreSQL, `uv run python scripts/verify_board.py`, independent penetration and owner acceptance where applicable. **Passing a mock does not prove real provider operation.**
+**Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
+
+Each Given/When/Then below is a required *acceptance sub-case*. For each case: implement through the real API/UI/store/worker; run the failing test first where relevant, then unit/integration/API, adverse/security, regression and end-to-end; start the exact commit on a disposable GitHub runner or local environment; test the API/UI/DB and error path, inspect responses/logs, verify reload/restart/rollback and evidence; run `uv run pytest -q`, frontend tests/build, real PostgreSQL, `uv run python scripts/verify_board.py`, independent penetration and owner acceptance where applicable. **Passing a mock does not prove real provider operation.**
 
 ## Directly contained stories and all written acceptance cases
 
@@ -32,7 +34,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.02 — Every endpoint authorises and validates
 
@@ -49,7 +51,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.03 — Cost and latency budgets per run
 
@@ -68,7 +70,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.03.a integrate latency with the existing trace/run/resume path (<=1 day); T-06.02.03.b acceptance and regression tests (<=1 day); T-06.02.03.c demo, traceability, evidence and verifier certification (<=1 day).
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.04 — Data deletion and subject access
 
@@ -86,7 +88,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.04.a define one store inventory/subject-match contract and enumerate current personal-data stores (<=1 day); T-06.02.04.b implement subject access plus idempotent deletion adapters using existing transactions and filesystem primitives (<=1 day); T-06.02.04.c cross-store failure, isolation and retry tests (<=1 day); T-06.02.04.d docs, rollback/receipt, demo, traceability and verifier evidence (<=1 day).
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.05 — The UI is usable by keyboard and screen reader
 
@@ -102,7 +104,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.06 — The delivery process is verifiable by the owner
 
@@ -119,7 +121,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.07 — An answered question stops blocking
 
@@ -136,7 +138,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.08 — One runner for every evidence command
 
@@ -153,7 +155,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.09 — Every database write goes through one guard
 
@@ -171,7 +173,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.10 — The local API is not open to whatever can reach the port
 
@@ -189,7 +191,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.11 — The verifier catches a stale READY column
 
@@ -207,7 +209,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.12 — A recorded commit must be on the branch
 
@@ -225,7 +227,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.13 — A defect log and a decision log the next session can read
 
@@ -244,7 +246,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.14 — A test should not hardcode a trace step id
 
@@ -261,7 +263,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.15 — CI gives the verifier the repository it claims to verify
 
@@ -279,7 +281,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** **Tasks:** T-06.02.15.a repair checkout/dependency ordering (<=1 day); T-06.02.15.b pin the workflow contract with regression tests (<=1 day); T-06.02.15.c record the defect and evidence (<=1 day).
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.16 — Resolve frontend development dependency audit findings
 
@@ -297,7 +299,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Source/CI dependencies audit satisfied in GitHub 45266709119 5/5 and isolated Render same package-lock review. Parent F-06.02, current app Render release and customer security acceptance remain OPEN.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Source/CI dependencies audit satisfied in GitHub 45266709119 5/5 and isolated Render same package-lock review. Parent F-06.02, current app Render release and customer security acceptance remain OPEN.
 
 ### S-06.02.17 — DONE may not depend on unfinished work
 
@@ -314,7 +316,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.18 — Restore executable CI runner capacity
 
@@ -332,7 +334,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** **Tasks:** verify owner Billing & licensing → Actions usage/budgets/payment state; verify repository Settings → Actions → General; if both are clean, provide GitHub Support the failing run/job IDs and timestamps; re-run the unchanged locked workflow only after runner capacity is restored.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.19 — One working branch holds everything built, and it is green
 
@@ -350,7 +352,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.20 — The verifier tells a shallow clone apart from a missing commit
 
@@ -367,7 +369,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Direct source/CI acceptance satisfied for Git history diagnostics; no customer-host functionality is claimed and the F-06.02 parent remains IN_PROGRESS.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Direct source/CI acceptance satisfied for Git history diagnostics; no customer-host functionality is claimed and the F-06.02 parent remains IN_PROGRESS.
 
 ### S-06.02.21 — Durable customer state and safe recovery (audit WP1)
 
@@ -386,7 +388,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.22 — A created or selected campaign stays the active workspace
 
@@ -403,7 +405,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.23 — Re-check the 7 September production audit on `develop`
 
@@ -419,7 +421,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.24 — Every process that writes the workspace holds its lease
 
@@ -437,7 +439,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.25 — Every screen opens at its top, its warnings in view
 
@@ -455,7 +457,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.26 — CI runs the suite on every Python the package supports
 
@@ -472,7 +474,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.27 — The audit's live harness runs against `develop`
 
@@ -488,7 +490,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.28 — A command-line tool locks the workspace it actually opens
 
@@ -506,7 +508,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.29 — The NVIDIA reasoning model answers in chat
 
@@ -522,7 +524,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.30 — A provider connects from the Connectors screen as shown
 
@@ -539,7 +541,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.31 — Provider keys come only from the app
 
@@ -557,7 +559,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.32 — The connect form offers limit presets
 
@@ -574,7 +576,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.33 — Trust is the owner's to change, per provider and per model
 
@@ -595,7 +597,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Historically DONE on board; not independently reverified here.
 
 ### S-06.02.34 — Connectors show how much is left
 
@@ -613,7 +615,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.35 — Drafts reach a model the owner set up on a screen
 
@@ -631,7 +633,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.36 — A second owner login is made on purpose
 
@@ -648,7 +650,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.37 — Skip navigation keeps the current screen
 
@@ -665,7 +667,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.38 — Any error can be traced back the next day
 
@@ -685,7 +687,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.39 — Valid low-bitrate WebM exports pass verification
 
@@ -703,7 +705,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.40 — A durable email worker runs beside the deployed web app
 
@@ -721,7 +723,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.41 — Contacts beyond row 500 are reachable
 
@@ -738,7 +740,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.42 — Enrichment exports cannot run spreadsheet formulas
 
@@ -755,7 +757,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.43 — Logout revokes the copied browser session
 
@@ -772,7 +774,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.44 — Download all filtered Contacts rows
 
@@ -789,7 +791,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.45 — Category and variant filters for contacts
 
@@ -806,7 +808,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.46 — Marked-only contacts remain reachable
 
@@ -823,7 +825,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.47 — Large send queues are paginated
 
@@ -840,7 +842,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.48 — Campaign-wide queue counters do not mislead
 
@@ -857,7 +859,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.49 — Queue views focus on actionable cohorts
 
@@ -874,7 +876,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.50 — Video media and renders obey configured upload limits (A15 partial remediation)
 
@@ -892,7 +894,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.51 — Video uploads have a bounded request stream and concurrency gate (A15)
 
@@ -990,7 +992,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.56 — Reject corrupt image payloads safely (A21)
 
@@ -1008,7 +1010,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.57 — A09: Enter handlers cannot bypass human approval
 
@@ -1027,7 +1029,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.58 — Factual AI cache only reuses exact evidence (A12)
 
@@ -1045,7 +1047,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.59 — Cached AI outputs are scoped to the actual model and instructions (A13)
 
@@ -1063,7 +1065,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.60 — AI request and spending caps reserve atomically across workers (A11)
 
@@ -1081,7 +1083,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.61 — Email provider setup failures do not strand delivery jobs (A16)
 
@@ -1099,7 +1101,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.62 — HTTP idempotency safely prevents duplicate state-changing requests (A14)
 
@@ -1118,7 +1120,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.63 — Token-authenticated media works in review and video export (A20)
 
@@ -1138,7 +1140,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.64 — Restricted sandbox can write outputs without exposing host files (A32)
 
@@ -1157,7 +1159,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.65 — Reject malformed nested video edits without partial writes (A22)
 
@@ -1176,7 +1178,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.66 — Paid AI calls cannot silently count as free when usage receipts are invalid (A10)
 
@@ -1195,7 +1197,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.67 — Only install owners may access personal-data inventory and erasure (A24/A05)
 
@@ -1213,7 +1215,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.68 — Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05)
 
@@ -1231,7 +1233,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ### S-06.02.69 — Image briefs, generated files and video handoff remain private to their workspace (A05)
 
@@ -1249,7 +1251,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 **Named tasks/subtasks:** No separately numbered tasks or sub-stories are declared for this story. Follow its three acceptance cases and linked work order.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, Render, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
 
 ## Related external work required for F-06.02 (not separate selected features)
 

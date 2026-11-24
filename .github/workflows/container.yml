@@ -80,6 +80,89 @@ jobs:
           PY
           docker exec offcrm-container-check python -c \
             "from pathlib import Path; s=Path('/proc/1/status').read_text(); u=next(x for x in s.splitlines() if x.startswith('Uid:')); assert u.split()[1:] == ['10001'] * 4, u"
+      - name: A06 and A29 functional HTTP security on the running release image
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+          from http.cookies import SimpleCookie
+          from pathlib import Path
+          import os
+
+          base = "http://127.0.0.1:8766"
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          opener = urllib.request.build_opener(
+              urllib.request.ProxyHandler({}), NoRedirect()
+          )
+
+          def request(path, expected, *, data=None, cookie=None, origin=None, host=None):
+              headers = {}
+              if cookie:
+                  headers["Cookie"] = cookie
+              if data is not None:
+                  headers["Content-Type"] = "application/json"
+                  headers["Origin"] = origin or base
+              if host:
+                  headers["Host"] = host
+              req = urllib.request.Request(
+                  base + path, headers=headers,
+                  data=None if data is None else json.dumps(data).encode(),
+              )
+              try:
+                  response = opener.open(req, timeout=15)
+              except urllib.error.HTTPError as exc:
+                  response = exc
+              with response:
+                  assert response.status == expected, (path, response.status, expected)
+                  return response.headers, response.read()
+
+          _, body = request("/api/v1/auth/session", 200)
+          assert json.loads(body)["authenticated"] is False
+          for path in ("/api/v1/dashboard", "/api/v1/campaigns", "/api/v1/ai/egress-log"):
+              headers, _ = request(path, 401)
+              assert not headers.get_all("Set-Cookie"), path
+          request("/", 421, host="untrusted.invalid")
+          headers, _ = request("/api/v1/auth/login", 401, data={
+              "username": "wrong-user", "password": "wrong-disposable-password",
+          })
+          assert not headers.get_all("Set-Cookie")
+
+          def login():
+              headers, body = request("/api/v1/auth/login", 200, data={
+                  "username": "visitor", "password": "ci-disposable-visitor-password",
+              })
+              assert json.loads(body)["authenticated"] is True
+              jar = SimpleCookie()
+              for value in headers.get_all("Set-Cookie", []):
+                  jar.load(value)
+              morsel = jar["offsetx_crm_session"]
+              assert morsel["httponly"] and morsel["samesite"].lower() == "strict"
+              return "offsetx_crm_session=" + morsel.value
+
+          revoked, active = login(), login()
+          assert revoked != active
+          for cookie in (revoked, active):
+              _, body = request("/api/v1/auth/session", 200, cookie=cookie)
+              assert json.loads(body)["authenticated"] is True
+              request("/api/v1/campaigns", 200, cookie=cookie)
+          request("/api/v1/auth/logout", 403, data={}, cookie=revoked,
+                  origin="https://untrusted.invalid")
+          _, body = request("/api/v1/auth/session", 200, cookie=revoked)
+          assert json.loads(body)["authenticated"] is True
+          request("/api/v1/auth/logout", 200, data={}, cookie=revoked)
+          request("/api/v1/campaigns", 401, cookie=revoked)
+          request("/api/v1/campaigns", 200, cookie=active)
+          # Keep only disposable cookies, private to this runner, for restart QA.
+          path = Path(os.environ["RUNNER_TEMP"]) / "offcrm-ci-session-check.json"
+          fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, "w") as output:
+              json.dump({"revoked": revoked, "active": active}, output)
+          print("PASS: anonymous, wrong login, host guard, signed-in reads, cross-origin logout denial, revoked-cookie replay, independent session")
+          PY
       - name: A26 verify actual release-image dependency lock and extras
         run: docker exec offcrm-container-check python scripts/qa/a26_image_dependency_contract.py
       - name: Verify restart readiness with the same disposable volume
@@ -99,9 +182,39 @@ jobs:
           else:
               raise SystemExit('Container did not become ready after restart')
           PY
+      - name: Verify revoked and active cookies across real container restart
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.error
+          import urllib.request
+          path = Path(os.environ["RUNNER_TEMP"]) / "offcrm-ci-session-check.json"
+          try:
+              cookies = json.loads(path.read_text())
+              for label, expected in (("revoked", 401), ("active", 200)):
+                  req = urllib.request.Request(
+                      "http://127.0.0.1:8766/api/v1/campaigns",
+                      headers={"Cookie": cookies[label]},
+                  )
+                  try:
+                      response = urllib.request.build_opener(
+                          urllib.request.ProxyHandler({})
+                      ).open(req, timeout=15)
+                  except urllib.error.HTTPError as exc:
+                      response = exc
+                  with response:
+                      assert response.status == expected, (label, response.status)
+              print("PASS: session revocation persists across container restart")
+          finally:
+              path.unlink(missing_ok=True)
+          PY
       - name: Show application diagnostics after failure
         if: failure()
         run: docker logs --tail 100 offcrm-container-check
       - name: Remove the disposable container and volume
         if: always()
-        run: docker rm --force --volumes offcrm-container-check
+        run: |
+          rm -f "$RUNNER_TEMP/offcrm-ci-session-check.json"
+          docker rm --force --volumes offcrm-container-check

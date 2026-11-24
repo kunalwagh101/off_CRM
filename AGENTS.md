@@ -135,7 +135,18 @@ These are enforced by tests, not by convention. Breaking one fails CI.
 
 ---
 
-## Render build-budget safety (2026-11-23; F-06.02 incident)
+## Owner override — F-06.02 verification without Render (2026-11-24)
+
+Do not use Render for this feature: no deploy, smoke probe, account access or
+service changes. Use GitHub Actions with its disposable PostgreSQL, real
+Chromium and the production Dockerfile started on runner loopback. Use local
+execution when available; manually dispatch the same GitHub workflows if
+needed. This replaces the Render-specific QA instructions below for F-06.02,
+not the production contract or Definition of Done. Actual customer hosting,
+external providers, independent review and recovery evidence remain distinct
+where applicable. Do not claim a production rollout from a disposable run.
+
+## Historical Render build-budget safety (2026-11-23; F-06.02 incident)
 
 **Do not use Render as a duplicate full regression runner.** On the new
 `majors_97` workspace, the review-only service

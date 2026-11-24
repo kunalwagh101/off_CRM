@@ -2,11 +2,6 @@ name: Render functional QA smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches: [develop]
-    paths:
-      - scripts/live/remote_render_smoke.py
-      - .github/workflows/render-functional-smoke.yml
 
 permissions:
   contents: read
@@ -17,6 +12,8 @@ concurrency:
 
 jobs:
   public-boundary:
+    # Owner suspended Render verification; retain the historical workflow only.
+    if: ${{ false }}
     name: Public boundary smoke (no credentials)
     runs-on: ubuntu-latest
     timeout-minutes: 8

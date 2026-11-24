@@ -1,3 +1,8 @@
+## 2026-11-24 — F-06.02 owner-approved QA without Render
+
+- Owner explicitly excluded Render. Preserve historical evidence, disable its repository smoke workflow, and use the existing GitHub Actions and production Dockerfile on loopback instead. Manual dispatch is available for the full CI workflow.
+- Extend production-container verification with real HTTP authentication, anonymous rejection, Host validation, cross-origin logout denial, copied-cookie revocation and independent-session survival across restart. Only disposable sample data and credentials; no external providers. Exact-source execution pending, not a customer deployment or full feature closeout.
+
 ## 2026-11-24 — D-524 preserve unconfirmed AI spend reservations
 
 - S-06.02.66: capped calls with no trustworthy usage receipt retain the existing budget reservation rather than releasing it on a rough estimate; an uncertain failure stops further broker attempts. Valid receipts and uncapped measurement keep their existing settlement path.

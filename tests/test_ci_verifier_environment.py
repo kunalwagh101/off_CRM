@@ -125,3 +125,22 @@ def test_current_handoff_does_not_direct_develop_work_to_main():
     assert "Repository: https://github.com/kunalwagh101/off_CRM   (branch: develop)" in handoff
     assert "Commit, then push to develop" in handoff
     assert "Commit, then push to main" not in handoff
+
+
+
+def test_f0602_owner_no_render_uses_disposable_release_image():
+    workflow = yaml.safe_load(Path(".github/workflows/container.yml").read_text())
+    steps = workflow["jobs"]["build-and-start"]["steps"]
+    names = [step.get("name") for step in steps]
+    assert names.index("Start the application container") < names.index(
+        "A06 and A29 functional HTTP security on the running release image"
+    ) < names.index("Verify restart readiness with the same disposable volume")
+    assert names.index("Verify restart readiness with the same disposable volume") < names.index(
+        "Verify revoked and active cookies across real container restart"
+    ) < names.index("Remove the disposable container and volume")
+    assert "127.0.0.1:8766" in steps[names.index(
+        "A06 and A29 functional HTTP security on the running release image"
+    )]["run"]
+    historical = yaml.safe_load(Path(".github/workflows/render-functional-smoke.yml").read_text())
+    assert set(historical[True]) == {"workflow_dispatch"}
+    assert historical["jobs"]["public-boundary"]["if"] == "${{ false }}"

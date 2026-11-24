@@ -191,3 +191,44 @@ def test_failed_random_secret_generation_does_not_leave_poisoned_file(
     assert len(created) >= 32
     assert target.is_file()
     assert target.read_text(encoding="ascii").strip() == created
+
+
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+@pytest.mark.parametrize("failure", ["partial_write", "fsync"])
+def test_failed_secret_disk_write_does_not_poison_next_boot(
+    tmp_path, monkeypatch, kind, filename, failure
+):
+    """D-521: never publish incomplete local credentials."""
+    from contextlib import contextmanager
+
+    settings = _settings(tmp_path)
+    target = settings.data_dir / filename
+    original = os.fdopen
+
+    @contextmanager
+    def failing_write(fd, mode, *args, **kwargs):
+        with original(fd, mode, *args, **kwargs) as stream:
+            if mode == "w":
+                stream.write("partial")
+                stream.flush()
+                raise OSError("synthetic disk failure")
+            yield stream
+
+    def failing_fsync(_fd):
+        raise OSError("synthetic flush failure")
+
+    with monkeypatch.context() as patch:
+        if failure == "partial_write":
+            patch.setattr(os, "fdopen", failing_write)
+        else:
+            patch.setattr(os, "fsync", failing_fsync)
+        with pytest.raises(ValueError, match="unsafe|inaccessible|credential"):
+            _issue(settings, kind)
+    assert not target.exists()
+    assert list(settings.data_dir.iterdir()) == []
+    created = _issue(_settings(tmp_path), kind)
+    assert created == _issue(_settings(tmp_path), kind)
+    assert target.read_text(encoding="ascii") == created

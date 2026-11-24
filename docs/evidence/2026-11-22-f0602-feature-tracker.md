@@ -29,6 +29,10 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 The SQLite and PostgreSQL jobs at `94e89b6` both passed the focused regression step in [run 45424459700](https://github.com/kunalwagh101/off_CRM/actions/runs/45424459700). S-06.02.60 (quota), .61 (provider setup failure), .62 (HTTP idempotency), .66 (billing receipts), .67 (owner-only privacy), .68 (video isolation) and .69 (image isolation) moved to IN_REVIEW. The tests use disposable state and simulated transport where specified. Customer data migration, independent recovery, hosted worker operation, real providers and the release audit remain open.
 
+## 2026-11-24 — Archived WP1 recovery checks on develop
+
+On `631079d`, [production container run 45434745341](https://github.com/kunalwagh101/off_CRM/actions/runs/45434745341) passed the archived WP1 recovery path with a real release image, a disposable named volume, a read-only container root and an unprivileged app. The check killed and replaced the container, confirmed the campaign and file survived, and restored both after post-backup changes. The current Chromium workflow also runs the Settings export and restore path against a disposable app. These checks cover WP1 recovery under the audit. S-06.02.21, S-06.02.23 and S-06.02.27 retain their board statuses pending the remaining acceptance evidence.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

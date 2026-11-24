@@ -84,7 +84,7 @@ def test_parent_directory_swap_cannot_redirect_created_local_secret(
 
     def swapping_open(path, flags, *args, **kwargs):
         nonlocal swapped
-        if not swapped and flags & os.O_CREAT and Path(path).name == filename:
+        if not swapped and flags & os.O_CREAT and Path(path).name.startswith(f".{filename}."):
             settings.data_dir.rename(original)
             settings.data_dir.symlink_to(attacker, target_is_directory=True)
             swapped = True
@@ -232,3 +232,28 @@ def test_failed_secret_disk_write_does_not_poison_next_boot(
     created = _issue(_settings(tmp_path), kind)
     assert created == _issue(_settings(tmp_path), kind)
     assert target.read_text(encoding="ascii") == created
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX no-replace publication")
+@pytest.mark.parametrize("kind,filename", [
+    ("token", "local_api_token"),
+    ("session", "workspace_session_secret"),
+])
+def test_concurrent_credential_creation_preserves_winner(
+    tmp_path, monkeypatch, kind, filename
+):
+    settings = _settings(tmp_path)
+    target = settings.data_dir / filename
+    original_link = os.link
+
+    def racing_link(src, dst, *args, **kwargs):
+        target.write_text("z" * 64, encoding="ascii")
+        target.chmod(0o600)
+        return original_link(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(os, "link", racing_link)
+    with pytest.raises(ValueError, match="concurrently"):
+        _issue(settings, kind)
+    assert list(settings.data_dir.iterdir()) == [target]
+    assert target.read_text(encoding="ascii") == "z" * 64
+    assert _issue(_settings(tmp_path), kind) == "z" * 64

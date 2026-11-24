@@ -13,7 +13,7 @@ import tempfile
 import time
 
 import httpx
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 
 from scripts.qa.hosted_tool_browser import child_environment
 
@@ -113,7 +113,8 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                 page = context.new_page()
                 page.route(
                     "**/*", lambda request: request.continue_()
-                    if request.request.url.startswith(base + "/") else request.abort(),
+                    if request.request.url.startswith((base + "/", "blob:" + base + "/"))
+                    else request.abort(),
                 )
                 page.goto(base + "/#settings", wait_until="domcontentloaded")
                 title = page.get_by_role("heading", name="Encrypted backup", exact=True)
@@ -127,9 +128,18 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                     has=page.get_by_role("button", name="Restore backup", exact=True)
                 )
                 export_form.get_by_label("Backup passphrase").fill(passphrase)
-                with page.expect_download() as backup:
-                    export_button.click()
-                backup.value.save_as(archive)
+                export_responses: list[int] = []
+                page.on("response", lambda response: export_responses.append(response.status)
+                        if response.url.endswith("/backups/export") else None)
+                try:
+                    with page.expect_download(timeout=15_000) as backup:
+                        export_button.click()
+                    backup.value.save_as(archive)
+                except PlaywrightTimeoutError as error:
+                    statuses = page.get_by_role("status").all_text_contents()
+                    raise AssertionError(
+                        f"Backup did not download. HTTP statuses: {export_responses}. UI: {statuses}"
+                    ) from error
                 assert archive.stat().st_size > 0
                 expect(export_form.get_by_label("Backup passphrase")).to_have_value("")
 

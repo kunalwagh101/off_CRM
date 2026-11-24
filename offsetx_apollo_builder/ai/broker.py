@@ -866,10 +866,19 @@ class EgressBroker:
                 received=text,
             )
 
-            self._reconcile_attempt(
-                candidate, settings, ticket, scope, spend_usd=cost_usd,
-                rate_limited=(failure is not None and failure.kind is FailureKind.RATE_LIMITED),
+            # A character estimate is not a receipt and cannot safely refund a
+            # hard USD reservation. Keep the durable hold visible as reserved,
+            # not measured, until the quota window ends or billing is resolved.
+            limits = settings.quota_limits.get(candidate.id) or QuotaLimits()
+            billing_uncertain = (
+                bool(ticket) and limits.max_spend_usd_per_day > 0
+                and usage_source == "estimated"
             )
+            if not billing_uncertain:
+                self._reconcile_attempt(
+                    candidate, settings, ticket, scope, spend_usd=cost_usd,
+                    rate_limited=(failure is not None and failure.kind is FailureKind.RATE_LIMITED),
+                )
 
             if self.cache is not None and status == "succeeded":
                 self.cache.put(
@@ -937,6 +946,14 @@ class EgressBroker:
                         provider_id=candidate.id,
                         model_id=candidate.model_id,
                         log_id=log_id,
+                    )
+
+                if billing_uncertain:
+                    # The attempted paid call may have run. A different model
+                    # or another retry cannot establish what it actually cost.
+                    raise NoPermittedProvider(
+                        "Provider billing is uncertain; the budget remains reserved. "
+                        "The request was not repeated automatically."
                     )
 
                 if (

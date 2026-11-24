@@ -1,3 +1,8 @@
+## 2026-11-24 — D-524 preserve unconfirmed AI spend reservations
+
+- S-06.02.66: capped calls with no trustworthy usage receipt retain the existing budget reservation rather than releasing it on a rough estimate; an uncertain failure stops further broker attempts. Valid receipts and uncapped measurement keep their existing settlement path.
+- Added three real-broker regression cases including restart persistence and a second candidate that could fit the cap. Isolated settlement model: 2 expected RED / 2 controls passed, then 4 GREEN. This is not a full application test. Exact-source CI, HTTP adapter retry behavior, independent review and hosted acceptance remain pending.
+
 ## 2026-11-24 — D-523 bounded AI usage receipts (S-06.02.66)
 
 - Reject untrusted token counts beyond a shared signed 32-bit per-side ceiling at the HTTP parser and broker measurement boundaries. Preserve valid receipts, including one-sided zero, and use the existing labelled estimate for invalid counts rather than crashing after transport.

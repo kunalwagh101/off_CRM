@@ -290,3 +290,49 @@ def test_A10_bounded_receipts_preserve_valid_counts(valid):
     )
     assert (tin, tout, source) == (valid, 12, "provider")
     assert cost > 0
+
+
+@pytest.mark.parametrize("receipt", [None, {"tokens_in": 0, "tokens_out": 0}])
+def test_A10_estimate_does_not_release_unconfirmed_daily_spend_hold(tmp_path, receipt):
+    """A rough estimate is not authority to refund the hard daily USD budget."""
+    wire = []
+    settings = _settings(1.0)
+    broker = _broker(tmp_path, receipt, wire)
+    result = broker.call(_request(), settings, system_prompt="plain public answer")
+    assert result.usage_source == "estimated"
+    assert 0 < result.cost_usd < 0.232
+    observed = _usage_on_reopen(broker, tmp_path, settings)
+    assert observed["day_spend_usd"] == pytest.approx(0.768)
+    assert observed["day_reserved_usd"] == pytest.approx(0.768)
+    assert observed["day_measured_usd"] == pytest.approx(0.0)
+
+    restarted = _broker(tmp_path, receipt, wire)
+    with pytest.raises(NoPermittedProvider, match="spend|quota|cost|limit"):
+        restarted.call(_request(), settings, system_prompt="plain public answer")
+    assert len(wire) == 1
+
+
+def test_A10_uncertain_paid_failure_stops_even_if_another_attempt_fits(tmp_path, monkeypatch):
+    """A missing bill after transport must not trigger another paid attempt."""
+    wire = []
+    settings = _settings(2.0)
+    broker = _broker(tmp_path, None, wire)
+    candidates, rejected = broker.plan(_request(), settings)
+    assert candidates
+
+    class _UncertainFailure(_PaidProvider):
+        def generate(self, *, system_prompt, user_prompt):
+            self.calls.append("sent-and-failed")
+            raise TimeoutError("synthetic upstream network timeout")
+
+    broker._instantiate = lambda _: _UncertainFailure(None, wire)
+    # Force a second eligible candidate in the broker worklist. The cap
+    # could fund two holds, so the refusal must be the uncertainty policy.
+    monkeypatch.setattr(broker, "plan", lambda *args, **kwargs:
+                        ([candidates[0], candidates[0]], rejected))
+    with pytest.raises(NoPermittedProvider, match="billing is uncertain"):
+        broker.call(_request(), settings, system_prompt="plain public answer")
+    assert wire == ["sent-and-failed"]
+    observed = _usage_on_reopen(broker, tmp_path, settings)
+    assert observed["day_spend_usd"] == pytest.approx(0.768)
+    assert observed["day_reserved_usd"] == pytest.approx(0.768)

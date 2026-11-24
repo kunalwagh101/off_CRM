@@ -78,15 +78,41 @@ def _local_secret_file(path: Path, *, generate_bytes: int | None) -> str:
             # Generate first. If secure randomness fails, do not leave a
             # permanently invalid zero-byte credential after O_EXCL creation.
             value = secrets.token_urlsafe(generate_bytes)
+            # Write and flush a private sibling before publishing the credential.
+            # Link (POSIX) or rename (Windows) publishes without replacing a
+            # concurrently created credential. Keep all POSIX paths fd-relative.
+            staged_name = f".{target.name}.{secrets.token_hex(16)}.tmp"
+            staged = staged_name if pinned else str(target.with_name(staged_name))
+            fd = os.open(
+                staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL | flags_no_follow,
+                0o600, dir_fd=parent_fd,
+            )
+            cleanup = True
             try:
-                fd = os.open(
-                    name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | flags_no_follow,
-                    0o600, dir_fd=parent_fd,
-                )
-            except FileExistsError:
-                raise ValueError("Local credential file was created concurrently; restart safely") from None
-            with os.fdopen(fd, "w", encoding="ascii") as secret_file:
-                secret_file.write(value)
+                with os.fdopen(fd, "w", encoding="ascii") as secret_file:
+                    secret_file.write(value)
+                    secret_file.flush()
+                    os.fsync(secret_file.fileno())
+                    written = os.fstat(secret_file.fileno())
+                try:
+                    if os.name == "nt":
+                        os.rename(staged, name)
+                        cleanup = False
+                    else:
+                        os.link(staged, name, src_dir_fd=parent_fd,
+                                dst_dir_fd=parent_fd, follow_symlinks=False)
+                except FileExistsError:
+                    raise ValueError("Local credential file was created concurrently; restart safely") from None
+            finally:
+                if cleanup:
+                    os.unlink(staged, dir_fd=parent_fd)
+            published = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if (not stat.S_ISREG(published.st_mode)
+                    or (published.st_dev, published.st_ino) != (written.st_dev, written.st_ino)
+                    or (os.name == "posix" and (published.st_nlink != 1
+                        or published.st_uid != os.geteuid()
+                        or stat.S_IMODE(published.st_mode) & 0o077))):
+                raise ValueError("Local credential file is unsafe after publication")
             return value
 
         with os.fdopen(fd, "rb") as secret_file:

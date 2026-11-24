@@ -18,7 +18,17 @@ services:
       - ./local_data:/var/lib/offcrm/local_data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health/ready', timeout=3)"]
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import json
+          from urllib.request import urlopen
+
+          with urlopen("http://127.0.0.1:8766/health/ready", timeout=3) as response:
+              if response.status != 200 or json.load(response).get("status") != "ready":
+                  raise SystemExit("Readiness endpoint did not report ready")
       interval: 30s
       timeout: 5s
       retries: 3

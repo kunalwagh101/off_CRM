@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - Dockerfile
+      - docker-compose.yml
       - .dockerignore
       - pyproject.toml
       - uv.lock
@@ -17,6 +18,7 @@ on:
   pull_request:
     paths:
       - Dockerfile
+      - docker-compose.yml
       - .dockerignore
       - pyproject.toml
       - uv.lock
@@ -83,6 +85,19 @@ jobs:
           PY
           docker exec offcrm-container-check python -c \
             "from pathlib import Path; s=Path('/proc/1/status').read_text(); u=next(x for x in s.splitlines() if x.startswith('Uid:')); assert u.split()[1:] == ['10001'] * 4, u"
+      - name: Verify the Compose health check against the running release image
+        env:
+          OFFSETX_LOCAL_API_TOKEN: disposable-compose-validation-token
+        run: |
+          docker compose config --format json | python -c '
+          import json
+          import subprocess
+          import sys
+
+          command = json.load(sys.stdin)["services"]["offsetx"]["healthcheck"]["test"]
+          assert command[:3] == ["CMD", "python", "-c"]
+          subprocess.run(["docker", "exec", "offcrm-container-check", *command[1:]], check=True)
+          '
       - name: A06 and A29 functional HTTP security on the running release image
         run: |
           python - <<'PY'

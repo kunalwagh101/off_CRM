@@ -154,13 +154,20 @@ def test_f0602_owner_no_render_uses_disposable_release_image():
     [
         "Verify readiness, frontend and unprivileged process",
         "Verify restart readiness with the same disposable volume",
+        "local Compose health check",
     ],
 )
 def test_release_image_readiness_requires_ready_payload(monkeypatch, step_name):
-    workflow = yaml.safe_load(Path(".github/workflows/container.yml").read_text())
-    steps = workflow["jobs"]["build-and-start"]["steps"]
-    command = next(step["run"] for step in steps if step.get("name") == step_name)
-    script = command.split("python - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    if step_name == "local Compose health check":
+        compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+        invocation = compose["services"]["offsetx"]["healthcheck"]["test"]
+        assert invocation[:3] == ["CMD", "python", "-c"]
+        script = invocation[3]
+    else:
+        workflow = yaml.safe_load(Path(".github/workflows/container.yml").read_text())
+        steps = workflow["jobs"]["build-and-start"]["steps"]
+        command = next(step["run"] for step in steps if step.get("name") == step_name)
+        script = command.split("python - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
     readiness_script = compile(script, step_name, "exec")
 
     def serve_readiness(payload):

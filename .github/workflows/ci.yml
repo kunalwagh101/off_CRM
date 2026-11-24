@@ -124,6 +124,15 @@ jobs:
           sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: A34 real Chromium Colour export and independent decode
         run: uv run python -m scripts.qa.a34_colour_export
+      - name: F-06.02 focused backlog acceptance on SQLite
+        run: >-
+          uv run pytest -v -rA
+          tests/test_ai_billing_integrity_a10.py tests/test_ai_quota_atomic.py
+          tests/test_api_idempotency_a14.py
+          tests/test_audit_a05_video_workspace_isolation.py
+          tests/test_audit_a05_image_workspace_isolation.py
+          tests/test_audit_a24_privacy_owner_authorization.py
+          tests/test_email_delivery.py -k "not test_ses"
       - name: Verify the board against the repository
         run: uv run python scripts/verify_board.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser
@@ -191,6 +200,17 @@ jobs:
           uv run pytest -q tests/test_crm_hosted.py tests/test_hosted_storage.py
           tests/test_db_backend.py tests/test_storage_inventory.py
           tests/test_video_postgres.py tests/test_crm_harness.py
+      - name: F-06.02 focused backlog acceptance on PostgreSQL
+        env:
+          OFF_CRM_TEST_CRM_ON_POSTGRES: "1"
+        run: >-
+          uv run pytest -v -rA
+          tests/test_ai_billing_integrity_a10.py tests/test_ai_quota_atomic.py
+          tests/test_api_idempotency_a14.py
+          tests/test_audit_a05_video_workspace_isolation.py
+          tests/test_audit_a05_image_workspace_isolation.py
+          tests/test_audit_a24_privacy_owner_authorization.py
+          tests/test_email_delivery.py -k "not test_ses"
       - name: Whole suite with every CRM on PostgreSQL
         env:
           OFF_CRM_TEST_CRM_ON_POSTGRES: "1"

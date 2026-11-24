@@ -5,8 +5,11 @@ an intentionally incomplete checkout and ran it before frontend evidence could
 execute. These tests pin the workflow ordering so that defect cannot quietly
 return.
 """
+import io
 from pathlib import Path
+import urllib.request
 
+import pytest
 import yaml
 
 
@@ -144,3 +147,38 @@ def test_f0602_owner_no_render_uses_disposable_release_image():
     historical = yaml.safe_load(Path(".github/workflows/render-functional-smoke.yml").read_text())
     assert set(historical[True]) == {"workflow_dispatch"}
     assert historical["jobs"]["public-boundary"]["if"] == "${{ false }}"
+
+
+@pytest.mark.parametrize(
+    "step_name",
+    [
+        "Verify readiness, frontend and unprivileged process",
+        "Verify restart readiness with the same disposable volume",
+    ],
+)
+def test_release_image_readiness_requires_ready_payload(monkeypatch, step_name):
+    workflow = yaml.safe_load(Path(".github/workflows/container.yml").read_text())
+    steps = workflow["jobs"]["build-and-start"]["steps"]
+    command = next(step["run"] for step in steps if step.get("name") == step_name)
+    script = command.split("python - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+    readiness_script = compile(script, step_name, "exec")
+
+    def serve_readiness(payload):
+        def urlopen(url, *, timeout):
+            assert timeout > 0
+            if url == "http://127.0.0.1:8766/health/ready":
+                response = io.BytesIO(payload)
+            else:
+                assert url == "http://127.0.0.1:8766/"
+                response = io.BytesIO(b"<html></html>")
+            response.status = 200
+            return response
+
+        monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    serve_readiness(b'{"status":"degraded"}')
+    with pytest.raises(SystemExit, match="Readiness endpoint did not report ready"):
+        exec(readiness_script, {})
+
+    serve_readiness(b'{"status":"ready"}')
+    exec(readiness_script, {})

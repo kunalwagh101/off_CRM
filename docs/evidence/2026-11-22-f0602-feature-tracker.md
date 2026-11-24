@@ -18,6 +18,12 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 Each Given/When/Then below is a required *acceptance sub-case*. For each case: implement through the real API/UI/store/worker; run the failing test first where relevant, then unit/integration/API, adverse/security, regression and end-to-end; start the exact commit on a disposable GitHub runner or local environment; test the API/UI/DB and error path, inspect responses/logs, verify reload/restart/rollback and evidence; run `uv run pytest -q`, frontend tests/build, real PostgreSQL, `uv run python scripts/verify_board.py`, independent penetration and owner acceptance where applicable. **Passing a mock does not prove real provider operation.**
 
+## 2026-11-24 — Disposable release image verification
+
+- At `84d82fb`, the [five-job regression run](https://github.com/kunalwagh101/off_CRM/actions/runs/45407238801) passed Python 3.10–3.12, real PostgreSQL, the frontend build and tests, Chromium logout and campaign selection, and the full-history board verifier. The [real release image](https://github.com/kunalwagh101/off_CRM/actions/runs/45407238577) passed Docker build, readiness, authenticated HTTP, logout revocation across container restart, dependency parity and cleanup.
+- D-525 / A17: the original workflow inspected only HTTP 200 in both readiness probes. A source check failed on both original probes. At `3dbc890` both require the JSON status `ready`. The [actual release-image run](https://github.com/kunalwagh101/off_CRM/actions/runs/45413181058) passed initial and restart readiness. The workflow regression executes both probe scripts with degraded and ready HTTP 200 responses.
+- Local commands were blocked by `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. The GitHub runs use disposable data and test services. Customer deployment, independent recovery, real provider and security review evidence remain open. S-06.02.23 stays IN_PROGRESS.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

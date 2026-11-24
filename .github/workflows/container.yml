@@ -15,6 +15,7 @@ on:
       - config/**
       - tests/fixtures/timeline_conformance.json
       - .github/workflows/container.yml
+      - scripts/qa/wp1_container_recovery.sh
   pull_request:
     paths:
       - Dockerfile
@@ -29,6 +30,7 @@ on:
       - config/**
       - tests/fixtures/timeline_conformance.json
       - .github/workflows/container.yml
+      - scripts/qa/wp1_container_recovery.sh
   workflow_dispatch:
 
 permissions:
@@ -231,6 +233,8 @@ jobs:
           finally:
               path.unlink(missing_ok=True)
           PY
+      - name: WP1 durable state and encrypted recovery after real container replacement
+        run: bash scripts/qa/wp1_container_recovery.sh offcrm-container-check
       - name: Show application diagnostics after failure
         if: failure()
         run: docker logs --tail 100 offcrm-container-check

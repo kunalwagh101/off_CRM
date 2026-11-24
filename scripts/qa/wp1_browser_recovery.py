@@ -18,6 +18,23 @@ from playwright.sync_api import expect, sync_playwright
 from scripts.qa.hosted_tool_browser import child_environment
 
 
+def create_disposable_app():
+    from offsetx_apollo_builder.api.app import create_app
+    from offsetx_apollo_builder.api.config import AppSettings
+
+    root = Path(os.environ["OFF_CRM_QA_PROJECT_ROOT"])
+    data = Path(os.environ["OFF_CRM_QA_DATA_ROOT"])
+    return create_app(AppSettings(
+        project_root=root, database_path=data / "crm.db",
+        data_dir=data, export_dir=data / "exports",
+        frontend_dist=root / "frontend/dist",
+        host="127.0.0.1", port=int(os.environ["OFF_CRM_QA_PORT"]),
+        api_token=os.environ["OFFSETX_LOCAL_API_TOKEN"],
+        session_secret=os.environ["OFFSETX_SESSION_SECRET"],
+        allowed_hosts=("127.0.0.1", "localhost"),
+    ))
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
     chromium = (
@@ -34,6 +51,7 @@ def main() -> None:
         token = secrets.token_urlsafe(48)
         env = child_environment(root, work / "data", str(work / "unused.db"), token)
         env.pop("OFFSETX_DATABASE_URL")
+        env.pop("OFFSETX_SECRETS_KEY")
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
@@ -44,7 +62,7 @@ def main() -> None:
             with subprocess.Popen(
                 [
                     sys.executable, "-m", "uvicorn",
-                    "scripts.qa.hosted_tool_browser:create_disposable_app",
+                    "scripts.qa.wp1_browser_recovery:create_disposable_app",
                     "--factory", "--host", "127.0.0.1", "--port", str(port),
                     "--no-access-log",
                 ],

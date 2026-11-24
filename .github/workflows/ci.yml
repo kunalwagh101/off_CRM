@@ -118,6 +118,10 @@ jobs:
         run: uv run python -m scripts.qa.a33_campaign_browser
       - name: A06 real Chromium logout revocation and replay
         run: uv run python -m scripts.qa.a06_logout_browser
+      - name: Install the video QA decoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: A34 real Chromium Colour export and independent decode
         run: uv run python -m scripts.qa.a34_colour_export
       - name: Verify the board against the repository

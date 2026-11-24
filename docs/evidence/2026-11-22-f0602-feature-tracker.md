@@ -12,7 +12,7 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 35 IN_REVIEW, 10 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 **Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
 
@@ -24,6 +24,10 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 - D-525 / A17: the original workflow inspected only HTTP 200 in both readiness probes. A source check failed on both original probes. At `3dbc890` both require the JSON status `ready`. The [actual release-image run](https://github.com/kunalwagh101/off_CRM/actions/runs/45413181058) passed initial and restart readiness. The workflow regression executes both probe scripts with degraded and ready HTTP 200 responses.
 - D-526 / A17: the local Compose health check also accepted any successful HTTP response. It now requires HTTP 200 and JSON status `ready`. The regression executes the Compose command with both readiness responses. The container workflow also resolves it with `docker compose config` and executes it against the running release image.
 - Local commands were blocked by `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. The GitHub runs use disposable data and test services. Customer deployment, independent recovery, real provider and security review evidence remain open. S-06.02.23 stays IN_PROGRESS.
+
+## 2026-11-24 — Focused acceptance for seven implemented fixes
+
+The SQLite and PostgreSQL jobs at `94e89b6` both passed the focused regression step in [run 45424459700](https://github.com/kunalwagh101/off_CRM/actions/runs/45424459700). S-06.02.60 (quota), .61 (provider setup failure), .62 (HTTP idempotency), .66 (billing receipts), .67 (owner-only privacy), .68 (video isolation) and .69 (image isolation) moved to IN_REVIEW. The tests use disposable state and simulated transport where specified. Customer data migration, independent recovery, hosted worker operation, real providers and the release audit remain open.
 
 ## Directly contained stories and all written acceptance cases
 
@@ -1076,7 +1080,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.60 — AI request and spending caps reserve atomically across workers (A11)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.60-atomic-ai-quota.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.60-atomic-ai-quota.md).
 
 **Requirement:** AI request and spending caps reserve atomically across workers (A11).
 
@@ -1094,7 +1098,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.61 — Email provider setup failures do not strand delivery jobs (A16)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.61-email-provider-setup.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.61-email-provider-setup.md).
 
 **Requirement:** Email provider setup failures do not strand delivery jobs (A16).
 
@@ -1112,7 +1116,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.62 — HTTP idempotency safely prevents duplicate state-changing requests (A14)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.62-atomic-http-idempotency.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.62-atomic-http-idempotency.md).
 
 **Requirement:** HTTP idempotency safely prevents duplicate state-changing requests (A14).
 
@@ -1189,7 +1193,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.66 — Paid AI calls cannot silently count as free when usage receipts are invalid (A10)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.66-ai-billing-receipt-integrity.md).
 
 **Requirement:** Paid AI calls cannot silently count as free when usage receipts are invalid (A10).
 
@@ -1208,7 +1212,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.67 — Only install owners may access personal-data inventory and erasure (A24/A05)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.67-privacy-owner-authorization.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.67-privacy-owner-authorization.md).
 
 **Requirement:** Only install owners may access personal-data inventory and erasure (A24/A05).
 
@@ -1226,7 +1230,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.68 — Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.68-video-workspace-ownership.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.68-video-workspace-ownership.md).
 
 **Requirement:** Workspace-owned video projects, recordings and renders cannot cross account boundaries (A05).
 
@@ -1244,7 +1248,7 @@ Each Given/When/Then below is a required *acceptance sub-case*. For each case: i
 
 ### S-06.02.69 — Image briefs, generated files and video handoff remain private to their workspace (A05)
 
-**Status:** BACKLOG. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.69-image-workspace-ownership.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.69-image-workspace-ownership.md).
 
 **Requirement:** Image briefs, generated files and video handoff remain private to their workspace (A05).
 

@@ -93,7 +93,11 @@ def test_A10_valid_provider_receipt_is_charged_and_survives_restart(tmp_path):
     {"tokens_in": "invalid", "tokens_out": 3},
     {"tokens_in": float("nan"), "tokens_out": 3},
     {"tokens_in": -2, "tokens_out": -3},
-], ids=["all-zero", "malformed", "nonfinite", "negative"])
+    {"tokens_in": 2**31, "tokens_out": 3},
+    {"tokens_in": 3, "tokens_out": 10**400},
+    {"tokens_in": int(1e300), "tokens_out": 3},
+], ids=["all-zero", "malformed", "nonfinite", "negative",
+        "over-count-bound", "integer-overflow", "extreme-count"])
 def test_A10_invalid_receipt_estimates_nonzero_spend_and_refuses_next_transport(tmp_path, receipt):
     """A10: invalid usage cannot become a confirmed free bill or a post-send 500."""
     wire = []
@@ -115,6 +119,9 @@ def test_A10_invalid_receipt_estimates_nonzero_spend_and_refuses_next_transport(
     {"input_tokens": 0, "output_tokens": 0},
     {"input_tokens": float("inf"), "output_tokens": 20},
     {"input_tokens": True, "output_tokens": 20},
+    {"input_tokens": 2**31, "output_tokens": 20},
+    {"input_tokens": 20, "output_tokens": 10**400},
+    {"input_tokens": 1e300, "output_tokens": 20},
 ])
 def test_A10_bad_provider_usage_blocks_cannot_look_like_valid_receipts(raw):
     """A10: raw adapter usage must not throw or call its invalid numbers a receipt."""
@@ -268,3 +275,18 @@ def test_A10_real_postgres_two_workers_share_atomic_usd_budget(tmp_path):
     finally:
         with psycopg.connect(url, autocommit=True) as connection:
             connection.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+
+
+@pytest.mark.parametrize("valid", [0, 42, 2**31 - 1])
+def test_A10_bounded_receipts_preserve_valid_counts(valid):
+    """The abuse ceiling must not silently truncate a legitimate receipt."""
+    assert read_usage({"usage": {"input_tokens": valid, "output_tokens": 12}}) == {
+        "tokens_in": valid, "tokens_out": 12,
+    }
+    priced = ModelEntry(id="m", cost_per_1m_input_usd=2, cost_per_1m_output_usd=6)
+    tin, tout, cost, source = measure(
+        priced, reported={"tokens_in": valid, "tokens_out": 12},
+        sent="request", received="response",
+    )
+    assert (tin, tout, source) == (valid, 12, "provider")
+    assert cost > 0

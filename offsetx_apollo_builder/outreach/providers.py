@@ -342,6 +342,10 @@ def _validate_http_url(value: str, *, allow_local: bool = True) -> str:
 #: Chat Completions shape everyone else copied says `prompt_tokens`/
 #: `completion_tokens`. Nothing else needs translating, because every one of
 #: them puts the block at the top level under `usage`.  `S-06.01.03`
+#: Generous per-call token ceiling, far above supported context windows.
+#: Reject untrusted counts beyond signed 32-bit range before float pricing.
+MAX_PROVIDER_TOKEN_COUNT = 2**31 - 1
+
 _USAGE_KEYS = (
     ("tokens_in", ("input_tokens", "prompt_tokens")),
     ("tokens_out", ("output_tokens", "completion_tokens")),
@@ -365,12 +369,12 @@ def read_usage(data: dict[str, Any]) -> dict[str, int]:
             # A boolean is not a token count. Neither are NaN, infinity or
             # fractional tokens; these can otherwise become a falsely free
             # receipt or raise after the provider has already billed us.
-            if type(value) is int and value >= 0:
+            if type(value) is int and 0 <= value <= MAX_PROVIDER_TOKEN_COUNT:
                 found[name] = value
                 break
             if (
                 type(value) is float and math.isfinite(value)
-                and value >= 0 and value.is_integer()
+                and 0 <= value <= MAX_PROVIDER_TOKEN_COUNT and value.is_integer()
             ):
                 found[name] = int(value)
                 break

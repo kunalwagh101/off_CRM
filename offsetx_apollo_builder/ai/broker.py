@@ -30,6 +30,7 @@ from typing import Any, Callable, Iterable, Mapping
 # The provider SDK/HTTP adapters are imported here and nowhere else outside this
 # package. This import is the structural enforcement of §5.5.1.
 from ..outreach.providers import (
+    MAX_PROVIDER_TOKEN_COUNT,
     ProviderError,
     create_provider,
     normalize_generation_output,
@@ -157,7 +158,8 @@ def measure(
     valid_receipt = (
         isinstance(reported, dict)
         and all(
-            type(reported.get(key)) is int and reported[key] >= 0
+            type(reported.get(key)) is int
+            and 0 <= reported[key] <= MAX_PROVIDER_TOKEN_COUNT
             for key in ("tokens_in", "tokens_out")
         )
         and (reported["tokens_in"] > 0 or reported["tokens_out"] > 0)

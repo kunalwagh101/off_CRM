@@ -1,3 +1,9 @@
+## 2026-11-24 — D-523 bounded AI usage receipts (S-06.02.66)
+
+- Reject untrusted token counts beyond a shared signed 32-bit per-side ceiling at the HTTP parser and broker measurement boundaries. Preserve valid receipts, including one-sided zero, and use the existing labelled estimate for invalid counts rather than crashing after transport.
+- Isolated source-function reproduction: 6 expected RED, 3 controls passed; 9 GREEN after correction. Added repository broker/adapter regressions. Full exact-source CI and manual hosted verification pending. D-523 / DD-184 recorded. No provider transport or production data used in the isolated reproduction.
+- D-522 source `ecc0a2f`: [full CI](https://github.com/kunalwagh101/off_CRM/actions/runs/45392915525) and [production container](https://github.com/kunalwagh101/off_CRM/actions/runs/45392915583) succeeded. Render manual verification remains outstanding. F-06.02 remains IN_PROGRESS.
+
 ## 2026-11-24 — D-522 local credential owner-access regression
 
 - Enforce mode 0600 using the already-open private POSIX staging file descriptor before publication; preserve no-replace semantics and reject a published inode with a different mode.

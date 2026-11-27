@@ -1,3 +1,9 @@
+## 2026-11-27 — D-530/D-531 live audit and recovery
+
+- Correct sandboxed browser runner setup after observed pre-launch failure. Check both keyboard and pointer skip-navigation through actual desktop/mobile navigation.
+- Keep installation Settings mounted across active campaign changes. The WP1 live test holds the real campaign-list request, fills the backup passphrase, and requires it to survive the selection transition before export/restore. Local isolated source check RED 1 / GREEN 1; application CI pending.
+- No production configuration or data migration changed. Rollback is a source revert; the former passphrase-loss risk would return. No story is certified DONE by this change.
+
 ## 2026-11-27 — F-06.02 live audit screen gate
 
 - D-529 fixed-source CI passed all five jobs, including actual browser backup and restore. The original timing cause remains unproven.

@@ -46,6 +46,12 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - S-06.02.27: the archived screen audit covered 18 routes. Added `scripts/qa/audit_screen_sweep.py` for all 33 current routes at desktop and mobile widths; real app, sandboxed Chromium, route inventory, screen render, keyboard skip-navigation, JS and HTTP 5xx/401 checks. No provider calls or production data. The new gate must pass; full archive-harness coverage and independent live acceptance are still open.
 - Route-inventory helper tested in an isolated local mirror: deliberately permissive baseline 4 failures / 1 pass, strict validation 5 passed. Not a full application/browser run. No story status changed.
 
+## 2026-11-27 — D-530/D-531 recovery and live audit
+
+- At `c8aa882` the real browser WP1 recovery passed again, but the screen sweep failed before launch: Chromium reported no usable sandbox. The fix selects a real browser executable and, only when required on the disposable runner, loads the browser-specific AppArmor userns profile; no global security relaxation or unsandboxed fallback. Desktop/mobile route navigation and both keyboard/pointer skip checks now included.
+- D-531: Settings was remounted on initial campaign selection, potentially clearing backup input. Removed the installation Settings screen from campaign-keyed remounts; local isolated source regression 1 RED / 1 GREEN. The actual WP1 browser test holds the campaign list and asserts passphrase survives the selection transition. Full browser replay and CI pending.
+- Render remains blocked on the previously confirmed build-minute limit. No board status has been promoted.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

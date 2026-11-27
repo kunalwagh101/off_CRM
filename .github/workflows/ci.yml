@@ -137,6 +137,32 @@ jobs:
         run: uv run pytest -q tests/test_wp1_browser_gate.py
       - name: WP1 real Chromium encrypted workspace export and restore
         run: uv run python -m scripts.qa.wp1_browser_recovery
+      # Chromium must keep its sandbox for the archived audit. Ubuntu can
+      # restrict user namespaces to an AppArmor profile for the browser binary.
+      # Configure only that binary on the disposable runner, never a global
+      # sysctl or --no-sandbox fallback.
+      - name: Prepare sandboxed browser for the live screen audit
+        run: |
+          set -eu
+          if test -x /opt/google/chrome/chrome; then
+            browser=/opt/google/chrome/chrome
+          elif test -x /usr/lib/chromium/chromium; then
+            browser=/usr/lib/chromium/chromium
+          else
+            browser="$(command -v google-chrome || command -v chromium)"
+          fi
+          if test "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1; then
+            if test "$browser" = /opt/google/chrome/chrome && test -f /etc/apparmor.d/chrome; then
+              sudo apparmor_parser -r /etc/apparmor.d/chrome
+            else
+              case "$browser" in
+                /opt/google/chrome/chrome|/usr/lib/chromium/chromium) ;;
+                *) echo "Cannot identify real browser binary for AppArmor"; exit 1 ;;
+              esac
+              printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile offcrm-ci-browser "%s" flags=(unconfined) {\n  userns,\n}\n' "$browser" | sudo apparmor_parser -r
+            fi
+          fi
+          echo "OFF_CRM_QA_CHROMIUM=$browser" >> "$GITHUB_ENV"
       - name: S-06.02.27 real Chromium audit screen inventory and keyboard navigation
         run: uv run python -m scripts.qa.audit_screen_sweep
       - name: Verify the board against the repository

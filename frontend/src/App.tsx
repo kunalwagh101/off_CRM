@@ -78,8 +78,10 @@ type Page = keyof typeof pages;
 // changes, so a half-filled form cannot keep another campaign's rows (S-06.02.22).
 const campaignScopedPages = new Set<Page>([
   "contacts", "discovery", "readiness", "activity", "replies", "followups", "priorities", "drafts", "queue", "deliverability", "experiments",
-  "imagereview", "videoeditor", "posting", "settings"
+  "imagereview", "videoeditor", "posting"
 ]);
+// Settings owns installation-level recovery forms. Changing the active
+// campaign must not erase their input; campaign exports read live context.
 // Screens that read the campaign list or the selection, and so wait for its
 // first load: before it, "No campaigns yet" would be untrue, and Product's
 // checklist, saved from an empty list, would unlink its campaigns. The rest stay

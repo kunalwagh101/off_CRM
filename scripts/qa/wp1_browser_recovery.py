@@ -17,6 +17,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, 
 
 from scripts.qa.hosted_tool_browser import child_environment
 from scripts.qa.wp1_browser_gate import wait_for_backup_panel
+from urllib.parse import urlsplit
 
 
 def create_disposable_app():
@@ -117,7 +118,36 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                     if request.request.url.startswith((base + "/", "blob:" + base + "/"))
                     else request.abort(),
                 )
-                page.goto(base + "/#settings", wait_until="domcontentloaded")
+                # Settings must be usable even before campaigns are loaded.
+                # Hold the real list request, fill a recovery form, then let the
+                # selection transition from empty to the saved campaign.
+                held = []
+
+                def hold_campaign_list(route):
+                    if (route.request.method == "GET" and
+                            urlsplit(route.request.url).path == "/api/v1/campaigns"):
+                        held.append(route)
+                    else:
+                        route.fallback()
+
+                page.route("**/api/v1/campaigns?*", hold_campaign_list)
+                with page.expect_request(lambda req: req.method == "GET" and
+                                         urlsplit(req.url).path == "/api/v1/campaigns"):
+                    page.goto(base + "/#settings", wait_until="domcontentloaded")
+                early_panel = page.locator("section").filter(
+                    has=page.get_by_role("heading", name="Encrypted backup", exact=True)
+                )
+                early_form = early_panel.locator("form").filter(
+                    has=page.get_by_role("button", name="Create encrypted backup", exact=True)
+                )
+                early_input = early_form.get_by_label("Backup passphrase")
+                early_input.fill(passphrase)
+                assert held, "WP1 did not intercept initial campaign list"
+                for route in held:
+                    route.continue_()
+                page.unroute("**/api/v1/campaigns?*", hold_campaign_list)
+                expect(page.get_by_label("Active campaign")).to_have_value(campaign_id)
+                expect(early_input).to_have_value(passphrase)
                 panel = wait_for_backup_panel(page)
                 export_button = panel.get_by_role("button", name="Create encrypted backup")
                 restore_button = panel.get_by_role("button", name="Restore backup", exact=True)
@@ -127,7 +157,7 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                 restore_form = panel.locator("form").filter(
                     has=page.get_by_role("button", name="Restore backup", exact=True)
                 )
-                export_form.get_by_label("Backup passphrase").fill(passphrase)
+                expect(export_form.get_by_label("Backup passphrase")).to_have_value(passphrase)
                 export_responses: list[int] = []
                 export_requests: list[str] = []
                 export_failures: list[str] = []

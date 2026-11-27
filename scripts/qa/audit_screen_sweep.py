@@ -66,7 +66,8 @@ def verify_screens(chromium, base, token):
                                else route.abort())
                     initial = page.goto(base + "/#dashboard", wait_until="domcontentloaded")
                     assert initial is not None and initial.status == 200
-                    nav = page.get_by_role("navigation", name="Main navigation", include_hidden=True)
+                    nav = page.get_by_role("navigation", name="Main navigation" if width >= 860 else "Mobile navigation", exact=True)
+                    expect(nav).to_be_visible()
                     expect(nav).to_have_count(1)
                     expect(nav.locator("a[href^='#']")).to_have_count(len(ROUTES))
                     routes = validate_routes(ROUTES, nav.locator("a").evaluate_all(
@@ -74,7 +75,7 @@ def verify_screens(chromium, base, token):
                     ))
                     for name in routes:
                         # Use the actual app route, not a mocked response or iframe.
-                        page.goto(base + "/#" + name, wait_until="domcontentloaded")
+                        nav.locator(f'a[href="#{name}"]').click()
                         expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
                         main = page.locator("#main-content")
                         expect(main).to_be_visible()
@@ -87,16 +88,21 @@ def verify_screens(chromium, base, token):
                         expect(main).to_be_focused()
                         assert urlsplit(page.url).fragment == name, f"Skip changed {name} route"
                         expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
+                        skip.focus()
+                        skip.click()
+                        expect(main).to_be_focused()
+                        assert urlsplit(page.url).fragment == name, f"Pointer skip changed {name} route"
+                        assert page.evaluate("window.scrollY") == 0, f"Skip did not reach top: {name}"
                         assert not errors, f"{width}px {name}: JavaScript errors: {len(errors)}"
                         assert not server_errors, f"{width}px {name}: API errors: {server_errors}"
-                        print(f"SCREEN PASS {width}px {name}: rendered and keyboard skip preserved route", flush=True)
+                        print(f"SCREEN PASS {width}px {name}: rendered; keyboard and pointer skip preserved route", flush=True)
                     print(f"SCREEN SWEEP PASS {width}px: {len(routes)}/{len(ROUTES)}", flush=True)
 
 
 def main():
     root = Path(__file__).resolve().parents[2]
-    chromium = (os.getenv("OFF_CRM_QA_CHROMIUM") or shutil.which("chromium")
-                or shutil.which("google-chrome") or shutil.which("chromium-browser"))
+    chromium = (os.getenv("OFF_CRM_QA_CHROMIUM") or shutil.which("google-chrome")
+                or shutil.which("chromium") or shutil.which("chromium-browser"))
     assert chromium, "Screen audit requires Chromium"
     assert os.geteuid() != 0, "Run as an ordinary user with Chromium sandbox enabled"
     assert (root / "frontend/dist/index.html").is_file(), "Build the frontend before audit"

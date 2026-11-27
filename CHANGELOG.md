@@ -1,3 +1,7 @@
+## 2026-11-27 — D-529 WP1 browser recovery gate readiness
+
+- F-06.02: the exact-head quality run timed out before an encrypted export response was observed. Wait for the disposable Settings page's initial network and loading indicators before clicking; add safe request diagnostics. Retain the actual download, restore, and campaign readback assertions. Local synthetic Chromium timing regression RED then GREEN; full real-app CI and original failure cause pending.
+
 ## 2026-11-24 — F-06.02 owner-approved QA without Render
 
 - Owner explicitly excluded Render. Preserve historical evidence, disable its repository smoke workflow, and use the existing GitHub Actions and production Dockerfile on loopback instead. Manual dispatch is available for the full CI workflow.

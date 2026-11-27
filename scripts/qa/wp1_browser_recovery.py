@@ -16,6 +16,7 @@ import httpx
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 
 from scripts.qa.hosted_tool_browser import child_environment
+from scripts.qa.wp1_browser_gate import wait_for_backup_panel
 
 
 def create_disposable_app():
@@ -117,8 +118,7 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                     else request.abort(),
                 )
                 page.goto(base + "/#settings", wait_until="domcontentloaded")
-                title = page.get_by_role("heading", name="Encrypted backup", exact=True)
-                panel = page.locator("section").filter(has=title)
+                panel = wait_for_backup_panel(page)
                 export_button = panel.get_by_role("button", name="Create encrypted backup")
                 restore_button = panel.get_by_role("button", name="Restore backup", exact=True)
                 export_form = panel.locator("form").filter(
@@ -129,8 +129,19 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                 )
                 export_form.get_by_label("Backup passphrase").fill(passphrase)
                 export_responses: list[int] = []
+                export_requests: list[str] = []
+                export_failures: list[str] = []
+                page_errors: list[bool] = []
+                page.on("request", lambda request: export_requests.append(request.method)
+                        if request.url.endswith("/backups/export") else None)
+                page.on("requestfailed", lambda request: export_failures.append(request.method)
+                        if request.url.endswith("/backups/export") else None)
                 page.on("response", lambda response: export_responses.append(response.status)
                         if response.url.endswith("/backups/export") else None)
+                page.on("pageerror", lambda _: page_errors.append(True))
+                assert export_form.get_by_label("Backup passphrase").evaluate(
+                    "(input) => input.validity.valid"
+                ), "WP1 export passphrase input did not satisfy form validation"
                 try:
                     with page.expect_download(timeout=15_000) as backup:
                         export_button.click()
@@ -138,7 +149,9 @@ def verify_browser(chromium: str, base: str, token: str, work: Path, client: htt
                 except PlaywrightTimeoutError as error:
                     statuses = page.get_by_role("status").all_text_contents()
                     raise AssertionError(
-                        f"Backup did not download. HTTP statuses: {export_responses}. UI: {statuses}"
+                        f"Backup did not download. Requests: {export_requests}; "
+                        f"failed requests: {export_failures}; HTTP statuses: {export_responses}; "
+                        f"page errors: {len(page_errors)}; UI: {statuses}"
                     ) from error
                 assert archive.stat().st_size > 0
                 expect(export_form.get_by_label("Backup passphrase")).to_have_value("")

@@ -133,6 +133,8 @@ jobs:
           tests/test_audit_a05_image_workspace_isolation.py
           tests/test_audit_a24_privacy_owner_authorization.py
           tests/test_email_delivery.py -k "not test_ses"
+      - name: WP1 browser readiness regression
+        run: uv run pytest -q tests/test_wp1_browser_gate.py
       - name: WP1 real Chromium encrypted workspace export and restore
         run: uv run python -m scripts.qa.wp1_browser_recovery
       - name: Verify the board against the repository

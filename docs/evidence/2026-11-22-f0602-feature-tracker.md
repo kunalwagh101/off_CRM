@@ -33,6 +33,13 @@ The SQLite and PostgreSQL jobs at `94e89b6` both passed the focused regression s
 
 On `631079d`, [production container run 45434745341](https://github.com/kunalwagh101/off_CRM/actions/runs/45434745341) passed the archived WP1 recovery path with a real release image, a disposable named volume, a read-only container root and an unprivileged app. The check killed and replaced the container, confirmed the campaign and file survived, and restored both after post-backup changes. At `26e3b10`, [Chromium run 45437636843](https://github.com/kunalwagh101/off_CRM/actions/runs/45437636843) downloaded an encrypted backup in Settings, restored it through the UI and confirmed that the original campaign was recovered. D-528 records and resolves the browser harness setup failures. These checks cover WP1 recovery under the audit. S-06.02.21, S-06.02.23 and S-06.02.27 retain their board statuses pending the remaining acceptance evidence.
 
+## 2026-11-27 — Exact-head recovery regression and Render capacity
+
+- Exact head `e1a96f4`: [CI 45440678928](https://github.com/kunalwagh101/off_CRM/actions/runs/45440678928) initially passed four jobs but failed the quality job on the real WP1 Chromium export (15-second download timeout, no observed HTTP export response). Board verifier and hosted companion browser step were skipped in that job. Requested a failed-job rerun. Do not use the previous passing run as proof of repeatability.
+- D-529: added a bounded initial Settings readiness wait, a real-Chromium synthetic delayed-panel regression (1 RED before wait, 1 GREEN after), and export request/failure diagnostics. Still requires real-app replay; the exact cause of the original timeout is not proven.
+- The latest owner prompt requested Render again, so one isolated functional QA deployment `dep-dc4r27l6e07s738b7f8g` of `e1a96f4` in the previously designated workspace was attempted. Build canceled before code execution: build pipeline minutes exhausted. The older live version is not evidence for the current source. No customer/main deployment or paid resource changes.
+- Independent scope reconciliation: 69 IDs match the board, backlog and tracker, all 69 board statuses agree, and the tracker lists 198 acceptance cases. No story status has been promoted.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

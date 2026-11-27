@@ -20,7 +20,7 @@ export function draftsProfileNote(total: number, waiting: number): string {
   if (waiting > 1) {
     return `${waiting} saved provider profiles are waiting for you in Settings, under Provider profiles to confirm.`;
   }
-  return "Personalising with a model needs a provider profile, and no screen adds one yet. Drafts use local templates until then.";
+  return "Personalising with a model needs a provider connected in Connectors. Drafts use local templates until then.";
 }
 
 /** Where Enter in the key box confirms a profile: the one place it can go,

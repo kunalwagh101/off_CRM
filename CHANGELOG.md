@@ -1,3 +1,8 @@
+## 2026-11-27 — skip-navigation closeout and Drafts setup
+
+- S-06.02.37 DONE: actual sandboxed browser sweep 66/66 route/width checks passed with keyboard and pointer on 455a78a. Evidence block and D-530/D-531 fixed status recorded. Board 74/74 historical evidence commands passed but malformed defect ID failed final structure; corrected, promotion replay pending.
+- D-532: make Connectors visible in Drafts empty states and accurately explain legacy confirmation; surface list error and retry. Frontend regression tests authored, not yet executed. No automatic credential migration or live provider calls.
+
 ## 2026-11-27 — D-530/D-531 live audit and recovery
 
 - Correct sandboxed browser runner setup after observed pre-launch failure. Check both keyboard and pointer skip-navigation through actual desktop/mobile navigation.

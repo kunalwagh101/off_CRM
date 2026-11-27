@@ -12,7 +12,7 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 23 DONE, 41 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **46 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 **Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
 
@@ -51,6 +51,12 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - At `c8aa882` the real browser WP1 recovery passed again, but the screen sweep failed before launch: Chromium reported no usable sandbox. The fix selects a real browser executable and, only when required on the disposable runner, loads the browser-specific AppArmor userns profile; no global security relaxation or unsandboxed fallback. Desktop/mobile route navigation and both keyboard/pointer skip checks now included.
 - D-531: Settings was remounted on initial campaign selection, potentially clearing backup input. Removed the installation Settings screen from campaign-keyed remounts; local isolated source regression 1 RED / 1 GREEN. The actual WP1 browser test holds the campaign list and asserts passphrase survives the selection transition. Full browser replay and CI pending.
 - Render remains blocked on the previously confirmed build-minute limit. No board status has been promoted.
+
+## 2026-11-27 — first verified story closeout and Drafts setup
+
+- Source 455a78a: Python matrix and real PostgreSQL passed; production container 46043307715 passed. Quality job 140656328222 passed WP1 (including held campaign list and retained recovery passphrase), actual video 60 decoded frames/3781 bytes, A06 logout and full sandboxed screen sweep 66/66. Its historical evidence replay was 74/74; final board exit failed only because the D-530 defect row had a trailing dot after its backlog ID. Defect rows corrected using observed fixed evidence.
+- S-06.02.37 promoted DONE for the bounded skip-link capability; both acceptance cases were executed on every current route at desktop and mobile, no external dependency. Source review confirms preventDefault before focus and scroll. Evidence replay on the promotion commit required; no customer release claimed.
+- S-06.02.35 D-532: empty-state Connectors link, truthful legacy-profile confirmation, visible list errors/retry and frontend regressions authored. No real provider key or customer send used; story remains BACKLOG pending complete acceptance.
 
 ## Directly contained stories and all written acceptance cases
 
@@ -688,7 +694,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 ### S-06.02.37 — Skip navigation keeps the current screen
 
-**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
+**Status:** DONE. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
 
 **Requirement:** Skip navigation keeps the current screen.
 
@@ -701,7 +707,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Real keyboard and pointer acceptance passed on 66 route/viewport combinations in CI 46043307719; no upstream or external integration. Board promotion replay pending; not deployed to customers.
 
 ### S-06.02.38 — Any error can be traced back the next day
 

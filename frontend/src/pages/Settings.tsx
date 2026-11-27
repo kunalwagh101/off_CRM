@@ -197,7 +197,7 @@ export default function Settings() {
       });
       notify(
         saved.owner === "local"
-          ? `${profile.name} is confirmed as yours. Drafts can use it now.`
+          ? `${profile.name} is confirmed as yours. To use it for Drafts, connect the provider explicitly in Connectors.`
           : `${profile.name} is confirmed as workspace ${saved.owner}'s, which it was saved for.`,
         "success"
       );
@@ -364,10 +364,16 @@ export default function Settings() {
           </div>
         </Panel>
 
+        {profiles.error ? (
+          <Panel title="Provider profiles unavailable">
+            <Loadable loading={false} error={profiles.error} />
+            <Button onClick={profiles.reload}>Retry provider profiles</Button>
+          </Panel>
+        ) : null}
         {profiles.data?.items.some((item) => !item.owner_confirmed) ? (
           <Panel
             title="Provider profiles to confirm"
-            subtitle="Saved before off_CRM recorded whose each one is. To confirm one, type the API key it holds. Drafts use none of them until then."
+            subtitle="Saved before off_CRM recorded whose each one is. Type its API key to confirm ownership. Confirmation does not connect it to Drafts; set up the provider explicitly in Connectors."
           >
             <LegacyProfiles items={profiles.data.items} busy={busy} onConfirm={confirmProvider} onRemove={removeProvider} />
           </Panel>

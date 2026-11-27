@@ -4,7 +4,7 @@ import { Badge, Button, Field, Modal, PageHeader, Panel, Progress, StatePanel } 
 import { useApp } from "../context";
 import { stageLabel, useResource } from "../hooks";
 import type { AIProvidersPayload, Draft, Paginated } from "../types";
-import { DraftGenerationMode, generationOutcome, type GenerationResult } from "./DraftGeneration";
+import { DraftGenerationMode, DraftProviderSetup, generationOutcome, type GenerationResult } from "./DraftGeneration";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 export default function Drafts() {
@@ -36,7 +36,7 @@ export default function Drafts() {
   const connected = providers.data?.providers.filter((provider) => provider.connected && provider.enabled).length ?? 0;
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
-  if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /></>;
+  if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /><DraftProviderSetup /></>;
 
   async function generate(useConnectors = false) {
     setBusy("generate");
@@ -194,7 +194,7 @@ export default function Drafts() {
             ))}
           </div>
         ) : (
-          <StatePanel title="No drafts found" description="Generate a three-stage sequence from the local off_CRM templates, or change your filters." action={<Button onClick={() => setGenerationOpen(true)} busy={busy === "generate"}>Generate sequence</Button>} />
+          <StatePanel title="No drafts found" description="Generate a three-stage sequence from the local off_CRM templates, or change your filters." action={<div className="form-stack"><Button onClick={() => setGenerationOpen(true)} busy={busy === "generate"}>Generate sequence</Button><DraftProviderSetup /></div>} />
         )}
       </Panel>
       <Modal open={Boolean(editing)} onClose={() => setEditing(null)} title="Review email" description="Saving reruns every hard safety and quality check." wide>

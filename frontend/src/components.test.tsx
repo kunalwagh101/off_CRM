@@ -673,7 +673,7 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     expect(html).toBe("");
   });
 
-  it("tells the Drafts screen the truth: waiting profiles, or that no screen adds one yet", async () => {
+  it("tells the Drafts screen the truth: waiting profiles, or where to connect a model", async () => {
     const { draftsProfileNote } = await import("./pages/LegacyProfiles");
     expect(draftsProfileNote(2, 0)).toBe("");
     expect(draftsProfileNote(0, 1)).toBe(
@@ -684,7 +684,7 @@ describe("provider profiles saved before ownership was recorded (D-177)", () => 
     );
     // D-173: it pointed at a Settings form that no longer exists.
     expect(draftsProfileNote(0, 0)).toBe(
-      "Personalising with a model needs a provider profile, and no screen adds one yet. Drafts use local templates until then."
+      "Personalising with a model needs a provider connected in Connectors. Drafts use local templates until then."
     );
   });
 });
@@ -743,5 +743,28 @@ describe("where the data is kept (D-226)", () => {
       expect(html).not.toContain("Hosted database");
     }
     expect(storageWording(undefined).detail).toBe("Checking where data is kept");
+  });
+});
+
+
+describe("Drafts provider setup (S-06.02.35 / D-532)", () => {
+  it("links directly to the real Connectors screen and preserves local templates", async () => {
+    const { DraftProviderSetup } = await import("./pages/DraftGeneration");
+    const html = renderToStaticMarkup(<DraftProviderSetup />);
+    expect(html).toContain('href="#connectors"');
+    expect(html).toContain("Local templates work without a model");
+    expect(html).toContain("permits campaign data");
+  });
+  it("shows setup on both empty paths, not just inside the generation dialog", () => {
+    const source = readFileSync(join(process.cwd(), "src", "pages", "Drafts.tsx"), "utf-8");
+    expect(source).toMatch(/if \(!campaignId\) return [^\n]*<DraftProviderSetup \/>/);
+    expect(source).toMatch(/title="No drafts found"[^\n]*<DraftProviderSetup \/>/);
+  });
+  it("does not claim legacy confirmation connects Drafts and exposes list failures", () => {
+    const source = readFileSync(join(process.cwd(), "src", "pages", "Settings.tsx"), "utf-8");
+    expect(source).not.toContain("Drafts can use it now");
+    expect(source).toContain("connect the provider explicitly in Connectors");
+    expect(source).toContain("Provider profiles unavailable");
+    expect(source).toContain("Retry provider profiles");
   });
 });

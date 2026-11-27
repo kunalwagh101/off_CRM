@@ -96,6 +96,7 @@ Waits on the owner's answer to `Q-28`.)*
 
 - S-06.02.35 · Drafts reach a model the owner set up on a screen
   work_order: docs/work-orders/S-06.02.35-drafts-connectors.md
+  checkpoint: 2026-11-27 D-532: direct Connectors setup link on empty Drafts (with or without a campaign), truthful legacy confirmation and profile load failures; tests authored, real provider acceptance still pending.
   checkpoint: 2026-11-06 Q-28 owner selected Connectors. Workspace broker adapter and actual Drafts mode/failure UI implemented; real-broker transport/policy/audit tests pass, affected real-PG bundle195 PASS, historical profile isolation28 PASS, frontend234 PASS/build PASS, actual Chromium1280/390 local generation/provider setup gate PASS. Independent fix review7 PASS. Full regression/CI running; real configured provider and release acceptance remain open; no DONE claim.
 
 *(Filed 2026-09-28 for `D-196`, from the sixth check: a login made in
@@ -436,9 +437,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
   work_order: docs/work-orders/S-03.01.03-network-isolation.md
   review: docs/evidence/S-03.01.03-validation.md; production Docker-bridge start refused (DD-91), local bridge remains unsafe; full Docker/network proof pending
 
-- S-06.02.37 · Skip navigation keeps the current screen
-  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
-  review: docs/evidence/S-06.02.37-validation.md; code/tests committed, frontend and Chromium acceptance unrun
 
 
 - S-06.02.39 · Valid low-bitrate WebM exports pass verification
@@ -499,6 +497,15 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.37 · Skip navigation keeps the current screen
+  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
+  tests: frontend/src/components.test.tsx, scripts/qa/audit_screen_sweep.py
+  command: uv run python -m scripts.qa.audit_screen_sweep
+  result: Exact-source GitHub 46043307719 quality job 140656328222: SCREEN SWEEP PASS 1280px 33/33; 390px 33/33. All 66 route/viewport combinations exercised actual sidebar/mobile navigation, keyboard Enter and pointer Skip, focus on main, unchanged hash and scroll zero. No JS or unexpected HTTP 401/5xx errors. Python matrix and PostgreSQL passed; production container 46043307715 passed. Source review of existing handler confirms preventDefault precedes focus and scroll; no persistent state or provider dependency. Board replay 74/74 passed but defect-log formatting made its final exit fail; corrected in the promotion commit, 75-command replay required. No customer deployment claimed.
+  code: frontend/src/App.tsx, frontend/src/styles.css, scripts/qa/audit_screen_sweep.py
+  commit: 455a78a9051980da203e568041ba335fde4fcf8e
+  live: https://github.com/kunalwagh101/off_CRM/actions/runs/46043307719 ; docs/evidence/S-06.02.37-validation.md
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
   work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md

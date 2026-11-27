@@ -1,5 +1,10 @@
 import { Field } from "../components";
 
+/** Setup remains discoverable even before a campaign or draft exists. */
+export function DraftProviderSetup() {
+  return <p className="muted-copy">Local templates work without a model. To personalise drafts with AI, <a href="#connectors">open Connectors</a> and connect a provider that permits campaign data.</p>;
+}
+
 export function DraftGenerationMode({ mode, onChange, connected }: { mode: string; onChange: (value: string) => void; connected: number }) {
   return <>
     <Field label="Generation mode"><select value={mode} onChange={(event) => onChange(event.target.value)}>

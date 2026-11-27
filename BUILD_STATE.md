@@ -1,3 +1,8 @@
+## 2026-11-27 — actual recovery and screen sweep; next story
+
+- 455a78a CI 46043307719: Python 3.10–3.12 and PostgreSQL passed; quality ran real WP1, A06, A34 and 66/66 sandboxed Chrome screen checks. Historical board commands 74/74 passed; final structural exit failed only on D-530 backlog ID punctuation. Docker 46043307715 passed. Fix defect entries and promote S-06.02.37 based on actual both-input acceptance; 75-command promotion replay pending.
+- D-532 / S-06.02.35: empty-state setup link and truthful legacy confirmation/visible retry implemented, frontend regressions written. No executed new tests claimed, no real provider credentials, no production rollout. F-06.02 remains open, 46 not DONE.
+
 ## 2026-11-22 — A01–A04, A26, A30, A31 and A35 source audit recheck
 
 - F-06.02 / S-06.02.23: passing five-job GitHub [45019165204](https://github.com/kunalwagh101/off_CRM/actions/runs/45019165204) exercised the core WP1 production mount, concurrency, encrypted backup and restore regressions, A30 doc contract and A35 literal frontend-to-server API path contract. Its Python 3.11 run reported 3,459 passing/149 skipped; PostgreSQL 3,570 passing/107 skipped; development and production npm audit each reported 0 vulnerabilities. These are **source/isolated QA** results, not proof of hosted customer durability.

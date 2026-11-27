@@ -40,6 +40,12 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - The latest owner prompt requested Render again, so one isolated functional QA deployment `dep-dc4r27l6e07s738b7f8g` of `e1a96f4` in the previously designated workspace was attempted. Build canceled before code execution: build pipeline minutes exhausted. The older live version is not evidence for the current source. No customer/main deployment or paid resource changes.
 - Independent scope reconciliation: 69 IDs match the board, backlog and tracker, all 69 board statuses agree, and the tracker lists 198 acceptance cases. No story status has been promoted.
 
+## 2026-11-27 — Verified D-529 and additional live audit coverage
+
+- [Exact fixed-source CI 46035209674](https://github.com/kunalwagh101/off_CRM/actions/runs/46035209674) at `456e4a4`: all five jobs passed. Quality logs show the actual WP1 backup/restore readback, readiness regression 1 passed, frontend 242 passed and board evidence 74/74. This is real disposable-browser evidence, not a hosted customer restore or proof of the original intermittent cause.
+- S-06.02.27: the archived screen audit covered 18 routes. Added `scripts/qa/audit_screen_sweep.py` for all 33 current routes at desktop and mobile widths; real app, sandboxed Chromium, route inventory, screen render, keyboard skip-navigation, JS and HTTP 5xx/401 checks. No provider calls or production data. The new gate must pass; full archive-harness coverage and independent live acceptance are still open.
+- Route-inventory helper tested in an isolated local mirror: deliberately permissive baseline 4 failures / 1 pass, strict validation 5 passed. Not a full application/browser run. No story status changed.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

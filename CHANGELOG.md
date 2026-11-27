@@ -1,3 +1,8 @@
+## 2026-11-27 — F-06.02 live audit screen gate
+
+- D-529 fixed-source CI passed all five jobs, including actual browser backup and restore. The original timing cause remains unproven.
+- Restore archived screen coverage on current develop: 33 routes, desktop/mobile, actual Chromium rendering, keyboard skip route preservation and JS/API error checks. No silently omitted or duplicate routes. Local isolated inventory-helper RED 4 fail/1 pass then GREEN 5 pass; exact current-app execution pending.
+
 ## 2026-11-27 — D-529 WP1 browser recovery gate readiness
 
 - F-06.02: the exact-head quality run timed out before an encrypted export response was observed. Wait for the disposable Settings page's initial network and loading indicators before clicking; add safe request diagnostics. Retain the actual download, restore, and campaign readback assertions. Local synthetic Chromium timing regression RED then GREEN; full real-app CI and original failure cause pending.

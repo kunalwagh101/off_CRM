@@ -137,6 +137,8 @@ jobs:
         run: uv run pytest -q tests/test_wp1_browser_gate.py
       - name: WP1 real Chromium encrypted workspace export and restore
         run: uv run python -m scripts.qa.wp1_browser_recovery
+      - name: S-06.02.27 real Chromium audit screen inventory and keyboard navigation
+        run: uv run python -m scripts.qa.audit_screen_sweep
       - name: Verify the board against the repository
         run: uv run python scripts/verify_board.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser

@@ -1,3 +1,9 @@
+## 2026-11-27 — Draft provider availability and real audit replay
+
+- D-533: display connected enabled provider names; refuse stale AI mode without silently substituting local. Frontend tests authored.
+- S-06.02.35/.36: real sandboxed Chromium/HTTP acceptance script covers empty-state setup, historical encrypted profile confirmation/removal, no implicit connector activation, explicit owner creation and old/new login after process restart.
+- S-06.02.27/.64: port four original archive Docker tests with immutable image, positive network control, actual UID/capabilities/write checks and no skipped cases. No real mail/provider/customer state. Execution pending; no new DONE claim.
+
 ## 2026-11-27 — skip-navigation closeout and Drafts setup
 
 - S-06.02.37 DONE: actual sandboxed browser sweep 66/66 route/width checks passed with keyboard and pointer on 455a78a. Evidence block and D-530/D-531 fixed status recorded. Board 74/74 historical evidence commands passed but malformed defect ID failed final structure; corrected, promotion replay pending.

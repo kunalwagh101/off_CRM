@@ -1,3 +1,7 @@
+## 2026-11-27 — additional F-06.02 acceptance
+
+- Source 152a98c Python 3.10–3.12 and real PostgreSQL jobs passed; actual production container 46047059233 passed. Quality 46047059161 was replaying board evidence at last observation. New commit adds Drafts candidate names and stale-inventory guard (D-533), actual loopback browser/HTTP legacy-owner acceptance and exact archived four-case Docker isolation replay. Tests authored; new exact-source execution pending. External provider, deployed worker and customer acceptance remain separate.
+
 ## 2026-11-27 — actual recovery and screen sweep; next story
 
 - 455a78a CI 46043307719: Python 3.10–3.12 and PostgreSQL passed; quality ran real WP1, A06, A34 and 66/66 sandboxed Chrome screen checks. Historical board commands 74/74 passed; final structural exit failed only on D-530 backlog ID punctuation. Docker 46043307715 passed. Fix defect entries and promote S-06.02.37 based on actual both-input acceptance; 75-command promotion replay pending.

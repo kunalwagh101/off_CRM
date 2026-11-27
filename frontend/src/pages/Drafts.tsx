@@ -4,7 +4,7 @@ import { Badge, Button, Field, Modal, PageHeader, Panel, Progress, StatePanel } 
 import { useApp } from "../context";
 import { stageLabel, useResource } from "../hooks";
 import type { AIProvidersPayload, Draft, Paginated } from "../types";
-import { DraftGenerationMode, DraftProviderSetup, generationOutcome, type GenerationResult } from "./DraftGeneration";
+import { DraftGenerationMode, DraftProviderSetup, connectedDraftProviders, canSubmitDraftMode, generationOutcome, type GenerationResult } from "./DraftGeneration";
 import { Loadable, NoCampaign, statusTone } from "./shared";
 
 export default function Drafts() {
@@ -33,7 +33,7 @@ export default function Drafts() {
     [campaignId, stage, approval]
   );
   const providers = useResource(() => api.get<AIProvidersPayload>("/ai/providers"), []);
-  const connected = providers.data?.providers.filter((provider) => provider.connected && provider.enabled).length ?? 0;
+  const connected = connectedDraftProviders(providers.data?.providers ?? [], providers.loading || Boolean(providers.error));
   useEffect(() => setSelected(new Set()), [campaignId, stage, approval]);
 
   if (!campaignId) return <><PageHeader title="Draft review" /><NoCampaign /><DraftProviderSetup /></>;
@@ -66,6 +66,7 @@ export default function Drafts() {
 
   function generateFromForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canSubmitDraftMode(providerType, connected)) return;
     void generate(providerType === "connectors");
   }
 
@@ -229,7 +230,7 @@ export default function Drafts() {
           {providers.error ? <p role="alert">{providers.error} <Button type="button" onClick={providers.reload}>Reload Connectors</Button></p> : null}
           {generationError ? <p role="alert" tabIndex={-1}>{generationError}</p> : null}
           <div className="form-note"><strong>Human review remains mandatory.</strong><span>Generated output is re-audited. Missing sources, invented fields and unsafe language stay blocked.</span></div>
-          <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setGenerationOpen(false)}>Cancel</Button><Button type="submit" busy={busy === "generate"}>Generate drafts</Button></div>
+          <div className="modal-actions"><Button type="button" tone="ghost" onClick={() => setGenerationOpen(false)}>Cancel</Button><Button type="submit" busy={busy === "generate"} disabled={!canSubmitDraftMode(providerType, connected)}>Generate drafts</Button></div>
         </form>
       </Modal>
     </>

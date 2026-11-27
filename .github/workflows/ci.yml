@@ -165,6 +165,15 @@ jobs:
           echo "OFF_CRM_QA_CHROMIUM=$browser" >> "$GITHUB_ENV"
       - name: S-06.02.27 real Chromium audit screen inventory and keyboard navigation
         run: uv run python -m scripts.qa.audit_screen_sweep
+      - name: S-06.02.35 and .36 real Drafts legacy ownership and explicit login
+        run: uv run python -m scripts.qa.drafts_owner_acceptance
+      - name: S-06.02.27 archived real Docker sandbox acceptance
+        run: |
+          docker pull python:3.12-slim
+          export OFF_CRM_SANDBOX_TEST_IMAGE="$(docker image inspect python:3.12-slim --format '{{index .RepoDigests 0}}')"
+          echo "Test image: $OFF_CRM_SANDBOX_TEST_IMAGE"
+          uv run pytest verification/test_sandbox_live.py -v -ra --junitxml="$RUNNER_TEMP/live-sandbox.xml"
+          uv run python -c 'import os, xml.etree.ElementTree as E; root=E.parse(os.path.join(os.environ["RUNNER_TEMP"],"live-sandbox.xml")); assert len(root.findall(".//testcase")) == 4 and not any(root.findall(".//"+tag) for tag in ("failure","error","skipped"))'
       - name: Verify the board against the repository
         run: uv run python scripts/verify_board.py
       - name: Prove hosted companion grants in the actual desktop and mobile browser

@@ -58,6 +58,13 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - S-06.02.37 promoted DONE for the bounded skip-link capability; both acceptance cases were executed on every current route at desktop and mobile, no external dependency. Source review confirms preventDefault before focus and scroll. Evidence replay on the promotion commit required; no customer release claimed.
 - S-06.02.35 D-532: empty-state Connectors link, truthful legacy-profile confirmation, visible list errors/retry and frontend regressions authored. No real provider key or customer send used; story remains BACKLOG pending complete acceptance.
 
+## 2026-11-27 — next acceptance slices
+
+- D-533 / S-06.02.35: list connected enabled provider names and block stale AI mode without substituting local. Added frontend tests and actual app browser script for empty setup and legacy confirm/remove.
+- S-06.02.36: actual HTTP acceptance includes explicit consent, ordinary/anonymous refusal and both owner logins after process restart.
+- S-06.02.27/.64: restore four original archive Docker boundary tests; require all four with zero skips, pre-pulled immutable image and a working positive network control. This does not replace remaining archived campaign/approval/functional checks.
+- Source 152a98c Python matrix, real PostgreSQL and production container passed. New gate results pending; no new story status changed.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

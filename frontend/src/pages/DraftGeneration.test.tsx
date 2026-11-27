@@ -1,17 +1,18 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DraftGenerationMode, generationOutcome } from "./DraftGeneration";
+import { DraftGenerationMode, generationOutcome, connectedDraftProviders, canSubmitDraftMode } from "./DraftGeneration";
 
 describe("draft generation routing and outcomes", () => {
   it("explains how to connect AI while keeping local templates available", () => {
-    const html = renderToStaticMarkup(<DraftGenerationMode mode="local" onChange={() => {}} connected={0} />);
+    const html = renderToStaticMarkup(<DraftGenerationMode mode="local" onChange={() => {}} connected={[]} />);
     expect(html).toContain("Local templates only");
     expect(html).toContain('href="#connectors"');
     expect(html).not.toContain("fallback chain");
   });
   it("shows policy boundaries for connected providers", () => {
-    const html = renderToStaticMarkup(<DraftGenerationMode mode="connectors" onChange={() => {}} connected={2} />);
+    const html = renderToStaticMarkup(<DraftGenerationMode mode="connectors" onChange={() => {}} connected={["First provider", "Second provider"]} />);
     expect(html).toContain("Connectors (2 connected)");
+    expect(html).toContain("First provider, Second provider");
     expect(html).toContain("data policy");
     expect(html).not.toContain("Parallel first-success");
   });
@@ -22,5 +23,27 @@ describe("draft generation routing and outcomes", () => {
     expect(generationOutcome({ generated: 2, blocked: 0, failures: [{}] }).tone).toBe("error");
     expect(generationOutcome({ generated: 2, blocked: 1, failures: [] }).tone).toBe("info");
     expect(generationOutcome({ generated: 2, blocked: 0, failures: [] }).tone).toBe("success");
+  });
+});
+
+
+describe("provider availability changes during draft generation", () => {
+  const rows = [
+    {name: "Ready", connected: true, enabled: true},
+    {name: "Disabled", connected: true, enabled: false},
+    {name: "Not connected", connected: false, enabled: true}
+  ];
+  it("lists only connected enabled providers and discards stale inventory", () => {
+    expect(connectedDraftProviders(rows, false)).toEqual(["Ready"]);
+    expect(connectedDraftProviders(rows, true)).toEqual([]);
+  });
+  it("never substitutes local generation for an unavailable explicit AI choice", () => {
+    expect(canSubmitDraftMode("connectors", [])).toBe(false);
+    expect(canSubmitDraftMode("connectors", ["Ready"])).toBe(true);
+    expect(canSubmitDraftMode("local", [])).toBe(true);
+    expect(canSubmitDraftMode("unexpected", ["Ready"])).toBe(false);
+    const html = renderToStaticMarkup(<DraftGenerationMode mode="connectors" onChange={() => {}} connected={[]} />);
+    expect(html).toContain("AI generation is unavailable");
+    expect(html).toContain("explicitly select local templates");
   });
 });

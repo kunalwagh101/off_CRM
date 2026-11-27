@@ -1,3 +1,7 @@
+## 2026-11-27 — failed promotion replay
+
+- 152a98c matrix, PG, production image, frontend245, WP1/A06/A34 and screen sweep 66/66 passed, but board replay 74/75 failed on a second screen sweep. D-534 records failure and reopens S-06.02.37; scoped two-route check plus full sweep must pass. F-06.02 remains 22 DONE and 47 open. New gates pending.
+
 ## 2026-11-27 — additional F-06.02 acceptance
 
 - Source 152a98c Python 3.10–3.12 and real PostgreSQL jobs passed; actual production container 46047059233 passed. Quality 46047059161 was replaying board evidence at last observation. New commit adds Drafts candidate names and stale-inventory guard (D-533), actual loopback browser/HTTP legacy-owner acceptance and exact archived four-case Docker isolation replay. Tests authored; new exact-source execution pending. External provider, deployed worker and customer acceptance remain separate.

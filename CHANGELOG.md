@@ -1,3 +1,7 @@
+## 2026-11-27 — reopen inconsistent skip-navigation verification
+
+- 152a98c quality passed full screen sweep then failed the repeated board evidence command (74/75). D-534 logged and S-06.02.37 reopened; keep full sweep, add targeted two-route skip-link acceptance and failed-route diagnostics. No app skip-handler change.
+
 ## 2026-11-27 — Draft provider availability and real audit replay
 
 - D-533: display connected enabled provider names; refuse stale AI mode without silently substituting local. Frontend tests authored.

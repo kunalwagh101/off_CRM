@@ -12,7 +12,7 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 23 DONE, 41 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **46 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 **Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
 
@@ -64,6 +64,10 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - S-06.02.36: actual HTTP acceptance includes explicit consent, ordinary/anonymous refusal and both owner logins after process restart.
 - S-06.02.27/.64: restore four original archive Docker boundary tests; require all four with zero skips, pre-pulled immutable image and a working positive network control. This does not replace remaining archived campaign/approval/functional checks.
 - Source 152a98c Python matrix, real PostgreSQL and production container passed. New gate results pending; no new story status changed.
+
+## 2026-11-27 — promotion replay failure
+
+- At 152a98c, frontend 245 tests, matrix, PG, production image, A06/A34/WP1 and full screen sweep passed. Board evidence replay 74/75 passed; S-06.02.37 repeat sweep failed after mobile Deliverability and the retained stdout tail did not identify the failing assertion. Do not claim a reproducible board pass. D-534 logged and S-06.02.37 returned to IN_REVIEW. Dedicated Settings/Contacts keyboard/pointer gate plus full inventory sweep and safe failure diagnostics are required; no test removed.
 
 ## Directly contained stories and all written acceptance cases
 
@@ -701,7 +705,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 ### S-06.02.37 — Skip navigation keeps the current screen
 
-**Status:** DONE. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
+**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
 
 **Requirement:** Skip navigation keeps the current screen.
 
@@ -714,7 +718,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Real keyboard and pointer acceptance passed on 66 route/viewport combinations in CI 46043307719; no upstream or external integration. Board promotion replay pending; not deployed to customers.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Both input cases passed 66 route/viewport combinations twice, but promotion replay failed one command; reopened. Targeted Settings/Contacts and full screen replay must pass before DONE.
 
 ### S-06.02.38 — Any error can be traced back the next day
 

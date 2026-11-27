@@ -165,6 +165,8 @@ jobs:
           echo "OFF_CRM_QA_CHROMIUM=$browser" >> "$GITHUB_ENV"
       - name: S-06.02.27 real Chromium audit screen inventory and keyboard navigation
         run: uv run python -m scripts.qa.audit_screen_sweep
+      - name: S-06.02.37 targeted keyboard and pointer skip-link acceptance
+        run: uv run python -m scripts.qa.audit_screen_sweep --skip-link-only
       - name: S-06.02.35 and .36 real Drafts legacy ownership and explicit login
         run: uv run python -m scripts.qa.drafts_owner_acceptance
       - name: S-06.02.27 archived real Docker sandbox acceptance

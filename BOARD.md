@@ -183,6 +183,10 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
+- S-06.02.37 · Skip navigation keeps the current screen
+  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
+  review: actual 66/66 route-width keyboard/pointer sweep passed at 455a78a and 152a98c; first promotion replay 46047059161 passed 74/75 commands but failed the repeat screen sweep after mobile Deliverability. Exact failure detail unavailable because verifier keeps stdout tail. Reopened for reproducible verification; retain full sweep and add targeted Settings/Contacts both-width gate plus failed route diagnostics. No application skip-handler change; no customer deployment.
+
 - S-06.02.60 · AI request and spending caps reserve atomically across workers (A11)
   work_order: docs/work-orders/S-06.02.60-atomic-ai-quota.md
   checkpoint: TDD RED b57c971 / Render dep-dblf71ugekts7388c3g0: 8 expected A11 FAIL; key rotation RED e488c30 / dep-dblfdv8u01pc73a2of90: 1 expected FAIL. GREEN code 8957a27 / Render dep-dblffhijnfac73fs3770: A11 early stage 14 PASS/1 conditional PostgreSQL skip; full SQLite 2,984 PASS/55 skipped, full real PG 3,008 PASS/100 skipped (A11 PG multi-process test included), focused PG 215 PASS; real Chromium desktop/mobile, frontend and security gates PASS. Render review runner confirmed LIVE 2026-11-04 09:35:47 UTC. S-06.02.60 BACKLOG under active audit and production/independent-penetration/customer acceptance gate, no customer or main release. docs/evidence/2026-11-04-a11-ai-quota-reservations.md.
@@ -498,14 +502,6 @@ write the code, then the evidence block.)*
 
 ## DONE
 
-- S-06.02.37 · Skip navigation keeps the current screen
-  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
-  tests: frontend/src/components.test.tsx, scripts/qa/audit_screen_sweep.py
-  command: uv run python -m scripts.qa.audit_screen_sweep
-  result: Exact-source GitHub 46043307719 quality job 140656328222: SCREEN SWEEP PASS 1280px 33/33; 390px 33/33. All 66 route/viewport combinations exercised actual sidebar/mobile navigation, keyboard Enter and pointer Skip, focus on main, unchanged hash and scroll zero. No JS or unexpected HTTP 401/5xx errors. Python matrix and PostgreSQL passed; production container 46043307715 passed. Source review of existing handler confirms preventDefault precedes focus and scroll; no persistent state or provider dependency. Board replay 74/74 passed but defect-log formatting made its final exit fail; corrected in the promotion commit, 75-command replay required. No customer deployment claimed.
-  code: frontend/src/App.tsx, frontend/src/styles.css, scripts/qa/audit_screen_sweep.py
-  commit: 455a78a9051980da203e568041ba335fde4fcf8e
-  live: https://github.com/kunalwagh101/off_CRM/actions/runs/46043307719 ; docs/evidence/S-06.02.37-validation.md
 
 - S-06.02.16 · Resolve frontend development dependency audit findings
   work_order: docs/work-orders/S-06.02.16-frontend-dependency-audit.md

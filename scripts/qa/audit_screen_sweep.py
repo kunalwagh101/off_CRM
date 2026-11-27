@@ -5,6 +5,7 @@ database. Missing infrastructure or an untested navigation route is a failure.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -36,7 +37,7 @@ ROUTES = (
 )
 
 
-def verify_screens(chromium, base, token):
+def verify_screens(chromium, base, token, *, skip_link_only=False):
     with sync_playwright() as playwright:
         # Keep Chromium's own sandbox enabled, as in the archived audit.
         with playwright.chromium.launch(
@@ -73,33 +74,41 @@ def verify_screens(chromium, base, token):
                     routes = validate_routes(ROUTES, nav.locator("a").evaluate_all(
                         "(links) => links.map(link => link.getAttribute('href'))"
                     ))
-                    for name in routes:
-                        # Use the actual app route, not a mocked response or iframe.
-                        nav.locator(f'a[href="#{name}"]').click()
-                        expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
-                        main = page.locator("#main-content")
-                        expect(main).to_be_visible()
-                        expect(main.locator("h1, h2, .state-panel").first).to_be_visible()
-                        page.wait_for_load_state("networkidle", timeout=15_000)
-                        expect(main).to_contain_text(re.compile(r"\S"))
-                        skip = page.get_by_role("link", name="Skip to main content")
-                        skip.focus()
-                        skip.press("Enter")
-                        expect(main).to_be_focused()
-                        assert urlsplit(page.url).fragment == name, f"Skip changed {name} route"
-                        expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
-                        skip.focus()
-                        skip.click()
-                        expect(main).to_be_focused()
-                        assert urlsplit(page.url).fragment == name, f"Pointer skip changed {name} route"
-                        assert page.evaluate("window.scrollY") == 0, f"Skip did not reach top: {name}"
-                        assert not errors, f"{width}px {name}: JavaScript errors: {len(errors)}"
-                        assert not server_errors, f"{width}px {name}: API errors: {server_errors}"
-                        print(f"SCREEN PASS {width}px {name}: rendered; keyboard and pointer skip preserved route", flush=True)
-                    print(f"SCREEN SWEEP PASS {width}px: {len(routes)}/{len(ROUTES)}", flush=True)
+                    selected_routes = ('settings', 'contacts') if skip_link_only else routes
+                    for name in selected_routes:
+                        stage = "navigation"
+                        try:
+                            # Use the actual app route, not a mocked response or iframe.
+                            nav.locator(f'a[href="#{name}"]').click()
+                            expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
+                            main = page.locator("#main-content")
+                            expect(main).to_be_focused()
+                            expect(main).to_be_visible()
+                            expect(main.locator("h1, h2, .state-panel").first).to_be_visible()
+                            page.wait_for_load_state("networkidle", timeout=15_000)
+                            expect(main).to_contain_text(re.compile(r"\S"))
+                            skip = page.get_by_role("link", name="Skip to main content")
+                            skip.focus()
+                            skip.press("Enter")
+                            expect(main).to_be_focused()
+                            assert urlsplit(page.url).fragment == name, f"Skip changed {name} route"
+                            expect(nav.locator("a[aria-current='page']")).to_have_attribute("href", "#" + name)
+                            skip.focus()
+                            skip.click()
+                            expect(main).to_be_focused()
+                            assert urlsplit(page.url).fragment == name, f"Pointer skip changed {name} route"
+                            assert page.evaluate("window.scrollY") == 0, f"Skip did not reach top: {name}"
+                            assert not errors, f"{width}px {name}: JavaScript errors: {len(errors)}"
+                            assert not server_errors, f"{width}px {name}: API errors: {server_errors}"
+                            print(f"SCREEN PASS {width}px {name}: rendered; keyboard and pointer skip preserved route", flush=True)
+                        except Exception as error:
+                            print(f"SCREEN FAIL {width}px {name}: {type(error).__name__}; JS errors={len(errors)}; API errors={server_errors}", flush=True)
+                            raise
+                    label = "SKIP LINK" if skip_link_only else "SCREEN SWEEP"
+                    print(f"{label} PASS {width}px: {len(selected_routes)}/{len(selected_routes)}", flush=True)
 
 
-def main():
+def main(*, skip_link_only=False):
     root = Path(__file__).resolve().parents[2]
     chromium = (os.getenv("OFF_CRM_QA_CHROMIUM") or shutil.which("google-chrome")
                 or shutil.which("chromium") or shutil.which("chromium-browser"))
@@ -141,7 +150,7 @@ def main():
                         # A selected campaign exercises the real campaign-scoped pages.
                         created = client.post("/api/v1/campaigns", json={"name": "Synthetic audit campaign"})
                         assert created.status_code == 201, created.status_code
-                        verify_screens(chromium, base, token)
+                        verify_screens(chromium, base, token, skip_link_only=skip_link_only)
                 finally:
                     if server.poll() is None:
                         server.terminate()
@@ -153,4 +162,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--skip-link-only", action="store_true", help="Run the two specific S-06.02.37 routes; full inventory still checked.")
+    main(skip_link_only=parser.parse_args().skip_link_only)

@@ -422,3 +422,6 @@ Do not mark R-196 or S-06.02.69 done until observable QA completes. Source recor
 | Local API-token and session-signing bootstrap cannot leave a new invalid file if entropy is unavailable | S-06.02.23 (IN_PROGRESS) | `tests/test_local_secret_file_safety.py::test_failed_random_secret_generation_does_not_leave_poisoned_file` (two parameter cases, RED commit 0baa866) | `offsetx_apollo_builder/api/config.py::_local_secret_file` (4746864, generate before exclusive create) | Execute full Python/PG/Render QA and manual failure injection; actual live customer storage and provider security acceptance remain open. |
 
 **D-504 execution:** RED test-only GitHub 44961617228 (2 expected failures, 3436 unrelated passed/149 skipped), GREEN fixed-source Render targeted security suite 17 passed; production container 44961630723 PASS. New documented HEAD still needs five-job CI and full Render final status.
+
+
+2026-11-28 R-29 / S-06.02.01: D-540 extends exact structural aliases, quoted config and header matching, and prevents arbitrary mapping keys or credential samples in blocked diagnostics. New tests in tests/test_ai_prompt_secret_scan.py; isolated rule harness 21 PASS, actual broker CI pending.

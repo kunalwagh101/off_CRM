@@ -1,3 +1,7 @@
+## 2026-11-28 — prevent prompt credential leaks
+
+- D-540 / S-06.02.01: block quoted credential assignments, common alias spellings and inline authentication/cookies; withhold credential samples and arbitrary diagnostic keys. Isolated rule harness 21 passed, real broker CI pending.
+
 ## 2026-11-28 — external email worker operational visibility
 
 - D-538: shared CRM worker-progress timestamp, owner-only recent/missing/stale/expired claims and due queue age; explicit worker-expected config; real clock per claim, no readiness change.

@@ -481,6 +481,7 @@ write the code, then the evidence block.)*
 - S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-06.02.02 · Every endpoint authorises and validates
 - S-06.02.01 · No secret may enter a model prompt
+  checkpoint: 2026-11-28 D-540 — actual scanner alias/quoted credential/header detection and secret-safe diagnostic paths implemented; extracted rule harness RED 16 / GREEN 21, broker regressions authored. Full CI pending.
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-04.01.01 · Companions: persisted agent profiles

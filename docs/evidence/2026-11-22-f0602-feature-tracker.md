@@ -78,6 +78,10 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 - D-538 (S-06.02.52/.40): actual shared database progress, owner-only missing/stale/recent/expired claims and due age, real per-claim clock. Additive SQLite v12/PG CRM v4 migration. D-539: refuse direct worker in public demo. Added migration/worker/owner API regressions; not yet executed. No customer data, schema migration in production or deployment. External alerts and supervised hosting remain open. Prior retry commit db3b8b6 production container passed.
 
+## 2026-11-28 — next pending story S-06.02.01
+
+- D-540: real pre-flight scanner now detects common config-field aliases, quoted assignments, Basic authorization and inline cookies; blocked finding paths omit arbitrary mapping keys and credential samples. Old extracted-rule reproduction 16 failed/5 passed, new helper harness 21 passed. Actual broker regression tests written, exact-source CI pending. No external provider call or production deployment.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

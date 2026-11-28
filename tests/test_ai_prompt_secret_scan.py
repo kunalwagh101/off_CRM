@@ -264,3 +264,58 @@ def test_ordinary_prose_about_tokens_is_not_a_credential(text):
     """The wider `…token` pattern must not refuse prose that merely talks about
     tokens — a scanner that cries wolf gets switched off."""
     assert scan_model_input({}, system_prompt=text).clean
+
+
+@pytest.mark.parametrize("name", [
+    "apiKey", "clientSecret", "access-token", "AWS_SECRET_ACCESS_KEY",
+    "privateKey", "sessionId", "refreshToken", "x-api-key", "accessToken",
+])
+def test_credential_field_aliases_block_at_full_policy(name):
+    report = scan_model_input({"unrestricted": {name: "synthetic-opaque-value"}},
+                              policy=DataPolicy.FULL, allow_addresses=True)
+    assert not report.clean
+    assert any(item.kind == "credential" for item in report.findings)
+    assert "synthetic-opaque-value" not in repr(report.to_dict())
+
+
+@pytest.mark.parametrize("text", [
+    '"api_key": "synthetic-opaque-value"',
+    "'clientSecret': 'synthetic-opaque-value'",
+    "AWS_SECRET_ACCESS_KEY=synthetic-opaque-value",
+    '"accessToken":"synthetic-opaque-value"',
+    "Authorization: Basic dGVzdDpzZWNyZXQ=",
+    "Inline Cookie: sid=synthetic-opaque-value",
+    "apiKey=synthetic-opaque-value",
+])
+def test_config_and_header_credentials_block_before_provider_io(tmp_path, monkeypatch, text):
+    broker = _broker(tmp_path)
+    monkeypatch.setattr(broker, "_instantiate",
+                        lambda *args, **kwargs: pytest.fail("provider instantiated"))
+    request = EgressRequest(task_type="write_code", data_class=DataClass.PUBLIC,
+                            public_text="Return one safe sentence.")
+    with pytest.raises(EgressBlocked) as excinfo:
+        broker.call(request, _settings("mistral"), system_prompt=text)
+    assert any(item["kind"] == "credential" for item in excinfo.value.findings)
+
+
+def test_findings_do_not_echo_arbitrary_mapping_keys_or_credential_samples():
+    import json
+
+    key = "synthetic-parent-key-canary"
+    nested_key = "sk-synthetic-key-canary-abcdefghijklmnopqrstuvwxyz"
+    report = scan_model_input({"unrestricted": {key: {nested_key: "password=abc123"}}},
+                              policy=DataPolicy.FULL, allow_addresses=True)
+    assert not report.clean
+    encoded = json.dumps(report.to_dict())
+    assert key not in encoded and nested_key not in encoded
+    assert "abc123" not in encoded
+    assert all(item.sample == "[credential withheld]"
+               for item in report.findings if item.kind == "credential")
+    assert any("[field:" in item.location for item in report.findings)
+
+
+def test_ordinary_builder_fields_and_documentation_remain_safe():
+    request = EgressRequest(task_type="summarise", data_class=DataClass.PUBLIC,
+                            instructions="Describe the API key rotation policy.")
+    for policy in DataPolicy:
+        assert scan_model_input(build_payload(request, policy), policy=policy).clean

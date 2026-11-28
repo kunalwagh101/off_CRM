@@ -956,3 +956,6 @@ python3 scripts/live/remote_render_smoke.py --base-url https://off-crm-functiona
 ```
 
 Expected output on exact observed run 44943657458: `RENDER QA PASS: 5 checks: root, ready, anonymous_session, private_dashboard, wrong_login`. This sends only five bounded public/negative requests. Confirm GET /health/ready 200, no anonymous dashboard access, and no cookie on invalid login in the Render access logs. To inspect the authenticated UI, use the private QA credentials from Render and a real browser; do not paste them into code or GitHub logs. UI, restart persistence, backup restoration, external providers, sending and independent penetration still require separate acceptance. See docs/evidence/2026-11-22-functional-render-qa.md.
+
+
+S-06.02.01 additional acceptance: in a disposable workspace, request a harmless generation with a synthetic quoted credential configuration in the system prompt. The broker must refuse before provider creation. Findings must contain no credential sample or arbitrary mapping key. No real credential is needed; do not paste one. D-540 real broker CI pending.

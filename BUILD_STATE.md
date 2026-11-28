@@ -1,3 +1,7 @@
+## 2026-11-28 — S-06.02.01 prompt scanner hardening
+
+- D-540: quoted config/header/cloud credential aliases and raw diagnostic key exposure reproduced in isolated extracted-rule harness (16 failed/5 passed); replacement rule harness 21 passed. Actual scanner now checks canonical aliases and quoted assignments, Basic authorization/inline cookies, reports arbitrary mapping positions rather than key text, and withholds credential samples. Added actual broker and FULL-policy regressions, CI pending. No provider called, no customer data, no release. Story remains IN_REVIEW.
+
 ## 2026-11-28 — independent worker visibility
 
 - D-538: code adds shared CRM progress table (SQLite v12; PostgreSQL CRM v4), watch-only progress, real per-claim clock and owner operational diagnostics with explicit expectation. D-539: refuse CLI in public demo. Added migration, worker and API regression tests; no production migration or deployment. Prior retry commit db3b8b6 container 46113636886 passed; its broader CI was running at last observation. Corrected synthetic SES test sender before further execution.

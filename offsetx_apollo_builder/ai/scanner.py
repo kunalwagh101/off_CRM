@@ -43,6 +43,19 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # like "1500 tokens: shorter" stays clean.
     ("token_assignment", re.compile(r"\b\w*token\s*[:=]\s*\S{8,}", re.IGNORECASE)),
     ("secret_assignment", re.compile(r"\b(?:api[_ -]?(?:key|secret)|client[_ -]?secret|secret[_ -]?key)\s*[:=]\s*\S{8,}", re.IGNORECASE)),
+    # Quoted JSON/config keys, camelCase, header and cloud credential aliases.
+    ("config_credential", re.compile(
+        r'''(?<![\w-])(?:["']?(?:api[_ -]?(?:key|secret)|client[_ -]?(?:secret|password)|secret[_ -]?(?:access[_ -]?)?key|aws[_ -]?(?:secret[_ -]?access[_ -]?key|access[_ -]?key[_ -]?id|session[_ -]?token)|private[_ -]?key|x[_ -]?api[_ -]?key|access[_ -]?key[_ -]?id|(?:access|refresh|session|id)[_ -]?token|session[_ -]?id|password|passwd|passphrase)["']?)\s*[:=]\s*(?:"[^"\r\n]{1,}"|'[^'\r\n]{1,}'|[^\s"',;{}\[\]]{4,})''',
+        re.IGNORECASE,
+    )),
+    ("authorization_header", re.compile(
+        r'''\b(?:proxy-)?authorization["']?\s*[:=]\s*["']?(?:basic|bearer)\s+[A-Za-z0-9._~+/=-]{4,}''',
+        re.IGNORECASE,
+    )),
+    ("inline_cookie", re.compile(
+        r'''\b(?:cookie|set-cookie)["']?\s*:\s*["']?[^=\s;"']+=[^\s;"']+''',
+        re.IGNORECASE,
+    )),
 )
 
 #: Browser and OAuth credentials can be opaque and have no recognisable value
@@ -69,8 +82,28 @@ _SECRET_FIELD_NAMES: frozenset[str] = frozenset(
         "token",
         "access_token",
         "refresh_token",
+        "private_key",
+        "aws_secret_access_key",
+        "aws_session_token",
+        "x_api_key",
+        "secret_access_key",
+        "access_key_id",
+        "aws_access_key_id",
+        "client_password",
+        "proxy_authorization",
     }
 )
+
+# Exact aliases only: do not accidentally forbid the builder's safe
+# recipient_token/sender_token fields. Canonical names are safe to report.
+def _normalise_field(name: str) -> str:
+    return re.sub(r"[_\s-]+", "", name).lower()
+
+
+_NORMALISED_SECRET_FIELDS = {
+    _normalise_field(name): name for name in sorted(_SECRET_FIELD_NAMES)
+}
+_SAFE_ENVELOPE_FIELDS = frozenset({"payload", "system_prompt", "transport_text"})
 
 #: Markers that mean the text came out of a mailbox rather than out of a
 #: template.  Received mail must never reach a provider (§5.3).
@@ -168,8 +201,11 @@ def _mask(value: str, keep: int = 4) -> str:
 def _walk(payload: Any, path: str = "$") -> Iterable[tuple[str, str, Any]]:
     """Yield ``(path, kind, value)`` for every key and leaf string in the tree."""
     if isinstance(payload, dict):
-        for key, value in payload.items():
-            child = f"{path}.{key}"
+        for index, (key, value) in enumerate(payload.items()):
+            # A user-supplied mapping key can itself contain a secret. Report
+            # positions, never arbitrary key text, even for its nested values.
+            label = key if path == "$" and key in _SAFE_ENVELOPE_FIELDS else f"[field:{index}]"
+            child = f"{path}.{label}"
             yield (child, "key", str(key))
             yield from _walk(value, child)
     elif isinstance(payload, (list, tuple)):
@@ -219,12 +255,13 @@ def scan_payload(
     for location, node_kind, value in _walk(payload):
         text = str(value)
 
-        if node_kind == "key" and text.lower() in _SECRET_FIELD_NAMES:
+        credential_field = _NORMALISED_SECRET_FIELDS.get(_normalise_field(text)) if node_kind == "key" else None
+        if credential_field:
             report.findings.append(
                 ScanFinding(
                     kind="credential",
                     detail=(
-                        f"Field {text!r} is credential-shaped. Cookies, tokens and "
+                        f"Field {credential_field!r} is credential-shaped. Cookies, tokens and "
                         "passwords never leave off_CRM, even at full policy."
                     ),
                     location=location,
@@ -243,7 +280,7 @@ def scan_payload(
                             "payload. Credentials never leave off_CRM."
                         ),
                         location=location,
-                        sample=_mask(match.group(0)),
+                        sample="[credential withheld]",
                     )
                 )
 

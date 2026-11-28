@@ -207,3 +207,24 @@ def test_owner_api_lifecycle_and_broker_payload_selection(tmp_path):
         )
         assert deleted.status_code == 404, deleted.text
         assert len(sent_requests) == 2
+
+
+@pytest.mark.parametrize("change", [{"enabled": False}, {"content": "Revised safe procedure."}])
+def test_concurrent_procedure_rename_preserves_revocation_or_content(registry, monkeypatch, change):
+    skill = registry.create_skill(workspace_id="alpha", name="Original", content="Original text.")
+    read = registry.require_skill
+    interleaved = False
+
+    def stale_read(skill_id, *, workspace_id):
+        nonlocal interleaved
+        snapshot = read(skill_id, workspace_id=workspace_id)
+        if not interleaved:
+            interleaved = True
+            registry.update_skill(skill_id, workspace_id=workspace_id, **change)
+        return snapshot
+
+    monkeypatch.setattr(registry, "require_skill", stale_read)
+    updated = registry.update_skill(skill.id, workspace_id="alpha", name="Renamed")
+    assert updated.name == "Renamed"
+    for field, value in change.items():
+        assert getattr(updated, field) == value

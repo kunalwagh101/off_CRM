@@ -295,6 +295,7 @@ def main():
         env = child_environment(ROOT, work / "data", str(work / "unused.db"), TOKEN)
         # Exercise the local storage path used by the original review test.
         env.pop("OFFSETX_DATABASE_URL", None)
+        env.pop("OFFSETX_SECRETS_KEY", None)
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
@@ -303,7 +304,7 @@ def main():
         proc = subprocess.Popen(
             [sys.executable, "-m", "offsetx_apollo_builder.web_cli",
              "--host", "127.0.0.1", "--port", str(port)],
-            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            cwd=ROOT, env=env, stderr=subprocess.STDOUT,
         )
         try:
             _wait_for_server(proc)

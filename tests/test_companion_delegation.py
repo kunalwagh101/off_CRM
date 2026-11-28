@@ -130,3 +130,26 @@ def test_existing_companion_api_owner_can_delegate_without_exposing_tools(tmp_pa
         assert len(broker.calls) == 2
         assert all(request.task_type == "ai_chat" for request in broker.calls)
         assert all(request.data_class.value == "campaign" for request in broker.calls)
+
+
+@pytest.mark.parametrize("revoked", ["child", "parent"])
+def test_delegation_rechecks_revocation_between_provider_calls(tmp_path, revoked):
+    registry = _registry(tmp_path)
+    parent = registry.create(workspace_id="alpha", name="Parent", instructions="Review.")
+    first = registry.create(workspace_id="alpha", name="First", instructions="Find facts.")
+    second = registry.create(workspace_id="alpha", name="Second", instructions="Verify.")
+    target = second if revoked == "child" else parent
+
+    class RevokingBroker(RecordingBroker):
+        def call(self, request, settings, **kwargs):
+            answer = super().call(request, settings, **kwargs)
+            if len(self.calls) == 1:
+                registry.update(target.id, workspace_id="alpha", enabled=False)
+            return answer
+
+    broker = RevokingBroker()
+    with pytest.raises(CompanionError, match="disabled"):
+        delegate_once(registry, parent_id=parent.id, workspace_id="alpha",
+                      assignments=[ChildAssignment(first.id, "Find"), ChildAssignment(second.id, "Verify")],
+                      broker=broker, settings=object())
+    assert len(broker.calls) == 1

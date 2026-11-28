@@ -373,3 +373,23 @@ def test_analyst_real_api_reads_distribution_campaign_without_side_effects(tmp_p
             campaign_id=campaign_id, workspace_id="local",
         )
         assert before == after == []
+
+
+def test_concurrent_role_provision_reuses_winning_profile(tmp_path, monkeypatch):
+    registry = _registry(tmp_path)
+    create = registry.create
+    inserted = None
+
+    def interleave(**kwargs):
+        nonlocal inserted
+        if inserted is None:
+            inserted = create(**{**kwargs, "instructions": "Owner custom role."})
+        return create(**kwargs)
+
+    monkeypatch.setattr(registry, "create", interleave)
+    result = provision_roles(registry, workspace_id="team-a")
+    assert len(result) == len(ROLE_INSTRUCTIONS)
+    winner = next(item for item in result if item["name"] == inserted.name)
+    assert winner["id"] == inserted.id
+    assert winner["instructions"] == "Owner custom role."
+    assert len(registry.list(workspace_id="team-a")) == 5

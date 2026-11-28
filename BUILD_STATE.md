@@ -1,3 +1,7 @@
+## 2026-11-28 — focused regression follow-up
+
+- Prior CI 46118552230 Python 3.11 reported two historical assertions of 34 CRM tables (now 35); updated both assertions without removing migration tests. Production container for b511539 passed. Earlier owner browser assertion was corrected in b226767. Local isolated UTF-8 comparison check 6/6 passed. Limit wrapped HTTP string scanning to credential findings so legitimate configuration hints remain intact. New exact-source CI pending.
+
 ## 2026-11-28 — S-06.02.02 authorization and error safety
 
 - D-543: invalid non-ASCII auth inputs can raise TypeError (local reproduction). Compare UTF-8 bytes, reject malformed session envelopes, require exact public method and path, omit rejected host, bound and credential-scan string HTTP 4xx details. Added actual API tests. Correct live local owner login probe to owner-only health and token-only administration permissions. CI pending, no status promotion or deployment.

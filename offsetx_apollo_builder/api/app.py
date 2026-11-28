@@ -5,7 +5,6 @@ import asyncio
 import time
 
 import hashlib
-import hmac
 import json
 import os
 import threading
@@ -1448,9 +1447,11 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # same credential check to string details, without changing typed
         # structured responses used by health or other explicit contracts.
         if exc.status_code < 500 and isinstance(detail, str):
-            if len(detail) > 500 or not scan_payload(
-                {"detail": detail}, policy=DataPolicy.FULL, allow_addresses=True
-            ).clean:
+            if len(detail) > 500 or any(
+                finding.kind == "credential" for finding in scan_payload(
+                    {"detail": detail}, policy=DataPolicy.FULL, allow_addresses=True
+                ).findings
+            ):
                 detail = "The supplied value is invalid for this operation."
         return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 

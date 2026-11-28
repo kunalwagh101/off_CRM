@@ -286,7 +286,7 @@ def test_sqlite_v10_upgrade_adds_sales_links_without_touching_old_records(tmp_pa
     reopened = OutreachEngine(path)
     try:
         assert SCHEMA_VERSION == 12
-        assert len(CRM_TABLES) == 34
+        assert len(CRM_TABLES) == 35
         assert reopened.store.connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert reopened.store.get_campaign(campaign)["name"] == "Persisted campaign"
         assert reopened.store.table_counts()["campaign_sales_links"] == 0

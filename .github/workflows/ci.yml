@@ -163,6 +163,8 @@ jobs:
             fi
           fi
           echo "OFF_CRM_QA_CHROMIUM=$browser" >> "$GITHUB_ENV"
+      - name: F-04.01 real Agent Team desktop and mobile acceptance
+        run: uv run python scripts/live/review_agent_team_browser.py
       - name: S-06.02.27 real Chromium audit screen inventory and keyboard navigation
         run: uv run python -m scripts.qa.audit_screen_sweep
       - name: S-06.02.37 targeted keyboard and pointer skip-link acceptance

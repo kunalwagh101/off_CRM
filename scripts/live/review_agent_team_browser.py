@@ -6,12 +6,38 @@ No paid model, email, image generation or publishing call is made here.
 import json
 import os
 from pathlib import Path
+import secrets
 import shutil
+import socket
 import subprocess
+import sys
 import tempfile
+import time
 
+import httpx
 from playwright.sync_api import expect, sync_playwright
-from review_contacts_browser import ROOT, BASE, TOKEN, _wait_for_server
+
+ROOT = Path(__file__).resolve().parents[2]
+# Keep the historical Dockerfile.review invocation as well as CI module use.
+sys.path.insert(0, str(ROOT))
+from scripts.qa.hosted_tool_browser import child_environment
+
+BASE = ""
+TOKEN = ""
+
+
+def _wait_for_server(process):
+    deadline = time.monotonic() + 40
+    with httpx.Client(timeout=2) as client:
+        while time.monotonic() < deadline:
+            assert process.poll() is None, "Disposable Agent Team server exited"
+            try:
+                if client.get(BASE + "/health/live").status_code == 200:
+                    return
+            except httpx.TransportError:
+                pass
+            time.sleep(0.2)
+    raise AssertionError("Disposable Agent Team server did not become live")
 
 
 def verify(page, width):
@@ -258,59 +284,45 @@ def verify(page, width):
 
 
 def main():
+    global BASE, TOKEN
+    chromium = (os.getenv("OFF_CRM_QA_CHROMIUM") or shutil.which("chromium")
+                or shutil.which("google-chrome") or shutil.which("chromium-browser"))
+    assert chromium, "A real Chromium executable is required"
+    assert (ROOT / "frontend/dist/index.html").is_file(), "Build frontend before Agent Team QA"
+    TOKEN = secrets.token_urlsafe(48)
     with tempfile.TemporaryDirectory(prefix="offcrm-agent-team-") as folder:
-        env = os.environ.copy()
-        for key in (
-            "OFFSETX_DATABASE_URL",
-            "OFFSETX_SECRETS_KEY",
-            "OFFSETX_DEMO_USERNAME",
-            "OFFSETX_DEMO_PASSWORD",
-            "OFFSETX_SESSION_SECRET",
-            "RENDER_EXTERNAL_HOSTNAME",
-        ):
-            env.pop(key, None)
-        env.update(
-            {
-                "OFFSETX_DATA_DIR": str(Path(folder) / "data"),
-                "OFFSETX_OUTREACH_DB": str(Path(folder) / "data" / "crm.db"),
-                "OFFSETX_LOCAL_API_TOKEN": TOKEN,
-                "OFFSETX_WEB_HOST": "127.0.0.1",
-                "OFFSETX_ALLOWED_HOSTS": "127.0.0.1,localhost",
-                "OFFSETX_PRODUCTION": "0",
-            }
-        )
+        work = Path(folder)
+        env = child_environment(ROOT, work / "data", str(work / "unused.db"), TOKEN)
+        # Exercise the local storage path used by the original review test.
+        env.pop("OFFSETX_DATABASE_URL", None)
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            port = listener.getsockname()[1]
+        BASE = f"http://127.0.0.1:{port}"
+        env.update(OFFSETX_WEB_HOST="127.0.0.1", OFFSETX_PUBLIC_DEMO="0")
         proc = subprocess.Popen(
-            [
-                str(ROOT / ".venv/bin/python"),
-                "-m",
-                "offsetx_apollo_builder.web_cli",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                "8766",
-            ],
-            cwd=ROOT,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            [sys.executable, "-m", "offsetx_apollo_builder.web_cli",
+             "--host", "127.0.0.1", "--port", str(port)],
+            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
         )
         try:
             _wait_for_server(proc)
-            import httpx
-
             with httpx.Client(
-                base_url=BASE, headers={"Authorization": "Bearer " + TOKEN}
+                base_url=BASE, headers={"Authorization": "Bearer " + TOKEN}, timeout=10,
             ) as client:
                 for kind in ("email", "image", "distribution"):
                     response = client.post(
                         "/api/v1/campaigns", json={"name": "QA " + kind, "kind": kind}
                     )
-                    assert response.status_code == 201, response.text
+                    assert response.status_code == 201, response.status_code
             with sync_playwright() as p:
+                # CI runs as an ordinary user and MUST retain Chromium's sandbox.
+                # Historical Dockerfile.review runs as root in a disposable image.
                 browser = p.chromium.launch(
-                    executable_path=shutil.which("chromium"),
+                    executable_path=chromium,
                     headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                    chromium_sandbox=os.geteuid() != 0,
+                    args=["--disable-dev-shm-usage"],
                 )
                 try:
                     for width in (1280, 390):
@@ -319,16 +331,17 @@ def main():
                         )
                         context.add_init_script(
                             'sessionStorage.setItem("offsetx-api-token", '
-                            + json.dumps(TOKEN)
-                            + ")"
+                            + json.dumps(TOKEN) + ")"
                         )
                         page = context.new_page()
-                        page.set_default_timeout(10000)
+                        errors = []
+                        page.on("pageerror", lambda error: errors.append(str(error)))
+                        page.route("**/*", lambda route: route.continue_()
+                                   if route.request.url.startswith(BASE + "/") else route.abort())
+                        page.set_default_timeout(15000)
                         try:
                             verify(page, width)
-                        except Exception:
-                            print(page.locator("body").inner_text(), flush=True)
-                            raise
+                            assert not errors, f"Agent Team browser JavaScript errors: {len(errors)}"
                         finally:
                             context.close()
                 finally:

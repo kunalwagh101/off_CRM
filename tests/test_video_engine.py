@@ -784,7 +784,8 @@ def test_the_api_refuses_an_edit_it_does_not_know(tmp_path):
             json={"op": "enhance", "params": {}},
         )
         assert refused.status_code == 422
-        assert "Unknown edit" in refused.json()["detail"]
+        assert refused.json()["detail"] == "The supplied value is invalid for this operation."
+        assert "enhance" not in refused.json()["detail"]
 
 
 def test_the_api_will_not_open_a_video_project_from_an_email_campaign(tmp_path):

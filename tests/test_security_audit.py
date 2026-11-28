@@ -306,7 +306,12 @@ def test_a_host_this_server_does_not_answer_to_is_refused(tmp_path):
         for host in ("rebind.attacker.test", "rebind.attacker.test:8766", "evil.example"):
             answer = client.get("/api/v1/dashboard", headers={**headers, "Host": host})
             assert answer.status_code == 421, f"{host} was answered"
-            assert "does not answer to the host" in answer.json()["detail"]
+            detail = answer.json()["detail"]
+            assert detail == (
+                "This server does not answer to the supplied host. "
+                "Set OFFSETX_ALLOWED_HOSTS if that name is legitimate."
+            )
+            assert host not in detail
 
 
 def test_the_hosts_this_server_does_answer_to_still_work(tmp_path):

@@ -340,9 +340,16 @@ class AppSettings:
             )
 
     def verify_persistent_mount(self) -> None:
-        if self.production and (not self.persistent_mount or not self.persistent_mount.is_mount()):
+        if not self.production:
+            return
+        mount = self.persistent_mount
+        if not mount or not mount.is_mount():
             raise ValueError(
                 "Persistent disk is not mounted. Attach OFFSETX_PERSISTENT_MOUNT before starting the production service"
+            )
+        if mount.resolve() == Path("/").resolve():
+            raise ValueError(
+                "Attach a separate OFFSETX_PERSISTENT_MOUNT; the filesystem root is not a customer data disk"
             )
 
     #: Where an auto-provisioned local token lives. Beside the data it protects.

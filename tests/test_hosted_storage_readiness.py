@@ -152,3 +152,19 @@ def test_root_filesystem_mount_does_not_claim_data_durability(tmp_path, isolated
         assert body["files"]["durability"] == "unverified"
         assert body["production"]["status"] == "blocked"
         assert "ephemeral_customer_files" in body["production"]["blockers"]
+
+
+def test_production_rejects_root_filesystem_as_customer_disk(tmp_path, isolated):
+    settings = _settings(tmp_path / "local")
+    settings.production = True
+    settings.persistent_mount = Path("/").resolve()
+    with pytest.raises(ValueError, match="separate OFFSETX_PERSISTENT_MOUNT"):
+        settings.verify_persistent_mount()
+
+
+def test_production_mount_check_accepts_separate_mount(tmp_path, isolated, monkeypatch):
+    settings = _settings(tmp_path / "local")
+    settings.production = True
+    settings.persistent_mount = tmp_path / "customer-volume"
+    monkeypatch.setattr(Path, "is_mount", lambda self: self == settings.persistent_mount)
+    settings.verify_persistent_mount()

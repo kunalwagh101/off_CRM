@@ -21,7 +21,7 @@ def _files_have_verified_mount(settings: AppSettings) -> bool:
     mount = root.resolve()
     # A container's OS root is a mount too, but it is not a separate durable
     # customer-data volume. Production also refuses temporary directories.
-    if mount == Path("/"):
+    if mount == Path("/").resolve():
         return False
     temporary = (
         Path(gettempdir()).resolve(), Path("/tmp"), Path("/var/tmp"), Path("/dev/shm"),

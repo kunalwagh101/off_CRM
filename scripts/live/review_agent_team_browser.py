@@ -158,13 +158,31 @@ def verify(page, width):
         "Measured campaign performance", exact=False
     ).wait_for()
     page.get_by_label("Role", exact=True).select_option("Scout")
+    # Simulate a concurrent owner changing the memory scope after this form
+    # loaded. Renaming must not write the old scope back from the stale tab.
+    profile_id = page.get_by_label("Companion", exact=True).input_value()
+    new_scope = "qa-scope-" + str(width)
+    updated = page.request.patch(
+        BASE + "/api/v1/companions/" + profile_id,
+        headers={"Authorization": "Bearer " + TOKEN},
+        data={"memory_scope": new_scope},
+    )
+    assert updated.status == 200, updated.text()
     page.get_by_label("Edit profile name", exact=True).fill(
         "Research revised " + str(width)
     )
-    page.get_by_role("button", name="Save profile", exact=True).click()
+    with page.expect_response(
+        lambda response: response.url.endswith("/companions/" + profile_id)
+        and response.request.method == "PATCH"
+    ) as renamed:
+        page.get_by_role("button", name="Save profile", exact=True).click()
+    assert renamed.value.status == 200, renamed.value.text()
+    assert renamed.value.request.post_data_json == {"name": "Research revised " + str(width)}
+    assert renamed.value.json()["memory_scope"] == new_scope
     page.get_by_label("Companion", exact=True).select_option(
         label="Research revised " + str(width)
     )
+    expect(page.get_by_label("Memory scope", exact=True)).to_have_value(new_scope)
     page.get_by_role("button", name="Disable companion", exact=True).click()
     page.get_by_role("button", name="Enable companion", exact=True).wait_for()
     expect(page.get_by_role("button", name="Preview selected context")).to_be_disabled()

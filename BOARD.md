@@ -486,6 +486,7 @@ write the code, then the evidence block.)*
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-04.01.01 · Companions: persisted agent profiles
+  checkpoint: 2026-11-28 D-547/D-548 partial backend and frontend edits preserve concurrent grant/scope changes; isolated SQL 3/3 and helper 4/4 pass, full CI/PG/browser/Render pending; IN_REVIEW retained.
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-03.02.05 · A platform is a row, not a code change
 - S-06.02.04 · Data deletion and subject access

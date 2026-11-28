@@ -1,3 +1,7 @@
+## 2026-11-28 — S-04.01.01 stale Agent Team editor
+
+- D-548: frontend no longer sends unchanged tool grants/scope on rename; explicit grant removals remain valid and no-op saves refresh data. Isolated old request construction 4 failed; exact helper compiled with strict TypeScript and 4 passed. D-547 old SQL 3 failed/fixed SQL 3 passed on disposable SQLite. Real Vitest and live Chromium tests authored (deb0cac, 8fbba87), fix e4d0172. Full CI/PG, real browser and Render acceptance pending. No story promotion.
+
 ## 2026-11-28 — S-04.01.01 companion concurrent edit safety
 
 - D-547: stale rename could undo a committed disable, grant removal or memory-scope change. Bound conditional SQL now writes only requested fields; omitted grants are not revalidated against a stale snapshot. Isolated SQLite SQL RED 3 failed / GREEN 3 passed. Real registry regression test 442dcf6, source b08a703. Full repository, PostgreSQL, CI, owner/provider and Render acceptance pending. No story promotion.

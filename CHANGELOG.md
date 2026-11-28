@@ -1,3 +1,7 @@
+## 2026-11-28 — prevent stale Agent Team profile form overwrites
+
+- D-548: profile editor sends only changed fields, preserves explicit revocation and refreshes unchanged forms. Isolated helper RED 4 failed/GREEN 4 passed; real frontend/browser regressions pending execution.
+
 ## 2026-11-28 — companion profile concurrent edit safety
 
 - D-547 / S-04.01.01: partial profile updates no longer restore stale permission, scope or enabled values. Isolated SQL regression 3 failed before, 3 passed after; full application regression pending.

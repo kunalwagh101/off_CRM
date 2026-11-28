@@ -4,6 +4,7 @@ Run explicitly on a disposable Docker-capable runner; missing infrastructure
 is a failure, never a skip. Only a pre-pulled immutable test image is used.
 """
 import json
+from ipaddress import IPv4Address
 import os
 from pathlib import Path
 import secrets
@@ -71,6 +72,15 @@ def test_sandbox_root_and_inbox_are_readonly_and_store_is_absent(workspace):
     assert "BOUNDARIES_VERIFIED" in result.stdout
 
 
+def _bridge_ipv4(inspected):
+    """Resolve the actual named bridge, not Docker's removed legacy field."""
+    try:
+        address = inspected['NetworkSettings']['Networks']['bridge']['IPAddress']
+        return str(IPv4Address(address))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AssertionError('Docker positive control has no valid bridge IPv4 address') from exc
+
+
 def test_sandbox_network_is_denied_with_a_working_positive_control(workspace):
     image = os.environ["OFF_CRM_SANDBOX_TEST_IMAGE"]
     name = "offcrm-network-probe-" + secrets.token_hex(5)
@@ -82,8 +92,7 @@ def test_sandbox_network_is_denied_with_a_working_positive_control(workspace):
     try:
         inspected = run(["docker", "inspect", name])
         assert inspected.returncode == 0, inspected.stderr
-        address = json.loads(inspected.stdout)[0]["NetworkSettings"]["IPAddress"]
-        assert address
+        address = _bridge_ipv4(json.loads(inspected.stdout)[0])
         probe = (
             "import socket,time\n"
             "for attempt in range(20):\n"

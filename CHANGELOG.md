@@ -1,3 +1,9 @@
+## 2026-11-28 — worker retry and uncertain delivery safety
+
+- D-535 / S-06.02.40: reject nonfinite and excessive poll intervals, bound repeated outage waits, expose restore waits with safe references.
+- D-536 / S-06.02.61: share bounded retry policy for definite refusal, parse provider delay safely, refuse excessive automatic delay rather than send sooner, disable SDK-level retries, quarantine SES server errors.
+- D-537 / S-06.02.35: check actual disabled option property after observed Playwright false failure. Isolated retry policy 31 passed; new app integration and browser checks pending. No schema changes or release.
+
 ## 2026-11-27 — reopen inconsistent skip-navigation verification
 
 - 152a98c quality passed full screen sweep then failed the repeated board evidence command (74/75). D-534 logged and S-06.02.37 reopened; keep full sweep, add targeted two-route skip-link acceptance and failed-route diagnostics. No app skip-handler change.

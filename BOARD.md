@@ -40,6 +40,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.40 · A durable email worker runs beside the deployed web app
   work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md
+  checkpoint: 2026-11-28 D-535/D-536: finite poll bounds, overflow-safe database/restore backoff and safe error references; shared retry policy, SES SDK single attempt and uncertain 5xx quarantine. Isolated retry-policy 31 PASS; actual integration and hosted supervised worker still pending.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
 
@@ -194,6 +195,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.61 · Email provider setup failures do not strand delivery jobs (A16)
   work_order: docs/work-orders/S-06.02.61-email-provider-setup.md
+  checkpoint: 2026-11-28 D-536: actual service now shares safe bounded retry timing for setup and send refusals; excessive requested delays fail for manual review, ambiguous SES 5xx quarantined, SDK retries disabled. 31 isolated timing tests pass; new persisted-queue/SES tests authored, full CI pending.
   checkpoint: RED 61cc4fa / Render dep-dbldu5bncjis73djca20: 5 expected A16 FAIL. GREEN 144e1cb / Render dep-dbldur942hec73fvgeq0 LIVE 2026-11-04 07:52:04 UTC: A16 5 PASS, full SQLite 2970 PASS/54 skipped, full disposable PG 2993 PASS/100 skipped, focused PG 215 PASS, concurrency 12/12, frontend/Chromium/security/structural verifier gates PASS. D-363 mitigated. Remediation code under owner build-ahead; BACKLOG retained until S-06.02.23 audit, S-06.02.40 supervised worker integration, independent penetration and full-history verifier/production acceptance. No customer/main release. Evidence docs/evidence/2026-11-04-a16-email-provider-setup.md.
   checkpoint: 2026-11-24 focused acceptance passed in the SQLite and PostgreSQL jobs for source 94e89b6, GitHub Actions 45424459700. Disposable integration evidence only. Production release gates remain open.
 

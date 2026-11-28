@@ -134,7 +134,7 @@ def verify_drafts(base, token, key, chromium):
                     page.get_by_role("button", name="Generate sequence", exact=True).first.click()
                     dialog = page.get_by_role("dialog")
                     expect(dialog.get_by_label("Generation mode")).to_have_value("local")
-                    expect(dialog.locator('option[value="connectors"]')).to_be_disabled()
+                    expect(dialog.locator('option[value="connectors"]')).to_have_js_property("disabled", True)
                     page.get_by_role("button", name="Cancel", exact=True).click()
                     page.goto(base + "/#settings")
                     panel = page.locator("section").filter(has=page.get_by_role("heading", name="Provider profiles to confirm", exact=True))
@@ -160,7 +160,7 @@ def verify_drafts(base, token, key, chromium):
                     assert not any(row["connected"] and row["enabled"] for row in providers.json()["providers"])
                     page.goto(base + "/#drafts")
                     page.get_by_role("button", name="Generate sequence", exact=True).first.click()
-                    expect(page.get_by_role("dialog").locator('option[value="connectors"]')).to_be_disabled()
+                    expect(page.get_by_role("dialog").locator('option[value="connectors"]')).to_have_js_property("disabled", True)
                     assert not errors, f"Drafts/Settings browser errors: {len(errors)}"
     print("S-06.02.35 PASS: both empty-state paths, legacy confirm/remove, no implicit connector activation", flush=True)
 

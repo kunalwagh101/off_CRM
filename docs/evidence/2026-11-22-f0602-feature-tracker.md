@@ -69,6 +69,11 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 - At 152a98c, frontend 245 tests, matrix, PG, production image, A06/A34/WP1 and full screen sweep passed. Board evidence replay 74/75 passed; S-06.02.37 repeat sweep failed after mobile Deliverability and the retained stdout tail did not identify the failing assertion. Do not claim a reproducible board pass. D-534 logged and S-06.02.37 returned to IN_REVIEW. Dedicated Settings/Contacts keyboard/pointer gate plus full inventory sweep and safe failure diagnostics are required; no test removed.
 
+## 2026-11-28 — actual worker and provider retry fixes
+
+- 6a815b9 Python matrix and real PostgreSQL passed; quality failed on the Drafts disabled-option assertion even though HTML contained disabled; D-537 fixes DOM property check.
+- D-535 (S-06.02.40/.38): finite poll validation, long-outage overflow prevention, traceable restore waits. D-536 (S-06.02.61/.40): common definite-refusal delay handling, safe parsing, no SDK automatic retry and uncertain SES server errors quarantined. Isolated prior expression adaptation 14 failures / 17 passes; new exact helper 31 passes. Actual queue and provider-adapter regressions authored, not yet run on repository. Production worker prerequisites and actual configured providers remain open. No status promotion.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

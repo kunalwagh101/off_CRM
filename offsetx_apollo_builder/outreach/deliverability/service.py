@@ -22,6 +22,7 @@ from .models import (
     valid_email,
 )
 from .preflight import PreflightService
+from .retry import delivery_retry_delay
 from .store import DeliverabilityStore
 from .unsubscribe import UnsubscribeService
 
@@ -306,6 +307,29 @@ class EmailDeliveryService:
         finally:
             self._worker_lock.release()
 
+    def _retry_definite_refusal(
+        self, job: dict[str, Any], exc: RetryableDeliveryError, *, now: datetime, operation: str,
+    ) -> dict[str, Any]:
+        """Only for definite pre-send refusals. Never retry an uncertain result."""
+        message = failure_message(exc, operation=operation, workspace=self.engine.workspace_id)
+        attempt = int(job["attempt_count"])
+        delay = delivery_retry_delay(attempt, exc.retry_after_seconds)
+        if attempt >= 5 or delay is None:
+            reason = (
+                "Retry limit reached." if attempt >= 5 else
+                "Provider requested a delay beyond the automatic retry limit. Check the provider before requeueing."
+            )
+            message = f"{reason} {message}"
+            self.store.mark_terminal(str(job["id"]), status="failed", error=message)
+            return {"job_id": job["id"], "status": "failed", "error": message}
+        self.store.mark_retry(
+            str(job["id"]), error=message, available_at=now + timedelta(seconds=delay)
+        )
+        return {
+            "job_id": job["id"], "status": "retry_wait",
+            "retry_after_seconds": delay, "error": message,
+        }
+
     @failure_boundary
     def _send_job(self, job: dict[str, Any], *, now: datetime) -> dict[str, Any]:
         contact = self.engine.store.get_campaign_contact(
@@ -359,26 +383,7 @@ class EmailDeliveryService:
         try:
             provider = self.provider_factory(job, identity)
         except RetryableDeliveryError as exc:
-            message = failure_message(
-                exc, operation="email.delivery.setup_retry",
-                workspace=self.engine.workspace_id,
-            )
-            if int(job["attempt_count"]) >= 5:
-                self.store.mark_terminal(
-                    str(job["id"]), status="failed", error=f"Retry limit reached: {message}"
-                )
-                return {"job_id": job["id"], "status": "failed", "error": message}
-            delay = exc.retry_after_seconds or min(
-                3600, 5 * (2 ** max(0, int(job["attempt_count"]) - 1))
-            )
-            delay = max(1, min(3600, int(delay)))
-            self.store.mark_retry(
-                str(job["id"]), error=message, available_at=now + timedelta(seconds=delay)
-            )
-            return {
-                "job_id": job["id"], "status": "retry_wait",
-                "retry_after_seconds": delay, "error": message,
-            }
+            return self._retry_definite_refusal(job, exc, now=now, operation="email.delivery.setup_retry")
         except Exception as exc:
             # Even an unknown constructor failure is definitely pre-send.
             # Do not give it the post-send "delivery_unknown" classification.
@@ -410,22 +415,7 @@ class EmailDeliveryService:
                 idempotency_key=str(job["idempotency_key"]),
             )
         except RetryableDeliveryError as exc:
-            message = failure_message(exc, operation="email.delivery.retry", workspace=self.engine.workspace_id)
-            if int(job["attempt_count"]) >= 5:
-                self.store.mark_terminal(
-                    str(job["id"]), status="failed", error=f"Retry limit reached: {message}"
-                )
-                return {"job_id": job["id"], "status": "failed", "error": message}
-            delay = exc.retry_after_seconds or min(3600, 5 * (2 ** max(0, int(job["attempt_count"]) - 1)))
-            self.store.mark_retry(
-                str(job["id"]), error=message, available_at=now + timedelta(seconds=delay)
-            )
-            return {
-                "job_id": job["id"],
-                "status": "retry_wait",
-                "retry_after_seconds": delay,
-                "error": message,
-            }
+            return self._retry_definite_refusal(job, exc, now=now, operation="email.delivery.retry")
         except PermanentDeliveryError as exc:
             message = failure_message(exc, operation="email.delivery.failed", workspace=self.engine.workspace_id)
             self.store.mark_terminal(str(job["id"]), status="failed", error=message)

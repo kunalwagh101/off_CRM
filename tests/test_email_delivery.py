@@ -839,3 +839,102 @@ def test_A16_unknown_setup_failure_does_not_stop_unrelated_jobs(tmp_path):
         assert all("SECRET_FACTORY_CONFIG" not in str(item) for item in outcome["items"])
     finally:
         engine.close()
+
+
+@pytest.mark.parametrize("phase", ["setup", "send"])
+@pytest.mark.parametrize("hint, expected", [(-1, 5), (float("inf"), 5), (12, 12), (3601, None), (10**100, None)])
+def test_A16_definite_refusal_has_bounded_persisted_retry(tmp_path, phase, hint, expected):
+    """The actual queue must release the lease even for hostile retry hints."""
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+
+    class RefusingProvider:
+        def send_message(self, **_):
+            raise RetryableDeliveryError("SECRET_RETRY_HINT", retry_after_seconds=hint)
+
+    def factory(_job, _identity):
+        if phase == "setup":
+            raise RetryableDeliveryError("SECRET_RETRY_HINT", retry_after_seconds=hint)
+        return RefusingProvider()
+
+    try:
+        cid = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path, provider_factory=factory)
+        jid = service.enqueue_campaign(cid, now=now)["queued"][0]["job_id"]
+        result = service.work_once(max_jobs=1, now=now)["items"][0]
+        assert "SECRET_RETRY_HINT" not in result["error"]
+        assert "Reference: E-" in result["error"]
+        job = service.store.get_job(jid)
+        assert job["lease_expires_at"] is None and job["attempt_count"] == 1
+        if expected is None:
+            assert result["status"] == job["status"] == "failed"
+            assert "beyond the automatic retry limit" in job["last_error"]
+            assert service.work_once(max_jobs=1, now=now + timedelta(days=1))["processed"] == 0
+        else:
+            assert result["status"] == job["status"] == "retry_wait"
+            assert result["retry_after_seconds"] == expected
+            assert job["available_at"] == to_utc_iso(now + timedelta(seconds=expected))
+            assert service.work_once(max_jobs=1, now=now)["processed"] == 0
+    finally:
+        engine.close()
+
+
+@pytest.mark.parametrize("status, code", [(500, "InternalFailure"), (503, "ServiceUnavailableException")])
+def test_A16_ses_server_error_is_uncertain_and_not_automatically_retried(tmp_path, status, code):
+    class Client:
+        calls = 0
+
+        def send_email(self, **_):
+            self.calls += 1
+            error = RuntimeError("SECRET_PROVIDER_RESPONSE")
+            error.response = {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status}}
+            raise error
+
+    transport = Client()
+    provider = SesMailProvider(region="us-east-1", client=transport)
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+    try:
+        cid = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path, provider_factory=lambda *_: provider)
+        jid = service.enqueue_campaign(cid, now=now)["queued"][0]["job_id"]
+        first = service.work_once(max_jobs=1, now=now)
+        assert first["items"][0]["status"] == "delivery_unknown"
+        assert "SECRET_PROVIDER_RESPONSE" not in first["items"][0]["error"]
+        assert service.store.get_job(jid)["status"] == "delivery_unknown"
+    finally:
+        engine.close()
+    reopened = OutreachEngine(tmp_path / "outreach.db")
+    try:
+        service = _service(reopened, tmp_path, provider_factory=lambda *_: provider)
+        assert service.work_once(max_jobs=1, now=now + timedelta(days=1))["processed"] == 0
+        assert transport.calls == 1
+    finally:
+        reopened.close()
+
+
+def test_A16_ses_sdk_cannot_retry_behind_the_durable_worker(monkeypatch):
+    boto3 = pytest.importorskip("boto3")
+    from offsetx_apollo_builder.outreach.deliverability.ses import _boto3_client
+    captured = {}
+
+    def build(name, **kwargs):
+        captured.update(name=name, **kwargs)
+        return object()
+
+    monkeypatch.setattr(boto3, "client", build)
+    _boto3_client("us-east-1")
+    assert captured["name"] == "sesv2"
+    config = captured["config"]
+    assert config.retries["total_max_attempts"] == 1
+    assert config.connect_timeout == 5 and config.read_timeout == 30
+
+
+@pytest.mark.parametrize("header, expected", [("7", 7), ("9"*5000, 3601), ("²", None)])
+def test_A16_ses_throttle_header_is_safe(header, expected):
+    error = RuntimeError("throttled")
+    error.response = {"Error": {"Code": "TooManyRequestsException"},
+                      "ResponseMetadata": {"HTTPStatusCode": 429, "HTTPHeaders": {"retry-after": header}}}
+    with pytest.raises(RetryableDeliveryError) as refusal:
+        SesMailProvider._raise_provider_error(error)
+    assert refusal.value.retry_after_seconds == expected

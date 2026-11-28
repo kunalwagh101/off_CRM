@@ -15,6 +15,7 @@ from .db.hosted import HostedStorageError
 from .outreach.store import names_a_url
 from .outreach.store_copy import refuse_a_hidden_local_crm
 from .outreach.deliverability.models import PermanentDeliveryError
+from .outreach.deliverability.retry import next_worker_retry_wait, valid_poll_seconds
 from .outreach.deliverability.service import EmailDeliveryService
 from .outreach.deliverability.ses import SesMailProvider
 from .outreach.deliverability.store import DeliverabilityStore
@@ -83,15 +84,15 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if not 1 <= args.max_jobs <= 500:
         raise SystemExit("--max-jobs must be between 1 and 500")
-    if args.poll_seconds < 0.25:
-        raise SystemExit("--poll-seconds must be at least 0.25")
+    if not valid_poll_seconds(args.poll_seconds):
+        raise SystemExit("--poll-seconds must be finite and between 0.25 and 60")
     settings = AppSettings.from_env(hosted_target=args.database if args.database and is_postgres_url(args.database) else None)
     if args.database and not names_a_url(args.database):
         args.database = settings.database_path = Path(args.database).resolve()
     if args.data_dir:
         settings.data_dir = args.data_dir.resolve()
     settings.validate()
-    failures = 0
+    retry_wait = None
     try:
         while True:
             with failure_scope():
@@ -121,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
                         finally:
                             engine.close()
                         print(json.dumps(result, ensure_ascii=False, default=str), flush=True)
-                        failures = 0
+                        retry_wait = None
                 except (DatabaseUnavailable, DatabaseBusy) as exc:
                     # Away for a moment — a sleeping Neon compute, a dropped
                     # connection, a busy writer — ended a watching worker and mail
@@ -130,8 +131,8 @@ def main(argv: list[str] | None = None) -> int:
                     # still stops it: retrying would only hide it.
                     if not args.watch:
                         raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
-                    failures += 1
-                    wait = min(args.poll_seconds * 2 ** failures, 60.0)
+                    retry_wait = next_worker_retry_wait(args.poll_seconds, retry_wait)
+                    wait = retry_wait
                     print(f"{failure_message(exc, operation='email.worker.cycle', data_dir=settings.data_dir)} Trying again in {wait:g} s.", file=sys.stderr, flush=True)
                     time.sleep(wait)
                     continue
@@ -139,13 +140,20 @@ def main(argv: list[str] | None = None) -> int:
                     # A target that is wrong, not away: say so and stop, rather than
                     # a traceback, or a retry that would only hide it.
                     raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
-                except WorkspaceBusy:
+                except WorkspaceBusy as exc:
+                    # A pending restore must never silently look like a healthy
+                    # idle worker. Report the safe reference and bounded wait.
+                    reason = (
+                        "A backup restore is in progress or waiting to be rolled back. "
+                        "Start the web app if stopped and retry after readiness passes."
+                    )
+                    message = failure_message(exc, operation="email.worker.restore_wait", data_dir=settings.data_dir)
                     if not args.watch:
-                        raise SystemExit(
-                            "A backup restore is in progress or waiting to be rolled back. Start "
-                            "the web app if it is stopped, and retry the worker once its "
-                            "readiness check passes."
-                        )
+                        raise SystemExit(f"{reason} {message}") from exc
+                    retry_wait = next_worker_retry_wait(args.poll_seconds, retry_wait)
+                    print(f"{reason} {message} Trying again in {retry_wait:g} s.", file=sys.stderr, flush=True)
+                    time.sleep(retry_wait)
+                    continue
             if not args.watch:
                 return 0
             time.sleep(args.poll_seconds)

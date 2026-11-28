@@ -8,6 +8,7 @@ from email.utils import formataddr, make_msgid
 from typing import Any, Mapping
 
 from ..models import IncomingMessage, SendResult
+from .retry import parse_retry_after
 from .models import (
     AmbiguousDeliveryError,
     PermanentDeliveryError,
@@ -22,11 +23,18 @@ _TAG = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
 def _boto3_client(region: str) -> Any:
     try:
         import boto3
+        from botocore.config import Config
     except ImportError as exc:  # pragma: no cover - exercised without the optional extra
         raise RuntimeError(
             "Amazon SES support is not installed. Run: uv sync --extra email --locked"
         ) from exc
-    return boto3.client("sesv2", region_name=region)
+    # The durable queue owns retry decisions. Botocore's automatic retry of
+    # a timeout or 5xx could duplicate a send before the queue can quarantine it.
+    return boto3.client(
+        "sesv2", region_name=region,
+        config=Config(retries={"total_max_attempts": 1, "mode": "standard"},
+                      connect_timeout=5, read_timeout=30),
+    )
 
 
 class SesMailProvider:
@@ -149,16 +157,19 @@ class SesMailProvider:
         code = str(error.get("Code") or exc.__class__.__name__)
         message = str(error.get("Message") or exc)[:1000]
         status = int(metadata.get("HTTPStatusCode") or 0)
-        if status == 429 or status >= 500 or code in {
+        # A server-side failure is not proof the provider rejected the send.
+        # Quarantine it rather than repeating an external effect.
+        if status >= 500 or code == "ServiceUnavailableException":
+            raise AmbiguousDeliveryError("SES delivery state is unknown; check the provider before retrying") from exc
+        if status == 429 or code in {
             "TooManyRequestsException",
             "LimitExceededException",
             "ThrottlingException",
-            "ServiceUnavailableException",
         }:
             retry_after = metadata.get("HTTPHeaders", {}).get("retry-after")
             raise RetryableDeliveryError(
                 f"SES temporarily refused the request: {message}",
-                retry_after_seconds=int(retry_after) if str(retry_after).isdigit() else None,
+                retry_after_seconds=parse_retry_after(retry_after),
             ) from exc
         if code in {
             "BadRequestException",

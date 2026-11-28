@@ -1,3 +1,9 @@
+## 2026-11-28 — actual delivery worker remediation
+
+- Prior 6a815b9 CI 46049374064: Python matrix and PostgreSQL passed; quality reached real Drafts acceptance, where generic Playwright assertion claimed a disabled option was enabled despite DOM evidence. D-537 corrects the assertion to direct JS property; no UI bypass.
+- D-535: original CLI expression reproduced OverflowError after 1100 failures; finite poll interval and bounded prior-delay doubling implemented, restore waits now reference-logged.
+- D-536: shared retry timing for setup and send refusals; hostile Retry-After handling; SES one SDK attempt and uncertain server responses quarantined. Isolated old-expression adaptation 14 failed/17 passed, new exact helper 31 passed. Actual persisted queue/SES tests authored, new CI pending. No schema migration, live provider credentials or production changes. F-06.02 remains open.
+
 ## 2026-11-27 — failed promotion replay
 
 - 152a98c matrix, PG, production image, frontend245, WP1/A06/A34 and screen sweep 66/66 passed, but board replay 74/75 failed on a second screen sweep. D-534 records failure and reopens S-06.02.37; scoped two-route check plus full sweep must pass. F-06.02 remains 22 DONE and 47 open. New gates pending.

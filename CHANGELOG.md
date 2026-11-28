@@ -1,3 +1,7 @@
+## 2026-11-28 — companion profile concurrent edit safety
+
+- D-547 / S-04.01.01: partial profile updates no longer restore stale permission, scope or enabled values. Isolated SQL regression 3 failed before, 3 passed after; full application regression pending.
+
 ## 2026-11-28 — durable email queue lane fairness
 
 - D-546 / S-06.02.40: exclude paced, backoff and batch-exhausted lanes before the bounded candidate page. Keep provider, daily-cap and approval checks. Isolated SQLite query RED 3 failed/1 passed; GREEN 4 passed. Real queue regressions authored, CI pending.

@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam, { ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt, roleExecutionIntent, recoverLegacyRoleRequestAttempt } from "./AgentTeam";
+import AgentTeam, { companionProfilePatch, ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt, roleExecutionIntent, recoverLegacyRoleRequestAttempt } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -170,5 +170,34 @@ describe("role execution receipts ignore the unrelated companion selection", () 
     await expect(recoverLegacyRoleRequestAttempt(
       storage, roleExecutionIntent("local", "owner", payload), ["a", "b"],
     )).rejects.toThrow(/multiple pending/i);
+  });
+});
+
+
+describe("companion profile saves preserve concurrent security changes", () => {
+  const saved = {
+    id: "c1", name: "Original", instructions: "Review carefully",
+    memory_scope: "original-scope", granted_tool_ids: ["a", "b"], enabled: true,
+  };
+  const draft = {
+    name: saved.name, instructions: saved.instructions,
+    memory_scope: saved.memory_scope, granted_tool_ids: [...saved.granted_tool_ids],
+  };
+
+  it("sends only a rename, not unchanged permissions or memory scope", () => {
+    expect(companionProfilePatch(saved, { ...draft, name: " Renamed " }))
+      .toEqual({ name: "Renamed" });
+  });
+  it("omits unchanged fields and grant ordering", () => {
+    expect(companionProfilePatch(saved, { ...draft, granted_tool_ids: ["b", "a"] }))
+      .toEqual({});
+  });
+  it("retains explicit revocation and explicit scope changes", () => {
+    expect(companionProfilePatch(saved, { ...draft, granted_tool_ids: [], memory_scope: "new-scope" }))
+      .toEqual({ granted_tool_ids: [], memory_scope: "new-scope" });
+  });
+  it("includes changed instructions without resetting other fields", () => {
+    expect(companionProfilePatch(saved, { ...draft, instructions: "Check the source." }))
+      .toEqual({ instructions: "Check the source." });
   });
 });

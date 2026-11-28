@@ -34,9 +34,15 @@ D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directo
 
 S-06.02.37: consecutive actual Chromium acceptance at d306120 and c9e1169 (CI 46125405523 and 46128043576) passed the targeted Settings/Contacts keyboard and pointer checks, 2/2 per viewport, and independent full inventory, 33/33 per viewport. Quality job 140926969360 also passed previous board evidence 74/74. Repository DONE entry uses the exact targeted command; full inventory remains an independent mandatory CI step. New board replay pending; no hosted or customer acceptance. Previous S-06.02.04 D-557 exact-source test and production container workflows both passed; broader privacy lifecycle remains open.
 
+## 2026-11-28 — video and campaign acceptance
+
+S-06.02.39: exact-source GitHub CI 46136308347 (quality job 140952279284) all five jobs passed; real A34 export 3781 bytes, 60 independently decoded frames; full frontend 254, Python3.11 3651/150 skipped, real PostgreSQL 3764/107 skipped, 75/75 board commands passed. Upstream S-01.02.01 DONE. Narrow gate rollback documented; no durable schema change. Repository DONE evidence entered; hosted release/live rollback and new board replay not certified.
+
+S-06.02.22: existing A33 desktop/mobile create/select/reload/manual-switch and 25 campaign-selection unit tests passed on 46136308347. Extend the mandatory browser gate to create an actual 201+ campaign inventory and restore an ID from the second API page, then inject a detail 503 and 404 separately to test preservation vs fallback. No application source change; new live test execution pending. Keep IN_REVIEW.
+
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 23 DONE, 41 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **46 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 24 DONE, 40 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **45 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 **Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
 
@@ -787,7 +793,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 ### S-06.02.39 — Valid low-bitrate WebM exports pass verification
 
-**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.39-low-bitrate-export.md).
+**Status:** DONE. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.39-low-bitrate-export.md).
 
 **Requirement:** Valid low-bitrate WebM exports pass verification.
 
@@ -801,7 +807,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** PENDING full story and upstream verification; do not mark DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Repository acceptance: genuine 3781-byte Chromium export independently decoded 60 frames, all five CI jobs and prior 75/75 board commands passed; named regression tests and DONE dependency verified. New board replay pending; no customer deployment or live rollback claim.
 
 ### S-06.02.40 — A durable email worker runs beside the deployed web app
 

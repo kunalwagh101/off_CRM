@@ -22,6 +22,56 @@ from playwright.sync_api import expect, sync_playwright
 from scripts.qa.hosted_tool_browser import child_environment
 
 
+def verify_bounded_selection(browser, base, token, client):
+    """Exercise an actual paginated inventory, with controlled detail failures."""
+    result = client.get("/api/v1/campaigns?limit=200")
+    assert result.status_code == 200
+    total = result.json()["total"]
+    for index in range(max(0, 201 - total)):
+        created = client.post("/api/v1/campaigns", json={"name": f"A33 paging fixture {index}"})
+        assert created.status_code == 201, created.status_code
+    first = client.get("/api/v1/campaigns?limit=200")
+    second = client.get("/api/v1/campaigns?limit=200&offset=200")
+    assert first.status_code == second.status_code == 200
+    first_ids = {row["id"] for row in first.json()["items"]}
+    assert len(first_ids) == 200
+    outside = next(row["id"] for row in second.json()["items"] if row["id"] not in first_ids)
+    assert client.get(f"/api/v1/campaigns/{outside}").status_code == 200
+    detail_url = f"{base}/api/v1/campaigns/{outside}"
+
+    for width in (1280, 390):
+        for status in (200, 503, 404):
+            with browser.new_context(viewport={"width": width, "height": 900}) as context:
+                context.add_init_script(
+                    "sessionStorage.setItem('offsetx-api-token', " + json.dumps(token) + ");"
+                    "localStorage.setItem('offsetx-active-campaign', " + json.dumps(outside) + ");"
+                )
+                page = context.new_page()
+                page.route("**/*", lambda route: route.continue_()
+                           if route.request.url.startswith(base + "/") else route.abort())
+                if status != 200:
+                    page.route(detail_url, lambda route: route.fulfill(
+                        status=status, content_type="application/json",
+                        body=json.dumps({"detail": "Synthetic campaign detail failure"}),
+                    ))
+                with page.expect_response(lambda response: response.url == detail_url) as response:
+                    page.goto(base + "/#contacts", wait_until="domcontentloaded")
+                assert response.value.status == status
+                active = page.get_by_label("Active campaign")
+                if status == 200:
+                    expect(active).to_have_value(outside)
+                    expect(page.get_by_role("heading", name="Contacts", exact=True)).to_be_visible()
+                elif status == 503:
+                    expect(page.get_by_text("Could not refresh campaigns", exact=True)).to_be_visible()
+                    expect(page.get_by_role("heading", name="Contacts", exact=True)).to_have_count(0)
+                    assert page.evaluate("localStorage.getItem('offsetx-active-campaign')") == outside
+                else:
+                    expect(page.get_by_text("The previous campaign is no longer available.", exact=False)).to_be_visible()
+                    assert active.input_value() in first_ids
+                    assert page.evaluate("localStorage.getItem('offsetx-active-campaign')") in first_ids
+                print(f"A33 bounded selection PASS: {width}px, detail HTTP {status}", flush=True)
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[2]
     chromium = (
@@ -136,6 +186,7 @@ def main() -> None:
                                     )
                                 finally:
                                     context.close()
+                            verify_bounded_selection(browser, base, token, client)
             finally:
                 server.terminate()
                 try:

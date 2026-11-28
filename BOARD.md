@@ -446,10 +446,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 
 
-- S-06.02.39 · Valid low-bitrate WebM exports pass verification
-  work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
-  review: docs/evidence/S-06.02.39-validation.md; isolated encode/sample scan verified, full regression and browser pending
-
 - S-12.02.06 · A plan's posting channel runs from the screens
   work_order: docs/work-orders/S-12.02.06-posting-channel-from-the-screens.md
   review: docs/evidence/S-12.02.06-validation.md; browser, full-board and live drafting gates remain open
@@ -509,6 +505,14 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.39 · Valid low-bitrate WebM exports pass verification
+  work_order: docs/work-orders/S-06.02.39-low-bitrate-export.md
+  tests: tests/test_video_gates.py::test_A34_a_real_sixty_frame_vp9_export_is_not_rejected_for_compressing_well, tests/test_video_gates.py::test_A34_small_media_without_verified_video_blocks_stays_rejected, tests/test_video_gates.py::test_A34_small_valid_video_does_not_bypass_other_project_requirements, scripts/qa/a34_colour_export.py
+  command: uv run pytest tests/test_video_gates.py -q
+  result: Exact-source GitHub 46136308347 five jobs PASS, Python3.11 3651 passed/150 skipped, real PostgreSQL 3764 passed/107 skipped, frontend 254 passed and build PASS; quality 140952279284 A34 actual Chromium Colour export stored and independently decoded 60 frames, 3781 bytes, and 75/75 board commands passed. Previous exact application source c9e1169 production container PASS 46128043568. No migration. Source rollback documented; hosted release and live rollback not claimed. New board replay pending.
+  code: offsetx_apollo_builder/video/gates.py
+  commit: 2ec02518b0a3ad370d114da134462cc1307bdc15
 
 - S-06.02.37 · Skip navigation keeps the current screen
   work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md

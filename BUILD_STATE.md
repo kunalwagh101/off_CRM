@@ -1,3 +1,8 @@
+## 2026-11-28 — S-06.02.39 acceptance and S-06.02.22 browser coverage
+
+- S-06.02.39: exact-source GitHub CI 46136308347 (quality job 140952279284) all five jobs passed; real A34 export 3781 bytes, 60 independently decoded frames; full frontend 254, Python3.11 3651/150 skipped, real PostgreSQL 3764/107 skipped, 75/75 board commands passed. Upstream S-01.02.01 DONE. Narrow gate rollback documented; no durable schema change. Repository DONE evidence entered; hosted release/live rollback and new board replay not certified.
+- S-06.02.22: existing A33 desktop/mobile create/select/reload/manual-switch and 25 campaign-selection unit tests passed on 46136308347. Extend the mandatory browser gate to create an actual 201+ campaign inventory and restore an ID from the second API page, then inject a detail 503 and 404 separately to test preservation vs fallback. No application source change; new live test execution pending. Keep IN_REVIEW.
+
 ## 2026-11-28 — S-06.02.37 repository acceptance
 
 - S-06.02.37: consecutive actual Chromium acceptance at d306120 and c9e1169 (CI 46125405523 and 46128043576) passed the targeted Settings/Contacts keyboard and pointer checks, 2/2 per viewport, and independent full inventory, 33/33 per viewport. Quality job 140926969360 also passed previous board evidence 74/74. Repository DONE entry uses the exact targeted command; full inventory remains an independent mandatory CI step. New board replay pending; no hosted or customer acceptance. Previous S-06.02.04 D-557 exact-source test and production container workflows both passed; broader privacy lifecycle remains open.

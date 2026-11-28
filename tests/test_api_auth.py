@@ -231,14 +231,13 @@ def test_every_protected_api_route_refuses_before_validation_without_auth(tmp_pa
             methods = sorted(
                 method
                 for method in (getattr(route, "methods", set()) or set())
-                if method in {"GET", "POST", "PATCH", "DELETE"}
+                if method in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
             )
             if not path.startswith("/api/"):
                 continue
-            public = is_public_api_path(_route_path(path))
-            if public:
-                continue
             for method in methods:
+                if is_public_api_path(_route_path(path), method):
+                    continue
                 response = client.request(method, _route_path(path))
                 if response.status_code != 401:
                     failures.append((method, path, response.status_code))
@@ -562,3 +561,76 @@ def test_A22_unexpected_keyerror_does_not_echo_private_identifiers(tmp_path, pri
         assert response.status_code == 404, response.text
         assert response.json() == {"detail": "Requested resource was not found."}
         assert private_key not in response.text
+
+
+@pytest.mark.parametrize("header", [b"x-offsetx-token", b"authorization"])
+def test_malformed_non_ascii_api_credential_is_401_not_500(tmp_path, header):
+    settings = _demo_settings(tmp_path)
+    settings.api_token = "valid-install-token-" + "q" * 40
+    with TestClient(create_app(settings), base_url="https://crm.test") as client:
+        value = b"caf\xe9" if header == b"x-offsetx-token" else b"Bearer caf\xe9"
+        response = client.get("/api/v1/dashboard", headers=[(header, value)])
+        assert response.status_code == 401
+        assert response.json() == {"detail": "CRM login required"}
+        assert response.headers["cache-control"] == "no-store"
+        assert client.get("/api/v1/dashboard", headers={"X-Offsetx-Token": settings.api_token}).status_code == 200
+
+
+def test_malformed_session_signature_refused_before_database(tmp_path):
+    from offsetx_apollo_builder.api.auth import constant_time_text_equal
+
+    assert not constant_time_text_equal("caf\xe9", "ascii-token")
+    assert constant_time_text_equal("valid", "valid")
+    assert not constant_time_text_equal("bad", "valid")
+    with TestClient(create_app(_demo_settings(tmp_path)), base_url="https://crm.test") as client:
+        # Raw header bytes simulate malformed input reaching ASGI.
+        response = client.get("/api/v1/dashboard", headers=[
+            (b"cookie", SESSION_COOKIE.encode() + b"=YWJj.caf\xe9"),
+        ])
+        assert response.status_code == 401
+        assert client.app.state.workspace_auth.verify("YWJj.caf\xe9") is None
+    auth = DemoSessionAuth(username="demo", password="long-demo-password",
+                           session_secret="x" * 32, session_hours=1)
+    assert auth.verify("YWJj.caf\xe9") is None
+
+
+@pytest.mark.parametrize("path,allowed,refused", [
+    ("/api/v1/meta", "GET", "POST"),
+    ("/api/v1/auth/session", "GET", "DELETE"),
+    ("/api/v1/auth/login", "POST", "GET"),
+    ("/api/v1/auth/logout", "POST", "GET"),
+    ("/api/v1/email-delivery/events/ses/sns", "POST", "GET"),
+    ("/api/v1/email/unsubscribe/synthetic-token", "POST", "PATCH"),
+])
+def test_public_exemption_requires_exact_method(tmp_path, path, allowed, refused):
+    from offsetx_apollo_builder.api.app import is_public_api_path
+    assert is_public_api_path(path, allowed)
+    assert not is_public_api_path(path, refused)
+    with TestClient(create_app(_demo_settings(tmp_path)), base_url="https://crm.test") as client:
+        assert client.request(refused, path).status_code == 401
+
+
+def test_rejected_host_not_reflected(tmp_path):
+    with TestClient(create_app(_demo_settings(tmp_path)), base_url="https://crm.test") as client:
+        response = client.get("/api/v1/meta", headers={"Host": "private-canary.example"})
+        assert response.status_code == 421
+        assert "private-canary" not in response.text
+
+
+@pytest.mark.parametrize("status", [400, 409, 422])
+def test_wrapped_credential_error_never_returns_secret(tmp_path, status):
+    from fastapi import HTTPException
+    app = create_app(_demo_settings(tmp_path))
+    canary = "sk-synthetic-canary-abcdefghijklmnopqrstuvwxyz"
+
+    async def refused():
+        raise HTTPException(status, detail="Rejected credential " + canary)
+
+    app.add_api_route("/api/v1/_audit_wrapped_error", refused, methods=["POST"])
+    with TestClient(app, base_url="https://crm.test") as client:
+        assert client.post("/api/v1/auth/login", json={
+            "username": "demo-owner", "password": "temporary-password-123",
+        }).status_code == 200
+        response = client.post("/api/v1/_audit_wrapped_error", json={})
+        assert response.status_code == status
+        assert canary not in response.text

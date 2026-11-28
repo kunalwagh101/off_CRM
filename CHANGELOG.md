@@ -1,3 +1,7 @@
+## 2026-11-28 — API authentication and validation hardening
+
+- D-543: malformed auth refusal, method-specific public bootstrap and callbacks, safe rejected-host and wrapped 4xx details. Tests authored, full CI pending.
+
 ## 2026-11-28 — fix worker migration and owner acceptance regressions
 
 - D-541: reviewed install-only worker progress, early demo guard and updated migration-version expectations.

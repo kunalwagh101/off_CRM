@@ -480,6 +480,7 @@ write the code, then the evidence block.)*
 - S-07.01.03 · Meeting transcription with no bot in the call
 - S-06.02.05 · The UI is usable by keyboard and screen reader
 - S-06.02.02 · Every endpoint authorises and validates
+  checkpoint: 2026-11-28 D-543 — hardened malformed credentials, exact public HTTP method gate, safe bounded wrapped errors and host rejection. Local old comparison TypeError reproduced; API regressions authored, CI pending.
 - S-06.02.01 · No secret may enter a model prompt
   checkpoint: 2026-11-28 D-540 — actual scanner alias/quoted credential/header detection and secret-safe diagnostic paths implemented; extracted rule harness RED 16 / GREEN 21, broker regressions authored. Full CI pending.
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event

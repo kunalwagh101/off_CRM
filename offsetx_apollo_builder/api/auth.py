@@ -21,6 +21,14 @@ from ..db.schema import ensure_schema
 SESSION_COOKIE = "offsetx_crm_session"
 
 
+def constant_time_text_equal(supplied: str, expected: str) -> bool:
+    """Compare wire credentials without raising on malformed Unicode input."""
+    try:
+        return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+    except UnicodeError:
+        return False
+
+
 def _encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
@@ -335,7 +343,7 @@ class WorkspaceAuthStore:
         return f"{encoded}.{signature}"
 
     def verify(self, token: str, *, now: int | None = None) -> SessionIdentity | None:
-        if not token or len(token) > 4096:
+        if not token or len(token) > 4096 or not token.isascii():
             return None
         try:
             encoded, supplied_signature = token.split(".", 1)
@@ -507,7 +515,7 @@ class DemoSessionAuth:
         return f"{encoded}.{signature}"
 
     def verify(self, token: str, *, now: int | None = None) -> SessionIdentity | None:
-        if not self.enabled or not token:
+        if not self.enabled or not token or len(token) > 4096 or not token.isascii():
             return None
         try:
             encoded, supplied_signature = token.split(".", 1)
@@ -520,7 +528,7 @@ class DemoSessionAuth:
             expires_at = int(expires_text)
         except (ValueError, UnicodeDecodeError, binascii.Error):
             return None
-        if not hmac.compare_digest(username, self.username):
+        if not constant_time_text_equal(username, self.username):
             return None
         current = int(time.time()) if now is None else now
         if expires_at <= current:

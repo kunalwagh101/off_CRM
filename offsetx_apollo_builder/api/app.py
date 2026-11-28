@@ -157,7 +157,7 @@ from ..outreach.provider_profiles import (
 )
 from ..outreach.providers import ProviderError
 from ..outreach.sales import SalesConflictError, SalesTracker
-from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore
+from .auth import LoginAttemptLimiter, SESSION_COOKIE, WorkspaceAuthError, WorkspaceAuthStore, constant_time_text_equal
 from .config import AppSettings
 from ..agent.permissions import AgentPermissionPolicy, ChatPermissionRegistry, PermissionErrorRule
 from .storage_readiness import describe_storage_readiness
@@ -280,17 +280,18 @@ LIVE_SEND_CONFIRMATION = "SEND LIVE EMAILS"
 # fail if a new /api endpoint becomes public merely because somebody edited the
 # middleware condition. Health probes live outside /api and expose no customer
 # data; the frontend shell/static assets also live outside this API boundary.
-PUBLIC_API_PATHS: frozenset[str] = frozenset({
-    f"{API_PREFIX}/meta",
-    f"{API_PREFIX}/auth/session",
-    f"{API_PREFIX}/auth/login",
-    f"{API_PREFIX}/auth/logout",
-    f"{API_PREFIX}/email-delivery/events/ses/sns",
-})
+PUBLIC_API_METHODS: dict[str, frozenset[str]] = {
+    f"{API_PREFIX}/meta": frozenset({"GET"}),
+    f"{API_PREFIX}/auth/session": frozenset({"GET"}),
+    f"{API_PREFIX}/auth/login": frozenset({"POST"}),
+    f"{API_PREFIX}/auth/logout": frozenset({"POST"}),
+    f"{API_PREFIX}/email-delivery/events/ses/sns": frozenset({"POST"}),
+}
+PUBLIC_API_PATHS: frozenset[str] = frozenset(PUBLIC_API_METHODS)
 PUBLIC_UNSUBSCRIBE_PREFIX = f"{API_PREFIX}/email/unsubscribe/"
 
 
-def is_public_api_path(path: str) -> bool:
+def is_public_api_path(path: str, method: str | None = None) -> bool:
     """Closed public bootstrap/callback allowlist.
 
     Unsubscribe is the only parameterised public route. It accepts exactly one
@@ -298,11 +299,11 @@ def is_public_api_path(path: str) -> bool:
     access by sharing a string prefix.
     """
     if path in PUBLIC_API_PATHS:
-        return True
+        return method is None or method.upper() in PUBLIC_API_METHODS[path]
     if not path.startswith(PUBLIC_UNSUBSCRIBE_PREFIX):
         return False
     token = path[len(PUBLIC_UNSUBSCRIBE_PREFIX):]
-    return bool(token) and "/" not in token
+    return bool(token) and "/" not in token and (method is None or method.upper() in {"GET", "POST"})
 
 
 # D-451 emergency boundary: these routes still touch the install's shared
@@ -737,7 +738,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         supplied = request.headers.get("x-offsetx-token", "")
         if authorization.lower().startswith("bearer "):
             supplied = authorization[7:].strip()
-        return hmac.compare_digest(supplied, resolved.api_token)
+        return constant_time_text_equal(supplied, resolved.api_token)
 
     def session_identity(request: Request):
         token = request.cookies.get(SESSION_COOKIE, "")
@@ -1178,7 +1179,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                     status_code=421,
                     content={
                         "detail": (
-                            f"This server does not answer to the host {bare_host!r}. "
+                            "This server does not answer to the supplied host. "
                             "Set OFFSETX_ALLOWED_HOSTS if that name is legitimate."
                         )
                     },
@@ -1190,7 +1191,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                 "The sample CRM is read-only. AI chat and orchestration are available; "
                 "CRM changes, external sending and owner actions are disabled."
             )}))
-        is_public = is_public_api_path(request.url.path)
+        is_public = is_public_api_path(request.url.path, request.method)
         # No configuration clause any more. Whether auth is set up is decided at
         # startup above, so a request never re-decides it — that clause was the
         # fail-open: with nothing configured, every route served 200 to anyone.
@@ -1416,8 +1417,8 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # S-06.02.02 guards against is a *credential* echoed back, so only a
         # message the credential scanner flags is withheld, and every message
         # is bounded.
-        message = str(exc)[:500]
-        if not message or not scan_payload(
+        message = str(exc)
+        if not message or len(message) > 500 or not scan_payload(
             {"detail": message}, policy=DataPolicy.FULL, allow_addresses=True
         ).clean:
             message = "The supplied value is invalid for this operation."
@@ -1442,7 +1443,16 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
                          f"contact the install owner if it persists. Reference: {reference}", "error_id": reference},
                 headers={**(exc.headers or {}), "X-Error-ID": reference},
             )
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+        detail = exc.detail
+        # Domain handlers often wrap ValueError in HTTPException. Apply the
+        # same credential check to string details, without changing typed
+        # structured responses used by health or other explicit contracts.
+        if exc.status_code < 500 and isinstance(detail, str):
+            if len(detail) > 500 or not scan_payload(
+                {"detail": detail}, policy=DataPolicy.FULL, allow_addresses=True
+            ).clean:
+                detail = "The supplied value is invalid for this operation."
+        return JSONResponse(status_code=exc.status_code, content={"detail": detail}, headers=exc.headers)
 
     @app.exception_handler(NotionError)
     async def notion_failure(_: Request, exc: NotionError) -> JSONResponse:

@@ -82,6 +82,10 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 - D-540: real pre-flight scanner now detects common config-field aliases, quoted assignments, Basic authorization and inline cookies; blocked finding paths omit arbitrary mapping keys and credential samples. Old extracted-rule reproduction 16 failed/5 passed, new helper harness 21 passed. Actual broker regression tests written, exact-source CI pending. No external provider call or production deployment.
 
+## 2026-11-28 — S-06.02.02 API boundary
+
+- D-543: malformed auth comparisons fail closed, exact method-aware public allowlist, bounded credential-safe wrapped 4xx and no Host reflection. Old comparison TypeError reproduced locally; actual API regressions authored, CI pending. No production deployment or account policy expansion.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

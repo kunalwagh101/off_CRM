@@ -108,7 +108,10 @@ def verify_owner_logins(base, previous, second):
         with httpx.Client(base_url=base, trust_env=False, timeout=10) as user:
             login = user.post("/api/v1/auth/login", json={"username": username, "password": password})
             assert login.status_code == 200 and login.json()["workspace_id"] == "local"
-            assert user.get("/api/v1/workspaces").status_code == 200
+            # Workspace administration is install-token-only. A local login
+            # has the owner-only health permission, not token administration.
+            assert user.get("/api/v1/operations/health").status_code == 200
+            assert user.get("/api/v1/workspaces").status_code == 403
 
 
 def verify_drafts(base, token, key, chromium):

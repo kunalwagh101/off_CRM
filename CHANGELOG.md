@@ -1,3 +1,7 @@
+## 2026-11-28 — bound privacy CSV reads
+
+- D-545 / S-06.02.04: cap the actual CSV read, not just the earlier inventory stat; preserve UTF-8 BOM and multiline CSV semantics. Isolated method RED 1 failed/2 passed, GREEN 3 passed; repository-level find/delete regressions pending CI.
+
 ## 2026-11-28 — privacy inventory and deletion correctness
 
 - D-544: fail closed on unreadable/oversized traces and crawler DB errors; reject changed inventories, verify actual removal, keep safe receipt references, prevent cross-workspace chat inventory and email substring matching in structured recipient columns. Regression tests authored; CI pending.

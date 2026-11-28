@@ -863,3 +863,39 @@ def test_exact_email_columns_and_chat_access_do_not_include_other_subjects(tmp_p
     finally:
         service.close()
         store.close()
+
+
+
+@pytest.mark.parametrize("operation", ["find", "delete"])
+def test_structured_export_growth_after_inventory_fails_closed(tmp_path, monkeypatch, operation):
+    from offsetx_apollo_builder import privacy
+
+    path = tmp_path / "export.csv"
+    path.write_bytes(b"email\nalice@example.com\n")
+    adapter = privacy.StructuredExportPrivacyAdapter((tmp_path,))
+    monkeypatch.setattr(privacy, "MAX_STRUCTURED_FILE_BYTES", 64)
+    original_files = adapter._files
+    grown = b"email\nalice@example.com\n" + b"x" * 64 + b"\n"
+
+    def grow_after_inventory():
+        files = original_files()
+        path.write_bytes(grown)
+        return files
+
+    monkeypatch.setattr(adapter, "_files", grow_after_inventory)
+    with pytest.raises(PrivacyError, match="safe scan size"):
+        getattr(adapter, operation)(_subject("alice@example.com"))
+    assert path.read_bytes() == grown
+
+
+def test_structured_export_bounded_read_preserves_csv_and_utf8(tmp_path, monkeypatch):
+    from offsetx_apollo_builder import privacy
+
+    path = tmp_path / "export.csv"
+    contents = b'\xef\xbb\xbfa,"b\r\nc"\r\n'
+    path.write_bytes(contents)
+    monkeypatch.setattr(privacy, "MAX_STRUCTURED_FILE_BYTES", len(contents))
+    assert privacy.StructuredExportPrivacyAdapter._read(path) == [["a", "b\r\nc"]]
+    path.write_bytes(b"\xff")
+    with pytest.raises(PrivacyError, match="safely read"):
+        privacy.StructuredExportPrivacyAdapter._read(path)

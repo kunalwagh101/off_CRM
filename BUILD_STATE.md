@@ -1,3 +1,7 @@
+## 2026-11-28 — S-06.02.04 bounded CSV inventory
+
+- D-545: growth after file enumeration bypassed the size cap. Actual reads now stop at the cap plus one byte and fail closed. Isolated exact-method RED 1 failure/2 passes; GREEN 3 passes. Added real adapter find/delete tests; full repository CI and live acceptance pending. No story promotion.
+
 ## 2026-11-28 — S-06.02.04 privacy safety
 
 - D-544: fix silent trace/crawler inventory failures and unsafe structured export paths, old-preview inventory drift, no-op deletion false success, arbitrary exception text in receipts, exact structured recipient matching and workspace-scoped chat message inventory. New privacy tests authored. Previous production container passed; exact-source CI pending. No production data removed. Global write coordination and crawler dependency remain open.

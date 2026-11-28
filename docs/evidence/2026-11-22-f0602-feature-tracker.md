@@ -10,6 +10,10 @@ Corrected five story blocks to match `PRODUCT_BACKLOG.md`: S-06.02.20 (2 cases, 
 
 The initial count-only comparison missed 30 cut-off acceptance cases in the pre-existing generated tracker. All 198 Given/When/Then cases have now been reconciled word-for-word (whitespace-normalised) against the original 69 story sections in `PRODUCT_BACKLOG.md`; four explicitly numbered task descriptions are also restored in full. The automated guard compares text as well as counts. This establishes an accurate development checklist, **not** implementation or manual hosted acceptance.
 
+## 2026-11-28 — bounded CSV privacy read
+
+D-545 / S-06.02.04: actual CSV reads now enforce the inventory byte limit even when a file grows after stat. Isolated method RED 1 failed/2 passed; GREEN 3 passed. Real adapter find/delete growth and UTF-8/CSV regressions authored. Full CI and live acceptance pending; no story status changed.
+
 ## Scope hierarchy
 
 **One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.

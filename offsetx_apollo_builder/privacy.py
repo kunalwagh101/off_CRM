@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import re
 import shutil
@@ -1488,7 +1489,13 @@ class StructuredExportPrivacyAdapter:
     @staticmethod
     def _read(path: Path) -> list[list[str]]:
         try:
-            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            # The inventory stat is not a read bound: a writer may extend the
+            # file after enumeration. Never read more than the configured cap.
+            with path.open("rb") as handle:
+                raw = handle.read(MAX_STRUCTURED_FILE_BYTES + 1)
+            if len(raw) > MAX_STRUCTURED_FILE_BYTES:
+                raise PrivacyError("Structured export exceeds the safe scan size")
+            with io.StringIO(raw.decode("utf-8-sig"), newline="") as handle:
                 return [list(row) for row in csv.reader(handle)]
         except (OSError, UnicodeError, csv.Error) as exc:
             raise PrivacyError("Could not safely read structured export") from exc

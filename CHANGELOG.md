@@ -1,3 +1,7 @@
+## 2026-11-28 — skip navigation acceptance
+
+- S-06.02.37: consecutive actual Chromium acceptance at d306120 and c9e1169 (CI 46125405523 and 46128043576) passed the targeted Settings/Contacts keyboard and pointer checks, 2/2 per viewport, and independent full inventory, 33/33 per viewport. Quality job 140926969360 also passed previous board evidence 74/74. Repository DONE entry uses the exact targeted command; full inventory remains an independent mandatory CI step. New board replay pending; no hosted or customer acceptance. Previous S-06.02.04 D-557 exact-source test and production container workflows both passed; broader privacy lifecycle remains open.
+
 ## 2026-11-28 — privacy artifact parent-path validation
 
 - D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directory ancestors, non-regular final files and traversal paths before registration/deletion. Missing normal paths remain idempotent. Isolated exact-method RED 2 failed/2 passed, GREEN 4 passed. Actual privacy service regressions cover in-root and dangling directory swaps, preservation of unrelated files and CRM identity, and successful retry after repair. No schema migration. Full application CI and concurrent filesystem-writer coordination remain open.

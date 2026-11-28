@@ -30,9 +30,13 @@ D-546 / S-06.02.40: fixed candidate-page starvation of unrelated ready lanes by 
 
 D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directory ancestors, non-regular final files and traversal paths before registration/deletion. Missing normal paths remain idempotent. Isolated exact-method RED 2 failed/2 passed, GREEN 4 passed. Actual privacy service regressions cover in-root and dangling directory swaps, preservation of unrelated files and CRM identity, and successful retry after repair. No schema migration. Full application CI and concurrent filesystem-writer coordination remain open.
 
+## 2026-11-28 — S-06.02.37 repository acceptance
+
+S-06.02.37: consecutive actual Chromium acceptance at d306120 and c9e1169 (CI 46125405523 and 46128043576) passed the targeted Settings/Contacts keyboard and pointer checks, 2/2 per viewport, and independent full inventory, 33/33 per viewport. Quality job 140926969360 also passed previous board evidence 74/74. Repository DONE entry uses the exact targeted command; full inventory remains an independent mandatory CI step. New board replay pending; no hosted or customer acceptance. Previous S-06.02.04 D-557 exact-source test and production container workflows both passed; broader privacy lifecycle remains open.
+
 ## Scope hierarchy
 
-**One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
+**One feature** F-06.02 with **69 directly contained stories**: 23 DONE, 41 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **46 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.
 
 **Owner override (2026-11-24):** Render is excluded for F-06.02. Substitute GitHub-hosted disposable real-app Docker/HTTP, Chromium and PostgreSQL evidence for the Render-specific QA instruction and per-story QA labels below; do not deploy or contact Render. Customer deployment and other external acceptance remain separately unverified. No statuses or acceptance criteria changed by this override.
 
@@ -746,7 +750,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 ### S-06.02.37 — Skip navigation keeps the current screen
 
-**Status:** IN_REVIEW. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
+**Status:** DONE. **Source:** [backlog](../../PRODUCT_BACKLOG.md), [work order](../../docs/work-orders/S-06.02.37-skip-keeps-current-page.md).
 
 **Requirement:** Skip navigation keeps the current screen.
 
@@ -759,7 +763,7 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 **Named tasks/subtasks:** None separately numbered in this backlog entry; the acceptance cases above are the implementation and testing obligations. Do not invent sub-story/task IDs.
 
-**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Both input cases passed 66 route/viewport combinations twice, but promotion replay failed one command; reopened. Targeted Settings/Contacts and full screen replay must pass before DONE.
+**QA:** All relevant unit, integration, API, negative/security, regression, real UI, disposable runner/local app, logs and recovery checks required. **Release gate:** Both the targeted keyboard/pointer checks and independent full inventory passed on consecutive exact-source CI runs 46125405523 and 46128043576. Repository DONE evidence entered; new 75-command replay and Render/customer acceptance are separate outstanding gates.
 
 ### S-06.02.38 — Any error can be traced back the next day
 

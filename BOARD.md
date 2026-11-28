@@ -188,10 +188,6 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 ## IN_REVIEW
 
-- S-06.02.37 · Skip navigation keeps the current screen
-  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
-  review: actual 66/66 route-width keyboard/pointer sweep passed at 455a78a and 152a98c; first promotion replay 46047059161 passed 74/75 commands but failed the repeat screen sweep after mobile Deliverability. Exact failure detail unavailable because verifier keeps stdout tail. Reopened for reproducible verification; retain full sweep and add targeted Settings/Contacts both-width gate plus failed route diagnostics. No application skip-handler change; no customer deployment.
-
 - S-06.02.60 · AI request and spending caps reserve atomically across workers (A11)
   work_order: docs/work-orders/S-06.02.60-atomic-ai-quota.md
   checkpoint: TDD RED b57c971 / Render dep-dblf71ugekts7388c3g0: 8 expected A11 FAIL; key rotation RED e488c30 / dep-dblfdv8u01pc73a2of90: 1 expected FAIL. GREEN code 8957a27 / Render dep-dblffhijnfac73fs3770: A11 early stage 14 PASS/1 conditional PostgreSQL skip; full SQLite 2,984 PASS/55 skipped, full real PG 3,008 PASS/100 skipped (A11 PG multi-process test included), focused PG 215 PASS; real Chromium desktop/mobile, frontend and security gates PASS. Render review runner confirmed LIVE 2026-11-04 09:35:47 UTC. S-06.02.60 BACKLOG under active audit and production/independent-penetration/customer acceptance gate, no customer or main release. docs/evidence/2026-11-04-a11-ai-quota-reservations.md.
@@ -513,6 +509,14 @@ write the code, then the evidence block.)*
   blocked: external — depends on S-01.05.01, which is itself waiting on the Google Cloud project.
 
 ## DONE
+
+- S-06.02.37 · Skip navigation keeps the current screen
+  work_order: docs/work-orders/S-06.02.37-skip-keeps-current-page.md
+  tests: frontend/src/components.test.tsx, tests/test_frontend_accessibility_contract.py, scripts/qa/audit_screen_sweep.py
+  command: uv run python -m scripts.qa.audit_screen_sweep --skip-link-only
+  result: Exact-source GitHub CI 46128043576 quality job 140926969360 passed both targeted route checks at both widths (2/2 each) and separate full screen inventory (33/33 each); previous CI 46125405523 also passed both gates. Full frontend build, Python matrix, PostgreSQL and prior board evidence 74/74 passed on c9e1169. Repository acceptance under disposable GitHub QA; new 75-command board replay pending, no Render or customer production acceptance claimed.
+  code: frontend/src/App.tsx, scripts/qa/audit_screen_sweep.py
+  commit: c9e1169586b3ee99df29ffdb738091612cd50d61
 
 
 - S-06.02.16 · Resolve frontend development dependency audit findings

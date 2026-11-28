@@ -1,3 +1,7 @@
+## 2026-11-28 — F-04.01 all-story build-ahead verification
+
+- D-549–D-552: tests c173dc0; backend fixes 261d074; procedure UI and tests b642885. Isolated reproduction 8 failed before / 8 passed after (2 SQL, 3 TS, 2 delegation control-flow, 1 fake-registry provisioning). Actual repository tests authored, not yet verified. Browser startup failed on 46122404968; remove unpaired hosted key from local QA config and preserve synthetic diagnostics. Dedicated CI gates for SQLite and PostgreSQL now run F-04.01 tests early. Production container passed e4d0172 before these fixes; new exact-source CI pending. No external providers or customer data used; no story promotion. Hosted owner/provider, independent security and rollback gates remain open.
+
 ## 2026-11-28 — S-04.01.01 stale Agent Team editor
 
 - D-548: frontend no longer sends unchanged tool grants/scope on rename; explicit grant removals remain valid and no-op saves refresh data. Isolated old request construction 4 failed; exact helper compiled with strict TypeScript and 4 passed. D-547 old SQL 3 failed/fixed SQL 3 passed on disposable SQLite. Real Vitest and live Chromium tests authored (deb0cac, 8fbba87), fix e4d0172. Full CI/PG, real browser and Render acceptance pending. No story promotion.

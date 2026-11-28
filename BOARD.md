@@ -51,12 +51,15 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-02.02.03 · Interrupt, steer, resume
 - S-04.01.02 · Skills: procedures fetched on demand
+  checkpoint: 2026-11-28 D-549 — conditional skill updates and minimal editor patch; isolated SQL 2/2 and TS 3/3; real repository and hosted gates pending; no status promotion.
   work_order: docs/work-orders/S-04.01.02-on-demand-agent-skills.md
   checkpoint: 2026-11-05 owner-approved explicit selection; workspace-owned procedures and owner API, broker AI-chat loading implemented on develop (faeb93b, 7487ccf); test source tests/test_companion_skills.py and Dockerfile.review. NOT TESTED: Render minutes exhausted and no runnable checkout. S-04.01.01 upstream IN_REVIEW, hosted registry durability S-06.03.06 and actual provider/browser acceptance open. BACKLOG, not DONE.
 - S-04.01.03 · Sub-agents for context isolation
+  checkpoint: 2026-11-28 D-550 — recheck revocation at provider boundaries; isolated control-flow 2/2; real repository and hosted gates pending; no status promotion.
   work_order: docs/work-orders/S-04.01.03-bounded-child-reasoning.md
   checkpoint: 2026-11-05 owner-scoped bounded one-level child reasoning source c733f7a/8c7b00c; tests/test_companion_delegation.py written, NOT RUN. No recursive tool/spawn access, live acceptance or complete five-role workflow. Upstream S-04.01.01 IN_REVIEW; remains BACKLOG.
 - S-04.01.04 · The five roles, wired to what already exists
+  checkpoint: 2026-11-28 D-551 — concurrent role provisioning preserves owner profile; isolated fake-registry 1/1; real repository and hosted gates pending; no status promotion.
   checkpoint: 2026-11-22 exact-source Render review build dep-dc0u8t3rjlhs73an2nfg ran Chromium review_agent_team_browser.py and explicitly reported PASS Agent team at 1280px and 390px (profile/procedure CRUD, scoped approved memory, role prerequisites, child bounds, deletion, read-only Scout). This is synthetic browser QA inside a Docker review build, not an owner-authenticated public-host paid-model/media integration, independent penetration or production deployment. BACKLOG retained.
   checkpoint: 2026-11-05 D-381 Scout/Poster request-owned TrendWatcher connections now closed on return/error (5eae113/9897916), shared engines remain open. Focused tests/test_agent_role_team.py source written but NOT RUN; remains BACKLOG.
 
@@ -486,6 +489,7 @@ write the code, then the evidence block.)*
 - S-06.01.04 · Routines that fire agent runs on a schedule or an event
 - S-06.01.01 · Workspaces with their own keys and their own logins
 - S-04.01.01 · Companions: persisted agent profiles
+  checkpoint: 2026-11-28 D-552 — local browser gate startup configuration corrected; CI 46122404968 failed before browser launch; real repository and hosted gates pending; no status promotion.
   checkpoint: 2026-11-28 D-547/D-548 partial backend and frontend edits preserve concurrent grant/scope changes; isolated SQL 3/3 and helper 4/4 pass, full CI/PG/browser/Render pending; IN_REVIEW retained.
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-03.02.05 · A platform is a row, not a code change

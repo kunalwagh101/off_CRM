@@ -32,6 +32,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install the locked environment for this interpreter
         run: uv sync --python ${{ matrix.python-version }} --extra dev --extra email --extra postgres --locked
+      - name: F-04.01 focused agent team regression
+        run: uv run pytest -q tests/test_agent_companions.py tests/test_companion_skills.py tests/test_companion_delegation.py tests/test_agent_role_team.py tests/test_hosted_companion_profiles.py
       - name: Run the complete Python regression suite
         run: uv run pytest -q
 
@@ -232,6 +234,10 @@ jobs:
           /usr/lib/postgresql/16/bin/pg_restore --version
       - name: Start isolated transaction-pooler acceptance target
         run: uv run python scripts/ci/start_test_pgbouncer.py
+      - name: F-04.01 focused agent team regression with real PostgreSQL
+        env:
+          OFF_CRM_TEST_CRM_ON_POSTGRES: "1"
+        run: uv run pytest -q tests/test_agent_companions.py tests/test_companion_skills.py tests/test_companion_delegation.py tests/test_agent_role_team.py tests/test_hosted_companion_profiles.py
       - name: Prove PostgreSQL namespace and hosted tool isolation with direct and pooled connections
         run: uv run pytest -q tests/test_postgres_namespaces.py tests/test_workspace_crm_registry_postgres.py tests/test_hosted_tool_registry.py
       - name: Provision explicit image for real tool sandbox acceptance

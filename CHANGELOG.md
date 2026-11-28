@@ -1,3 +1,7 @@
+## 2026-11-28 — F-04.01 agent team hardening
+
+- D-549–D-552: prevent stale skill edits, stop delegation at newly revoked profiles, reconcile concurrent five-role setup and correct local browser QA configuration. Add focused SQLite/PG verification, keep full suite and real browser requirements. No release claim.
+
 ## 2026-11-28 — prevent stale Agent Team profile form overwrites
 
 - D-548: profile editor sends only changed fields, preserves explicit revocation and refreshes unchanged forms. Isolated helper RED 4 failed/GREEN 4 passed; real frontend/browser regressions pending execution.

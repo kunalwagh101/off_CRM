@@ -13,6 +13,7 @@ import json
 import re
 import shutil
 import sqlite3
+import stat
 import threading
 import uuid
 from dataclasses import dataclass
@@ -1348,12 +1349,32 @@ class SubjectArtifactPrivacyAdapter:
         if not candidate.is_absolute():
             candidate = self.root / candidate
         resolved_root = self.root.resolve()
-        resolved = candidate.resolve()
-        if resolved_root not in resolved.parents or resolved == resolved_root:
+        candidate = candidate.absolute()
+        try:
+            relative = candidate.relative_to(self.root.absolute())
+        except ValueError:
+            try:
+                relative = candidate.relative_to(resolved_root)
+            except ValueError as exc:
+                raise PrivacyError("Subject artifact must live under the application data directory") from exc
+        if not relative.parts or ".." in relative.parts:
             raise PrivacyError("Subject artifact must live under the application data directory")
-        if candidate.is_symlink() or (resolved.exists() and not resolved.is_file()):
-            raise PrivacyError("Subject artifact must be a regular non-symlink file")
-        return resolved
+        # Never resolve the recorded relative path through a symlink: a
+        # replaced parent could redirect erasure to another subject's file.
+        current = resolved_root
+        for index, part in enumerate(relative.parts):
+            current = current / part
+            try:
+                mode = current.lstat().st_mode
+            except FileNotFoundError:
+                # A previously removed file (or directory) is idempotent.
+                return resolved_root / relative
+            except OSError as exc:
+                raise PrivacyError("Subject artifact could not be safely inspected") from exc
+            last = index == len(relative.parts) - 1
+            if not (stat.S_ISREG(mode) if last else stat.S_ISDIR(mode)):
+                raise PrivacyError("Subject artifact must be a regular non-symlink file under real directories")
+        return current
 
     def register(
         self,

@@ -26,6 +26,10 @@ D-546 / S-06.02.40: fixed candidate-page starvation of unrelated ready lanes by 
 - The existing functional Render QA service `srv-dc0vbd8m7kps73di4pm0` in the designated workspace last attempted `e1a96f4` (deploy `dep-dc4r27l6e07s738b7f8g`, 2026-11-27, build_failed); the previous live deployment is `4e5de7d`, not the tested revision. The recorded build-minute exhaustion remains unresolved; no new deployment was triggered. The latest owner request requires manual Render acceptance, which is not established by these runs.
 - This checkpoint reviewed existing workflow executions and logs, not a fresh local full-suite run. Local clone was refused by DNS resolution for github.com. No production data, real provider calls, supervised hosted worker, independent offsite restore or independent penetration acceptance were exercised in this session. No application change or board status promotion: 22 DONE, 47 not DONE. S-06.02.23 remains IN_PROGRESS.
 
+## 2026-11-28 — registered subject artifact path safety
+
+D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directory ancestors, non-regular final files and traversal paths before registration/deletion. Missing normal paths remain idempotent. Isolated exact-method RED 2 failed/2 passed, GREEN 4 passed. Actual privacy service regressions cover in-root and dangling directory swaps, preservation of unrelated files and CRM identity, and successful retry after repair. No schema migration. Full application CI and concurrent filesystem-writer coordination remain open.
+
 ## Scope hierarchy
 
 **One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.

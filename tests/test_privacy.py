@@ -899,3 +899,65 @@ def test_structured_export_bounded_read_preserves_csv_and_utf8(tmp_path, monkeyp
     path.write_bytes(b"\xff")
     with pytest.raises(PrivacyError, match="safely read"):
         privacy.StructuredExportPrivacyAdapter._read(path)
+
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_registered_subject_artifact_parent_symlink_fails_closed_and_retries(tmp_path, dangling):
+    store = _store(tmp_path)
+    data_dir = tmp_path / "data"
+    original = data_dir / "registered"
+    original.mkdir(parents=True)
+    subject_file = original / "report.txt"
+    subject_file.write_text("subject report", encoding="utf-8")
+    other = data_dir / "other"
+    other.mkdir()
+    other_file = other / "report.txt"
+    other_file.write_text("unrelated report", encoding="utf-8")
+    service = PrivacyService.for_local(store, data_dir=data_dir)
+    try:
+        subject = _subject("alice@example.com")
+        contact = store.upsert_contact(ContactInput(full_name="Alice Example", email="alice@example.com"))
+        service.register_artifact(subject, subject_file, record_class="generated_report")
+        preview = service.preview(subject)
+        saved = data_dir / "saved"
+        original.rename(saved)
+        original.symlink_to(data_dir / "missing" if dangling else other, target_is_directory=True)
+        receipt = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert receipt["status"] == "partial"
+        assert store.get_contact(contact) is not None
+        assert other_file.read_text(encoding="utf-8") == "unrelated report"
+        assert (saved / "report.txt").is_file()
+        artifact_result = next(row for row in receipt["stores"] if row["store"] == "subject_artifacts")
+        assert artifact_result["status"] == "failed"
+        original.unlink()
+        saved.rename(original)
+        retry = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert retry["complete"] is True
+        assert not subject_file.exists()
+        assert store.get_contact(contact) is None
+        assert other_file.read_text(encoding="utf-8") == "unrelated report"
+    finally:
+        service.close()
+        store.close()
+
+
+def test_subject_artifact_registration_rejects_parent_symlink(tmp_path):
+    from offsetx_apollo_builder.privacy import SubjectArtifactPrivacyAdapter
+
+    root = tmp_path / "data"
+    actual = root / "actual"
+    actual.mkdir(parents=True)
+    path = actual / "report.txt"
+    path.write_text("unrelated report", encoding="utf-8")
+    alias = root / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+    adapter = SubjectArtifactPrivacyAdapter(root, tmp_path / "artifacts.db")
+    try:
+        subject = _subject("alice@example.com")
+        with pytest.raises(PrivacyError):
+            adapter.register(subject, alias / path.name, record_class="generated_report")
+        assert not adapter.find(subject)
+        assert path.read_text(encoding="utf-8") == "unrelated report"
+    finally:
+        adapter.close()

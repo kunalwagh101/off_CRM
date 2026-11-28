@@ -1,3 +1,7 @@
+## 2026-11-28 — registered subject artifact path safety
+
+- D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directory ancestors, non-regular final files and traversal paths before registration/deletion. Missing normal paths remain idempotent. Isolated exact-method RED 2 failed/2 passed, GREEN 4 passed. Actual privacy service regressions cover in-root and dangling directory swaps, preservation of unrelated files and CRM identity, and successful retry after repair. No schema migration. Full application CI and concurrent filesystem-writer coordination remain open.
+
 ## 2026-11-28 — F-04.01 all-story build-ahead verification
 
 - D-549–D-552: tests c173dc0; backend fixes 261d074; procedure UI and tests b642885. Isolated reproduction 8 failed before / 8 passed after (2 SQL, 3 TS, 2 delegation control-flow, 1 fake-registry provisioning). Actual repository tests authored, not yet verified. Browser startup failed on 46122404968; remove unpaired hosted key from local QA config and preserve synthetic diagnostics. Dedicated CI gates for SQLite and PostgreSQL now run F-04.01 tests early. Production container passed e4d0172 before these fixes; new exact-source CI pending. No external providers or customer data used; no story promotion. Hosted owner/provider, independent security and rollback gates remain open.

@@ -1,3 +1,7 @@
+## 2026-11-28 — privacy artifact parent-path validation
+
+- D-557 / S-06.02.04: registered subject artifacts refuse symlinked or non-directory ancestors, non-regular final files and traversal paths before registration/deletion. Missing normal paths remain idempotent. Isolated exact-method RED 2 failed/2 passed, GREEN 4 passed. Actual privacy service regressions cover in-root and dangling directory swaps, preservation of unrelated files and CRM identity, and successful retry after repair. No schema migration. Full application CI and concurrent filesystem-writer coordination remain open.
+
 ## 2026-11-28 — F-04.01 agent team hardening
 
 - D-549–D-552: prevent stale skill edits, stop delegation at newly revoked profiles, reconcile concurrent five-role setup and correct local browser QA configuration. Add focused SQLite/PG verification, keep full suite and real browser requirements. No release claim.

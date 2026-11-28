@@ -10,6 +10,16 @@ export type Companion = { id: string; name: string; instructions: string; memory
 export type Procedure = { id: string; name: string; content: string; enabled: boolean };
 
 type ProfileDraft = Pick<Companion, "name" | "instructions" | "memory_scope" | "granted_tool_ids">;
+type ProcedureDraft = Pick<Procedure, "name" | "content">;
+
+export function procedurePatch(saved: ProcedureDraft, draft: ProcedureDraft): Partial<ProcedureDraft> {
+  const patch: Partial<ProcedureDraft> = {};
+  for (const field of ["name", "content"] as const) {
+    const value = draft[field].trim();
+    if (value !== saved[field]) patch[field] = value;
+  }
+  return patch;
+}
 
 /** Do not send fields the owner did not edit: a stale tab must not undo
  * permissions or memory-scope changes saved by another session. */
@@ -159,7 +169,8 @@ export default function AgentTeam() {
   const [scope, setScope] = useState("");
   const [grants, setGrants] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [skillId, setSkillId] = useState("");
+  const [skillEdit, setSkillEdit] = useState<Procedure | null>(null);
+  const skillId = skillEdit?.id ?? "";
   const [skillName, setSkillName] = useState("");
   const [skillContent, setSkillContent] = useState("");
   const [context, setContext] = useState<ContextPreview | null>(null);
@@ -268,17 +279,20 @@ export default function AgentTeam() {
         <Loadable loading={skills.loading} error={skills.error} />{skills.error && <Button onClick={skills.reload}>Retry procedures</Button>}
         <p>Only procedures you explicitly select enter a run. Select up to three; changing companions or reloading clears the selection.</p>
         <form className="form-stack" onSubmit={(e) => submit(e, "skill", async () => {
-          if (skillId) await api.patch(`/companion-skills/${encodeURIComponent(skillId)}`, { name: skillName.trim(), content: skillContent.trim() });
+          if (skillEdit) {
+            const patch = procedurePatch(skillEdit, { name: skillName, content: skillContent });
+            if (Object.keys(patch).length) await api.patch(`/companion-skills/${encodeURIComponent(skillEdit.id)}`, patch);
+          }
           else await api.post("/companion-skills", { name: skillName.trim(), content: skillContent.trim() }, idempotencyKey("procedure"));
-          setSkillId(""); setSkillName(""); setSkillContent(""); skills.reload(); notify("Procedure saved", "success");
+          setSkillEdit(null); setSkillName(""); setSkillContent(""); skills.reload(); notify("Procedure saved", "success");
         })}>
           <Field label="Procedure name"><input required maxLength={100} value={skillName} onChange={(e) => setSkillName(e.target.value)} /></Field>
           <Field label="Procedure text"><textarea required maxLength={2000} rows={3} value={skillContent} onChange={(e) => setSkillContent(e.target.value)} /></Field>
-          <Button type="submit" busy={busy === "skill"}>{skillId ? "Save procedure" : "Create procedure"}</Button>{skillId && <Button type="button" tone="secondary" onClick={() => { setSkillId(""); setSkillName(""); setSkillContent(""); }}>Cancel procedure edit</Button>}
+          <Button type="submit" busy={busy === "skill"}>{skillId ? "Save procedure" : "Create procedure"}</Button>{skillId && <Button type="button" tone="secondary" onClick={() => { setSkillEdit(null); setSkillName(""); setSkillContent(""); }}>Cancel procedure edit</Button>}
         </form>
         {(skills.data?.items ?? []).map((skill) => <div key={skill.id} className="agent-team-procedure">
           <label className="checkbox-row"><input type="checkbox" disabled={!profile?.enabled || !skill.enabled || (!selectedSkills.includes(skill.id) && selectedSkills.length >= 3)} checked={selectedSkills.includes(skill.id)} onChange={() => { setSelectedSkills(toggle(selectedSkills, skill.id)); setContext(null); }} />{skill.name}</label>
-          <div className="page-actions"><Button tone="ghost" onClick={() => { setSkillId(skill.id); setSkillName(skill.name); setSkillContent(skill.content); }}>Edit {skill.name}</Button><Button tone="secondary" onClick={() => void perform("skill-toggle", async () => { await api.patch(`/companion-skills/${skill.id}`, { enabled: !skill.enabled }); skills.reload(); })}>{skill.enabled ? "Disable" : "Enable"} {skill.name}</Button><Button tone="danger" onClick={() => setConfirm({ kind: "skill", id: skill.id, name: skill.name })}>Delete {skill.name}</Button></div>
+          <div className="page-actions"><Button tone="ghost" onClick={() => { setSkillEdit(skill); setSkillName(skill.name); setSkillContent(skill.content); }}>Edit {skill.name}</Button><Button tone="secondary" onClick={() => void perform("skill-toggle", async () => { await api.patch(`/companion-skills/${skill.id}`, { enabled: !skill.enabled }); skills.reload(); })}>{skill.enabled ? "Disable" : "Enable"} {skill.name}</Button><Button tone="danger" onClick={() => setConfirm({ kind: "skill", id: skill.id, name: skill.name })}>Delete {skill.name}</Button></div>
         </div>)}
       </Panel>}
       {profile && <Panel title="Context and approved memory">

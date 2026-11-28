@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 vi.mock("../hooks", () => ({
   useResource: (load: () => unknown) => ({ data: load(), loading: false, error: state.error, reload: vi.fn() })
 }));
-import AgentTeam, { companionProfilePatch, ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt, roleExecutionIntent, recoverLegacyRoleRequestAttempt } from "./AgentTeam";
+import AgentTeam, { procedurePatch, companionProfilePatch, ToolGrantChoices, roleRequestAttempt, roleIntentDigest, saveRoleRequestAttempt, loadRoleRequestAttempt, clearRoleRequestAttempt, roleExecutionIntent, recoverLegacyRoleRequestAttempt } from "./AgentTeam";
 
 function screen() {
   return renderToStaticMarkup(<AppContext.Provider value={{ campaigns: [], campaignId: "", activeCampaign: null, selectCampaign: vi.fn(), createCampaign: vi.fn(), refreshCampaigns: vi.fn(), notify: vi.fn() }}><AgentTeam /></AppContext.Provider>);
@@ -199,5 +199,19 @@ describe("companion profile saves preserve concurrent security changes", () => {
   it("includes changed instructions without resetting other fields", () => {
     expect(companionProfilePatch(saved, { ...draft, instructions: "Check the source." }))
       .toEqual({ instructions: "Check the source." });
+  });
+});
+
+
+describe("procedure editor preserves concurrent content edits", () => {
+  const saved = { name: "Original", content: "Original procedure." };
+  it("renames without sending stale instructions", () => {
+    expect(procedurePatch(saved, { ...saved, name: " Renamed " })).toEqual({ name: "Renamed" });
+  });
+  it("edits content without sending a stale name", () => {
+    expect(procedurePatch(saved, { ...saved, content: "Revised procedure." })).toEqual({ content: "Revised procedure." });
+  });
+  it("does not send a stale unchanged draft", () => {
+    expect(procedurePatch(saved, saved)).toEqual({});
   });
 });

@@ -593,14 +593,19 @@ class CompanionRegistry:
         conn = self._connection()
         try:
             with self._write_transaction():
-                conn.execute(
-                    "UPDATE agent_companion_skills SET name=?, content=?, enabled=?, updated_at=? "
+                cursor = conn.execute(
+                    "UPDATE agent_companion_skills SET "
+                    "name=CASE WHEN ? = 1 THEN ? ELSE name END, "
+                    "content=CASE WHEN ? = 1 THEN ? ELSE content END, "
+                    "enabled=CASE WHEN ? = 1 THEN ? ELSE enabled END, updated_at=? "
                     "WHERE id=? AND workspace_id=?",
-                    (current.name if name is None else self._name(name),
-                     current.content if content is None else self._skill_content(content),
-                     int(current.enabled if enabled is None else enabled),
+                    (int(name is not None), current.name if name is None else self._name(name),
+                     int(content is not None), current.content if content is None else self._skill_content(content),
+                     int(enabled is not None), int(current.enabled if enabled is None else enabled),
                      to_utc_iso(), current.id, current.workspace_id),
                 )
+                if cursor.rowcount != 1:
+                    raise CompanionError("Procedure not found in this workspace")
         except Exception as exc:  # noqa: BLE001 - discriminate the SQLSTATE below
             if not self._unique_violation(exc):
                 raise

@@ -47,10 +47,23 @@ def provision_roles(
     for name, instructions in ROLE_INSTRUCTIONS.items():
         current = existing.get(name.casefold())
         if current is None:
-            current = registry.create(
-                workspace_id=workspace_id, name=name, instructions=instructions,
-                granted_tool_ids=(),
-            )
+            try:
+                current = registry.create(
+                    workspace_id=workspace_id, name=name, instructions=instructions,
+                    granted_tool_ids=(),
+                )
+            except CompanionError as exc:
+                # A concurrent setup may have inserted this name after our
+                # initial list. Keep the winner, including owner edits.
+                if "already exists" not in str(exc):
+                    raise
+                current = next(
+                    (profile for profile in registry.list(workspace_id=workspace_id)
+                     if profile.name.casefold() == name.casefold()),
+                    None,
+                )
+                if current is None:
+                    raise
         result.append(current.to_dict())
     return result
 

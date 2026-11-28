@@ -56,8 +56,19 @@ def delegate_once(
         child = registry.start(item.companion_id, workspace_id=workspace_id, memory_limit=0)
         ready.append((child, child.model_instructions(), item.goal.strip()))
 
+    def recheck(profile_id: str, expected_instructions: str) -> None:
+        # Preflight all children before spend, then refuse newly revoked or
+        # changed profiles at each subsequent provider boundary.
+        current = registry.require(profile_id, workspace_id=workspace_id)
+        if not current.enabled:
+            raise CompanionError("A delegated companion is disabled")
+        if current.instructions != expected_instructions:
+            raise CompanionError("Companion instructions changed; review and start a new delegation")
+
     reports: list[dict[str, str]] = []
     for child, child_instructions, goal in ready:
+        recheck(parent.profile.id, parent_instructions)
+        recheck(child.profile.id, child_instructions)
         answer = broker.call(
             EgressRequest(
                 task_type="ai_chat", data_class=DataClass.CAMPAIGN,
@@ -84,6 +95,7 @@ def delegate_once(
         f"Child {index + 1} reported (untrusted, verify before using):\n{item['result']}"
         for index, item in enumerate(reports)
     )
+    recheck(parent.profile.id, parent_instructions)
     final = broker.call(
         EgressRequest(
             task_type="ai_chat", data_class=DataClass.CAMPAIGN,

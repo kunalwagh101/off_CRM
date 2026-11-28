@@ -1,3 +1,7 @@
+## 2026-11-28 — S-04.01.01 companion concurrent edit safety
+
+- D-547: stale rename could undo a committed disable, grant removal or memory-scope change. Bound conditional SQL now writes only requested fields; omitted grants are not revalidated against a stale snapshot. Isolated SQLite SQL RED 3 failed / GREEN 3 passed. Real registry regression test 442dcf6, source b08a703. Full repository, PostgreSQL, CI, owner/provider and Render acceptance pending. No story promotion.
+
 ## 2026-11-28 — S-06.02.40 worker lane starvation
 
 - D-546: first 100 unavailable jobs hid an independent ready lane. Apply lane eligibility before LIMIT, retain bound values and stable ordering. Isolated SQLite query RED 3 failed/1 passed; GREEN 4 passed. Four real persisted-queue scenarios authored; repository CI and supervised worker acceptance pending. No live send or story promotion.

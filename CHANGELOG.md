@@ -1,3 +1,7 @@
+## 2026-11-28 — durable email queue lane fairness
+
+- D-546 / S-06.02.40: exclude paced, backoff and batch-exhausted lanes before the bounded candidate page. Keep provider, daily-cap and approval checks. Isolated SQLite query RED 3 failed/1 passed; GREEN 4 passed. Real queue regressions authored, CI pending.
+
 ## 2026-11-28 — bound privacy CSV reads
 
 - D-545 / S-06.02.04: cap the actual CSV read, not just the earlier inventory stat; preserve UTF-8 BOM and multiline CSV semantics. Isolated method RED 1 failed/2 passed, GREEN 3 passed; repository-level find/delete regressions pending CI.

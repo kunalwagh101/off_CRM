@@ -14,6 +14,10 @@ The initial count-only comparison missed 30 cut-off acceptance cases in the pre-
 
 D-545 / S-06.02.04: actual CSV reads now enforce the inventory byte limit even when a file grows after stat. Isolated method RED 1 failed/2 passed; GREEN 3 passed. Real adapter find/delete growth and UTF-8/CSV regressions authored. Full CI and live acceptance pending; no story status changed.
 
+## 2026-11-28 — durable worker lane fairness
+
+D-546 / S-06.02.40: fixed candidate-page starvation of unrelated ready lanes by paced/backoff/batch-limited jobs. Isolated SQLite query RED 3 failed/1 passed; GREEN 4 passed. Real 101-job persistence regressions authored. Repository and external worker acceptance pending; no status changed.
+
 ## Scope hierarchy
 
 **One feature** F-06.02 with **69 directly contained stories**: 22 DONE, 42 IN_REVIEW, 3 BACKLOG, 1 IN_PROGRESS, 1 BLOCKED, 0 READY. **47 not DONE.** The roadmap does not number complete independent sub-feature/sub-story/task/sub-task trees for every story. The logical sub-feature clusters are: (i) identity, permissions, privacy, secrets; (ii) data safety, idempotency, hosting, scheduler/worker; (iii) AI/model cost, factuality and egress; (iv) media/browser safeguards; (v) operator UI, accessibility and live quality checks. These are labels, **not invented roadmap IDs**.

@@ -1,3 +1,7 @@
+## 2026-11-28 — S-06.02.40 worker lane starvation
+
+- D-546: first 100 unavailable jobs hid an independent ready lane. Apply lane eligibility before LIMIT, retain bound values and stable ordering. Isolated SQLite query RED 3 failed/1 passed; GREEN 4 passed. Four real persisted-queue scenarios authored; repository CI and supervised worker acceptance pending. No live send or story promotion.
+
 ## 2026-11-28 — S-06.02.04 bounded CSV inventory
 
 - D-545: growth after file enumeration bypassed the size cap. Actual reads now stop at the cap plus one byte and fail closed. Isolated exact-method RED 1 failure/2 passes; GREEN 3 passes. Added real adapter find/delete tests; full repository CI and live acceptance pending. No story promotion.

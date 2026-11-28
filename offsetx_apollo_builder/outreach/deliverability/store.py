@@ -548,9 +548,16 @@ class DeliverabilityStore:
     ) -> dict[str, Any] | None:
         now_iso = to_utc_iso(now)
         lease_iso = to_utc_iso(now + timedelta(seconds=lease_seconds))
+        # Apply lane eligibility before LIMIT: blocked jobs must not hide
+        # unrelated ready lanes. All lane values remain bound parameters.
+        lane_filters = "".join(
+            " AND NOT (j.lane_key = ? AND COALESCE(i.max_batch_size, 100) <= ?)"
+            for _ in (lane_counts or {})
+        )
+        lane_params = tuple(value for pair in (lane_counts or {}).items() for value in pair)
         with self.outreach.transaction(immediate=True) as conn:
             candidates = conn.execute(
-                """
+                f"""
                 SELECT j.*, c.daily_send_limit AS daily_limit, c.timezone,
                        COALESCE(i.max_per_second, 10) AS max_per_second,
                        COALESCE(i.max_batch_size, 100) AS max_batch_size,
@@ -566,10 +573,13 @@ class DeliverabilityStore:
                   AND c.status = 'active'
                   AND s.paused_reason = ''
                   AND (j.identity_id IS NULL OR i.status = 'active')
-                ORDER BY j.available_at, j.created_at
+                  AND (r.next_send_at IS NULL OR r.next_send_at = '' OR r.next_send_at <= ?)
+                  AND (r.backoff_until IS NULL OR r.backoff_until = '' OR r.backoff_until <= ?)
+                  {lane_filters}
+                ORDER BY j.available_at, j.created_at, j.id
                 LIMIT 100
                 """,
-                (now_iso,),
+                (now_iso, now_iso, now_iso, *lane_params),
             ).fetchall()
             selected: sqlite3.Row | None = None
             for row in candidates:

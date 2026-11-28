@@ -985,3 +985,51 @@ def test_worker_uses_current_time_for_each_claim_in_a_long_cycle(tmp_path, monke
         assert progress == [True, True]
     finally:
         engine.close()
+
+
+
+@pytest.mark.parametrize("blocker", ["pace", "backoff", "batch", "none"])
+def test_worker_claim_does_not_starve_ready_lane_beyond_first_page(tmp_path, blocker):
+    """A25: 100 unavailable jobs must not conceal an independent due job."""
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    try:
+        old_contacts = tmp_path / "older.csv"
+        old_contacts.write_text(
+            CONTACTS.splitlines()[0] + "\n" + "".join(
+                f"Contact {i},person{i}@example.com,Company {i},Climate Lead,CBAM,"
+                f"Published a supplier emissions brief,https://example.com/person{i},Supplier evidence handoff\n"
+                for i in range(100)
+            ),
+            encoding="utf-8",
+        )
+        first = engine.create_campaign(name="Older delivery lane", daily_send_limit=25)
+        assert engine.import_contacts(first, old_contacts)["added"] == 100
+        assert engine.generate_drafts(first, stages=[INITIAL])["generated"] == 100
+        assert engine.approve_drafts(first, stages=[INITIAL])["approved"] == 100
+        second = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path)
+        now = utc_now() + timedelta(minutes=2)
+        queued = service.enqueue_campaign(first, now=now - timedelta(seconds=1))["queued"]
+        assert len(queued) == 100
+        later = service.enqueue_campaign(second, now=now)["queued"][0]["job_id"]
+        first_lane = service.store.get_job(queued[0]["job_id"])["lane_key"]
+        lane_counts = {first_lane: 100} if blocker == "batch" else {}
+        if blocker in {"pace", "backoff"}:
+            future = to_utc_iso(now + timedelta(minutes=1))
+            with engine.store.transaction(immediate=True) as conn:
+                conn.execute(
+                    "INSERT INTO email_rate_state(lane_key, next_send_at, backoff_until, updated_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (first_lane, future if blocker == "pace" else None,
+                     future if blocker == "backoff" else None, to_utc_iso(now)),
+                )
+        selected = service.store.claim_next(now=now, lane_counts=lane_counts)
+        assert selected is not None
+        if blocker == "none":
+            assert selected["campaign_id"] == first
+            assert service.store.get_job(later)["status"] == "queued"
+        else:
+            assert selected["id"] == later
+            assert all(service.store.get_job(item["job_id"])["status"] == "queued" for item in queued)
+    finally:
+        engine.close()

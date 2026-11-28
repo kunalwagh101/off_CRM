@@ -66,9 +66,21 @@ def describe_storage_readiness(settings: AppSettings) -> dict[str, Any]:
             "Keep OFFSETX_DATABASE_URL and OFFSETX_SECRETS_KEY together; "
             "do not put their values in reports or logs."
         )
-    if settings.data_dir.resolve() not in settings.database_path.resolve().parents:
+    root = settings.data_dir.resolve()
+    crm_outside = root not in settings.database_path.resolve().parents
+    if crm_outside:
         blockers.append("local_crm_outside_data_root")
         actions.append("Place OFFSETX_OUTREACH_DB under OFFSETX_DATA_DIR.")
+    outside = {
+        name for name, path in (
+            ("exports", settings.export_dir),
+            ("gmail_token", settings.gmail_token),
+            ("gmail_client_secrets", settings.gmail_client_secrets),
+        ) if path is not None and not path.resolve().is_relative_to(root)
+    }
+    if outside:
+        blockers.append("local_files_outside_data_root")
+        actions.append("Place exports and Gmail files under OFFSETX_DATA_DIR.")
 
     stores = []
     for item in STORES:
@@ -76,6 +88,14 @@ def describe_storage_readiness(settings: AppSettings) -> dict[str, Any]:
             durability = "hosted_database"
         elif item.name == "Operational logs":
             durability = "platform_retention_unverified"
+        elif (
+            (item.name == "CRM" and crm_outside)
+            or (item.name == "Media and outboxes" and "exports" in outside)
+            or (item.name == "Gmail link" and outside.intersection(
+                {"gmail_token", "gmail_client_secrets"}
+            ))
+        ):
+            durability = "unverified_file"
         else:
             durability = "persistent_file" if mounted else "unverified_file"
         stores.append({"name": item.name, "durability": durability})

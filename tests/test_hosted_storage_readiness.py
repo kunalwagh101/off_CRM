@@ -168,3 +168,57 @@ def test_production_mount_check_accepts_separate_mount(tmp_path, isolated, monke
     settings.persistent_mount = tmp_path / "customer-volume"
     monkeypatch.setattr(Path, "is_mount", lambda self: self == settings.persistent_mount)
     settings.verify_persistent_mount()
+
+
+@pytest.mark.parametrize(
+    ("field", "store"),
+    [
+        ("export_dir", "Media and outboxes"),
+        ("gmail_token", "Gmail link"),
+        ("gmail_client_secrets", "Gmail link"),
+    ],
+)
+def test_readiness_blocks_files_outside_data_root(tmp_path, isolated, monkeypatch, field, store):
+    from offsetx_apollo_builder.api.storage_readiness import describe_storage_readiness
+
+    settings = _settings(tmp_path / "data")
+    setattr(settings, field, tmp_path / "private-outside" / "file")
+    # Isolate path classification from whether CI can attach a real volume.
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.api.storage_readiness._files_have_verified_mount",
+        lambda _: True,
+    )
+    report = describe_storage_readiness(settings)
+    assert report["production"]["status"] == "blocked"
+    assert "local_files_outside_data_root" in report["production"]["blockers"]
+    stores = {item["name"]: item["durability"] for item in report["stores"]}
+    assert stores[store] == "unverified_file"
+    assert "private-outside" not in json.dumps(report)
+
+
+def test_readiness_blocks_external_crm_even_when_data_dir_is_mounted(tmp_path, isolated, monkeypatch):
+    from offsetx_apollo_builder.api.storage_readiness import describe_storage_readiness
+
+    settings = _settings(tmp_path / "data")
+    settings.database_path = tmp_path / "outside.db"
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.api.storage_readiness._files_have_verified_mount",
+        lambda _: True,
+    )
+    report = describe_storage_readiness(settings)
+    assert "local_crm_outside_data_root" in report["production"]["blockers"]
+    assert report["production"]["status"] == "blocked"
+    assert next(item for item in report["stores"] if item["name"] == "CRM")["durability"] == "unverified_file"
+
+
+def test_readiness_keeps_valid_local_layout(tmp_path, isolated, monkeypatch):
+    from offsetx_apollo_builder.api.storage_readiness import describe_storage_readiness
+
+    settings = _settings(tmp_path / "data")
+    monkeypatch.setattr(
+        "offsetx_apollo_builder.api.storage_readiness._files_have_verified_mount",
+        lambda _: True,
+    )
+    report = describe_storage_readiness(settings)
+    assert report["production"]["blockers"] == []
+    assert report["production"]["status"] == "storage_contract_met"

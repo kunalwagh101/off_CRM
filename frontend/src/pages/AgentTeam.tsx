@@ -8,6 +8,25 @@ import { ContextPreviewView, RoleResultView, DelegationResultView, type ContextP
 
 export type Companion = { id: string; name: string; instructions: string; memory_scope: string; granted_tool_ids: string[]; enabled: boolean };
 export type Procedure = { id: string; name: string; content: string; enabled: boolean };
+
+type ProfileDraft = Pick<Companion, "name" | "instructions" | "memory_scope" | "granted_tool_ids">;
+
+/** Do not send fields the owner did not edit: a stale tab must not undo
+ * permissions or memory-scope changes saved by another session. */
+export function companionProfilePatch(saved: Companion, draft: ProfileDraft): Partial<ProfileDraft> {
+  const patch: Partial<ProfileDraft> = {};
+  for (const field of ["name", "instructions", "memory_scope"] as const) {
+    const value = draft[field].trim();
+    if (value !== saved[field]) patch[field] = value;
+  }
+  const previous = new Set(saved.granted_tool_ids);
+  const next = new Set(draft.granted_tool_ids);
+  if (previous.size !== next.size || [...next].some((id) => !previous.has(id))) {
+    patch.granted_tool_ids = [...next];
+  }
+  return patch;
+}
+
 type Named = { id: string; name: string };
 type Tool = Named & { description: string };
 type Account = { id: string; label: string; handle: string; enabled: number };
@@ -224,7 +243,16 @@ export default function AgentTeam() {
         </form>
         <Field label="Companion"><select aria-label="Companion" value={selected} onChange={(e) => setSelected(e.target.value)}><option value="">Select a companion</option>{(profiles.data?.items ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
         {profile && <form className="form-stack" onSubmit={(e) => submit(e, "save", async () => {
-          await api.patch(`/companions/${encodeURIComponent(profile.id)}`, { name: editName.trim(), instructions: editInstructions.trim(), memory_scope: scope.trim(), granted_tool_ids: grants }); profiles.reload(); notify("Profile updated", "success");
+          const patch = companionProfilePatch(profile, {
+            name: editName, instructions: editInstructions, memory_scope: scope, granted_tool_ids: grants,
+          });
+          if (Object.keys(patch).length) {
+            await api.patch(`/companions/${encodeURIComponent(profile.id)}`, patch);
+            notify("Profile updated", "success");
+          } else {
+            notify("No profile changes to save", "success");
+          }
+          profiles.reload();
         })}>
           <Field label="Edit profile name"><input required maxLength={100} value={editName} onChange={(e) => setEditName(e.target.value)} /></Field>
           <Field label="Edit profile instructions"><textarea required maxLength={12000} rows={3} value={editInstructions} onChange={(e) => setEditInstructions(e.target.value)} /></Field>

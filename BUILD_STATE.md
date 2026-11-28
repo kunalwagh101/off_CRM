@@ -1,3 +1,7 @@
+## 2026-11-28 — S-06.02.04 privacy safety
+
+- D-544: fix silent trace/crawler inventory failures and unsafe structured export paths, old-preview inventory drift, no-op deletion false success, arbitrary exception text in receipts, exact structured recipient matching and workspace-scoped chat message inventory. New privacy tests authored. Previous production container passed; exact-source CI pending. No production data removed. Global write coordination and crawler dependency remain open.
+
 ## 2026-11-28 — focused regression follow-up
 
 - Prior CI 46118552230 Python 3.11 reported two historical assertions of 34 CRM tables (now 35); updated both assertions without removing migration tests. Production container for b511539 passed. Earlier owner browser assertion was corrected in b226767. Local isolated UTF-8 comparison check 6/6 passed. Limit wrapped HTTP string scanning to credential findings so legitimate configuration hints remain intact. New exact-source CI pending.

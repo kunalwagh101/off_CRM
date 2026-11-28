@@ -1,3 +1,7 @@
+## 2026-11-28 — privacy inventory and deletion correctness
+
+- D-544: fail closed on unreadable/oversized traces and crawler DB errors; reject changed inventories, verify actual removal, keep safe receipt references, prevent cross-workspace chat inventory and email substring matching in structured recipient columns. Regression tests authored; CI pending.
+
 ## 2026-11-28 — API authentication and validation hardening
 
 - D-543: malformed auth refusal, method-specific public bootstrap and callbacks, safe rejected-host and wrapped 4xx details. Tests authored, full CI pending.

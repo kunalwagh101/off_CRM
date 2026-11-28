@@ -86,6 +86,10 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 
 - D-543: malformed auth comparisons fail closed, exact method-aware public allowlist, bounded credential-safe wrapped 4xx and no Host reflection. Old comparison TypeError reproduced locally; actual API regressions authored, CI pending. No production deployment or account policy expansion.
 
+## 2026-11-28 — S-06.02.04 privacy implementation
+
+- D-544: safe failure instead of silently skipping unreadable/oversized trace or crawler data; changed registry requires fresh preview, post-delete inventory verifies actual removal, receipts omit raw exception text, structured recipient emails use equality and chat message access respects parent workspace. New real store and service tests authored. Exact-source CI pending; no production deletion and no DONE claim.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

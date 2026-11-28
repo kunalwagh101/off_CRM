@@ -126,7 +126,7 @@ class FlakyAdapter:
         self.calls = 0
 
     def find(self, subject):
-        return [PrivacyRecord(self.name, "fixture", "test", [{"id": "x"}])]
+        return [PrivacyRecord(self.name, "fixture", "test", [{"id": "x"}])] if self.calls < 2 else []
 
     def delete(self, subject):
         self.calls += 1
@@ -732,6 +732,134 @@ def test_privacy_deletes_matching_meeting_transcript_without_touching_other_meet
         with pytest.raises(MeetingError, match="not found"):
             meetings.require(alice["id"], workspace_id="local")
         assert meetings.require(bob["id"], workspace_id="local")["title"] == "General market call"
+    finally:
+        service.close()
+        store.close()
+
+
+def test_oversized_trace_prevents_false_complete_and_preserves_anchor(tmp_path, monkeypatch):
+    from offsetx_apollo_builder import privacy
+    root = tmp_path / "data"
+    run = root / "agent_traces" / "subject-run"
+    run.mkdir(parents=True)
+    trace = run / "trace.jsonl"
+    trace.write_text("alice@example.com", encoding="utf-8")
+    store = _store(tmp_path)
+    service = PrivacyService.for_local(store, data_dir=root)
+    try:
+        alice = store.upsert_contact(ContactInput(full_name="Alice Example", email="alice@example.com"))
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+        monkeypatch.setattr(privacy, "MAX_TRACE_BYTES", 32)
+        trace.write_text("x" * 64 + "alice@example.com", encoding="utf-8")
+        receipt = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        rows = {row["store"]: row for row in receipt["stores"]}
+        assert receipt["complete"] is False
+        assert rows["browser_traces"]["status"] == "failed"
+        assert rows["outreach_crm"]["status"] == "pending"
+        assert store.get_contact(alice) is not None and trace.exists()
+        assert "alice@example.com" not in str(receipt)
+        monkeypatch.setattr(privacy, "MAX_TRACE_BYTES", 1024)
+        retry = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert retry["complete"] is True
+        assert not trace.exists() and store.get_contact(alice) is None
+    finally:
+        service.close()
+        store.close()
+
+
+def test_existing_broken_crawler_database_is_not_empty(tmp_path):
+    from offsetx_apollo_builder.privacy import CrawlerPrivacyAdapter
+    import sqlite3
+    path = tmp_path / "crawler.sqlite3"
+    adapter = CrawlerPrivacyAdapter(path)
+    subject = _subject("alice@example.com", "https://example.com/alice")
+    assert adapter.find(subject) == []
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE unexpected(id TEXT)")
+    with pytest.raises(PrivacyError, match="could not be read"):
+        adapter.find(subject)
+    with pytest.raises(PrivacyError, match="could not be read"):
+        adapter.delete(subject)
+
+
+def test_old_preview_cannot_omit_newly_registered_adapter(tmp_path):
+    subject = _subject("alice@example.com")
+    requests_path = tmp_path / "privacy.db"
+    first = PrivacyService(adapters=(StableAdapter(),), requests=PrivacyRequestStore(requests_path))
+    preview = first.preview(subject)
+    first.close()
+    new = ReappearingAdapter()
+    old = StableAdapter()
+    service = PrivacyService(adapters=(old, new), requests=PrivacyRequestStore(requests_path))
+    try:
+        with pytest.raises(PrivacyError, match="fresh deletion preview"):
+            service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert old.calls == new.calls == 0
+        assert new.rows
+    finally:
+        service.close()
+
+
+def test_adapter_noop_cannot_claim_success_and_receipt_omits_other_subject(tmp_path):
+    class NoopAdapter(ReappearingAdapter):
+        def delete(self, subject):
+            self.calls += 1
+            return {"fixture": 0}
+
+    class LeakingFailure(StableAdapter):
+        name = "leaking_failure"
+        def delete(self, subject):
+            raise RuntimeError("bob@example.com private-canary-path sk-synthetic-secret-123456789")
+
+    noop = NoopAdapter()
+    anchor = AnchorAdapter()
+    service = PrivacyService(adapters=(noop, LeakingFailure(), anchor),
+                             requests=PrivacyRequestStore(tmp_path / "privacy.db"))
+    try:
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+        receipt = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert not receipt["complete"] and anchor.calls == 0
+        assert all(row["status"] == "failed" and "Reference: E-" in row["error"]
+                   for row in receipt["stores"][:2])
+        assert "bob@example.com" not in str(receipt)
+        assert "private-canary" not in str(receipt)
+        assert "sk-synthetic" not in str(receipt)
+        persisted = service.requests.results(preview["request_id"])
+        assert "bob@example.com" not in str(persisted)
+    finally:
+        service.close()
+
+
+def test_exact_email_columns_and_chat_access_do_not_include_other_subjects(tmp_path):
+    store = _store(tmp_path)
+    service = PrivacyService.for_local(store, data_dir=tmp_path / "data")
+    try:
+        with store.transaction(immediate=True) as conn:
+            for email in ("alice@example.com", "malice@example.com"):
+                conn.execute(
+                    "INSERT INTO email_suppressions(email,reason,created_at,updated_at) VALUES(?,?,?,?)",
+                    (email, "operator", "2026-11-28T00:00:00+00:00", "2026-11-28T00:00:00+00:00"),
+                )
+            for workspace in ("local", "other"):
+                conn.execute(
+                    "INSERT INTO ai_chats(id,workspace_id,created_at,updated_at) VALUES(?,?,?,?)",
+                    (workspace, workspace, "2026-11-28", "2026-11-28"),
+                )
+                conn.execute(
+                    "INSERT INTO ai_messages(id,chat_id,role,content,created_at) VALUES(?,?,?,?,?)",
+                    (workspace, workspace, "user", f"alice@example.com {workspace}-only-canary", "2026-11-28"),
+                )
+        subject = _subject("alice@example.com")
+        preview = service.preview(subject)
+        assert "malice@example.com" not in str(preview)
+        assert "other-only-canary" not in str(preview)
+        assert "local-only-canary" in str(preview)
+        receipt = service.delete(preview["request_id"], subject, confirmation=DELETE_CONFIRMATION)
+        assert receipt["complete"]
+        assert [row["email"] for row in store.connection.execute("SELECT email FROM email_suppressions")] == ["malice@example.com"]
+        assert [row["id"] for row in store.connection.execute("SELECT id FROM ai_messages")] == ["other"]
     finally:
         service.close()
         store.close()

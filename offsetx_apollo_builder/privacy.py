@@ -26,6 +26,7 @@ from .ai.recall import SentMailIndex
 from .outreach.store import OutreachStore
 from .db import is_postgres_url
 from .db.store_connection import StoreConnection
+from .observability import report_failure
 
 DELETE_CONFIRMATION = "DELETE SUBJECT DATA"
 MAX_TRACE_BYTES = 10 * 1024 * 1024
@@ -67,7 +68,7 @@ def _url(value: Any) -> str:
         return ""
     parsed = urlsplit(text)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise PrivacyError(f"Subject URL must be an absolute http(s) URL: {text!r}")
+        raise PrivacyError("Subject URL must be an absolute http(s) URL")
     host = parsed.hostname.lower().rstrip(".").encode("idna").decode("ascii")
     port = parsed.port
     netloc = host
@@ -97,7 +98,7 @@ class SubjectIdentity:
         )
         for email in emails:
             if "@" not in email or len(email) > 320:
-                raise PrivacyError(f"Invalid subject email: {email!r}")
+                raise PrivacyError("Invalid subject email")
         urls = _uniq(_url(item) for item in value.get("urls", []) if str(item or "").strip())
         contact_ids = _uniq(str(item or "").strip() for item in value.get("contact_ids", []))
         candidate_ids = _uniq(str(item or "").strip() for item in value.get("candidate_ids", []))
@@ -203,9 +204,17 @@ def _redact_subject_text(value: object, subject: SubjectIdentity) -> str:
     return text
 
 
-def _scrub_subject(value: object, subject: SubjectIdentity) -> str:
-    """Keep operational errors useful without preserving the deleted identifiers."""
-    return _redact_subject_text(value, subject)[:1000]
+def _privacy_failure(exc: Exception) -> str:
+    # Scrubbing only the requested identity is insufficient: an exception can
+    # contain a different person's data, a filename or a provider credential.
+    reference = report_failure(exc, operation="privacy.store_cleanup")
+    return f"Store could not be safely cleared. Review the store and retry. Reference: {reference}"
+
+
+def _exact_recipient_clause(column: str, subject: SubjectIdentity) -> tuple[str, tuple[Any, ...]]:
+    if not subject.emails:
+        return "", ()
+    return f"lower({column}) IN ({_placeholders(subject.emails)})", subject.emails
 
 
 class OutreachPrivacyAdapter:
@@ -397,11 +406,15 @@ class OutreachPrivacyAdapter:
             ("email_delivery_events", ("recipient_email",), "email_delivery_event"),
             ("memory_items", ("content", "metadata_json"), "memory_item"),
             ("provider_calls", ("request_json", "response_json", "error"), "provider_call"),
-            ("ai_messages", ("content",), "ai_chat_message"),
             ("sales_setter_activity", ("notes",), "sales_activity_note"),
         )
         for table, columns, record_class in direct_specs:
-            clause, params = _token_clause(columns, subject)
+            clause, params = (
+                _exact_recipient_clause(columns[0], subject)
+                if table in {"email_contact_permissions", "email_suppressions", "email_unsubscribe_tokens",
+                             "email_send_jobs", "email_delivery_events"}
+                else _token_clause(columns, subject)
+            )
             if not clause:
                 continue
             workspace_sql = ""
@@ -448,6 +461,19 @@ class OutreachPrivacyAdapter:
         # exact identifier, and retaining half a conversation is a privacy leak.
         clause, params = _token_clause(("content",), subject)
         if clause:
+            # Messages have no workspace_id of their own. Scope the join to
+            # their owning chat before returning any message contents.
+            messages = [
+                dict(row)
+                for row in self.store.connection.execute(
+                    f"""
+                    SELECT m.* FROM ai_messages m JOIN ai_chats c ON c.id = m.chat_id
+                    WHERE c.workspace_id = ? AND ({clause})
+                    """,
+                    (subject.workspace_id, *params),
+                ).fetchall()
+            ]
+            add("ai_chat_message", messages, "message in a subject workspace chat")
             chats = [
                 dict(row)
                 for row in self.store.connection.execute(
@@ -483,7 +509,12 @@ class OutreachPrivacyAdapter:
         )
         direct_matches: dict[str, tuple[str, tuple[Any, ...], str, tuple[Any, ...]]] = {}
         for table, columns in direct_specs:
-            clause, params = _token_clause(columns, subject)
+            clause, params = (
+                _exact_recipient_clause(columns[0], subject)
+                if table in {"email_contact_permissions", "email_suppressions", "email_unsubscribe_tokens",
+                             "email_send_jobs", "email_delivery_events"}
+                else _token_clause(columns, subject)
+            )
             if not clause:
                 continue
             workspace_sql = ""
@@ -996,8 +1027,8 @@ class CrawlerPrivacyAdapter:
                 subject.urls,
             ).fetchall()
             return [dict(row) for row in rows]
-        except sqlite3.OperationalError:
-            return []
+        except sqlite3.OperationalError as exc:
+            raise PrivacyError("Crawler inventory could not be read safely") from exc
         finally:
             connection.close()
 
@@ -1053,10 +1084,10 @@ class TracePrivacyAdapter:
         try:
             root = self.root.resolve()
             run = path.parent.resolve()
-        except OSError:
-            return None
+        except OSError as exc:
+            raise PrivacyError("Trace inventory path could not be resolved") from exc
         if run == root or root not in run.parents or path.is_symlink() or path.parent.is_symlink():
-            return None
+            raise PrivacyError("Trace inventory contains an unsafe path")
         return run
 
     def _matches(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
@@ -1077,13 +1108,17 @@ class TracePrivacyAdapter:
             hit_files: list[str] = []
             for candidate in candidates:
                 if candidate.is_symlink() or not candidate.is_file():
-                    continue
+                    raise PrivacyError("Trace inventory contains an unsafe or missing file")
                 try:
-                    if candidate.stat().st_size > MAX_TRACE_BYTES:
-                        continue
-                    text = candidate.read_text(encoding="utf-8", errors="replace").lower()
-                except OSError:
-                    continue
+                    # Bound the read itself, not just a prior stat (the file
+                    # may grow between those operations).
+                    with candidate.open("rb") as handle:
+                        raw = handle.read(MAX_TRACE_BYTES + 1)
+                    if len(raw) > MAX_TRACE_BYTES:
+                        raise PrivacyError("Trace inventory exceeded the safe scan size")
+                    text = raw.decode("utf-8", errors="strict").lower()
+                except (OSError, UnicodeError) as exc:
+                    raise PrivacyError("Trace inventory could not be read safely") from exc
                 if any(token in text for token in tokens):
                     hit_files.append(candidate.name)
             if hit_files:
@@ -1413,8 +1448,8 @@ class StructuredExportPrivacyAdapter:
             root = Path(value)
             try:
                 resolved = root.resolve()
-            except OSError:
-                continue
+            except OSError as exc:
+                raise PrivacyError("Structured-export root could not be resolved") from exc
             key = str(resolved)
             if key not in seen:
                 seen.add(key)
@@ -1433,15 +1468,15 @@ class StructuredExportPrivacyAdapter:
                 try:
                     resolved = path.resolve()
                     size = path.stat().st_size
-                except OSError:
-                    continue
+                except OSError as exc:
+                    raise PrivacyError("Structured-export inventory could not be inspected") from exc
                 if path.is_symlink() or root not in resolved.parents:
-                    continue
+                    raise PrivacyError("Structured-export inventory contains an unsafe path")
                 if str(resolved) in seen_files:
                     continue
                 seen_files.add(str(resolved))
                 if size > MAX_STRUCTURED_FILE_BYTES:
-                    raise PrivacyError(f"Structured export exceeds the safe scan size: {resolved}")
+                    raise PrivacyError("Structured export exceeds the safe scan size")
                 found.append((root, resolved))
         return found
 
@@ -1456,7 +1491,7 @@ class StructuredExportPrivacyAdapter:
             with path.open("r", encoding="utf-8-sig", newline="") as handle:
                 return [list(row) for row in csv.reader(handle)]
         except (OSError, UnicodeError, csv.Error) as exc:
-            raise PrivacyError(f"Could not safely read structured export {path}") from exc
+            raise PrivacyError("Could not safely read structured export") from exc
 
     def _matches(self, subject: SubjectIdentity) -> list[dict[str, Any]]:
         matches: list[dict[str, Any]] = []
@@ -1769,6 +1804,11 @@ class PrivacyService:
             raise PrivacyError("Subject identifiers do not match the deletion preview")
         prior = self.requests.results(request_id)
         adapter_by_name = {adapter.name: adapter for adapter in self.adapters}
+        # An old preview must not silently omit a newly registered store or
+        # permit CRM deletion before a newly required auxiliary adapter.
+        current_names = tuple(adapter_by_name)
+        if tuple(request["store_names"]) != current_names:
+            raise PrivacyError("Privacy inventory changed. Create a fresh deletion preview before confirming.")
         failures: list[str] = []
         for store_name in request["store_names"]:
             previous = prior.get(store_name)
@@ -1795,7 +1835,7 @@ class PrivacyService:
                         request_id,
                         store_name,
                         status="failed",
-                        error=_scrub_subject(exc, subject),
+                        error=_privacy_failure(exc),
                     )
                     failures.append(store_name)
                     continue
@@ -1816,12 +1856,16 @@ class PrivacyService:
 
             try:
                 counts = adapter.delete(subject)
+                # Do not trust a successful return value alone. The same
+                # inventory must show that no matching records remain.
+                if adapter.find(subject):
+                    raise PrivacyError("Matching records remain after deletion")
             except Exception as exc:  # one failed store must not create false global success
                 self.requests.set_result(
                     request_id,
                     store_name,
                     status="failed",
-                    error=_scrub_subject(exc, subject),
+                    error=_privacy_failure(exc),
                 )
                 failures.append(store_name)
             else:

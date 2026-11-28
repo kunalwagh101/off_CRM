@@ -489,6 +489,7 @@ write the code, then the evidence block.)*
 - S-02.02.02 · PLAN.md as the single source of truth
 - S-03.02.05 · A platform is a row, not a code change
 - S-06.02.04 · Data deletion and subject access
+  checkpoint: 2026-11-28 D-544 — fail-closed file/DB scans, registry check, post-delete re-inventory, safe errors and precise email/workspace matching implemented. Real privacy regressions authored; CI pending, upstream still review.
 - S-05.01.03 · Take a competitor post apart and rebuild the shape
 - S-05.01.02 · Extraction packs as declared data
 - S-05.01.01 · A crawler with a frontier, not a loop

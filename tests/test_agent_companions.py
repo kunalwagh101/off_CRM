@@ -422,3 +422,41 @@ def test_backup_restore_reopens_companion_and_tool_store(tmp_path):
             headers=headers,
         )
         assert context.status_code == 200
+
+
+@pytest.mark.parametrize("security_edit", [
+    {"enabled": False},
+    {"granted_tool_ids": []},
+    {"memory_scope": "replacement-scope"},
+])
+def test_stale_profile_rename_preserves_concurrent_security_edit(
+    tmp_path, monkeypatch, security_edit,
+):
+    """A rename must not restore permissions or scope from its stale snapshot."""
+    tools = ToolRegistry(tmp_path / "tools.db")
+    registry = CompanionRegistry(tmp_path, tools=tools, memory_backend=Memory())
+    tool = _tool(tools, "allowed")
+    profile = registry.create(
+        workspace_id="w", name="Original", instructions="Work",
+        granted_tool_ids=[tool.id],
+    )
+    original_require = registry.require
+    interleaved = False
+
+    def require_with_interleaving(companion_id, *, workspace_id):
+        nonlocal interleaved
+        snapshot = original_require(companion_id, workspace_id=workspace_id)
+        if not interleaved:
+            interleaved = True
+            registry.update(companion_id, workspace_id=workspace_id, **security_edit)
+        return snapshot
+
+    monkeypatch.setattr(registry, "require", require_with_interleaving)
+    renamed = registry.update(profile.id, workspace_id="w", name="Renamed")
+    persisted = original_require(profile.id, workspace_id="w")
+    assert renamed == persisted
+    assert persisted.name == "Renamed"
+    for field, expected in security_edit.items():
+        if field == "granted_tool_ids":
+            expected = tuple(expected)
+        assert getattr(persisted, field) == expected

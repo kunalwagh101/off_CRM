@@ -2,6 +2,7 @@ from __future__ import annotations
 from .observability import failure_message, failure_scope, traced_command
 
 import argparse
+import os
 import json
 import sys
 import time
@@ -86,6 +87,10 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--max-jobs must be between 1 and 500")
     if not valid_poll_seconds(args.poll_seconds):
         raise SystemExit("--poll-seconds must be finite and between 0.25 and 60")
+    # from_env may validate the web-only demo layout before returning.
+    # Refuse worker mode before configuration can create files or open stores.
+    if os.getenv("OFFSETX_PUBLIC_DEMO", "").strip().lower() in {"1", "true", "yes", "on"}:
+        raise SystemExit("The email worker is unavailable in the public read-only demo")
     settings = AppSettings.from_env(hosted_target=args.database if args.database and is_postgres_url(args.database) else None)
     if args.database and not names_a_url(args.database):
         args.database = settings.database_path = Path(args.database).resolve()

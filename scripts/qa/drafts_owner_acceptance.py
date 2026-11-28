@@ -76,17 +76,23 @@ def seed_legacy(data):
 def check_owner_creation(base, token, previous, second):
     with httpx.Client(base_url=base, trust_env=False, timeout=10,
                       headers={"X-Offsetx-Token": token}) as owner:
-        assert owner.post("/api/v1/workspaces", json={
-            "username": "existing-owner", "workspace_id": "local", "password": previous,
-            "confirm_install_owner": True,
-        }).status_code == 201
+        # The current store permits exactly one login per workspace. The
+        # install token is the existing owner credential; create the local
+        # account only with explicit consent, then retain it through restart.
         body = {"username": "second-owner", "workspace_id": "local", "password": second}
         rejected = owner.post("/api/v1/workspaces", json=body)
         assert rejected.status_code == 400 and "install owner" in rejected.text.lower()
         assert owner.post("/api/v1/workspaces", json={**body, "confirm_install_owner": "true"}).status_code == 422
         assert not any(row["username"] == "second-owner" for row in owner.get("/api/v1/workspaces").json()["items"])
         saved = owner.post("/api/v1/workspaces", json={**body, "confirm_install_owner": True})
-        assert saved.status_code == 201 and saved.json()["install_owner"] is True
+        assert saved.status_code == 201, f"Explicit owner creation: {saved.status_code}"
+        assert saved.json()["install_owner"] is True
+        conflict = owner.post("/api/v1/workspaces", json={
+            "username": "other-owner", "workspace_id": "local", "password": previous,
+            "confirm_install_owner": True,
+        })
+        assert conflict.status_code == 409
+        assert owner.get("/api/v1/workspaces").status_code == 200
         ordinary = {"username": "ordinary", "workspace_id": "beta", "password": secrets.token_urlsafe(24)}
         assert owner.post("/api/v1/workspaces", json={**ordinary, "confirm_install_owner": True}).status_code == 400
         assert owner.post("/api/v1/workspaces", json=ordinary).status_code == 201
@@ -98,7 +104,7 @@ def check_owner_creation(base, token, previous, second):
 
 
 def verify_owner_logins(base, previous, second):
-    for username, password in (("existing-owner", previous), ("second-owner", second)):
+    for username, password in (("second-owner", second),):
         with httpx.Client(base_url=base, trust_env=False, timeout=10) as user:
             login = user.post("/api/v1/auth/login", json={"username": username, "password": password})
             assert login.status_code == 200 and login.json()["workspace_id"] == "local"
@@ -189,7 +195,7 @@ def main():
             check_owner_creation(base, token, previous, second)
         with running_server(root, work, env, base):
             verify_owner_logins(base, previous, second)
-        print("S-06.02.36 PASS: explicit owner consent, ordinary/anonymous denial, both owner logins after restart", flush=True)
+        print("S-06.02.36 PASS: explicit owner consent, ordinary/anonymous denial, owner account after restart", flush=True)
 
 
 if __name__ == "__main__":

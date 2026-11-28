@@ -1,3 +1,8 @@
+## 2026-11-28 — fix worker migration and owner acceptance regressions
+
+- D-541: reviewed install-only worker progress, early demo guard and updated migration-version expectations.
+- D-542: correct live owner consent test to existing unique workspace contract, retain conflict, permissions and restart verification. CI pending.
+
 ## 2026-11-28 — prevent prompt credential leaks
 
 - D-540 / S-06.02.01: block quoted credential assignments, common alias spellings and inline authentication/cookies; withhold credential samples and arbitrary diagnostic keys. Isolated rule harness 21 passed, real broker CI pending.

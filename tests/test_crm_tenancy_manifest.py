@@ -120,3 +120,15 @@ def test_explicit_reputation_scope_is_preserved_and_never_assumed():
         validate_ownership(rows, manifest(), workspaces={'alpha'})
     plan = validate_ownership(rows, manifest(email_suppressions=[assignment('private@example.com', '__install__')]), workspaces={'alpha'})
     assert plan.owner('email_suppressions', ('private@example.com',)) == '__install__'
+
+
+def test_worker_progress_is_install_wide_only_with_explicit_review():
+    rows = {"email_worker_progress": [{"id": "watch", "last_progress_at": "2026-11-28T00:00:00+00:00"}]}
+    with pytest.raises(OwnershipError, match="explicit"):
+        validate_ownership(rows, manifest(), workspaces={"local", "alpha"})
+    with pytest.raises(OwnershipError, match="install-wide"):
+        validate_ownership(rows, manifest(email_worker_progress=[assignment("watch", "alpha")]),
+                           workspaces={"local", "alpha"})
+    plan = validate_ownership(rows, manifest(email_worker_progress=[assignment("watch", "__install__")]),
+                              workspaces={"local", "alpha"})
+    assert plan.owner("email_worker_progress", ("watch",)) == "__install__"

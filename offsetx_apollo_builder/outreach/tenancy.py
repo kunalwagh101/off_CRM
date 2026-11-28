@@ -25,7 +25,7 @@ discovery_candidates research_entities research_edges research_observations sale
 sales_setter_activity sales_monthly_goals sales_lead_events ai_chat_projects ai_chats ai_messages
 email_sending_identities email_campaign_settings email_contact_permissions email_suppressions
 email_unsubscribe_tokens email_send_jobs email_rate_state email_delivery_events campaign_reply_triage
-campaign_followup_tasks campaign_sales_links'''.split())
+campaign_followup_tasks campaign_sales_links email_worker_progress'''.split())
 
 
 class OwnershipError(ValueError):
@@ -108,7 +108,11 @@ def validate_ownership(rows: dict[str, list[dict[str, Any]]], manifest: dict[str
             # install-wide only when the operator explicitly classifies them.
             if table == 'email_suppressions' and workspace == _INSTALL and indexed[identifier].get('reason') not in {'hard_bounce', 'complaint'}:
                 raise OwnershipError('Only reviewed reputation suppression can have install-wide scope')
-            global_allowed = table in {'email_suppressions', 'email_rate_state'} and workspace == _INSTALL
+            # This new row describes installation-wide worker progress, not
+            # any customer's data. Require an explicit install classification.
+            if table == 'email_worker_progress' and workspace != _INSTALL:
+                raise OwnershipError('Worker progress must have explicit install-wide scope')
+            global_allowed = table in {'email_suppressions', 'email_rate_state', 'email_worker_progress'} and workspace == _INSTALL
             if not isinstance(workspace, str) or (workspace not in workspaces and not global_allowed):
                 raise OwnershipError('Ownership assignment names an unknown workspace')
             if table == 'email_suppressions' and indexed[identifier].get('reason') in {'hard_bounce', 'complaint'} and workspace != _INSTALL:

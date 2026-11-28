@@ -1,3 +1,7 @@
+## 2026-11-28 — CI regression corrections
+
+- CI 46113910103 revealed the new worker table missing the ownership review list, demo config refusing before the intended worker guard, and historical v11 assertions. D-541 implements explicit install-only manifest scope and pre-config demo refusal, updates migration test versions. D-542 corrects actual owner acceptance to the existing unique workspace rule, not two simultaneous local accounts. No tests removed; new exact-source verification pending.
+
 ## 2026-11-28 — S-06.02.01 prompt scanner hardening
 
 - D-540: quoted config/header/cloud credential aliases and raw diagnostic key exposure reproduced in isolated extracted-rule harness (16 failed/5 passed); replacement rule harness 21 passed. Actual scanner now checks canonical aliases and quoted assignments, Basic authorization/inline cookies, reports arbitrary mapping positions rather than key text, and withholds credential samples. Added actual broker and FULL-policy regressions, CI pending. No provider called, no customer data, no release. Story remains IN_REVIEW.

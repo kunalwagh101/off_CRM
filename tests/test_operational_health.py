@@ -141,3 +141,41 @@ def test_config_failure_reports_unknown_not_false_success(tmp_path, monkeypatch)
         assert row["error_id"].startswith("E-")
         assert "sensitive-private" not in response.text
         assert body["alert_required"] is True
+
+
+def _worker(client):
+    body = _get(client).json()
+    return next(x for x in body["components"] if x["name"] == "external_email_worker"), body
+
+
+def test_expected_worker_missing_stale_and_recent_progress(tmp_path):
+    from datetime import timedelta
+    from offsetx_apollo_builder.outreach.models import utc_now
+
+    config = settings(tmp_path)
+    config.email_worker_expected = True
+    with TestClient(create_app(config)) as client:
+        row, body = _worker(client)
+        assert row["code"] == "worker_progress_missing" and body["alert_required"]
+        assert client.get("/health/ready").status_code == 200
+        store = client.app.state.email_delivery.store
+        store.record_worker_progress(now=utc_now() - timedelta(minutes=5))
+        row, body = _worker(client)
+        assert row["code"] == "worker_progress_stale" and body["alert_required"]
+        store.record_worker_progress(now=utc_now())
+        row, _ = _worker(client)
+        assert row["state"] == "healthy" and row["code"] == "recent_worker_progress"
+    with TestClient(create_app(config)) as client:
+        row, _ = _worker(client)
+        assert row["code"] == "recent_worker_progress"
+
+
+def test_worker_inspection_failure_has_safe_reference(tmp_path, monkeypatch):
+    with TestClient(create_app(settings(tmp_path))) as client:
+        def broken(**_):
+            raise RuntimeError("SECRET_WORKER_DB_VALUE")
+        monkeypatch.setattr(client.app.state.email_delivery.store, "worker_progress_snapshot", broken)
+        row, body = _worker(client)
+        assert row["state"] == "unknown" and row["error_id"].startswith("E-")
+        assert body["alert_required"] and "SECRET_WORKER_DB_VALUE" not in str(body)
+        assert client.get("/health/ready").status_code == 200

@@ -152,7 +152,7 @@ def test_every_crm_table_is_counted(crm_target):
                 )
             }
         assert set(store.table_counts()) == made == set(CRM_TABLES)
-        assert len(CRM_TABLES) == 34  # reply triage and human follow-up task tables
+        assert len(CRM_TABLES) == 35  # includes external worker progress
 
 
 def test_a_duplicate_is_refused_as_the_backends_integrity_error(crm_target):
@@ -720,8 +720,21 @@ def test_the_email_worker_sends_from_the_crm_the_app_opens(crm_target, tmp_path,
         engine.close()
 
     assert email_worker_cli.main(["--max-jobs", "5"]) == 0
+    from offsetx_apollo_builder.outreach.models import utc_now
     with _open(crm_target) as store:
-        assert DeliverabilityStore(store).get_job(job_id)["status"] == "accepted"
+        delivery = DeliverabilityStore(store)
+        assert delivery.get_job(job_id)["status"] == "accepted"
+        assert delivery.worker_progress_snapshot(now=utc_now())["last_progress_at"] is None
+
+    def stop(_seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(email_worker_cli.time, "sleep", stop)
+    assert email_worker_cli.main(["--watch", "--max-jobs", "5"]) == 130
+    with _open(crm_target) as store:
+        delivery = DeliverabilityStore(store)
+        assert delivery.worker_progress_snapshot(now=utc_now())["last_progress_at"]
+        assert delivery.get_job(job_id)["status"] == "accepted"
     assert len(list((data / "mail" / "outbox").glob("*.json"))) == 1
     assert not (data / "offsetx_outreach.db").exists()
 
@@ -1228,3 +1241,40 @@ def test_an_import_that_already_happened_points_to_skip(crm_target, tmp_path, mo
     _hosted(monkeypatch, crm_target)
     assert db_cli.main(["import-crm", "--yes", "--database", str(local)]) == 2
     assert "offsetx-db import-crm --skip" in capsys.readouterr().err
+
+
+def test_worker_progress_additive_upgrade_preserves_crm_and_survives_reopen(crm_target):
+    from datetime import timedelta
+    from offsetx_apollo_builder.outreach.deliverability.store import DeliverabilityStore
+    from offsetx_apollo_builder.outreach.models import utc_now, to_utc_iso
+
+    with _open(crm_target) as crm:
+        ids = _seed(crm)
+        with crm.transaction(immediate=True) as conn:
+            conn.execute("DROP TABLE email_worker_progress")
+            if crm.backend == "postgres":
+                conn.execute("UPDATE offcrm_schema SET version = 3 WHERE component = 'crm'")
+            else:
+                conn.execute("PRAGMA user_version = 11")
+    now = utc_now()
+    with _open(crm_target) as crm:
+        assert crm.get_campaign(ids["campaign"])["name"] == "Autumn launch"
+        assert crm.get_contact(ids["contact"])["company"] == "Acme Corp"
+        delivery = DeliverabilityStore(crm)
+        assert delivery.worker_progress_snapshot(now=now)["last_progress_at"] is None
+        delivery.record_worker_progress(now=now)
+    with _open(crm_target) as crm:
+        delivery = DeliverabilityStore(crm)
+        delivery.record_worker_progress(now=now - timedelta(seconds=30))
+        assert delivery.worker_progress_snapshot(now=now)["last_progress_at"] == to_utc_iso(now)
+
+
+def test_public_demo_cannot_start_the_email_worker(tmp_path, monkeypatch):
+    from offsetx_apollo_builder import email_worker_cli
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OFFSETX_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("OFFSETX_PUBLIC_DEMO", "1")
+    monkeypatch.delenv("OFFSETX_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OFFSETX_SECRETS_KEY", raising=False)
+    with pytest.raises(SystemExit, match="public read-only demo"):
+        email_worker_cli.main(["--watch"])

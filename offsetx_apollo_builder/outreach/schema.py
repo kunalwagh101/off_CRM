@@ -4,7 +4,7 @@ import re
 #: `offcrm_schema` (component "crm"), which started at 1 with this schema whole.
 #: Changing the schema after that means a step for each: `_migrate_legacy_schema`
 #: for SQLite files, and a new entry in `store._POSTGRES_STEPS`.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 #: Indexes over columns that arrived through a migration. They cannot live in
@@ -746,7 +746,19 @@ CREATE INDEX IF NOT EXISTS idx_campaign_sales_links_lead
 ON campaign_sales_links(sales_lead_id, campaign_contact_id);
 """
 
-SCHEMA_SQL = SCHEMA_SQL + _EMAIL_DELIVERY_SCHEMA + _RELATIONSHIP_SCHEMA + _PIPELINE_LINK_SCHEMA
+# Shared progress, not a claim that a process is alive. Only the watching
+# independent CLI writes this row.
+_EMAIL_WORKER_PROGRESS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS email_worker_progress (
+    id TEXT PRIMARY KEY CHECK(id = 'watch'),
+    last_progress_at TEXT NOT NULL
+);
+"""
+
+SCHEMA_SQL = (
+    SCHEMA_SQL + _EMAIL_DELIVERY_SCHEMA + _RELATIONSHIP_SCHEMA
+    + _PIPELINE_LINK_SCHEMA + _EMAIL_WORKER_PROGRESS_SCHEMA
+)
 
 #: Every table the CRM owns, read from the schema itself so a new table cannot
 #: be missed by the copy tool or a count. The FTS5 index is not one: SQLite

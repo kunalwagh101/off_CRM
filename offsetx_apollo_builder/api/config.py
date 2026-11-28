@@ -173,6 +173,8 @@ class AppSettings:
     #: `OFFSETX_PRODUCTION=1` refuses any layout whose customer state would not
     #: survive a restart — see `validate_storage`.
     production: bool = False
+    #: Opt-in: require recent independently watching worker progress.
+    email_worker_expected: bool = False
     persistent_mount: Path | None = None
     gmail_client_secrets: Path | None = None
     gmail_token: Path | None = None
@@ -223,6 +225,7 @@ class AppSettings:
                 os.getenv("OFFSETX_BACKUP_MAX_BYTES", str(DEFAULT_MAX_BACKUP_BYTES))
             ),
             production=_enabled(os.getenv("OFFSETX_PRODUCTION", "")),
+            email_worker_expected=_enabled(os.getenv("OFFSETX_EMAIL_WORKER_EXPECTED", "")),
             persistent_mount=_resolved(persistent_mount, root) if persistent_mount else None,
             gmail_client_secrets=_resolved(gmail_secrets, root) if gmail_secrets else None,
             # Defaults follow OFFSETX_DATA_DIR, so moving the data moves everything

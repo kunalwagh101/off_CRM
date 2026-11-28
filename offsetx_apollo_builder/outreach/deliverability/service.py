@@ -279,23 +279,31 @@ class EmailDeliveryService:
 
     # Worker -------------------------------------------------------------
 
-    def work_once(self, *, max_jobs: int = 25, now: datetime | None = None) -> dict[str, Any]:
+    def work_once(
+        self, *, max_jobs: int = 25, now: datetime | None = None,
+        on_progress: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
         if self.provider_factory is None:
             raise RuntimeError("Email delivery provider factory is not configured")
         if not self._worker_lock.acquire(blocking=False):
             raise RuntimeError("An email delivery worker cycle is already running")
-        now = now or utc_now()
+        # Fixed test clock, but real batches refresh time before every claim.
         try:
-            recovered = self.store.recover_stale(now=now)
+            recovered = self.store.recover_stale(now=now or utc_now())
+            if on_progress is not None:
+                on_progress()
             results: list[dict[str, Any]] = []
             lane_counts: dict[str, int] = {}
             for _ in range(max_jobs):
-                job = self.store.claim_next(now=now, lane_counts=lane_counts)
+                job_now = now or utc_now()
+                job = self.store.claim_next(now=job_now, lane_counts=lane_counts)
                 if job is None:
                     break
                 lane = str(job["lane_key"])
                 lane_counts[lane] = lane_counts.get(lane, 0) + 1
-                results.append(self._send_job(job, now=now))
+                results.append(self._send_job(job, now=job_now))
+                if on_progress is not None:
+                    on_progress()
             return {
                 "processed": len(results),
                 "accepted": sum(item["status"] == "accepted" for item in results),

@@ -91,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         args.database = settings.database_path = Path(args.database).resolve()
     if args.data_dir:
         settings.data_dir = args.data_dir.resolve()
+    if settings.public_demo:
+        raise SystemExit("The email worker is unavailable in the public read-only demo")
     settings.validate()
     retry_wait = None
     try:
@@ -118,7 +120,14 @@ def main(argv: list[str] | None = None) -> int:
                             raise SystemExit(failure_message(exc, operation="email.worker.cycle", data_dir=settings.data_dir)) from exc
                         engine = OutreachEngine(crm)
                         try:
-                            result = _service(settings, engine).work_once(max_jobs=args.max_jobs)
+                            service = _service(settings, engine)
+                            if args.watch:
+                                result = service.work_once(
+                                    max_jobs=args.max_jobs,
+                                    on_progress=service.store.record_worker_progress,
+                                )
+                            else:
+                                result = service.work_once(max_jobs=args.max_jobs)
                         finally:
                             engine.close()
                         print(json.dumps(result, ensure_ascii=False, default=str), flush=True)

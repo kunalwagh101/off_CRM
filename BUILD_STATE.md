@@ -1,3 +1,8 @@
+## 2026-11-28 — independent worker visibility
+
+- D-538: code adds shared CRM progress table (SQLite v12; PostgreSQL CRM v4), watch-only progress, real per-claim clock and owner operational diagnostics with explicit expectation. D-539: refuse CLI in public demo. Added migration, worker and API regression tests; no production migration or deployment. Prior retry commit db3b8b6 container 46113636886 passed; its broader CI was running at last observation. Corrected synthetic SES test sender before further execution.
+- No story status changed. Live hosted worker, offsite/durable outbox prerequisites and actual alert delivery remain open.
+
 ## 2026-11-28 — actual delivery worker remediation
 
 - Prior 6a815b9 CI 46049374064: Python matrix and PostgreSQL passed; quality reached real Drafts acceptance, where generic Playwright assertion claimed a disabled option was enabled despite DOM evidence. D-537 corrects the assertion to direct JS property; no UI bypass.

@@ -34,7 +34,7 @@ from .models import (
     parse_datetime,
     to_utc_iso,
 )
-from .schema import CRM_TABLES, POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION, _RELATIONSHIP_SCHEMA, _PIPELINE_LINK_SCHEMA
+from .schema import CRM_TABLES, POST_MIGRATION_SQL, SCHEMA_SQL, SCHEMA_VERSION, _RELATIONSHIP_SCHEMA, _PIPELINE_LINK_SCHEMA, _EMAIL_WORKER_PROGRESS_SCHEMA
 
 #: PostgreSQL's advisory lock for a CRM transaction asked for as `immediate`:
 #: one writer at a time across processes, as `BEGIN IMMEDIATE` is on SQLite —
@@ -78,7 +78,13 @@ def _postgres_pipeline_links(database: Database) -> None:
     database.executescript(_PIPELINE_LINK_SCHEMA)
 
 
-_POSTGRES_STEPS = (_postgres_baseline, _postgres_relationships, _postgres_pipeline_links)
+def _postgres_worker_progress(database: Database) -> None:
+    database.executescript(_EMAIL_WORKER_PROGRESS_SCHEMA)
+
+
+_POSTGRES_STEPS = (
+    _postgres_baseline, _postgres_relationships, _postgres_pipeline_links, _postgres_worker_progress,
+)
 
 
 class GuardedConnection:

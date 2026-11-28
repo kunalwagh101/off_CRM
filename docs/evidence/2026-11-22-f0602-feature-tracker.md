@@ -74,6 +74,10 @@ On `631079d`, [production container run 45434745341](https://github.com/kunalwag
 - 6a815b9 Python matrix and real PostgreSQL passed; quality failed on the Drafts disabled-option assertion even though HTML contained disabled; D-537 fixes DOM property check.
 - D-535 (S-06.02.40/.38): finite poll validation, long-outage overflow prevention, traceable restore waits. D-536 (S-06.02.61/.40): common definite-refusal delay handling, safe parsing, no SDK automatic retry and uncertain SES server errors quarantined. Isolated prior expression adaptation 14 failures / 17 passes; new exact helper 31 passes. Actual queue and provider-adapter regressions authored, not yet run on repository. Production worker prerequisites and actual configured providers remain open. No status promotion.
 
+## 2026-11-28 — operational worker implementation
+
+- D-538 (S-06.02.52/.40): actual shared database progress, owner-only missing/stale/recent/expired claims and due age, real per-claim clock. Additive SQLite v12/PG CRM v4 migration. D-539: refuse direct worker in public demo. Added migration/worker/owner API regressions; not yet executed. No customer data, schema migration in production or deployment. External alerts and supervised hosting remain open. Prior retry commit db3b8b6 production container passed.
+
 ## Directly contained stories and all written acceptance cases
 
 ### S-06.02.01 — No secret may enter a model prompt

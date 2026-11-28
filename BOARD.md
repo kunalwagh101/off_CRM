@@ -40,6 +40,7 @@ does not waive READY, evidence or existing escalations. Use `develop` only.
 
 - S-06.02.40 · A durable email worker runs beside the deployed web app
   work_order: docs/work-orders/S-06.02.40-durable-deployment-worker.md
+  checkpoint: 2026-11-28 D-538/D-539: shared CRM worker progress and live per-claim clock, direct public-demo worker refusal; migration and regression tests authored. Hosted worker not deployed.
   checkpoint: 2026-11-28 D-535/D-536: finite poll bounds, overflow-safe database/restore backoff and safe error references; shared retry policy, SES SDK single attempt and uncertain 5xx quarantine. Isolated retry-policy 31 PASS; actual integration and hosted supervised worker still pending.
 
 *(E-11, waiting on an upstream story rather than on a decision. Each names it.)*
@@ -279,6 +280,7 @@ it waited on finishes — that is a manual step and nobody was doing it.)*
 
 - S-06.02.52 · Owner sees operational scheduler health separate from web readiness
   work_order: docs/work-orders/S-06.02.52-operational-health.md
+  checkpoint: 2026-11-28 D-538 implemented independent watching-worker progress, stale/missing/expired diagnostics and due queue age on shared CRM, owner-only API and unchanged readiness. Additive SQLite/PG migration and tests authored; exact-source CI, alert delivery and deployment remain open.
   review: TDD RED 7/7 missing route on Render dep-dbhsga67bikc73fr5nrg; initial GREEN 7/7 on b7d9bbd; error-reference hardening at 3e5058c, full Render SQLite 2806 and PostgreSQL 2826 PASS on 3e5058c, QA deploy dep-dbhsifajnfac73c7bu4g LIVE; external email worker heartbeat, actual alert delivery, penetration and full-history verifier remain unverified.
 
 - S-06.01.02 · Owner sets global, per-tool and chat-lifetime browser permissions

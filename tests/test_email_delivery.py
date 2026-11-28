@@ -897,6 +897,13 @@ def test_A16_ses_server_error_is_uncertain_and_not_automatically_retried(tmp_pat
     try:
         cid = _campaign(engine, tmp_path)
         service = _service(engine, tmp_path, provider_factory=lambda *_: provider)
+        # Local identity supplies a valid synthetic From to the real SES
+        # adapter with an injected transport; no external request.
+        identity = service.save_identity({
+            "name": "Synthetic sender", "provider_type": "local",
+            "stream": "targeted_outreach", "from_email": "sender@example.com",
+        })
+        service.update_campaign_settings(cid, {"identity_id": identity["id"]})
         jid = service.enqueue_campaign(cid, now=now)["queued"][0]["job_id"]
         first = service.work_once(max_jobs=1, now=now)
         assert first["items"][0]["status"] == "delivery_unknown"
@@ -938,3 +945,43 @@ def test_A16_ses_throttle_header_is_safe(header, expected):
     with pytest.raises(RetryableDeliveryError) as refusal:
         SesMailProvider._raise_provider_error(error)
     assert refusal.value.retry_after_seconds == expected
+
+
+def test_external_worker_progress_reports_due_age_and_expired_claims(tmp_path):
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now() + timedelta(minutes=1)
+    try:
+        cid = _campaign(engine, tmp_path)
+        service = _service(engine, tmp_path)
+        jid = service.enqueue_campaign(cid, now=now)["queued"][0]["job_id"]
+        assert service.store.worker_progress_snapshot(now=now - timedelta(seconds=1))["due_jobs"] == 0
+        snapshot = service.store.worker_progress_snapshot(now=now)
+        assert snapshot["due_jobs"] == 1 and snapshot["oldest_due_at"] == to_utc_iso(now)
+        assert service.store.claim_next(now=now, lease_seconds=10)["id"] == jid
+        snapshot = service.store.worker_progress_snapshot(now=now + timedelta(seconds=11))
+        assert snapshot["due_jobs"] == 0 and snapshot["expired_claims"] == 1
+    finally:
+        engine.close()
+
+
+def test_worker_uses_current_time_for_each_claim_in_a_long_cycle(tmp_path, monkeypatch):
+    from offsetx_apollo_builder.outreach.deliverability import service as module
+    engine = OutreachEngine(tmp_path / "outreach.db")
+    now = utc_now()
+    times = iter([now, now + timedelta(seconds=1), now + timedelta(minutes=10)])
+    calls = []
+    progress = []
+    service = _service(engine, tmp_path)
+    monkeypatch.setattr(module, "utc_now", lambda: next(times))
+    monkeypatch.setattr(service.store, "recover_stale", lambda **_: {})
+    def claim(**kwargs):
+        calls.append(kwargs["now"])
+        return {"id": "synthetic", "lane_key": "lane"} if len(calls) == 1 else None
+    monkeypatch.setattr(service.store, "claim_next", claim)
+    monkeypatch.setattr(service, "_send_job", lambda *_args, **_kwargs: {"status": "accepted"})
+    try:
+        service.work_once(max_jobs=2, on_progress=lambda: progress.append(True))
+        assert calls == [now + timedelta(seconds=1), now + timedelta(minutes=10)]
+        assert progress == [True, True]
+    finally:
+        engine.close()

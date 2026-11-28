@@ -1,3 +1,8 @@
+## 2026-11-28 — external email worker operational visibility
+
+- D-538: shared CRM worker-progress timestamp, owner-only recent/missing/stale/expired claims and due queue age; explicit worker-expected config; real clock per claim, no readiness change.
+- D-539: refuse the worker CLI in public read-only demo mode. New SQLite/PG migration, owner API and worker tests authored. Fix synthetic SES regression sender address; no external calls. New exact-source CI pending.
+
 ## 2026-11-28 — worker retry and uncertain delivery safety
 
 - D-535 / S-06.02.40: reject nonfinite and excessive poll intervals, bound repeated outage waits, expose restore waits with safe references.

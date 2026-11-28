@@ -631,6 +631,36 @@ class DeliverabilityStore:
             )
         return self.get_job(str(selected["id"]))
 
+    def record_worker_progress(self, *, now: datetime | None = None) -> None:
+        """Persist actual DB progress from the watching CLI, never from web polling."""
+        stamp = to_utc_iso(now)
+        with self.outreach.transaction(immediate=True) as conn:
+            conn.execute(
+                """
+                INSERT INTO email_worker_progress(id, last_progress_at) VALUES ('watch', ?)
+                ON CONFLICT(id) DO UPDATE SET last_progress_at = excluded.last_progress_at
+                WHERE excluded.last_progress_at > email_worker_progress.last_progress_at
+                """, (stamp,),
+            )
+
+    def worker_progress_snapshot(self, *, now: datetime) -> dict[str, Any]:
+        # Counts/age only. Due jobs can still be policy-, rate- or limit-blocked.
+        stamp = to_utc_iso(now)
+        row = self._one(
+            """
+            SELECT
+                (SELECT last_progress_at FROM email_worker_progress WHERE id = 'watch') AS last_progress_at,
+                (SELECT COUNT(*) FROM email_send_jobs
+                 WHERE status IN ('queued', 'retry_wait') AND available_at <= ?) AS due_jobs,
+                (SELECT MIN(available_at) FROM email_send_jobs
+                 WHERE status IN ('queued', 'retry_wait') AND available_at <= ?) AS oldest_due_at,
+                (SELECT COUNT(*) FROM email_send_jobs
+                 WHERE status = 'sending' AND lease_expires_at <= ?) AS expired_claims
+            """, (stamp, stamp, stamp),
+        )
+        assert row is not None
+        return row
+
     def mark_retry(
         self, job_id: str, *, error: str, available_at: datetime, backoff_lane: bool = True
     ) -> None:

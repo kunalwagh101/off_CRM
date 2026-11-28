@@ -475,25 +475,32 @@ class CompanionRegistry:
             if granted_tool_ids is None
             else self._tool_ids(granted_tool_ids)
         )
-        self._validate_tools(workspace, next_tools)
+        if granted_tool_ids is not None:
+            self._validate_tools(workspace, next_tools)
         if enabled is not None and not isinstance(enabled, bool):
             raise CompanionError("enabled must be true or false")
         conn = self._connection()
         try:
             with self._write_transaction():
+                # Only write fields explicitly supplied by this request. A stale
+                # profile read must not undo a concurrent disable or grant revoke.
                 cursor = conn.execute(
                     """
                     UPDATE agent_companions
-                    SET name = ?, instructions = ?, memory_scope = ?,
-                        granted_tool_ids = ?, enabled = ?, updated_at = ?
+                    SET name = CASE WHEN ? = 1 THEN ? ELSE name END,
+                        instructions = CASE WHEN ? = 1 THEN ? ELSE instructions END,
+                        memory_scope = CASE WHEN ? = 1 THEN ? ELSE memory_scope END,
+                        granted_tool_ids = CASE WHEN ? = 1 THEN ? ELSE granted_tool_ids END,
+                        enabled = CASE WHEN ? = 1 THEN ? ELSE enabled END,
+                        updated_at = ?
                     WHERE id = ? AND workspace_id = ?
                     """,
                     (
-                        next_name,
-                        next_instructions,
-                        next_scope,
-                        self._encode_tools(next_tools),
-                        int(current.enabled if enabled is None else enabled),
+                        int(name is not None), next_name,
+                        int(instructions is not None), next_instructions,
+                        int(memory_scope is not None), next_scope,
+                        int(granted_tool_ids is not None), self._encode_tools(next_tools),
+                        int(enabled is not None), int(current.enabled if enabled is None else enabled),
                         to_utc_iso(),
                         current.id,
                         workspace,
